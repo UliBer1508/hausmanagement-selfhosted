@@ -29,6 +29,7 @@ const OriginalDashboard = () => {
   const [activeTab, setActiveTab] = useState('Übersicht');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
+  const [selectedEvent, setSelectedEvent] = useState<any>(null);
 
   const tabs = [
     'Übersicht', 'Kalender', 'Buchungen', 'Gäste', 'Häuser', 'Services', 'Provider', 'Wäsche'
@@ -119,13 +120,38 @@ const OriginalDashboard = () => {
         });
       }
       
+      // Belegt-Zeitraum (zwischen Check-in und Check-out)
+      const currentDate = new Date(date);
+      if (currentDate > checkIn && currentDate < checkOut) {
+        events.push({
+          type: 'occupied',
+          title: `Belegt: ${booking.guest.split(' ')[0]}`,
+          booking: booking,
+          color: 'bg-orange-100 text-orange-800'
+        });
+      }
+      
       // Reinigungstermine
       if (booking.cleaning.date && isSameDay(date, parseISO(booking.cleaning.date))) {
         events.push({
           type: 'cleaning',
           title: `🧹 Reinigung ${booking.house.split(' ')[0]}`,
           booking: booking,
+          cleaning: booking.cleaning,
           color: 'bg-blue-100 text-blue-800'
+        });
+      }
+      
+      // Wäsche (Beispiel: einen Tag vor Check-in)
+      const laundryDate = new Date(checkIn);
+      laundryDate.setDate(laundryDate.getDate() - 1);
+      if (isSameDay(date, laundryDate)) {
+        events.push({
+          type: 'laundry',
+          title: `👕 Wäsche ${booking.house.split(' ')[0]}`,
+          booking: booking,
+          laundry: { status: 'Geplant', items: ['Bettwäsche', 'Handtücher'], provider: 'Wäscherei Schmidt' },
+          color: 'bg-purple-100 text-purple-800'
         });
       }
     });
@@ -228,8 +254,9 @@ const OriginalDashboard = () => {
                             {events.slice(0, 3).map((event, index) => (
                               <div
                                 key={index}
-                                className={`text-xs px-2 py-1 rounded-md ${event.color} truncate w-full font-medium`}
+                                className={`text-xs px-2 py-1 rounded-md ${event.color} truncate w-full font-medium cursor-pointer hover:opacity-80`}
                                 title={`${event.title} - ${event.booking.house}`}
+                                onClick={() => setSelectedEvent(event)}
                               >
                                 {event.title}
                               </div>
@@ -258,10 +285,66 @@ const OriginalDashboard = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {getEventsForDate(selectedDate).length > 0 ? (
+                {selectedEvent ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${selectedEvent.color}`}>
+                        {selectedEvent.title}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedEvent(null)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    
+                    {selectedEvent.type === 'checkin' || selectedEvent.type === 'checkout' || selectedEvent.type === 'occupied' ? (
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-foreground">Buchungsdetails</h4>
+                        <div className="space-y-2 text-sm">
+                          <div><span className="font-medium">Gast:</span> {selectedEvent.booking.guest}</div>
+                          <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
+                          <div><span className="font-medium">Zeitraum:</span> {selectedEvent.booking.dates}</div>
+                          <div><span className="font-medium">Gäste:</span> {selectedEvent.booking.guests}</div>
+                          <div><span className="font-medium">Status:</span> {selectedEvent.booking.status}</div>
+                          <div><span className="font-medium">Check-in:</span> {format(parseISO(selectedEvent.booking.checkIn), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
+                          <div><span className="font-medium">Check-out:</span> {format(parseISO(selectedEvent.booking.checkOut), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
+                        </div>
+                      </div>
+                    ) : selectedEvent.type === 'cleaning' ? (
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-foreground">Reinigungsdetails</h4>
+                        <div className="space-y-2 text-sm">
+                          <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
+                          <div><span className="font-medium">Datum:</span> {format(parseISO(selectedEvent.cleaning.date), 'dd.MM.yyyy', { locale: de })}</div>
+                          <div><span className="font-medium">Anbieter:</span> {selectedEvent.cleaning.provider}</div>
+                          <div><span className="font-medium">Status:</span> {selectedEvent.cleaning.status}</div>
+                          <div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>
+                        </div>
+                      </div>
+                    ) : selectedEvent.type === 'laundry' ? (
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-foreground">Wäschedetails</h4>
+                        <div className="space-y-2 text-sm">
+                          <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
+                          <div><span className="font-medium">Status:</span> {selectedEvent.laundry.status}</div>
+                          <div><span className="font-medium">Anbieter:</span> {selectedEvent.laundry.provider}</div>
+                          <div><span className="font-medium">Artikel:</span> {selectedEvent.laundry.items.join(', ')}</div>
+                          <div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : getEventsForDate(selectedDate).length > 0 ? (
                   <div className="space-y-3">
                     {getEventsForDate(selectedDate).map((event, index) => (
-                      <div key={index} className="p-3 rounded-lg bg-muted/50 border">
+                      <div 
+                        key={index} 
+                        className="p-3 rounded-lg bg-muted/50 border cursor-pointer hover:bg-muted/70 transition-colors"
+                        onClick={() => setSelectedEvent(event)}
+                      >
                         <div className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${event.color} mb-2`}>
                           {event.title}
                         </div>
@@ -295,8 +378,16 @@ const OriginalDashboard = () => {
                   <span className="text-sm text-foreground">Check-out</span>
                 </div>
                 <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-orange-500 rounded-md"></div>
+                  <span className="text-sm text-foreground">Belegt</span>
+                </div>
+                <div className="flex items-center space-x-3">
                   <div className="w-4 h-4 bg-blue-500 rounded-md"></div>
                   <span className="text-sm text-foreground">Reinigung</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-purple-500 rounded-md"></div>
+                  <span className="text-sm text-foreground">Wäsche</span>
                 </div>
               </CardContent>
             </Card>
