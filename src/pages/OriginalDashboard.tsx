@@ -3,9 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Calendar } from '@/components/ui/calendar';
 import { 
   Home, 
-  Calendar, 
+  Calendar as CalendarIcon, 
   Users, 
   Building, 
   Sparkles, 
@@ -14,12 +15,18 @@ import {
   RefreshCw,
   Clock,
   X,
-  Edit
+  Edit,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
+import { format, isSameDay, parseISO, addDays } from 'date-fns';
+import { de } from 'date-fns/locale';
 import steinbockLogo from '@/assets/steinbock-logo.png';
 
 const OriginalDashboard = () => {
   const [activeTab, setActiveTab] = useState('Übersicht');
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
 
   const tabs = [
     'Übersicht', 'Kalender', 'Buchungen', 'Gäste', 'Häuser', 'Services', 'Provider', 'Wäsche'
@@ -51,9 +58,11 @@ const OriginalDashboard = () => {
       guest: 'Dr Daniel Mirtschink (DE)',
       house: 'Wald Chalet',
       dates: '12.10.2025 - 18.10.2025',
+      checkIn: '2025-10-12',
+      checkOut: '2025-10-18',
       status: 'Bestätigt',
       guests: 5,
-      cleaning: { date: '10.10.2025', provider: 'Amela', status: 'Geplant' },
+      cleaning: { date: '2025-10-10', provider: 'Amela', status: 'Geplant' },
       borderColor: 'green'
     },
     {
@@ -61,9 +70,11 @@ const OriginalDashboard = () => {
       guest: 'Anke Wiggers',
       house: 'Wald Chalet',
       dates: '20.12.2025 - 27.12.2025',
+      checkIn: '2025-12-20',
+      checkOut: '2025-12-27',
       status: 'Bestätigt',
       guests: 5,
-      cleaning: { date: '19.12.2025', provider: 'Amela', status: 'Geplant' },
+      cleaning: { date: '2025-12-19', provider: 'Amela', status: 'Geplant' },
       borderColor: 'blue'
     },
     {
@@ -71,25 +82,231 @@ const OriginalDashboard = () => {
       guest: 'Antonio Peñera',
       house: 'Venedigersiedlung Chalet',
       dates: '21.12.2025 - 26.12.2025',
+      checkIn: '2025-12-21',
+      checkOut: '2025-12-26',
       status: 'Bestätigt',
       guests: 5,
-      cleaning: { date: '20.12.2025', provider: 'Amela', status: 'Geplant' },
+      cleaning: { date: '2025-12-20', provider: 'Amela', status: 'Geplant' },
       borderColor: 'purple'
     }
   ];
+
+  const getEventsForDate = (date: Date) => {
+    const events = [];
+    
+    // Buchungen
+    bookings.forEach(booking => {
+      const checkIn = parseISO(booking.checkIn);
+      const checkOut = parseISO(booking.checkOut);
+      
+      if (isSameDay(date, checkIn)) {
+        events.push({
+          type: 'checkin',
+          title: `Check-in: ${booking.guest.split(' ')[0]}`,
+          booking: booking,
+          color: 'bg-green-100 text-green-800'
+        });
+      }
+      
+      if (isSameDay(date, checkOut)) {
+        events.push({
+          type: 'checkout',
+          title: `Check-out: ${booking.guest.split(' ')[0]}`,
+          booking: booking,
+          color: 'bg-red-100 text-red-800'
+        });
+      }
+      
+      // Reinigungstermine
+      if (booking.cleaning.date && isSameDay(date, parseISO(booking.cleaning.date))) {
+        events.push({
+          type: 'cleaning',
+          title: `🧹 Reinigung ${booking.house.split(' ')[0]}`,
+          booking: booking,
+          color: 'bg-blue-100 text-blue-800'
+        });
+      }
+    });
+    
+    return events;
+  };
+
+  const renderCalendarView = () => {
+    return (
+      <div className="space-y-6">
+        {/* Calendar Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <h2 className="text-2xl font-bold text-gray-900">
+              {format(selectedDate, 'MMMM yyyy', { locale: de })}
+            </h2>
+            <div className="flex space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedDate(addDays(selectedDate, -30))}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedDate(new Date())}
+              >
+                Heute
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedDate(addDays(selectedDate, 30))}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+          
+          <div className="flex space-x-2">
+            <Button
+              variant={calendarView === 'month' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setCalendarView('month')}
+            >
+              Monat
+            </Button>
+            <Button
+              variant={calendarView === 'week' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setCalendarView('week')}
+            >
+              Woche
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Calendar */}
+          <div className="lg:col-span-3">
+            <Card className="dashboard-card">
+              <CardContent className="p-6">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => date && setSelectedDate(date)}
+                  locale={de}
+                  className="pointer-events-auto w-full"
+                  classNames={{
+                    months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+                    month: "space-y-4 w-full",
+                    caption: "flex justify-center pt-1 relative items-center",
+                    caption_label: "text-lg font-semibold",
+                    nav: "space-x-1 flex items-center",
+                    nav_button: "h-8 w-8 bg-transparent p-0 opacity-50 hover:opacity-100",
+                    nav_button_previous: "absolute left-1",
+                    nav_button_next: "absolute right-1",
+                    table: "w-full border-collapse space-y-1",
+                    head_row: "flex w-full",
+                    head_cell: "text-muted-foreground rounded-md w-full font-normal text-sm",
+                    row: "flex w-full mt-2",
+                    cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-outside)]:bg-accent/50",
+                    day: "h-16 w-full p-1 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex flex-col items-start justify-start",
+                    day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                    day_today: "bg-accent text-accent-foreground font-semibold",
+                    day_outside: "day-outside text-muted-foreground opacity-50",
+                    day_disabled: "text-muted-foreground opacity-50",
+                  }}
+                  components={{
+                    DayContent: ({ date }) => {
+                      const events = getEventsForDate(date);
+                      return (
+                        <div className="w-full h-full flex flex-col">
+                          <div className="font-medium text-sm mb-1">
+                            {format(date, 'd')}
+                          </div>
+                          <div className="flex-1 space-y-1 w-full">
+                            {events.slice(0, 2).map((event, index) => (
+                              <div
+                                key={index}
+                                className={`text-xs px-1 py-0.5 rounded ${event.color} truncate w-full`}
+                                title={event.title}
+                              >
+                                {event.title}
+                              </div>
+                            ))}
+                            {events.length > 2 && (
+                              <div className="text-xs text-gray-500">
+                                +{events.length - 2}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }
+                  }}
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Events Sidebar */}
+          <div className="space-y-4">
+            <Card className="dashboard-card">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">
+                  Termine für {format(selectedDate, 'dd. MMMM', { locale: de })}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {getEventsForDate(selectedDate).length > 0 ? (
+                  <div className="space-y-2">
+                    {getEventsForDate(selectedDate).map((event, index) => (
+                      <div key={index} className="p-2 rounded-lg bg-gray-50">
+                        <div className={`inline-block px-2 py-1 rounded text-xs font-medium ${event.color}`}>
+                          {event.title}
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {event.booking.house}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">Keine Termine für diesen Tag</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Legend */}
+            <Card className="dashboard-card">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Legende</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-green-100 rounded"></div>
+                  <span className="text-sm">Check-in</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-red-100 rounded"></div>
+                  <span className="text-sm">Check-out</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 bg-blue-100 rounded"></div>
+                  <span className="text-sm">Reinigung</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
       case 'Übersicht':
         return renderOverviewContent();
       case 'Kalender':
-        return (
-          <div className="text-center py-12">
-            <Calendar className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Kalender</h3>
-            <p className="text-gray-600">Kalenderansicht wird hier angezeigt</p>
-          </div>
-        );
+        return renderCalendarView();
       case 'Buchungen':
         return (
           <div className="text-center py-12">
@@ -217,7 +434,7 @@ const OriginalDashboard = () => {
                           </Badge>
                           <Badge variant="outline">{booking.cleaning.status}</Badge>
                         </div>
-                        <span className="text-sm text-gray-600">{booking.cleaning.date}</span>
+                        <span className="text-sm text-gray-600">{format(parseISO(booking.cleaning.date), 'dd.MM.yyyy')}</span>
                       </div>
                       <div className="text-sm text-gray-600">
                         <p>Provider: {booking.cleaning.provider}</p>
