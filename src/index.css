@@ -8,54 +8,59 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
 
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
 
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
 
-    --primary: 210 100% 58%;
-    --primary-foreground: 240 10% 3.9%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 240 3.7% 15.9%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 240 5.9% 10%;
 
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 240 3.8% 46.1%;
 
-    --accent: 240 3.7% 15.9%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 240 5.9% 10%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
-    --ring: 210 100% 58%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 91% 60%;
 
     --radius: 0.75rem;
 
-    /* Custom tokens for Ferienhaus Manager */
-    --primary-blue: 210 100% 58%;
-    --primary-blue-light: 210 100% 70%;
-    --primary-green: 142 76% 48%;
-    --primary-green-light: 142 69% 58%;
-    --primary-purple: 262 83% 58%;
-    --warm-orange: 31 100% 65%;
+    /* Service-specific colors matching original design */
+    --cleaning-primary: 217 91% 60%;
+    --cleaning-secondary: 186 100% 50%;
+    --cleaning-bg: 217 100% 97%;
+    --cleaning-border: 217 91% 85%;
     
-    --gradient-primary: linear-gradient(135deg, hsl(var(--primary-blue)), hsl(var(--primary-purple)));
-    --gradient-cleaning: linear-gradient(135deg, hsl(var(--primary-blue)), hsl(var(--primary-blue-light)));
-    --gradient-laundry: linear-gradient(135deg, hsl(var(--primary-green)), hsl(var(--primary-green-light)));
-    --gradient-hero: linear-gradient(135deg, hsl(var(--primary-blue)), hsl(var(--primary-purple)), hsl(var(--warm-orange)));
+    --laundry-primary: 142 76% 36%;
+    --laundry-secondary: 160 84% 39%;
+    --laundry-bg: 142 100% 97%;
+    --laundry-border: 142 76% 85%;
     
-    --shadow-glow: 0 10px 40px -10px hsl(var(--primary-blue) / 0.3);
-    --shadow-card: 0 4px 20px -2px hsl(240 10% 3.9% / 0.4);
+    --warning: 43 96% 56%;
+    --warning-foreground: 0 0% 0%;
     
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    /* Original gradients */
+    --gradient-cleaning: linear-gradient(135deg, hsl(217 91% 60%), hsl(186 100% 50%));
+    --gradient-laundry: linear-gradient(135deg, hsl(142 76% 36%), hsl(160 84% 39%));
+    --gradient-hero: linear-gradient(135deg, hsl(217 91% 60%), hsl(186 100% 50%), hsl(142 76% 36%));
+    
+    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 98%;
 
@@ -74,34 +79,34 @@ All colors MUST be HSL.
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
-  .light {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 210 100% 58%;
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 240 5.9% 10%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 240 3.8% 46.1%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 240 5.9% 10%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 240 5.9% 90%;
-    --input: 240 5.9% 90%;
-    --ring: 210 100% 58%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 217 91% 60%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -124,27 +129,53 @@ All colors MUST be HSL.
 }
 
 @layer components {
-  .gradient-text {
-    @apply bg-gradient-to-r from-primary to-primary-purple bg-clip-text text-transparent;
+  .service-cleaning {
+    @apply bg-blue-50 border-blue-200;
   }
   
-  .card-glow {
-    box-shadow: var(--shadow-card);
+  .service-laundry {
+    @apply bg-green-50 border-green-200;
+  }
+  
+  .cleaning-gradient {
+    background: var(--gradient-cleaning);
+  }
+  
+  .laundry-gradient {
+    background: var(--gradient-laundry);
+  }
+  
+  .task-card {
+    @apply bg-white rounded-lg border border-gray-200 p-4 cursor-move hover:shadow-md;
     transition: var(--transition-smooth);
   }
   
-  .card-glow:hover {
-    box-shadow: var(--shadow-glow);
+  .task-card:hover {
     transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
   }
   
-  .btn-gradient {
-    background: var(--gradient-primary);
+  .status-pending {
+    @apply bg-orange-50 border-orange-200;
+  }
+  
+  .status-in-progress {
+    @apply bg-blue-50 border-blue-200;
+  }
+  
+  .status-completed {
+    @apply bg-green-50 border-green-200;
+  }
+  
+  .btn-cleaning {
+    background: var(--gradient-cleaning);
+    @apply text-white hover:opacity-90;
     transition: var(--transition-smooth);
   }
   
-  .btn-gradient:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-glow);
+  .btn-laundry {
+    background: var(--gradient-laundry);
+    @apply text-white hover:opacity-90;
+    transition: var(--transition-smooth);
   }
 }
