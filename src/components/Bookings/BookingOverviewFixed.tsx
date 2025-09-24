@@ -206,6 +206,8 @@ const BookingOverviewFixed = () => {
     ));
   };
 
+  console.log('BookingOverviewFixed - Loading:', isLoading, 'Error:', error, 'Data:', bookingsData);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -221,6 +223,7 @@ const BookingOverviewFixed = () => {
         <div className="text-center">
           <p className="text-red-500">Fehler beim Laden der Buchungen</p>
           <p className="text-sm text-muted-foreground mt-1">{error.message}</p>
+          <pre className="text-xs mt-2 p-2 bg-gray-100 rounded">{JSON.stringify(error, null, 2)}</pre>
         </div>
       </div>
     );
@@ -228,6 +231,13 @@ const BookingOverviewFixed = () => {
 
   return (
     <div className="space-y-6">
+      {/* Debug Info */}
+      <div className="p-4 bg-blue-50 border border-blue-200 rounded">
+        <p className="text-sm">Debug: Component wird gerendert</p>
+        <p className="text-xs">Bookings Anzahl: {bookingsData?.length || 0}</p>
+        <p className="text-xs">Filtered Anzahl: {filteredBookings.length}</p>
+      </div>
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
