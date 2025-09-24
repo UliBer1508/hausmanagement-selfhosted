@@ -155,13 +155,24 @@ const BookingOverview = () => {
     const { start, end } = getTimeFilterDates();
     if (start || end) {
       const checkIn = parseISO(booking.check_in);
+      const checkOut = parseISO(booking.check_out);
       
-      if (start && isBefore(checkIn, start)) {
-        return false;
-      }
-      
-      if (end && isAfter(checkIn, end)) {
-        return false;
+      // Show booking if it overlaps with the time filter range
+      if (start && end) {
+        // Booking must end after filter start AND start before filter end
+        if (isBefore(checkOut, start) || isAfter(checkIn, end)) {
+          return false;
+        }
+      } else if (start) {
+        // Only start date specified - booking must end after start
+        if (isBefore(checkOut, start)) {
+          return false;
+        }
+      } else if (end) {
+        // Only end date specified - booking must start before end
+        if (isAfter(checkIn, end)) {
+          return false;
+        }
       }
     }
 
