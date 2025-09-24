@@ -31,6 +31,7 @@ import { format, parseISO, isAfter, isBefore, startOfDay, endOfDay, addMonths, s
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import CreateBookingDialog from './CreateBookingDialog';
+import EditBookingDialog from './EditBookingDialog';
 
 const BookingOverviewFixed = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -455,9 +456,10 @@ const BookingOverviewFixed = () => {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="sm">
-                      <Edit className="w-4 h-4" />
-                    </Button>
+                    <EditBookingDialog 
+                      booking={booking}
+                      onBookingUpdated={() => window.location.reload()}
+                    />
                   </TableCell>
                 </TableRow>
               ))}

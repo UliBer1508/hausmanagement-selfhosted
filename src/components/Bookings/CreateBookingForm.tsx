@@ -8,6 +8,8 @@ import { CalendarIcon, Download } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useCreateBooking, useUpdateBooking } from '@/hooks/useBookings';
+import { Booking } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,22 +60,47 @@ const bookingSchema = z.object({
 type BookingFormData = z.infer<typeof bookingSchema>;
 
 interface CreateBookingFormProps {
+  mode?: 'create' | 'edit';
+  initialData?: Booking;
   onSuccess: () => void;
+  onCancel?: () => void;
 }
 
-const CreateBookingForm = ({ onSuccess }: CreateBookingFormProps) => {
+const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }: CreateBookingFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  const form = useForm<BookingFormData>({
-    resolver: zodResolver(bookingSchema),
-    defaultValues: {
+  const createBooking = useCreateBooking();
+  const updateBooking = useUpdateBooking();
+
+  // Set default values based on mode and initial data
+  const getDefaultValues = () => {
+    if (mode === 'edit' && initialData) {
+      return {
+        house_id: initialData.house_id,
+        number_of_guests: initialData.number_of_guests,
+        check_in: new Date(initialData.check_in),
+        check_out: new Date(initialData.check_out),
+        guest_name: initialData.guest_name,
+        guest_email: initialData.guest_email || '',
+        guest_phone: initialData.guest_phone || '',
+        booking_amount: initialData.booking_amount || undefined,
+        currency: initialData.currency || 'EUR',
+        notes: initialData.notes || '',
+      };
+    }
+    return {
       number_of_guests: 1,
       currency: 'EUR',
       guest_email: '',
       guest_phone: '',
       notes: '',
-    },
+    };
+  };
+
+  const form = useForm<BookingFormData>({
+    resolver: zodResolver(bookingSchema),
+    defaultValues: getDefaultValues(),
   });
 
   // Fetch houses for dropdown
@@ -94,13 +121,14 @@ const CreateBookingForm = ({ onSuccess }: CreateBookingFormProps) => {
     setIsSubmitting(true);
     
     try {
-      // Check for conflicting bookings
+      // Check for conflicting bookings (skip for same booking in edit mode)
       const { data: conflictingBookings, error: conflictError } = await supabase
         .from('bookings')
         .select('id')
         .eq('house_id', data.house_id)
         .or(`and(check_in.lte.${data.check_out.toISOString()},check_out.gte.${data.check_in.toISOString()})`)
-        .neq('status', 'cancelled');
+        .neq('status', 'cancelled')
+        .neq('id', mode === 'edit' && initialData ? initialData.id : 'never-match');
 
       if (conflictError) throw conflictError;
 
@@ -114,7 +142,7 @@ const CreateBookingForm = ({ onSuccess }: CreateBookingFormProps) => {
         return;
       }
 
-      // Create booking
+      // Prepare booking data
       const bookingData = {
         house_id: data.house_id,
         number_of_guests: data.number_of_guests,
@@ -130,23 +158,35 @@ const CreateBookingForm = ({ onSuccess }: CreateBookingFormProps) => {
         source: 'manual',
       };
 
-      const { error: insertError } = await supabase
-        .from('bookings')
-        .insert([bookingData]);
+      if (mode === 'edit' && initialData) {
+        // Update existing booking
+        await updateBooking.mutateAsync({
+          id: initialData.id,
+          ...bookingData,
+        });
 
-      if (insertError) throw insertError;
+        toast({
+          title: 'Buchung aktualisiert',
+          description: 'Die Buchung wurde erfolgreich aktualisiert.',
+        });
+      } else {
+        // Create new booking
+        await createBooking.mutateAsync(bookingData);
 
-      toast({
-        title: 'Buchung erstellt',
-        description: 'Die Buchung wurde erfolgreich erstellt.',
-      });
+        toast({
+          title: 'Buchung erstellt',
+          description: 'Die Buchung wurde erfolgreich erstellt.',
+        });
+      }
 
       onSuccess();
     } catch (error: any) {
-      console.error('Error creating booking:', error);
+      console.error('Booking error:', error);
       toast({
         title: 'Fehler',
-        description: 'Die Buchung konnte nicht erstellt werden.',
+        description: mode === 'edit' 
+          ? 'Die Buchung konnte nicht aktualisiert werden.'
+          : 'Die Buchung konnte nicht erstellt werden.',
         variant: 'destructive',
       });
     } finally {
@@ -417,14 +457,25 @@ const CreateBookingForm = ({ onSuccess }: CreateBookingFormProps) => {
           )}
         />
 
-        {/* Submit Button */}
-        <Button 
-          type="submit" 
-          className="w-full bg-black hover:bg-gray-800 text-white"
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? 'Erstelle Buchung...' : 'Buchung erstellen'}
-        </Button>
+        {/* Submit Buttons */}
+        <div className="flex gap-3 pt-4">
+          <Button 
+            type="submit" 
+            className="flex-1 bg-black hover:bg-gray-800 text-white"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              mode === 'edit' ? 'Aktualisiere Buchung...' : 'Erstelle Buchung...'
+            ) : (
+              mode === 'edit' ? 'Buchung aktualisieren' : 'Buchung erstellen'
+            )}
+          </Button>
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Abbrechen
+            </Button>
+          )}
+        </div>
       </form>
     </Form>
   );
