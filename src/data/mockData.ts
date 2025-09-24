@@ -44,7 +44,7 @@ export const mockBookings: Booking[] = [
     id: '1',
     house_id: '1',
     guest_name: 'Familie Müller',
-    guest_count: 6,
+    number_of_guests: 6,
     check_in: '2024-09-25',
     check_out: '2024-10-02',
     status: 'confirmed'
@@ -53,7 +53,7 @@ export const mockBookings: Booking[] = [
     id: '2',
     house_id: '2',
     guest_name: 'Max & Anna Weber',
-    guest_count: 2,
+    number_of_guests: 2,
     check_in: '2024-09-28',
     check_out: '2024-10-05',
     status: 'confirmed'
@@ -62,7 +62,7 @@ export const mockBookings: Booking[] = [
     id: '3',
     house_id: '3',
     guest_name: 'Thomas Schmidt',
-    guest_count: 4,
+    number_of_guests: 4,
     check_in: '2024-10-01',
     check_out: '2024-10-08',
     status: 'confirmed'
@@ -96,26 +96,28 @@ export const mockCleaningTasks: ServiceTask[] = [
   {
     id: '1',
     title: 'Badezimmer reinigen',
-    status: 'pending',
+    status: 'scheduled',
     progress: 0,
     items: ['Dusche reinigen', 'WC putzen', 'Waschbecken säubern', 'Boden wischen'],
     house_id: '1',
     booking_id: '1',
     provider_id: '1',
     scheduled_date: '2024-09-24',
-    scheduled_time: '10:00'
+    scheduled_time: '10:00',
+    service_type: 'cleaning'
   },
   {
     id: '2',
     title: 'Küche säubern',
-    status: 'in-progress',
+    status: 'in_progress',
     progress: 60,
     items: ['Herd reinigen', 'Spüle putzen', 'Arbeitsflächen abwischen', 'Kühlschrank säubern'],
     house_id: '1',
     booking_id: '1',
     provider_id: '1',
     scheduled_date: '2024-09-24',
-    scheduled_time: '11:30'
+    scheduled_time: '11:30',
+    service_type: 'cleaning'
   },
   {
     id: '3',
@@ -127,7 +129,8 @@ export const mockCleaningTasks: ServiceTask[] = [
     booking_id: '1',
     provider_id: '1',
     scheduled_date: '2024-09-24',
-    scheduled_time: '09:00'
+    scheduled_time: '09:00',
+    service_type: 'cleaning'
   }
 ];
 

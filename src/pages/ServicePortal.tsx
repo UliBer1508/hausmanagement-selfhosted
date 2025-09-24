@@ -30,14 +30,14 @@ const ServicePortal = () => {
 
   const renderCleaningTasks = () => {
     const tasksByStatus = {
-      pending: mockCleaningTasks.filter(t => t.status === 'pending'),
-      'in-progress': mockCleaningTasks.filter(t => t.status === 'in-progress'),
+      scheduled: mockCleaningTasks.filter(t => t.status === 'scheduled'),
+      'in_progress': mockCleaningTasks.filter(t => t.status === 'in_progress'),
       completed: mockCleaningTasks.filter(t => t.status === 'completed')
     };
 
     const statusConfig = {
-      pending: { title: 'Ausstehend', color: 'bg-warm-orange/10 border-warm-orange/30' },
-      'in-progress': { title: 'In Bearbeitung', color: 'bg-primary-blue/10 border-primary-blue/30' },
+      scheduled: { title: 'Ausstehend', color: 'bg-warm-orange/10 border-warm-orange/30' },
+      'in_progress': { title: 'In Bearbeitung', color: 'bg-primary-blue/10 border-primary-blue/30' },
       completed: { title: 'Abgeschlossen', color: 'bg-primary-green/10 border-primary-green/30' }
     };
 

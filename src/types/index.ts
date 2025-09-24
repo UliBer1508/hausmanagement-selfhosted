@@ -11,13 +11,20 @@ export interface Provider {
 
 export interface ServiceTask {
   id: string;
-  status: 'pending' | 'in-progress' | 'completed' | 'cancelled';
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'delayed';
   scheduled_time?: string;
-  scheduled_date?: string;
+  scheduled_date: string;
   provider_id?: string;
-  house_id?: string;
+  house_id: string;
   booking_id?: string;
-  title: string;
+  service_type: 'cleaning' | 'laundry';
+  assigned_staff_id?: string;
+  notes?: string;
+  completed_at?: string;
+  created_at?: string;
+  updated_at?: string;
+  // Legacy fields for compatibility
+  title?: string;
   description?: string;
   progress?: number;
   items?: string[];
@@ -48,22 +55,47 @@ export interface Booking {
   id: string;
   check_in: string;
   check_out: string;
-  guest_name?: string;
+  guest_name: string;
+  guest_email?: string;
+  guest_phone?: string;
+  number_of_guests: number;
+  house_id: string;
+  status?: 'confirmed' | 'checked_in' | 'completed' | 'cancelled';
+  booking_amount?: number;
+  currency?: string;
+  external_booking_id?: string;
+  external_id?: string;
+  import_platform?: string;
+  platform?: string;
+  source?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+  // Legacy field for compatibility
   guest_count?: number;
-  house_id?: string;
-  status?: 'confirmed' | 'checked-in' | 'checked-out' | 'cancelled';
 }
 
 export interface House {
   id: string;
   name: string;
-  address?: string;
+  address: string;
+  max_guests: number;
+  bathrooms?: number;
+  image_url?: string;
+  image_filename?: string;
+  ical_url?: string;
+  linen_stock?: any;
+  linen_dirty?: any;
+  linen_in_cleaning?: any;
+  linen_reserved?: any;
+  linen_in_use?: any;
+  ordered_linen?: any;
+  created_at?: string;
+  updated_at?: string;
+  // Legacy fields for compatibility
   city?: string;
   postal_code?: string;
   country?: string;
-  max_guests?: number;
-  bathrooms?: number;
-  image_url?: string;
   description?: string;
 }
 
