@@ -78,6 +78,193 @@ const OriginalDashboard = () => {
     }
   ];
 
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'Übersicht':
+        return renderOverviewContent();
+      case 'Kalender':
+        return (
+          <div className="text-center py-12">
+            <Calendar className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Kalender</h3>
+            <p className="text-gray-600">Kalenderansicht wird hier angezeigt</p>
+          </div>
+        );
+      case 'Buchungen':
+        return (
+          <div className="text-center py-12">
+            <Home className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Buchungen</h3>
+            <p className="text-gray-600">Buchungsmanagement wird hier angezeigt</p>
+          </div>
+        );
+      case 'Gäste':
+        return (
+          <div className="text-center py-12">
+            <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Gäste</h3>
+            <p className="text-gray-600">Gästeverwaltung wird hier angezeigt</p>
+          </div>
+        );
+      case 'Häuser':
+        return (
+          <div className="text-center py-12">
+            <Building className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Häuser</h3>
+            <p className="text-gray-600">Hausverwaltung wird hier angezeigt</p>
+          </div>
+        );
+      case 'Services':
+        return (
+          <div className="text-center py-12">
+            <Sparkles className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Services</h3>
+            <p className="text-gray-600">Service-Management wird hier angezeigt</p>
+          </div>
+        );
+      case 'Provider':
+        return (
+          <div className="text-center py-12">
+            <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Provider</h3>
+            <p className="text-gray-600">Provider-Verwaltung wird hier angezeigt</p>
+          </div>
+        );
+      case 'Wäsche':
+        return (
+          <div className="text-center py-12">
+            <Shirt className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Wäsche</h3>
+            <p className="text-gray-600">Wäscheverwaltung wird hier angezeigt</p>
+          </div>
+        );
+      default:
+        return renderOverviewContent();
+    }
+  };
+
+  const renderOverviewContent = () => {
+    return (
+      <div>
+        {/* Search and Filters */}
+        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Nach Gast oder Haus suchen..."
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="flex gap-4">
+              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option>Alle anzeigen</option>
+              </select>
+              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option>Alle Status</option>
+              </select>
+              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option>Alle Häuser</option>
+              </select>
+              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                <option>Nächsten 3 Monate</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Bookings Section */}
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Buchungen mit verknüpften Aufträgen
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Übersicht über Buchungen und ihre zugehörigen Service-Aufträge und Wäschebestellungen (inkl. abgeschlossene)
+            </p>
+            
+            <div className="space-y-4">
+              {bookings.map((booking) => (
+                <Card key={booking.id} className={`booking-card-${booking.borderColor}`}>
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold text-gray-900">{booking.guest}</h3>
+                          <Button variant="ghost" size="sm">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-1">{booking.house}</p>
+                        <p className="text-sm text-gray-600 mb-1">{booking.dates}</p>
+                        <div className="flex items-center gap-4">
+                          <Badge className="status-free">{booking.status}</Badge>
+                          <span className="text-sm text-gray-600">👤 {booking.guests}</span>
+                        </div>
+                      </div>
+                      <Button variant="outline" size="sm">
+                        Bearbeiten
+                      </Button>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Badge className="service-badge-cleaning">
+                            🧹 Reinigung
+                          </Badge>
+                          <Badge variant="outline">{booking.cleaning.status}</Badge>
+                        </div>
+                        <span className="text-sm text-gray-600">{booking.cleaning.date}</span>
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        <p>Provider: {booking.cleaning.provider}</p>
+                        <p>👤 Putzkraft: {booking.cleaning.provider}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 text-sm text-gray-500">
+                      Keine Wäschebestellungen
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Empty States */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Service-Aufträge ohne Buchung</CardTitle>
+                <p className="text-sm text-gray-600">
+                  Aufträge die keiner Buchung zugeordnet sind (inkl. abgeschlossene)
+                </p>
+              </CardHeader>
+              <CardContent>
+                <p className="text-center text-gray-500 py-8">Keine unverbundenen Aufträge</p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">Wäschebestellungen ohne Buchung</CardTitle>
+                <p className="text-sm text-gray-600">
+                  Bestellungen die keiner Buchung zugeordnet sind (inkl. abgeschlossene)
+                </p>
+              </CardHeader>
+              <CardContent>
+                <p className="text-center text-gray-500 py-8">Keine unverbundenen Bestellungen</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -196,120 +383,9 @@ const OriginalDashboard = () => {
           </nav>
         </div>
 
-        {/* Search and Filters */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Nach Gast oder Haus suchen..."
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <div className="flex gap-4">
-              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option>Alle anzeigen</option>
-              </select>
-              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option>Alle Status</option>
-              </select>
-              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option>Alle Häuser</option>
-              </select>
-              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option>Nächsten 3 Monate</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Bookings Section */}
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Buchungen mit verknüpften Aufträgen
-            </h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Übersicht über Buchungen und ihre zugehörigen Service-Aufträge und Wäschebestellungen (inkl. abgeschlossene)
-            </p>
-            
-            <div className="space-y-4">
-              {bookings.map((booking) => (
-                <Card key={booking.id} className={`booking-card-${booking.borderColor}`}>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="font-semibold text-gray-900">{booking.guest}</h3>
-                          <Button variant="ghost" size="sm">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-1">{booking.house}</p>
-                        <p className="text-sm text-gray-600 mb-1">{booking.dates}</p>
-                        <div className="flex items-center gap-4">
-                          <Badge className="status-free">{booking.status}</Badge>
-                          <span className="text-sm text-gray-600">👤 {booking.guests}</span>
-                        </div>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        Bearbeiten
-                      </Button>
-                    </div>
-
-                    <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <Badge className="service-badge-cleaning">
-                            🧹 Reinigung
-                          </Badge>
-                          <Badge variant="outline">{booking.cleaning.status}</Badge>
-                        </div>
-                        <span className="text-sm text-gray-600">{booking.cleaning.date}</span>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        <p>Provider: {booking.cleaning.provider}</p>
-                        <p>👤 Putzkraft: {booking.cleaning.provider}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-2 text-sm text-gray-500">
-                      Keine Wäschebestellungen
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          {/* Empty States */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Service-Aufträge ohne Buchung</CardTitle>
-                <p className="text-sm text-gray-600">
-                  Aufträge die keiner Buchung zugeordnet sind (inkl. abgeschlossene)
-                </p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-gray-500 py-8">Keine unverbundenen Aufträge</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Wäschebestellungen ohne Buchung</CardTitle>
-                <p className="text-sm text-gray-600">
-                  Bestellungen die keiner Buchung zugeordnet sind (inkl. abgeschlossene)
-                </p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-gray-500 py-8">Keine unverbundenen Bestellungen</p>
-              </CardContent>
-            </Card>
-          </div>
+        {/* Tab Content */}
+        <div className="animate-fade-in">
+          {renderTabContent()}
         </div>
       </div>
     </div>
