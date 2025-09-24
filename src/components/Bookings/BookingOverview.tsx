@@ -36,7 +36,7 @@ const BookingOverview = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [houseFilter, setHouseFilter] = useState('all');
-  const [timeFilter, setTimeFilter] = useState('next-3-months');
+  const [timeFilter, setTimeFilter] = useState('all');
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
