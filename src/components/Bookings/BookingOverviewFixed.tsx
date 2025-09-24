@@ -471,7 +471,7 @@ const BookingOverviewFixed = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Gast</TableHead>
-                <TableHead>Nationalität</TableHead>
+                <TableHead>Nat.</TableHead>
                 <TableHead>Haus</TableHead>
                 <TableHead>Check-in</TableHead>
                 <TableHead>Check-out</TableHead>
