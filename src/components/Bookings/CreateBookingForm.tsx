@@ -49,7 +49,7 @@ const bookingSchema = z.object({
   guest_name: z.string().min(1, 'Gastname ist erforderlich').max(100, 'Name zu lang'),
   guest_email: z.string().email('Ungültige E-Mail Adresse').optional().or(z.literal('')),
   guest_phone: z.string().optional(),
-  nationality: z.string().max(100, 'Nationalität zu lang').optional(),
+  nationality: z.string().length(2, 'Nationalität muss ein 2-stelliges Länderkürzel sein').optional().or(z.literal('')),
   booking_amount: z.number().optional(),
   currency: z.string().default('EUR'),
   notes: z.string().optional(),
@@ -57,6 +57,51 @@ const bookingSchema = z.object({
   message: 'Check-out muss nach Check-in liegen',
   path: ['check_out'],
 });
+
+// Länderliste für Nationalität
+const countries = [
+  { code: 'DE', name: 'Deutschland' },
+  { code: 'AT', name: 'Österreich' },
+  { code: 'CH', name: 'Schweiz' },
+  { code: 'NL', name: 'Niederlande' },
+  { code: 'BE', name: 'Belgien' },
+  { code: 'FR', name: 'Frankreich' },
+  { code: 'IT', name: 'Italien' },
+  { code: 'ES', name: 'Spanien' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'UK', name: 'Vereinigtes Königreich' },
+  { code: 'IE', name: 'Irland' },
+  { code: 'DK', name: 'Dänemark' },
+  { code: 'SE', name: 'Schweden' },
+  { code: 'NO', name: 'Norwegen' },
+  { code: 'FI', name: 'Finnland' },
+  { code: 'PL', name: 'Polen' },
+  { code: 'CZ', name: 'Tschechien' },
+  { code: 'SK', name: 'Slowakei' },
+  { code: 'HU', name: 'Ungarn' },
+  { code: 'SI', name: 'Slowenien' },
+  { code: 'HR', name: 'Kroatien' },
+  { code: 'RO', name: 'Rumänien' },
+  { code: 'BG', name: 'Bulgarien' },
+  { code: 'GR', name: 'Griechenland' },
+  { code: 'CY', name: 'Zypern' },
+  { code: 'MT', name: 'Malta' },
+  { code: 'LU', name: 'Luxemburg' },
+  { code: 'LI', name: 'Liechtenstein' },
+  { code: 'MC', name: 'Monaco' },
+  { code: 'US', name: 'USA' },
+  { code: 'CA', name: 'Kanada' },
+  { code: 'AU', name: 'Australien' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'CN', name: 'China' },
+  { code: 'IN', name: 'Indien' },
+  { code: 'BR', name: 'Brasilien' },
+  { code: 'AR', name: 'Argentinien' },
+  { code: 'MX', name: 'Mexiko' },
+  { code: 'RU', name: 'Russland' },
+  { code: 'TR', name: 'Türkei' },
+  { code: 'ZA', name: 'Südafrika' },
+];
 
 type BookingFormData = z.infer<typeof bookingSchema>;
 
@@ -393,9 +438,21 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Nationalität</FormLabel>
-                <FormControl>
-                  <Input placeholder="Deutschland" {...field} />
-                </FormControl>
+                <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Land wählen" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="bg-background border shadow-lg z-50 max-h-60">
+                    <SelectItem value="">Keine Angabe</SelectItem>
+                    {countries.map((country) => (
+                      <SelectItem key={country.code} value={country.code}>
+                        {country.code} - {country.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

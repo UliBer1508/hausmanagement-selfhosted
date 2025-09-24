@@ -33,6 +33,58 @@ import { cn } from '@/lib/utils';
 import CreateBookingDialog from './CreateBookingDialog';
 import EditBookingDialog from './EditBookingDialog';
 
+// Länderliste für Nationalität (gleiche wie in CreateBookingForm)
+const countries = [
+  { code: 'DE', name: 'Deutschland' },
+  { code: 'AT', name: 'Österreich' },
+  { code: 'CH', name: 'Schweiz' },
+  { code: 'NL', name: 'Niederlande' },
+  { code: 'BE', name: 'Belgien' },
+  { code: 'FR', name: 'Frankreich' },
+  { code: 'IT', name: 'Italien' },
+  { code: 'ES', name: 'Spanien' },
+  { code: 'PT', name: 'Portugal' },
+  { code: 'UK', name: 'Vereinigtes Königreich' },
+  { code: 'IE', name: 'Irland' },
+  { code: 'DK', name: 'Dänemark' },
+  { code: 'SE', name: 'Schweden' },
+  { code: 'NO', name: 'Norwegen' },
+  { code: 'FI', name: 'Finnland' },
+  { code: 'PL', name: 'Polen' },
+  { code: 'CZ', name: 'Tschechien' },
+  { code: 'SK', name: 'Slowakei' },
+  { code: 'HU', name: 'Ungarn' },
+  { code: 'SI', name: 'Slowenien' },
+  { code: 'HR', name: 'Kroatien' },
+  { code: 'RO', name: 'Rumänien' },
+  { code: 'BG', name: 'Bulgarien' },
+  { code: 'GR', name: 'Griechenland' },
+  { code: 'CY', name: 'Zypern' },
+  { code: 'MT', name: 'Malta' },
+  { code: 'LU', name: 'Luxemburg' },
+  { code: 'LI', name: 'Liechtenstein' },
+  { code: 'MC', name: 'Monaco' },
+  { code: 'US', name: 'USA' },
+  { code: 'CA', name: 'Kanada' },
+  { code: 'AU', name: 'Australien' },
+  { code: 'JP', name: 'Japan' },
+  { code: 'CN', name: 'China' },
+  { code: 'IN', name: 'Indien' },
+  { code: 'BR', name: 'Brasilien' },
+  { code: 'AR', name: 'Argentinien' },
+  { code: 'MX', name: 'Mexiko' },
+  { code: 'RU', name: 'Russland' },
+  { code: 'TR', name: 'Türkei' },
+  { code: 'ZA', name: 'Südafrika' },
+];
+
+// Helper function to get country name from code
+const getCountryName = (code: string | undefined) => {
+  if (!code) return '-';
+  const country = countries.find(c => c.code === code);
+  return country ? `${code} - ${country.name}` : code;
+};
+
 const BookingOverviewFixed = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -431,7 +483,7 @@ const BookingOverviewFixed = () => {
                     {booking.guest_name}
                   </TableCell>
                   <TableCell>
-                    {booking.nationality || '-'}
+                    {getCountryName(booking.nationality)}
                   </TableCell>
                   <TableCell>
                     {booking.houses?.name || 'Unbekannt'}
