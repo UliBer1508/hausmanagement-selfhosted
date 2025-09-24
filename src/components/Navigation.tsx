@@ -44,7 +44,7 @@ const Navigation = () => {
             const isActive = isActivePath(item.href);
             
             return (
-              <Link key={item.name} to={item.href}>
+              <Link key={item.name} to={item.href} onClick={() => console.log('Navigation clicked:', item.href, item.name)}>
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={`w-full justify-start gap-3 transition-all duration-200 ${
@@ -108,7 +108,10 @@ const Navigation = () => {
                     <Link 
                       key={item.name} 
                       to={item.href}
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={() => {
+                        console.log('Mobile navigation clicked:', item.href, item.name);
+                        setIsMobileMenuOpen(false);
+                      }}
                     >
                       <Button
                         variant={isActive ? "default" : "ghost"}
