@@ -1,15 +1,7 @@
-import Navigation from '@/components/Navigation';
-import Dashboard from '@/pages/Dashboard';
+import OriginalDashboard from '@/pages/OriginalDashboard';
 
 const Index = () => {
-  return (
-    <div className="flex min-h-screen bg-background">
-      <Navigation />
-      <main className="flex-1 p-6 lg:ml-0">
-        <Dashboard />
-      </main>
-    </div>
-  );
+  return <OriginalDashboard />;
 };
 
 export default Index;

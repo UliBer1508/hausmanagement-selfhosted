@@ -8,59 +8,46 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 3.9%;
+    --background: 249 250 251;
+    --foreground: 17 24 39;
 
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 3.9%;
+    --card: 255 255 255;
+    --card-foreground: 17 24 39;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 3.9%;
+    --popover: 255 255 255;
+    --popover-foreground: 17 24 39;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 59 130 246;
+    --primary-foreground: 255 255 255;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 240 5.9% 10%;
+    --secondary: 243 244 246;
+    --secondary-foreground: 55 65 81;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 240 3.8% 46.1%;
+    --muted: 243 244 246;
+    --muted-foreground: 107 114 128;
 
-    --accent: 210 40% 96%;
-    --accent-foreground: 240 5.9% 10%;
+    --accent: 243 244 246;
+    --accent-foreground: 55 65 81;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 239 68 68;
+    --destructive-foreground: 255 255 255;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 217 91% 60%;
+    --border: 229 231 235;
+    --input: 229 231 235;
+    --ring: 59 130 246;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    /* Service-specific colors matching original design */
-    --cleaning-primary: 217 91% 60%;
-    --cleaning-secondary: 186 100% 50%;
-    --cleaning-bg: 217 100% 97%;
-    --cleaning-border: 217 91% 85%;
+    /* Original Website Colors */
+    --status-free: 34 197 94;
+    --status-critical: 239 68 68;
+    --status-pending: 249 115 22;
+    --booking-confirmed: 34 197 94;
+    --service-cleaning: 59 130 246;
+    --service-laundry: 168 85 247;
     
-    --laundry-primary: 142 76% 36%;
-    --laundry-secondary: 160 84% 39%;
-    --laundry-bg: 142 100% 97%;
-    --laundry-border: 142 76% 85%;
-    
-    --warning: 43 96% 56%;
-    --warning-foreground: 0 0% 0%;
-    
-    /* Original gradients */
-    --gradient-cleaning: linear-gradient(135deg, hsl(217 91% 60%), hsl(186 100% 50%));
-    --gradient-laundry: linear-gradient(135deg, hsl(142 76% 36%), hsl(160 84% 39%));
-    --gradient-hero: linear-gradient(135deg, hsl(217 91% 60%), hsl(186 100% 50%), hsl(142 76% 36%));
-    
-    --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-    
-    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 98%;
 
@@ -129,53 +116,47 @@ All colors MUST be HSL.
 }
 
 @layer components {
-  .service-cleaning {
-    @apply bg-blue-50 border-blue-200;
+  .dashboard-card {
+    @apply bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow;
   }
   
-  .service-laundry {
-    @apply bg-green-50 border-green-200;
+  .status-free {
+    @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800;
   }
   
-  .cleaning-gradient {
-    background: var(--gradient-cleaning);
-  }
-  
-  .laundry-gradient {
-    background: var(--gradient-laundry);
-  }
-  
-  .task-card {
-    @apply bg-white rounded-lg border border-gray-200 p-4 cursor-move hover:shadow-md;
-    transition: var(--transition-smooth);
-  }
-  
-  .task-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
+  .status-critical {
+    @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800;
   }
   
   .status-pending {
-    @apply bg-orange-50 border-orange-200;
+    @apply inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800;
   }
   
-  .status-in-progress {
-    @apply bg-blue-50 border-blue-200;
+  .booking-card-green {
+    @apply border-l-4 border-green-500 bg-white p-4 rounded-lg shadow-sm;
   }
   
-  .status-completed {
-    @apply bg-green-50 border-green-200;
+  .booking-card-blue {
+    @apply border-l-4 border-blue-500 bg-white p-4 rounded-lg shadow-sm;
   }
   
-  .btn-cleaning {
-    background: var(--gradient-cleaning);
-    @apply text-white hover:opacity-90;
-    transition: var(--transition-smooth);
+  .booking-card-purple {
+    @apply border-l-4 border-purple-500 bg-white p-4 rounded-lg shadow-sm;
   }
   
-  .btn-laundry {
-    background: var(--gradient-laundry);
-    @apply text-white hover:opacity-90;
-    transition: var(--transition-smooth);
+  .service-badge-cleaning {
+    @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800;
+  }
+  
+  .service-badge-laundry {
+    @apply inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800;
+  }
+  
+  .nav-tab {
+    @apply px-4 py-2 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap border-b-2 border-transparent transition-colors;
+  }
+  
+  .nav-tab-active {
+    @apply px-4 py-2 text-sm font-medium text-blue-600 border-b-2 border-blue-600 whitespace-nowrap;
   }
 }
