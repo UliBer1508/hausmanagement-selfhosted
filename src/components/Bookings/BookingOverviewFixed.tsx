@@ -30,6 +30,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO, isAfter, isBefore, startOfDay, endOfDay, addMonths, startOfYear, endOfYear } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import CreateBookingDialog from './CreateBookingDialog';
 
 const BookingOverviewFixed = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -234,10 +235,7 @@ const BookingOverviewFixed = () => {
           <h1 className="text-2xl font-bold text-foreground">Buchungsübersicht</h1>
           <p className="text-muted-foreground">Alle Buchungen verwalten und bearbeiten</p>
         </div>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          Buchung erstellen
-        </Button>
+        <CreateBookingDialog onBookingCreated={() => window.location.reload()} />
       </div>
 
       {/* Statistics */}

@@ -23,6 +23,7 @@ import {
 import { format, isSameDay, parseISO, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import steinbockLogo from '@/assets/steinbock-logo.png';
+import CreateBookingDialog from '@/components/Bookings/CreateBookingDialog';
 
 const OriginalDashboard = () => {
   const [activeTab, setActiveTab] = useState('Übersicht');
@@ -320,10 +321,7 @@ const OriginalDashboard = () => {
                 <h1 className="text-2xl font-bold text-foreground">Buchungsübersicht</h1>
                 <p className="text-muted-foreground">Alle Buchungen verwalten und bearbeiten</p>
               </div>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Buchung erstellen
-              </Button>
+              <CreateBookingDialog onBookingCreated={() => window.location.reload()} />
             </div>
 
             {/* Filters */}
