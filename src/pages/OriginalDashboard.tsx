@@ -135,9 +135,9 @@ const OriginalDashboard = () => {
     return (
       <div className="space-y-6">
         {/* Calendar Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between bg-card p-4 rounded-lg border">
           <div className="flex items-center space-x-4">
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-foreground">
               {format(selectedDate, 'MMMM yyyy', { locale: de })}
             </h2>
             <div className="flex space-x-2">
@@ -186,55 +186,55 @@ const OriginalDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Calendar */}
           <div className="lg:col-span-3">
-            <Card className="dashboard-card">
-              <CardContent className="p-6">
+            <div className="bg-white rounded-lg border shadow-sm">
+              <div className="p-6">
                 <Calendar
                   mode="single"
                   selected={selectedDate}
                   onSelect={(date) => date && setSelectedDate(date)}
                   locale={de}
-                  className="pointer-events-auto w-full"
+                  className="pointer-events-auto w-full bg-white"
                   classNames={{
-                    months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+                    months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 w-full",
                     month: "space-y-4 w-full",
-                    caption: "flex justify-center pt-1 relative items-center",
-                    caption_label: "text-lg font-semibold",
+                    caption: "flex justify-center pt-1 relative items-center mb-4",
+                    caption_label: "text-lg font-semibold text-foreground",
                     nav: "space-x-1 flex items-center",
-                    nav_button: "h-8 w-8 bg-transparent p-0 opacity-50 hover:opacity-100",
+                    nav_button: "h-8 w-8 bg-transparent p-0 opacity-50 hover:opacity-100 hover:bg-muted rounded-md",
                     nav_button_previous: "absolute left-1",
                     nav_button_next: "absolute right-1",
-                    table: "w-full border-collapse space-y-1",
-                    head_row: "flex w-full",
-                    head_cell: "text-muted-foreground rounded-md w-full font-normal text-sm",
-                    row: "flex w-full mt-2",
-                    cell: "relative p-0 text-center text-sm focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent [&:has([aria-selected].day-outside)]:bg-accent/50",
-                    day: "h-16 w-full p-1 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex flex-col items-start justify-start",
+                    table: "w-full border-collapse",
+                    head_row: "flex w-full mb-2",
+                    head_cell: "text-muted-foreground rounded-md w-full font-medium text-sm p-2 text-center",
+                    row: "flex w-full",
+                    cell: "relative p-0 text-center text-sm w-full border border-border",
+                    day: "h-24 w-full p-2 font-normal aria-selected:opacity-100 hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground flex flex-col items-start justify-start cursor-pointer transition-colors",
                     day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                    day_today: "bg-accent text-accent-foreground font-semibold",
-                    day_outside: "day-outside text-muted-foreground opacity-50",
-                    day_disabled: "text-muted-foreground opacity-50",
+                    day_today: "bg-accent text-accent-foreground font-semibold border-2 border-primary",
+                    day_outside: "text-muted-foreground opacity-50",
+                    day_disabled: "text-muted-foreground opacity-30 cursor-not-allowed",
                   }}
                   components={{
                     DayContent: ({ date }) => {
                       const events = getEventsForDate(date);
                       return (
                         <div className="w-full h-full flex flex-col">
-                          <div className="font-medium text-sm mb-1">
+                          <div className="font-medium text-sm mb-1 text-foreground">
                             {format(date, 'd')}
                           </div>
-                          <div className="flex-1 space-y-1 w-full">
-                            {events.slice(0, 2).map((event, index) => (
+                          <div className="flex-1 space-y-1 w-full overflow-hidden">
+                            {events.slice(0, 3).map((event, index) => (
                               <div
                                 key={index}
-                                className={`text-xs px-1 py-0.5 rounded ${event.color} truncate w-full`}
-                                title={event.title}
+                                className={`text-xs px-2 py-1 rounded-md ${event.color} truncate w-full font-medium`}
+                                title={`${event.title} - ${event.booking.house}`}
                               >
                                 {event.title}
                               </div>
                             ))}
-                            {events.length > 2 && (
-                              <div className="text-xs text-gray-500">
-                                +{events.length - 2}
+                            {events.length > 3 && (
+                              <div className="text-xs text-muted-foreground font-medium">
+                                +{events.length - 3} weitere
                               </div>
                             )}
                           </div>
@@ -243,55 +243,58 @@ const OriginalDashboard = () => {
                     }
                   }}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
           {/* Events Sidebar */}
           <div className="space-y-4">
-            <Card className="dashboard-card">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">
+            <Card className="bg-card border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-semibold text-foreground">
                   Termine für {format(selectedDate, 'dd. MMMM', { locale: de })}
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {getEventsForDate(selectedDate).length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {getEventsForDate(selectedDate).map((event, index) => (
-                      <div key={index} className="p-2 rounded-lg bg-gray-50">
-                        <div className={`inline-block px-2 py-1 rounded text-xs font-medium ${event.color}`}>
+                      <div key={index} className="p-3 rounded-lg bg-muted/50 border">
+                        <div className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${event.color} mb-2`}>
                           {event.title}
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p className="text-sm text-muted-foreground">
                           {event.booking.house}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {event.booking.guest}
                         </p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-sm">Keine Termine für diesen Tag</p>
+                  <p className="text-muted-foreground text-sm">Keine Termine für diesen Tag</p>
                 )}
               </CardContent>
             </Card>
 
             {/* Legend */}
-            <Card className="dashboard-card">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Legende</CardTitle>
+            <Card className="bg-card border">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg font-semibold text-foreground">Legende</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-green-100 rounded"></div>
-                  <span className="text-sm">Check-in</span>
+              <CardContent className="space-y-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-green-500 rounded-md"></div>
+                  <span className="text-sm text-foreground">Check-in</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-red-100 rounded"></div>
-                  <span className="text-sm">Check-out</span>
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-red-500 rounded-md"></div>
+                  <span className="text-sm text-foreground">Check-out</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-blue-100 rounded"></div>
-                  <span className="text-sm">Reinigung</span>
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-blue-500 rounded-md"></div>
+                  <span className="text-sm text-foreground">Reinigung</span>
                 </div>
               </CardContent>
             </Card>
