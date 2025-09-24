@@ -1,5 +1,5 @@
 import Navigation from '@/components/Navigation';
-import BookingOverview from '@/components/Bookings/BookingOverview';
+import BookingOverviewFixed from '@/components/Bookings/BookingOverviewFixed';
 
 const Bookings = () => {
   return (
@@ -7,7 +7,7 @@ const Bookings = () => {
       <Navigation />
       
       <main className="container mx-auto p-6">
-        <BookingOverview />
+        <BookingOverviewFixed />
       </main>
     </div>
   );
