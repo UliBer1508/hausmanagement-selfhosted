@@ -413,6 +413,7 @@ const BookingOverviewFixed = () => {
             <TableHeader>
               <TableRow>
                 <TableHead>Gast</TableHead>
+                <TableHead>Nationalität</TableHead>
                 <TableHead>Haus</TableHead>
                 <TableHead>Check-in</TableHead>
                 <TableHead>Check-out</TableHead>
@@ -428,6 +429,9 @@ const BookingOverviewFixed = () => {
                 <TableRow key={booking.id}>
                   <TableCell className="font-medium">
                     {booking.guest_name}
+                  </TableCell>
+                  <TableCell>
+                    {booking.nationality || '-'}
                   </TableCell>
                   <TableCell>
                     {booking.houses?.name || 'Unbekannt'}

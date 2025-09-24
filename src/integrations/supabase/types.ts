@@ -278,6 +278,7 @@ export type Database = {
           house_id: string
           id: string
           import_platform: string | null
+          nationality: string | null
           notes: string | null
           number_of_guests: number
           platform: string | null
@@ -299,6 +300,7 @@ export type Database = {
           house_id: string
           id?: string
           import_platform?: string | null
+          nationality?: string | null
           notes?: string | null
           number_of_guests: number
           platform?: string | null
@@ -320,6 +322,7 @@ export type Database = {
           house_id?: string
           id?: string
           import_platform?: string | null
+          nationality?: string | null
           notes?: string | null
           number_of_guests?: number
           platform?: string | null

@@ -58,6 +58,7 @@ export interface Booking {
   guest_name: string;
   guest_email?: string;
   guest_phone?: string;
+  nationality?: string;
   number_of_guests: number;
   house_id: string;
   status?: 'confirmed' | 'checked_in' | 'completed' | 'cancelled';

@@ -49,6 +49,7 @@ const bookingSchema = z.object({
   guest_name: z.string().min(1, 'Gastname ist erforderlich').max(100, 'Name zu lang'),
   guest_email: z.string().email('Ungültige E-Mail Adresse').optional().or(z.literal('')),
   guest_phone: z.string().optional(),
+  nationality: z.string().max(100, 'Nationalität zu lang').optional(),
   booking_amount: z.number().optional(),
   currency: z.string().default('EUR'),
   notes: z.string().optional(),
@@ -84,6 +85,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         guest_name: initialData.guest_name,
         guest_email: initialData.guest_email || '',
         guest_phone: initialData.guest_phone || '',
+        nationality: initialData.nationality || '',
         booking_amount: initialData.booking_amount || undefined,
         currency: initialData.currency || 'EUR',
         notes: initialData.notes || '',
@@ -94,6 +96,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       currency: 'EUR',
       guest_email: '',
       guest_phone: '',
+      nationality: '',
       notes: '',
     };
   };
@@ -151,6 +154,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         guest_name: data.guest_name,
         guest_email: data.guest_email || null,
         guest_phone: data.guest_phone || null,
+        nationality: data.nationality || null,
         booking_amount: data.booking_amount || null,
         currency: data.currency,
         notes: data.notes || null,
@@ -379,6 +383,66 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
               </FormItem>
             )}
           />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Nationalität */}
+          <FormField
+            control={form.control}
+            name="nationality"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nationalität</FormLabel>
+                <FormControl>
+                  <Input placeholder="Deutschland" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Telefon */}
+          <FormField
+            control={form.control}
+            name="guest_phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Telefon</FormLabel>
+                <FormControl>
+                  <Input type="tel" placeholder="Telefonnummer" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Anzahl Gäste */}
+          <FormField
+            control={form.control}
+            name="number_of_guests"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Anzahl Gäste *</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="20"
+                    placeholder="1"
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                    value={field.value?.toString() || ''}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Dummy placeholder to maintain grid layout */}
+          <div></div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
