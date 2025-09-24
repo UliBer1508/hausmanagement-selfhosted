@@ -32,6 +32,8 @@ import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 const BookingOverviewFixed = () => {
+  console.log('=== BOOKING OVERVIEW COMPONENT RENDERING ===');
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [houseFilter, setHouseFilter] = useState('all');
