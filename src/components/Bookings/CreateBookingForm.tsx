@@ -49,7 +49,9 @@ const bookingSchema = z.object({
   guest_name: z.string().min(1, 'Gastname ist erforderlich').max(100, 'Name zu lang'),
   guest_email: z.string().email('Ungültige E-Mail Adresse').optional().or(z.literal('')),
   guest_phone: z.string().optional(),
-  nationality: z.string().length(2, 'Nationalität muss ein 2-stelliges Länderkürzel sein').optional().or(z.literal('')),
+  nationality: z.string().refine((val) => val === '' || val === 'none' || val.length === 2, {
+    message: 'Nationalität muss ein 2-stelliges Länderkürzel sein oder leer bleiben'
+  }).optional(),
   booking_amount: z.number().optional(),
   currency: z.string().default('EUR'),
   notes: z.string().optional(),
@@ -130,7 +132,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         guest_name: initialData.guest_name,
         guest_email: initialData.guest_email || '',
         guest_phone: initialData.guest_phone || '',
-        nationality: initialData.nationality || '',
+        nationality: initialData.nationality && initialData.nationality !== 'none' ? initialData.nationality : '',
         booking_amount: initialData.booking_amount || undefined,
         currency: initialData.currency || 'EUR',
         notes: initialData.notes || '',
@@ -199,7 +201,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         guest_name: data.guest_name,
         guest_email: data.guest_email || null,
         guest_phone: data.guest_phone || null,
-        nationality: data.nationality || null,
+        nationality: (data.nationality && data.nationality !== 'none') ? data.nationality : null,
         booking_amount: data.booking_amount || null,
         currency: data.currency,
         notes: data.notes || null,
@@ -445,7 +447,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent className="bg-background border shadow-lg z-50 max-h-60">
-                    <SelectItem value="">Keine Angabe</SelectItem>
+                    <SelectItem value="none">Keine Angabe</SelectItem>
                     {countries.map((country) => (
                       <SelectItem key={country.code} value={country.code}>
                         {country.code} - {country.name}

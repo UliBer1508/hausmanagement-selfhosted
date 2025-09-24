@@ -80,7 +80,7 @@ const countries = [
 
 // Helper function to get country name from code
 const getCountryName = (code: string | undefined) => {
-  if (!code) return '-';
+  if (!code || code === 'none') return '-';
   const country = countries.find(c => c.code === code);
   return country ? `${code} - ${country.name}` : code;
 };
