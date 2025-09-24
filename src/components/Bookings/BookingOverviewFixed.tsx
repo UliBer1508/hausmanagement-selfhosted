@@ -78,11 +78,17 @@ const countries = [
   { code: 'ZA', name: 'Südafrika' },
 ];
 
-// Helper function to get country name from code
-const getCountryName = (code: string | undefined) => {
+// Helper function to get country code (compact display)
+const getCountryCode = (code: string | undefined) => {
   if (!code || code === 'none') return '-';
+  return code;
+};
+
+// Helper function to get full country name for tooltip
+const getFullCountryName = (code: string | undefined) => {
+  if (!code || code === 'none') return 'Keine Angabe';
   const country = countries.find(c => c.code === code);
-  return country ? `${code} - ${country.name}` : code;
+  return country ? country.name : code;
 };
 
 const BookingOverviewFixed = () => {
@@ -483,7 +489,12 @@ const BookingOverviewFixed = () => {
                     {booking.guest_name}
                   </TableCell>
                   <TableCell>
-                    {getCountryName(booking.nationality)}
+                    <span 
+                      title={getFullCountryName(booking.nationality)}
+                      className="cursor-help"
+                    >
+                      {getCountryCode(booking.nationality)}
+                    </span>
                   </TableCell>
                   <TableCell>
                     {booking.houses?.name || 'Unbekannt'}
