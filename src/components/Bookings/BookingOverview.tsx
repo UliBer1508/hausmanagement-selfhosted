@@ -18,17 +18,28 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Plus, Search, Edit } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Plus, Search, Edit, Calendar as CalendarIcon, Filter } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isAfter, isBefore, startOfDay, endOfDay, addMonths, addYears, startOfYear, endOfYear } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
+import BookingStats from './BookingStats';
 
 const BookingOverview = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [houseFilter, setHouseFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState('next-3-months');
+  const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
+  const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   // Fetch bookings with house information
   const { data: bookingsData, isLoading } = useQuery({
@@ -77,6 +88,49 @@ const BookingOverview = () => {
     },
   });
 
+  // Enhanced time filtering logic
+  const getTimeFilterDates = () => {
+    const now = new Date();
+    
+    switch (timeFilter) {
+      case 'next-3-months':
+        return {
+          start: startOfDay(now),
+          end: endOfDay(addMonths(now, 3))
+        };
+      case 'next-6-months':
+        return {
+          start: startOfDay(now),
+          end: endOfDay(addMonths(now, 6))
+        };
+      case 'current-year':
+        return {
+          start: startOfYear(now),
+          end: endOfYear(now)
+        };
+      case 'next-year':
+        const nextYear = new Date(now.getFullYear() + 1, 0, 1);
+        return {
+          start: startOfDay(nextYear),
+          end: endOfYear(nextYear)
+        };
+      case 'last-year':
+        const lastYear = new Date(now.getFullYear() - 1, 0, 1);
+        return {
+          start: startOfYear(lastYear),
+          end: endOfYear(lastYear)
+        };
+      case 'custom':
+        return {
+          start: customDateFrom ? startOfDay(customDateFrom) : null,
+          end: customDateTo ? endOfDay(customDateTo) : null
+        };
+      case 'all':
+      default:
+        return { start: null, end: null };
+    }
+  };
+
   // Filter bookings based on search and filters
   const filteredBookings = bookingsData?.filter(booking => {
     // Search filter
@@ -97,20 +151,30 @@ const BookingOverview = () => {
       return false;
     }
 
-    // Time filter (next 3 months)
-    if (timeFilter === 'next-3-months') {
-      const now = new Date();
-      const threeMonthsLater = new Date();
-      threeMonthsLater.setMonth(now.getMonth() + 3);
+    // Enhanced time filter
+    const { start, end } = getTimeFilterDates();
+    if (start || end) {
       const checkIn = parseISO(booking.check_in);
       
-      if (checkIn < now || checkIn > threeMonthsLater) {
+      if (start && isBefore(checkIn, start)) {
+        return false;
+      }
+      
+      if (end && isAfter(checkIn, end)) {
         return false;
       }
     }
 
     return true;
   }) || [];
+
+  // Statistics for filtered results
+  const filteredStats = {
+    total: filteredBookings.length,
+    confirmed: filteredBookings.filter(b => b.status === 'confirmed').length,
+    completed: filteredBookings.filter(b => b.status === 'completed').length,
+    totalRevenue: filteredBookings.reduce((sum, b) => sum + (b.booking_amount || 0), 0)
+  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -166,62 +230,204 @@ const BookingOverview = () => {
         </Button>
       </div>
 
+      {/* Statistics Overview */}
+      <BookingStats
+        total={filteredStats.total}
+        confirmed={filteredStats.confirmed}
+        completed={filteredStats.completed}
+        totalRevenue={filteredStats.totalRevenue}
+        timeFilter={timeFilter}
+      />
+
       {/* Filters */}
       <Card>
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Nach Gast oder Haus suchen..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+          <div className="space-y-4">
+            {/* Main Filter Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Nach Gast oder Haus suchen..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+
+              {/* Status Filter */}
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border shadow-md z-50">
+                  <SelectItem value="all">Alle Status</SelectItem>
+                  <SelectItem value="confirmed">Bestätigt</SelectItem>
+                  <SelectItem value="checked_in">Eingecheckt</SelectItem>
+                  <SelectItem value="completed">Abgeschlossen</SelectItem>
+                  <SelectItem value="cancelled">Storniert</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* House Filter */}
+              <Select value={houseFilter} onValueChange={setHouseFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Haus" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border shadow-md z-50">
+                  <SelectItem value="all">Alle Häuser</SelectItem>
+                  {houses?.map((house) => (
+                    <SelectItem key={house.id} value={house.id}>
+                      {house.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Time Filter */}
+              <Select value={timeFilter} onValueChange={setTimeFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Zeitraum" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border shadow-md z-50">
+                  <SelectItem value="all">Alle Zeiträume</SelectItem>
+                  <SelectItem value="next-3-months">Nächsten 3 Monate</SelectItem>
+                  <SelectItem value="next-6-months">Nächsten 6 Monate</SelectItem>
+                  <SelectItem value="current-year">Aktuelles Jahr</SelectItem>
+                  <SelectItem value="next-year">Nächstes Jahr</SelectItem>
+                  <SelectItem value="last-year">Letztes Jahr</SelectItem>
+                  <SelectItem value="custom">Benutzerdefiniert</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            {/* Status Filter */}
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Status</SelectItem>
-                <SelectItem value="confirmed">Bestätigt</SelectItem>
-                <SelectItem value="checked_in">Eingecheckt</SelectItem>
-                <SelectItem value="completed">Abgeschlossen</SelectItem>
-                <SelectItem value="cancelled">Storniert</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Advanced Filters Toggle */}
+            <div className="flex items-center justify-between">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Filter className="w-4 h-4 mr-2" />
+                {showAdvancedFilters ? 'Erweiterte Filter ausblenden' : 'Erweiterte Filter anzeigen'}
+              </Button>
 
-            {/* House Filter */}
-            <Select value={houseFilter} onValueChange={setHouseFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Haus" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Häuser</SelectItem>
-                {houses?.map((house) => (
-                  <SelectItem key={house.id} value={house.id}>
-                    {house.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              {/* Results Summary */}
+              <div className="text-sm text-muted-foreground">
+                {filteredStats.total} Buchungen gefunden
+                {filteredStats.totalRevenue > 0 && (
+                  <span className="ml-2">
+                    • Gesamtumsatz: {filteredStats.totalRevenue.toLocaleString('de-DE')} EUR
+                  </span>
+                )}
+              </div>
+            </div>
 
-            {/* Time Filter */}
-            <Select value={timeFilter} onValueChange={setTimeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Zeitraum" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="next-3-months">Nächsten 3 Monate</SelectItem>
-                <SelectItem value="all">Alle Zeiträume</SelectItem>
-                <SelectItem value="current-year">Aktuelles Jahr</SelectItem>
-                <SelectItem value="next-year">Nächstes Jahr</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Custom Date Range */}
+            {timeFilter === 'custom' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Von Datum</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !customDateFrom && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDateFrom ? format(customDateFrom, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-background border shadow-md z-50" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={customDateFrom}
+                        onSelect={setCustomDateFrom}
+                        locale={de}
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Bis Datum</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !customDateTo && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDateTo ? format(customDateTo, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-background border shadow-md z-50" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={customDateTo}
+                        onSelect={setCustomDateTo}
+                        locale={de}
+                        className="pointer-events-auto"
+                        disabled={(date) => customDateFrom ? date < customDateFrom : false}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            )}
+
+            {/* Extended Filters */}
+            {showAdvancedFilters && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-muted/30 rounded-lg">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Mindest-Buchungsbetrag</label>
+                  <Input
+                    type="number"
+                    placeholder="0 EUR"
+                    className="w-full"
+                  />
+                </div>
+                
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Anzahl Gäste</label>
+                  <Select>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Beliebig" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-md z-50">
+                      <SelectItem value="all">Beliebig</SelectItem>
+                      <SelectItem value="1-2">1-2 Gäste</SelectItem>
+                      <SelectItem value="3-4">3-4 Gäste</SelectItem>
+                      <SelectItem value="5+">5+ Gäste</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Buchungsquelle</label>
+                  <Select>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Alle Quellen" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-md z-50">
+                      <SelectItem value="all">Alle Quellen</SelectItem>
+                      <SelectItem value="manual">Manuell</SelectItem>
+                      <SelectItem value="booking">Booking.com</SelectItem>
+                      <SelectItem value="airbnb">Airbnb</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
