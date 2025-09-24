@@ -93,7 +93,7 @@ const getFullCountryName = (code: string | undefined) => {
 
 const BookingOverviewFixed = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('geplant');
+  const [statusFilter, setStatusFilter] = useState('bestätigt');
   const [houseFilter, setHouseFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState('all');
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
