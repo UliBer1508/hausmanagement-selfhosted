@@ -17,7 +17,8 @@ import {
   X,
   Edit,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Plus
 } from 'lucide-react';
 import { format, isSameDay, parseISO, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -312,10 +313,134 @@ const OriginalDashboard = () => {
         return renderCalendarView();
       case 'Buchungen':
         return (
-          <div className="text-center py-12">
-            <Home className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Buchungen</h3>
-            <p className="text-gray-600">Buchungsmanagement wird hier angezeigt</p>
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Buchungsübersicht</h1>
+                <p className="text-muted-foreground">Alle Buchungen verwalten und bearbeiten</p>
+              </div>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                Buchung erstellen
+              </Button>
+            </div>
+
+            {/* Filters */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Nach Gast oder Haus suchen..."
+                    className="pl-10"
+                  />
+                </div>
+
+                {/* Status Filter */}
+                <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                  <option>Alle Status</option>
+                  <option>Bestätigt</option>
+                  <option>Eingecheckt</option>
+                  <option>Abgeschlossen</option>
+                </select>
+
+                {/* House Filter */}
+                <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                  <option>Alle Häuser</option>
+                  <option>Wald Chalet</option>
+                  <option>Venedigersiedlung Chalet</option>
+                </select>
+
+                {/* Time Filter */}
+                <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+                  <option>Nächsten 3 Monate</option>
+                  <option>Nächsten 6 Monate</option>
+                  <option>Aktuelles Jahr</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Bookings Table */}
+            <div className="bg-white rounded-lg border border-gray-200">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gast</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Haus</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-in</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check-out</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Gäste</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buchungsbetrag</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Services</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aktion</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    <tr>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Dr Daniel Mirtschink (DE)</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Wald Chalet</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">12.10.2025, 15:00</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">18.10.2025, 10:00</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">5</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge className="bg-green-100 text-green-800 border-green-300">Bestätigt</Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">1188 EUR</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
+                        🧹 cleaning - Amela (scheduled)
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <Button variant="ghost" size="sm">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Anke Wiggers</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Wald Chalet</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">20.12.2025, 15:00</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">27.12.2025, 10:00</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">5</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge className="bg-green-100 text-green-800 border-green-300">Bestätigt</Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">3367 EUR</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
+                        🧹 cleaning - Amela (scheduled)
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <Button variant="ghost" size="sm">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Antonio Peñera</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Venedigersiedlung Chalet</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">21.12.2025, 15:00</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">26.12.2025, 10:00</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">5</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Badge className="bg-green-100 text-green-800 border-green-300">Bestätigt</Badge>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">2236 EUR</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600">
+                        🧹 cleaning - Amela (scheduled)
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <Button variant="ghost" size="sm">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         );
       case 'Gäste':
