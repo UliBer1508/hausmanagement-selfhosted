@@ -44,19 +44,19 @@ const Navigation = () => {
             const isActive = isActivePath(item.href);
             
             return (
-              <div key={item.name} style={{ border: '2px solid red', margin: '2px' }}>
-                <Link 
-                  to={item.href} 
-                  onClick={(e) => {
-                    console.log('=== NAVIGATION CLICK ===', item.name, item.href);
-                    console.log('Event:', e);
-                  }}
-                  style={{ display: 'block', padding: '8px', background: 'yellow', textDecoration: 'none', color: 'black' }}
+              <Link key={item.name} to={item.href}>
+                <Button
+                  variant={isActive ? "default" : "ghost"}
+                  className={`w-full justify-start gap-3 transition-all duration-200 ${
+                    isActive 
+                      ? 'btn-gradient text-white shadow-lg' 
+                      : 'hover:bg-accent/50 hover:translate-x-1'
+                  }`}
                 >
-                  <Icon className="w-4 h-4 inline mr-2" />
-                  {item.name} - CLICK TEST
-                </Link>
-              </div>
+                  <Icon className="w-4 h-4" />
+                  {item.name}
+                </Button>
+              </Link>
             );
           })}
         </nav>
