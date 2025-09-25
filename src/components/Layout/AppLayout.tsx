@@ -10,21 +10,10 @@ interface AppLayoutProps {
 const AppLayout = ({ children }: AppLayoutProps) => {
   return (
     <div className="layout-container">
-      {/* Mobile Layout */}
-      <div className="layout-mobile">
-        <Navigation />
-        <main className="content-main">
-          {children}
-        </main>
-      </div>
-
-      {/* Desktop Layout */}
-      <div className="hidden lg:flex layout-desktop">
-        <Navigation />
-        <main className="content-main">
-          {children}
-        </main>
-      </div>
+      {/* Simplified Layout - No Sidebar */}
+      <main className="content-main min-h-screen">
+        {children}
+      </main>
 
       {/* PWA Components */}
       <InstallPrompt />
