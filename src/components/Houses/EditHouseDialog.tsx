@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import LinenInventory from './LinenInventory';
+import LinenManagement from './LinenManagement';
 import HouseInventory from './HouseInventory';
 
 interface EditHouseDialogProps {
@@ -95,9 +96,10 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         </DialogHeader>
         
         <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="basic">Grunddaten</TabsTrigger>
-            <TabsTrigger value="linen">Wäsche</TabsTrigger>
+            <TabsTrigger value="linen">Wäsche-Inventar</TabsTrigger>
+            <TabsTrigger value="linen-management">Wäsche-Management</TabsTrigger>
             <TabsTrigger value="inventory">Inventar</TabsTrigger>
           </TabsList>
           
@@ -171,6 +173,10 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
           
           <TabsContent value="linen">
             <LinenInventory house={house} />
+          </TabsContent>
+          
+          <TabsContent value="linen-management">
+            <LinenManagement house={house} />
           </TabsContent>
           
           <TabsContent value="inventory">
