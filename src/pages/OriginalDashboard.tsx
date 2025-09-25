@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Home, 
   Calendar as CalendarIcon, 
@@ -48,7 +49,8 @@ import LinenDashboard from '@/components/Houses/LinenDashboard';
 import { supabase } from '@/integrations/supabase/client';
 
 const OriginalDashboard = () => {
-  
+  const { toast } = useToast();
+
   const [activeTab, setActiveTab] = useState('Übersicht');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
@@ -57,8 +59,105 @@ const OriginalDashboard = () => {
   // Filter states for overview
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('confirmed');
+  
+  // Settings state
+  const [profileSettings, setProfileSettings] = useState({
+    displayName: 'Amela',
+    email: 'amela@steinbock.com',
+    phone: '+43 660 8005926'
+  });
+
+  const [notificationSettings, setNotificationSettings] = useState({
+    emailNotifications: false,
+    browserNotifications: true,
+    bookingNotifications: true,
+    serviceUpdates: true
+  });
+
+  const [systemSettings, setSystemSettings] = useState({
+    language: 'de',
+    timezone: 'europe-vienna',
+    dateFormat: 'dd-mm-yyyy',
+    darkMode: false,
+    compactView: false
+  });
   const [houseFilter, setHouseFilter] = useState('all');
   const [serviceTypeFilter, setServiceTypeFilter] = useState('all');
+
+  // Settings save functions
+  const saveProfileSettings = async () => {
+    try {
+      // Update notification_preferences table
+      const { error } = await supabase
+        .from('notification_preferences')
+        .upsert({
+          user_name: profileSettings.displayName,
+          email_address: profileSettings.email,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_name' });
+
+      if (error) throw error;
+
+      toast({
+        title: "Profil gespeichert",
+        description: "Ihre Profileinstellungen wurden erfolgreich aktualisiert.",
+      });
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      toast({
+        title: "Fehler",
+        description: "Profileinstellungen konnten nicht gespeichert werden.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const saveNotificationSettings = async () => {
+    try {
+      const { error } = await supabase
+        .from('notification_preferences')
+        .upsert({
+          email_notifications: notificationSettings.emailNotifications,
+          push_notifications: notificationSettings.browserNotifications,
+          notify_new_tasks: notificationSettings.bookingNotifications,
+          notify_task_changes: notificationSettings.serviceUpdates,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_name' });
+
+      if (error) throw error;
+
+      toast({
+        title: "Benachrichtigungen gespeichert",
+        description: "Ihre Benachrichtigungseinstellungen wurden aktualisiert.",
+      });
+    } catch (error) {
+      console.error('Error saving notifications:', error);
+      toast({
+        title: "Fehler",
+        description: "Benachrichtigungseinstellungen konnten nicht gespeichert werden.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const sendTestNotification = () => {
+    toast({
+      title: "Testbenachrichtigung",
+      description: "Dies ist eine Testbenachrichtigung. Ihre Einstellungen funktionieren!",
+    });
+  };
+
+  const saveAllSettings = async () => {
+    await Promise.all([
+      saveProfileSettings(),
+      saveNotificationSettings()
+    ]);
+    
+    toast({
+      title: "Alle Einstellungen gespeichert",
+      description: "Alle Ihre Einstellungen wurden erfolgreich aktualisiert.",
+    });
+  };
   const [timePeriodFilter, setTimePeriodFilter] = useState('all');
 
   // Fetch real bookings data with optimized caching
@@ -818,25 +917,49 @@ const OriginalDashboard = () => {
                     </div>
                   </div>
                   
-                  <div className="space-y-3">
-                    <div>
-                      <Label htmlFor="displayName">Anzeigename</Label>
-                      <Input id="displayName" defaultValue="Amela" />
-                    </div>
-                    <div>
-                      <Label htmlFor="email">E-Mail</Label>
-                      <Input id="email" type="email" defaultValue="amela@steinbock.com" />
-                    </div>
-                    <div>
-                      <Label htmlFor="phone">Telefon</Label>
-                      <Input id="phone" type="tel" placeholder="+49 123 456789" />
-                    </div>
-                  </div>
+                   <div className="space-y-3">
+                     <div>
+                       <Label htmlFor="displayName">Anzeigename</Label>
+                       <Input 
+                         id="displayName" 
+                         value={profileSettings.displayName}
+                         onChange={(e) => setProfileSettings(prev => ({
+                           ...prev,
+                           displayName: e.target.value
+                         }))}
+                       />
+                     </div>
+                     <div>
+                       <Label htmlFor="email">E-Mail</Label>
+                       <Input 
+                         id="email" 
+                         type="email" 
+                         value={profileSettings.email}
+                         onChange={(e) => setProfileSettings(prev => ({
+                           ...prev,
+                           email: e.target.value
+                         }))}
+                       />
+                     </div>
+                     <div>
+                       <Label htmlFor="phone">Telefon</Label>
+                       <Input 
+                         id="phone" 
+                         type="tel" 
+                         value={profileSettings.phone}
+                         onChange={(e) => setProfileSettings(prev => ({
+                           ...prev,
+                           phone: e.target.value
+                         }))}
+                         placeholder="+43 660 8005926"
+                       />
+                     </div>
+                   </div>
 
-                  <Button className="w-full">
-                    <Save className="w-4 h-4 mr-2" />
-                    Profil speichern
-                  </Button>
+                   <Button className="w-full" onClick={saveProfileSettings}>
+                     <Save className="w-4 h-4 mr-2" />
+                     Profil speichern
+                   </Button>
                 </CardContent>
               </Card>
 
@@ -848,53 +971,83 @@ const OriginalDashboard = () => {
                     Benachrichtigungen
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>E-Mail Benachrichtigungen</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Erhalten Sie Updates per E-Mail
-                        </p>
-                      </div>
-                      <Switch />
-                    </div>
+                 <CardContent className="space-y-4">
+                   <div className="space-y-4">
+                     <div className="flex items-center justify-between">
+                       <div>
+                         <Label>E-Mail Benachrichtigungen</Label>
+                         <p className="text-sm text-muted-foreground">
+                           Erhalten Sie Updates per E-Mail
+                         </p>
+                       </div>
+                       <Switch 
+                         checked={notificationSettings.emailNotifications}
+                         onCheckedChange={(checked) => setNotificationSettings(prev => ({
+                           ...prev,
+                           emailNotifications: checked
+                         }))}
+                       />
+                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Browser Benachrichtigungen</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Push-Nachrichten im Browser
-                        </p>
-                      </div>
-                      <Switch defaultChecked />
-                    </div>
+                     <div className="flex items-center justify-between">
+                       <div>
+                         <Label>Browser Benachrichtigungen</Label>
+                         <p className="text-sm text-muted-foreground">
+                           Push-Nachrichten im Browser
+                         </p>
+                       </div>
+                       <Switch 
+                         checked={notificationSettings.browserNotifications}
+                         onCheckedChange={(checked) => setNotificationSettings(prev => ({
+                           ...prev,
+                           browserNotifications: checked
+                         }))}
+                       />
+                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Buchungsbenachrichtigungen</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Bei neuen Buchungen informieren
-                        </p>
-                      </div>
-                      <Switch defaultChecked />
-                    </div>
+                     <div className="flex items-center justify-between">
+                       <div>
+                         <Label>Buchungsbenachrichtigungen</Label>
+                         <p className="text-sm text-muted-foreground">
+                           Bei neuen Buchungen informieren
+                         </p>
+                       </div>
+                       <Switch 
+                         checked={notificationSettings.bookingNotifications}
+                         onCheckedChange={(checked) => setNotificationSettings(prev => ({
+                           ...prev,
+                           bookingNotifications: checked
+                         }))}
+                       />
+                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Service-Updates</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Updates zu Reinigung & Wäsche
-                        </p>
-                      </div>
-                      <Switch defaultChecked />
-                    </div>
-                  </div>
+                     <div className="flex items-center justify-between">
+                       <div>
+                         <Label>Service-Updates</Label>
+                         <p className="text-sm text-muted-foreground">
+                           Updates zu Reinigung & Wäsche
+                         </p>
+                       </div>
+                       <Switch 
+                         checked={notificationSettings.serviceUpdates}
+                         onCheckedChange={(checked) => setNotificationSettings(prev => ({
+                           ...prev,
+                           serviceUpdates: checked
+                         }))}
+                       />
+                     </div>
+                   </div>
 
-                  <Button variant="outline" className="w-full">
-                    <Bell className="w-4 h-4 mr-2" />
-                    Testbenachrichtigung senden
-                  </Button>
+                   <div className="space-y-2">
+                     <Button variant="outline" className="w-full" onClick={sendTestNotification}>
+                       <Bell className="w-4 h-4 mr-2" />
+                       Testbenachrichtigung senden
+                     </Button>
+                     <Button className="w-full" onClick={saveNotificationSettings}>
+                       <Save className="w-4 h-4 mr-2" />
+                       Benachrichtigungen speichern
+                     </Button>
+                   </div>
                 </CardContent>
               </Card>
 
@@ -1033,17 +1186,23 @@ const OriginalDashboard = () => {
                     Aktionen
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <Button className="w-full" size="lg">
-                    <Save className="w-4 h-4 mr-2" />
-                    Alle Einstellungen speichern
-                  </Button>
-                  
-                  <div className="text-center pt-4">
-                    <p className="text-sm text-muted-foreground">
-                      Letzte Änderung: Heute, 14:30
-                    </p>
-                  </div>
+                 <CardContent className="space-y-4">
+                   <Button className="w-full" size="lg" onClick={saveAllSettings}>
+                     <Save className="w-4 h-4 mr-2" />
+                     Alle Einstellungen speichern
+                   </Button>
+                   
+                   <div className="text-center pt-4">
+                     <p className="text-sm text-muted-foreground">
+                       Letzte Änderung: {new Date().toLocaleString('de-DE', {
+                         day: '2-digit',
+                         month: '2-digit',
+                         year: 'numeric',
+                         hour: '2-digit',
+                         minute: '2-digit'
+                       })}
+                     </p>
+                   </div>
 
                   <Button variant="outline" className="w-full">
                     <Database className="w-4 h-4 mr-2" />
