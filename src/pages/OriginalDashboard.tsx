@@ -36,6 +36,8 @@ import GuestManagement from '@/components/Guests/GuestManagement';
 import LinenDashboard from '@/components/Houses/LinenDashboard';
 
 const OriginalDashboard = () => {
+  console.log('OriginalDashboard is rendering');
+  
   const [activeTab, setActiveTab] = useState('Übersicht');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
@@ -838,7 +840,14 @@ const OriginalDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 relative z-10">
+      {/* Force content above any editor elements */}
+      <style>{`
+        editor-card, [data-editor-card] {
+          display: none !important;
+        }
+      `}</style>
+      
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
