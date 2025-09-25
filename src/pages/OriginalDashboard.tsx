@@ -20,7 +20,8 @@ import {
   Edit,
   ChevronLeft,
   ChevronRight,
-  Plus
+  Plus,
+  Settings
 } from 'lucide-react';
 import { format, isSameDay, parseISO, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -211,7 +212,7 @@ const OriginalDashboard = () => {
   );
 
   const tabs = [
-    'Übersicht', 'Kalender', 'Buchungen', 'Gäste', 'Häuser', 'Reinigung', 'Provider', 'Wäsche'
+    'Übersicht', 'Kalender', 'Buchungen', 'Gäste', 'Häuser', 'Reinigung', 'Provider', 'Wäsche', 'Einstellungen'
   ];
 
   const houses = [
@@ -701,6 +702,38 @@ const OriginalDashboard = () => {
         );
       case 'Wäsche':
         return <LinenDashboard />;
+      case 'Einstellungen':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-3xl font-bold gradient-text">Einstellungen</h1>
+              <p className="text-muted-foreground mt-2">
+                Systemkonfiguration und Benutzereinstellungen
+              </p>
+            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Allgemeine Einstellungen</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-sm font-medium">Benachrichtigungen</h4>
+                    <p className="text-sm text-muted-foreground">E-Mail-Benachrichtigungen für neue Buchungen</p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium">Systemsprache</h4>
+                    <p className="text-sm text-muted-foreground">Deutsch (Standard)</p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium">Zeitzone</h4>
+                    <p className="text-sm text-muted-foreground">Europe/Vienna</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
       default:
         return renderOverviewContent();
     }
