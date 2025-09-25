@@ -44,8 +44,9 @@ const OriginalDashboard = () => {
 
   // Fetch real bookings data with optimized caching
   const { data: bookingsData, isLoading: bookingsLoading } = useQuery({
-    queryKey: ['dashboard-bookings'],
+    queryKey: ['dashboard-bookings-v2'], // Changed cache key to force refresh
     queryFn: async () => {
+      console.log('Fetching all bookings for calendar...');
       const { data, error } = await supabase
         .from('bookings')
         .select(`
@@ -69,11 +70,23 @@ const OriginalDashboard = () => {
         `)
         .order('check_in', { ascending: true });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        throw error;
+      }
+      
+      console.log('Fetched bookings count:', data?.length);
+      console.log('September bookings:', data?.filter(b => 
+        b.check_in.includes('2025-09') || b.check_out.includes('2025-09')
+      ));
+      console.log('Bartels bookings:', data?.filter(b => 
+        b.guest_name?.toLowerCase().includes('bartels')
+      ));
+      
       return data;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 0, // No cache for debugging
+    gcTime: 0, // No cache for debugging
   });
 
   // Fetch service tasks with provider information - optimized
