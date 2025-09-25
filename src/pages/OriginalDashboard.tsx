@@ -31,6 +31,7 @@ import BookingCard from '@/components/Bookings/BookingCard';
 import ServiceTaskCard from '@/components/Bookings/ServiceTaskCard';
 import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
 import Houses from '@/pages/Houses';
+import CleaningManagement from '@/components/Cleaning/CleaningManagement';
 
 const OriginalDashboard = () => {
   const [activeTab, setActiveTab] = useState('Übersicht');
@@ -646,13 +647,7 @@ const OriginalDashboard = () => {
       case 'Häuser':
         return <Houses />;
       case 'Reinigung':
-        return (
-          <div className="text-center py-12">
-            <Sparkles className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Reinigung</h3>
-            <p className="text-gray-600">Reinigungsmanagement wird hier angezeigt</p>
-          </div>
-        );
+        return <CleaningManagement />;
       case 'Provider':
         return (
           <div className="text-center py-12">
