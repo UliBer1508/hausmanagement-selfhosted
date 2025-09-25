@@ -256,7 +256,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Ferienhaus *</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <SelectTrigger>
                     <SelectValue placeholder="Ferienhaus wählen" />
                   </SelectTrigger>
@@ -433,6 +433,21 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Telefon */}
+          <FormField
+            control={form.control}
+            name="guest_phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Telefon</FormLabel>
+                <FormControl>
+                  <Input type="tel" placeholder="Telefonnummer" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           {/* Nationalität */}
           <FormField
             control={form.control}
@@ -459,39 +474,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
               </FormItem>
             )}
           />
-
-          {/* E-Mail */}
-          <FormField
-            control={form.control}
-            name="guest_email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>E-Mail</FormLabel>
-                <FormControl>
-                  <Input type="email" placeholder="E-Mail Adresse" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Telefon */}
-          <FormField
-            control={form.control}
-            name="guest_phone"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Telefon</FormLabel>
-                <FormControl>
-                  <Input type="tel" placeholder="Telefonnummer" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
           {/* Buchungsbetrag */}
           <FormItem>
             <FormLabel>Buchungsbetrag</FormLabel>
@@ -517,7 +502,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                 control={form.control}
                 name="currency"
                 render={({ field }) => (
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <SelectTrigger className="w-20">
                       <SelectValue />
                     </SelectTrigger>
