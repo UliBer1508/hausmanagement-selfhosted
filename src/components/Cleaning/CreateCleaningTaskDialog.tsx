@@ -40,6 +40,7 @@ const createTaskSchema = z.object({
   house_id: z.string().min(1, 'Haus auswählen'),
   booking_id: z.string().min(1, 'Buchung auswählen'),
   provider_id: z.string().min(1, 'Provider auswählen'),
+  assigned_staff_id: z.string().optional(),
   scheduled_date: z.string().min(1, 'Datum erforderlich'),
   scheduled_time: z.string().optional(),
   notes: z.string().optional(),
@@ -98,6 +99,22 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
         .eq('is_active', true);
       return data || [];
     },
+  });
+
+  // Fetch cleaning staff for selected provider
+  const selectedProviderId = form.watch('provider_id');
+  const { data: cleaningStaff } = useQuery({
+    queryKey: ['cleaning-staff', selectedProviderId],
+    queryFn: async () => {
+      if (!selectedProviderId) return [];
+      const { data } = await supabase
+        .from('cleaning_staff')
+        .select('id, name, email, phone, hourly_rate, availability_days, quality_rating')
+        .eq('service_provider_id', selectedProviderId)
+        .eq('is_active', true);
+      return data || [];
+    },
+    enabled: !!selectedProviderId,
   });
 
   // Fetch bookings for selected house

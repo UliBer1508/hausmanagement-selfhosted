@@ -8,6 +8,7 @@ import { Search, Plus, MapPin, User, Calendar, Clock, Edit } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
+import EditCleaningTaskDialog from './EditCleaningTaskDialog';
 
 const CleaningManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,6 +24,8 @@ const CleaningManagement = () => {
   const [taskHouseFilter, setTaskHouseFilter] = useState('all');
   const [taskTimeFilter, setTaskTimeFilter] = useState('3months');
   const [taskStatusFilter, setTaskStatusFilter] = useState('all');
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   // Fetch bookings without cleaning tasks
   const { data: bookingsWithoutCleaning, isLoading: loadingBookings } = useQuery({
@@ -466,14 +469,17 @@ const CleaningManagement = () => {
                           </div>
                         )}
                       </div>
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="outline">
-                          Bearbeiten
-                        </Button>
-                        <Button size="sm" variant="outline">
-                          Löschen
-                        </Button>
-                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => {
+                          setEditTaskId(task.id);
+                          setShowEditDialog(true);
+                        }}
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
+                        Bearbeiten
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -482,6 +488,22 @@ const CleaningManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Task Dialog */}
+      {editTaskId && (
+        <EditCleaningTaskDialog
+          taskId={editTaskId}
+          open={showEditDialog}
+          onOpenChange={(open) => {
+            setShowEditDialog(open);
+            if (!open) setEditTaskId(null);
+          }}
+          onTaskUpdated={() => {
+            // Refresh cleaning tasks when task is updated or deleted
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 };
