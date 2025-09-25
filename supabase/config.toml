@@ -1,1 +1,4 @@
 project_id = "usblrulkcgucxtkhugck"
+
+[functions.send-gmail]
+verify_jwt = false

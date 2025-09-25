@@ -129,12 +129,34 @@ Gültig bis {EXPIRY_DATE}. Wir freuen uns auf Ihren nächsten Besuch!`
           const threeMonthsAgo = new Date();
           threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
           return g.last_booking && new Date(g.last_booking) >= threeMonthsAgo;
-        }).length
+        }).length,
+        guests: guests // Store actual guest data for email sending
       };
     },
   });
 
-  const handleSendMessage = () => {
+  const getGuestEmailsForSegment = (segment: string): string[] => {
+    if (!segmentData || !segmentData.guests) return [];
+    
+    const guests = segmentData.guests;
+    
+    switch (segment) {
+      case 'vip':
+        return guests.filter((g: any) => g.total_revenue >= 2000).map((g: any) => g.guest_email);
+      case 'returning':
+        return guests.filter((g: any) => g.stay_count >= 2 && g.total_revenue < 2000).map((g: any) => g.guest_email);
+      case 'new':
+        return guests.filter((g: any) => g.stay_count === 1).map((g: any) => g.guest_email);
+      case 'recent':
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        return guests.filter((g: any) => g.last_booking && new Date(g.last_booking) >= threeMonthsAgo).map((g: any) => g.guest_email);
+      default:
+        return guests.map((g: any) => g.guest_email);
+    }
+  };
+
+  const handleSendMessage = async () => {
     if (!selectedTemplate && !customMessage) {
       toast({
         title: "Fehler",
@@ -144,11 +166,53 @@ Gültig bis {EXPIRY_DATE}. Wir freuen uns auf Ihren nächsten Besuch!`
       return;
     }
 
-    // In a real implementation, this would send emails
-    toast({
-      title: "E-Mail würde versendet",
-      description: `Nachricht an ${getSegmentName(selectedSegment)} Gäste würde versendet werden.`,
-    });
+    try {
+      const content = customMessage || emailTemplates[selectedTemplate as keyof typeof emailTemplates]?.content || '';
+      const subject = selectedTemplate ? emailTemplates[selectedTemplate as keyof typeof emailTemplates]?.subject : 'Nachricht von Steinbock Chalets';
+      
+      // Get guest emails based on segment
+      const targetGuests = getGuestEmailsForSegment(selectedSegment);
+      
+      if (targetGuests.length === 0) {
+        toast({
+          title: "Keine Gäste gefunden",
+          description: "Für das ausgewählte Segment wurden keine Gäste mit E-Mail-Adressen gefunden.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Send email via our Gmail SMTP function
+      const { data, error } = await supabase.functions.invoke('send-gmail', {
+        body: {
+          to: targetGuests,
+          subject: subject,
+          html: content,
+          guestName: 'Liebe Gäste'
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "E-Mail gesendet",
+          description: `Nachricht wurde erfolgreich an ${data.recipients || targetGuests.length} Gäste gesendet`,
+        });
+        
+        setCustomMessage('');
+        setSelectedTemplate('');
+      } else {
+        throw new Error(data?.error || 'Unbekannter Fehler');
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+      toast({
+        title: "Fehler beim Senden",
+        description: "Die E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es später erneut.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getSegmentName = (segment: string) => {
