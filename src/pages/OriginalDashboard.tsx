@@ -60,39 +60,32 @@ const OriginalDashboard = () => {
     },
   });
 
-  // Fetch service tasks with cleaning assignments
+  // Fetch service tasks (simplified query first to debug)
   const { data: serviceTasks } = useQuery({
     queryKey: ['dashboard-service-tasks'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('service_tasks')
+        .select('*');
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch cleaning assignments separately
+  const { data: cleaningAssignments } = useQuery({
+    queryKey: ['cleaning-assignments'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('cleaning_assignments')
         .select(`
           *,
-          service_providers:provider_id (
+          cleaning_staff (
             id,
             name,
-            service_type
-          ),
-          cleaning_staff:assigned_staff_id (
-            id,
-            name
-          ),
-          cleaning_assignments (
-            id,
-            status,
-            assigned_at,
-            started_at,
-            completed_at,
-            estimated_duration,
-            actual_duration,
-            special_instructions,
-            cleaning_staff (
-              id,
-              name,
-              email,
-              phone,
-              hourly_rate
-            )
+            email,
+            phone
           )
         `);
       
@@ -123,16 +116,23 @@ const OriginalDashboard = () => {
     },
   });
 
-  // Get related data for each booking
+  // Get related data for each booking (updated to work with separate queries)
   const getBookingRelatedData = (bookingId: string) => {
     const bookingTasks = serviceTasks?.filter(task => task.booking_id === bookingId) || [];
+    
+    // Add cleaning assignments data to tasks
+    const tasksWithAssignments = bookingTasks.map(task => ({
+      ...task,
+      cleaning_assignments: cleaningAssignments?.filter(assignment => assignment.service_task_id === task.id) || []
+    }));
+    
     // Get laundry orders through service tasks
     const taskIds = bookingTasks.map(task => task.id);
     const bookingLaundry = laundryOrders?.filter(order => 
       taskIds.includes(order.service_task_id)
     ) || [];
     
-    return { tasks: bookingTasks, laundry: bookingLaundry };
+    return { tasks: tasksWithAssignments, laundry: bookingLaundry };
   };
 
   const tabs = [
