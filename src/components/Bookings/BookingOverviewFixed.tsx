@@ -539,7 +539,10 @@ const BookingOverviewFixed = () => {
                   <TableCell>
                     <EditBookingDialog 
                       booking={booking}
-                      onBookingUpdated={() => window.location.reload()}
+                      onBookingUpdated={() => {
+                        console.log('Booking updated, invalidating cache');
+                        window.location.reload();
+                      }}
                     />
                   </TableCell>
                 </TableRow>
