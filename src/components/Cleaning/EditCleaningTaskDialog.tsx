@@ -116,19 +116,51 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     enabled: open,
   });
 
-  // Fetch cleaning staff for selected provider
+  // Fetch cleaning staff for selected provider AND currently assigned staff
   const { data: cleaningStaff } = useQuery({
-    queryKey: ['cleaning-staff', task?.provider_id],
+    queryKey: ['cleaning-staff', task?.provider_id, task?.cleaning_assignments?.[0]?.cleaning_staff_id],
     queryFn: async () => {
-      if (!task?.provider_id) return [];
-      const { data } = await supabase
-        .from('cleaning_staff')
-        .select('id, name, email, phone, hourly_rate, availability_days, quality_rating')
-        .eq('service_provider_id', task.provider_id)
-        .eq('is_active', true);
-      return data || [];
+      const queries = [];
+      
+      // Get staff for current provider
+      if (task?.provider_id) {
+        queries.push(
+          supabase
+            .from('cleaning_staff')
+            .select('id, name, email, phone, hourly_rate, availability_days, quality_rating')
+            .eq('service_provider_id', task.provider_id)
+            .eq('is_active', true)
+        );
+      }
+      
+      // Get currently assigned staff (even if from different provider)
+      const assignedStaffId = task?.cleaning_assignments?.[0]?.cleaning_staff_id;
+      if (assignedStaffId && assignedStaffId !== 'none') {
+        queries.push(
+          supabase
+            .from('cleaning_staff')
+            .select('id, name, email, phone, hourly_rate, availability_days, quality_rating')
+            .eq('id', assignedStaffId)
+            .eq('is_active', true)
+        );
+      }
+      
+      if (queries.length === 0) return [];
+      
+      const results = await Promise.all(queries);
+      const allStaff = results.flatMap(result => result.data || []);
+      
+      // Remove duplicates based on id
+      const uniqueStaff = allStaff.reduce((acc, staff) => {
+        if (!acc.find(existing => existing.id === staff.id)) {
+          acc.push(staff);
+        }
+        return acc;
+      }, [] as any[]);
+      
+      return uniqueStaff;
     },
-    enabled: open && !!task?.provider_id,
+    enabled: open && !!task,
   });
 
   const form = useForm<EditTaskForm>({
