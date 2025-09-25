@@ -5,9 +5,10 @@ import { Edit, Users } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditBookingDialog from './EditBookingDialog';
+import { BookingWithHouse } from '@/types';
 
 interface BookingCardProps {
-  booking: any;
+  booking: BookingWithHouse;
   colorVariant: 'green' | 'blue' | 'purple';
   onBookingUpdated?: () => void;
 }

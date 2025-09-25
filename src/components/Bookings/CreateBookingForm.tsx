@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCreateBooking, useUpdateBooking } from '@/hooks/useBookings';
-import { Booking } from '@/types';
+import { Booking, BookingWithHouse } from '@/types';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -109,7 +109,7 @@ type BookingFormData = z.infer<typeof bookingSchema>;
 
 interface CreateBookingFormProps {
   mode?: 'create' | 'edit';
-  initialData?: Booking;
+  initialData?: BookingWithHouse;
   onSuccess: () => void;
   onCancel?: () => void;
 }
@@ -125,7 +125,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
   const getDefaultValues = () => {
     if (mode === 'edit' && initialData) {
       return {
-        house_id: initialData.house_id,
+        house_id: initialData.houses?.id || initialData.house_id,
         number_of_guests: initialData.number_of_guests,
         check_in: new Date(initialData.check_in),
         check_out: new Date(initialData.check_out),

@@ -10,10 +10,10 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import CreateBookingForm from './CreateBookingForm';
-import { Booking } from '@/types';
+import { BookingWithHouse } from '@/types';
 
 interface EditBookingDialogProps {
-  booking: Booking;
+  booking: BookingWithHouse;
   onBookingUpdated?: () => void;
   trigger?: React.ReactNode;
 }

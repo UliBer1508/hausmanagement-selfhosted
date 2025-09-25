@@ -78,6 +78,16 @@ export interface Booking {
   guest_count?: number;
 }
 
+// Extended booking with joined house data (for overview queries)
+export interface BookingWithHouse extends Omit<Booking, 'house_id'> {
+  house_id?: string;
+  houses?: {
+    id: string;
+    name: string;
+    address?: string;
+  };
+}
+
 export interface House {
   id: string;
   name: string;
