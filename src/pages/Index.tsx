@@ -1,9 +1,12 @@
-import SimpleTest from './SimpleTest';
+// Absolute minimal test without any imports
 
 const Index = () => {
-  console.log('Index component is rendering');
-  
-  return <SimpleTest />;
+  return (
+    <div>
+      <h1>EMERGENCY TEST</h1>
+      <p>This is raw HTML in React</p>
+    </div>
+  );
 };
 
 export default Index;

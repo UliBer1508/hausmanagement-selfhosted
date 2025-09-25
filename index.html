@@ -3,37 +3,52 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ferienhaus Manager - Professionelle Ferienhausverwaltung</title>
-    <meta name="description" content="Umfassende Verwaltungslösung für Ferienhäuser mit Buchungsmanagement, Reinigungsservice und Wäscherei-Integration. Optimieren Sie Ihre Ferienhaus-Operationen." />
-    <meta name="author" content="Ferienhaus Manager" />
-    <meta name="keywords" content="Ferienhaus, Verwaltung, Buchung, Reinigung, Wäscherei, Property Management, Vacation Rental" />
-
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#ffffff" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Ferienhaus Manager" />
-    <meta name="application-name" content="Ferienhaus Manager" />
-    <meta name="msapplication-TileColor" content="#ffffff" />
-    <meta name="msapplication-tap-highlight" content="no" />
-
-    <!-- Favicon -->
-    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <link rel="mask-icon" href="/masked-icon.svg" color="#000000" />
-
-    <meta property="og:title" content="Ferienhaus Manager - Professionelle Ferienhausverwaltung" />
-    <meta property="og:description" content="Umfassende Verwaltungslösung für Ferienhäuser mit Buchungsmanagement, Reinigungsservice und Wäscherei-Integration." />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
-
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@lovable_dev" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <title>Ferienhaus Manager - DEBUG MODE</title>
+    <style>
+      body { 
+        font-family: Arial, sans-serif; 
+        padding: 20px; 
+        background: #f5f5f5;
+      }
+      .debug { 
+        background: white; 
+        padding: 20px; 
+        border: 2px solid #333; 
+        margin: 10px 0;
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div class="debug">
+      <h1>🔧 DEBUG MODE AKTIV</h1>
+      <p>Falls du das siehst, lädt das HTML korrekt.</p>
+      <div id="debug-info">
+        <p>Warte auf JavaScript...</p>
+      </div>
+    </div>
+    
+    <div id="root">
+      <div class="debug">
+        <h2>⚠️ FALLBACK CONTENT</h2>
+        <p>React App wurde noch nicht geladen!</p>
+      </div>
+    </div>
+    
+    <script>
+      console.log('🚀 HTML Script Tag executing...');
+      document.getElementById('debug-info').innerHTML = '<p style="color: green;">✅ JavaScript funktioniert!</p>';
+      
+      // Check if React script loads
+      setTimeout(() => {
+        const rootContent = document.getElementById('root').innerHTML;
+        if (rootContent.includes('FALLBACK')) {
+          console.error('❌ React app failed to load after 3 seconds');
+          document.getElementById('root').innerHTML = '<div class="debug"><h2 style="color: red;">❌ REACT LADEVORGANG FEHLGESCHLAGEN</h2><p>Die React App konnte nicht geladen werden.</p></div>';
+        }
+      }, 3000);
+    </script>
+    
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
