@@ -44,9 +44,8 @@ const OriginalDashboard = () => {
 
   // Fetch real bookings data with optimized caching
   const { data: bookingsData, isLoading: bookingsLoading } = useQuery({
-    queryKey: ['dashboard-bookings-v2'], // Changed cache key to force refresh
+    queryKey: ['dashboard-bookings-v2'],
     queryFn: async () => {
-      console.log('Fetching all bookings for calendar...');
       const { data, error } = await supabase
         .from('bookings')
         .select(`
@@ -70,23 +69,11 @@ const OriginalDashboard = () => {
         `)
         .order('check_in', { ascending: true });
       
-      if (error) {
-        console.error('Error fetching bookings:', error);
-        throw error;
-      }
-      
-      console.log('Fetched bookings count:', data?.length);
-      console.log('September bookings:', data?.filter(b => 
-        b.check_in.includes('2025-09') || b.check_out.includes('2025-09')
-      ));
-      console.log('Bartels bookings:', data?.filter(b => 
-        b.guest_name?.toLowerCase().includes('bartels')
-      ));
-      
+      if (error) throw error;
       return data;
     },
-    staleTime: 0, // No cache for debugging
-    gcTime: 0, // No cache for debugging
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
   // Fetch service tasks with provider information - optimized
@@ -253,31 +240,11 @@ const OriginalDashboard = () => {
     // Use real bookings data instead of mock data
     const realBookings = bookingsData || [];
     
-    // Debug log
-    if (date.getDate() === 7 && date.getMonth() === 8) { // September 7th
-      console.log('DEBUG: Checking September 7th');
-      console.log('Available bookings:', realBookings.length);
-      console.log('Bookings data:', realBookings.map(b => ({
-        name: b.guest_name,
-        checkIn: b.check_in,
-        checkOut: b.check_out,
-        status: b.status
-      })));
-    }
-    
     realBookings.forEach(booking => {
       const checkIn = parseISO(booking.check_in);
       const checkOut = parseISO(booking.check_out);
       const guestDisplayName = booking.guest_name.split(' ')[0];
       const houseDisplayName = booking.houses?.name || 'Unbekanntes Haus';
-      
-      // Debug for September 7th
-      if (date.getDate() === 7 && date.getMonth() === 8) {
-        console.log(`Checking booking ${booking.guest_name}:`);
-        console.log('- Check-in:', checkIn.toISOString());
-        console.log('- Selected date:', date.toISOString());
-        console.log('- Same day?', isSameDay(date, checkIn));
-      }
       
       if (isSameDay(date, checkIn)) {
         events.push({
