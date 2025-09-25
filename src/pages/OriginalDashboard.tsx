@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Home, 
   Calendar as CalendarIcon, 
@@ -21,7 +22,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Plus,
-  Settings
+  Settings,
+  Bell,
+  User,
+  Trash2
 } from 'lucide-react';
 import { format, isSameDay, parseISO, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -35,6 +39,7 @@ import Houses from '@/pages/Houses';
 import CleaningManagement from '@/components/Cleaning/CleaningManagement';
 import GuestManagement from '@/components/Guests/GuestManagement';
 import LinenDashboard from '@/components/Houses/LinenDashboard';
+import { supabase } from '@/integrations/supabase/client';
 
 const OriginalDashboard = () => {
   
@@ -785,24 +790,152 @@ const OriginalDashboard = () => {
                 Systemkonfiguration und Benutzereinstellungen
               </p>
             </div>
+            
+            {/* Benachrichtigungen */}
             <Card>
               <CardHeader>
-                <CardTitle>Allgemeine Einstellungen</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="w-5 h-5" />
+                  Benachrichtigungen
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div>
-                    <h4 className="text-sm font-medium">Benachrichtigungen</h4>
-                    <p className="text-sm text-muted-foreground">E-Mail-Benachrichtigungen für neue Buchungen</p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium">E-Mail-Benachrichtigungen</h4>
+                      <p className="text-sm text-muted-foreground">Benachrichtigungen für neue Buchungen erhalten</p>
+                    </div>
+                    <Switch />
                   </div>
-                  <div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium">Push-Benachrichtigungen</h4>
+                      <p className="text-sm text-muted-foreground">Browser-Benachrichtigungen aktivieren</p>
+                    </div>
+                    <Switch />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium">Status-Updates</h4>
+                      <p className="text-sm text-muted-foreground">Bei Änderungen an Aufgaben benachrichtigen</p>
+                    </div>
+                    <Switch defaultChecked />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* System Einstellungen */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="w-5 h-5" />
+                  System Einstellungen
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="space-y-2">
                     <h4 className="text-sm font-medium">Systemsprache</h4>
-                    <p className="text-sm text-muted-foreground">Deutsch (Standard)</p>
+                    <Select defaultValue="de">
+                      <SelectTrigger className="w-[250px]">
+                        <SelectValue placeholder="Sprache auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="de">Deutsch</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="fr">Français</SelectItem>
+                        <SelectItem value="it">Italiano</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div>
+                  
+                  <div className="space-y-2">
                     <h4 className="text-sm font-medium">Zeitzone</h4>
-                    <p className="text-sm text-muted-foreground">Europe/Vienna</p>
+                    <Select defaultValue="europe-vienna">
+                      <SelectTrigger className="w-[250px]">
+                        <SelectValue placeholder="Zeitzone auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="europe-vienna">Europe/Vienna</SelectItem>
+                        <SelectItem value="europe-zurich">Europe/Zurich</SelectItem>
+                        <SelectItem value="europe-berlin">Europe/Berlin</SelectItem>
+                        <SelectItem value="europe-paris">Europe/Paris</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Datumsformat</h4>
+                    <Select defaultValue="dd-mm-yyyy">
+                      <SelectTrigger className="w-[250px]">
+                        <SelectValue placeholder="Format auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="dd-mm-yyyy">DD.MM.YYYY</SelectItem>
+                        <SelectItem value="mm-dd-yyyy">MM/DD/YYYY</SelectItem>
+                        <SelectItem value="yyyy-mm-dd">YYYY-MM-DD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Benutzer Einstellungen */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5" />
+                  Benutzer Einstellungen
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Benutzername</h4>
+                    <Input defaultValue="Amela" placeholder="Benutzername eingeben" className="w-[250px]" />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">E-Mail-Adresse</h4>
+                    <Input 
+                      type="email" 
+                      defaultValue="amela@steinbock.com" 
+                      placeholder="E-Mail eingeben" 
+                      className="w-[250px]" 
+                    />
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-medium">Dark Mode</h4>
+                      <p className="text-sm text-muted-foreground">Dunkles Design aktivieren</p>
+                    </div>
+                    <Switch />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Aktionen */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Aktionen</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex gap-3">
+                  <Button>
+                    Änderungen speichern
+                  </Button>
+                  <Button variant="outline">
+                    Zurücksetzen
+                  </Button>
+                  <Button variant="destructive">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Alle Daten löschen
+                  </Button>
                 </div>
               </CardContent>
             </Card>
