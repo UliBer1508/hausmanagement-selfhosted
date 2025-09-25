@@ -20,225 +20,258 @@ const Settings = () => {
           </p>
         </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Profile Settings */}
-            <Card className="task-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5 text-primary" />
-                  Profil
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center gap-4">
-                  <Avatar className="w-16 h-16">
-                    <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face" />
-                    <AvatarFallback className="cleaning-gradient text-white text-lg">
-                      UB
-                    </AvatarFallback>
-                  </Avatar>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Profile Settings */}
+          <Card className="task-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="w-5 h-5 text-primary" />
+                Profil
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="w-16 h-16">
+                  <AvatarImage src="/placeholder-avatar.jpg" />
+                  <AvatarFallback>AM</AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <h3 className="font-medium">Admin</h3>
+                  <p className="text-sm text-muted-foreground">admin@ferienhaus.de</p>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="displayName">Anzeigename</Label>
+                  <Input id="displayName" defaultValue="Admin" />
+                </div>
+                <div>
+                  <Label htmlFor="email">E-Mail</Label>
+                  <Input id="email" type="email" defaultValue="admin@ferienhaus.de" />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Telefon</Label>
+                  <Input id="phone" type="tel" placeholder="+49 123 456789" />
+                </div>
+              </div>
+
+              <Button className="w-full">
+                <Save className="w-4 h-4 mr-2" />
+                Profil speichern
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Notification Settings */}
+          <Card className="task-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="w-5 h-5 text-primary" />
+                Benachrichtigungen
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="font-semibold text-lg">Uli Berresheim</h3>
-                    <p className="text-sm text-muted-foreground">Administrator</p>
-                    <Badge className="bg-green-100 text-green-700 mt-1">Aktiv</Badge>
+                    <Label>E-Mail Benachrichtigungen</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Erhalten Sie Updates per E-Mail
+                    </p>
+                  </div>
+                  <Switch />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Browser Benachrichtigungen</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Push-Nachrichten im Browser
+                    </p>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Buchungsbenachrichtigungen</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Bei neuen Buchungen informieren
+                    </p>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Service-Updates</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Updates zu Reinigung & Wäsche
+                    </p>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+              </div>
+
+              <Button variant="outline" className="w-full">
+                <Bell className="w-4 h-4 mr-2" />
+                Testbenachrichtigung senden
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Security Settings */}
+          <Card className="task-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="w-5 h-5 text-primary" />
+                Sicherheit
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="currentPassword">Aktuelles Passwort</Label>
+                  <Input id="currentPassword" type="password" />
+                </div>
+                <div>
+                  <Label htmlFor="newPassword">Neues Passwort</Label>
+                  <Input id="newPassword" type="password" />
+                </div>
+                <div>
+                  <Label htmlFor="confirmPassword">Passwort bestätigen</Label>
+                  <Input id="confirmPassword" type="password" />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Zwei-Faktor-Authentifizierung</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Zusätzliche Sicherheit für Ihr Konto
+                    </p>
+                  </div>
+                  <Badge variant="outline">Deaktiviert</Badge>
+                </div>
+              </div>
+
+              <Button variant="outline" className="w-full">
+                <Shield className="w-4 h-4 mr-2" />
+                Passwort ändern
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Appearance Settings */}
+          <Card className="task-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="w-5 h-5 text-primary" />
+                Erscheinungsbild
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div>
+                  <Label>Design-Modus</Label>
+                  <div className="grid grid-cols-2 gap-2 mt-2">
+                    <Button variant="outline" size="sm">Hell</Button>
+                    <Button variant="outline" size="sm">Dunkel</Button>
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Name</Label>
-                    <Input id="name" defaultValue="Uli Berresheim" />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">E-Mail</Label>
-                    <Input id="email" type="email" defaultValue="uli@ferienhaus-manager.de" />
-                  </div>
-                  <div>
-                    <Label htmlFor="phone">Telefon</Label>
-                    <Input id="phone" defaultValue="+49 123 456789" />
+                <div>
+                  <Label>Sprache</Label>
+                  <div className="grid grid-cols-1 gap-2 mt-2">
+                    <Button variant="outline" size="sm" className="justify-start">
+                      🇩🇪 Deutsch
+                    </Button>
                   </div>
                 </div>
 
-                <Button className="w-full cleaning-gradient">
-                  <Save className="w-4 h-4 mr-2" />
-                  Profil speichern
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Kompakte Ansicht</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Mehr Inhalte auf weniger Platz
+                    </p>
+                  </div>
+                  <Switch />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* System Settings */}
+          <Card className="task-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-primary" />
+                System
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm">Version</span>
+                  <Badge variant="secondary">v2.1.0</Badge>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm">Datenbank</span>
+                  <Badge variant="outline" className="text-green-600">Verbunden</Badge>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm">Letzte Synchronisation</span>
+                  <span className="text-sm text-muted-foreground">Vor 2 Min.</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Button variant="outline" size="sm" className="w-full">
+                  Cache leeren
                 </Button>
-              </CardContent>
-            </Card>
-
-            {/* Notification Settings */}
-            <Card className="task-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="w-5 h-5 text-primary" />
-                  Benachrichtigungen
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="booking-notifications">Neue Buchungen</Label>
-                    <p className="text-sm text-muted-foreground">
-                      E-Mail bei neuen Buchungen erhalten
-                    </p>
-                  </div>
-                  <Switch id="booking-notifications" defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="task-notifications">Aufgaben-Updates</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Benachrichtigungen für Aufgabenstatus
-                    </p>
-                  </div>
-                  <Switch id="task-notifications" defaultChecked />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="provider-notifications">Provider-Meldungen</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Updates von Reinigung und Wäscherei
-                    </p>
-                  </div>
-                  <Switch id="provider-notifications" />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="system-notifications">System-Updates</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Wichtige Systembenachrichtigungen
-                    </p>
-                  </div>
-                  <Switch id="system-notifications" defaultChecked />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* System Settings */}
-            <Card className="task-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <SettingsIcon className="w-5 h-5 text-primary" />
-                  System
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="language">Sprache</Label>
-                  <select className="w-full mt-1 px-3 py-2 bg-background border border-border rounded-md">
-                    <option value="de">Deutsch</option>
-                    <option value="en">English</option>
-                  </select>
-                </div>
-
-                <div>
-                  <Label htmlFor="timezone">Zeitzone</Label>
-                  <select className="w-full mt-1 px-3 py-2 bg-background border border-border rounded-md">
-                    <option value="Europe/Berlin">Europa/Berlin</option>
-                    <option value="Europe/Vienna">Europa/Wien</option>
-                    <option value="Europe/Zurich">Europa/Zürich</option>
-                  </select>
-                </div>
-
-                <div>
-                  <Label htmlFor="currency">Währung</Label>
-                  <select className="w-full mt-1 px-3 py-2 bg-background border border-border rounded-md">
-                    <option value="EUR">Euro (€)</option>
-                    <option value="USD">US Dollar ($)</option>
-                    <option value="CHF">Schweizer Franken (CHF)</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="dark-mode">Dark Mode</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Dunkles Design verwenden
-                    </p>
-                  </div>
-                  <Switch id="dark-mode" />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Provider Configuration */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="service-cleaning">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-blue-700">
-                  <Shield className="w-5 h-5" />
-                  Reinigungsservice Konfiguration
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="cleaning-provider">Provider Name</Label>
-                  <Input id="cleaning-provider" defaultValue="Amela Reinigungsservice" />
-                </div>
-                <div>
-                  <Label htmlFor="cleaning-email">E-Mail</Label>
-                  <Input id="cleaning-email" type="email" defaultValue="amela@reinigung.de" />
-                </div>
-                <div>
-                  <Label htmlFor="cleaning-phone">Telefon</Label>
-                  <Input id="cleaning-phone" defaultValue="+49 123 456789" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="cleaning-active">Service aktiviert</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Reinigungsservice verfügbar
-                    </p>
-                  </div>
-                  <Switch id="cleaning-active" defaultChecked />
-                </div>
-                <Button className="w-full btn-cleaning">
-                  Konfiguration speichern
+                <Button variant="outline" size="sm" className="w-full">
+                  Daten exportieren
                 </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="service-laundry">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-green-700">
-                  <Database className="w-5 h-5" />
-                  Wäscherei Konfiguration
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="laundry-provider">Provider Name</Label>
-                  <Input id="laundry-provider" defaultValue="Teuni Wäscheservice" />
-                </div>
-                <div>
-                  <Label htmlFor="laundry-email">E-Mail</Label>
-                  <Input id="laundry-email" type="email" defaultValue="teuni@waescherei.de" />
-                </div>
-                <div>
-                  <Label htmlFor="laundry-phone">Telefon</Label>
-                  <Input id="laundry-phone" defaultValue="+49 987 654321" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label htmlFor="laundry-active">Service aktiviert</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Wäscherei-Service verfügbar
-                    </p>
-                  </div>
-                  <Switch id="laundry-active" defaultChecked />
-                </div>
-                <Button className="w-full btn-laundry">
-                  Konfiguration speichern
+                <Button variant="outline" size="sm" className="w-full text-red-600 hover:text-red-700">
+                  Daten zurücksetzen
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Save All Settings */}
+          <Card className="task-card lg:col-span-1">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <SettingsIcon className="w-5 h-5 text-primary" />
+                Aktionen
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button className="w-full" size="lg">
+                <Save className="w-4 h-4 mr-2" />
+                Alle Einstellungen speichern
+              </Button>
+              
+              <div className="text-center pt-4">
+                <p className="text-sm text-muted-foreground">
+                  Letzte Änderung: Heute, 14:30
+                </p>
+              </div>
+
+              <Button variant="outline" className="w-full">
+                <Database className="w-4 h-4 mr-2" />
+                Konfiguration speichern
+              </Button>
+            </CardContent>
+          </Card>
         </div>
-      </AppLayout>
-    );
-  };
+      </div>
+    </AppLayout>
+  );
+};
 
 export default Settings;
