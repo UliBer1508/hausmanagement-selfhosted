@@ -646,10 +646,58 @@ const OriginalDashboard = () => {
         return <CleaningManagement />;
       case 'Provider':
         return (
-          <div className="text-center py-12">
-            <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Provider</h3>
-            <p className="text-gray-600">Provider-Verwaltung wird hier angezeigt</p>
+          <div className="space-y-6">
+            <div className="text-center py-8">
+              <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Service Provider Portale</h3>
+              <p className="text-gray-600 mb-6">Zugang zu den externen Provider-Webapps</p>
+            </div>
+            
+            {/* Provider Links */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Amela Webapp */}
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader className="text-center">
+                  <CardTitle className="flex items-center justify-center gap-2">
+                    <Sparkles className="w-5 h-5 text-blue-500" />
+                    Amela Cleaning Portal
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-center space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Reinigungsaufträge verwalten und bearbeiten
+                  </p>
+                  <Button 
+                    className="w-full" 
+                    onClick={() => window.open('https://amela-portal.lovable.app', '_blank')}
+                  >
+                    Portal öffnen
+                  </Button>
+                </CardContent>
+              </Card>
+              
+              {/* Teuni Webapp (Coming Soon) */}
+              <Card className="hover:shadow-lg transition-shadow opacity-75">
+                <CardHeader className="text-center">
+                  <CardTitle className="flex items-center justify-center gap-2">
+                    <Shirt className="w-5 h-5 text-purple-500" />
+                    Teuni Laundry Portal
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-center space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Wäscheaufträge verwalten und bearbeiten
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    disabled
+                  >
+                    Bald verfügbar
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         );
       case 'Wäsche':
