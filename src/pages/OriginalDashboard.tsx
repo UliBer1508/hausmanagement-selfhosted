@@ -60,7 +60,7 @@ const OriginalDashboard = () => {
     },
   });
 
-  // Fetch service tasks
+  // Fetch service tasks with cleaning assignments
   const { data: serviceTasks } = useQuery({
     queryKey: ['dashboard-service-tasks'],
     queryFn: async () => {
@@ -76,6 +76,23 @@ const OriginalDashboard = () => {
           cleaning_staff:assigned_staff_id (
             id,
             name
+          ),
+          cleaning_assignments (
+            id,
+            status,
+            assigned_at,
+            started_at,
+            completed_at,
+            estimated_duration,
+            actual_duration,
+            special_instructions,
+            cleaning_staff (
+              id,
+              name,
+              email,
+              phone,
+              hourly_rate
+            )
           )
         `);
       

@@ -71,8 +71,31 @@ const ServiceTaskCard = ({ task, colorVariant }: ServiceTaskCardProps) => {
             </div>
           )}
 
-          {/* Staff */}
-          {task.cleaning_staff && (
+          {/* Staff - prioritize cleaning_assignments data */}
+          {task.cleaning_assignments && task.cleaning_assignments.length > 0 ? (
+            <div className="space-y-2">
+              {task.cleaning_assignments.map((assignment: any, index: number) => (
+                <div key={index} className="text-sm space-y-1">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">Putzrkaft:</span>
+                    <span>{assignment.cleaning_staff?.name || 'Unbekannt'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>Status: {assignment.status}</span>
+                    {assignment.estimated_duration && (
+                      <span>• Dauer: {assignment.estimated_duration}min</span>
+                    )}
+                  </div>
+                  {assignment.special_instructions && (
+                    <div className="text-xs text-muted-foreground">
+                      Anweisungen: {assignment.special_instructions}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : task.cleaning_staff && (
             <div className="flex items-center gap-2 text-sm">
               <User className="w-4 h-4 text-muted-foreground" />
               <span className="text-muted-foreground">Putzrkaft:</span>
