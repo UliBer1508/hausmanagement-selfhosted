@@ -213,7 +213,11 @@ const ConnectedBookingView = () => {
             <div key={booking.id} className="relative">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Booking Card */}
-                <BookingCard booking={booking} colorVariant={colorVariant} />
+                <BookingCard 
+                  booking={booking} 
+                  colorVariant={colorVariant} 
+                  onBookingUpdated={() => window.location.reload()}
+                />
                 
                 {/* Service Tasks */}
                 <div className="space-y-3">

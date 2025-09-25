@@ -4,13 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Edit, Users } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
+import EditBookingDialog from './EditBookingDialog';
 
 interface BookingCardProps {
   booking: any;
   colorVariant: 'green' | 'blue' | 'purple';
+  onBookingUpdated?: () => void;
 }
 
-const BookingCard = ({ booking, colorVariant }: BookingCardProps) => {
+const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardProps) => {
   const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
@@ -70,13 +72,19 @@ const BookingCard = ({ booking, colorVariant }: BookingCardProps) => {
         </div>
 
         {/* Edit Button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute top-2 right-2 h-8 w-8 p-0"
-        >
-          <Edit className="w-4 h-4" />
-        </Button>
+        <EditBookingDialog 
+          booking={booking}
+          onBookingUpdated={onBookingUpdated}
+          trigger={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="absolute top-2 right-2 h-8 w-8 p-0"
+            >
+              <Edit className="w-4 h-4" />
+            </Button>
+          }
+        />
       </CardContent>
     </Card>
   );
