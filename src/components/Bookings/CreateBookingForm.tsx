@@ -156,9 +156,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
   // Reset form when initial data changes (for edit mode)
   useEffect(() => {
     if (mode === 'edit' && initialData) {
-      console.log('Edit mode - initialData:', initialData);
+      console.log('Edit mode - initialData:', JSON.stringify(initialData, null, 2));
+      console.log('booking_amount from initialData:', initialData.booking_amount);
       const values = getDefaultValues();
-      console.log('Form values being set:', values);
+      console.log('Form values being set:', JSON.stringify(values, null, 2));
       form.reset(values);
     }
   }, [initialData, mode, form]);
