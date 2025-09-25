@@ -67,9 +67,7 @@ const OriginalDashboard = () => {
             address
           )
         `)
-        .eq('status', 'confirmed')
-        .order('check_in', { ascending: true })
-        .limit(5);
+        .order('check_in', { ascending: true });
       
       if (error) throw error;
       return data;
@@ -236,58 +234,29 @@ const OriginalDashboard = () => {
     { name: 'Venedigersiedlung', status: 'Kritisch' }
   ];
 
-  const bookings = [
-    {
-      id: 1,
-      guest: 'Dr Daniel Mirtschink (DE)',
-      house: 'Wald Chalet',
-      dates: '12.10.2025 - 18.10.2025',
-      checkIn: '2025-10-12',
-      checkOut: '2025-10-18',
-      status: 'Bestätigt',
-      guests: 5,
-      cleaning: { date: '2025-10-10', provider: 'Amela', status: 'Geplant' },
-      borderColor: 'green'
-    },
-    {
-      id: 2,
-      guest: 'Anke Wiggers',
-      house: 'Wald Chalet',
-      dates: '20.12.2025 - 27.12.2025',
-      checkIn: '2025-12-20',
-      checkOut: '2025-12-27',
-      status: 'Bestätigt',
-      guests: 5,
-      cleaning: { date: '2025-12-19', provider: 'Amela', status: 'Geplant' },
-      borderColor: 'blue'
-    },
-    {
-      id: 3,
-      guest: 'Antonio Peñera',
-      house: 'Venedigersiedlung Chalet',
-      dates: '21.12.2025 - 26.12.2025',
-      checkIn: '2025-12-21',
-      checkOut: '2025-12-26',
-      status: 'Bestätigt',
-      guests: 5,
-      cleaning: { date: '2025-12-20', provider: 'Amela', status: 'Geplant' },
-      borderColor: 'purple'
-    }
-  ];
-
   const getEventsForDate = (date: Date) => {
     const events = [];
     
-    // Buchungen
-    bookings.forEach(booking => {
-      const checkIn = parseISO(booking.checkIn);
-      const checkOut = parseISO(booking.checkOut);
+    // Use real bookings data instead of mock data
+    const realBookings = bookingsData || [];
+    
+    realBookings.forEach(booking => {
+      const checkIn = parseISO(booking.check_in);
+      const checkOut = parseISO(booking.check_out);
+      const guestDisplayName = booking.guest_name.split(' ')[0];
+      const houseDisplayName = booking.houses?.name || 'Unbekanntes Haus';
       
       if (isSameDay(date, checkIn)) {
         events.push({
           type: 'checkin',
-          title: `Check-in: ${booking.guest.split(' ')[0]}`,
-          booking: booking,
+          title: `Check-in: ${guestDisplayName}`,
+          booking: {
+            ...booking,
+            guest: booking.guest_name,
+            house: houseDisplayName,
+            checkIn: booking.check_in,
+            checkOut: booking.check_out
+          },
           color: 'bg-green-100 text-green-800'
         });
       }
@@ -295,8 +264,14 @@ const OriginalDashboard = () => {
       if (isSameDay(date, checkOut)) {
         events.push({
           type: 'checkout',
-          title: `Check-out: ${booking.guest.split(' ')[0]}`,
-          booking: booking,
+          title: `Check-out: ${guestDisplayName}`,
+          booking: {
+            ...booking,
+            guest: booking.guest_name,
+            house: houseDisplayName,
+            checkIn: booking.check_in,
+            checkOut: booking.check_out
+          },
           color: 'bg-red-100 text-red-800'
         });
       }
@@ -306,33 +281,15 @@ const OriginalDashboard = () => {
       if (currentDate > checkIn && currentDate < checkOut) {
         events.push({
           type: 'occupied',
-          title: `Belegt: ${booking.guest.split(' ')[0]}`,
-          booking: booking,
+          title: `Belegt: ${guestDisplayName}`,
+          booking: {
+            ...booking,
+            guest: booking.guest_name,
+            house: houseDisplayName,
+            checkIn: booking.check_in,
+            checkOut: booking.check_out
+          },
           color: 'bg-orange-100 text-orange-800'
-        });
-      }
-      
-      // Reinigungstermine
-      if (booking.cleaning.date && isSameDay(date, parseISO(booking.cleaning.date))) {
-        events.push({
-          type: 'cleaning',
-          title: `🧹 Reinigung ${booking.house.split(' ')[0]}`,
-          booking: booking,
-          cleaning: booking.cleaning,
-          color: 'bg-blue-100 text-blue-800'
-        });
-      }
-      
-      // Wäsche (Beispiel: einen Tag vor Check-in)
-      const laundryDate = new Date(checkIn);
-      laundryDate.setDate(laundryDate.getDate() - 1);
-      if (isSameDay(date, laundryDate)) {
-        events.push({
-          type: 'laundry',
-          title: `👕 Wäsche ${booking.house.split(' ')[0]}`,
-          booking: booking,
-          laundry: { status: 'Geplant', items: ['Bettwäsche', 'Handtücher'], provider: 'Wäscherei Schmidt' },
-          color: 'bg-purple-100 text-purple-800'
         });
       }
     });
