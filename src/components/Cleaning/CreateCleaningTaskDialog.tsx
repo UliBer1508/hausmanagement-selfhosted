@@ -221,7 +221,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
       <DialogTrigger asChild>
         <Button>
           <Plus className="w-4 h-4 mr-2" />
-          Neuen Auftrag erstellen
+          Neuen Reinigungsauftrag erstellen
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
