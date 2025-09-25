@@ -33,7 +33,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Plus, CalendarIcon } from 'lucide-react';
+import { Plus, CalendarIcon, User } from 'lucide-react';
 
 const createTaskSchema = z.object({
   house_id: z.string().min(1, 'Haus auswählen'),
@@ -91,13 +91,14 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
 
   // Fetch bookings for selected house
   const selectedHouseId = form.watch('house_id');
+  const selectedBookingId = form.watch('booking_id');
   const { data: bookings } = useQuery({
     queryKey: ['house-bookings', selectedHouseId],
     queryFn: async () => {
       if (!selectedHouseId) return [];
       const { data } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out')
+        .select('id, guest_name, guest_email, guest_phone, check_in, check_out, number_of_guests, booking_amount, currency')
         .eq('house_id', selectedHouseId)
         .neq('status', 'completed')
         .gte('check_out', new Date().toISOString())
@@ -106,6 +107,16 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
     },
     enabled: !!selectedHouseId,
   });
+
+  // Get selected booking details
+  const selectedBooking = bookings?.find(b => b.id === selectedBookingId);
+
+  // Auto-suggest cleaning date based on booking
+  const suggestCleaningDate = (booking: any) => {
+    const checkOut = new Date(booking.check_out);
+    // Suggest cleaning on checkout day
+    return checkOut.toISOString().split('T')[0];
+  };
 
   // Create task mutation
   const createTaskMutation = useMutation({
@@ -231,6 +242,77 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
               />
             </div>
 
+            {/* Buchungsvorschau */}
+            {selectedBooking && (
+              <div className="border rounded-lg p-4 bg-muted/50 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-sm">Ausgewählte Buchung</h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const suggestedDate = suggestCleaningDate(selectedBooking);
+                      form.setValue('scheduled_date', suggestedDate);
+                    }}
+                  >
+                    Datum vorschlagen
+                  </Button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-muted-foreground" />
+                      <span className="font-medium">{selectedBooking.guest_name}</span>
+                    </div>
+                    {selectedBooking.guest_email && (
+                      <div className="text-muted-foreground">
+                        📧 {selectedBooking.guest_email}
+                      </div>
+                    )}
+                    {selectedBooking.guest_phone && (
+                      <div className="text-muted-foreground">
+                        📞 {selectedBooking.guest_phone}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <User className="w-4 h-4 text-muted-foreground" />
+                      <span>{selectedBooking.number_of_guests} Gäste</span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-green-600 font-medium">
+                        Check-in: {new Date(selectedBooking.check_in).toLocaleDateString('de-DE')}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-red-600 font-medium">
+                        Check-out: {new Date(selectedBooking.check_out).toLocaleDateString('de-DE')}
+                      </span>
+                    </div>
+                    {selectedBooking.booking_amount && (
+                      <div className="text-muted-foreground">
+                        💰 {selectedBooking.booking_amount} {selectedBooking.currency || 'EUR'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-border/50">
+                  <div className="text-xs text-muted-foreground">
+                    <strong>Empfehlung:</strong> Reinigung nach Check-out am{' '}
+                    <span className="font-medium">
+                      {new Date(selectedBooking.check_out).toLocaleDateString('de-DE')}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
             {/* Buchung auswählen (optional) */}
             {selectedHouseId && bookings && bookings.length > 0 && (
               <FormField
