@@ -40,16 +40,17 @@ const RealDataDashboard = () => {
   const getEventsForDate = (date: Date) => {
     const events = [];
     
-    console.log('Getting events for date:', date.toISOString(), 'Available bookings:', bookings.length);
-    
-    // Check-ins
+    // Check-ins and check-outs for all bookings (including completed ones)
     bookings.forEach(booking => {
-      const checkInDate = parseISO(booking.check_in);
-      const checkOutDate = parseISO(booking.check_out);
+      const checkIn = new Date(booking.check_in);
+      const checkOut = new Date(booking.check_out);
       
-      console.log(`Checking booking ${booking.guest_name}: check-in ${checkInDate.toISOString()}, selected ${date.toISOString()}, same day: ${isSameDay(date, checkInDate)}`);
+      // Use date only comparison (ignore time)
+      const selectedDateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const checkInDateOnly = new Date(checkIn.getFullYear(), checkIn.getMonth(), checkIn.getDate());
+      const checkOutDateOnly = new Date(checkOut.getFullYear(), checkOut.getMonth(), checkOut.getDate());
       
-      if (isSameDay(date, checkInDate)) {
+      if (selectedDateOnly.getTime() === checkInDateOnly.getTime()) {
         events.push({
           type: 'checkin',
           title: `Check-in: ${booking.guest_name}`,
@@ -58,7 +59,7 @@ const RealDataDashboard = () => {
         });
       }
       
-      if (isSameDay(date, checkOutDate)) {
+      if (selectedDateOnly.getTime() === checkOutDateOnly.getTime()) {
         events.push({
           type: 'checkout',
           title: `Check-out: ${booking.guest_name}`,

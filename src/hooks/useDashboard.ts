@@ -21,9 +21,6 @@ export const useDashboardData = () => {
       const bookings = bookingsResponse.data || [];
       const tasks = tasksResponse.data || [];
 
-      // Debug log to see what bookings are loaded
-      console.log('Dashboard bookings loaded:', bookings.length, bookings.map(b => ({ name: b.guest_name, date: b.check_in, status: b.status })));
-
       // Calculate stats
       const stats: DashboardStats = {
         totalHouses: houses.length,
