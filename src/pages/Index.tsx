@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { MobileHeader } from '@/components/mobile/MobileHeader';
 import { BottomNavigation } from '@/components/mobile/BottomNavigation';
 import { TaskCard } from '@/components/cleaning/TaskCard';
+import { TaskDetailsDialog } from '@/components/cleaning/TaskDetailsDialog';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,8 @@ const Index = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'scheduled' | 'in_progress' | 'completed'>('all');
   const [staffFilter, setStaffFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState('all');
+  const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [showTaskDetails, setShowTaskDetails] = useState(false);
 
   // Fetch cleaning staff for filter
   const { data: cleaningStaff } = useQuery({
@@ -163,8 +166,11 @@ const Index = () => {
   });
 
   const handleTaskClick = (taskId: string) => {
-    console.log('Task clicked:', taskId);
-    // TODO: Navigate to task details
+    const task = tasks?.find(t => t.id === taskId);
+    if (task) {
+      setSelectedTask(task);
+      setShowTaskDetails(true);
+    }
   };
 
   const renderDashboard = () => (
@@ -397,6 +403,13 @@ const Index = () => {
       <BottomNavigation
         activeTab={activeTab}
         onTabChange={setActiveTab}
+      />
+      
+      {/* Task Details Dialog */}
+      <TaskDetailsDialog
+        isOpen={showTaskDetails}
+        onClose={() => setShowTaskDetails(false)}
+        task={selectedTask}
       />
     </div>
   );
