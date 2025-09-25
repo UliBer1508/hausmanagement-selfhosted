@@ -87,14 +87,36 @@ const OriginalDashboard = () => {
   // Settings save functions
   const saveProfileSettings = async () => {
     try {
-      // Update notification_preferences table
-      const { error } = await supabase
+      // First check if a record exists, then update or insert
+      const { data: existingRecord } = await supabase
         .from('notification_preferences')
-        .upsert({
-          user_name: profileSettings.displayName,
-          email_address: profileSettings.email,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_name' });
+        .select('id')
+        .limit(1)
+        .single();
+
+      let error;
+      if (existingRecord) {
+        // Update existing record
+        const { error: updateError } = await supabase
+          .from('notification_preferences')
+          .update({
+            user_name: profileSettings.displayName,
+            email_address: profileSettings.email,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingRecord.id);
+        error = updateError;
+      } else {
+        // Insert new record
+        const { error: insertError } = await supabase
+          .from('notification_preferences')
+          .insert({
+            user_name: profileSettings.displayName,
+            email_address: profileSettings.email,
+            updated_at: new Date().toISOString()
+          });
+        error = insertError;
+      }
 
       if (error) throw error;
 
@@ -114,15 +136,40 @@ const OriginalDashboard = () => {
 
   const saveNotificationSettings = async () => {
     try {
-      const { error } = await supabase
+      // First check if a record exists, then update or insert
+      const { data: existingRecord } = await supabase
         .from('notification_preferences')
-        .upsert({
-          email_notifications: notificationSettings.emailNotifications,
-          push_notifications: notificationSettings.browserNotifications,
-          notify_new_tasks: notificationSettings.bookingNotifications,
-          notify_task_changes: notificationSettings.serviceUpdates,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_name' });
+        .select('id')
+        .limit(1)
+        .single();
+
+      let error;
+      if (existingRecord) {
+        // Update existing record
+        const { error: updateError } = await supabase
+          .from('notification_preferences')
+          .update({
+            email_notifications: notificationSettings.emailNotifications,
+            push_notifications: notificationSettings.browserNotifications,
+            notify_new_tasks: notificationSettings.bookingNotifications,
+            notify_task_changes: notificationSettings.serviceUpdates,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingRecord.id);
+        error = updateError;
+      } else {
+        // Insert new record
+        const { error: insertError } = await supabase
+          .from('notification_preferences')
+          .insert({
+            email_notifications: notificationSettings.emailNotifications,
+            push_notifications: notificationSettings.browserNotifications,
+            notify_new_tasks: notificationSettings.bookingNotifications,
+            notify_task_changes: notificationSettings.serviceUpdates,
+            updated_at: new Date().toISOString()
+          });
+        error = insertError;
+      }
 
       if (error) throw error;
 
