@@ -107,7 +107,21 @@ const BookingOverviewFixed = () => {
       const { data, error } = await supabase
         .from('bookings')
         .select(`
-          *,
+          id,
+          guest_name,
+          guest_email,
+          guest_phone,
+          nationality,
+          check_in,
+          check_out,
+          number_of_guests,
+          house_id,
+          status,
+          booking_amount,
+          currency,
+          notes,
+          created_at,
+          updated_at,
           houses:house_id (
             id,
             name

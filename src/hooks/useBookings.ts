@@ -50,6 +50,7 @@ export const useCreateBooking = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
     },
   });
 };
@@ -71,6 +72,7 @@ export const useUpdateBooking = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
     },
   });
 };

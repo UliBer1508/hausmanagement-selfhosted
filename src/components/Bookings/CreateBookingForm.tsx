@@ -210,16 +210,18 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         number_of_guests: data.number_of_guests,
         check_in: data.check_in.toISOString(),
         check_out: data.check_out.toISOString(),
-        guest_name: data.guest_name,
+        guest_name: data.guest_name.trim(), // Remove any leading/trailing whitespace
         guest_email: data.guest_email || null,
         guest_phone: data.guest_phone || null,
-        nationality: (data.nationality && data.nationality !== 'none') ? data.nationality : null,
+        nationality: (data.nationality && data.nationality !== 'none' && data.nationality !== '') ? data.nationality : null,
         booking_amount: data.booking_amount || null,
-        currency: data.currency,
+        currency: data.currency || 'EUR',
         notes: data.notes || null,
         status: 'confirmed' as const,
         source: 'manual',
       };
+
+      console.log('Prepared booking data for save:', bookingData);
 
       if (mode === 'edit' && initialData) {
         console.log('Updating booking with ID:', initialData.id);
