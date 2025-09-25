@@ -19,36 +19,42 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <InstallPrompt />
-      <BrowserRouter 
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true
-        }}
-      >
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/bookings" element={<Bookings />} />
-          <Route path="/bookings-test" element={<BookingsTest />} />
-          <Route path="/houses" element={<Houses />} />
-          <Route path="/guests" element={<Guests />} />
-          <Route path="/laundry" element={<Laundry />} />
-          <Route path="/service-portal" element={<ServicePortal />} />
-          <Route path="/original" element={<ServicePortalOriginal />} />
-          <Route path="/original-dashboard" element={<OriginalDashboard />} />
-          <Route path="/settings" element={<Settings />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+console.log('App is initializing...');
+
+const App = () => {
+  console.log('App component is rendering');
+  
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <InstallPrompt />
+        <BrowserRouter 
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true
+          }}
+        >
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/bookings" element={<Bookings />} />
+            <Route path="/bookings-test" element={<BookingsTest />} />
+            <Route path="/houses" element={<Houses />} />
+            <Route path="/guests" element={<Guests />} />
+            <Route path="/laundry" element={<Laundry />} />
+            <Route path="/service-portal" element={<ServicePortal />} />
+            <Route path="/original" element={<ServicePortalOriginal />} />
+            <Route path="/original-dashboard" element={<OriginalDashboard />} />
+            <Route path="/settings" element={<Settings />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

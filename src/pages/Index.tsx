@@ -1,13 +1,9 @@
-import OriginalDashboard from '@/pages/OriginalDashboard';
+import SimpleTest from './SimpleTest';
 
 const Index = () => {
   console.log('Index component is rendering');
   
-  return (
-    <div className="min-h-screen bg-background">
-      <OriginalDashboard />
-    </div>
-  );
+  return <SimpleTest />;
 };
 
 export default Index;
