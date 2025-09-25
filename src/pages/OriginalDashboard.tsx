@@ -168,7 +168,7 @@ const OriginalDashboard = () => {
   };
 
   const tabs = [
-    'Übersicht', 'Kalender', 'Buchungen', 'Gäste', 'Häuser', 'Services', 'Provider', 'Wäsche'
+    'Übersicht', 'Kalender', 'Buchungen', 'Gäste', 'Häuser', 'Reinigung', 'Provider', 'Wäsche'
   ];
 
   const houses = [
@@ -645,12 +645,12 @@ const OriginalDashboard = () => {
         );
       case 'Häuser':
         return <Houses />;
-      case 'Services':
+      case 'Reinigung':
         return (
           <div className="text-center py-12">
             <Sparkles className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Services</h3>
-            <p className="text-gray-600">Service-Management wird hier angezeigt</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Reinigung</h3>
+            <p className="text-gray-600">Reinigungsmanagement wird hier angezeigt</p>
           </div>
         );
       case 'Provider':
