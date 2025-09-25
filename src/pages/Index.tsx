@@ -406,6 +406,10 @@ const Index = () => {
       <TaskDetailsDialog
         isOpen={showTaskDetails}
         onClose={() => setShowTaskDetails(false)}
+        onUpdate={() => {
+          // Refetch tasks when a task is updated
+          window.location.reload(); // Simple refresh - you could use query refetch instead
+        }}
         task={selectedTask}
       />
     </div>
