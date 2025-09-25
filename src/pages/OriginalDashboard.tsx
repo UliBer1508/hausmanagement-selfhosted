@@ -108,6 +108,21 @@ const OriginalDashboard = () => {
     enabled: activeTab === 'Übersicht' || activeTab === 'Reinigung',
   });
 
+  // Fetch houses data for filters
+  const { data: housesData } = useQuery({
+    queryKey: ['dashboard-houses'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('houses')
+        .select('id, name')
+        .order('name', { ascending: true });
+      
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+
   // Optimized cleaning assignments query
   const { data: cleaningAssignments } = useQuery({
     queryKey: ['cleaning-assignments-minimal'],
@@ -740,6 +755,29 @@ const OriginalDashboard = () => {
   };
 
   const renderOverviewContent = () => {
+    // Get unique houses from fetched data for filter
+    const availableHouses = [
+      { id: 'all', name: 'Alle Häuser' },
+      ...(housesData?.map(house => ({ id: house.id, name: house.name })) || [])
+    ];
+
+    // Get unique status values for filter
+    const availableStatuses = [
+      { value: 'all', label: 'Alle Status' },
+      { value: 'confirmed', label: 'Bestätigt' },
+      { value: 'pending', label: 'Ausstehend' },
+      { value: 'cancelled', label: 'Storniert' },
+      { value: 'completed', label: 'Abgeschlossen' }
+    ];
+
+    // Get available time periods
+    const timePeriods = [
+      { value: 'next3months', label: 'Nächste 3 Monate' },
+      { value: 'next6months', label: 'Nächste 6 Monate' },
+      { value: 'thisyear', label: 'Dieses Jahr' },
+      { value: 'all', label: 'Alle Zeiträume' }
+    ];
+
     return (
       <div>
         {/* Search and Filters */}
@@ -755,17 +793,39 @@ const OriginalDashboard = () => {
               </div>
             </div>
             <div className="flex gap-4">
+              {/* Service Type Filter */}
               <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option>Alle anzeigen</option>
+                <option value="all">Alle Services</option>
+                <option value="cleaning">Reinigung</option>
+                <option value="laundry">Wäsche</option>
+                <option value="maintenance">Wartung</option>
               </select>
+              
+              {/* Status Filter */}
               <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option>Alle Status</option>
+                {availableStatuses.map(status => (
+                  <option key={status.value} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
               </select>
+              
+              {/* Houses Filter */}
               <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option>Alle Häuser</option>
+                {availableHouses.map(house => (
+                  <option key={house.id} value={house.id}>
+                    {house.name}
+                  </option>
+                ))}
               </select>
+              
+              {/* Time Period Filter */}
               <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
-                <option>Nächsten 3 Monate</option>
+                {timePeriods.map(period => (
+                  <option key={period.value} value={period.value}>
+                    {period.label}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
