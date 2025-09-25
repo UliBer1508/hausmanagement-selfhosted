@@ -16,6 +16,8 @@ const ConnectedBookingView = () => {
   const [statusFilter, setStatusFilter] = useState('confirmed');
   const [houseFilter, setHouseFilter] = useState('all');
 
+  console.log('ConnectedBookingView rendering with filters:', { statusFilter, houseFilter, searchTerm });
+
   // Fetch bookings with related data
   const { data: bookingsData, isLoading } = useQuery({
     queryKey: ['connected-bookings'],
@@ -47,6 +49,8 @@ const ConnectedBookingView = () => {
   const { data: serviceTasks } = useQuery({
     queryKey: ['service-tasks-connected'],
     queryFn: async () => {
+      console.log('Fetching service tasks...');
+      
       const { data, error } = await supabase
         .from('service_tasks')
         .select(`
@@ -62,7 +66,12 @@ const ConnectedBookingView = () => {
           )
         `);
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching service tasks:', error);
+        throw error;
+      }
+      
+      console.log('Fetched service tasks:', data);
       return data;
     },
   });
