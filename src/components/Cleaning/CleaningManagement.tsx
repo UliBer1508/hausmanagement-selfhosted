@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, MapPin, User, Calendar, Clock } from 'lucide-react';
+import { Search, Plus, MapPin, User, Calendar, Clock, Edit } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
@@ -71,6 +71,11 @@ const CleaningManagement = () => {
         // Filter for bookings without cleaning tasks
         return data?.filter(booking => 
           !booking.service_tasks?.some(task => task.service_type === 'cleaning')
+        ) || [];
+      } else if (bookingFilter === 'with_cleaning') {
+        // Filter for bookings with cleaning tasks
+        return data?.filter(booking => 
+          booking.service_tasks?.some(task => task.service_type === 'cleaning')
         ) || [];
       }
 
@@ -297,8 +302,17 @@ const CleaningManagement = () => {
                               </div>
                             </div>
                             <Button size="sm" variant="outline">
-                              <Plus className="w-4 h-4 mr-1" />
-                              Reinigung hinzufügen
+                              {booking.service_tasks?.some(task => task.service_type === 'cleaning') ? (
+                                <>
+                                  <Edit className="w-4 h-4 mr-1" />
+                                  Bearbeiten
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="w-4 h-4 mr-1" />
+                                  Reinigung hinzufügen
+                                </>
+                              )}
                             </Button>
                           </div>
                         </CardContent>
