@@ -8,17 +8,34 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Filter, Calendar, CheckCircle } from 'lucide-react';
+import { Search, Filter, Calendar, CheckCircle, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('tasks');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'scheduled' | 'in_progress' | 'completed'>('all');
+  const [staffFilter, setStaffFilter] = useState('all');
+  const [timeFilter, setTimeFilter] = useState('all');
+
+  // Fetch cleaning staff for filter
+  const { data: cleaningStaff } = useQuery({
+    queryKey: ['cleaning-staff'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('cleaning_staff')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   // Fetch cleaning tasks for Amela provider
   const { data: tasks, isLoading } = useQuery({
-    queryKey: ['amela-cleaning-tasks', searchTerm, statusFilter],
+    queryKey: ['amela-cleaning-tasks', searchTerm, statusFilter, staffFilter, timeFilter],
     queryFn: async () => {
       // First get all service tasks
       let query = supabase
@@ -43,6 +60,32 @@ const Index = () => {
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter);
+      }
+
+      // Apply staff filter
+      if (staffFilter !== 'all') {
+        query = query.eq('assigned_staff_id', staffFilter);
+      }
+
+      // Apply time filter
+      const now = new Date();
+      if (timeFilter === 'today') {
+        const today = now.toISOString().split('T')[0];
+        query = query.eq('scheduled_date', today);
+      } else if (timeFilter === 'week') {
+        const oneWeekFromNow = new Date();
+        oneWeekFromNow.setDate(now.getDate() + 7);
+        query = query
+          .gte('scheduled_date', now.toISOString().split('T')[0])
+          .lte('scheduled_date', oneWeekFromNow.toISOString().split('T')[0]);
+      } else if (timeFilter === 'month') {
+        const oneMonthFromNow = new Date();
+        oneMonthFromNow.setMonth(now.getMonth() + 1);
+        query = query
+          .gte('scheduled_date', now.toISOString().split('T')[0])
+          .lte('scheduled_date', oneMonthFromNow.toISOString().split('T')[0]);
+      } else if (timeFilter === 'past') {
+        query = query.lt('scheduled_date', now.toISOString().split('T')[0]);
       }
 
       const { data: tasksData, error } = await query;
@@ -132,14 +175,54 @@ const Index = () => {
       {/* Quick Actions */}
       <Card className="p-4">
         <h3 className="font-semibold mb-3">Schnellzugriff</h3>
-        <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button
             variant="outline"
-            className="w-full justify-start"
-            onClick={() => setActiveTab('tasks')}
+            size="sm"
+            className="justify-start"
+            onClick={() => {
+              setActiveTab('tasks');
+              setTimeFilter('today');
+            }}
           >
             <Calendar className="h-4 w-4 mr-2" />
-            Alle Aufträge anzeigen
+            Heute
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="justify-start"
+            onClick={() => {
+              setActiveTab('tasks');
+              setTimeFilter('week');
+            }}
+          >
+            <Calendar className="h-4 w-4 mr-2" />
+            Diese Woche
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="justify-start"
+            onClick={() => {
+              setActiveTab('tasks');
+              setStatusFilter('scheduled');
+            }}
+          >
+            <Clock className="h-4 w-4 mr-2" />
+            Geplant
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="justify-start"
+            onClick={() => {
+              setActiveTab('tasks');
+              setStatusFilter('in_progress');
+            }}
+          >
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Aktiv
           </Button>
         </div>
       </Card>
@@ -160,19 +243,51 @@ const Index = () => {
           />
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-3">
           <Filter className="h-4 w-4 text-gray-400" />
-          <Select value={statusFilter} onValueChange={(value: 'all' | 'scheduled' | 'in_progress' | 'completed') => setStatusFilter(value)}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Status filtern" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Status</SelectItem>
-              <SelectItem value="scheduled">Geplant</SelectItem>
-              <SelectItem value="in_progress">In Bearbeitung</SelectItem>
-              <SelectItem value="completed">Abgeschlossen</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="grid grid-cols-1 gap-2 flex-1">
+            {/* Status Filter */}
+            <Select value={statusFilter} onValueChange={(value: 'all' | 'scheduled' | 'in_progress' | 'completed') => setStatusFilter(value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status filtern" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Status</SelectItem>
+                <SelectItem value="scheduled">Geplant</SelectItem>
+                <SelectItem value="in_progress">In Bearbeitung</SelectItem>
+                <SelectItem value="completed">Abgeschlossen</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* Staff Filter */}
+            <Select value={staffFilter} onValueChange={setStaffFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Putzkraft filtern" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Putzkräfte</SelectItem>
+                {cleaningStaff?.map((staff) => (
+                  <SelectItem key={staff.id} value={staff.id}>
+                    {staff.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Time Filter */}
+            <Select value={timeFilter} onValueChange={setTimeFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Zeitraum filtern" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Zeiten</SelectItem>
+                <SelectItem value="today">Heute</SelectItem>
+                <SelectItem value="week">Diese Woche</SelectItem>
+                <SelectItem value="month">Dieser Monat</SelectItem>
+                <SelectItem value="past">Vergangene</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         
         {/* Results count */}
@@ -183,6 +298,8 @@ const Index = () => {
           <Button variant="ghost" size="sm" onClick={() => {
             setSearchTerm('');
             setStatusFilter('all');
+            setStaffFilter('all');
+            setTimeFilter('all');
           }}>
             Filter zurücksetzen
           </Button>
