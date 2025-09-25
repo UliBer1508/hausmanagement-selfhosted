@@ -1,16 +1,20 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Edit, User, Building } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import EditCleaningTaskDialog from '@/components/Cleaning/EditCleaningTaskDialog';
 
 interface ServiceTaskCardProps {
   task: any;
   colorVariant: 'green' | 'blue' | 'purple';
+  onTaskUpdated?: () => void;
 }
 
-const ServiceTaskCard = ({ task, colorVariant }: ServiceTaskCardProps) => {
+const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardProps) => {
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
@@ -114,10 +118,22 @@ const ServiceTaskCard = ({ task, colorVariant }: ServiceTaskCardProps) => {
           variant="ghost"
           size="sm"
           className="absolute top-2 right-2 h-8 w-8 p-0"
+          onClick={() => setShowEditDialog(true)}
         >
           <Edit className="w-4 h-4" />
         </Button>
       </CardContent>
+
+      {/* Edit Dialog */}
+      <EditCleaningTaskDialog
+        taskId={task.id}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onTaskUpdated={() => {
+          setShowEditDialog(false);
+          onTaskUpdated?.();
+        }}
+      />
     </Card>
   );
 };

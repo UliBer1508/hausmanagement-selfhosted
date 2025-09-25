@@ -811,7 +811,7 @@ const OriginalDashboard = () => {
                         <div className="space-y-3">
                           {tasks.length > 0 ? (
                             tasks.map((task) => (
-                              <ServiceTaskCard key={task.id} task={task} colorVariant={colorVariant} />
+                              <ServiceTaskCard key={task.id} task={task} colorVariant={colorVariant} onTaskUpdated={() => window.location.reload()} />
                             ))
                           ) : (
                             <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg bg-blue-50">
