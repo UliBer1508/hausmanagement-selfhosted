@@ -9,6 +9,8 @@ export interface Provider {
   avatar?: string;
 }
 
+// Note: Provider type kept for potential future API integrations
+
 export interface ServiceTask {
   id: string;
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'delayed';
