@@ -669,7 +669,7 @@ const OriginalDashboard = () => {
                   </p>
                   <Button 
                     className="w-full" 
-                    onClick={() => window.open('https://amela-portal.lovable.app', '_blank')}
+                    onClick={() => window.open('https://amela-clean-hub.lovable.app/', '_blank')}
                   >
                     Portal öffnen
                   </Button>
