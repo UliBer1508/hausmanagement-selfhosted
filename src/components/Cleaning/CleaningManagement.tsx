@@ -261,10 +261,10 @@ const CleaningManagement = () => {
 
           <Button 
             className="w-full bg-black text-white hover:bg-gray-800"
-            onClick={() => setShowBookingResults(true)}
+            onClick={() => setShowBookingResults(!showBookingResults)}
           >
             <Search className="w-4 h-4 mr-2" />
-            Buchungen auf Reinigungsaufträge prüfen
+            {showBookingResults ? 'Ergebnisse schließen' : 'Buchungen auf Reinigungsaufträge prüfen'}
           </Button>
 
           {/* Results for bookings without cleaning - only show when button is clicked */}
