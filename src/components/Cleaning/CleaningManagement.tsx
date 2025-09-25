@@ -91,7 +91,8 @@ const CleaningManagement = () => {
           service_providers(id, name, service_type),
           cleaning_assignments(id, cleaning_staff(id, name))
         `)
-        .eq('service_type', 'cleaning');
+        .eq('service_type', 'cleaning')
+        .order('scheduled_date', { ascending: true }); // Sort by date, nearest first
 
       if (taskHouseFilter !== 'all') {
         query = query.eq('house_id', taskHouseFilter);
