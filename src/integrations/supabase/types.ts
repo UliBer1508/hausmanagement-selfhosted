@@ -527,6 +527,36 @@ export type Database = {
           },
         ]
       }
+      cron_job_logs: {
+        Row: {
+          activities_added: number | null
+          duration_seconds: number | null
+          error_message: string | null
+          executed_at: string | null
+          id: string
+          job_name: string
+          status: string | null
+        }
+        Insert: {
+          activities_added?: number | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          executed_at?: string | null
+          id?: string
+          job_name: string
+          status?: string | null
+        }
+        Update: {
+          activities_added?: number | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          executed_at?: string | null
+          id?: string
+          job_name?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
       day_trips: {
         Row: {
           activity_address: string
@@ -1800,6 +1830,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string | null
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       vacation_trips: {
         Row: {
           budget: number | null
@@ -1890,6 +1941,17 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      get_user_role: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       track_token_usage: {
         Args: { token_hash_param: string }
         Returns: boolean
@@ -1915,6 +1977,7 @@ export type Database = {
       }
     }
     Enums: {
+      app_role: "admin" | "moderator" | "user"
       booking_status: "confirmed" | "cancelled" | "completed" | "checked_in"
       service_type: "cleaning" | "laundry"
       task_status:
@@ -2051,6 +2114,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "moderator", "user"],
       booking_status: ["confirmed", "cancelled", "completed", "checked_in"],
       service_type: ["cleaning", "laundry"],
       task_status: [
