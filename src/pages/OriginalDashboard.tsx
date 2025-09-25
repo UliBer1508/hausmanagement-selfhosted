@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   Home, 
   Calendar as CalendarIcon, 
@@ -25,12 +27,96 @@ import { de } from 'date-fns/locale';
 import steinbockLogo from '@/assets/steinbock-logo.png';
 import CreateBookingDialog from '@/components/Bookings/CreateBookingDialog';
 import BookingOverviewFixed from '@/components/Bookings/BookingOverviewFixed';
+import BookingCard from '@/components/Bookings/BookingCard';
+import ServiceTaskCard from '@/components/Bookings/ServiceTaskCard';
+import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
 
 const OriginalDashboard = () => {
   const [activeTab, setActiveTab] = useState('Übersicht');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+
+  // Fetch real bookings data
+  const { data: bookingsData } = useQuery({
+    queryKey: ['dashboard-bookings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          *,
+          houses:house_id (
+            id,
+            name,
+            address
+          )
+        `)
+        .eq('status', 'confirmed')
+        .order('check_in', { ascending: true })
+        .limit(5);
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch service tasks
+  const { data: serviceTasks } = useQuery({
+    queryKey: ['dashboard-service-tasks'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('service_tasks')
+        .select(`
+          *,
+          service_providers:provider_id (
+            id,
+            name,
+            service_type
+          ),
+          cleaning_staff:assigned_staff_id (
+            id,
+            name
+          )
+        `);
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch laundry orders
+  const { data: laundryOrders } = useQuery({
+    queryKey: ['dashboard-laundry-orders'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('laundry_orders')
+        .select(`
+          *,
+          laundry_order_items (
+            id,
+            item_name,
+            item_type,
+            quantity,
+            status
+          )
+        `);
+      
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Get related data for each booking
+  const getBookingRelatedData = (bookingId: string) => {
+    const bookingTasks = serviceTasks?.filter(task => task.booking_id === bookingId) || [];
+    // Get laundry orders through service tasks
+    const taskIds = bookingTasks.map(task => task.id);
+    const bookingLaundry = laundryOrders?.filter(order => 
+      taskIds.includes(order.service_task_id)
+    ) || [];
+    
+    return { tasks: bookingTasks, laundry: bookingLaundry };
+  };
 
   const tabs = [
     'Übersicht', 'Kalender', 'Buchungen', 'Gäste', 'Häuser', 'Services', 'Provider', 'Wäsche'
@@ -483,7 +569,7 @@ const OriginalDashboard = () => {
           </div>
         </div>
 
-        {/* Bookings Section */}
+        {/* Bookings Section - Real Data from Database */}
         <div className="space-y-6">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -493,52 +579,60 @@ const OriginalDashboard = () => {
               Übersicht über Buchungen und ihre zugehörigen Service-Aufträge und Wäschebestellungen (inkl. abgeschlossene)
             </p>
             
-            <div className="space-y-4">
-              {bookings.map((booking) => (
-                <Card key={booking.id} className={`booking-card-${booking.borderColor}`}>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="font-semibold text-gray-900">{booking.guest}</h3>
-                          <Button variant="ghost" size="sm">
-                            <Edit className="w-4 h-4" />
-                          </Button>
+            <div className="space-y-6">
+              {bookingsData?.map((booking, index) => {
+                const { tasks, laundry } = getBookingRelatedData(booking.id);
+                const colorVariant = index === 0 ? 'green' : index === 1 ? 'blue' : 'purple';
+                
+                return (
+                  <div key={booking.id} className="relative bg-white rounded-lg border border-gray-200 shadow-sm">
+                    <div className="p-6">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Booking Card */}
+                        <BookingCard booking={booking} colorVariant={colorVariant} />
+                        
+                        {/* Service Tasks */}
+                        <div className="space-y-3">
+                          {tasks.length > 0 ? (
+                            tasks.map((task) => (
+                              <ServiceTaskCard key={task.id} task={task} colorVariant={colorVariant} />
+                            ))
+                          ) : (
+                            <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg bg-blue-50">
+                              <div className="flex flex-col items-center space-y-2">
+                                <span className="text-lg">🧹</span>
+                                <p className="font-medium">Keine Service-Aufträge</p>
+                                <p className="text-xs">Noch keine Reinigung geplant</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-sm text-gray-600 mb-1">{booking.house}</p>
-                        <p className="text-sm text-gray-600 mb-1">{booking.dates}</p>
-                        <div className="flex items-center gap-4">
-                          <Badge className="status-free">{booking.status}</Badge>
-                          <span className="text-sm text-gray-600">👤 {booking.guests}</span>
+                        
+                        {/* Laundry Orders */}
+                        <div className="space-y-3">
+                          {laundry.length > 0 ? (
+                            laundry.map((order) => (
+                              <LaundryOrderCard key={order.id} order={order} colorVariant={colorVariant} />
+                            ))
+                          ) : (
+                            <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg bg-gray-50">
+                              <div className="flex flex-col items-center space-y-2">
+                                <span className="text-lg">👕</span>
+                                <p className="font-medium">Keine Wäschebestellungen</p>
+                                <p className="text-xs">Wäscheservice aktuell nicht verfügbar</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <Button variant="outline" size="sm">
-                        Bearbeiten
-                      </Button>
                     </div>
-
-                    <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <Badge className="service-badge-cleaning">
-                            🧹 Reinigung
-                          </Badge>
-                          <Badge variant="outline">{booking.cleaning.status}</Badge>
-                        </div>
-                        <span className="text-sm text-gray-600">{format(parseISO(booking.cleaning.date), 'dd.MM.yyyy')}</span>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        <p>Provider: {booking.cleaning.provider}</p>
-                        <p>👤 Putzkraft: {booking.cleaning.provider}</p>
-                      </div>
-                    </div>
-
-                    <div className="mt-2 text-sm text-gray-500">
-                      Keine Wäschebestellungen
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </div>
+                );
+              }) ?? (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Keine bestätigten Buchungen gefunden</p>
+                </div>
+              )}
             </div>
           </div>
 
