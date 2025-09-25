@@ -45,7 +45,7 @@ const OriginalDashboard = () => {
   
   // Filter states for overview
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('confirmed');
   const [houseFilter, setHouseFilter] = useState('all');
   const [serviceTypeFilter, setServiceTypeFilter] = useState('all');
   const [timePeriodFilter, setTimePeriodFilter] = useState('all');
