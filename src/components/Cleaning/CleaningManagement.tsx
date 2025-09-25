@@ -15,6 +15,7 @@ const CleaningManagement = () => {
   const [providerFilter, setProviderFilter] = useState('all');
   const [bookingFilter, setBookingFilter] = useState('without_cleaning');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showBookingResults, setShowBookingResults] = useState(false);
   const [taskSearchTerm, setTaskSearchTerm] = useState('');
   const [taskProviderFilter, setTaskProviderFilter] = useState('all');
   const [taskServiceType, setTaskServiceType] = useState('cleaning');
@@ -74,6 +75,7 @@ const CleaningManagement = () => {
 
       return data || [];
     },
+    enabled: showBookingResults, // Only run query when button is clicked
   });
 
   // Fetch all cleaning tasks
@@ -247,50 +249,63 @@ const CleaningManagement = () => {
             </div>
           </div>
 
-          <Button className="w-full bg-black text-white hover:bg-gray-800">
+          <Button 
+            className="w-full bg-black text-white hover:bg-gray-800"
+            onClick={() => setShowBookingResults(true)}
+          >
             <Search className="w-4 h-4 mr-2" />
             Buchungen auf Reinigungsaufträge prüfen
           </Button>
 
-          {/* Results for bookings without cleaning */}
-          {loadingBookings ? (
-            <div className="text-center py-8">Lädt...</div>
-          ) : (
-            <div className="space-y-3">
-              {bookingsWithoutCleaning?.map((booking) => (
-                <Card key={booking.id} className="border-l-4 border-l-orange-500">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-2">
-                        <h4 className="font-semibold flex items-center gap-2">
-                          Reinigung - {booking.houses?.name}
-                        </h4>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <MapPin className="w-4 h-4" />
-                          {booking.houses?.address}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <User className="w-4 h-4" />
-                          Gast: {booking.guest_name}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <Calendar className="w-4 h-4" />
-                          Buchung: {new Date(booking.check_in).toLocaleDateString('de-DE')} - {new Date(booking.check_out).toLocaleDateString('de-DE')}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <User className="w-4 h-4" />
-                          {booking.number_of_guests} Gäste
-                        </div>
-                      </div>
-                      <Button size="sm" variant="outline">
-                        <Plus className="w-4 h-4 mr-1" />
-                        Reinigung hinzufügen
-                      </Button>
+          {/* Results for bookings without cleaning - only show when button is clicked */}
+          {showBookingResults && (
+            <>
+              {loadingBookings ? (
+                <div className="text-center py-8">Lädt...</div>
+              ) : (
+                <div className="space-y-3">
+                  {bookingsWithoutCleaning?.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Keine Buchungen ohne Reinigungsaufträge gefunden.
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  ) : (
+                    bookingsWithoutCleaning?.map((booking) => (
+                      <Card key={booking.id} className="border-l-4 border-l-orange-500">
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-2">
+                              <h4 className="font-semibold flex items-center gap-2">
+                                Reinigung - {booking.houses?.name}
+                              </h4>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <MapPin className="w-4 h-4" />
+                                {booking.houses?.address}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <User className="w-4 h-4" />
+                                Gast: {booking.guest_name}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Calendar className="w-4 h-4" />
+                                Buchung: {new Date(booking.check_in).toLocaleDateString('de-DE')} - {new Date(booking.check_out).toLocaleDateString('de-DE')}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <User className="w-4 h-4" />
+                                {booking.number_of_guests} Gäste
+                              </div>
+                            </div>
+                            <Button size="sm" variant="outline">
+                              <Plus className="w-4 h-4 mr-1" />
+                              Reinigung hinzufügen
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
