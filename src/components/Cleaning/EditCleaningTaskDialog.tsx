@@ -135,7 +135,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     resolver: zodResolver(editTaskSchema),
     defaultValues: {
       provider_id: '',
-      assigned_staff_id: '',
+      assigned_staff_id: 'none',
       scheduled_date: new Date(),
       scheduled_time: '',
       status: 'scheduled',
@@ -148,7 +148,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     if (task) {
       form.reset({
         provider_id: task.provider_id || '',
-        assigned_staff_id: task.cleaning_assignments?.[0]?.cleaning_staff_id || '',
+        assigned_staff_id: task.cleaning_assignments?.[0]?.cleaning_staff_id || 'none',
         scheduled_date: new Date(task.scheduled_date),
         scheduled_time: task.scheduled_time || '',
         status: task.status as any,
@@ -176,7 +176,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
       if (taskError) throw taskError;
 
       // Handle cleaning staff assignment
-      if (data.assigned_staff_id) {
+      if (data.assigned_staff_id && data.assigned_staff_id !== 'none') {
         // Check if assignment exists
         const { data: existingAssignment } = await supabase
           .from('cleaning_assignments')
@@ -453,7 +453,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="">Keine Zuordnung</SelectItem>
+                            <SelectItem value="none">Keine Zuordnung</SelectItem>
                             {cleaningStaff?.map((staff) => (
                               <SelectItem key={staff.id} value={staff.id}>
                                 <div className="flex items-center justify-between w-full">

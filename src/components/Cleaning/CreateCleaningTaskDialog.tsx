@@ -64,6 +64,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
       house_id: '',
       booking_id: '',
       provider_id: '',
+      assigned_staff_id: 'none',
       scheduled_date: '',
       scheduled_time: '10:00',
       notes: '',
@@ -167,6 +168,20 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
         .single();
 
       if (error) throw error;
+
+      // Handle cleaning staff assignment if provided
+      if (data.assigned_staff_id && data.assigned_staff_id !== 'none') {
+        const { error: assignmentError } = await supabase
+          .from('cleaning_assignments')
+          .insert({
+            service_task_id: result.id,
+            cleaning_staff_id: data.assigned_staff_id,
+            status: 'assigned',
+          });
+
+        if (assignmentError) throw assignmentError;
+      }
+
       return result;
     },
     onSuccess: () => {
@@ -404,6 +419,38 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
                             {providers?.map((provider) => (
                               <SelectItem key={provider.id} value={provider.id}>
                                 {provider.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Putzkraft auswählen */}
+                  <FormField
+                    control={form.control}
+                    name="assigned_staff_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Putzkraft zuweisen (optional)</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Putzkraft auswählen..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="none">Keine Zuordnung</SelectItem>
+                            {cleaningStaff?.map((staff) => (
+                              <SelectItem key={staff.id} value={staff.id}>
+                                <div className="flex items-center justify-between w-full">
+                                  <span>{staff.name}</span>
+                                  {staff.hourly_rate && (
+                                    <span className="text-xs text-muted-foreground">€{staff.hourly_rate}/h</span>
+                                  )}
+                                </div>
                               </SelectItem>
                             ))}
                           </SelectContent>
