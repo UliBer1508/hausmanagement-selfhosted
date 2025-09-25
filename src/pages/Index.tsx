@@ -20,6 +20,7 @@ const Index = () => {
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['amela-cleaning-tasks', searchTerm, statusFilter],
     queryFn: async () => {
+      // First get all service tasks
       let query = supabase
         .from('service_tasks')
         .select(`
@@ -35,10 +36,6 @@ const Index = () => {
             number_of_guests,
             check_in,
             check_out
-          ),
-          cleaning_staff:assigned_staff_id (
-            id,
-            name
           )
         `)
         .eq('service_type', 'cleaning')
@@ -48,29 +45,57 @@ const Index = () => {
         query = query.eq('status', statusFilter);
       }
 
-      if (searchTerm) {
-        query = query.or(`houses.name.ilike.%${searchTerm}%,bookings.guest_name.ilike.%${searchTerm}%`);
-      }
-
-      const { data, error } = await query;
+      const { data: tasksData, error } = await query;
       if (error) throw error;
 
-      return data?.map(task => ({
-        id: task.id,
-        scheduled_date: task.scheduled_date,
-        scheduled_time: task.scheduled_time,
-        status: task.status,
-        house: task.houses || { name: 'Unbekanntes Haus', address: '' },
-        booking: task.bookings || { 
-          guest_name: 'Unbekannter Gast', 
-          number_of_guests: 0, 
-          check_in: '', 
-          check_out: '' 
-        },
-        assigned_staff: (task.cleaning_staff as any)?.name 
-          ? { name: (task.cleaning_staff as any).name }
-          : null
-      })) || [];
+      if (!tasksData) return [];
+
+      // Get cleaning staff for assigned tasks
+      const staffIds = tasksData
+        .filter(task => task.assigned_staff_id)
+        .map(task => task.assigned_staff_id);
+
+      let staffData: any[] = [];
+      if (staffIds.length > 0) {
+        const { data: staff, error: staffError } = await supabase
+          .from('cleaning_staff')
+          .select('id, name')
+          .in('id', staffIds);
+        
+        if (!staffError) {
+          staffData = staff || [];
+        }
+      }
+
+      // Combine tasks with staff data
+      const tasksWithStaff = tasksData.map(task => {
+        const assignedStaff = staffData.find(staff => staff.id === task.assigned_staff_id);
+        
+        return {
+          id: task.id,
+          scheduled_date: task.scheduled_date,
+          scheduled_time: task.scheduled_time,
+          status: task.status,
+          house: task.houses || { name: 'Unbekanntes Haus', address: '' },
+          booking: task.bookings || { 
+            guest_name: 'Unbekannter Gast', 
+            number_of_guests: 0, 
+            check_in: '', 
+            check_out: '' 
+          },
+          assigned_staff: assignedStaff ? { name: assignedStaff.name } : null
+        };
+      });
+
+      // Apply search filter if provided
+      if (searchTerm) {
+        return tasksWithStaff.filter(task => 
+          task.house.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          task.booking.guest_name.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+
+      return tasksWithStaff;
     },
   });
 
