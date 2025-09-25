@@ -40,9 +40,16 @@ const RealDataDashboard = () => {
   const getEventsForDate = (date: Date) => {
     const events = [];
     
+    console.log('Getting events for date:', date.toISOString(), 'Available bookings:', bookings.length);
+    
     // Check-ins
     bookings.forEach(booking => {
-      if (isSameDay(date, parseISO(booking.check_in))) {
+      const checkInDate = parseISO(booking.check_in);
+      const checkOutDate = parseISO(booking.check_out);
+      
+      console.log(`Checking booking ${booking.guest_name}: check-in ${checkInDate.toISOString()}, selected ${date.toISOString()}, same day: ${isSameDay(date, checkInDate)}`);
+      
+      if (isSameDay(date, checkInDate)) {
         events.push({
           type: 'checkin',
           title: `Check-in: ${booking.guest_name}`,
@@ -51,7 +58,7 @@ const RealDataDashboard = () => {
         });
       }
       
-      if (isSameDay(date, parseISO(booking.check_out))) {
+      if (isSameDay(date, checkOutDate)) {
         events.push({
           type: 'checkout',
           title: `Check-out: ${booking.guest_name}`,
