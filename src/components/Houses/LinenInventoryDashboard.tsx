@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Package, 
   AlertTriangle, 
@@ -23,6 +23,8 @@ import {
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import LinenOrderDialog from './LinenOrderDialog';
+import LinenSetRulesTab from './LinenSetRulesTab';
+import LinenOrdersTab from './LinenOrdersTab';
 
 interface LinenInventoryDashboardProps {
   house: any;
@@ -384,29 +386,11 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
         </TabsContent>
 
         <TabsContent value="wäscheset-regeln">
-          <Card>
-            <CardHeader>
-              <CardTitle>Wäscheset-Regeln für {house.name}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-muted-foreground">
-                Hier können die Regeln für Wäschemengen pro Gast und pro Buchung konfiguriert werden.
-              </div>
-            </CardContent>
-          </Card>
+          <LinenSetRulesTab house={house} />
         </TabsContent>
 
         <TabsContent value="bestellungen">
-          <Card>
-            <CardHeader>
-              <CardTitle>Aktive Bestellungen</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-muted-foreground">
-                Übersicht aller aktuellen und vergangenen Wäschebestellungen.
-              </div>
-            </CardContent>
-          </Card>
+          <LinenOrdersTab house={house} />
         </TabsContent>
       </Tabs>
 
