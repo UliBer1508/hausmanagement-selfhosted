@@ -1,5 +1,5 @@
 import Navigation from '@/components/Navigation';
-import LinenDashboard from '@/components/Houses/LinenDashboard';
+import SmartLinenDashboard from '@/components/Houses/SmartLinenDashboard';
 
 const Laundry = () => {
   return (
@@ -13,7 +13,7 @@ const Laundry = () => {
               Überblick über Wäschebestände und automatische Bedarfsanalyse
             </p>
           </div>
-          <LinenDashboard />
+          <SmartLinenDashboard />
         </div>
       </main>
     </div>

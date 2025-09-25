@@ -49,6 +49,28 @@ All colors MUST be HSL.
     --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
     --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
+    /* Linen Management Theme */
+    --linen-sufficient: 142 76% 36%;
+    --linen-sufficient-bg: 142 76% 96%;
+    --linen-low: 38 92% 50%;
+    --linen-low-bg: 38 92% 95%;
+    --linen-critical: 0 84% 60%;
+    --linen-critical-bg: 0 84% 97%;
+    --linen-overstock: 217 91% 60%;
+    --linen-overstock-bg: 217 91% 97%;
+
+    /* Category Colors */
+    --category-bedroom: 217 91% 60%;
+    --category-bedroom-bg: 217 91% 97%;
+    --category-bathroom: 210 100% 60%;
+    --category-bathroom-bg: 210 100% 97%;
+    --category-kitchen: 35 100% 55%;
+    --category-kitchen-bg: 35 100% 97%;
+
+    /* Smart Dashboard Gradients */
+    --gradient-smart: linear-gradient(135deg, hsl(217 91% 60%), hsl(210 100% 60%));
+    --gradient-critical: linear-gradient(135deg, hsl(0 84% 60%), hsl(38 92% 50%));
+
     --sidebar-background: 0 0% 98%;
 
     --sidebar-foreground: 240 5.3% 26.1%;
