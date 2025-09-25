@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Plus, MapPin, User, Calendar, Clock } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
 
 const CleaningManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -315,10 +316,10 @@ const CleaningManagement = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Reinigungsaufträge</CardTitle>
-          <Button>
-            <Plus className="w-4 h-4 mr-2" />
-            Neuen Auftrag erstellen
-          </Button>
+          <CreateCleaningTaskDialog onTaskCreated={() => {
+            // Refresh cleaning tasks when new task is created
+            window.location.reload();
+          }} />
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
