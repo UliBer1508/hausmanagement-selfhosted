@@ -213,8 +213,12 @@ const ConnectedBookingView = () => {
                       <ServiceTaskCard key={task.id} task={task} colorVariant={colorVariant} />
                     ))
                   ) : (
-                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg">
-                      Keine Service-Aufträge
+                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg bg-blue-50">
+                      <div className="flex flex-col items-center space-y-2">
+                        <span className="text-lg">🧹</span>
+                        <p className="font-medium">Keine Service-Aufträge</p>
+                        <p className="text-xs">Noch keine Reinigung geplant</p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -226,8 +230,12 @@ const ConnectedBookingView = () => {
                       <LaundryOrderCard key={order.id} order={order} colorVariant={colorVariant} />
                     ))
                   ) : (
-                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg">
-                      Keine Wäschebestellungen
+                    <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg bg-gray-50">
+                      <div className="flex flex-col items-center space-y-2">
+                        <span className="text-lg">👕</span>
+                        <p className="font-medium">Keine Wäschebestellungen</p>
+                        <p className="text-xs">Wäscheservice aktuell nicht verfügbar</p>
+                      </div>
                     </div>
                   )}
                 </div>
