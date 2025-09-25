@@ -7,8 +7,17 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { MessageCircle, Mail, Phone, Send, Users, FileText, Calendar, Star } from 'lucide-react';
+import { MessageCircle, Mail, Phone, Send, Users, FileText, Calendar, Star, Settings } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import EmailTemplateEditor from './EmailTemplateEditor';
+
+interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  content: string;
+}
 
 const GuestCommunication = () => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -16,12 +25,25 @@ const GuestCommunication = () => {
   const [selectedSegment, setSelectedSegment] = useState('all');
   const { toast } = useToast();
 
-  // Pre-defined email templates
-  const emailTemplates = {
-    welcome: {
-      name: 'Willkommens-E-Mail',
-      subject: 'Willkommen - Wir freuen uns auf Sie!',
-      content: `Liebe/r {GUEST_NAME},
+  // Pre-defined email templates (now editable)
+  const [emailTemplates, setEmailTemplates] = useState<Record<string, EmailTemplate>>(() => {
+    // Load templates from localStorage if available
+    const saved = localStorage.getItem('steinbock_email_templates');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (error) {
+        console.error('Failed to load saved templates:', error);
+      }
+    }
+    
+    // Default templates
+    return {
+      welcome: {
+        id: 'welcome',
+        name: 'Willkommens-E-Mail',
+        subject: 'Willkommen - Wir freuen uns auf Sie!',
+        content: `Liebe/r {GUEST_NAME},
 
 vielen Dank für Ihre Buchung! Wir freuen uns sehr, Sie vom {CHECK_IN} bis {CHECK_OUT} bei uns begrüßen zu dürfen.
 
@@ -33,12 +55,13 @@ Ihre Buchungsdetails:
 Falls Sie Fragen haben, können Sie uns gerne kontaktieren.
 
 Herzliche Grüße
-Ihr Team`
-    },
-    reminder: {
-      name: 'Check-in Erinnerung',
-      subject: 'Ihr Aufenthalt beginnt bald!',
-      content: `Liebe/r {GUEST_NAME},
+Ihr Steinbock Chalets Team`
+      },
+      reminder: {
+        id: 'reminder',
+        name: 'Check-in Erinnerung',
+        subject: 'Ihr Aufenthalt beginnt bald!',
+        content: `Liebe/r {GUEST_NAME},
 
 Ihr Aufenthalt bei uns beginnt in Kürze! Wir möchten Sie daran erinnern:
 
@@ -50,12 +73,14 @@ Wichtige Hinweise:
 - Parkplätze sind verfügbar
 - Bei Fragen: +43 123 456 789
 
-Wir freuen uns auf Sie!`
-    },
-    feedback: {
-      name: 'Feedback-Anfrage',
-      subject: 'Wie war Ihr Aufenthalt bei uns?',
-      content: `Liebe/r {GUEST_NAME},
+Wir freuen uns auf Sie!
+Ihr Steinbock Chalets Team`
+      },
+      feedback: {
+        id: 'feedback',
+        name: 'Feedback-Anfrage',
+        subject: 'Wie war Ihr Aufenthalt bei uns?',
+        content: `Liebe/r {GUEST_NAME},
 
 wir hoffen, Sie hatten einen wunderschönen Aufenthalt bei uns!
 
@@ -63,12 +88,14 @@ Ihre Meinung ist uns sehr wichtig. Würden Sie uns kurz mitteilen, wie Ihnen Ihr
 
 Über eine Bewertung würden wir uns sehr freuen.
 
-Vielen Dank und bis bald!`
-    },
-    returner: {
-      name: 'Stammkunden-Angebot',
-      subject: 'Spezielles Angebot für Sie als Stammgast',
-      content: `Liebe/r {GUEST_NAME},
+Vielen Dank und bis bald!
+Ihr Steinbock Chalets Team`
+      },
+      returner: {
+        id: 'returner',
+        name: 'Stammkunden-Angebot',
+        subject: 'Spezielles Angebot für Sie als Stammgast',
+        content: `Liebe/r {GUEST_NAME},
 
 als geschätzte/r Stammgast möchten wir Ihnen ein besonderes Angebot machen:
 
@@ -78,8 +105,20 @@ als geschätzte/r Stammgast möchten wir Ihnen ein besonderes Angebot machen:
 
 Der Rabattcode: STAMM15
 
-Gültig bis {EXPIRY_DATE}. Wir freuen uns auf Ihren nächsten Besuch!`
-    }
+Gültig bis {EXPIRY_DATE}. Wir freuen uns auf Ihren nächsten Besuch!
+Ihr Steinbock Chalets Team`
+      }
+    };
+  });
+
+  const handleUpdateTemplates = (updatedTemplates: Record<string, EmailTemplate>) => {
+    setEmailTemplates(updatedTemplates);
+    // Here you could also save to localStorage or database
+    localStorage.setItem('steinbock_email_templates', JSON.stringify(updatedTemplates));
+    toast({
+      title: "Vorlagen aktualisiert",
+      description: "Ihre E-Mail-Vorlagen wurden erfolgreich gespeichert."
+    });
   };
 
   // Fetch guest segments for targeting
@@ -231,215 +270,235 @@ Gültig bis {EXPIRY_DATE}. Wir freuen uns auf Ihren nächsten Besuch!`
   };
 
   return (
-    <div className="space-y-6">
-      {/* Communication Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">E-Mail Empfänger</CardTitle>
-            <Mail className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getSegmentCount('all')}</div>
-            <p className="text-xs text-muted-foreground">
-              Gäste mit E-Mail-Adresse
-            </p>
-          </CardContent>
-        </Card>
+    <Tabs defaultValue="compose" className="space-y-6">
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="compose" className="flex items-center gap-2">
+          <Send className="w-4 h-4" />
+          E-Mail versenden
+        </TabsTrigger>
+        <TabsTrigger value="manage" className="flex items-center gap-2">
+          <Settings className="w-4 h-4" />
+          Vorlagen verwalten
+        </TabsTrigger>
+      </TabsList>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">VIP Kontakte</CardTitle>
-            <Star className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getSegmentCount('vip')}</div>
-            <p className="text-xs text-muted-foreground">
-              Hochwertige Zielgruppe
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stammgäste</CardTitle>
-            <Users className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getSegmentCount('returning')}</div>
-            <p className="text-xs text-muted-foreground">
-              Wiederkehrende Gäste
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Kürzlich aktiv</CardTitle>
-            <Calendar className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{getSegmentCount('recent')}</div>
-            <p className="text-xs text-muted-foreground">
-              Letzte 3 Monate
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Email Composer */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5" />
-              E-Mail versenden
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Segment Selection */}
-            <div>
-              <label className="text-sm font-medium">Zielgruppe auswählen</label>
-              <Select value={selectedSegment} onValueChange={setSelectedSegment}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle Gäste ({getSegmentCount('all')})</SelectItem>
-                  <SelectItem value="vip">VIP Gäste ({getSegmentCount('vip')})</SelectItem>
-                  <SelectItem value="returning">Stammgäste ({getSegmentCount('returning')})</SelectItem>
-                  <SelectItem value="new">Neue Gäste ({getSegmentCount('new')})</SelectItem>
-                  <SelectItem value="recent">Kürzlich aktive ({getSegmentCount('recent')})</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Template Selection */}
-            <div>
-              <label className="text-sm font-medium">E-Mail Vorlage</label>
-              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Vorlage auswählen..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(emailTemplates).map(([key, template]) => (
-                    <SelectItem key={key} value={key}>
-                      {template.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Message Preview/Editor */}
-            <div>
-              <label className="text-sm font-medium">
-                {selectedTemplate ? 'Nachricht (Vorlage)' : 'Eigene Nachricht'}
-              </label>
-              <Textarea
-                value={selectedTemplate ? emailTemplates[selectedTemplate as keyof typeof emailTemplates]?.content : customMessage}
-                onChange={(e) => selectedTemplate ? null : setCustomMessage(e.target.value)}
-                placeholder="Ihre Nachricht hier eingeben..."
-                rows={8}
-                className="mt-1"
-                readOnly={!!selectedTemplate}
-              />
-              {selectedTemplate && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Platzhalter wie {'{GUEST_NAME}'}, {'{CHECK_IN}'} werden automatisch ersetzt
-                </p>
-              )}
-            </div>
-
-            <Button onClick={handleSendMessage} className="w-full">
-              <Send className="w-4 h-4 mr-2" />
-              E-Mail versenden ({getSegmentCount(selectedSegment)} Empfänger)
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Templates & Features */}
-        <div className="space-y-6">
-          {/* Available Templates */}
+      <TabsContent value="compose" className="space-y-6">
+        {/* Communication Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Verfügbare Vorlagen
-              </CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">E-Mail Empfänger</CardTitle>
+              <Mail className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {Object.entries(emailTemplates).map(([key, template]) => (
-                  <div key={key} className="p-3 border rounded-lg">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-medium text-sm">{template.name}</span>
-                      <Badge variant="outline" className="text-xs">Vorlage</Badge>
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-2">
-                      {template.subject}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedTemplate(key)}
-                    >
-                      Verwenden
-                    </Button>
-                  </div>
-                ))}
-              </div>
+              <div className="text-2xl font-bold">{getSegmentCount('all')}</div>
+              <p className="text-xs text-muted-foreground">
+                Gäste mit E-Mail-Adresse
+              </p>
             </CardContent>
           </Card>
 
-          {/* Communication Features */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5" />
-                Weitere Funktionen
-              </CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">VIP Kontakte</CardTitle>
+              <Star className="h-4 w-4 text-yellow-500" />
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div className="p-3 border rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Phone className="h-4 w-4" />
-                    <span className="font-medium text-sm">SMS-Benachrichtigungen</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Check-in Erinnerungen und wichtige Updates per SMS
-                  </p>
-                  <Badge variant="secondary" className="text-xs">Geplant</Badge>
-                </div>
+              <div className="text-2xl font-bold">{getSegmentCount('vip')}</div>
+              <p className="text-xs text-muted-foreground">
+                Hochwertige Zielgruppe
+              </p>
+            </CardContent>
+          </Card>
 
-                <div className="p-3 border rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Send className="h-4 w-4" />
-                    <span className="font-medium text-sm">Automatisierte Kampagnen</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Zeitgesteuerte E-Mails basierend auf Buchungsdaten
-                  </p>
-                  <Badge variant="secondary" className="text-xs">Geplant</Badge>
-                </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Stammgäste</CardTitle>
+              <Users className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{getSegmentCount('returning')}</div>
+              <p className="text-xs text-muted-foreground">
+                Wiederkehrende Gäste
+              </p>
+            </CardContent>
+          </Card>
 
-                <div className="p-3 border rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Star className="h-4 w-4" />
-                    <span className="font-medium text-sm">Personalisierung</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    KI-gestützte personalisierte Nachrichtenerstellung
-                  </p>
-                  <Badge variant="secondary" className="text-xs">Geplant</Badge>
-                </div>
-              </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Kürzlich aktiv</CardTitle>
+              <Calendar className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{getSegmentCount('recent')}</div>
+              <p className="text-xs text-muted-foreground">
+                Letzte 3 Monate
+              </p>
             </CardContent>
           </Card>
         </div>
-      </div>
-    </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Email Composer */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                E-Mail versenden
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Segment Selection */}
+              <div>
+                <label className="text-sm font-medium">Zielgruppe auswählen</label>
+                <Select value={selectedSegment} onValueChange={setSelectedSegment}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Gäste ({getSegmentCount('all')})</SelectItem>
+                    <SelectItem value="vip">VIP Gäste ({getSegmentCount('vip')})</SelectItem>
+                    <SelectItem value="returning">Stammgäste ({getSegmentCount('returning')})</SelectItem>
+                    <SelectItem value="new">Neue Gäste ({getSegmentCount('new')})</SelectItem>
+                    <SelectItem value="recent">Kürzlich aktive ({getSegmentCount('recent')})</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Template Selection */}
+              <div>
+                <label className="text-sm font-medium">E-Mail Vorlage</label>
+                <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Vorlage auswählen..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(emailTemplates).map(([key, template]) => (
+                      <SelectItem key={key} value={key}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Message Preview/Editor */}
+              <div>
+                <label className="text-sm font-medium">
+                  {selectedTemplate ? 'Nachricht (Vorlage)' : 'Eigene Nachricht'}
+                </label>
+                <Textarea
+                  value={selectedTemplate ? emailTemplates[selectedTemplate as keyof typeof emailTemplates]?.content : customMessage}
+                  onChange={(e) => selectedTemplate ? null : setCustomMessage(e.target.value)}
+                  placeholder="Ihre Nachricht hier eingeben..."
+                  rows={8}
+                  className="mt-1"
+                  readOnly={!!selectedTemplate}
+                />
+                {selectedTemplate && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Platzhalter wie {'{GUEST_NAME}'}, {'{CHECK_IN}'} werden automatisch ersetzt
+                  </p>
+                )}
+              </div>
+
+              <Button onClick={handleSendMessage} className="w-full">
+                <Send className="w-4 h-4 mr-2" />
+                E-Mail versenden ({getSegmentCount(selectedSegment)} Empfänger)
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Templates & Features */}
+          <div className="space-y-6">
+            {/* Available Templates */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Verfügbare Vorlagen
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {Object.entries(emailTemplates).map(([key, template]) => (
+                    <div key={key} className="p-3 border rounded-lg">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-medium text-sm">{template.name}</span>
+                        <Badge variant="outline" className="text-xs">Vorlage</Badge>
+                      </div>
+                      <div className="text-xs text-muted-foreground mb-2">
+                        {template.subject}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedTemplate(key)}
+                      >
+                        Verwenden
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Communication Features */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageCircle className="h-5 w-5" />
+                  Weitere Funktionen
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="p-3 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Phone className="h-4 w-4" />
+                      <span className="font-medium text-sm">SMS-Benachrichtigungen</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Check-in Erinnerungen und wichtige Updates per SMS
+                    </p>
+                    <Badge variant="secondary" className="text-xs">Geplant</Badge>
+                  </div>
+
+                  <div className="p-3 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Send className="h-4 w-4" />
+                      <span className="font-medium text-sm">Automatisierte Kampagnen</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Zeitgesteuerte E-Mails basierend auf Buchungsdaten
+                    </p>
+                    <Badge variant="secondary" className="text-xs">Geplant</Badge>
+                  </div>
+
+                  <div className="p-3 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Star className="h-4 w-4" />
+                      <span className="font-medium text-sm">Personalisierung</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      KI-gestützte personalisierte Nachrichtenerstellung
+                    </p>
+                    <Badge variant="secondary" className="text-xs">Geplant</Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </TabsContent>
+
+      <TabsContent value="manage">
+        <EmailTemplateEditor 
+          templates={emailTemplates}
+          onUpdateTemplate={handleUpdateTemplates}
+        />
+      </TabsContent>
+    </Tabs>
   );
 };
 
