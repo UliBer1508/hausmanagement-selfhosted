@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Home, Calendar, Settings, Sparkles, Droplets, BarChart3, Users, Menu, X } from 'lucide-react';
+import { Home, Calendar, Settings, Sparkles, Droplets, BarChart3, Users, Menu, X, Building2 } from 'lucide-react';
 
 const Navigation = () => {
   const location = useLocation();
@@ -12,9 +12,10 @@ const Navigation = () => {
     { name: 'Dashboard', href: '/', icon: BarChart3 },
     { name: 'Ferienhäuser', href: '/houses', icon: Home },
     { name: 'Buchungen', href: '/bookings', icon: Calendar },
+    { name: 'Gäste', href: '/guests', icon: Users },
     { name: 'Reinigung', href: '/cleaning', icon: Sparkles },
     { name: 'Wäscherei', href: '/laundry', icon: Droplets },
-    { name: 'Provider', href: '/providers', icon: Users },
+    { name: 'Provider', href: '/providers', icon: Building2 },
     { name: 'Einstellungen', href: '/settings', icon: Settings }
   ];
 
