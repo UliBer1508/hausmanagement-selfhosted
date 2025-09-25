@@ -106,7 +106,7 @@ const OriginalDashboard = () => {
             contact_phone
           )
         `)
-        .limit(20);
+        .order('scheduled_date', { ascending: true });
       
       if (error) throw error;
       return data;
