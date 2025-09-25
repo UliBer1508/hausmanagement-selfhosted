@@ -1,22 +1,19 @@
-import Navigation from '@/components/Navigation';
 import SmartLinenDashboard from '@/components/Houses/SmartLinenDashboard';
+import AppLayout from '@/components/Layout/AppLayout';
 
 const Laundry = () => {
   return (
-    <div className="min-h-screen bg-background flex">
-      <Navigation />
-      <main className="flex-1 p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold gradient-text">Wäsche-Management</h1>
-            <p className="text-muted-foreground mt-2">
-              Überblick über Wäschebestände und automatische Bedarfsanalyse
-            </p>
-          </div>
-          <SmartLinenDashboard />
+    <AppLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Wäscherei Management</h1>
+          <p className="text-muted-foreground mt-2">
+            Intelligente Verwaltung von Bettwäsche und Handtüchern
+          </p>
         </div>
-      </main>
-    </div>
+        <SmartLinenDashboard />
+      </div>
+    </AppLayout>
   );
 };
 

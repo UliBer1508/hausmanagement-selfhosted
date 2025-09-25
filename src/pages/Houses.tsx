@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search, Home } from 'lucide-react';
 import HouseCard from '@/components/Houses/HouseCard';
 import CreateHouseDialog from '@/components/Houses/CreateHouseDialog';
+import AppLayout from '@/components/Layout/AppLayout';
 
 const Houses = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,77 +65,77 @@ const Houses = () => {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-6">
+      <AppLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
             <p className="text-muted-foreground">Häuser werden geladen...</p>
           </div>
         </div>
-      </div>
+      </AppLayout>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Home className="w-6 h-6 text-primary" />
-            <h1 className="text-3xl font-bold tracking-tight">Häuser verwalten</h1>
+    <AppLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Ferienhäuser</h1>
+            <p className="text-muted-foreground mt-2">Verwalten Sie Ihre Ferienhaus-Objekte</p>
           </div>
-          <p className="text-muted-foreground">
-            Verwalten Sie Ihre Ferienhäuser und Wäschebestände
-          </p>
+          <Button 
+            onClick={() => setIsCreateDialogOpen(true)}
+            className="gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Ferienhaus hinzufügen
+          </Button>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Neues Haus
-        </Button>
-      </div>
 
-      {/* Search and Filters */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Filter</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-              <Input
-                placeholder="Nach Name oder Adresse suchen..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+        {/* Search and Filters */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Filter</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Input
+                  placeholder="Nach Name oder Adresse suchen..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Houses Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredHouses?.map((house) => (
-          <HouseCard
-            key={house.id}
-            house={house}
-            inventoryCount={inventoryCounts?.[house.id] || { total: 0, categories: {} }}
-          />
-        )) || (
-          <div className="col-span-full text-center py-8">
-            <p className="text-muted-foreground">Keine Häuser gefunden</p>
-          </div>
-        )}
+        {/* Houses Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredHouses?.map((house) => (
+            <HouseCard
+              key={house.id}
+              house={house}
+              inventoryCount={inventoryCounts?.[house.id] || { total: 0, categories: {} }}
+            />
+          )) || (
+            <div className="col-span-full text-center py-8">
+              <p className="text-muted-foreground">Keine Häuser gefunden</p>
+            </div>
+          )}
+        </div>
+
+        {/* Create House Dialog */}
+        <CreateHouseDialog
+          open={isCreateDialogOpen}
+          onOpenChange={setIsCreateDialogOpen}
+        />
       </div>
-
-      {/* Create House Dialog */}
-      <CreateHouseDialog
-        open={isCreateDialogOpen}
-        onOpenChange={setIsCreateDialogOpen}
-      />
-    </div>
+    </AppLayout>
   );
 };
 

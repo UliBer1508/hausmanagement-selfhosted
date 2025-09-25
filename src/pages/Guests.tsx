@@ -1,7 +1,12 @@
 import GuestManagement from '@/components/Guests/GuestManagement';
+import AppLayout from '@/components/Layout/AppLayout';
 
 const Guests = () => {
-  return <GuestManagement />;
+  return (
+    <AppLayout>
+      <GuestManagement />
+    </AppLayout>
+  );
 };
 
 export default Guests;

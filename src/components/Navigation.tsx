@@ -15,7 +15,7 @@ const Navigation = () => {
     { name: 'Gäste', href: '/guests', icon: Users },
     { name: 'Reinigung', href: '/cleaning', icon: Sparkles },
     { name: 'Wäscherei', href: '/laundry', icon: Droplets },
-    { name: 'Provider', href: '/providers', icon: Building2 },
+    { name: 'Provider', href: '/service-portal', icon: Building2 },
     { name: 'Einstellungen', href: '/settings', icon: Settings }
   ];
 

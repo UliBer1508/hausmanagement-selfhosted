@@ -1,4 +1,3 @@
-import Navigation from '@/components/Navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,20 +6,19 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, Save } from 'lucide-react';
+import AppLayout from '@/components/Layout/AppLayout';
 
 const Settings = () => {
   return (
-    <div className="flex min-h-screen bg-background">
-      <Navigation />
-      <main className="flex-1 p-6 lg:ml-0">
-        <div className="space-y-8">
-          {/* Header */}
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Einstellungen</h1>
-            <p className="text-muted-foreground mt-2">
-              Verwalten Sie Ihre Kontoeinstellungen und Systemkonfiguration
-            </p>
-          </div>
+    <AppLayout>
+      <div className="space-y-8">
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Einstellungen</h1>
+          <p className="text-muted-foreground mt-2">
+            Verwalten Sie Ihre Kontoeinstellungen und Systemkonfiguration
+          </p>
+        </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Profile Settings */}
@@ -238,11 +236,9 @@ const Settings = () => {
                 </Button>
               </CardContent>
             </Card>
-          </div>
         </div>
-      </main>
-    </div>
-  );
-};
+      </AppLayout>
+    );
+  };
 
 export default Settings;
