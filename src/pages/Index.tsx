@@ -5,6 +5,7 @@ import { MobileHeader } from '@/components/mobile/MobileHeader';
 import { BottomNavigation } from '@/components/mobile/BottomNavigation';
 import { TaskCard } from '@/components/cleaning/TaskCard';
 import { TaskDetailsDialog } from '@/components/cleaning/TaskDetailsDialog';
+import { StaffManagement } from '@/components/cleaning/StaffManagement';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -370,11 +371,7 @@ const Index = () => {
       case 'tasks':
         return renderTasks();
       case 'staff':
-        return (
-          <Card className="p-8 text-center">
-            <p className="text-gray-500">Personal-Verwaltung</p>
-          </Card>
-        );
+        return <StaffManagement />;
       case 'settings':
         return (
           <Card className="p-8 text-center">
