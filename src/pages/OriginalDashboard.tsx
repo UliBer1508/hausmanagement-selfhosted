@@ -42,6 +42,13 @@ const OriginalDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  
+  // Filter states for overview
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [houseFilter, setHouseFilter] = useState('all');
+  const [serviceTypeFilter, setServiceTypeFilter] = useState('all');
+  const [timePeriodFilter, setTimePeriodFilter] = useState('all');
 
   // Fetch real bookings data with optimized caching
   const { data: bookingsData, isLoading: bookingsLoading } = useQuery({
@@ -123,7 +130,59 @@ const OriginalDashboard = () => {
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  // Optimized cleaning assignments query
+  // Filter bookings based on current filters
+  const filteredBookings = useMemo(() => {
+    if (!bookingsData) return [];
+    
+    return bookingsData.filter(booking => {
+      // Search filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesGuest = booking.guest_name?.toLowerCase().includes(searchLower);
+        const matchesHouse = booking.houses?.name?.toLowerCase().includes(searchLower);
+        if (!matchesGuest && !matchesHouse) return false;
+      }
+      
+      // Status filter
+      if (statusFilter !== 'all' && booking.status !== statusFilter) {
+        return false;
+      }
+      
+      // House filter
+      if (houseFilter !== 'all' && booking.houses?.id !== houseFilter) {
+        return false;
+      }
+      
+      // Time period filter
+      if (timePeriodFilter !== 'all') {
+        const checkInDate = new Date(booking.check_in);
+        const now = new Date();
+        const threeMonthsFromNow = new Date(now.getFullYear(), now.getMonth() + 3, now.getDate());
+        const sixMonthsFromNow = new Date(now.getFullYear(), now.getMonth() + 6, now.getDate());
+        const yearEnd = new Date(now.getFullYear(), 11, 31);
+        
+        switch (timePeriodFilter) {
+          case 'next3months':
+            if (checkInDate > threeMonthsFromNow) return false;
+            break;
+          case 'next6months':
+            if (checkInDate > sixMonthsFromNow) return false;
+            break;
+          case 'thisyear':
+            if (checkInDate > yearEnd) return false;
+            break;
+        }
+      }
+      
+      return true;
+    });
+  }, [bookingsData, searchTerm, statusFilter, houseFilter, timePeriodFilter]);
+
+  // Service type filter - applied to tasks
+  const getFilteredTasksByService = useCallback((tasks: any[]) => {
+    if (serviceTypeFilter === 'all') return tasks;
+    return tasks.filter(task => task.service_type === serviceTypeFilter);
+  }, [serviceTypeFilter]);
   const { data: cleaningAssignments } = useQuery({
     queryKey: ['cleaning-assignments-minimal'],
     queryFn: async () => {
@@ -789,12 +848,18 @@ const OriginalDashboard = () => {
                 <Input
                   placeholder="Nach Gast oder Haus suchen..."
                   className="pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
             </div>
             <div className="flex gap-4">
               {/* Service Type Filter */}
-              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+              <select 
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                value={serviceTypeFilter}
+                onChange={(e) => setServiceTypeFilter(e.target.value)}
+              >
                 <option value="all">Alle Services</option>
                 <option value="cleaning">Reinigung</option>
                 <option value="laundry">Wäsche</option>
@@ -802,7 +867,11 @@ const OriginalDashboard = () => {
               </select>
               
               {/* Status Filter */}
-              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+              <select 
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
                 {availableStatuses.map(status => (
                   <option key={status.value} value={status.value}>
                     {status.label}
@@ -811,7 +880,11 @@ const OriginalDashboard = () => {
               </select>
               
               {/* Houses Filter */}
-              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+              <select 
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                value={houseFilter}
+                onChange={(e) => setHouseFilter(e.target.value)}
+              >
                 {availableHouses.map(house => (
                   <option key={house.id} value={house.id}>
                     {house.name}
@@ -820,7 +893,11 @@ const OriginalDashboard = () => {
               </select>
               
               {/* Time Period Filter */}
-              <select className="px-3 py-2 border border-gray-300 rounded-md text-sm">
+              <select 
+                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                value={timePeriodFilter}
+                onChange={(e) => setTimePeriodFilter(e.target.value)}
+              >
                 {timePeriods.map(period => (
                   <option key={period.value} value={period.value}>
                     {period.label}
@@ -842,8 +919,9 @@ const OriginalDashboard = () => {
             </p>
             
             <div className="space-y-6">
-              {bookingsData?.map((booking, index) => {
+              {filteredBookings?.map((booking, index) => {
                 const { tasks, laundry } = getBookingRelatedData(booking.id);
+                const filteredTasks = getFilteredTasksByService(tasks);
                 const colorVariant = index === 0 ? 'green' : index === 1 ? 'blue' : 'purple';
                 
                 return (
@@ -859,8 +937,8 @@ const OriginalDashboard = () => {
                         
                         {/* Service Tasks */}
                         <div className="space-y-3">
-                          {tasks.length > 0 ? (
-                            tasks.map((task) => (
+                          {filteredTasks.length > 0 ? (
+                            filteredTasks.map((task) => (
                               <ServiceTaskCard key={task.id} task={task} colorVariant={colorVariant} onTaskUpdated={() => window.location.reload()} />
                             ))
                           ) : (
