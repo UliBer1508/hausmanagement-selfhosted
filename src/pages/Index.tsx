@@ -78,12 +78,32 @@ const Index = () => {
         query = query
           .gte('scheduled_date', now.toISOString().split('T')[0])
           .lte('scheduled_date', oneWeekFromNow.toISOString().split('T')[0]);
-      } else if (timeFilter === 'month') {
-        const oneMonthFromNow = new Date();
-        oneMonthFromNow.setMonth(now.getMonth() + 1);
+      } else if (timeFilter === 'next_week') {
+        const nextWeekStart = new Date();
+        nextWeekStart.setDate(now.getDate() + 7);
+        const nextWeekEnd = new Date();
+        nextWeekEnd.setDate(now.getDate() + 14);
+        query = query
+          .gte('scheduled_date', nextWeekStart.toISOString().split('T')[0])
+          .lte('scheduled_date', nextWeekEnd.toISOString().split('T')[0]);
+      } else if (timeFilter === '3_months') {
+        const threeMonthsFromNow = new Date();
+        threeMonthsFromNow.setMonth(now.getMonth() + 3);
         query = query
           .gte('scheduled_date', now.toISOString().split('T')[0])
-          .lte('scheduled_date', oneMonthFromNow.toISOString().split('T')[0]);
+          .lte('scheduled_date', threeMonthsFromNow.toISOString().split('T')[0]);
+      } else if (timeFilter === '6_months') {
+        const sixMonthsFromNow = new Date();
+        sixMonthsFromNow.setMonth(now.getMonth() + 6);
+        query = query
+          .gte('scheduled_date', now.toISOString().split('T')[0])
+          .lte('scheduled_date', sixMonthsFromNow.toISOString().split('T')[0]);
+      } else if (timeFilter === '12_months') {
+        const twelveMonthsFromNow = new Date();
+        twelveMonthsFromNow.setFullYear(now.getFullYear() + 1);
+        query = query
+          .gte('scheduled_date', now.toISOString().split('T')[0])
+          .lte('scheduled_date', twelveMonthsFromNow.toISOString().split('T')[0]);
       } else if (timeFilter === 'past') {
         query = query.lt('scheduled_date', now.toISOString().split('T')[0]);
       }
@@ -194,11 +214,11 @@ const Index = () => {
             className="justify-start"
             onClick={() => {
               setActiveTab('tasks');
-              setTimeFilter('week');
+              setTimeFilter('3_months');
             }}
           >
             <Calendar className="h-4 w-4 mr-2" />
-            Diese Woche
+            3 Monate
           </Button>
           <Button
             variant="outline"
@@ -251,7 +271,7 @@ const Index = () => {
               <SelectTrigger>
                 <SelectValue placeholder="Status filtern" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white dark:bg-gray-800 border shadow-lg z-50">
                 <SelectItem value="all">Alle Status</SelectItem>
                 <SelectItem value="scheduled">Geplant</SelectItem>
                 <SelectItem value="in_progress">In Bearbeitung</SelectItem>
@@ -264,7 +284,7 @@ const Index = () => {
               <SelectTrigger>
                 <SelectValue placeholder="Putzkraft filtern" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white dark:bg-gray-800 border shadow-lg z-50">
                 <SelectItem value="all">Alle Putzkräfte</SelectItem>
                 {cleaningStaff?.map((staff) => (
                   <SelectItem key={staff.id} value={staff.id}>
@@ -279,11 +299,14 @@ const Index = () => {
               <SelectTrigger>
                 <SelectValue placeholder="Zeitraum filtern" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white dark:bg-gray-800 border shadow-lg z-50">
                 <SelectItem value="all">Alle Zeiten</SelectItem>
                 <SelectItem value="today">Heute</SelectItem>
                 <SelectItem value="week">Diese Woche</SelectItem>
-                <SelectItem value="month">Dieser Monat</SelectItem>
+                <SelectItem value="next_week">Nächste Woche</SelectItem>
+                <SelectItem value="3_months">3 Monate</SelectItem>
+                <SelectItem value="6_months">6 Monate</SelectItem>
+                <SelectItem value="12_months">12 Monate</SelectItem>
                 <SelectItem value="past">Vergangene</SelectItem>
               </SelectContent>
             </Select>
