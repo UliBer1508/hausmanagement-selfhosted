@@ -358,6 +358,15 @@ const LinenDashboard = () => {
       {/* House Detail View */}
       {selectedHouse && (
         <div className="mt-8">
+          <div className="mb-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setSelectedHouse(null)}
+              className="mb-4"
+            >
+              ← Zurück zur Übersicht
+            </Button>
+          </div>
           <LinenInventoryDashboard house={selectedHouse} />
         </div>
       )}
