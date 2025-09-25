@@ -33,11 +33,12 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Card, CardContent } from '@/components/ui/card';
 import { Plus, CalendarIcon, User } from 'lucide-react';
 
 const createTaskSchema = z.object({
   house_id: z.string().min(1, 'Haus auswählen'),
-  booking_id: z.string().optional(),
+  booking_id: z.string().min(1, 'Buchung auswählen'),
   provider_id: z.string().min(1, 'Provider auswählen'),
   scheduled_date: z.string().min(1, 'Datum erforderlich'),
   scheduled_time: z.string().optional(),
@@ -52,6 +53,7 @@ interface CreateCleaningTaskDialogProps {
 
 const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogProps) => {
   const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<'house' | 'booking' | 'details'>('house');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -66,6 +68,15 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
       notes: '',
     },
   });
+
+  // Reset form and step when dialog opens/closes
+  const handleOpenChange = (newOpen: boolean) => {
+    setOpen(newOpen);
+    if (!newOpen) {
+      setStep('house');
+      form.reset();
+    }
+  };
 
   // Fetch houses for dropdown
   const { data: houses } = useQuery({
@@ -123,7 +134,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
     mutationFn: async (data: CreateTaskForm) => {
       const taskData = {
         house_id: data.house_id,
-        booking_id: data.booking_id || null,
+        booking_id: data.booking_id,
         provider_id: data.provider_id,
         service_type: 'cleaning' as const,
         scheduled_date: data.scheduled_date,
@@ -148,6 +159,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
       });
       queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
       form.reset();
+      setStep('house');
       setOpen(false);
       onTaskCreated?.();
     },
@@ -161,18 +173,51 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
     },
   });
 
+  const handleHouseSelection = (houseId: string) => {
+    form.setValue('house_id', houseId);
+    setStep('booking');
+  };
+
+  const handleBookingSelection = (bookingId: string) => {
+    form.setValue('booking_id', bookingId);
+    const booking = bookings?.find(b => b.id === bookingId);
+    if (booking) {
+      const suggestedDate = suggestCleaningDate(booking);
+      form.setValue('scheduled_date', suggestedDate);
+    }
+    setStep('details');
+  };
+
+  const handleBackToBookings = () => {
+    form.setValue('booking_id', '');
+    setStep('booking');
+  };
+
+  const handleBackToHouses = () => {
+    form.setValue('house_id', '');
+    form.setValue('booking_id', '');
+    setStep('house');
+  };
+
   const onSubmit = (data: CreateTaskForm) => {
     createTaskMutation.mutate(data);
   };
 
-  const formatBookingDisplay = (booking: any) => {
-    const checkIn = new Date(booking.check_in).toLocaleDateString('de-DE');
-    const checkOut = new Date(booking.check_out).toLocaleDateString('de-DE');
-    return `${booking.guest_name} (${checkIn} - ${checkOut})`;
+  const getStepTitle = () => {
+    switch (step) {
+      case 'house':
+        return 'Schritt 1: Haus auswählen';
+      case 'booking':
+        return 'Schritt 2: Buchung auswählen';
+      case 'details':
+        return 'Schritt 3: Reinigungsdetails';
+      default:
+        return 'Neuen Reinigungsauftrag erstellen';
+    }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="w-4 h-4 mr-2" />
@@ -182,247 +227,255 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
-            Neuen Reinigungsauftrag erstellen
+            {getStepTitle()}
           </DialogTitle>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className={`w-2 h-2 rounded-full ${step === 'house' ? 'bg-primary' : 'bg-muted'}`} />
+            <span>Haus</span>
+            <div className={`w-2 h-2 rounded-full ${step === 'booking' ? 'bg-primary' : 'bg-muted'}`} />
+            <span>Buchung</span>
+            <div className={`w-2 h-2 rounded-full ${step === 'details' ? 'bg-primary' : 'bg-muted'}`} />
+            <span>Details</span>
+          </div>
         </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Haus auswählen */}
-              <FormField
-                control={form.control}
-                name="house_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Haus *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Haus auswählen..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {houses?.map((house) => (
-                          <SelectItem key={house.id} value={house.id}>
-                            {house.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Provider auswählen */}
-              <FormField
-                control={form.control}
-                name="provider_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Service Provider *</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Provider auswählen..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {providers?.map((provider) => (
-                          <SelectItem key={provider.id} value={provider.id}>
-                            {provider.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        {/* Step 1: House Selection */}
+        {step === 'house' && (
+          <div className="space-y-4">
+            <div>
+              <Label className="text-base font-medium">Wählen Sie ein Haus aus:</Label>
+              <p className="text-sm text-muted-foreground">Für welches Haus soll der Reinigungsauftrag erstellt werden?</p>
             </div>
+            <div className="grid gap-3">
+              {houses?.map((house) => (
+                <Card
+                  key={house.id}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => handleHouseSelection(house.id)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold">{house.name}</h4>
+                        <p className="text-sm text-muted-foreground">{house.address}</p>
+                      </div>
+                      <Button variant="ghost" size="sm">
+                        Auswählen →
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
 
-            {/* Buchungsvorschau */}
-            {selectedBooking && (
-              <div className="border rounded-lg p-4 bg-muted/50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-sm">Ausgewählte Buchung</h4>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const suggestedDate = suggestCleaningDate(selectedBooking);
-                      form.setValue('scheduled_date', suggestedDate);
-                    }}
+        {/* Step 2: Booking Selection */}
+        {step === 'booking' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-base font-medium">
+                  Buchung für {houses?.find(h => h.id === form.watch('house_id'))?.name}
+                </Label>
+                <p className="text-sm text-muted-foreground">Wählen Sie die Buchung für die Reinigung aus:</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={handleBackToHouses}>
+                ← Haus ändern
+              </Button>
+            </div>
+            
+            <div className="grid gap-3">
+              {bookings && bookings.length > 0 ? (
+                bookings.map((booking) => (
+                  <Card
+                    key={booking.id}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => handleBookingSelection(booking.id)}
                   >
-                    Datum vorschlagen
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            <h4 className="font-semibold">{booking.guest_name}</h4>
+                            <span className="text-sm text-muted-foreground">({booking.number_of_guests} Gäste)</span>
+                          </div>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <span className="text-green-600">
+                              📅 {new Date(booking.check_in).toLocaleDateString('de-DE')}
+                            </span>
+                            <span>→</span>
+                            <span className="text-red-600">
+                              📅 {new Date(booking.check_out).toLocaleDateString('de-DE')}
+                            </span>
+                          </div>
+                          {booking.booking_amount && (
+                            <div className="text-sm text-muted-foreground">
+                              💰 {booking.booking_amount} {booking.currency || 'EUR'}
+                            </div>
+                          )}
+                        </div>
+                        <Button variant="ghost" size="sm">
+                          Auswählen →
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Keine aktuellen Buchungen für dieses Haus gefunden.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Cleaning Details */}
+        {step === 'details' && selectedBooking && (
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              
+              {/* Booking Summary */}
+              <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold">Buchungsübersicht</h4>
+                  <Button variant="outline" size="sm" onClick={handleBackToBookings}>
+                    ← Buchung ändern
                   </Button>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-muted-foreground" />
-                      <span className="font-medium">{selectedBooking.guest_name}</span>
-                    </div>
+                    <div><strong>Haus:</strong> {houses?.find(h => h.id === form.watch('house_id'))?.name}</div>
+                    <div><strong>Gast:</strong> {selectedBooking.guest_name}</div>
+                    <div><strong>Gäste:</strong> {selectedBooking.number_of_guests}</div>
                     {selectedBooking.guest_email && (
-                      <div className="text-muted-foreground">
-                        📧 {selectedBooking.guest_email}
-                      </div>
+                      <div><strong>E-Mail:</strong> {selectedBooking.guest_email}</div>
                     )}
-                    {selectedBooking.guest_phone && (
-                      <div className="text-muted-foreground">
-                        📞 {selectedBooking.guest_phone}
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <User className="w-4 h-4 text-muted-foreground" />
-                      <span>{selectedBooking.number_of_guests} Gäste</span>
-                    </div>
                   </div>
-                  
                   <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-green-600 font-medium">
-                        Check-in: {new Date(selectedBooking.check_in).toLocaleDateString('de-DE')}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-red-600 font-medium">
-                        Check-out: {new Date(selectedBooking.check_out).toLocaleDateString('de-DE')}
-                      </span>
-                    </div>
+                    <div><strong>Check-in:</strong> {new Date(selectedBooking.check_in).toLocaleDateString('de-DE')}</div>
+                    <div><strong>Check-out:</strong> {new Date(selectedBooking.check_out).toLocaleDateString('de-DE')}</div>
                     {selectedBooking.booking_amount && (
-                      <div className="text-muted-foreground">
-                        💰 {selectedBooking.booking_amount} {selectedBooking.currency || 'EUR'}
-                      </div>
+                      <div><strong>Betrag:</strong> {selectedBooking.booking_amount} {selectedBooking.currency || 'EUR'}</div>
                     )}
-                  </div>
-                </div>
-
-                <div className="pt-2 border-t border-border/50">
-                  <div className="text-xs text-muted-foreground">
-                    <strong>Empfehlung:</strong> Reinigung nach Check-out am{' '}
-                    <span className="font-medium">
-                      {new Date(selectedBooking.check_out).toLocaleDateString('de-DE')}
-                    </span>
                   </div>
                 </div>
               </div>
-            )}
-            {/* Buchung auswählen (optional) */}
-            {selectedHouseId && bookings && bookings.length > 0 && (
-              <FormField
-                control={form.control}
-                name="booking_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Buchung (optional)</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+
+              {/* Cleaning Details Form */}
+              <div className="space-y-4">
+                <h4 className="font-semibold">Reinigungsdetails definieren</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Provider auswählen */}
+                  <FormField
+                    control={form.control}
+                    name="provider_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Service Provider *</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Provider auswählen..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {providers?.map((provider) => (
+                              <SelectItem key={provider.id} value={provider.id}>
+                                {provider.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Datum */}
+                  <FormField
+                    control={form.control}
+                    name="scheduled_date"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Datum *</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="date"
+                            {...field}
+                            min={new Date().toISOString().split('T')[0]}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Uhrzeit */}
+                <FormField
+                  control={form.control}
+                  name="scheduled_time"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Uhrzeit</FormLabel>
                       <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Buchung zuordnen..." />
-                        </SelectTrigger>
+                        <Input
+                          type="time"
+                          {...field}
+                          className="w-40"
+                        />
                       </FormControl>
-                      <SelectContent>
-                        <SelectItem value="">Keine Buchung zuordnen</SelectItem>
-                        {bookings.map((booking) => (
-                          <SelectItem key={booking.id} value={booking.id}>
-                            {formatBookingDisplay(booking)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Auftrag einer bestimmten Buchung zuordnen
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
+                      <FormDescription>
+                        Geplante Startzeit (optional)
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Datum */}
-              <FormField
-                control={form.control}
-                name="scheduled_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Datum *</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="date"
-                        {...field}
-                        min={new Date().toISOString().split('T')[0]}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                {/* Notizen */}
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notizen</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Zusätzliche Anweisungen oder Notizen..."
+                          {...field}
+                          rows={3}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-              {/* Uhrzeit */}
-              <FormField
-                control={form.control}
-                name="scheduled_time"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Uhrzeit</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="time"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Geplante Startzeit (optional)
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            {/* Notizen */}
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notizen</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Zusätzliche Anweisungen oder Notizen..."
-                      {...field}
-                      rows={3}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-              >
-                Abbrechen
-              </Button>
-              <Button
-                type="submit"
-                disabled={createTaskMutation.isPending}
-              >
-                {createTaskMutation.isPending ? 'Erstelle...' : 'Auftrag erstellen'}
-              </Button>
-            </div>
-          </form>
-        </Form>
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createTaskMutation.isPending}
+                >
+                  {createTaskMutation.isPending ? 'Erstelle...' : 'Auftrag erstellen'}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        )}
       </DialogContent>
     </Dialog>
   );
