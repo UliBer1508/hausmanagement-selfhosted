@@ -51,9 +51,15 @@ const OriginalDashboard = () => {
         .select(`
           id,
           guest_name,
+          guest_email,
+          guest_phone,
+          nationality,
           check_in,
           check_out,
           number_of_guests,
+          booking_amount,
+          currency,
+          notes,
           status,
           houses:house_id (
             id,
