@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import LinenInventoryDashboard from './LinenInventoryDashboard';
 
 interface HouseLinenStatus {
   house: any;
@@ -28,7 +29,7 @@ interface HouseLinenStatus {
 }
 
 const LinenDashboard = () => {
-  const [selectedHouses, setSelectedHouses] = useState<string[]>([]);
+  const [selectedHouse, setSelectedHouse] = useState<any>(null);
 
   // Fetch all houses with linen data
   const { data: houses, isLoading } = useQuery({
@@ -320,13 +321,10 @@ const LinenDashboard = () => {
                   variant="outline"
                   size="sm"
                   className="flex-1"
-                  onClick={() => {
-                    // Navigate to house detail view
-                    window.location.href = `/houses/${houseStatus.house.id}`;
-                  }}
+                  onClick={() => setSelectedHouse(houseStatus.house)}
                 >
                   <TrendingUp className="w-4 h-4 mr-1" />
-                  Details
+                  Inventar verwalten
                 </Button>
                 {houseStatus.status === 'critical' && (
                   <Button
@@ -355,6 +353,12 @@ const LinenDashboard = () => {
           <p className="text-muted-foreground">
             Fügen Sie Häuser hinzu, um das Wäsche-Management zu nutzen.
           </p>
+        </div>
+      )}
+      {/* House Detail View */}
+      {selectedHouse && (
+        <div className="mt-8">
+          <LinenInventoryDashboard house={selectedHouse} />
         </div>
       )}
     </div>
