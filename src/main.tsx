@@ -2,7 +2,14 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
-// Register service worker for PWA
-import "./registerSW";
+console.log('main.tsx is executing');
 
-createRoot(document.getElementById("root")!).render(<App />);
+const rootElement = document.getElementById("root");
+console.log('Root element found:', rootElement);
+
+if (rootElement) {
+  createRoot(rootElement).render(<App />);
+  console.log('App rendered');
+} else {
+  console.error('Root element not found!');
+}
