@@ -30,6 +30,7 @@ import BookingOverviewFixed from '@/components/Bookings/BookingOverviewFixed';
 import BookingCard from '@/components/Bookings/BookingCard';
 import ServiceTaskCard from '@/components/Bookings/ServiceTaskCard';
 import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
+import Houses from '@/pages/Houses';
 
 const OriginalDashboard = () => {
   const [activeTab, setActiveTab] = useState('Übersicht');
@@ -643,13 +644,7 @@ const OriginalDashboard = () => {
           </div>
         );
       case 'Häuser':
-        return (
-          <div className="text-center py-12">
-            <Building className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Häuser</h3>
-            <p className="text-gray-600">Hausverwaltung wird hier angezeigt</p>
-          </div>
-        );
+        return <Houses />;
       case 'Services':
         return (
           <div className="text-center py-12">
