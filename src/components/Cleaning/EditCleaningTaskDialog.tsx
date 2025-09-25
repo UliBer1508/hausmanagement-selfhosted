@@ -178,9 +178,12 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
   // Update form when task data loads
   useEffect(() => {
     if (task) {
+      // Get assigned staff ID from either direct field or cleaning_assignments
+      const assignedStaffId = task.assigned_staff_id || task.cleaning_assignments?.[0]?.cleaning_staff_id || 'none';
+      
       form.reset({
         provider_id: task.provider_id || '',
-        assigned_staff_id: task.cleaning_assignments?.[0]?.cleaning_staff_id || 'none',
+        assigned_staff_id: assignedStaffId,
         scheduled_date: new Date(task.scheduled_date),
         scheduled_time: task.scheduled_time || '',
         status: task.status as any,
@@ -197,6 +200,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
         .from('service_tasks')
         .update({
           provider_id: data.provider_id,
+          assigned_staff_id: data.assigned_staff_id && data.assigned_staff_id !== 'none' ? data.assigned_staff_id : null,
           scheduled_date: format(data.scheduled_date, 'yyyy-MM-dd'),
           scheduled_time: data.scheduled_time || null,
           status: data.status,
@@ -254,8 +258,12 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
         title: 'Erfolg',
         description: 'Reinigungsauftrag wurde aktualisiert.',
       });
+      // Invalidate multiple queries to ensure UI updates
       queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['cleaning-task', taskId] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-service-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['service-tasks-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['cleaning-staff'] });
       onTaskUpdated?.();
       onOpenChange(false);
     },
@@ -322,7 +330,10 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     }
   };
 
-  const selectedStaff = cleaningStaff?.find(staff => staff.id === form.watch('assigned_staff_id'));
+  const selectedStaff = cleaningStaff?.find(staff => {
+    const staffId = form.watch('assigned_staff_id');
+    return staffId && staffId !== 'none' && staff.id === staffId;
+  }) || (task?.cleaning_assignments?.[0]?.cleaning_staff ? task.cleaning_assignments[0].cleaning_staff : null);
 
   if (loadingTask) {
     return (
