@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { MessageCircle, Eye, Edit, Home, Calendar, User, Phone, Mail } from 'lucide-react';
@@ -28,6 +29,7 @@ interface GuestListProps {
 const GuestList = ({ guests, isLoading }: GuestListProps) => {
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const { toast } = useToast();
 
   const handleViewDetails = (guest: Guest) => {
     setSelectedGuest(guest);
@@ -43,8 +45,11 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
   };
 
   const handleEdit = (guest: Guest) => {
-    // TODO: Implement edit functionality
-    console.log('Edit guest:', guest.guest_name);
+    // Edit functionality to be implemented
+    toast({
+      title: "Feature coming soon",
+      description: `Edit functionality for ${guest.guest_name} will be available in the next update.`,
+    });
   };
 
   const getCategoryBadge = (category: string) => {

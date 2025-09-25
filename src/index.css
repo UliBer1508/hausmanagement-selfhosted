@@ -31,7 +31,7 @@
     --secondary-foreground: 222.2 84% 4.9%;
     --secondary-hover: 210 40% 96%;
 
-    /* Neutral Grays */
+    /* Enhanced Muted and Accent Palettes */
     --muted: 210 40% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
     --muted-hover: 210 40% 94%;
@@ -124,7 +124,22 @@
    ===================================================== */
 
 @layer components {
-  /* Enhanced Dashboard Cards */
+  /* Mobile-First Responsive Layout */
+  .layout-container {
+    @apply min-h-screen bg-background;
+  }
+
+  .layout-desktop {
+    @apply flex;
+  }
+
+  .layout-mobile {
+    @apply flex flex-col lg:hidden;
+  }
+
+  .content-main {
+    @apply flex-1 p-4 lg:p-6 overflow-auto;
+  }
   .dashboard-card {
     @apply bg-card border border-border rounded-lg shadow-sm hover:shadow-md transition-all duration-300;
     @apply hover:scale-[1.02] hover:border-primary/20;

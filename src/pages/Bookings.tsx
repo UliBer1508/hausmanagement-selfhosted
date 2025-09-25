@@ -2,10 +2,7 @@ import BookingOverviewFixed from '@/components/Bookings/BookingOverviewFixed';
 import ConnectedBookingView from '@/components/Bookings/ConnectedBookingView';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-console.log("Bookings component loaded");
-
 const Bookings = () => {
-  console.log("Rendering Bookings component");
   
   return (
     <div className="min-h-screen bg-background">

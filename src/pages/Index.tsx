@@ -1,12 +1,11 @@
 import OriginalDashboard from '@/pages/OriginalDashboard';
+import AppLayout from '@/components/Layout/AppLayout';
 
 const Index = () => {
-  console.log('Index component rendering');
-  
   return (
-    <div className="min-h-screen bg-background">
+    <AppLayout>
       <OriginalDashboard />
-    </div>
+    </AppLayout>
   );
 };
 

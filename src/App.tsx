@@ -18,10 +18,7 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-console.log('App with QueryClient initializing...');
-
 const App = () => {
-  console.log('App component rendering with QueryClientProvider');
   
   return (
     <QueryClientProvider client={queryClient}>

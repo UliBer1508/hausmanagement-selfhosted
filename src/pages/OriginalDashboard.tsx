@@ -36,7 +36,6 @@ import GuestManagement from '@/components/Guests/GuestManagement';
 import LinenDashboard from '@/components/Houses/LinenDashboard';
 
 const OriginalDashboard = () => {
-  console.log('OriginalDashboard is rendering');
   
   const [activeTab, setActiveTab] = useState('Übersicht');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
