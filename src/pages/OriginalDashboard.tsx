@@ -840,14 +840,7 @@ const OriginalDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 relative z-10">
-      {/* Force content above any editor elements */}
-      <style>{`
-        editor-card, [data-editor-card] {
-          display: none !important;
-        }
-      `}</style>
-      
+    <div className="min-h-screen bg-gray-50 relative">
       {/* Header */}
       <div className="bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">

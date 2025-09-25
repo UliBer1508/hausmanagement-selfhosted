@@ -3,52 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ferienhaus Manager - DEBUG MODE</title>
-    <style>
-      body { 
-        font-family: Arial, sans-serif; 
-        padding: 20px; 
-        background: #f5f5f5;
-      }
-      .debug { 
-        background: white; 
-        padding: 20px; 
-        border: 2px solid #333; 
-        margin: 10px 0;
-      }
-    </style>
+    <title>Ferienhaus Manager</title>
   </head>
 
   <body>
-    <div class="debug">
-      <h1>🔧 DEBUG MODE AKTIV</h1>
-      <p>Falls du das siehst, lädt das HTML korrekt.</p>
-      <div id="debug-info">
-        <p>Warte auf JavaScript...</p>
-      </div>
-    </div>
-    
-    <div id="root">
-      <div class="debug">
-        <h2>⚠️ FALLBACK CONTENT</h2>
-        <p>React App wurde noch nicht geladen!</p>
-      </div>
-    </div>
-    
-    <script>
-      console.log('🚀 HTML Script Tag executing...');
-      document.getElementById('debug-info').innerHTML = '<p style="color: green;">✅ JavaScript funktioniert!</p>';
-      
-      // Check if React script loads
-      setTimeout(() => {
-        const rootContent = document.getElementById('root').innerHTML;
-        if (rootContent.includes('FALLBACK')) {
-          console.error('❌ React app failed to load after 3 seconds');
-          document.getElementById('root').innerHTML = '<div class="debug"><h2 style="color: red;">❌ REACT LADEVORGANG FEHLGESCHLAGEN</h2><p>Die React App konnte nicht geladen werden.</p></div>';
-        }
-      }, 3000);
-    </script>
-    
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,10 +1,11 @@
-// Absolute minimal test without any imports
+import OriginalDashboard from '@/pages/OriginalDashboard';
 
 const Index = () => {
+  console.log('Index component rendering');
+  
   return (
-    <div>
-      <h1>EMERGENCY TEST</h1>
-      <p>This is raw HTML in React</p>
+    <div className="min-h-screen bg-background">
+      <OriginalDashboard />
     </div>
   );
 };
