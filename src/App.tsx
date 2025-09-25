@@ -10,6 +10,7 @@ import BookingsTest from "./pages/BookingsTest";
 import ServicePortal from "./pages/ServicePortal";
 import ServicePortalOriginal from "./pages/ServicePortalOriginal";
 import OriginalDashboard from "./pages/OriginalDashboard";
+import Houses from "./pages/Houses";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -26,6 +27,7 @@ const App = () => (
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/bookings" element={<Bookings />} />
           <Route path="/bookings-test" element={<BookingsTest />} />
+          <Route path="/houses" element={<Houses />} />
           <Route path="/service-portal" element={<ServicePortal />} />
           <Route path="/original" element={<ServicePortalOriginal />} />
           <Route path="/original-dashboard" element={<OriginalDashboard />} />
