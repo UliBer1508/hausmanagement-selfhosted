@@ -1401,6 +1401,54 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          created_at: string
+          email_address: string | null
+          email_notifications: boolean
+          id: string
+          notify_new_tasks: boolean
+          notify_status_updates: boolean
+          notify_task_changes: boolean
+          notify_urgent_tasks: boolean
+          push_notifications: boolean
+          sound_notifications: boolean
+          toast_notifications: boolean
+          updated_at: string
+          user_name: string
+        }
+        Insert: {
+          created_at?: string
+          email_address?: string | null
+          email_notifications?: boolean
+          id?: string
+          notify_new_tasks?: boolean
+          notify_status_updates?: boolean
+          notify_task_changes?: boolean
+          notify_urgent_tasks?: boolean
+          push_notifications?: boolean
+          sound_notifications?: boolean
+          toast_notifications?: boolean
+          updated_at?: string
+          user_name?: string
+        }
+        Update: {
+          created_at?: string
+          email_address?: string | null
+          email_notifications?: boolean
+          id?: string
+          notify_new_tasks?: boolean
+          notify_status_updates?: boolean
+          notify_task_changes?: boolean
+          notify_urgent_tasks?: boolean
+          push_notifications?: boolean
+          sound_notifications?: boolean
+          toast_notifications?: boolean
+          updated_at?: string
+          user_name?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -1937,10 +1985,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      create_cleaning_suggestions: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
