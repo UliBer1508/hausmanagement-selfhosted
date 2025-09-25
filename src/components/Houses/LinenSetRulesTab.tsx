@@ -117,13 +117,18 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
       setIsEditing(false);
       setEditedRules({});
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      const errorMessage = error?.message || 'Unbekannter Fehler beim Speichern';
       toast({
-        title: "Fehler",
-        description: "Die Regeln konnten nicht gespeichert werden.",
+        title: "Fehler beim Speichern",
+        description: errorMessage,
         variant: "destructive",
       });
-      console.error('Error updating linen rules:', error);
+      console.error('Error updating linen rules:', {
+        error: error,
+        message: error?.message,
+        code: error?.code
+      });
     },
   });
 
