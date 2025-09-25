@@ -32,7 +32,9 @@ const CleaningManagement = () => {
           *,
           houses!inner(id, name, address),
           service_tasks(id, service_type)
-        `);
+        `)
+        .neq('status', 'completed') // Exclude completed bookings
+        .gte('check_out', new Date().toISOString()); // Only future or current bookings
 
       if (searchTerm) {
         query = query.or(`guest_name.ilike.%${searchTerm}%, houses.name.ilike.%${searchTerm}%`);
@@ -42,15 +44,34 @@ const CleaningManagement = () => {
         query = query.eq('house_id', selectedHouse);
       }
 
+      // Apply time filter
+      const now = new Date();
+      let endDate = new Date();
+      switch (timeFilter) {
+        case '1month':
+          endDate.setMonth(now.getMonth() + 1);
+          break;
+        case '3months':
+          endDate.setMonth(now.getMonth() + 3);
+          break;
+        case '6months':
+          endDate.setMonth(now.getMonth() + 6);
+          break;
+        case '12months':
+          endDate.setFullYear(now.getFullYear() + 1);
+          break;
+      }
+      query = query.lte('check_out', endDate.toISOString());
+
+      const { data } = await query;
+
       if (bookingFilter === 'without_cleaning') {
         // Filter for bookings without cleaning tasks
-        const { data } = await query;
         return data?.filter(booking => 
           !booking.service_tasks?.some(task => task.service_type === 'cleaning')
         ) || [];
       }
 
-      const { data } = await query;
       return data || [];
     },
   });
