@@ -34,7 +34,7 @@ import BookingStats from './BookingStats';
 
 const BookingOverview = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('confirmed');
   const [houseFilter, setHouseFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState('all');
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
