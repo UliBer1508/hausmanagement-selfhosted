@@ -67,19 +67,19 @@ const ServiceTaskCard = ({ task, colorVariant }: ServiceTaskCardProps) => {
             <div className="flex items-center gap-2 text-sm">
               <Building className="w-4 h-4 text-muted-foreground" />
               <span className="text-muted-foreground">Provider:</span>
-              <span>{task.service_providers.name}</span>
+              <span className="font-medium">{task.service_providers.name}</span>
             </div>
           )}
 
-          {/* Staff - prioritize cleaning_assignments data */}
+          {/* Staff - prioritize cleaning_assignments data, then direct assigned staff */}
           {task.cleaning_assignments && task.cleaning_assignments.length > 0 ? (
             <div className="space-y-2">
               {task.cleaning_assignments.map((assignment: any, index: number) => (
                 <div key={index} className="text-sm space-y-1">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">Putzrkaft:</span>
-                    <span>{assignment.cleaning_staff?.name || 'Unbekannt'}</span>
+                    <span className="text-muted-foreground">Putzkraft:</span>
+                    <span className="font-medium">{assignment.cleaning_staff?.name || 'Unbekannt'}</span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>Status: {assignment.status}</span>
@@ -95,11 +95,16 @@ const ServiceTaskCard = ({ task, colorVariant }: ServiceTaskCardProps) => {
                 </div>
               ))}
             </div>
-          ) : task.cleaning_staff && (
+          ) : task.direct_assigned_staff ? (
             <div className="flex items-center gap-2 text-sm">
               <User className="w-4 h-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Putzrkaft:</span>
-              <span>{task.cleaning_staff.name}</span>
+              <span className="text-muted-foreground">Putzkraft:</span>
+              <span className="font-medium">{task.direct_assigned_staff.name}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <User className="w-4 h-4" />
+              <span>Noch keine Putzkraft zugewiesen</span>
             </div>
           )}
         </div>
