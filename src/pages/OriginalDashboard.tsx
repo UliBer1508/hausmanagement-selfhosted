@@ -295,19 +295,172 @@ const OriginalDashboard = () => {
   };
 
   const renderCalendarView = () => {
+    // Helper function to get the start of the week (Monday)
+    const getWeekStart = (date: Date) => {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+      return new Date(d.setDate(diff));
+    };
+
+    // Helper function to get all dates in a week
+    const getWeekDates = (weekStart: Date) => {
+      const dates = [];
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(weekStart);
+        date.setDate(weekStart.getDate() + i);
+        dates.push(date);
+      }
+      return dates;
+    };
+
+    const renderWeekView = () => {
+      const weekStart = getWeekStart(selectedDate);
+      const weekDates = getWeekDates(weekStart);
+      
+      return (
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-6">
+            {/* Week Header */}
+            <div className="grid grid-cols-7 gap-2 mb-4">
+              {['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'].map((day, index) => (
+                <div key={day} className="text-center font-medium text-sm text-muted-foreground p-2">
+                  {day}
+                </div>
+              ))}
+            </div>
+            
+            {/* Week Days */}
+            <div className="grid grid-cols-7 gap-2">
+              {weekDates.map((date) => {
+                const events = getEventsForDate(date);
+                const isToday = isSameDay(date, new Date());
+                const isSelected = isSameDay(date, selectedDate);
+                
+                return (
+                  <div 
+                    key={date.toISOString()}
+                    className={`
+                      relative p-3 border border-border min-h-[120px] cursor-pointer transition-colors
+                      hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground
+                      ${isSelected ? 'bg-primary text-primary-foreground' : ''}
+                      ${isToday ? 'bg-accent text-accent-foreground font-semibold border-2 border-primary' : ''}
+                    `}
+                    onClick={() => setSelectedDate(date)}
+                  >
+                    <div className="font-medium text-sm mb-2">
+                      {format(date, 'd')}
+                    </div>
+                    <div className="space-y-1">
+                      {events.slice(0, 4).map((event, index) => (
+                        <div
+                          key={index}
+                          className={`text-xs px-2 py-1 rounded-md ${event.color} truncate font-medium cursor-pointer hover:opacity-80`}
+                          title={`${event.title} - ${event.booking.house}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEvent(event);
+                          }}
+                        >
+                          {event.title}
+                        </div>
+                      ))}
+                      {events.length > 4 && (
+                        <div className="text-xs text-muted-foreground font-medium">
+                          +{events.length - 4} weitere
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const renderMonthView = () => {
+      return (
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="p-6">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => date && setSelectedDate(date)}
+              locale={de}
+              className="pointer-events-auto w-full bg-white"
+              classNames={{
+                months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 w-full",
+                month: "space-y-4 w-full",
+                caption: "flex justify-center pt-1 relative items-center mb-4",
+                caption_label: "text-lg font-semibold text-foreground",
+                nav: "space-x-1 flex items-center",
+                nav_button: "h-8 w-8 bg-transparent p-0 opacity-50 hover:opacity-100 hover:bg-muted rounded-md",
+                nav_button_previous: "absolute left-1",
+                nav_button_next: "absolute right-1",
+                table: "w-full border-collapse",
+                head_row: "flex w-full mb-2",
+                head_cell: "text-muted-foreground rounded-md w-full font-medium text-sm p-2 text-center",
+                row: "flex w-full",
+                cell: "relative p-0 text-center text-sm w-full border border-border",
+                day: "h-24 w-full p-2 font-normal aria-selected:opacity-100 hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground flex flex-col items-start justify-start cursor-pointer transition-colors",
+                day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                day_today: "bg-accent text-accent-foreground font-semibold border-2 border-primary",
+                day_outside: "text-muted-foreground opacity-50",
+                day_disabled: "text-muted-foreground opacity-30 cursor-not-allowed",
+              }}
+              components={{
+                DayContent: ({ date }) => {
+                  const events = getEventsForDate(date);
+                  return (
+                    <div className="w-full h-full flex flex-col">
+                      <div className="font-medium text-sm mb-1 text-foreground">
+                        {format(date, 'd')}
+                      </div>
+                      <div className="flex-1 space-y-1 w-full overflow-hidden">
+                        {events.slice(0, 3).map((event, index) => (
+                          <div
+                            key={index}
+                            className={`text-xs px-2 py-1 rounded-md ${event.color} truncate w-full font-medium cursor-pointer hover:opacity-80`}
+                            title={`${event.title} - ${event.booking.house}`}
+                            onClick={() => setSelectedEvent(event)}
+                          >
+                            {event.title}
+                          </div>
+                        ))}
+                        {events.length > 3 && (
+                          <div className="text-xs text-muted-foreground font-medium">
+                            +{events.length - 3} weitere
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+              }}
+            />
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-6">
         {/* Calendar Header */}
         <div className="flex items-center justify-between bg-card p-4 rounded-lg border">
           <div className="flex items-center space-x-4">
             <h2 className="text-2xl font-bold text-foreground">
-              {format(selectedDate, 'MMMM yyyy', { locale: de })}
+              {calendarView === 'week' 
+                ? `${format(getWeekStart(selectedDate), 'dd. MMM', { locale: de })} - ${format(addDays(getWeekStart(selectedDate), 6), 'dd. MMM yyyy', { locale: de })}`
+                : format(selectedDate, 'MMMM yyyy', { locale: de })
+              }
             </h2>
             <div className="flex space-x-2">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedDate(addDays(selectedDate, -30))}
+                onClick={() => setSelectedDate(addDays(selectedDate, calendarView === 'week' ? -7 : -30))}
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
@@ -321,7 +474,7 @@ const OriginalDashboard = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedDate(addDays(selectedDate, 30))}
+                onClick={() => setSelectedDate(addDays(selectedDate, calendarView === 'week' ? 7 : 30))}
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
@@ -349,66 +502,7 @@ const OriginalDashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Calendar */}
           <div className="lg:col-span-3">
-            <div className="bg-white rounded-lg border shadow-sm">
-              <div className="p-6">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={(date) => date && setSelectedDate(date)}
-                  locale={de}
-                  className="pointer-events-auto w-full bg-white"
-                  classNames={{
-                    months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 w-full",
-                    month: "space-y-4 w-full",
-                    caption: "flex justify-center pt-1 relative items-center mb-4",
-                    caption_label: "text-lg font-semibold text-foreground",
-                    nav: "space-x-1 flex items-center",
-                    nav_button: "h-8 w-8 bg-transparent p-0 opacity-50 hover:opacity-100 hover:bg-muted rounded-md",
-                    nav_button_previous: "absolute left-1",
-                    nav_button_next: "absolute right-1",
-                    table: "w-full border-collapse",
-                    head_row: "flex w-full mb-2",
-                    head_cell: "text-muted-foreground rounded-md w-full font-medium text-sm p-2 text-center",
-                    row: "flex w-full",
-                    cell: "relative p-0 text-center text-sm w-full border border-border",
-                    day: "h-24 w-full p-2 font-normal aria-selected:opacity-100 hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground flex flex-col items-start justify-start cursor-pointer transition-colors",
-                    day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                    day_today: "bg-accent text-accent-foreground font-semibold border-2 border-primary",
-                    day_outside: "text-muted-foreground opacity-50",
-                    day_disabled: "text-muted-foreground opacity-30 cursor-not-allowed",
-                  }}
-                  components={{
-                    DayContent: ({ date }) => {
-                      const events = getEventsForDate(date);
-                      return (
-                        <div className="w-full h-full flex flex-col">
-                          <div className="font-medium text-sm mb-1 text-foreground">
-                            {format(date, 'd')}
-                          </div>
-                          <div className="flex-1 space-y-1 w-full overflow-hidden">
-                            {events.slice(0, 3).map((event, index) => (
-                              <div
-                                key={index}
-                                className={`text-xs px-2 py-1 rounded-md ${event.color} truncate w-full font-medium cursor-pointer hover:opacity-80`}
-                                title={`${event.title} - ${event.booking.house}`}
-                                onClick={() => setSelectedEvent(event)}
-                              >
-                                {event.title}
-                              </div>
-                            ))}
-                            {events.length > 3 && (
-                              <div className="text-xs text-muted-foreground font-medium">
-                                +{events.length - 3} weitere
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    }
-                  }}
-                />
-              </div>
-            </div>
+            {calendarView === 'week' ? renderWeekView() : renderMonthView()}
           </div>
 
           {/* Events Sidebar */}
