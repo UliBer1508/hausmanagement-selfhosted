@@ -73,20 +73,37 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
   // Update linen definitions mutation
   const updateRulesMutation = useMutation({
     mutationFn: async (newRules: Record<string, number>) => {
-      const upsertData = {
+      const updateData = {
         house_id: house.id,
         ...newRules,
         custom_categories: (linenDef && 'custom_categories' in linenDef) ? linenDef.custom_categories : {}
       };
 
-      const { data, error } = await supabase
+      // Check if record exists
+      const { data: existing } = await supabase
         .from('linen_set_definitions')
-        .upsert(upsertData, { 
-          onConflict: 'house_id',
-          ignoreDuplicates: false 
-        })
-        .select()
-        .single();
+        .select('id')
+        .eq('house_id', house.id)
+        .maybeSingle();
+
+      let data, error;
+
+      if (existing) {
+        // Update existing record
+        ({ data, error } = await supabase
+          .from('linen_set_definitions')
+          .update(updateData)
+          .eq('house_id', house.id)
+          .select()
+          .single());
+      } else {
+        // Insert new record
+        ({ data, error } = await supabase
+          .from('linen_set_definitions')
+          .insert(updateData)
+          .select()
+          .single());
+      }
 
       if (error) throw error;
       return data;
