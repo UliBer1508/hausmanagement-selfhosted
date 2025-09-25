@@ -240,11 +240,31 @@ const OriginalDashboard = () => {
     // Use real bookings data instead of mock data
     const realBookings = bookingsData || [];
     
+    // Debug log
+    if (date.getDate() === 7 && date.getMonth() === 8) { // September 7th
+      console.log('DEBUG: Checking September 7th');
+      console.log('Available bookings:', realBookings.length);
+      console.log('Bookings data:', realBookings.map(b => ({
+        name: b.guest_name,
+        checkIn: b.check_in,
+        checkOut: b.check_out,
+        status: b.status
+      })));
+    }
+    
     realBookings.forEach(booking => {
       const checkIn = parseISO(booking.check_in);
       const checkOut = parseISO(booking.check_out);
       const guestDisplayName = booking.guest_name.split(' ')[0];
       const houseDisplayName = booking.houses?.name || 'Unbekanntes Haus';
+      
+      // Debug for September 7th
+      if (date.getDate() === 7 && date.getMonth() === 8) {
+        console.log(`Checking booking ${booking.guest_name}:`);
+        console.log('- Check-in:', checkIn.toISOString());
+        console.log('- Selected date:', date.toISOString());
+        console.log('- Same day?', isSameDay(date, checkIn));
+      }
       
       if (isSameDay(date, checkIn)) {
         events.push({
