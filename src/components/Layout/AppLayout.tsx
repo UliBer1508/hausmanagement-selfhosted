@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import Navigation from '@/components/Navigation';
 import InstallPrompt from '@/components/PWA/InstallPrompt';
+import UpdatePrompt from '@/components/PWA/UpdatePrompt';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -25,8 +26,9 @@ const AppLayout = ({ children }: AppLayoutProps) => {
         </main>
       </div>
 
-      {/* PWA Install Prompt */}
+      {/* PWA Components */}
       <InstallPrompt />
+      <UpdatePrompt />
     </div>
   );
 };
