@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { supabase } from '@/integrations/supabase/client';
-import { Star, Phone, Mail, MapPin, Edit2, Save, X } from 'lucide-react';
+import { Star, Phone, Mail, MapPin, Edit2, Save, X, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface StaffDetailsDialogProps {
@@ -122,6 +123,40 @@ export const StaffDetailsDialog: React.FC<StaffDetailsDialogProps> = ({
     });
     setIsEditing(false);
   };
+
+  const handleDelete = async () => {
+    setIsLoading(true);
+    try {
+      // Check if staff has active assignments
+      const { data: activeAssignments } = await supabase
+        .from('service_tasks')
+        .select('id')
+        .eq('assigned_staff_id', staff.id)
+        .in('status', ['scheduled', 'in_progress']);
+
+      if (activeAssignments && activeAssignments.length > 0) {
+        toast.error(`Putzkraft kann nicht gelöscht werden. Es gibt ${activeAssignments.length} aktive Aufträge.`);
+        setIsLoading(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('cleaning_staff')
+        .delete()
+        .eq('id', staff.id);
+
+      if (error) throw error;
+
+      toast.success('Putzkraft erfolgreich gelöscht');
+      onUpdate();
+      onClose();
+    } catch (error: any) {
+      toast.error('Fehler beim Löschen: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -342,13 +377,51 @@ export const StaffDetailsDialog: React.FC<StaffDetailsDialogProps> = ({
                 </Button>
               </>
             ) : (
-              <Button 
-                variant="outline" 
-                onClick={onClose}
-                className="flex-1"
-              >
-                Schließen
-              </Button>
+              <>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="destructive"
+                      size="sm"
+                      disabled={isLoading}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Löschen
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Putzkraft löschen?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Möchten Sie <strong>{staff.name}</strong> wirklich löschen? 
+                        Diese Aktion kann nicht rückgängig gemacht werden.
+                        {staff.total_assignments > 0 && (
+                          <span className="block mt-2 text-amber-600">
+                            ⚠️ Diese Putzkraft hat {staff.total_assignments} Aufträge in der Historie.
+                          </span>
+                        )}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleDelete}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        Endgültig löschen
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
+                <Button 
+                  variant="outline" 
+                  onClick={onClose}
+                  className="flex-1"
+                >
+                  Schließen
+                </Button>
+              </>
             )}
           </div>
         </div>
