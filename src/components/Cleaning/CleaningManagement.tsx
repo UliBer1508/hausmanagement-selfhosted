@@ -89,7 +89,7 @@ const CleaningManagement = () => {
           houses!inner(id, name, address),
           bookings(id, guest_name, check_in, check_out, number_of_guests),
           service_providers(id, name, service_type),
-          cleaning_staff(id, name)
+          cleaning_assignments(id, cleaning_staff(id, name))
         `)
         .eq('service_type', 'cleaning');
 
@@ -441,6 +441,12 @@ const CleaningManagement = () => {
                           <div className="flex items-center gap-2 text-sm">
                             <User className="w-4 h-4" />
                             Provider: {task.service_providers.name}
+                          </div>
+                        )}
+                        {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <User className="w-4 h-4" />
+                            Personal: {task.cleaning_assignments[0].cleaning_staff.name}
                           </div>
                         )}
                       </div>
