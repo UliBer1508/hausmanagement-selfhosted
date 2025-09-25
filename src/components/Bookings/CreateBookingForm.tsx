@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { CalendarIcon, Download } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -153,6 +153,16 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
     defaultValues: getDefaultValues(),
   });
 
+  // Reset form when initial data changes (for edit mode)
+  useEffect(() => {
+    if (mode === 'edit' && initialData) {
+      console.log('Edit mode - initialData:', initialData);
+      const values = getDefaultValues();
+      console.log('Form values being set:', values);
+      form.reset(values);
+    }
+  }, [initialData, mode, form]);
+
   // Fetch houses for dropdown
   const { data: houses, isLoading: housesLoading } = useQuery({
     queryKey: ['houses-for-booking'],
@@ -168,6 +178,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
   });
 
   const onSubmit = async (data: BookingFormData) => {
+    console.log('Form submit - mode:', mode, 'data:', data, 'initialData:', initialData);
     setIsSubmitting(true);
     
     try {
@@ -210,20 +221,24 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       };
 
       if (mode === 'edit' && initialData) {
+        console.log('Updating booking with ID:', initialData.id);
         // Update existing booking
         await updateBooking.mutateAsync({
           id: initialData.id,
           ...bookingData,
         });
 
+        console.log('Booking updated successfully');
         toast({
           title: 'Buchung aktualisiert',
           description: 'Die Buchung wurde erfolgreich aktualisiert.',
         });
       } else {
+        console.log('Creating new booking');
         // Create new booking
         await createBooking.mutateAsync(bookingData);
 
+        console.log('Booking created successfully');
         toast({
           title: 'Buchung erstellt',
           description: 'Die Buchung wurde erfolgreich erstellt.',
@@ -299,14 +314,6 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
               </FormItem>
             )}
           />
-        </div>
-
-        {/* iCal Import Button */}
-        <div className="flex justify-end">
-          <Button type="button" variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            iCal Import
-          </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -478,13 +485,13 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Buchungsbetrag */}
-          <FormItem>
-            <FormLabel>Buchungsbetrag</FormLabel>
-            <div className="flex space-x-2">
-              <FormField
-                control={form.control}
-                name="booking_amount"
-                render={({ field }) => (
+          <FormField
+            control={form.control}
+            name="booking_amount"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Buchungsbetrag</FormLabel>
+                <div className="flex space-x-2">
                   <FormControl>
                     <Input
                       type="number"
@@ -496,26 +503,27 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                       className="flex-1"
                     />
                   </FormControl>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="currency"
-                render={({ field }) => (
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <SelectTrigger className="w-20">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg z-50">
-                      <SelectItem value="EUR">EUR</SelectItem>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="CHF">CHF</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
-          </FormItem>
+                  <FormField
+                    control={form.control}
+                    name="currency"
+                    render={({ field: currencyField }) => (
+                      <Select onValueChange={currencyField.onChange} value={currencyField.value}>
+                        <SelectTrigger className="w-20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-background border shadow-lg z-50">
+                          <SelectItem value="EUR">EUR</SelectItem>
+                          <SelectItem value="USD">USD</SelectItem>
+                          <SelectItem value="CHF">CHF</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
         {/* Notizen */}
