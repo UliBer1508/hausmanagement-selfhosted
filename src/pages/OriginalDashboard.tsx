@@ -33,6 +33,7 @@ import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
 import Houses from '@/pages/Houses';
 import CleaningManagement from '@/components/Cleaning/CleaningManagement';
 import GuestManagement from '@/components/Guests/GuestManagement';
+import LinenDashboard from '@/components/Houses/LinenDashboard';
 
 const OriginalDashboard = () => {
   const [activeTab, setActiveTab] = useState('Übersicht');
@@ -652,13 +653,7 @@ const OriginalDashboard = () => {
           </div>
         );
       case 'Wäsche':
-        return (
-          <div className="text-center py-12">
-            <Shirt className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Wäsche</h3>
-            <p className="text-gray-600">Wäscheverwaltung wird hier angezeigt</p>
-          </div>
-        );
+        return <LinenDashboard />;
       default:
         return renderOverviewContent();
     }
