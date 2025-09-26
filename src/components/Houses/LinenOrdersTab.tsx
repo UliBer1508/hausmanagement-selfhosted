@@ -81,6 +81,14 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
             name,
             contact_email,
             contact_phone
+          ),
+          bookings:booking_id (
+            id,
+            guest_name,
+            check_in,
+            check_out,
+            number_of_guests,
+            external_booking_id
           )
         `)
         .eq('house_id', house.id)
@@ -202,6 +210,40 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
             </div>
           )}
         </div>
+
+        {/* Booking Information */}
+        {order.bookings && (
+          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <h4 className="font-medium text-sm mb-2 text-blue-800 flex items-center gap-2">
+              <Calendar className="w-4 h-4" />
+              Verknüpfte Buchung
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+              <div>
+                <span className="text-blue-700 font-medium">Gast:</span>
+                <span className="ml-1">{order.bookings.guest_name}</span>
+              </div>
+              <div>
+                <span className="text-blue-700 font-medium">Gäste:</span>
+                <span className="ml-1">{order.bookings.number_of_guests}</span>
+              </div>
+              <div>
+                <span className="text-blue-700 font-medium">Check-in:</span>
+                <span className="ml-1">{format(new Date(order.bookings.check_in), 'dd.MM.yyyy', { locale: de })}</span>
+              </div>
+              <div>
+                <span className="text-blue-700 font-medium">Check-out:</span>
+                <span className="ml-1">{format(new Date(order.bookings.check_out), 'dd.MM.yyyy', { locale: de })}</span>
+              </div>
+              {order.bookings.external_booking_id && (
+                <div className="md:col-span-2">
+                  <span className="text-blue-700 font-medium">Buchungs-ID:</span>
+                  <span className="ml-1">{order.bookings.external_booking_id}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Order Items */}
         <div>
