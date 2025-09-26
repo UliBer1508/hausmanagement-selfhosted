@@ -313,24 +313,56 @@ export const useOptimizedLinenManagement = () => {
       deliveryDate?: string;
       priority?: 'normal' | 'urgent';
     }) => {
+      console.log('🔍 Bestelldaten validieren:', {
+        houseId: orderData.houseId,
+        orderItems: orderData.orderItems,
+        itemCount: Object.keys(orderData.orderItems).length,
+        deliveryDate: orderData.deliveryDate,
+        priority: orderData.priority
+      });
+
+      // Validierung der Bestelldaten
+      if (!orderData.houseId) {
+        throw new Error('Haus ID fehlt');
+      }
+      
+      if (!orderData.orderItems || Object.keys(orderData.orderItems).length === 0) {
+        throw new Error('Keine Bestellartikel angegeben');
+      }
+
       const totalItems = Object.values(orderData.orderItems).reduce((sum, count) => sum + count, 0);
       
+      if (totalItems === 0) {
+        throw new Error('Gesamtanzahl der Artikel ist 0');
+      }
+
+      console.log('📤 Bestellung an Supabase senden...');
+      
+      const insertData = {
+        house_id: orderData.houseId,
+        provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c',
+        items: orderData.orderItems,
+        total_items: totalItems,
+        status: orderData.priority === 'urgent' ? 'urgent' : 'pending',
+        order_date: format(new Date(), 'yyyy-MM-dd'),
+        delivery_date: orderData.deliveryDate || format(addDays(new Date(), orderData.priority === 'urgent' ? 1 : 2), 'yyyy-MM-dd'),
+        notes: orderData.notes || 'Automatische Bestellung basierend auf prädiktiver Analyse'
+      };
+
+      console.log('💾 INSERT Daten:', insertData);
+
       const { data, error } = await supabase
         .from('linen_orders')
-        .insert({
-          house_id: orderData.houseId,
-          provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c',
-          items: orderData.orderItems,
-          total_items: totalItems,
-          status: orderData.priority === 'urgent' ? 'urgent' : 'pending',
-          order_date: format(new Date(), 'yyyy-MM-dd'),
-          delivery_date: orderData.deliveryDate || format(addDays(new Date(), orderData.priority === 'urgent' ? 1 : 2), 'yyyy-MM-dd'),
-          notes: orderData.notes || 'Automatische Bestellung basierend auf prädiktiver Analyse'
-        })
+        .insert(insertData)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Supabase Fehler:', error);
+        throw error;
+      }
+      
+      console.log('✅ Bestellung erfolgreich in DB erstellt:', data);
       return data;
     },
     onSuccess: (data, variables) => {
