@@ -26,6 +26,8 @@ const CleaningManagement = () => {
   const [taskStatusFilter, setTaskStatusFilter] = useState('all');
   const [editTaskId, setEditTaskId] = useState<string | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [selectedBookingForCreation, setSelectedBookingForCreation] = useState<any>(null);
 
   // Fetch bookings without cleaning tasks
   const { data: bookingsWithoutCleaning, isLoading: loadingBookings } = useQuery({
@@ -89,6 +91,12 @@ const CleaningManagement = () => {
     },
     enabled: showBookingResults, // Only run query when button is clicked
   });
+
+  // Function to handle creating cleaning task for specific booking
+  const handleCreateCleaningTask = (booking: any) => {
+    setSelectedBookingForCreation(booking);
+    setShowCreateDialog(true);
+  };
 
   // Fetch all cleaning tasks
   const { data: cleaningTasks, isLoading: loadingTasks } = useQuery({
@@ -308,7 +316,11 @@ const CleaningManagement = () => {
                                 {booking.number_of_guests} Gäste
                               </div>
                             </div>
-                            <Button size="sm" variant="outline">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleCreateCleaningTask(booking)}
+                            >
                               {booking.service_tasks?.some(task => task.service_type === 'cleaning') ? (
                                 <>
                                   <Edit className="w-4 h-4 mr-1" />
@@ -504,6 +516,21 @@ const CleaningManagement = () => {
           }}
           onTaskUpdated={() => {
             // Refresh cleaning tasks when task is updated or deleted
+            window.location.reload();
+          }}
+        />
+      )}
+      
+      {/* Create Cleaning Task Dialog for Bookings */}
+      {showCreateDialog && selectedBookingForCreation && (
+        <CreateCleaningTaskDialog
+          open={showCreateDialog}
+          onOpenChange={setShowCreateDialog}
+          preselectedBooking={selectedBookingForCreation}
+          onTaskCreated={() => {
+            setShowCreateDialog(false);
+            setSelectedBookingForCreation(null);
+            // Refresh the data
             window.location.reload();
           }}
         />

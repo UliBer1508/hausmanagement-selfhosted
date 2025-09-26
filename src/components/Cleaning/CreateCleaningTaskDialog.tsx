@@ -50,13 +50,20 @@ type CreateTaskForm = z.infer<typeof createTaskSchema>;
 
 interface CreateCleaningTaskDialogProps {
   onTaskCreated?: () => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  preselectedBooking?: any;
 }
 
-const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogProps) => {
-  const [open, setOpen] = useState(false);
+const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenChange, preselectedBooking }: CreateCleaningTaskDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
   const [step, setStep] = useState<'house' | 'booking' | 'details'>('house');
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Use external open state if provided, otherwise use internal
+  const isOpen = externalOpen !== undefined ? externalOpen : internalOpen;
+  const setOpen = onOpenChange || setInternalOpen;
 
   const form = useForm<CreateTaskForm>({
     resolver: zodResolver(createTaskSchema),
@@ -249,7 +256,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated }: CreateCleaningTaskDialogPro
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button>
           <Plus className="w-4 h-4 mr-2" />
