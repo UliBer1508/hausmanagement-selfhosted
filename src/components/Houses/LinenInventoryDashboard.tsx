@@ -478,6 +478,11 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
             [cat.key]: cat.shortage
           }), {})}
           houseName={house.name}
+          selectedBooking={
+            selectedBookings.length > 0 
+              ? upcomingBookings?.find(b => b.id === selectedBookings[0])
+              : upcomingBookings?.[0] // Fallback to first booking
+          }
           onCreateOrder={(orderData) => {
             console.log('🚀 Creating order with hook:', orderData);
             

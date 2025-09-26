@@ -18,6 +18,7 @@ interface LinenOrderDialogProps {
   onOpenChange: (open: boolean) => void;
   orderItems: Record<string, number>;
   houseName: string;
+  selectedBooking?: any; // Booking information
   onCreateOrder: (orderData: {
     orderItems: Record<string, number>;
     notes?: string;
@@ -32,6 +33,7 @@ const LinenOrderDialog = ({
   onOpenChange,
   orderItems,
   houseName,
+  selectedBooking,
   onCreateOrder,
   onSendEmail,
   isCreating = false
@@ -100,6 +102,44 @@ const LinenOrderDialog = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Booking Information */}
+          {selectedBooking && (
+            <Card className="bg-blue-50 border-blue-200">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <CalendarIcon className="w-4 h-4 text-blue-600" />
+                  Verknüpfte Buchung
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-blue-700 font-medium">Gast:</span>
+                    <span className="ml-2">{selectedBooking.guest_name}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 font-medium">Gäste:</span>
+                    <span className="ml-2">{selectedBooking.number_of_guests}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 font-medium">Check-in:</span>
+                    <span className="ml-2">{format(new Date(selectedBooking.check_in), 'dd.MM.yyyy', { locale: de })}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700 font-medium">Check-out:</span>
+                    <span className="ml-2">{format(new Date(selectedBooking.check_out), 'dd.MM.yyyy', { locale: de })}</span>
+                  </div>
+                  {selectedBooking.external_booking_id && (
+                    <div className="col-span-2">
+                      <span className="text-blue-700 font-medium">Buchungs-ID:</span>
+                      <span className="ml-2">{selectedBooking.external_booking_id}</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Order Items */}
           <Card>
             <CardHeader>
