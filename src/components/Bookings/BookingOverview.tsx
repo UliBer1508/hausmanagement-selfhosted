@@ -34,7 +34,7 @@ import BookingStats from './BookingStats';
 
 const BookingOverview = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('confirmed');
   const [houseFilter, setHouseFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState('all');
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
@@ -179,7 +179,15 @@ const BookingOverview = () => {
     return true;
   }) || [];
 
-  // Statistics for filtered results
+  // Statistics for ALL bookings (not filtered)
+  const allBookingsStats = {
+    total: bookingsData?.length || 0,
+    confirmed: bookingsData?.filter(b => b.status === 'confirmed').length || 0,
+    completed: bookingsData?.filter(b => b.status === 'completed').length || 0,
+    totalRevenue: bookingsData?.reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
+  };
+
+  // Statistics for filtered results (for display info only)
   const filteredStats = {
     total: filteredBookings.length,
     confirmed: filteredBookings.filter(b => b.status === 'confirmed').length,
@@ -241,13 +249,13 @@ const BookingOverview = () => {
         </Button>
       </div>
 
-      {/* Statistics Overview */}
+      {/* Statistics Overview - Shows ALL bookings */}
       <BookingStats
-        total={filteredStats.total}
-        confirmed={filteredStats.confirmed}
-        completed={filteredStats.completed}
-        totalRevenue={filteredStats.totalRevenue}
-        timeFilter={timeFilter}
+        total={allBookingsStats.total}
+        confirmed={allBookingsStats.confirmed}
+        completed={allBookingsStats.completed}
+        totalRevenue={allBookingsStats.totalRevenue}
+        timeFilter="all"
       />
 
       {/* Filters */}
