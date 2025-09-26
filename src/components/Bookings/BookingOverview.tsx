@@ -187,6 +187,13 @@ const BookingOverview = () => {
     totalRevenue: bookingsData?.reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
   };
 
+  // Debug logging
+  console.log('BookingOverview Debug:', {
+    bookingsDataLength: bookingsData?.length,
+    allStatuses: bookingsData?.map(b => b.status),
+    allBookingsStats
+  });
+
   // Statistics for filtered results (for display info only)
   const filteredStats = {
     total: filteredBookings.length,
