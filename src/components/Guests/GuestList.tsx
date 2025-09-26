@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { MessageCircle, Eye, Edit, Home, Calendar, User, Phone, Mail } from 'lucide-react';
 import GuestDetailsDialog from './GuestDetailsDialog';
+import GuestEmailDialog from './GuestEmailDialog';
 
 interface Guest {
   guest_name: string;
@@ -29,6 +30,7 @@ interface GuestListProps {
 const GuestList = ({ guests, isLoading }: GuestListProps) => {
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
   const { toast } = useToast();
 
   const handleViewDetails = (guest: Guest) => {
@@ -38,9 +40,16 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
 
   const handleContact = (guest: Guest) => {
     if (guest.guest_email) {
-      window.open(`mailto:${guest.guest_email}`, '_blank');
+      setSelectedGuest(guest);
+      setShowEmailDialog(true);
     } else if (guest.guest_phone) {
       window.open(`tel:${guest.guest_phone}`, '_blank');
+    } else {
+      toast({
+        title: "Keine Kontaktdaten",
+        description: "Für diesen Gast sind keine E-Mail oder Telefonnummer verfügbar.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -195,11 +204,18 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
       </div>
 
       {selectedGuest && (
-        <GuestDetailsDialog
-          guest={selectedGuest}
-          open={showDetailsDialog}
-          onOpenChange={setShowDetailsDialog}
-        />
+        <>
+          <GuestDetailsDialog
+            guest={selectedGuest}
+            open={showDetailsDialog}
+            onOpenChange={setShowDetailsDialog}
+          />
+          <GuestEmailDialog
+            guest={selectedGuest}
+            open={showEmailDialog}
+            onOpenChange={setShowEmailDialog}
+          />
+        </>
       )}
     </div>
   );
