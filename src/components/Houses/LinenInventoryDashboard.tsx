@@ -102,6 +102,57 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
     enabled: !!house?.id,
   });
 
+  // Create linen order mutation
+  const createLinenOrderMutation = useMutation({
+    mutationFn: async (orderData: {
+      orderItems: Record<string, number>;
+      notes?: string;
+      deliveryDate?: string;
+    }) => {
+      console.log('📤 Sende Bestellung an Datenbank:', orderData);
+      
+      const totalItems = Object.values(orderData.orderItems).reduce((sum, count) => sum + count, 0);
+      
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .insert({
+          house_id: house.id,
+          provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c', // Default laundry provider
+          items: orderData.orderItems,
+          total_items: totalItems,
+          status: 'pending',
+          order_date: format(new Date(), 'yyyy-MM-dd'),
+          delivery_date: orderData.deliveryDate || format(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+          notes: orderData.notes || 'Bestellung über Inventar-Dashboard'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ DB Fehler:', error);
+        throw error;
+      }
+      
+      console.log('✅ Bestellung erfolgreich erstellt:', data);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['linen-orders', house.id] });
+      toast({
+        title: "Bestellung erstellt",
+        description: `Bestellung mit ${data.total_items} Artikeln wurde erfolgreich erstellt.`,
+      });
+    },
+    onError: (error: any) => {
+      console.error('❌ Bestellfehler:', error);
+      toast({
+        title: "Fehler bei Bestellung",
+        description: error.message || "Die Bestellung konnte nicht erstellt werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Calculate linen categories with demand
   const linenCategories = useMemo((): LinenCategory[] => {
     if (!linenDef || !upcomingBookings || !house?.linen_stock) return [];
@@ -404,10 +455,17 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
           }), {})}
           houseName={house.name}
           onCreateOrder={(orderData) => {
-            // Handle order creation
-            console.log('Creating order:', orderData);
+            console.log('🚀 Creating order with hook:', orderData);
+            
+            createLinenOrderMutation.mutate({
+              orderItems: orderData.orderItems,
+              notes: orderData.notes,
+              deliveryDate: orderData.deliveryDate
+            });
+            
             setShowOrderDialog(false);
           }}
+          isCreating={createLinenOrderMutation.isPending}
         />
       )}
     </div>
