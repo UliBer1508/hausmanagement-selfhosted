@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,10 +14,12 @@ import {
   Mail,
   Calendar,
   User,
-  Truck
+  Truck,
+  XCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { toast } from '@/hooks/use-toast';
 
 interface LinenOrdersTabProps {
   house: any;
@@ -25,6 +27,44 @@ interface LinenOrdersTabProps {
 
 const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   const [activeTab, setActiveTab] = useState('active');
+  const queryClient = useQueryClient();
+
+  // Mutation to cancel an order
+  const cancelOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      console.log('🚫 Storniere Bestellung:', orderId);
+      
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .update({ status: 'cancelled' })
+        .eq('id', orderId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Stornierung fehlgeschlagen:', error);
+        throw error;
+      }
+      
+      console.log('✅ Bestellung storniert:', data);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+      toast({
+        title: "Bestellung storniert",
+        description: "Die Bestellung wurde erfolgreich storniert.",
+      });
+    },
+    onError: (error: any) => {
+      console.error('❌ Stornierungsfehler:', error);
+      toast({
+        title: "Fehler bei Stornierung",
+        description: error.message || "Die Bestellung konnte nicht storniert werden.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Fetch all linen orders for this house
   const { data: linenOrders, isLoading, error } = useQuery({
@@ -204,8 +244,14 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
             </Button>
           )}
           {['pending', 'confirmed'].includes(order.status) && (
-            <Button variant="destructive" size="sm">
-              Stornieren
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={() => cancelOrderMutation.mutate(order.id)}
+              disabled={cancelOrderMutation.isPending}
+            >
+              <XCircle className="w-4 h-4 mr-1" />
+              {cancelOrderMutation.isPending ? 'Storniere...' : 'Stornieren'}
             </Button>
           )}
         </div>
