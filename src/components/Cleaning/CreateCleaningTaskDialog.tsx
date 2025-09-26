@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -268,7 +269,10 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
           <DialogTitle className="text-xl font-semibold">
             {getStepTitle()}
           </DialogTitle>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <DialogDescription>
+            Erstellen Sie einen neuen Reinigungsauftrag.
+          </DialogDescription>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
             <div className={`w-2 h-2 rounded-full ${step === 'house' ? 'bg-primary' : 'bg-muted'}`} />
             <span>Haus</span>
             <div className={`w-2 h-2 rounded-full ${step === 'booking' ? 'bg-primary' : 'bg-muted'}`} />
