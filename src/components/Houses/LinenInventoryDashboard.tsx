@@ -113,24 +113,34 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
       
       const totalItems = Object.values(orderData.orderItems).reduce((sum, count) => sum + count, 0);
       
-      // Find the current booking for this house (e.g., Loveable booking)
-      const { data: currentBooking } = await supabase
-        .from('bookings')
-        .select('id')
-        .eq('house_id', house.id)
-        .eq('status', 'confirmed')
-        .gte('check_out', new Date().toISOString())
-        .order('check_in', { ascending: true })
-        .limit(1)
-        .single();
-
-      console.log('🔗 Verknüpfe mit Buchung:', currentBooking?.id);
+      // Use selected booking if available, otherwise find the next confirmed booking
+      let targetBookingId = null;
+      
+      if (selectedBookings.length > 0) {
+        // Use the first selected booking
+        targetBookingId = selectedBookings[0];
+        console.log('🎯 Verwende ausgewählte Buchung:', targetBookingId);
+      } else {
+        // Fallback: Find the current booking for this house
+        const { data: currentBooking } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('house_id', house.id)
+          .eq('status', 'confirmed')
+          .gte('check_out', new Date().toISOString())
+          .order('check_in', { ascending: true })
+          .limit(1)
+          .single();
+        
+        targetBookingId = currentBooking?.id || null;
+        console.log('🔗 Fallback - Verknüpfe mit nächster Buchung:', targetBookingId);
+      }
 
       const { data, error } = await supabase
         .from('linen_orders')
         .insert({
           house_id: house.id,
-          booking_id: currentBooking?.id || null,
+          booking_id: targetBookingId,
           provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c', // Default laundry provider
           items: orderData.orderItems,
           total_items: totalItems,
