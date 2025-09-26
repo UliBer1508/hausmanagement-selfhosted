@@ -252,7 +252,15 @@ const BookingOverviewFixed = () => {
     return true;
   }) || [];
 
-  // Statistics for filtered results
+  // Statistics for ALL bookings (not filtered) - for display in cards
+  const allBookingsStats = {
+    total: bookingsData?.length || 0,
+    confirmed: bookingsData?.filter(b => b.status === 'confirmed').length || 0,
+    completed: bookingsData?.filter(b => b.status === 'completed').length || 0,
+    totalRevenue: bookingsData?.reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
+  };
+
+  // Statistics for filtered results (for reference only)
   const filteredStats = {
     total: filteredBookings.length,
     confirmed: filteredBookings.filter(b => b.status === 'confirmed').length,
@@ -322,30 +330,30 @@ const BookingOverviewFixed = () => {
         <CreateBookingDialog onBookingCreated={() => window.location.reload()} />
       </div>
 
-      {/* Statistics */}
+      {/* Statistics - Shows ALL bookings */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold">{filteredStats.total}</div>
+            <div className="text-2xl font-bold">{allBookingsStats.total}</div>
             <p className="text-xs text-muted-foreground">Buchungen gesamt</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">{filteredStats.confirmed}</div>
+            <div className="text-2xl font-bold text-green-600">{allBookingsStats.confirmed}</div>
             <p className="text-xs text-muted-foreground">Bestätigt</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">{filteredStats.completed}</div>
+            <div className="text-2xl font-bold text-blue-600">{allBookingsStats.completed}</div>
             <p className="text-xs text-muted-foreground">Abgeschlossen</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
             <div className="text-2xl font-bold text-orange-600">
-              {filteredStats.totalRevenue.toLocaleString('de-DE')} EUR
+              {allBookingsStats.totalRevenue.toLocaleString('de-DE')} EUR
             </div>
             <p className="text-xs text-muted-foreground">Gesamtumsatz</p>
           </CardContent>
