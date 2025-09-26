@@ -113,10 +113,24 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
       
       const totalItems = Object.values(orderData.orderItems).reduce((sum, count) => sum + count, 0);
       
+      // Find the current booking for this house (e.g., Loveable booking)
+      const { data: currentBooking } = await supabase
+        .from('bookings')
+        .select('id')
+        .eq('house_id', house.id)
+        .eq('status', 'confirmed')
+        .gte('check_out', new Date().toISOString())
+        .order('check_in', { ascending: true })
+        .limit(1)
+        .single();
+
+      console.log('🔗 Verknüpfe mit Buchung:', currentBooking?.id);
+
       const { data, error } = await supabase
         .from('linen_orders')
         .insert({
           house_id: house.id,
+          booking_id: currentBooking?.id || null,
           provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c', // Default laundry provider
           items: orderData.orderItems,
           total_items: totalItems,
