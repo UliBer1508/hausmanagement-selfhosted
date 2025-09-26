@@ -13,7 +13,7 @@ import EditCleaningTaskDialog from './EditCleaningTaskDialog';
 const CleaningManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedHouse, setSelectedHouse] = useState('all');
-  const [timeFilter, setTimeFilter] = useState('6months');
+  const [timeFilter, setTimeFilter] = useState('24months');
   const [providerFilter, setProviderFilter] = useState('all');
   const [bookingFilter, setBookingFilter] = useState('without_cleaning');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -64,6 +64,9 @@ const CleaningManagement = () => {
           break;
         case '12months':
           endDate.setFullYear(now.getFullYear() + 1);
+          break;
+        case '24months':
+          endDate.setFullYear(now.getFullYear() + 2);
           break;
       }
       query = query.lte('check_out', endDate.toISOString());
@@ -202,13 +205,14 @@ const CleaningManagement = () => {
               <label className="text-sm font-medium mb-2 block">Zeitrahmen</label>
               <Select value={timeFilter} onValueChange={setTimeFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="6 Monate" />
+                  <SelectValue placeholder="24 Monate" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1month">1 Monat</SelectItem>
                   <SelectItem value="3months">3 Monate</SelectItem>
                   <SelectItem value="6months">6 Monate</SelectItem>
                   <SelectItem value="12months">12 Monate</SelectItem>
+                  <SelectItem value="24months">24 Monate</SelectItem>
                 </SelectContent>
               </Select>
             </div>
