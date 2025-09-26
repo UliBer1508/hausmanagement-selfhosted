@@ -350,12 +350,23 @@ export const useOptimizedLinenManagement = () => {
       });
 
       queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      console.log('✅ Bestellung erfolgreich erstellt:', {
+        orderId: data.id,
+        houseId: variables.houseId,
+        items: variables.orderItems,
+        totalItems: Object.values(variables.orderItems).reduce((sum, count) => sum + count, 0)
+      });
       toast({
         title: "Intelligente Bestellung erstellt",
         description: `${Object.values(variables.orderItems).reduce((sum, count) => sum + count, 0)} Artikel bestellt basierend auf prädiktiver Analyse.`,
       });
     },
     onError: (error) => {
+      console.error('❌ Bestellfehler detailliert:', {
+        error: error.message,
+        details: error,
+        timestamp: new Date().toISOString()
+      });
       toast({
         title: "Bestellfehler",
         description: "Die optimierte Bestellung konnte nicht erstellt werden.",

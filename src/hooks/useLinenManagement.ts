@@ -181,21 +181,32 @@ export const useLinenManagement = (houseId: string) => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['linen-orders', houseId] });
       queryClient.invalidateQueries({ queryKey: ['house-linen-data', houseId] });
+      console.log('✅ Standard Bestellung erfolgreich erstellt:', {
+        orderId: data.id,
+        houseId: houseId,
+        items: data.items,
+        totalItems: data.total_items
+      });
       toast({
         title: "Bestellung erstellt",
         description: "Die Wäschebestellung wurde erfolgreich erstellt.",
       });
     },
     onError: (error) => {
+      console.error('❌ Standard Bestellfehler detailliert:', {
+        error: error.message,
+        details: error,
+        houseId: houseId,
+        timestamp: new Date().toISOString()
+      });
       toast({
         title: "Fehler",
         description: "Die Bestellung konnte nicht erstellt werden.",
         variant: "destructive",
       });
-      console.error('Error creating linen order:', error);
     },
   });
 
