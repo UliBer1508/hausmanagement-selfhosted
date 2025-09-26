@@ -249,7 +249,8 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-muted-foreground" />
               <span>
-                {order.delivery_type === 'pickup' ? 'Abholung' : 'Lieferung'}: {format(new Date(order.delivery_date), 'dd.MM.yyyy', { locale: de })}
+                {order.delivery_type === 'pickup' ? '📦 Abholung' : '🚚 Lieferung'}: {format(new Date(order.delivery_date), 'dd.MM.yyyy', { locale: de })}
+                {order.delivery_time && ` um ${order.delivery_time.slice(0, 5)}`}
               </span>
             </div>
           )}
