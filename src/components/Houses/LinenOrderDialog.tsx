@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { CalendarIcon, ShoppingCart, Mail, AlertTriangle } from 'lucide-react';
@@ -23,6 +24,7 @@ interface LinenOrderDialogProps {
     orderItems: Record<string, number>;
     notes?: string;
     deliveryDate?: string;
+    deliveryType?: 'delivery' | 'pickup';
   }) => void;
   onSendEmail?: (orderId: string) => void;
   isCreating?: boolean;
@@ -39,6 +41,7 @@ const LinenOrderDialog = ({
   isCreating = false
 }: LinenOrderDialogProps) => {
   const [deliveryDate, setDeliveryDate] = useState<Date>(addDays(new Date(), 2));
+  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
   const [notes, setNotes] = useState('');
   const [sendToTeuni, setSendToTeuni] = useState(false);
   const [editableItems, setEditableItems] = useState(orderItems);
@@ -75,11 +78,13 @@ const LinenOrderDialog = ({
       orderItems: filteredItems,
       notes: notes.trim() || undefined,
       deliveryDate: format(deliveryDate, 'yyyy-MM-dd'),
+      deliveryType: deliveryType,
     });
 
     // Reset form
     setNotes('');
     setDeliveryDate(addDays(new Date(), 2));
+    setDeliveryType('delivery');
     setEditableItems(orderItems);
     onOpenChange(false);
   };
@@ -207,6 +212,29 @@ const LinenOrderDialog = ({
                 />
               </PopoverContent>
             </Popover>
+          </div>
+
+          {/* Delivery Type */}
+          <div className="space-y-3">
+            <Label>Art der Zustellung</Label>
+            <RadioGroup 
+              value={deliveryType} 
+              onValueChange={(value: 'delivery' | 'pickup') => setDeliveryType(value)}
+              className="flex flex-col space-y-2"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="delivery" id="delivery" />
+                <Label htmlFor="delivery" className="cursor-pointer">
+                  🚚 Lieferung (Standard)
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="pickup" id="pickup" />
+                <Label htmlFor="pickup" className="cursor-pointer">
+                  📦 Abholung beim Anbieter
+                </Label>
+              </div>
+            </RadioGroup>
           </div>
 
           {/* Notes */}

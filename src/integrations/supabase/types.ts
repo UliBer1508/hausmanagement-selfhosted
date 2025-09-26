@@ -1134,6 +1134,7 @@ export type Database = {
           created_at: string | null
           delivery_date: string | null
           delivery_time: string | null
+          delivery_type: string
           email_sent_at: string | null
           house_id: string | null
           id: string
@@ -1152,6 +1153,7 @@ export type Database = {
           created_at?: string | null
           delivery_date?: string | null
           delivery_time?: string | null
+          delivery_type?: string
           email_sent_at?: string | null
           house_id?: string | null
           id?: string
@@ -1170,6 +1172,7 @@ export type Database = {
           created_at?: string | null
           delivery_date?: string | null
           delivery_time?: string | null
+          delivery_type?: string
           email_sent_at?: string | null
           house_id?: string | null
           id?: string

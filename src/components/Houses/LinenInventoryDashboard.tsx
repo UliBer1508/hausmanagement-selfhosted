@@ -108,6 +108,7 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
       orderItems: Record<string, number>;
       notes?: string;
       deliveryDate?: string;
+      deliveryType?: 'delivery' | 'pickup';
     }) => {
       console.log('📤 Sende Bestellung an Datenbank:', orderData);
       
@@ -147,6 +148,7 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
           status: 'pending',
           order_date: format(new Date(), 'yyyy-MM-dd'),
           delivery_date: orderData.deliveryDate || format(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'),
+          delivery_type: orderData.deliveryType || 'delivery',
           notes: orderData.notes || 'Bestellung über Inventar-Dashboard'
         })
         .select()
@@ -489,7 +491,8 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
             createLinenOrderMutation.mutate({
               orderItems: orderData.orderItems,
               notes: orderData.notes,
-              deliveryDate: orderData.deliveryDate
+              deliveryDate: orderData.deliveryDate,
+              deliveryType: orderData.deliveryType
             });
             
             setShowOrderDialog(false);

@@ -80,6 +80,7 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
           items: orderData.orderItems,
           notes: orderData.notes,
           delivery_date: orderData.deliveryDate,
+          delivery_type: orderData.deliveryType || 'delivery',
           total_items: Object.values(orderData.orderItems as Record<string, number>).reduce((sum, count) => sum + count, 0)
         })
         .eq('id', orderId)
@@ -247,7 +248,9 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
           {order.delivery_date && (
             <div className="flex items-center gap-2">
               <Truck className="w-4 h-4 text-muted-foreground" />
-              <span>Lieferung: {format(new Date(order.delivery_date), 'dd.MM.yyyy', { locale: de })}</span>
+              <span>
+                {order.delivery_type === 'pickup' ? 'Abholung' : 'Lieferung'}: {format(new Date(order.delivery_date), 'dd.MM.yyyy', { locale: de })}
+              </span>
             </div>
           )}
           {order.service_providers && (
