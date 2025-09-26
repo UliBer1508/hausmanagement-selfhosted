@@ -1479,14 +1479,6 @@ const OriginalDashboard = () => {
               </p>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="hidden sm:flex">
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Aktualisieren
-          </Button>
-          {/* Mobile refresh button */}
-          <Button variant="outline" size="sm" className="sm:hidden p-2">
-            <RefreshCw className="w-4 h-4" />
-          </Button>
         </div>
       </div>
 
