@@ -27,9 +27,11 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   const [activeTab, setActiveTab] = useState('active');
 
   // Fetch all linen orders for this house
-  const { data: linenOrders, isLoading } = useQuery({
+  const { data: linenOrders, isLoading, error } = useQuery({
     queryKey: ['linen-orders-all', house?.id],
     queryFn: async () => {
+      console.log('🔍 Lade Bestellungen für Haus:', house.id, house.name);
+      
       const { data, error } = await supabase
         .from('linen_orders')
         .select(`
@@ -44,7 +46,14 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
         .eq('house_id', house.id)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Fehler beim Laden der Bestellungen:', error);
+        throw error;
+      }
+      
+      console.log('✅ Bestellungen geladen:', data?.length || 0, 'Bestellungen für', house.name);
+      console.log('📋 Bestellungen Details:', data);
+      
       return data || [];
     },
     enabled: !!house?.id,
@@ -103,6 +112,15 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   const completedOrders = linenOrders?.filter(order => 
     ['delivered', 'cancelled'].includes(order.status)
   ) || [];
+
+  console.log('📊 Bestellungen gefiltert:', {
+    houseName: house.name,
+    houseId: house.id,
+    total: linenOrders?.length || 0,
+    active: activeOrders.length,
+    completed: completedOrders.length,
+    delivered: linenOrders?.filter(o => o.status === 'delivered').length || 0
+  });
 
   const renderOrderCard = (order: any) => (
     <Card key={order.id} className="mb-4">
