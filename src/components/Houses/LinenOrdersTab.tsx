@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import LinenOrderDialog from './LinenOrderDialog';
 import { 
   ShoppingCart, 
   Package, 
@@ -27,6 +28,8 @@ interface LinenOrdersTabProps {
 
 const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   const [activeTab, setActiveTab] = useState('active');
+  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const queryClient = useQueryClient();
 
   // Mutation to cancel an order
@@ -61,6 +64,50 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
       toast({
         title: "Fehler bei Stornierung",
         description: error.message || "Die Bestellung konnte nicht storniert werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to update an order
+  const updateOrderMutation = useMutation({
+    mutationFn: async ({ orderId, orderData }: { orderId: string; orderData: any }) => {
+      console.log('✏️ Aktualisiere Bestellung:', orderId, orderData);
+      
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .update({
+          items: orderData.orderItems,
+          notes: orderData.notes,
+          delivery_date: orderData.deliveryDate,
+          total_items: Object.values(orderData.orderItems as Record<string, number>).reduce((sum, count) => sum + count, 0)
+        })
+        .eq('id', orderId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Update fehlgeschlagen:', error);
+        throw error;
+      }
+      
+      console.log('✅ Bestellung aktualisiert:', data);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+      setIsEditDialogOpen(false);
+      setEditingOrder(null);
+      toast({
+        title: "Bestellung aktualisiert",
+        description: "Die Bestellung wurde erfolgreich aktualisiert.",
+      });
+    },
+    onError: (error: any) => {
+      console.error('❌ Update-Fehler:', error);
+      toast({
+        title: "Fehler beim Aktualisieren",
+        description: error.message || "Die Bestellung konnte nicht aktualisiert werden.",
         variant: "destructive",
       });
     },
@@ -274,7 +321,14 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
                 <Mail className="w-4 h-4 mr-1" />
                 Erneut senden
               </Button>
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setEditingOrder(order);
+                  setIsEditDialogOpen(true);
+                }}
+              >
                 Bearbeiten
               </Button>
             </>
@@ -418,6 +472,24 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Edit Order Dialog */}
+      {editingOrder && (
+        <LinenOrderDialog
+          open={isEditDialogOpen}
+          onOpenChange={setIsEditDialogOpen}
+          orderItems={editingOrder.items || {}}
+          houseName={house.name}
+          selectedBooking={editingOrder.bookings}
+          onCreateOrder={(orderData) => {
+            updateOrderMutation.mutate({ 
+              orderId: editingOrder.id, 
+              orderData 
+            });
+          }}
+          isCreating={updateOrderMutation.isPending}
+        />
       )}
     </div>
   );
