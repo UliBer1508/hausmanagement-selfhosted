@@ -480,6 +480,7 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
             [cat.key]: cat.shortage
           }), {})}
           houseName={house.name}
+          houseId={house.id}
           selectedBooking={
             selectedBookings.length > 0 
               ? upcomingBookings?.find(b => b.id === selectedBookings[0])

@@ -552,6 +552,7 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
           onOpenChange={setIsEditDialogOpen}
           orderItems={editingOrder.items || {}}
           houseName={house.name}
+          houseId={house.id}
           selectedBooking={editingOrder.bookings}
           onCreateOrder={(orderData) => {
             updateOrderMutation.mutate({ 

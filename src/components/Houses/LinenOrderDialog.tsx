@@ -9,25 +9,33 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { CalendarIcon, ShoppingCart, Mail, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { standardLinenOrderSchema, exceptionalLinenOrderSchema } from './schemas/LinenOrderSchema';
 
 interface LinenOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   orderItems: Record<string, number>;
   houseName: string;
+  houseId: string;
   selectedBooking?: any; // Booking information
   onCreateOrder: (orderData: {
     orderItems: Record<string, number>;
     notes?: string;
     deliveryDate?: string;
     deliveryType?: 'delivery' | 'pickup';
+    booking_id?: string;
+    orderType?: 'standard' | 'exceptional';
+    exceptionReason?: string;
   }) => void;
   onSendEmail?: (orderId: string) => void;
   isCreating?: boolean;
+  allowExceptionalOrder?: boolean; // Allow creating orders without booking
 }
 
 const LinenOrderDialog = ({
@@ -35,16 +43,23 @@ const LinenOrderDialog = ({
   onOpenChange,
   orderItems,
   houseName,
+  houseId,
   selectedBooking,
   onCreateOrder,
   onSendEmail,
-  isCreating = false
+  isCreating = false,
+  allowExceptionalOrder = false
 }: LinenOrderDialogProps) => {
   const [deliveryDate, setDeliveryDate] = useState<Date>(addDays(new Date(), 2));
   const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
   const [notes, setNotes] = useState('');
   const [sendToTeuni, setSendToTeuni] = useState(false);
   const [editableItems, setEditableItems] = useState(orderItems);
+  const [orderType, setOrderType] = useState<'standard' | 'exceptional'>(
+    selectedBooking ? 'standard' : 'exceptional'
+  );
+  const [exceptionReason, setExceptionReason] = useState<string>('general_cleaning');
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const linenLabels: Record<string, string> = {
     bedding: 'Bettwäsche',
@@ -65,28 +80,73 @@ const LinenOrderDialog = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationErrors([]);
     
     const filteredItems = Object.fromEntries(
       Object.entries(editableItems).filter(([_, count]) => count > 0)
     );
 
     if (Object.keys(filteredItems).length === 0) {
+      setValidationErrors(['Mindestens ein Artikel muss bestellt werden']);
       return;
     }
 
-    onCreateOrder({
+    const baseOrderData = {
       orderItems: filteredItems,
       notes: notes.trim() || undefined,
       deliveryDate: format(deliveryDate, 'yyyy-MM-dd'),
       deliveryType: deliveryType,
-    });
+      house_id: houseId,
+    };
 
-    // Reset form
-    setNotes('');
-    setDeliveryDate(addDays(new Date(), 2));
-    setDeliveryType('delivery');
-    setEditableItems(orderItems);
-    onOpenChange(false);
+    try {
+      if (orderType === 'standard') {
+        if (!selectedBooking) {
+          setValidationErrors(['Für Standardbestellungen ist eine Buchungsverknüpfung erforderlich']);
+          return;
+        }
+        
+        const validatedData = standardLinenOrderSchema.parse({
+          ...baseOrderData,
+          booking_id: selectedBooking.id,
+        });
+        
+        onCreateOrder({
+          ...baseOrderData,
+          booking_id: selectedBooking.id,
+          orderType: 'standard',
+        });
+      } else {
+        const validatedData = exceptionalLinenOrderSchema.parse({
+          ...baseOrderData,
+          orderType: 'exceptional',
+          exceptionReason,
+          notes: notes.trim() || `Ausnahmebestellung: ${getExceptionReasonLabel(exceptionReason)}`,
+        });
+        
+        onCreateOrder({
+          ...baseOrderData,
+          orderType: 'exceptional',
+          exceptionReason,
+          notes: notes.trim() || `Ausnahmebestellung: ${getExceptionReasonLabel(exceptionReason)}`,
+        });
+      }
+
+      // Reset form
+      setNotes('');
+      setDeliveryDate(addDays(new Date(), 2));
+      setDeliveryType('delivery');
+      setEditableItems(orderItems);
+      setOrderType(selectedBooking ? 'standard' : 'exceptional');
+      setExceptionReason('general_cleaning');
+      onOpenChange(false);
+    } catch (error: any) {
+      if (error.errors) {
+        setValidationErrors(error.errors.map((e: any) => e.message));
+      } else {
+        setValidationErrors(['Validierungsfehler beim Erstellen der Bestellung']);
+      }
+    }
   };
 
   const updateItemQuantity = (itemType: string, quantity: number) => {
@@ -94,6 +154,16 @@ const LinenOrderDialog = ({
       ...prev,
       [itemType]: Math.max(0, quantity)
     }));
+  };
+
+  const getExceptionReasonLabel = (reason: string) => {
+    const labels = {
+      general_cleaning: 'Generalreinigung',
+      inventory_restock: 'Inventar-Auffüllung',
+      emergency_order: 'Notbestellung',
+      maintenance: 'Wartung/Instandhaltung'
+    };
+    return labels[reason as keyof typeof labels] || reason;
   };
 
   return (
@@ -107,8 +177,84 @@ const LinenOrderDialog = ({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Validation Errors */}
+          {validationErrors.length > 0 && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <ul className="list-disc list-inside">
+                  {validationErrors.map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Order Type Selection */}
+          {allowExceptionalOrder && (
+            <Card className="border-orange-200 bg-orange-50">
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-orange-600" />
+                  Bestellungstyp
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup 
+                  value={orderType} 
+                  onValueChange={(value: 'standard' | 'exceptional') => setOrderType(value)}
+                  className="space-y-3"
+                >
+                  <div className="flex items-start space-x-2">
+                    <RadioGroupItem value="standard" id="standard" disabled={!selectedBooking} />
+                    <div className="flex-1">
+                      <Label htmlFor="standard" className={cn("cursor-pointer", !selectedBooking && "text-muted-foreground")}>
+                        📋 Standardbestellung (mit Buchung)
+                      </Label>
+                      {!selectedBooking && (
+                        <p className="text-xs text-orange-600 mt-1">
+                          Keine Buchung verfügbar - nur Ausnahmebestellungen möglich
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <RadioGroupItem value="exceptional" id="exceptional" />
+                    <div className="flex-1">
+                      <Label htmlFor="exceptional" className="cursor-pointer">
+                        ⚠️ Ausnahmebestellung (ohne Buchung)
+                      </Label>
+                      <p className="text-xs text-orange-600 mt-1">
+                        Für Generalreinigung, Notfälle oder Inventar-Auffüllung
+                      </p>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Exception Reason Selection */}
+          {orderType === 'exceptional' && (
+            <div className="space-y-2">
+              <Label>Grund für Ausnahmebestellung</Label>
+              <Select value={exceptionReason} onValueChange={setExceptionReason}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Grund auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general_cleaning">🧹 Generalreinigung</SelectItem>
+                  <SelectItem value="inventory_restock">📦 Inventar-Auffüllung</SelectItem>
+                  <SelectItem value="emergency_order">🚨 Notbestellung</SelectItem>
+                  <SelectItem value="maintenance">🔧 Wartung/Instandhaltung</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Booking Information */}
-          {selectedBooking && (
+          {selectedBooking && orderType === 'standard' && (
             <Card className="bg-blue-50 border-blue-200">
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
