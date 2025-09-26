@@ -90,6 +90,8 @@ const CleaningManagement = () => {
       return data || [];
     },
     enabled: showBookingResults, // Only run query when button is clicked
+    refetchOnWindowFocus: false,
+    staleTime: 0, // Always fetch fresh data
   });
 
   // Function to handle creating cleaning task for specific booking
@@ -198,7 +200,7 @@ const CleaningManagement = () => {
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Häuser" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border shadow-md z-50">
                   <SelectItem value="all">Alle Häuser</SelectItem>
                   {houses?.map((house) => (
                     <SelectItem key={house.id} value={house.id}>
@@ -215,7 +217,7 @@ const CleaningManagement = () => {
                 <SelectTrigger>
                   <SelectValue placeholder="24 Monate" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border shadow-md z-50">
                   <SelectItem value="1month">1 Monat</SelectItem>
                   <SelectItem value="3months">3 Monate</SelectItem>
                   <SelectItem value="6months">6 Monate</SelectItem>
@@ -231,7 +233,7 @@ const CleaningManagement = () => {
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Provider" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border shadow-md z-50">
                   <SelectItem value="all">Alle Provider</SelectItem>
                   {providers?.map((provider) => (
                     <SelectItem key={provider.id} value={provider.id}>
@@ -248,7 +250,7 @@ const CleaningManagement = () => {
                 <SelectTrigger>
                   <SelectValue placeholder="Ohne Reinigungsauftrag" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border shadow-md z-50">
                   <SelectItem value="without_cleaning">Ohne Reinigungsauftrag</SelectItem>
                   <SelectItem value="with_cleaning">Mit Reinigungsauftrag</SelectItem>
                   <SelectItem value="all">Alle Buchungen</SelectItem>
@@ -262,7 +264,7 @@ const CleaningManagement = () => {
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Status" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-background border shadow-md z-50">
                   <SelectItem value="all">Alle Status</SelectItem>
                   <SelectItem value="confirmed">Bestätigt</SelectItem>
                   <SelectItem value="cancelled">Storniert</SelectItem>
@@ -273,7 +275,10 @@ const CleaningManagement = () => {
 
           <Button 
             className="w-full bg-black text-white hover:bg-gray-800"
-            onClick={() => setShowBookingResults(!showBookingResults)}
+            onClick={() => {
+              console.log('Button clicked, showBookingResults:', showBookingResults);
+              setShowBookingResults(!showBookingResults);
+            }}
           >
             <Search className="w-4 h-4 mr-2" />
             {showBookingResults ? 'Ergebnisse schließen' : 'Buchungen auf Reinigungsaufträge prüfen'}
