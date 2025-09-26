@@ -8,6 +8,7 @@ import { de } from 'date-fns/locale';
 import { MessageCircle, Eye, Edit, Home, Calendar, User, Phone, Mail } from 'lucide-react';
 import GuestDetailsDialog from './GuestDetailsDialog';
 import GuestEmailDialog from './GuestEmailDialog';
+import GuestEditDialog from './GuestEditDialog';
 
 interface Guest {
   guest_name: string;
@@ -31,6 +32,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const { toast } = useToast();
 
   const handleViewDetails = (guest: Guest) => {
@@ -54,11 +56,8 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
   };
 
   const handleEdit = (guest: Guest) => {
-    // Edit functionality to be implemented
-    toast({
-      title: "Feature coming soon",
-      description: `Edit functionality for ${guest.guest_name} will be available in the next update.`,
-    });
+    setSelectedGuest(guest);
+    setShowEditDialog(true);
   };
 
   const getCategoryBadge = (category: string) => {
@@ -214,6 +213,11 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
             guest={selectedGuest}
             open={showEmailDialog}
             onOpenChange={setShowEmailDialog}
+          />
+          <GuestEditDialog
+            guest={selectedGuest}
+            open={showEditDialog}
+            onOpenChange={setShowEditDialog}
           />
         </>
       )}
