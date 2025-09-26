@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LinenOrderDialog from './LinenOrderDialog';
+import LinenOrderEmailDialog from './LinenOrderEmailDialog';
 import { 
   ShoppingCart, 
   Package, 
@@ -30,6 +31,9 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   const [activeTab, setActiveTab] = useState('active');
   const [editingOrder, setEditingOrder] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [emailingOrder, setEmailingOrder] = useState<any>(null);
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  const [isEmailSending, setIsEmailSending] = useState(false);
   const queryClient = useQueryClient();
 
   // Mutation to cancel an order
@@ -115,71 +119,29 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   });
 
   // Send email to provider
-  const sendEmailToProvider = async (order: any) => {
+  const sendEmailToProvider = (order: any) => {
+    setEmailingOrder(order);
+    setIsEmailDialogOpen(true);
+  };
+
+  // Handle email send
+  const handleSendEmail = async (emailData: {
+    to: string;
+    subject: string;
+    customText: string;
+    orderDetails: string;
+  }) => {
     try {
-      console.log('📧 Sende E-Mail für Bestellung:', order.id);
-      
-      const linenLabels: Record<string, string> = {
-        bedding: 'Bettwäsche',
-        large_towels: 'Handtücher groß',
-        small_towels: 'Handtücher klein',
-        sauna_towels: 'Saunatücher',
-        bath_mats: 'Badematten',
-        sink_towels: 'Waschbecken Handtücher',
-        kitchen_towels: 'Küchentücher',
-        blankets: 'Decken',
-        pillow_cases: 'Kissenbezüge',
-      };
+      setIsEmailSending(true);
+      console.log('📧 Sende E-Mail für Bestellung:', emailingOrder.id);
 
-      // Create order items list
-      const itemsList = Object.entries(order.items || {})
-        .map(([itemType, quantity]) => `- ${linenLabels[itemType] || itemType}: ${quantity} Stück`)
-        .join('\n');
-
-      const deliveryTypeText = order.delivery_type === 'pickup' ? 'Abholung' : 'Lieferung';
-      const deliveryDateTime = order.delivery_date ? 
-        `${format(new Date(order.delivery_date), 'dd.MM.yyyy', { locale: de })}${order.delivery_time ? ` um ${order.delivery_time.slice(0, 5)} Uhr` : ''}` : 
-        'Nicht angegeben';
-
-      const emailContent = `
-Liebe/r ${order.service_providers?.name || 'Anbieter'},
-
-hiermit erhalten Sie eine neue Wäschebestellung:
-
-🏠 OBJEKT: ${house.name}
-📋 BESTELLNUMMER: #${order.id.slice(-8)}
-📅 ERSTELLT AM: ${format(new Date(order.created_at), 'dd.MM.yyyy HH:mm', { locale: de })}
-
-📦 BESTELLTE ARTIKEL:
-${itemsList}
-
-📊 GESAMT: ${order.total_items} Artikel
-
-🚚 ${deliveryTypeText.toUpperCase()}:
-Datum: ${deliveryDateTime}
-
-${order.bookings ? `👥 BUCHUNGSDETAILS:
-Gast: ${order.bookings.guest_name}
-Anzahl Gäste: ${order.bookings.number_of_guests}
-Check-in: ${format(new Date(order.bookings.check_in), 'dd.MM.yyyy', { locale: de })}
-Check-out: ${format(new Date(order.bookings.check_out), 'dd.MM.yyyy', { locale: de })}
-${order.bookings.external_booking_id ? `Buchungs-ID: ${order.bookings.external_booking_id}` : ''}
-` : ''}
-
-${order.notes ? `📝 BEMERKUNGEN:
-${order.notes}
-
-` : ''}Bitte bestätigen Sie den Erhalt dieser Bestellung.
-
-Mit freundlichen Grüßen
-Steinbock Chalets Team
-      `.trim();
+      const fullEmailText = `${emailData.customText ? `${emailData.customText}\n\n` : ''}${emailData.orderDetails}\n\nBitte bestätigen Sie den Erhalt dieser Bestellung.\n\nMit freundlichen Grüßen\nSteinbock Chalets Team`;
 
       const { data, error } = await supabase.functions.invoke('send-gmail', {
         body: {
-          to: [order.service_providers?.contact_email || 'uli.berresheim@hotmail.de'],
-          subject: `Neue Wäschebestellung #${order.id.slice(-8)} - ${house.name}`,
-          text: emailContent
+          to: [emailData.to],
+          subject: emailData.subject,
+          text: fullEmailText
         }
       });
 
@@ -189,15 +151,19 @@ Steinbock Chalets Team
       await supabase
         .from('linen_orders')
         .update({ email_sent_at: new Date().toISOString() })
-        .eq('id', order.id);
+        .eq('id', emailingOrder.id);
 
       toast({
         title: "E-Mail gesendet",
-        description: `Bestellung wurde erfolgreich an ${order.service_providers?.name || 'den Anbieter'} gesendet.`,
+        description: `Bestellung wurde erfolgreich an ${emailData.to} gesendet.`,
       });
 
       // Refresh orders to show updated email timestamp
       queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+      
+      // Close dialog
+      setIsEmailDialogOpen(false);
+      setEmailingOrder(null);
 
     } catch (error: any) {
       console.error('❌ E-Mail Fehler:', error);
@@ -206,6 +172,8 @@ Steinbock Chalets Team
         description: error.message || "Die E-Mail konnte nicht gesendet werden.",
         variant: "destructive",
       });
+    } finally {
+      setIsEmailSending(false);
     }
   };
 
@@ -592,6 +560,18 @@ Steinbock Chalets Team
             });
           }}
           isCreating={updateOrderMutation.isPending}
+        />
+      )}
+
+      {/* Email Order Dialog */}
+      {emailingOrder && (
+        <LinenOrderEmailDialog
+          open={isEmailDialogOpen}
+          onOpenChange={setIsEmailDialogOpen}
+          order={emailingOrder}
+          houseName={house.name}
+          onSendEmail={handleSendEmail}
+          isLoading={isEmailSending}
         />
       )}
     </div>
