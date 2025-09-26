@@ -76,20 +76,22 @@ const ConnectedBookingView = () => {
     },
   });
 
-  // Fetch laundry orders
-  const { data: laundryOrders } = useQuery({
-    queryKey: ['laundry-orders-connected'],
+  // Fetch linen orders
+  const { data: linenOrders } = useQuery({
+    queryKey: ['linen-orders-connected'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('laundry_orders')
+        .from('linen_orders')
         .select(`
           *,
-          laundry_order_items (
+          service_providers:provider_id (
             id,
-            item_name,
-            item_type,
-            quantity,
-            status
+            name,
+            service_type
+          ),
+          bookings:booking_id (
+            id,
+            guest_name
           )
         `);
       
@@ -131,10 +133,9 @@ const ConnectedBookingView = () => {
   // Get related data for each booking
   const getBookingRelatedData = (bookingId: string) => {
     const bookingTasks = serviceTasks?.filter(task => task.booking_id === bookingId) || [];
-    // Get laundry orders through service tasks
-    const taskIds = bookingTasks.map(task => task.id);
-    const bookingLaundry = laundryOrders?.filter(order => 
-      taskIds.includes(order.service_task_id)
+    // Get linen orders directly by booking_id
+    const bookingLaundry = linenOrders?.filter(order => 
+      order.booking_id === bookingId
     ) || [];
     
     return { tasks: bookingTasks, laundry: bookingLaundry };

@@ -38,7 +38,14 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
   };
 
   const getTotalItems = () => {
-    return order.laundry_order_items?.reduce((sum: number, item: any) => sum + item.quantity, 0) || 0;
+    // Handle both laundry_order_items (array) and linen order items (JSON object)
+    if (order.laundry_order_items) {
+      return order.laundry_order_items.reduce((sum: number, item: any) => sum + item.quantity, 0);
+    } else if (order.items) {
+      // For linen orders, items is a JSON object like {"kitchen_towels": 1}
+      return Object.values(order.items).reduce((sum: number, count: any) => sum + count, 0);
+    }
+    return order.total_items || 0;
   };
 
   return (
@@ -61,19 +68,44 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
           </div>
 
           {/* Items List */}
-          {order.laundry_order_items && order.laundry_order_items.length > 0 && (
+          {((order.laundry_order_items && order.laundry_order_items.length > 0) || order.items) && (
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground">Artikel:</p>
               <div className="space-y-1 max-h-20 overflow-y-auto">
-                {order.laundry_order_items.slice(0, 3).map((item: any, index: number) => (
+                {/* Handle laundry_order_items (array format) */}
+                {order.laundry_order_items && order.laundry_order_items.slice(0, 3).map((item: any, index: number) => (
                   <div key={item.id} className="flex justify-between text-xs">
                     <span>{item.item_name}</span>
                     <span className="text-muted-foreground">{item.quantity}x</span>
                   </div>
                 ))}
-                {order.laundry_order_items.length > 3 && (
+                
+                {/* Handle linen order items (JSON object format) */}
+                {order.items && Object.entries(order.items).slice(0, 3).map(([itemType, count]: [string, any], index: number) => (
+                  <div key={itemType} className="flex justify-between text-xs">
+                    <span>
+                      {itemType === 'kitchen_towels' ? 'Küchentücher' : 
+                       itemType === 'bedding' ? 'Bettwäsche' :
+                       itemType === 'large_towels' ? 'Große Handtücher' :
+                       itemType === 'small_towels' ? 'Kleine Handtücher' :
+                       itemType === 'bath_mats' ? 'Badematten' :
+                       itemType === 'sauna_towels' ? 'Saunatücher' :
+                       itemType === 'sink_towels' ? 'Waschbeckentücher' :
+                       itemType}
+                    </span>
+                    <span className="text-muted-foreground">{count}x</span>
+                  </div>
+                ))}
+                
+                {/* Show "more items" indicator */}
+                {order.laundry_order_items && order.laundry_order_items.length > 3 && (
                   <p className="text-xs text-muted-foreground">
                     ... und {order.laundry_order_items.length - 3} weitere
+                  </p>
+                )}
+                {order.items && Object.keys(order.items).length > 3 && (
+                  <p className="text-xs text-muted-foreground">
+                    ... und {Object.keys(order.items).length - 3} weitere
                   </p>
                 )}
               </div>
