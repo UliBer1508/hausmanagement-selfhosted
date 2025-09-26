@@ -381,18 +381,24 @@ const OriginalDashboard = () => {
     enabled: activeTab === 'Übersicht' || activeTab === 'Reinigung',
   });
 
-  // Simplified laundry orders query (remove problematic fields)
-  const { data: laundryOrders } = useQuery({
-    queryKey: ['dashboard-laundry-orders'],
+  // Fetch linen orders (corrected from laundry_orders)
+  const { data: linenOrders } = useQuery({
+    queryKey: ['dashboard-linen-orders'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('laundry_orders')
+        .from('linen_orders')
         .select(`
-          id,
-          status,
-          service_task_id
-        `)
-        .limit(10);
+          *,
+          service_providers:provider_id (
+            id,
+            name,
+            service_type
+          ),
+          bookings:booking_id (
+            id,
+            guest_name
+          )
+        `);
       
       if (error) throw error;
       return data || [];
@@ -403,7 +409,7 @@ const OriginalDashboard = () => {
 
   // Optimized data processing with useMemo
   const processedBookingData = useMemo(() => {
-    if (!bookingsData || !serviceTasks || !laundryOrders) return [];
+    if (!bookingsData || !serviceTasks) return [];
     
     return bookingsData.map(booking => {
       const bookingTasks = serviceTasks.filter(task => task.booking_id === booking.id) || [];
@@ -419,8 +425,8 @@ const OriginalDashboard = () => {
         };
       });
       
-      // Get laundry orders (simplified matching)
-      const bookingLaundry = laundryOrders?.slice(0, 2) || [];
+      // Get linen orders by booking_id (corrected matching logic)
+      const bookingLaundry = linenOrders?.filter(order => order.booking_id === booking.id) || [];
       
       return {
         ...booking,
@@ -428,7 +434,7 @@ const OriginalDashboard = () => {
         laundry: bookingLaundry
       };
     });
-  }, [bookingsData, serviceTasks, cleaningAssignments, cleaningStaff, laundryOrders]);
+  }, [bookingsData, serviceTasks, cleaningAssignments, cleaningStaff, linenOrders]);
 
   // Memoized loading state
   const isLoading = bookingsLoading || tasksLoading;
