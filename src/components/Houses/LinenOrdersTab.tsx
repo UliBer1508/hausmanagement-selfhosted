@@ -114,6 +114,101 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
     },
   });
 
+  // Send email to provider
+  const sendEmailToProvider = async (order: any) => {
+    try {
+      console.log('📧 Sende E-Mail für Bestellung:', order.id);
+      
+      const linenLabels: Record<string, string> = {
+        bedding: 'Bettwäsche',
+        large_towels: 'Handtücher groß',
+        small_towels: 'Handtücher klein',
+        sauna_towels: 'Saunatücher',
+        bath_mats: 'Badematten',
+        sink_towels: 'Waschbecken Handtücher',
+        kitchen_towels: 'Küchentücher',
+        blankets: 'Decken',
+        pillow_cases: 'Kissenbezüge',
+      };
+
+      // Create order items list
+      const itemsList = Object.entries(order.items || {})
+        .map(([itemType, quantity]) => `- ${linenLabels[itemType] || itemType}: ${quantity} Stück`)
+        .join('\n');
+
+      const deliveryTypeText = order.delivery_type === 'pickup' ? 'Abholung' : 'Lieferung';
+      const deliveryDateTime = order.delivery_date ? 
+        `${format(new Date(order.delivery_date), 'dd.MM.yyyy', { locale: de })}${order.delivery_time ? ` um ${order.delivery_time.slice(0, 5)} Uhr` : ''}` : 
+        'Nicht angegeben';
+
+      const emailContent = `
+Liebe/r ${order.service_providers?.name || 'Anbieter'},
+
+hiermit erhalten Sie eine neue Wäschebestellung:
+
+🏠 OBJEKT: ${house.name}
+📋 BESTELLNUMMER: #${order.id.slice(-8)}
+📅 ERSTELLT AM: ${format(new Date(order.created_at), 'dd.MM.yyyy HH:mm', { locale: de })}
+
+📦 BESTELLTE ARTIKEL:
+${itemsList}
+
+📊 GESAMT: ${order.total_items} Artikel
+
+🚚 ${deliveryTypeText.toUpperCase()}:
+Datum: ${deliveryDateTime}
+
+${order.bookings ? `👥 BUCHUNGSDETAILS:
+Gast: ${order.bookings.guest_name}
+Anzahl Gäste: ${order.bookings.number_of_guests}
+Check-in: ${format(new Date(order.bookings.check_in), 'dd.MM.yyyy', { locale: de })}
+Check-out: ${format(new Date(order.bookings.check_out), 'dd.MM.yyyy', { locale: de })}
+${order.bookings.external_booking_id ? `Buchungs-ID: ${order.bookings.external_booking_id}` : ''}
+` : ''}
+
+${order.notes ? `📝 BEMERKUNGEN:
+${order.notes}
+
+` : ''}Bitte bestätigen Sie den Erhalt dieser Bestellung.
+
+Mit freundlichen Grüßen
+Steinbock Chalets Team
+      `.trim();
+
+      const { data, error } = await supabase.functions.invoke('send-gmail', {
+        body: {
+          to: [order.service_providers?.contact_email || 'uli.berresheim@hotmail.de'],
+          subject: `Neue Wäschebestellung #${order.id.slice(-8)} - ${house.name}`,
+          text: emailContent
+        }
+      });
+
+      if (error) throw error;
+
+      // Update email_sent_at timestamp
+      await supabase
+        .from('linen_orders')
+        .update({ email_sent_at: new Date().toISOString() })
+        .eq('id', order.id);
+
+      toast({
+        title: "E-Mail gesendet",
+        description: `Bestellung wurde erfolgreich an ${order.service_providers?.name || 'den Anbieter'} gesendet.`,
+      });
+
+      // Refresh orders to show updated email timestamp
+      queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+
+    } catch (error: any) {
+      console.error('❌ E-Mail Fehler:', error);
+      toast({
+        title: "Fehler beim E-Mail versenden",
+        description: error.message || "Die E-Mail konnte nicht gesendet werden.",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Fetch all linen orders for this house
   const { data: linenOrders, isLoading, error } = useQuery({
     queryKey: ['linen-orders-all', house?.id],
@@ -321,9 +416,13 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
         <div className="flex gap-2 pt-2 border-t">
           {order.status === 'pending' && (
             <>
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => sendEmailToProvider(order)}
+              >
                 <Mail className="w-4 h-4 mr-1" />
-                Erneut senden
+                E-Mail senden
               </Button>
               <Button 
                 variant="outline" 
