@@ -54,9 +54,11 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
       <CardContent className="p-4">
         <div className="space-y-3">
           {/* Service Type */}
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{getServiceIcon(task.service_type)}</span>
-            <h4 className="font-medium">{getServiceLabel(task.service_type)}</h4>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">{getServiceIcon(task.service_type)}</span>
+              <h4 className="font-medium">{getServiceLabel(task.service_type)}</h4>
+            </div>
             {getStatusBadge(task.status)}
           </div>
 
