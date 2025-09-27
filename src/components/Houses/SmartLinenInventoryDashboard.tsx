@@ -61,19 +61,6 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
     return housesWithLinenData?.find(h => h.house.id === house.id);
   }, [housesWithLinenData, house.id]);
 
-  // Debug logging für selectedCategory
-  React.useEffect(() => {
-    console.log('selectedCategory changed:', selectedCategory);
-    console.log('houseData available:', !!houseData);
-    if (houseData) {
-      console.log('houseData.categories:', houseData.categories);
-      console.log('Available category keys:', Object.keys(houseData.categories || {}));
-    }
-    if (selectedCategory && houseData) {
-      console.log('Items for category:', houseData.categories[selectedCategory]);
-    }
-  }, [selectedCategory, houseData]);
-
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'bedroom': return <Bed className="w-5 h-5" />;
@@ -291,7 +278,6 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                   className={`cursor-pointer transition-all hover:shadow-lg ${
                     selectedCategory === categoryKey ? 'ring-2 ring-primary' : ''
                   }`}
-                  onClick={() => setSelectedCategory(selectedCategory === categoryKey ? null : categoryKey as any)}
                 >
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
@@ -323,7 +309,6 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                       className="w-full"
                       onClick={(e) => {
                         e.stopPropagation();
-                        console.log('Details ansehen clicked for category:', categoryKey);
                         setSelectedCategory(categoryKey as any);
                       }}
                     >
