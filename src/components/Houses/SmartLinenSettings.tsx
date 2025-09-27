@@ -29,7 +29,7 @@ interface SmartLinenSettingsProps {
   houseId: string;
   settings: AISettings;
   onSettingsChange: (settings: AISettings) => void;
-  onSave: () => void;
+  onSave: () => Promise<boolean>;
   onLoad: (houseId: string) => void;
   isLoading?: boolean;
 }
@@ -89,9 +89,22 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     onSettingsChange(localSettings);
-    onSave();
+    const success = await onSave();
+    
+    if (success) {
+      toast({
+        title: "Einstellungen gespeichert",
+        description: "Die KI-Parameter wurden erfolgreich in der Datenbank gespeichert",
+      });
+    } else {
+      toast({
+        title: "Fehler beim Speichern",
+        description: "Die Einstellungen konnten nicht gespeichert werden",
+        variant: "destructive",
+      });
+    }
   };
 
   const updateSetting = (key: keyof AISettings, value: number | boolean) => {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -45,9 +45,14 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
     aiSettings, 
     updateAISettings, 
     saveAISettings, 
-    loadAISettings 
+    loadAISettings,
   } = useLinenAI();
   const [selectedCategory, setSelectedCategory] = useState<'bedroom' | 'bathroom' | 'kitchen' | null>(null);
+
+  // Lade AI-Einstellungen beim Mount
+  React.useEffect(() => {
+    loadAISettings(house.id);
+  }, [house.id, loadAISettings]);
 
   // Find current house data in the optimized dataset
   const houseData = useMemo(() => {
