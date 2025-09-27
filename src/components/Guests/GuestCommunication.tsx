@@ -7,10 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { MessageCircle, Mail, Phone, Send, Users, FileText, Calendar, Star, Settings } from 'lucide-react';
+import { MessageCircle, Mail, Phone, Send, Users, FileText, Calendar, Star, Settings, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import EmailTemplateEditor from './EmailTemplateEditor';
+import GuestPersonalization from './GuestPersonalization';
 
 interface EmailTemplate {
   id: string;
@@ -269,12 +270,58 @@ Ihr Steinbock Chalets Team`
     return segmentData[segment as keyof typeof segmentData] || 0;
   };
 
+  const handleSendPersonalizedMessage = async (content: string, subject: string, segment: string) => {
+    try {
+      const targetGuests = getGuestEmailsForSegment(segment);
+      
+      if (targetGuests.length === 0) {
+        toast({
+          title: "Keine Gäste gefunden",
+          description: "Für das ausgewählte Segment wurden keine Gäste mit E-Mail-Adressen gefunden.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke('send-gmail', {
+        body: {
+          to: targetGuests,
+          subject: subject,
+          html: content,
+          guestName: 'Liebe Gäste'
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Personalisierte E-Mail gesendet",
+          description: `KI-optimierte Nachricht wurde erfolgreich an ${data.recipients || targetGuests.length} Gäste gesendet`,
+        });
+      } else {
+        throw new Error(data?.error || 'Unbekannter Fehler');
+      }
+    } catch (error) {
+      console.error('Error sending personalized email:', error);
+      toast({
+        title: "Fehler beim Senden",
+        description: "Die personalisierte E-Mail konnte nicht gesendet werden.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <Tabs defaultValue="compose" className="space-y-6">
-      <TabsList className="grid w-full grid-cols-2">
+      <TabsList className="grid w-full grid-cols-3">
         <TabsTrigger value="compose" className="flex items-center gap-2">
           <Send className="w-4 h-4" />
           E-Mail versenden
+        </TabsTrigger>
+        <TabsTrigger value="personalization" className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4" />
+          Personalisierung
         </TabsTrigger>
         <TabsTrigger value="manage" className="flex items-center gap-2">
           <Settings className="w-4 h-4" />
