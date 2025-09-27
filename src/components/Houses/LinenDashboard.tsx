@@ -12,11 +12,14 @@ import {
   TrendingUp,
   ShoppingCart,
   Home,
-  Clock
+  Clock,
+  Brain,
+  Zap
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import LinenInventoryDashboard from './LinenInventoryDashboard';
+import SmartLinenInventoryDashboard from './SmartLinenInventoryDashboard';
 
 interface HouseLinenStatus {
   house: any;
@@ -358,16 +361,19 @@ const LinenDashboard = () => {
       {/* House Detail View */}
       {selectedHouse && (
         <div className="mt-8">
-          <div className="mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <Button 
               variant="outline" 
               onClick={() => setSelectedHouse(null)}
-              className="mb-4"
             >
               ← Zurück zur Übersicht
             </Button>
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Brain className="w-3 h-3" />
+              KI-optimiert
+            </Badge>
           </div>
-          <LinenInventoryDashboard house={selectedHouse} />
+          <SmartLinenInventoryDashboard house={selectedHouse} />
         </div>
       )}
     </div>

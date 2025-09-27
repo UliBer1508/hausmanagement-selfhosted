@@ -29,8 +29,11 @@ import {
 import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useOptimizedLinenManagement, LinenDemandAnalysis } from '@/hooks/useOptimizedLinenManagement';
+import { useLinenAI } from '@/hooks/useLinenAI';
 import LinenSetRulesTab from './LinenSetRulesTab';
 import LinenOrdersTab from './LinenOrdersTab';
+import SmartLinenSettings from './SmartLinenSettings';
+import SmartLinenOptimizer from './SmartLinenOptimizer';
 
 interface SmartLinenInventoryDashboardProps {
   house: any;
@@ -38,6 +41,12 @@ interface SmartLinenInventoryDashboardProps {
 
 const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardProps) => {
   const { housesWithLinenData, createOptimizedOrderMutation } = useOptimizedLinenManagement();
+  const { 
+    aiSettings, 
+    updateAISettings, 
+    saveAISettings, 
+    loadAISettings 
+  } = useLinenAI();
   const [selectedCategory, setSelectedCategory] = useState<'bedroom' | 'bathroom' | 'kitchen' | null>(null);
 
   // Find current house data in the optimized dataset
@@ -193,13 +202,31 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="smart-analysis" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="ai-optimizer" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="ai-optimizer">KI-Optimierung</TabsTrigger>
           <TabsTrigger value="smart-analysis">Smart-Analyse</TabsTrigger>
           <TabsTrigger value="predictions">Vorhersagen</TabsTrigger>
           <TabsTrigger value="wäscheset-regeln">Regeln</TabsTrigger>
           <TabsTrigger value="bestellungen">Bestellungen</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="ai-optimizer" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <SmartLinenSettings 
+              settings={aiSettings}
+              onSettingsChange={updateAISettings}
+              onSave={() => saveAISettings(house.id)}
+            />
+            <div>
+              <SmartLinenOptimizer 
+                houseId={house.id}
+                houseName={house.name}
+                aiSettings={aiSettings}
+              />
+            </div>
+          </div>
+        </TabsContent>
 
         <TabsContent value="smart-analysis" className="space-y-6">
           {/* Critical Alert */}
