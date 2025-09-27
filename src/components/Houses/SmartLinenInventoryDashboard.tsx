@@ -174,6 +174,20 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
 
   return (
     <div className="space-y-6">
+      {/* DEBUG: Always show current selectedCategory - TOP POSITION */}
+      <div style={{ 
+        backgroundColor: 'yellow', 
+        padding: '15px', 
+        margin: '10px 0', 
+        border: '3px solid red',
+        fontSize: '20px',
+        fontWeight: 'bold',
+        position: 'relative',
+        zIndex: 9999
+      }}>
+        🔥 DEBUG - Current selectedCategory: "{selectedCategory}" 🔥
+      </div>
+
       {/* Smart Header */}
       <Card className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-blue-500/5 pointer-events-none" />
