@@ -51,25 +51,6 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
   const [selectedCategory, setSelectedCategory] = useState<'bedroom' | 'bathroom' | 'kitchen' | null>(null);
   const [showAISettings, setShowAISettings] = useState(false);
 
-  // Debug wrapper für setSelectedCategory
-  const setSelectedCategoryDebug = (value: 'bedroom' | 'bathroom' | 'kitchen' | null, source?: string) => {
-    console.log(`setSelectedCategory called:`, { value, source, stack: new Error().stack?.split('\n')[1] });
-    setSelectedCategory(value);
-  };
-
-  // Monitor selectedCategory changes
-  React.useEffect(() => {
-    console.log('=== selectedCategory useEffect triggered ===');
-    console.log('Current selectedCategory:', selectedCategory);
-    console.log('Should render detail view:', !!selectedCategory);
-    console.log('Type of selectedCategory:', typeof selectedCategory);
-    
-    // GUARANTEE VISIBLE TEST
-    if (selectedCategory === 'bedroom') {
-      alert(`🔥 DEBUG: selectedCategory is now "${selectedCategory}"! The detail view should be visible!`);
-    }
-  }, [selectedCategory]);
-
   // Lade AI-Einstellungen beim Mount
   React.useEffect(() => {
     loadAISettings(house.id);
@@ -179,20 +160,6 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
 
   return (
     <div className="space-y-6">
-      {/* DEBUG: Always show current selectedCategory - TOP POSITION */}
-      <div style={{ 
-        backgroundColor: 'yellow', 
-        padding: '15px', 
-        margin: '10px 0', 
-        border: '3px solid red',
-        fontSize: '20px',
-        fontWeight: 'bold',
-        position: 'relative',
-        zIndex: 9999
-      }}>
-        🔥 DEBUG - Current selectedCategory: "{selectedCategory}" 🔥
-      </div>
-
       {/* Smart Header */}
       <Card className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-blue-500/5 pointer-events-none" />
@@ -342,8 +309,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                       className="w-full"
                       onClick={(e) => {
                         e.stopPropagation();
-                        console.log('Button clicked - setting category to:', categoryKey);
-                        setSelectedCategoryDebug(categoryKey as any, 'details-button');
+                        setSelectedCategory(categoryKey as any);
                       }}
                     >
                       Details ansehen
@@ -351,28 +317,15 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                   </CardContent>
                 </Card>
               );
-            })}
-          </div>
-
-          {/* DEBUG: Always show current selectedCategory */}
-          <div style={{ 
-            backgroundColor: 'yellow', 
-            padding: '10px', 
-            margin: '10px 0', 
-            border: '2px solid orange',
-            fontSize: '16px',
-            fontWeight: 'bold'
-          }}>
-            DEBUG - Current selectedCategory: "{selectedCategory}" (type: {typeof selectedCategory})
+             })}
           </div>
 
           {/* Detailed Item View */}
           {selectedCategory && (
-            <Card style={{ border: '2px solid red' }}>
-              <CardHeader style={{ background: '#ffebee' }}>
+            <Card>
+              <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
-                    <span style={{ color: 'red' }}>DEBUG: {selectedCategory}</span>
                     {getCategoryIcon(selectedCategory)}
                     {getCategoryTitle(selectedCategory)} - Detailanalyse
                   </CardTitle>
@@ -380,8 +333,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                     variant="ghost" 
                     size="sm"
                     onClick={() => {
-                      console.log('Close button clicked - setting category to null');
-                      setSelectedCategoryDebug(null, 'close-button');
+                      setSelectedCategory(null);
                     }}
                   >
                     ✕
