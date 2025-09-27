@@ -207,33 +207,33 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
         </CardHeader>
       </Card>
 
-      {/* Collapsible AI Settings */}
+      {/* KI-Optimierung - Always visible */}
+      <div>
+        <SmartLinenOptimizer 
+          houseId={house.id}
+          houseName={house.name}
+          aiSettings={aiSettings}
+        />
+      </div>
+
+      {/* Collapsible AI Settings - Only Settings */}
       <Collapsible open={showAISettings} onOpenChange={setShowAISettings}>
         <CollapsibleContent className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Brain className="w-5 h-5" />
-                KI-Einstellungen & Optimierung
+                KI-Einstellungen
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SmartLinenSettings 
-                  houseId={house.id}
-                  settings={aiSettings}
-                  onSettingsChange={updateAISettings}
-                  onSave={() => saveAISettings(house.id)}
-                  onLoad={loadAISettings}
-                />
-                <div>
-                  <SmartLinenOptimizer 
-                    houseId={house.id}
-                    houseName={house.name}
-                    aiSettings={aiSettings}
-                  />
-                </div>
-              </div>
+              <SmartLinenSettings 
+                houseId={house.id}
+                settings={aiSettings}
+                onSettingsChange={updateAISettings}
+                onSave={() => saveAISettings(house.id)}
+                onLoad={loadAISettings}
+              />
             </CardContent>
           </Card>
         </CollapsibleContent>
