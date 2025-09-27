@@ -51,6 +51,12 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
   const [selectedCategory, setSelectedCategory] = useState<'bedroom' | 'bathroom' | 'kitchen' | null>(null);
   const [showAISettings, setShowAISettings] = useState(false);
 
+  // Debug wrapper für setSelectedCategory
+  const setSelectedCategoryDebug = (value: 'bedroom' | 'bathroom' | 'kitchen' | null, source?: string) => {
+    console.log(`setSelectedCategory called:`, { value, source, stack: new Error().stack?.split('\n')[1] });
+    setSelectedCategory(value);
+  };
+
   // Lade AI-Einstellungen beim Mount
   React.useEffect(() => {
     loadAISettings(house.id);
@@ -309,7 +315,8 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                       className="w-full"
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedCategory(categoryKey as any);
+                        console.log('Button clicked - setting category to:', categoryKey);
+                        setSelectedCategoryDebug(categoryKey as any, 'details-button');
                       }}
                     >
                       Details ansehen
@@ -332,7 +339,10 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                   <Button 
                     variant="ghost" 
                     size="sm"
-                    onClick={() => setSelectedCategory(null)}
+                    onClick={() => {
+                      console.log('Close button clicked - setting category to null');
+                      setSelectedCategoryDebug(null, 'close-button');
+                    }}
                   >
                     ✕
                   </Button>
