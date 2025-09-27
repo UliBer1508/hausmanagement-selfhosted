@@ -57,6 +57,14 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
     setSelectedCategory(value);
   };
 
+  // Monitor selectedCategory changes
+  React.useEffect(() => {
+    console.log('=== selectedCategory useEffect triggered ===');
+    console.log('Current selectedCategory:', selectedCategory);
+    console.log('Should render detail view:', !!selectedCategory);
+    console.log('Type of selectedCategory:', typeof selectedCategory);
+  }, [selectedCategory]);
+
   // Lade AI-Einstellungen beim Mount
   React.useEffect(() => {
     loadAISettings(house.id);
@@ -325,6 +333,18 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                 </Card>
               );
             })}
+          </div>
+
+          {/* DEBUG: Always show current selectedCategory */}
+          <div style={{ 
+            backgroundColor: 'yellow', 
+            padding: '10px', 
+            margin: '10px 0', 
+            border: '2px solid orange',
+            fontSize: '16px',
+            fontWeight: 'bold'
+          }}>
+            DEBUG - Current selectedCategory: "{selectedCategory}" (type: {typeof selectedCategory})
           </div>
 
           {/* Detailed Item View */}
