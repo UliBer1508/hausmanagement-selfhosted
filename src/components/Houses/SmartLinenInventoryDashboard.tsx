@@ -162,7 +162,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
     <div className="space-y-6">
       {/* Smart Header */}
       <Card className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-blue-500/5" />
+        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-blue-500/5 pointer-events-none" />
         <CardHeader>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
