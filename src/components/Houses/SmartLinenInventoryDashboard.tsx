@@ -63,6 +63,11 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
     console.log('Current selectedCategory:', selectedCategory);
     console.log('Should render detail view:', !!selectedCategory);
     console.log('Type of selectedCategory:', typeof selectedCategory);
+    
+    // GUARANTEE VISIBLE TEST
+    if (selectedCategory === 'bedroom') {
+      alert(`🔥 DEBUG: selectedCategory is now "${selectedCategory}"! The detail view should be visible!`);
+    }
   }, [selectedCategory]);
 
   // Lade AI-Einstellungen beim Mount
