@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Package,
   AlertTriangle,
@@ -48,6 +49,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
     loadAISettings,
   } = useLinenAI();
   const [selectedCategory, setSelectedCategory] = useState<'bedroom' | 'bathroom' | 'kitchen' | null>(null);
+  const [showAISettings, setShowAISettings] = useState(false);
 
   // Lade AI-Einstellungen beim Mount
   React.useEffect(() => {
@@ -186,17 +188,12 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
             </div>
             <div className="flex gap-2">
               <Button 
-                onClick={handleSmartOrder}
-                disabled={criticalItems.length === 0 && lowItems.length === 0}
+                onClick={() => setShowAISettings(!showAISettings)}
+                variant={showAISettings ? "default" : "outline"}
                 className="shrink-0"
               >
                 <Zap className="w-4 h-4 mr-2" />
-                KI-Bestellung
-                {(criticalItems.length > 0 || lowItems.length > 0) && (
-                  <Badge className="ml-2 bg-white/20 text-white">
-                    {criticalItems.length + lowItems.length}
-                  </Badge>
-                )}
+                KI-Einstellungen
               </Button>
               <Button variant="outline" className="shrink-0">
                 <Edit className="w-4 h-4 mr-2" />
@@ -207,33 +204,45 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="ai-optimizer" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="ai-optimizer">KI-Optimierung</TabsTrigger>
+      {/* Collapsible AI Settings */}
+      <Collapsible open={showAISettings} onOpenChange={setShowAISettings}>
+        <CollapsibleContent className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="w-5 h-5" />
+                KI-Einstellungen & Optimierung
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SmartLinenSettings 
+                  houseId={house.id}
+                  settings={aiSettings}
+                  onSettingsChange={updateAISettings}
+                  onSave={() => saveAISettings(house.id)}
+                  onLoad={loadAISettings}
+                />
+                <div>
+                  <SmartLinenOptimizer 
+                    houseId={house.id}
+                    houseName={house.name}
+                    aiSettings={aiSettings}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
+
+      <Tabs defaultValue="smart-analysis" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="smart-analysis">Smart-Analyse</TabsTrigger>
           <TabsTrigger value="predictions">Vorhersagen</TabsTrigger>
           <TabsTrigger value="wäscheset-regeln">Regeln</TabsTrigger>
           <TabsTrigger value="bestellungen">Bestellungen</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="ai-optimizer" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SmartLinenSettings 
-              houseId={house.id}
-              settings={aiSettings}
-              onSettingsChange={updateAISettings}
-              onSave={() => saveAISettings(house.id)}
-              onLoad={loadAISettings}
-            />
-            <div>
-              <SmartLinenOptimizer 
-                houseId={house.id}
-                houseName={house.name}
-                aiSettings={aiSettings}
-              />
-            </div>
-          </div>
-        </TabsContent>
 
         <TabsContent value="smart-analysis" className="space-y-6">
           {/* Critical Alert */}
