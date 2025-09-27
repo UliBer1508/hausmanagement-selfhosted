@@ -18,6 +18,14 @@ interface AISettings {
   max_storage_ratio: number;
   reorder_threshold: number;
   seasonal_factor: boolean;
+  prices: {
+    bedding: number;
+    large_towels: number;
+    small_towels: number;
+    bath_mats: number;
+    sink_towels: number;
+    sauna_towels: number;
+  };
 }
 
 interface LinenItem {
@@ -217,11 +225,18 @@ function generateOrderSuggestion(
     }
   });
 
+  // Berechne realistische Kosten basierend auf Benutzerpreisen
+  let estimatedCost = 0;
+  Object.entries(orderItems).forEach(([itemType, details]: [string, any]) => {
+    const price = aiSettings.prices[itemType as keyof typeof aiSettings.prices] || 15;
+    estimatedCost += details.order_quantity * price;
+  });
+
   return {
     items: orderItems,
     total_items: totalOrderValue,
     has_urgent_items: Object.values(orderItems).some((item: any) => item.urgency === 'high'),
-    estimated_cost: totalOrderValue * 15, // Geschätzter Preis pro Item
+    estimated_cost: estimatedCost,
     order_priority: totalOrderValue > 10 ? 'high' : totalOrderValue > 5 ? 'medium' : 'low'
   };
 }
@@ -243,6 +258,14 @@ function getDefaultAISettings(): AISettings {
     safety_buffer: 1.2,
     max_storage_ratio: 1.5,
     reorder_threshold: 0.8,
-    seasonal_factor: false
+    seasonal_factor: false,
+    prices: {
+      bedding: 30,
+      large_towels: 18,
+      small_towels: 10,
+      bath_mats: 15,
+      sink_towels: 8,
+      sauna_towels: 20
+    }
   };
 }

@@ -7,6 +7,14 @@ interface AISettings {
   max_storage_ratio: number;
   reorder_threshold: number;
   seasonal_factor: boolean;
+  prices: {
+    bedding: number;
+    large_towels: number;
+    small_towels: number;
+    bath_mats: number;
+    sink_towels: number;
+    sauna_towels: number;
+  };
 }
 
 interface OptimizationResult {
@@ -33,7 +41,15 @@ export const useLinenAI = () => {
     safety_buffer: 1.2,
     max_storage_ratio: 1.5,
     reorder_threshold: 0.8,
-    seasonal_factor: false
+    seasonal_factor: false,
+    prices: {
+      bedding: 30,
+      large_towels: 18,
+      small_towels: 10,
+      bath_mats: 15,
+      sink_towels: 8,
+      sauna_towels: 20
+    }
   });
 
   const runOptimization = useCallback(async (houseId: string): Promise<OptimizationResult | null> => {

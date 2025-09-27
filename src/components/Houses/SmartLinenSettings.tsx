@@ -15,6 +15,14 @@ interface AISettings {
   max_storage_ratio: number;
   reorder_threshold: number;
   seasonal_factor: boolean;
+  prices: {
+    bedding: number;
+    large_towels: number;
+    small_towels: number;
+    bath_mats: number;
+    sink_towels: number;
+    sauna_towels: number;
+  };
 }
 
 interface SmartLinenSettingsProps {
@@ -39,7 +47,15 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
       safety_buffer: 1.2,
       max_storage_ratio: 1.5,
       reorder_threshold: 0.8,
-      seasonal_factor: false
+      seasonal_factor: false,
+      prices: {
+        bedding: 30,
+        large_towels: 18,
+        small_towels: 10,
+        bath_mats: 15,
+        sink_towels: 8,
+        sauna_towels: 20
+      }
     };
     setLocalSettings(defaultSettings);
     onSettingsChange(defaultSettings);
@@ -58,6 +74,26 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
   const updateSetting = (key: keyof AISettings, value: number | boolean) => {
     const updated = { ...localSettings, [key]: value };
     setLocalSettings(updated);
+  };
+
+  const updatePrice = (itemType: keyof AISettings['prices'], price: number) => {
+    const updated = { 
+      ...localSettings, 
+      prices: { 
+        ...localSettings.prices, 
+        [itemType]: price 
+      } 
+    };
+    setLocalSettings(updated);
+  };
+
+  const linenLabels = {
+    bedding: 'Bettwäsche',
+    large_towels: 'Große Handtücher',
+    small_towels: 'Kleine Handtücher',
+    bath_mats: 'Badematten',
+    sink_towels: 'Waschbeckentücher',
+    sauna_towels: 'Saunatücher'
   };
 
   return (
@@ -186,6 +222,35 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
               onCheckedChange={(checked) => updateSetting('seasonal_factor', checked)}
             />
           </div>
+        </div>
+
+        <Separator />
+
+        {/* Preiskonfiguration */}
+        <div className="space-y-3">
+          <Label className="text-base font-medium">Preiskonfiguration (€)</Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.entries(linenLabels).map(([itemType, label]) => (
+              <div key={itemType} className="space-y-2">
+                <Label htmlFor={`price_${itemType}`} className="text-sm">
+                  {label}
+                </Label>
+                <Input
+                  id={`price_${itemType}`}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={localSettings.prices[itemType as keyof AISettings['prices']]}
+                  onChange={(e) => updatePrice(itemType as keyof AISettings['prices'], parseFloat(e.target.value) || 0)}
+                  placeholder="Preis in Euro"
+                  className="text-right"
+                />
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Diese Preise werden für die Kostenberechnung bei Bestellempfehlungen verwendet.
+          </p>
         </div>
 
         <Separator />
