@@ -61,6 +61,14 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
     return housesWithLinenData?.find(h => h.house.id === house.id);
   }, [housesWithLinenData, house.id]);
 
+  // Debug logging für selectedCategory
+  React.useEffect(() => {
+    console.log('selectedCategory changed:', selectedCategory);
+    if (selectedCategory && houseData) {
+      console.log('Items for category:', houseData.categories[selectedCategory]);
+    }
+  }, [selectedCategory, houseData]);
+
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'bedroom': return <Bed className="w-5 h-5" />;
@@ -310,6 +318,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                       className="w-full"
                       onClick={(e) => {
                         e.stopPropagation();
+                        console.log('Details ansehen clicked for category:', categoryKey);
                         setSelectedCategory(categoryKey as any);
                       }}
                     >
