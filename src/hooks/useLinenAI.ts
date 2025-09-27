@@ -87,7 +87,7 @@ export const useLinenAI = () => {
 
   const saveAISettings = useCallback(async (houseId: string) => {
     try {
-      // Speichere AI-Einstellungen in der Datenbank
+      // Speichere AI-Einstellungen in der Datenbank mit korrektem upsert
       const { error } = await supabase
         .from('ai_linen_settings')
         .upsert({
@@ -98,6 +98,9 @@ export const useLinenAI = () => {
           reorder_threshold: aiSettings.reorder_threshold,
           seasonal_factor: aiSettings.seasonal_factor,
           prices: aiSettings.prices
+        }, {
+          onConflict: 'house_id',  // Wichtig: Konflikt auf house_id beheben
+          ignoreDuplicates: false  // Update bei Duplikaten
         });
 
       if (error) {
@@ -105,6 +108,7 @@ export const useLinenAI = () => {
         return false;
       }
 
+      console.log('AI settings saved successfully for house:', houseId);
       return true;
     } catch (error) {
       console.error('Failed to save AI settings:', error);
