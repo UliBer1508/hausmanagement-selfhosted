@@ -913,8 +913,8 @@ const OriginalDashboard = () => {
                 </CardContent>
               </Card>
               
-              {/* Teuni Webapp (Coming Soon) */}
-              <Card className="hover:shadow-lg transition-shadow opacity-75">
+              {/* Teuni Webapp */}
+              <Card className="hover:shadow-lg transition-shadow">
                 <CardHeader className="text-center">
                   <CardTitle className="flex items-center justify-center gap-2">
                     <Shirt className="w-5 h-5 text-purple-500" />
@@ -926,11 +926,10 @@ const OriginalDashboard = () => {
                     Wäscheaufträge verwalten und bearbeiten
                   </p>
                   <Button 
-                    variant="outline" 
                     className="w-full" 
-                    disabled
+                    onClick={() => window.open('https://fresh-spin-portal.lovable.app/', '_blank')}
                   >
-                    Bald verfügbar
+                    Portal öffnen
                   </Button>
                 </CardContent>
               </Card>
