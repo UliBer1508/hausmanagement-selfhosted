@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   Package,
   AlertTriangle,
@@ -477,6 +477,9 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
               {selectedCategory && getCategoryIcon(selectedCategory)}
               {selectedCategory && getCategoryTitle(selectedCategory)} - Detailanalyse
             </DialogTitle>
+            <DialogDescription>
+              Detaillierte Übersicht aller Wäsche-Items in dieser Kategorie mit aktuellen Beständen, Bedarf und Status.
+            </DialogDescription>
           </DialogHeader>
           <div className="mt-4">
             {selectedCategory && houseData && (
