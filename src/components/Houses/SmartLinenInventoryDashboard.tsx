@@ -213,6 +213,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
           houseId={house.id}
           houseName={house.name}
           aiSettings={aiSettings}
+          onOptimizationStart={() => setShowAISettings(false)}
         />
       </div>
 

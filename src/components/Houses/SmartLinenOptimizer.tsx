@@ -49,12 +49,14 @@ interface SmartLinenOptimizerProps {
   houseId: string;
   houseName: string;
   aiSettings: any;
+  onOptimizationStart?: () => void;
 }
 
 const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
   houseId,
   houseName,
-  aiSettings
+  aiSettings,
+  onOptimizationStart
 }) => {
   const { toast } = useToast();
   const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
@@ -71,6 +73,12 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
 
   const runOptimization = async () => {
     setIsOptimizing(true);
+    
+    // Schließe KI-Einstellungen wenn Optimierung startet
+    if (onOptimizationStart) {
+      onOptimizationStart();
+    }
+    
     try {
       const { data, error } = await supabase.functions.invoke('optimize-linen-inventory', {
         body: {
