@@ -329,10 +329,11 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
 
           {/* Detailed Item View */}
           {selectedCategory && (
-            <Card>
-              <CardHeader>
+            <Card style={{ border: '2px solid red' }}>
+              <CardHeader style={{ background: '#ffebee' }}>
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
+                    <span style={{ color: 'red' }}>DEBUG: {selectedCategory}</span>
                     {getCategoryIcon(selectedCategory)}
                     {getCategoryTitle(selectedCategory)} - Detailanalyse
                   </CardTitle>
