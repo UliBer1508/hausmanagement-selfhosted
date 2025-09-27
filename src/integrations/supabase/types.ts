@@ -14,6 +14,155 @@ export type Database = {
   }
   public: {
     Tables: {
+      activities: {
+        Row: {
+          address: string | null
+          advance_booking_hours: number | null
+          age_restrictions: Json | null
+          booking_required: boolean | null
+          cancellation_policy: string | null
+          category: string
+          coordinates: Json | null
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          difficulty_level: number | null
+          duration_minutes: number | null
+          equipment_needed: string[] | null
+          group_size_max: number | null
+          group_size_min: number | null
+          id: string
+          images: string[] | null
+          is_active: boolean | null
+          languages_available: string[] | null
+          location: string
+          name: string
+          popularity_score: number | null
+          price_max: number | null
+          price_min: number | null
+          provider_contact: Json | null
+          provider_name: string | null
+          rating: number | null
+          review_count: number | null
+          season_availability: string[] | null
+          subcategory: string | null
+          tags: string[] | null
+          updated_at: string | null
+          weather_dependent: boolean | null
+        }
+        Insert: {
+          address?: string | null
+          advance_booking_hours?: number | null
+          age_restrictions?: Json | null
+          booking_required?: boolean | null
+          cancellation_policy?: string | null
+          category: string
+          coordinates?: Json | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          difficulty_level?: number | null
+          duration_minutes?: number | null
+          equipment_needed?: string[] | null
+          group_size_max?: number | null
+          group_size_min?: number | null
+          id?: string
+          images?: string[] | null
+          is_active?: boolean | null
+          languages_available?: string[] | null
+          location: string
+          name: string
+          popularity_score?: number | null
+          price_max?: number | null
+          price_min?: number | null
+          provider_contact?: Json | null
+          provider_name?: string | null
+          rating?: number | null
+          review_count?: number | null
+          season_availability?: string[] | null
+          subcategory?: string | null
+          tags?: string[] | null
+          updated_at?: string | null
+          weather_dependent?: boolean | null
+        }
+        Update: {
+          address?: string | null
+          advance_booking_hours?: number | null
+          age_restrictions?: Json | null
+          booking_required?: boolean | null
+          cancellation_policy?: string | null
+          category?: string
+          coordinates?: Json | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          difficulty_level?: number | null
+          duration_minutes?: number | null
+          equipment_needed?: string[] | null
+          group_size_max?: number | null
+          group_size_min?: number | null
+          id?: string
+          images?: string[] | null
+          is_active?: boolean | null
+          languages_available?: string[] | null
+          location?: string
+          name?: string
+          popularity_score?: number | null
+          price_max?: number | null
+          price_min?: number | null
+          provider_contact?: Json | null
+          provider_name?: string | null
+          rating?: number | null
+          review_count?: number | null
+          season_availability?: string[] | null
+          subcategory?: string | null
+          tags?: string[] | null
+          updated_at?: string | null
+          weather_dependent?: boolean | null
+        }
+        Relationships: []
+      }
+      activity_availability: {
+        Row: {
+          activity_id: string
+          available_spots: number
+          date: string
+          id: string
+          is_available: boolean | null
+          price: number | null
+          special_conditions: string | null
+          time_slot: string
+        }
+        Insert: {
+          activity_id: string
+          available_spots?: number
+          date: string
+          id?: string
+          is_available?: boolean | null
+          price?: number | null
+          special_conditions?: string | null
+          time_slot: string
+        }
+        Update: {
+          activity_id?: string
+          available_spots?: number
+          date?: string
+          id?: string
+          is_available?: boolean | null
+          price?: number | null
+          special_conditions?: string | null
+          time_slot?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_availability_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_cache: {
         Row: {
           activity_type: string | null
@@ -128,6 +277,66 @@ export type Database = {
         }
         Relationships: []
       }
+      activity_recommendations: {
+        Row: {
+          activity_id: string | null
+          booking_id: string | null
+          custom_duration: number | null
+          expires_at: string | null
+          generated_at: string | null
+          guest_email: string
+          id: string
+          optimal_time_slot: string | null
+          personalized_description: string | null
+          reasoning: Json | null
+          recommendation_score: number | null
+          status: string | null
+        }
+        Insert: {
+          activity_id?: string | null
+          booking_id?: string | null
+          custom_duration?: number | null
+          expires_at?: string | null
+          generated_at?: string | null
+          guest_email: string
+          id?: string
+          optimal_time_slot?: string | null
+          personalized_description?: string | null
+          reasoning?: Json | null
+          recommendation_score?: number | null
+          status?: string | null
+        }
+        Update: {
+          activity_id?: string | null
+          booking_id?: string | null
+          custom_duration?: number | null
+          expires_at?: string | null
+          generated_at?: string | null
+          guest_email?: string
+          id?: string
+          optimal_time_slot?: string | null
+          personalized_description?: string | null
+          reasoning?: Json | null
+          recommendation_score?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_recommendations_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_recommendations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_linen_settings: {
         Row: {
           created_at: string
@@ -170,6 +379,53 @@ export type Database = {
             foreignKeyName: "ai_linen_settings_house_id_fkey"
             columns: ["house_id"]
             isOneToOne: true
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_optimization_results: {
+        Row: {
+          analysis_date: string | null
+          booking_patterns: Json | null
+          confidence_score: number | null
+          created_at: string | null
+          guest_behavior_insights: Json | null
+          house_id: string
+          id: string
+          optimization_result: Json
+          recommendations: Json | null
+          seasonal_patterns: Json | null
+        }
+        Insert: {
+          analysis_date?: string | null
+          booking_patterns?: Json | null
+          confidence_score?: number | null
+          created_at?: string | null
+          guest_behavior_insights?: Json | null
+          house_id: string
+          id?: string
+          optimization_result: Json
+          recommendations?: Json | null
+          seasonal_patterns?: Json | null
+        }
+        Update: {
+          analysis_date?: string | null
+          booking_patterns?: Json | null
+          confidence_score?: number | null
+          created_at?: string | null
+          guest_behavior_insights?: Json | null
+          house_id?: string
+          id?: string
+          optimization_result?: Json
+          recommendations?: Json | null
+          seasonal_patterns?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_optimization_results_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
             referencedRelation: "houses"
             referencedColumns: ["id"]
           },
@@ -309,6 +565,75 @@ export type Database = {
           reason?: string
         }
         Relationships: []
+      }
+      booking_activities: {
+        Row: {
+          activity_id: string
+          booking_id: string
+          booking_reference: string | null
+          created_at: string | null
+          currency: string | null
+          duration_minutes: number | null
+          id: string
+          participants: number
+          rating: number | null
+          review: string | null
+          scheduled_date: string
+          scheduled_time: string | null
+          status: string | null
+          total_price: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          activity_id: string
+          booking_id: string
+          booking_reference?: string | null
+          created_at?: string | null
+          currency?: string | null
+          duration_minutes?: number | null
+          id?: string
+          participants: number
+          rating?: number | null
+          review?: string | null
+          scheduled_date: string
+          scheduled_time?: string | null
+          status?: string | null
+          total_price?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          activity_id?: string
+          booking_id?: string
+          booking_reference?: string | null
+          created_at?: string | null
+          currency?: string | null
+          duration_minutes?: number | null
+          id?: string
+          participants?: number
+          rating?: number | null
+          review?: string | null
+          scheduled_date?: string
+          scheduled_time?: string | null
+          status?: string | null
+          total_price?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_activities_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_activities_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       bookings: {
         Row: {
@@ -685,6 +1010,78 @@ export type Database = {
             columns: ["activity_cache_id"]
             isOneToOne: false
             referencedRelation: "activity_cache"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_preferences: {
+        Row: {
+          activity_level: string | null
+          age_group: string | null
+          booking_id: string | null
+          budget_range: string | null
+          confidence_score: number | null
+          group_size: number | null
+          group_type: string | null
+          guest_email: string
+          house_id: string | null
+          id: string
+          last_updated: string | null
+          nationality: string | null
+          predicted_interests: Json | null
+          preferred_categories: string[] | null
+          time_preference: string | null
+          weather_preference: string | null
+        }
+        Insert: {
+          activity_level?: string | null
+          age_group?: string | null
+          booking_id?: string | null
+          budget_range?: string | null
+          confidence_score?: number | null
+          group_size?: number | null
+          group_type?: string | null
+          guest_email: string
+          house_id?: string | null
+          id?: string
+          last_updated?: string | null
+          nationality?: string | null
+          predicted_interests?: Json | null
+          preferred_categories?: string[] | null
+          time_preference?: string | null
+          weather_preference?: string | null
+        }
+        Update: {
+          activity_level?: string | null
+          age_group?: string | null
+          booking_id?: string | null
+          budget_range?: string | null
+          confidence_score?: number | null
+          group_size?: number | null
+          group_type?: string | null
+          guest_email?: string
+          house_id?: string | null
+          id?: string
+          last_updated?: string | null
+          nationality?: string | null
+          predicted_interests?: Json | null
+          preferred_categories?: string[] | null
+          time_preference?: string | null
+          weather_preference?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_preferences_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_preferences_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
             referencedColumns: ["id"]
           },
         ]
