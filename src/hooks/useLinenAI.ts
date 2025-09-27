@@ -87,9 +87,24 @@ export const useLinenAI = () => {
 
   const saveAISettings = useCallback(async (houseId: string) => {
     try {
-      // Hier könnten die AI-Einstellungen in der Datenbank gespeichert werden
-      // Für jetzt speichern wir sie nur lokal
-      localStorage.setItem(`ai_settings_${houseId}`, JSON.stringify(aiSettings));
+      // Speichere AI-Einstellungen in der Datenbank
+      const { error } = await supabase
+        .from('ai_linen_settings')
+        .upsert({
+          house_id: houseId,
+          lookahead_bookings: aiSettings.lookahead_bookings,
+          safety_buffer: aiSettings.safety_buffer,
+          max_storage_ratio: aiSettings.max_storage_ratio,
+          reorder_threshold: aiSettings.reorder_threshold,
+          seasonal_factor: aiSettings.seasonal_factor,
+          prices: aiSettings.prices
+        });
+
+      if (error) {
+        console.error('Error saving AI settings:', error);
+        return false;
+      }
+
       return true;
     } catch (error) {
       console.error('Failed to save AI settings:', error);
@@ -97,12 +112,43 @@ export const useLinenAI = () => {
     }
   }, [aiSettings]);
 
-  const loadAISettings = useCallback((houseId: string) => {
+  const loadAISettings = useCallback(async (houseId: string) => {
     try {
-      const saved = localStorage.getItem(`ai_settings_${houseId}`);
-      if (saved) {
-        const parsedSettings = JSON.parse(saved);
-        setAISettings(parsedSettings);
+      // Lade AI-Einstellungen aus der Datenbank
+      const { data, error } = await supabase
+        .from('ai_linen_settings')
+        .select('*')
+        .eq('house_id', houseId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error loading AI settings:', error);
+        return;
+      }
+
+      if (data) {
+        // Sichere Typ-Konvertierung für JSONB prices
+        const defaultPrices = {
+          bedding: 30,
+          large_towels: 18,
+          small_towels: 10,
+          bath_mats: 15,
+          sink_towels: 8,
+          sauna_towels: 20
+        };
+
+        const prices = data.prices && typeof data.prices === 'object' 
+          ? { ...defaultPrices, ...data.prices as any }
+          : defaultPrices;
+
+        setAISettings({
+          lookahead_bookings: data.lookahead_bookings,
+          safety_buffer: data.safety_buffer,
+          max_storage_ratio: data.max_storage_ratio,
+          reorder_threshold: data.reorder_threshold,
+          seasonal_factor: data.seasonal_factor,
+          prices
+        });
       }
     } catch (error) {
       console.error('Failed to load AI settings:', error);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,19 +26,28 @@ interface AISettings {
 }
 
 interface SmartLinenSettingsProps {
+  houseId: string;
   settings: AISettings;
   onSettingsChange: (settings: AISettings) => void;
   onSave: () => void;
+  onLoad: (houseId: string) => void;
   isLoading?: boolean;
 }
 
 const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
+  houseId,
   settings,
   onSettingsChange,
   onSave,
+  onLoad,
   isLoading = false
 }) => {
   const { toast } = useToast();
+  
+  // Lade Einstellungen beim Komponenten-Mount
+  useEffect(() => {
+    onLoad(houseId);
+  }, [houseId, onLoad]);
   
   // Sichere Default-Preise falls nicht vorhanden
   const safeSettings = {

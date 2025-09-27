@@ -214,9 +214,11 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
         <TabsContent value="ai-optimizer" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <SmartLinenSettings 
+              houseId={house.id}
               settings={aiSettings}
               onSettingsChange={updateAISettings}
               onSave={() => saveAISettings(house.id)}
+              onLoad={loadAISettings}
             />
             <div>
               <SmartLinenOptimizer 

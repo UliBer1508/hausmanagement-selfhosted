@@ -128,6 +128,53 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_linen_settings: {
+        Row: {
+          created_at: string
+          house_id: string
+          id: string
+          lookahead_bookings: number
+          max_storage_ratio: number
+          prices: Json
+          reorder_threshold: number
+          safety_buffer: number
+          seasonal_factor: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          house_id: string
+          id?: string
+          lookahead_bookings?: number
+          max_storage_ratio?: number
+          prices?: Json
+          reorder_threshold?: number
+          safety_buffer?: number
+          seasonal_factor?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          house_id?: string
+          id?: string
+          lookahead_bookings?: number
+          max_storage_ratio?: number
+          prices?: Json
+          reorder_threshold?: number
+          safety_buffer?: number
+          seasonal_factor?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_linen_settings_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: true
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alpine_activities: {
         Row: {
           address: string
