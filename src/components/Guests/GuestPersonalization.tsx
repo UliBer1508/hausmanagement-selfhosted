@@ -6,8 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Send, Loader2, RefreshCw } from 'lucide-react';
+import { Sparkles, Send, Loader2, RefreshCw, Eye, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 
 interface GuestPersonalizationProps {
   onSendPersonalizedMessage: (content: string, subject: string, segment: string) => void;
@@ -19,6 +21,8 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
   const [personalizedContent, setPersonalizedContent] = useState('');
   const [generatedSubject, setGeneratedSubject] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
   const { toast } = useToast();
 
   // Fetch guest data for personalization
@@ -136,10 +140,12 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
 
       setPersonalizedContent(data.content);
       setGeneratedSubject(data.subject);
+      setShowPreview(true);
+      setIsApproved(false);
 
       toast({
         title: "Personalisierte Nachricht erstellt",
-        description: `KI-optimierte Nachricht für ${targetGuests.length} Gäste generiert.`
+        description: `KI-optimierte Nachricht für ${targetGuests.length} Gäste generiert. Bitte überprüfen Sie die Nachricht vor dem Versand.`
       });
 
     } catch (error) {
@@ -154,6 +160,25 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
     }
   };
 
+  const handleApproveMessage = () => {
+    setIsApproved(true);
+    toast({
+      title: "Nachricht genehmigt",
+      description: "Die E-Mail wurde zur Überprüfung genehmigt und kann jetzt versendet werden."
+    });
+  };
+
+  const handleRejectMessage = () => {
+    setShowPreview(false);
+    setIsApproved(false);
+    setPersonalizedContent('');
+    setGeneratedSubject('');
+    toast({
+      title: "Nachricht abgelehnt",
+      description: "Die generierte Nachricht wurde zurückgewiesen. Erstellen Sie eine neue Nachricht."
+    });
+  };
+
   const handleSendMessage = () => {
     if (!personalizedContent || !generatedSubject) {
       toast({
@@ -164,7 +189,22 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
       return;
     }
 
+    if (!isApproved) {
+      toast({
+        title: "Genehmigung erforderlich",
+        description: "Bitte genehmigen Sie die Nachricht vor dem Versand.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     onSendPersonalizedMessage(personalizedContent, generatedSubject, selectedSegment);
+    
+    // Reset state after sending
+    setShowPreview(false);
+    setIsApproved(false);
+    setPersonalizedContent('');
+    setGeneratedSubject('');
   };
 
   const getSegmentInfo = (segment: string) => {
@@ -206,7 +246,7 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
             KI-gestützte personalisierte Nachrichtenerstellung
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Automatische Erstellung maßgeschneiderter E-Mails basierend auf Gast-Segmentierung und Buchungshistorie
+            Automatische Erstellung maßgeschneiderter E-Mails mit Überprüfung und Genehmigung vor dem Versand
           </p>
         </CardHeader>
       </Card>
@@ -302,8 +342,8 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              Generierte Nachricht
-              {personalizedContent && (
+              {showPreview ? 'E-Mail Vorschau & Genehmigung' : 'Generierte Nachricht'}
+              {personalizedContent && !showPreview && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -317,6 +357,24 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {showPreview && !isApproved && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Bitte überprüfen Sie die generierte E-Mail sorgfältig vor der Genehmigung. 
+                  Die Nachricht wird an {segmentInfo.count} Empfänger gesendet.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {isApproved && (
+              <Alert className="border-green-200 bg-green-50">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800">
+                  E-Mail wurde genehmigt und kann versendet werden.
+                </AlertDescription>
+              </Alert>
+            )}
             {generatedSubject && (
               <div>
                 <label className="text-sm font-medium">Betreff</label>
@@ -334,23 +392,76 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
                 placeholder="Klicken Sie auf 'Personalisierte Nachricht generieren', um KI-optimierten Inhalt zu erstellen..."
                 rows={12}
                 className="mt-1"
+                readOnly={showPreview}
               />
+              {showPreview && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Vorschau-Modus: Inhalt kann nach Genehmigung nicht mehr bearbeitet werden
+                </p>
+              )}
             </div>
 
             {personalizedContent && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Sparkles className="w-3 h-3" />
-                  KI-optimiert für {segmentInfo.count} Empfänger
-                </div>
+              <div className="space-y-4">
+                <Separator />
                 
-                <Button 
-                  onClick={handleSendMessage} 
-                  className="w-full"
-                >
-                  <Send className="w-4 h-4 mr-2" />
-                  Personalisierte E-Mail versenden ({segmentInfo.count} Empfänger)
-                </Button>
+                {showPreview && !isApproved && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Eye className="w-4 h-4" />
+                      E-Mail Überprüfung und Genehmigung
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <Button 
+                        onClick={handleApproveMessage} 
+                        className="flex-1"
+                        variant="default"
+                      >
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        E-Mail genehmigen
+                      </Button>
+                      
+                      <Button 
+                        onClick={handleRejectMessage} 
+                        variant="destructive"
+                        className="flex-1"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Ablehnen & Neu erstellen
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {isApproved && (
+                  <Button 
+                    onClick={handleSendMessage} 
+                    className="w-full"
+                    size="lg"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Genehmigte E-Mail versenden ({segmentInfo.count} Empfänger)
+                  </Button>
+                )}
+
+                {!showPreview && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Sparkles className="w-3 h-3" />
+                      KI-optimiert für {segmentInfo.count} Empfänger
+                    </div>
+                    
+                    <Button 
+                      onClick={() => setShowPreview(true)} 
+                      className="w-full"
+                      variant="outline"
+                    >
+                      <Eye className="w-4 h-4 mr-2" />
+                      E-Mail zur Überprüfung anzeigen
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>
