@@ -39,7 +39,21 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
   isLoading = false
 }) => {
   const { toast } = useToast();
-  const [localSettings, setLocalSettings] = useState<AISettings>(settings);
+  
+  // Sichere Default-Preise falls nicht vorhanden
+  const safeSettings = {
+    ...settings,
+    prices: settings.prices || {
+      bedding: 30,
+      large_towels: 18,
+      small_towels: 10,
+      bath_mats: 15,
+      sink_towels: 8,
+      sauna_towels: 20
+    }
+  };
+  
+  const [localSettings, setLocalSettings] = useState<AISettings>(safeSettings);
 
   const handleReset = () => {
     const defaultSettings: AISettings = {
@@ -85,6 +99,11 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
       } 
     };
     setLocalSettings(updated);
+  };
+
+  // Sichere Preis-Zugriffe
+  const getCurrentPrice = (itemType: keyof AISettings['prices']) => {
+    return localSettings.prices?.[itemType] || 0;
   };
 
   const linenLabels = {
@@ -240,7 +259,7 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
                   type="number"
                   min="0"
                   step="0.01"
-                  value={localSettings.prices[itemType as keyof AISettings['prices']]}
+                  value={getCurrentPrice(itemType as keyof AISettings['prices'])}
                   onChange={(e) => updatePrice(itemType as keyof AISettings['prices'], parseFloat(e.target.value) || 0)}
                   placeholder="Preis in Euro"
                   className="text-right"
