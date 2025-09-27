@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import BookingCard from './BookingCard';
 import ServiceTaskCard from './ServiceTaskCard';
@@ -15,8 +15,32 @@ const ConnectedBookingView = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('confirmed');
   const [houseFilter, setHouseFilter] = useState('all');
+  const queryClient = useQueryClient();
 
   console.log('ConnectedBookingView rendering with filters:', { statusFilter, houseFilter, searchTerm });
+
+  // Real-time updates for linen orders
+  useEffect(() => {
+    const channel = supabase
+      .channel('linen-orders-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'linen_orders'
+        },
+        () => {
+          console.log('Linen order updated, invalidating queries...');
+          queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Fetch bookings with related data
   const { data: bookingsData, isLoading } = useQuery({
