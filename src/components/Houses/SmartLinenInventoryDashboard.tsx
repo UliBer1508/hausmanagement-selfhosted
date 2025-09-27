@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import {
   Package,
   AlertTriangle,
@@ -50,6 +51,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
   } = useLinenAI();
   const [selectedCategory, setSelectedCategory] = useState<'bedroom' | 'bathroom' | 'kitchen' | null>(null);
   const [showAISettings, setShowAISettings] = useState(false);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
 
   // Lade AI-Einstellungen beim Mount
   React.useEffect(() => {
@@ -310,6 +312,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedCategory(categoryKey as any);
+                        setShowDetailDialog(true);
                       }}
                     >
                       Details ansehen
@@ -465,6 +468,69 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
           <LinenOrdersTab house={house} />
         </TabsContent>
       </Tabs>
+
+      {/* Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedCategory && getCategoryIcon(selectedCategory)}
+              {selectedCategory && getCategoryTitle(selectedCategory)} - Detailanalyse
+            </DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            {selectedCategory && houseData && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {houseData.categories[selectedCategory]?.map((item) => (
+                  <Card key={item.itemType} className="relative">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <h4 className="font-medium text-sm">{item.label}</h4>
+                        <div className="flex items-center gap-1">
+                          <Badge 
+                            variant="outline" 
+                            className={`${getStatusColor(item.status)} text-xs`}
+                          >
+                            {getStatusIcon(item.status)}
+                          </Badge>
+                          {getTrendIcon(item.trend)}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Bestand:</span>
+                          <span className="font-medium">{item.currentStock}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Bedarf:</span>
+                          <span className="font-medium">{item.totalDemand}</span>
+                        </div>
+                        {item.deficit > 0 && (
+                          <div className="flex justify-between text-red-600 font-medium">
+                            <span>Fehlbetrag:</span>
+                            <span>{item.deficit}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Verfügbarkeit:</span>
+                          <span className={`font-medium ${getProgressColor(item.status)}`}>
+                            {Math.round((item.currentStock / Math.max(item.totalDemand, 1)) * 100)}%
+                          </span>
+                        </div>
+                        <Progress 
+                          value={Math.min(100, (item.currentStock / Math.max(item.totalDemand, 1)) * 100)} 
+                          className="h-2"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
