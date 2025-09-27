@@ -64,6 +64,11 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
   // Debug logging für selectedCategory
   React.useEffect(() => {
     console.log('selectedCategory changed:', selectedCategory);
+    console.log('houseData available:', !!houseData);
+    if (houseData) {
+      console.log('houseData.categories:', houseData.categories);
+      console.log('Available category keys:', Object.keys(houseData.categories || {}));
+    }
     if (selectedCategory && houseData) {
       console.log('Items for category:', houseData.categories[selectedCategory]);
     }
