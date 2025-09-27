@@ -188,7 +188,10 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
             </div>
             <div className="flex gap-2">
               <Button 
-                onClick={() => setShowAISettings(!showAISettings)}
+                onClick={() => {
+                  console.log('KI-Einstellungen clicked, current state:', showAISettings);
+                  setShowAISettings(prev => !prev);
+                }}
                 variant={showAISettings ? "default" : "outline"}
                 className="shrink-0"
               >
