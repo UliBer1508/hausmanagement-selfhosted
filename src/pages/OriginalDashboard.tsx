@@ -1617,7 +1617,7 @@ const OriginalDashboard = () => {
                 className={`${tab.name === activeTab ? 'nav-tab-active' : 'nav-tab'} flex items-center gap-2`}
               >
                 <span className="text-lg">{tab.emoji}</span>
-                <span className="hidden sm:inline">{tab.name}</span>
+                {tab.name}
               </button>
             ))}
           </nav>
