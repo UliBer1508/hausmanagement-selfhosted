@@ -51,8 +51,8 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
 
   return (
     <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50`}>
-      <CardContent className="p-4">
-        <div className="space-y-3">
+      <CardContent className="p-3">
+        <div className="space-y-2">
           {/* Header with Title and Edit Button */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -62,16 +62,12 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
             <Button
               variant="ghost"
               size="sm"
-              className="h-8 w-8 p-0 shrink-0"
+              className="h-7 w-7 p-0 shrink-0"
               onClick={() => setShowEditDialog(true)}
+              title="Bearbeiten"
             >
-              <Edit className="w-4 h-4" />
+              <Edit className="w-3.5 h-3.5" />
             </Button>
-          </div>
-
-          {/* Status Badge */}
-          <div className="flex items-center">
-            {getStatusBadge(task.status)}
           </div>
 
           {/* Date */}
@@ -125,6 +121,11 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
               <span>Noch keine Putzkraft zugewiesen</span>
             </div>
           )}
+
+          {/* Status Badge - moved to the end */}
+          <div className="flex items-center pt-1 border-t border-border/50">
+            {getStatusBadge(task.status)}
+          </div>
         </div>
       </CardContent>
 
