@@ -50,16 +50,26 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
   };
 
   return (
-    <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50 relative`}>
+    <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50`}>
       <CardContent className="p-4">
         <div className="space-y-3">
-          {/* Service Type */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{getServiceIcon(task.service_type)}</span>
-              <h4 className="font-medium">{getServiceLabel(task.service_type)}</h4>
+          {/* Header with Service Type, Status and Edit Button */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-lg shrink-0">{getServiceIcon(task.service_type)}</span>
+                <h4 className="font-medium truncate">{getServiceLabel(task.service_type)}</h4>
+              </div>
+              {getStatusBadge(task.status)}
             </div>
-            {getStatusBadge(task.status)}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 shrink-0"
+              onClick={() => setShowEditDialog(true)}
+            >
+              <Edit className="w-4 h-4" />
+            </Button>
           </div>
 
           {/* Date */}
@@ -71,9 +81,9 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
           {/* Provider */}
           {task.service_providers && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-base">🏢</span>
+              <span className="text-base shrink-0">🏢</span>
               <span className="text-muted-foreground">Provider:</span>
-              <span className="font-medium">{task.service_providers.name}</span>
+              <span className="font-medium truncate">{task.service_providers.name}</span>
             </div>
           )}
 
@@ -83,18 +93,18 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
               {task.cleaning_assignments.map((assignment: any, index: number) => (
                 <div key={index} className="text-sm space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-base">👤</span>
+                    <span className="text-base shrink-0">👤</span>
                     <span className="text-muted-foreground">Putzkraft:</span>
-                    <span className="font-medium">{assignment.cleaning_staff?.name || 'Unbekannt'}</span>
+                    <span className="font-medium truncate">{assignment.cleaning_staff?.name || 'Unbekannt'}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <span>Status: {assignment.status}</span>
                     {assignment.estimated_duration && (
                       <span>• Dauer: {assignment.estimated_duration}min</span>
                     )}
                   </div>
                   {assignment.special_instructions && (
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-xs text-muted-foreground break-words">
                       Anweisungen: {assignment.special_instructions}
                     </div>
                   )}
@@ -103,27 +113,17 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
             </div>
           ) : task.direct_assigned_staff ? (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-base">👤</span>
+              <span className="text-base shrink-0">👤</span>
               <span className="text-muted-foreground">Putzkraft:</span>
-              <span className="font-medium">{task.direct_assigned_staff.name}</span>
+              <span className="font-medium truncate">{task.direct_assigned_staff.name}</span>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span className="text-base">👤</span>
+              <span className="text-base shrink-0">👤</span>
               <span>Noch keine Putzkraft zugewiesen</span>
             </div>
           )}
         </div>
-
-        {/* Edit Button */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute top-2 right-2 h-8 w-8 p-0"
-          onClick={() => setShowEditDialog(true)}
-        >
-          <Edit className="w-4 h-4" />
-        </Button>
       </CardContent>
 
       {/* Edit Dialog */}
