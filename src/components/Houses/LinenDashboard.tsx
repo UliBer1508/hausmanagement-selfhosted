@@ -5,17 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  Package,
-  AlertTriangle,
-  CheckCircle,
-  TrendingUp,
-  ShoppingCart,
-  Home,
-  Clock,
-  Brain,
-  Zap
-} from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import LinenInventoryDashboard from './LinenInventoryDashboard';
@@ -148,21 +137,21 @@ const LinenDashboard = () => {
       case 'good': 
         return (
           <Badge className="bg-green-100 text-green-800 border-green-200">
-            <CheckCircle className="w-3 h-3 mr-1" />
+            <span className="mr-1">✅</span>
             Gut
           </Badge>
         );
       case 'warning': 
         return (
           <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
-            <AlertTriangle className="w-3 h-3 mr-1" />
+            <span className="mr-1">⚠️</span>
             Niedrig
           </Badge>
         );
       case 'critical': 
         return (
           <Badge className="bg-red-100 text-red-800 border-red-200">
-            <AlertTriangle className="w-3 h-3 mr-1" />
+            <span className="mr-1">⚠️</span>
             Kritisch
           </Badge>
         );
@@ -190,7 +179,7 @@ const LinenDashboard = () => {
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Package className="w-6 h-6 text-primary" />
+            <span className="text-3xl">📦</span>
             <h1 className="text-3xl font-bold tracking-tight">Wäsche-Dashboard</h1>
           </div>
           <p className="text-muted-foreground">
@@ -204,7 +193,7 @@ const LinenDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Home className="w-5 h-5 text-muted-foreground" />
+              <span className="text-2xl">🏠</span>
               <div>
                 <div className="text-2xl font-bold">{overallStatus.totalHouses}</div>
                 <div className="text-sm text-muted-foreground">Häuser gesamt</div>
@@ -216,7 +205,7 @@ const LinenDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-5 h-5 text-green-600" />
+              <span className="text-2xl">✅</span>
               <div>
                 <div className="text-2xl font-bold text-green-600">{overallStatus.goodHouses}</div>
                 <div className="text-sm text-muted-foreground">Gut versorgt</div>
@@ -228,7 +217,7 @@ const LinenDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-yellow-600" />
+              <span className="text-2xl">⚠️</span>
               <div>
                 <div className="text-2xl font-bold text-yellow-600">{overallStatus.warningHouses}</div>
                 <div className="text-sm text-muted-foreground">Niedrige Bestände</div>
@@ -240,7 +229,7 @@ const LinenDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-600" />
+              <span className="text-2xl">⚠️</span>
               <div>
                 <div className="text-2xl font-bold text-red-600">{overallStatus.criticalHouses}</div>
                 <div className="text-sm text-muted-foreground">Kritische Bestände</div>
@@ -253,7 +242,7 @@ const LinenDashboard = () => {
       {/* Critical Alert */}
       {overallStatus.criticalHouses > 0 && (
         <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
+          <span className="text-xl">⚠️</span>
           <AlertDescription>
             <strong>{overallStatus.criticalHouses} Häuser</strong> haben kritische Wäschebestände. 
             Insgesamt <strong>{overallStatus.totalCriticalItems} Artikel</strong> sind unterversorgt.
@@ -295,13 +284,13 @@ const LinenDashboard = () => {
                 <div className="space-y-2">
                   {houseStatus.criticalItems > 0 && (
                     <div className="flex items-center gap-2 text-sm text-red-700">
-                      <AlertTriangle className="w-4 h-4" />
+                      <span>⚠️</span>
                       <span>{houseStatus.criticalItems} kritische Artikel</span>
                     </div>
                   )}
                   {houseStatus.lowItems > 0 && (
                     <div className="flex items-center gap-2 text-sm text-yellow-700">
-                      <AlertTriangle className="w-4 h-4" />
+                      <span>⚠️</span>
                       <span>{houseStatus.lowItems} niedrige Bestände</span>
                     </div>
                   )}
@@ -311,7 +300,7 @@ const LinenDashboard = () => {
               {/* Next Booking */}
               {houseStatus.nextBookingDate && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="w-4 h-4" />
+                  <span>🕐</span>
                   <span>
                     Nächste Buchung: {format(new Date(houseStatus.nextBookingDate), 'dd.MM.yyyy', { locale: de })}
                   </span>
@@ -326,7 +315,7 @@ const LinenDashboard = () => {
                   className="flex-1"
                   onClick={() => setSelectedHouse(houseStatus.house)}
                 >
-                  <TrendingUp className="w-4 h-4 mr-1" />
+                  <span className="mr-1">📈</span>
                   Inventar verwalten
                 </Button>
                 {houseStatus.status === 'critical' && (
@@ -338,7 +327,7 @@ const LinenDashboard = () => {
                       console.log('Quick order for', houseStatus.house.name);
                     }}
                   >
-                    <ShoppingCart className="w-4 h-4 mr-1" />
+                    <span className="mr-1">🛒</span>
                     Bestellen
                   </Button>
                 )}
@@ -351,7 +340,7 @@ const LinenDashboard = () => {
       {/* Empty State */}
       {houseStatuses.length === 0 && (
         <div className="text-center py-12">
-          <Package className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <span className="text-5xl block mb-4">📦</span>
           <h3 className="text-lg font-medium mb-2">Keine Häuser gefunden</h3>
           <p className="text-muted-foreground">
             Fügen Sie Häuser hinzu, um das Wäsche-Management zu nutzen.
@@ -369,7 +358,7 @@ const LinenDashboard = () => {
               ← Zurück zur Übersicht
             </Button>
             <Badge variant="secondary" className="flex items-center gap-1">
-              <Brain className="w-3 h-3" />
+              <span>🧠</span>
               KI-optimiert
             </Badge>
           </div>
