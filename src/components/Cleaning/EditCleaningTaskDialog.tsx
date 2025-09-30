@@ -588,11 +588,31 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
                                 <SelectValue />
                               </SelectTrigger>
                             </FormControl>
-                            <SelectContent>
-                              <SelectItem value="scheduled">Geplant</SelectItem>
-                              <SelectItem value="in_progress">In Bearbeitung</SelectItem>
-                              <SelectItem value="completed">Abgeschlossen</SelectItem>
-                              <SelectItem value="cancelled">Storniert</SelectItem>
+                            <SelectContent className="bg-background z-50">
+                              <SelectItem 
+                                value="scheduled"
+                                className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 focus:bg-green-200 dark:focus:bg-green-900/30"
+                              >
+                                Geplant
+                              </SelectItem>
+                              <SelectItem 
+                                value="in_progress"
+                                className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400 focus:bg-yellow-200 dark:focus:bg-yellow-900/30"
+                              >
+                                In Bearbeitung
+                              </SelectItem>
+                              <SelectItem 
+                                value="completed"
+                                className="bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 focus:bg-blue-200 dark:focus:bg-blue-900/30"
+                              >
+                                Abgeschlossen
+                              </SelectItem>
+                              <SelectItem 
+                                value="cancelled"
+                                className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400 focus:bg-red-200 dark:focus:bg-red-900/30"
+                              >
+                                Storniert
+                              </SelectItem>
                             </SelectContent>
                           </Select>
                           <FormMessage />
