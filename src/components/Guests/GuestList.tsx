@@ -105,76 +105,79 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
         {guests.map((guest, index) => (
           <Card key={`${guest.guest_name}-${index}`} className="hover:shadow-md transition-shadow">
             <CardContent className="p-4">
-              <div className="flex justify-between items-start">
-                <div className="space-y-3 flex-1">
-                  <div className="flex items-center gap-3">
-                    <h4 className="font-semibold text-lg">
-                      {guest.guest_name}
-                      {getCountryCode(guest.nationality) && (
-                        <span className="ml-2 text-sm text-muted-foreground">
-                          ({getCountryCode(guest.nationality)})
-                        </span>
-                      )}
-                    </h4>
-                    {getCategoryBadge(guest.category)}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">🏠</span>
-                      <span>
-                        <span className="font-medium">{guest.stay_count}</span> Buchungen
+              <div className="flex flex-col gap-4">
+                {/* Header with name and badge */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="font-semibold text-lg">
+                    {guest.guest_name}
+                    {getCountryCode(guest.nationality) && (
+                      <span className="ml-2 text-sm text-muted-foreground">
+                        ({getCountryCode(guest.nationality)})
                       </span>
-                    </div>
-
-                    {guest.last_booking && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">📅</span>
-                        <span>
-                          Letztes: <span className="font-medium">{guest.last_booking.houses?.name}</span>
-                        </span>
-                      </div>
                     )}
-
-                    {guest.next_booking && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">📅</span>
-                        <span>
-                          Nächstes: {format(new Date(guest.next_booking.check_in), 'dd.MM.yyyy', { locale: de })}
-                        </span>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">Umsatz:</span>
-                      <span className="font-medium">€{guest.total_revenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                  </div>
-
-                  {(guest.guest_email || guest.guest_phone) && (
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      {guest.guest_email && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-lg">📧</span>
-                          <span>{guest.guest_email}</span>
-                        </div>
-                      )}
-                      {guest.guest_phone && (
-                        <div className="flex items-center gap-1">
-                          <span className="text-lg">📱</span>
-                          <span>{guest.guest_phone}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  </h4>
+                  {getCategoryBadge(guest.category)}
                 </div>
 
-                <div className="flex gap-2 ml-4">
+                {/* Info grid - responsive */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">🏠</span>
+                    <span>
+                      <span className="font-medium">{guest.stay_count}</span> Buchungen
+                    </span>
+                  </div>
+
+                  {guest.last_booking && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">📅</span>
+                      <span className="truncate">
+                        Letztes: <span className="font-medium">{guest.last_booking.houses?.name}</span>
+                      </span>
+                    </div>
+                  )}
+
+                  {guest.next_booking && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">📅</span>
+                      <span>
+                        Nächstes: {format(new Date(guest.next_booking.check_in), 'dd.MM.yyyy', { locale: de })}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Umsatz:</span>
+                    <span className="font-medium">€{guest.total_revenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+
+                {/* Contact info */}
+                {(guest.guest_email || guest.guest_phone) && (
+                  <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+                    {guest.guest_email && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg shrink-0">📧</span>
+                        <span className="truncate">{guest.guest_email}</span>
+                      </div>
+                    )}
+                    {guest.guest_phone && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg shrink-0">📱</span>
+                        <span>{guest.guest_phone}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action buttons - responsive */}
+                <div className="flex flex-wrap gap-2">
                   <Button 
                     size="sm" 
                     variant="outline"
                     onClick={() => handleContact(guest)}
                     disabled={!guest.guest_email && !guest.guest_phone}
+                    className="flex-1 sm:flex-none"
                   >
                     <span className="mr-1">💬</span>
                     Kontakt
@@ -183,6 +186,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                     size="sm" 
                     variant="outline"
                     onClick={() => handleViewDetails(guest)}
+                    className="flex-1 sm:flex-none"
                   >
                     <span className="mr-1">👁️</span>
                     Details
@@ -191,6 +195,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                     size="sm" 
                     variant="outline"
                     onClick={() => handleEdit(guest)}
+                    className="flex-1 sm:flex-none"
                   >
                     <span className="mr-1">✏️</span>
                     Bearbeiten
