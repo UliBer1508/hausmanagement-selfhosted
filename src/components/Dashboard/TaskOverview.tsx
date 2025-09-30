@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, Clock, Sparkles, Droplets } from 'lucide-react';
+import { CheckCircle, Clock } from 'lucide-react';
 import { ServiceTask, LinenOrder } from '@/types';
 
 interface TaskOverviewProps {
@@ -56,7 +56,7 @@ const TaskOverview = ({ cleaningTasks, linenOrders }: TaskOverviewProps) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary-blue/10">
-              <Sparkles className="w-4 h-4 text-primary-blue" />
+              <span className="text-2xl">✨</span>
             </div>
             Reinigungsaufgaben
           </CardTitle>
@@ -113,7 +113,7 @@ const TaskOverview = ({ cleaningTasks, linenOrders }: TaskOverviewProps) => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <div className="p-2 rounded-lg bg-primary-green/10">
-              <Droplets className="w-4 h-4 text-primary-green" />
+              <span className="text-2xl">💧</span>
             </div>
             Wäschebestellungen
           </CardTitle>
