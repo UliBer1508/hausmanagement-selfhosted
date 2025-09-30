@@ -127,22 +127,22 @@ const GuestManagement = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">
-            <span className="mr-2">📋</span>
-            Übersicht
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto gap-1">
+          <TabsTrigger value="overview" className="flex-col h-auto py-2 gap-1">
+            <span className="text-base">📋</span>
+            <span className="text-xs">Übersicht</span>
           </TabsTrigger>
-          <TabsTrigger value="analytics">
-            <span className="mr-2">📊</span>
-            Analysen
+          <TabsTrigger value="analytics" className="flex-col h-auto py-2 gap-1">
+            <span className="text-base">📊</span>
+            <span className="text-xs">Analysen</span>
           </TabsTrigger>
-          <TabsTrigger value="communication">
-            <span className="mr-2">💬</span>
-            Kommunikation
+          <TabsTrigger value="communication" className="flex-col h-auto py-2 gap-1">
+            <span className="text-base">💬</span>
+            <span className="text-xs">Kommunikation</span>
           </TabsTrigger>
-          <TabsTrigger value="segments">
-            <span className="mr-2">🎯</span>
-            Segmente
+          <TabsTrigger value="segments" className="flex-col h-auto py-2 gap-1">
+            <span className="text-base">🎯</span>
+            <span className="text-xs">Segmente</span>
           </TabsTrigger>
         </TabsList>
 
