@@ -318,7 +318,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
   const getStatusBadge = (status: string) => {
     switch(status) {
       case 'scheduled':
-        return <Badge variant="outline">Geplant</Badge>;
+        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900/20 dark:text-green-400">Geplant</Badge>;
       case 'in_progress':
         return <Badge variant="secondary">In Bearbeitung</Badge>;
       case 'completed':
