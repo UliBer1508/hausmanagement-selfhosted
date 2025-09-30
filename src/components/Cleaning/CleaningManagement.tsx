@@ -439,11 +439,7 @@ const CleaningManagement = () => {
           ) : (
             <div className="space-y-3">
               {cleaningTasks?.map((task) => (
-                <Card key={task.id} className={`border-l-4 ${
-                  task.status === 'completed' ? 'border-l-green-500' : 
-                  task.status === 'cancelled' ? 'border-l-red-500' : 
-                  'border-l-blue-500'
-                }`}>
+                <Card key={task.id} className="border-l-4 border-l-blue-600 bg-blue-50 dark:bg-blue-950/20">
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start">
                       <div className="space-y-2">
