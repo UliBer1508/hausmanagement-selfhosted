@@ -49,7 +49,7 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
   };
 
   return (
-    <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-purple-50 relative`}>
+    <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-green-50 relative`}>
       <CardContent className="p-4">
         <div className="space-y-3">
           {/* Header */}
