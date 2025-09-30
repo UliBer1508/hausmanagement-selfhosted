@@ -27,7 +27,7 @@ const Settings = () => {
     phone: '',
   });
 
-  // Lade Admin-Profil (nur für Admin, nicht für Service-Personal wie Amela)
+  // Lade Admin-Profil (nur für den eingeloggten Admin)
   const { data: profile, isLoading } = useQuery({
     queryKey: ['admin-profile'],
     queryFn: async () => {
@@ -38,27 +38,25 @@ const Settings = () => {
         return null;
       }
 
-      // Prüfe zuerst ob gespeicherte Admin-Daten vorhanden sind
-      const savedProfile = localStorage.getItem('admin_profile');
+      // Verwende nur Session-Daten für Admin
+      // Standard-Admin-Daten, können vom Admin angepasst werden
+      const defaultProfile = {
+        email: session.user.email || 'admin@steinbock.com',
+        display_name: 'Uli Berresheim',
+        phone: '+49 171 3020406',
+      };
+
+      // Prüfe ob bereits angepasste Admin-Daten vorhanden sind
+      const savedProfile = localStorage.getItem('admin_profile_settings');
       if (savedProfile) {
         try {
-          const parsed = JSON.parse(savedProfile);
-          return {
-            email: parsed.email || session.user.email || '',
-            display_name: parsed.display_name || 'Admin',
-            phone: parsed.phone || '',
-          };
+          return JSON.parse(savedProfile);
         } catch (e) {
           console.error('Error parsing saved profile:', e);
         }
       }
 
-      // Fallback auf Session-Email
-      return {
-        email: session.user.email || '',
-        display_name: session.user.email?.split('@')[0] || 'Admin',
-        phone: '',
-      };
+      return defaultProfile;
     },
   });
 
@@ -83,9 +81,8 @@ const Settings = () => {
         throw new Error('Nicht angemeldet');
       }
 
-      // Speichere Admin-Profildaten in localStorage für diese App
-      // Da dies eine Single-Admin-App ist, speichern wir die Daten lokal
-      localStorage.setItem('admin_profile', JSON.stringify({
+      // Speichere Admin-Profildaten nur für diese Anwendung
+      localStorage.setItem('admin_profile_settings', JSON.stringify({
         display_name: data.display_name,
         email: data.email,
         phone: data.phone,
@@ -98,7 +95,7 @@ const Settings = () => {
       queryClient.invalidateQueries({ queryKey: ['admin-profile'] });
       toast({
         title: 'Profil gespeichert',
-        description: 'Ihre Admin-Profileinstellungen wurden erfolgreich aktualisiert.',
+        description: 'Ihre Admin-Profileinstellungen wurden erfolgreich gespeichert.',
       });
     },
     onError: (error) => {
