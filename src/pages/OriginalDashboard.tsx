@@ -1502,7 +1502,7 @@ const OriginalDashboard = () => {
           <Card className="dashboard-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center">
-                <Home className="w-4 h-4 mr-2 text-orange-500 flex-shrink-0" />
+                <span className="text-lg flex-shrink-0 mr-2">🏠</span>
                 <span className="truncate">Ferienhäuser (2)</span>
               </CardTitle>
             </CardHeader>
@@ -1523,7 +1523,7 @@ const OriginalDashboard = () => {
           <Card className="dashboard-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center">
-                <Home className="w-4 h-4 mr-2 text-orange-500 flex-shrink-0" />
+                <span className="text-lg flex-shrink-0 mr-2">📅</span>
                 <span className="truncate">Aktive Buchungen</span>
               </CardTitle>
             </CardHeader>
@@ -1553,7 +1553,7 @@ const OriginalDashboard = () => {
                   <span className="text-sm truncate flex-1">
                     {task.icon}{task.house} • {task.guest} • {task.date} • {task.count}🧹
                   </span>
-                  <Clock className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                  <span className="text-lg flex-shrink-0">⏰</span>
                 </div>
               ))}
             </CardContent>
@@ -1572,7 +1572,7 @@ const OriginalDashboard = () => {
                 <div key={index} className="flex items-center justify-between min-w-0">
                   <span className="text-sm truncate flex-1">{item.name}</span>
                   <div className="flex items-center text-red-600 flex-shrink-0">
-                    <X className="w-4 h-4 mr-1" />
+                    <span className="text-base mr-1">❌</span>
                     <span className="text-sm font-medium">{item.status}</span>
                   </div>
                 </div>
