@@ -71,7 +71,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
           {/* Provider */}
           {task.service_providers && (
             <div className="flex items-center gap-2 text-sm">
-              <Building className="w-4 h-4 text-muted-foreground" />
+              <span className="text-base">🏢</span>
               <span className="text-muted-foreground">Provider:</span>
               <span className="font-medium">{task.service_providers.name}</span>
             </div>
@@ -83,7 +83,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
               {task.cleaning_assignments.map((assignment: any, index: number) => (
                 <div key={index} className="text-sm space-y-1">
                   <div className="flex items-center gap-2">
-                    <User className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-base">👤</span>
                     <span className="text-muted-foreground">Putzkraft:</span>
                     <span className="font-medium">{assignment.cleaning_staff?.name || 'Unbekannt'}</span>
                   </div>
@@ -103,13 +103,13 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
             </div>
           ) : task.direct_assigned_staff ? (
             <div className="flex items-center gap-2 text-sm">
-              <User className="w-4 h-4 text-muted-foreground" />
+              <span className="text-base">👤</span>
               <span className="text-muted-foreground">Putzkraft:</span>
               <span className="font-medium">{task.direct_assigned_staff.name}</span>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <User className="w-4 h-4" />
+              <span className="text-base">👤</span>
               <span>Noch keine Putzkraft zugewiesen</span>
             </div>
           )}

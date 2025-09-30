@@ -65,7 +65,7 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
           {/* Guests and Status */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-muted-foreground" />
+              <span className="text-base">👥</span>
               <span className="text-sm">{booking.number_of_guests}</span>
             </div>
             {getStatusBadge(booking.status)}

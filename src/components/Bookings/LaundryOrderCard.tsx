@@ -55,7 +55,7 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Package className="w-4 h-4 text-muted-foreground" />
+              <span className="text-base">📦</span>
               <h4 className="font-medium">Wäschebestellung</h4>
             </div>
             {getStatusBadge(order.status)}
