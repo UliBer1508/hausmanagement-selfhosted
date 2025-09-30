@@ -1607,17 +1607,17 @@ const OriginalDashboard = () => {
           </Card>
         </div>
 
-        {/* Navigation Tabs - Mobile Scrollable */}
+        {/* Navigation Tabs - Mobile Wrapping */}
         <div className="border-b border-gray-200 mb-4 sm:mb-6">
-          <nav className="flex space-x-4 sm:space-x-8 overflow-x-auto scrollbar-hide pb-1">
+          <nav className="flex flex-wrap gap-2 sm:gap-4 pb-1">
             {tabs.map((tab) => (
               <button
                 key={tab.name}
                 onClick={() => setActiveTab(tab.name)}
-                className={`${tab.name === activeTab ? 'nav-tab-active' : 'nav-tab'} whitespace-nowrap flex-shrink-0 flex items-center gap-2`}
+                className={`${tab.name === activeTab ? 'nav-tab-active' : 'nav-tab'} flex items-center gap-2`}
               >
                 <span className="text-lg">{tab.emoji}</span>
-                {tab.name}
+                <span className="hidden sm:inline">{tab.name}</span>
               </button>
             ))}
           </nav>
