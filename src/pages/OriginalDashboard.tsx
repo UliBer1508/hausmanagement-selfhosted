@@ -984,11 +984,13 @@ const OriginalDashboard = () => {
                   <div className="flex items-center gap-4">
                     <Avatar className="w-16 h-16">
                       <AvatarImage src="/placeholder-avatar.jpg" />
-                      <AvatarFallback>AM</AvatarFallback>
+                      <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 text-xl font-semibold">
+                        {profileSettings.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                      </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <h3 className="font-medium">Amela</h3>
-                      <p className="text-sm text-muted-foreground">amela@steinbock.com</p>
+                      <h3 className="font-medium">{profileSettings.displayName}</h3>
+                      <p className="text-sm text-muted-foreground">{profileSettings.email}</p>
                     </div>
                   </div>
                   
