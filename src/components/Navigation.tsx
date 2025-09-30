@@ -7,12 +7,12 @@ const Navigation = () => {
   const location = useLocation();
 
   const navigationItems = [
-    { name: 'Dashboard', href: '/', emoji: '📊' },
-    { name: 'Ferienhäuser', href: '/houses', emoji: '🏠' },
+    { name: 'Übersicht', href: '/', emoji: '📊' },
+    { name: 'Häuser', href: '/houses', emoji: '🏠' },
     { name: 'Buchungen', href: '/bookings', emoji: '📅' },
     { name: 'Gäste', href: '/guests', emoji: '👥' },
     { name: 'Reinigung', href: '/cleaning', emoji: '✨' },
-    { name: 'Wäscherei', href: '/laundry', emoji: '💧' },
+    { name: 'Wäsche', href: '/laundry', emoji: '💧' },
     { name: 'Provider', href: '/service-portal', emoji: '🏢' },
     { name: 'Einstellungen', href: '/settings', emoji: '⚙️' }
   ];
