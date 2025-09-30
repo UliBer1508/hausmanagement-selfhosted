@@ -206,15 +206,16 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                  {Object.entries(optimization.order_suggestion.items).map(([itemType, quantity]) => {
-                    if (quantity === 0) return null;
+                  {Object.entries(optimization.order_suggestion.items).map(([itemType, itemData]) => {
+                    const orderQty = typeof itemData === 'object' ? itemData.order_quantity : itemData;
+                    if (orderQty === 0) return null;
                     return (
                       <div key={itemType} className="flex items-center justify-between p-3 border rounded-lg">
                         <span className="text-sm font-medium">
                           {linenLabels[itemType as keyof LinenItem] || itemType}
                         </span>
                         <Badge variant="secondary">
-                          {quantity} Stück
+                          {orderQty} Stück
                         </Badge>
                       </div>
                     );
