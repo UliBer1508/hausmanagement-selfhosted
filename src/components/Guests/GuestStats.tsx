@@ -96,7 +96,7 @@ const GuestStats = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Gesamt Gäste</CardTitle>
-          <Users className="h-4 w-4 text-muted-foreground" />
+          <span className="text-2xl">👥</span>
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{stats.totalGuests}</div>
@@ -109,7 +109,7 @@ const GuestStats = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Gesamtumsatz</CardTitle>
-          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <span className="text-2xl">📈</span>
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">€{stats.totalRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</div>
@@ -122,7 +122,7 @@ const GuestStats = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Wiederkehr-Rate</CardTitle>
-          <RotateCcw className="h-4 w-4 text-muted-foreground" />
+          <span className="text-2xl">🔄</span>
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{Math.round(stats.returningRate)}%</div>
@@ -135,7 +135,7 @@ const GuestStats = () => {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Ø Aufenthaltsdauer</CardTitle>
-          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <span className="text-2xl">📅</span>
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">{stats.avgStayDuration} Tage</div>
