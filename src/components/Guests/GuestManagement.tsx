@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+
 import { supabase } from '@/integrations/supabase/client';
 import GuestOverview from './GuestOverview';
 import GuestAnalytics from './GuestAnalytics';
@@ -121,17 +121,29 @@ const GuestManagement = () => {
           <p className="text-muted-foreground">Verwalten Sie Ihre Gäste und deren Buchungshistorie</p>
         </div>
         <Button onClick={handleExportCSV} variant="outline">
-          <Download className="w-4 h-4 mr-2" />
+          <span className="mr-2">📥</span>
           Export CSV
         </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Übersicht</TabsTrigger>
-          <TabsTrigger value="analytics">Analysen</TabsTrigger>
-          <TabsTrigger value="communication">Kommunikation</TabsTrigger>
-          <TabsTrigger value="segments">Segmente</TabsTrigger>
+          <TabsTrigger value="overview">
+            <span className="mr-2">📋</span>
+            Übersicht
+          </TabsTrigger>
+          <TabsTrigger value="analytics">
+            <span className="mr-2">📊</span>
+            Analysen
+          </TabsTrigger>
+          <TabsTrigger value="communication">
+            <span className="mr-2">💬</span>
+            Kommunikation
+          </TabsTrigger>
+          <TabsTrigger value="segments">
+            <span className="mr-2">🎯</span>
+            Segmente
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
