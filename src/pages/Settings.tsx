@@ -27,9 +27,9 @@ const Settings = () => {
     phone: '',
   });
 
-  // Lade Benutzerprofil aus der Datenbank
+  // Lade Admin-Profil (nur für Admin, nicht für Service-Personal wie Amela)
   const { data: profile, isLoading } = useQuery({
-    queryKey: ['user-profile'],
+    queryKey: ['admin-profile'],
     queryFn: async () => {
       // Hole aktuelle Session
       const { data: { session } } = await supabase.auth.getSession();
@@ -38,17 +38,26 @@ const Settings = () => {
         return null;
       }
 
-      // Lade Profil aus der notification_preferences Tabelle (da wir hier user_name speichern)
-      const { data: notifPrefs } = await supabase
-        .from('notification_preferences')
-        .select('*')
-        .limit(1)
-        .maybeSingle();
+      // Prüfe zuerst ob gespeicherte Admin-Daten vorhanden sind
+      const savedProfile = localStorage.getItem('admin_profile');
+      if (savedProfile) {
+        try {
+          const parsed = JSON.parse(savedProfile);
+          return {
+            email: parsed.email || session.user.email || '',
+            display_name: parsed.display_name || 'Admin',
+            phone: parsed.phone || '',
+          };
+        } catch (e) {
+          console.error('Error parsing saved profile:', e);
+        }
+      }
 
+      // Fallback auf Session-Email
       return {
         email: session.user.email || '',
-        display_name: notifPrefs?.user_name || '',
-        phone: '', // Kann später erweitert werden
+        display_name: session.user.email?.split('@')[0] || 'Admin',
+        phone: '',
       };
     },
   });
@@ -64,7 +73,7 @@ const Settings = () => {
     }
   }, [profile]);
 
-  // Mutation zum Speichern des Profils
+  // Mutation zum Speichern des Admin-Profils
   const saveProfileMutation = useMutation({
     mutationFn: async (data: ProfileData) => {
       // Hole aktuelle Session
@@ -74,43 +83,22 @@ const Settings = () => {
         throw new Error('Nicht angemeldet');
       }
 
-      // Aktualisiere notification_preferences mit dem neuen user_name
-      const { data: existingPrefs } = await supabase
-        .from('notification_preferences')
-        .select('id')
-        .limit(1)
-        .maybeSingle();
-
-      if (existingPrefs) {
-        // Update existing
-        const { error } = await supabase
-          .from('notification_preferences')
-          .update({
-            user_name: data.display_name,
-            email_address: data.email,
-          })
-          .eq('id', existingPrefs.id);
-
-        if (error) throw error;
-      } else {
-        // Insert new
-        const { error } = await supabase
-          .from('notification_preferences')
-          .insert({
-            user_name: data.display_name,
-            email_address: data.email,
-          });
-
-        if (error) throw error;
-      }
+      // Speichere Admin-Profildaten in localStorage für diese App
+      // Da dies eine Single-Admin-App ist, speichern wir die Daten lokal
+      localStorage.setItem('admin_profile', JSON.stringify({
+        display_name: data.display_name,
+        email: data.email,
+        phone: data.phone,
+        updated_at: new Date().toISOString()
+      }));
 
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-profile'] });
       toast({
         title: 'Profil gespeichert',
-        description: 'Ihre Profileinstellungen wurden erfolgreich aktualisiert.',
+        description: 'Ihre Admin-Profileinstellungen wurden erfolgreich aktualisiert.',
       });
     },
     onError: (error) => {
