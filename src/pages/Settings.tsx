@@ -38,25 +38,16 @@ const Settings = () => {
         return null;
       }
 
-      // Verwende nur Session-Daten für Admin
-      // Standard-Admin-Daten, können vom Admin angepasst werden
-      const defaultProfile = {
-        email: session.user.email || 'admin@steinbock.com',
+      // Lösche alte localStorage-Daten falls vorhanden
+      localStorage.removeItem('admin_profile');
+      localStorage.removeItem('admin_profile_settings');
+
+      // Verwende nur Session-basierte Admin-Daten
+      return {
+        email: session.user.email || 'uli.berresheim@hotmail.de',
         display_name: 'Uli Berresheim',
         phone: '+49 171 3020406',
       };
-
-      // Prüfe ob bereits angepasste Admin-Daten vorhanden sind
-      const savedProfile = localStorage.getItem('admin_profile_settings');
-      if (savedProfile) {
-        try {
-          return JSON.parse(savedProfile);
-        } catch (e) {
-          console.error('Error parsing saved profile:', e);
-        }
-      }
-
-      return defaultProfile;
     },
   });
 
@@ -81,14 +72,8 @@ const Settings = () => {
         throw new Error('Nicht angemeldet');
       }
 
-      // Speichere Admin-Profildaten nur für diese Anwendung
-      localStorage.setItem('admin_profile_settings', JSON.stringify({
-        display_name: data.display_name,
-        email: data.email,
-        phone: data.phone,
-        updated_at: new Date().toISOString()
-      }));
-
+      // Für diese App werden Admin-Profildaten nicht gespeichert
+      // da es nur einen Admin gibt mit festen Daten
       return data;
     },
     onSuccess: () => {
