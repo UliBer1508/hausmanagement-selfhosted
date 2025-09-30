@@ -441,8 +441,8 @@ const CleaningManagement = () => {
               {cleaningTasks?.map((task) => (
                 <Card key={task.id} className="border-l-4 border-l-blue-600 bg-blue-50 dark:bg-blue-950/20">
                   <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-2">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
+                      <div className="space-y-2 flex-1">
                         <h4 className="font-semibold">
                           Reinigung - {task.houses?.name}
                         </h4>
@@ -488,15 +488,17 @@ const CleaningManagement = () => {
                         )}
                       </div>
                       <Button 
-                        size="sm" 
+                        size="default"
                         variant="outline"
                         onClick={() => {
                           setEditTaskId(task.id);
                           setShowEditDialog(true);
                         }}
+                        className="w-full sm:w-auto min-h-[44px] min-w-[44px] touch-manipulation"
                         title="Bearbeiten"
                       >
-                        ✏️
+                        <span className="sm:hidden">Bearbeiten</span>
+                        <span className="hidden sm:inline">✏️</span>
                       </Button>
                     </div>
                   </CardContent>
