@@ -665,10 +665,10 @@ const OriginalDashboard = () => {
                 nav_button_next: "hidden",
                 table: "w-full border-collapse",
                 head_row: "flex w-full mb-1 sm:mb-2",
-                head_cell: "text-muted-foreground rounded-md w-full font-medium text-[10px] sm:text-sm p-0.5 sm:p-2 text-center",
+                head_cell: "text-muted-foreground rounded-md w-full font-medium text-[9px] sm:text-sm p-0.5 sm:p-2 text-center",
                 row: "flex w-full",
-                cell: "relative p-0 text-center text-sm w-full border border-border min-h-[60px] sm:min-h-[80px]",
-                day: "h-full w-full p-0.5 sm:p-2 font-normal aria-selected:opacity-100 hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground flex flex-col items-start justify-start cursor-pointer transition-colors",
+                cell: "relative p-0 text-center text-sm w-full border border-border min-h-[70px] sm:min-h-[90px]",
+                day: "h-full w-full p-1 sm:p-2 font-normal aria-selected:opacity-100 hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground flex flex-col items-start justify-start cursor-pointer transition-colors",
                 day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
                 day_today: "bg-accent text-accent-foreground font-semibold border-2 border-primary",
                 day_outside: "text-muted-foreground opacity-50",
@@ -679,14 +679,15 @@ const OriginalDashboard = () => {
                   const events = getEventsForDate(date);
                   return (
                     <div className="w-full h-full flex flex-col gap-0.5 sm:gap-1">
-                      <div className="font-medium text-[10px] sm:text-sm text-foreground shrink-0">
+                      <div className="font-medium text-[9px] sm:text-sm text-foreground shrink-0">
                         {format(date, 'd')}
                       </div>
                       <div className="flex-1 space-y-0.5 w-full overflow-hidden">
                         {events.slice(0, 2).map((event, index) => (
                           <div
                             key={index}
-                            className={`text-[8px] sm:text-xs px-0.5 sm:px-2 py-0.5 rounded-sm sm:rounded-md ${event.color} truncate w-full font-medium cursor-pointer hover:opacity-80 leading-tight`}
+                            className={`text-[7px] sm:text-xs px-0.5 sm:px-2 py-0.5 rounded-sm sm:rounded-md ${event.color} w-full font-medium cursor-pointer hover:opacity-80 leading-tight overflow-hidden`}
+                            style={{ wordBreak: 'break-word' }}
                             title={`${event.title} - ${event.booking.house}`}
                             onClick={() => setSelectedEvent(event)}
                           >
@@ -694,7 +695,7 @@ const OriginalDashboard = () => {
                           </div>
                         ))}
                         {events.length > 2 && (
-                          <div className="text-[8px] sm:text-xs text-muted-foreground font-medium">
+                          <div className="text-[7px] sm:text-xs text-muted-foreground font-medium">
                             +{events.length - 2}
                           </div>
                         )}
