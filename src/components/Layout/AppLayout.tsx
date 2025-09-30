@@ -10,8 +10,10 @@ interface AppLayoutProps {
 const AppLayout = ({ children }: AppLayoutProps) => {
   return (
     <div className="layout-container">
-      {/* Simplified Layout - No Sidebar */}
-      <main className="content-main min-h-screen">
+      <Navigation />
+      
+      {/* Main Content mit Padding für Mobile Navigation */}
+      <main className="content-main min-h-screen pt-16 pb-24 lg:pt-0 lg:pb-0">
         {children}
       </main>
 

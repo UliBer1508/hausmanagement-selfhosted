@@ -361,4 +361,9 @@
   .elevation-3 { box-shadow: var(--shadow-lg); }
   .elevation-4 { box-shadow: var(--shadow-xl); }
   .elevation-glow { box-shadow: var(--shadow-glow); }
+
+  /* PWA Safe Area Support für Bottom Navigation */
+  .safe-area-padding {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
