@@ -5,7 +5,7 @@ import GuestStats from './GuestStats';
 import GuestList from './GuestList';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search } from 'lucide-react';
+
 
 const GuestOverview = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -127,7 +127,7 @@ const GuestOverview = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
+            <span className="absolute left-3 top-3 text-lg">🔍</span>
             <Input
               placeholder="Name, E-Mail oder Telefon..."
               value={searchTerm}
@@ -138,6 +138,7 @@ const GuestOverview = () => {
           
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
             <SelectTrigger>
+              <span className="mr-2">👥</span>
               <SelectValue placeholder="Kategorie" />
             </SelectTrigger>
             <SelectContent>
@@ -149,6 +150,7 @@ const GuestOverview = () => {
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger>
+              <span className="mr-2">✓</span>
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
@@ -161,6 +163,7 @@ const GuestOverview = () => {
 
           <Select value={houseFilter} onValueChange={setHouseFilter}>
             <SelectTrigger>
+              <span className="mr-2">🏠</span>
               <SelectValue placeholder="Haus" />
             </SelectTrigger>
             <SelectContent>
