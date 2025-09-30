@@ -66,7 +66,7 @@ const Navigation = () => {
         </nav>
       </Card>
 
-      {/* Mobile Navigation - Compact */}
+      {/* Mobile Navigation - Multi-row Grid */}
       <Card className="lg:hidden bg-card/50 backdrop-blur-sm border-b">
         <div className="p-2">
           {/* Compact Logo Header */}
@@ -75,7 +75,7 @@ const Navigation = () => {
               <Home className="w-3.5 h-3.5 text-primary-foreground" />
             </div>
             <div className="flex-1 min-w-0">
-              <h2 className="font-bold text-sm text-gradient truncate">Ferienhaus</h2>
+              <h2 className="font-bold text-sm text-gradient truncate">Ferienhaus Manager</h2>
             </div>
             <div className="flex items-center gap-1">
               <ConnectionStatus />
@@ -83,24 +83,24 @@ const Navigation = () => {
             </div>
           </div>
           
-          {/* Compact Navigation Grid - 4 columns */}
+          {/* Navigation Grid - 4 columns x 2 rows */}
           <div className="grid grid-cols-4 gap-1.5">
             {navigationItems.map((item) => {
               const isActive = isActivePath(item.href);
               
               return (
-                <Link key={item.name} to={item.href}>
+                <Link key={item.name} to={item.href} className="block">
                   <Button
                     variant={isActive ? "default" : "ghost"}
                     size="sm"
-                    className={`w-full h-auto flex flex-col items-center gap-0.5 py-2 px-1 transition-all duration-200 ${
+                    className={`w-full h-full min-h-[60px] flex flex-col items-center justify-center gap-1 p-1.5 transition-all duration-200 ${
                       isActive 
                         ? 'bg-primary text-primary-foreground shadow-md' 
                         : 'hover:bg-accent/50'
                     }`}
                   >
-                    <span className="text-lg leading-none">{item.emoji}</span>
-                    <span className="text-[10px] leading-tight text-center">{item.name}</span>
+                    <span className="text-xl leading-none">{item.emoji}</span>
+                    <span className="text-[9px] leading-tight text-center break-words line-clamp-2 w-full px-0.5">{item.name}</span>
                   </Button>
                 </Link>
               );
