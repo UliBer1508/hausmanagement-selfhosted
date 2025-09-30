@@ -158,16 +158,16 @@ const Settings = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
                 <Avatar className="w-16 h-16">
-                  <AvatarFallback className="bg-primary text-primary-foreground text-xl">
-                    {getInitials(profileData.display_name)}
+                  <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 text-xl font-semibold">
+                    {isLoading ? '...' : getInitials(profileData.display_name || 'Benutzer')}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <h3 className="font-medium">
+                  <h3 className="font-semibold text-lg">
                     {isLoading ? 'Lädt...' : (profileData.display_name || 'Benutzer')}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    {profileData.email || 'Keine E-Mail'}
+                    {isLoading ? 'Lädt...' : (profileData.email || 'Keine E-Mail')}
                   </p>
                 </div>
               </div>
