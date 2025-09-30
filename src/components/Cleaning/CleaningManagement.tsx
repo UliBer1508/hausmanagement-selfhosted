@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, MapPin, User, Calendar, Clock, Edit } from 'lucide-react';
+
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
@@ -186,7 +186,7 @@ const CleaningManagement = () => {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Suche</label>
+              <label className="text-sm font-medium mb-2 block">🔍 Suche</label>
               <Input
                 placeholder="Gast, Haus..."
                 value={searchTerm}
@@ -195,7 +195,7 @@ const CleaningManagement = () => {
             </div>
             
             <div>
-              <label className="text-sm font-medium mb-2 block">Haus</label>
+              <label className="text-sm font-medium mb-2 block">🏠 Haus</label>
               <Select value={selectedHouse} onValueChange={setSelectedHouse}>
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Häuser" />
@@ -212,7 +212,7 @@ const CleaningManagement = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Zeitrahmen</label>
+              <label className="text-sm font-medium mb-2 block">📅 Zeitrahmen</label>
               <Select value={timeFilter} onValueChange={setTimeFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="24 Monate" />
@@ -228,7 +228,7 @@ const CleaningManagement = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Provider</label>
+              <label className="text-sm font-medium mb-2 block">🏢 Provider</label>
               <Select value={providerFilter} onValueChange={setProviderFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Provider" />
@@ -245,7 +245,7 @@ const CleaningManagement = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Buchungen</label>
+              <label className="text-sm font-medium mb-2 block">📋 Buchungen</label>
               <Select value={bookingFilter} onValueChange={setBookingFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Ohne Reinigungsauftrag" />
@@ -259,7 +259,7 @@ const CleaningManagement = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Status</label>
+              <label className="text-sm font-medium mb-2 block">📊 Status</label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Status" />
@@ -280,7 +280,7 @@ const CleaningManagement = () => {
               setShowBookingResults(!showBookingResults);
             }}
           >
-            <Search className="w-4 h-4 mr-2" />
+            <span className="mr-2">🔍</span>
             {showBookingResults ? 'Ergebnisse schließen' : 'Buchungen auf Reinigungsaufträge prüfen'}
           </Button>
 
@@ -305,19 +305,19 @@ const CleaningManagement = () => {
                                 Reinigung - {booking.houses?.name}
                               </h4>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <MapPin className="w-4 h-4" />
+                                <span>📍</span>
                                 {booking.houses?.address}
                               </div>
                               <div className="flex items-center gap-2 text-sm">
-                                <User className="w-4 h-4" />
+                                <span>👤</span>
                                 Gast: {booking.guest_name}
                               </div>
                               <div className="flex items-center gap-2 text-sm">
-                                <Calendar className="w-4 h-4" />
+                                <span>📅</span>
                                 Buchung: {new Date(booking.check_in).toLocaleDateString('de-DE')} - {new Date(booking.check_out).toLocaleDateString('de-DE')}
                               </div>
                               <div className="flex items-center gap-2 text-sm">
-                                <User className="w-4 h-4" />
+                                <span>👤</span>
                                 {booking.number_of_guests} Gäste
                               </div>
                             </div>
@@ -328,12 +328,12 @@ const CleaningManagement = () => {
                             >
                               {booking.service_tasks?.some(task => task.service_type === 'cleaning') ? (
                                 <>
-                                  <Edit className="w-4 h-4 mr-1" />
+                                  <span className="mr-1">✏️</span>
                                   Bearbeiten
                                 </>
                               ) : (
                                 <>
-                                  <Plus className="w-4 h-4 mr-1" />
+                                  <span className="mr-1">➕</span>
                                   Reinigung hinzufügen
                                 </>
                               )}
@@ -362,7 +362,7 @@ const CleaningManagement = () => {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Suchen</label>
+              <label className="text-sm font-medium mb-2 block">🔍 Suchen</label>
               <Input
                 placeholder="Suche..."
                 value={taskSearchTerm}
@@ -371,7 +371,7 @@ const CleaningManagement = () => {
             </div>
             
             <div>
-              <label className="text-sm font-medium mb-2 block">Service Provider</label>
+              <label className="text-sm font-medium mb-2 block">🏢 Service Provider</label>
               <Select value={taskProviderFilter} onValueChange={setTaskProviderFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Provider" />
@@ -388,7 +388,7 @@ const CleaningManagement = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Service Typ</label>
+              <label className="text-sm font-medium mb-2 block">🧹 Service Typ</label>
               <Select value={taskServiceType} onValueChange={setTaskServiceType}>
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Typen" />
@@ -400,7 +400,7 @@ const CleaningManagement = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Haus</label>
+              <label className="text-sm font-medium mb-2 block">🏠 Haus</label>
               <Select value={taskHouseFilter} onValueChange={setTaskHouseFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Häuser" />
@@ -417,7 +417,7 @@ const CleaningManagement = () => {
             </div>
 
             <div>
-              <label className="text-sm font-medium mb-2 block">Status</label>
+              <label className="text-sm font-medium mb-2 block">📊 Status</label>
               <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="Alle Status" />
@@ -454,38 +454,38 @@ const CleaningManagement = () => {
                           {getStatusBadge(task.status)}
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <MapPin className="w-4 h-4" />
+                          <span>📍</span>
                           {task.houses?.address}
                         </div>
                         <div className="flex items-center gap-2 text-sm">
-                          <Calendar className="w-4 h-4" />
+                          <span>📅</span>
                           Service: {new Date(task.scheduled_date).toLocaleDateString('de-DE')} {task.scheduled_time ? `${task.scheduled_time.slice(0,5)}` : ''} 
                         </div>
                         {task.bookings && (
                           <>
                             <div className="flex items-center gap-2 text-sm">
-                              <Calendar className="w-4 h-4" />
+                              <span>📅</span>
                               Buchung: {new Date(task.bookings.check_in).toLocaleDateString('de-DE')} - {new Date(task.bookings.check_out).toLocaleDateString('de-DE')}
                             </div>
                             <div className="flex items-center gap-2 text-sm">
-                              <User className="w-4 h-4" />
+                              <span>👤</span>
                               Gast: {task.bookings.guest_name}
                             </div>
                             <div className="flex items-center gap-2 text-sm">
-                              <User className="w-4 h-4" />
+                              <span>👤</span>
                               {task.bookings.number_of_guests} Gäste
                             </div>
                           </>
                         )}
                         {task.service_providers && (
                           <div className="flex items-center gap-2 text-sm">
-                            <User className="w-4 h-4" />
+                            <span>👤</span>
                             Provider: {task.service_providers.name}
                           </div>
                         )}
                         {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
                           <div className="flex items-center gap-2 text-sm">
-                            <User className="w-4 h-4" />
+                            <span>👤</span>
                             Personal: {task.cleaning_assignments[0].cleaning_staff.name}
                           </div>
                         )}
@@ -498,7 +498,7 @@ const CleaningManagement = () => {
                           setShowEditDialog(true);
                         }}
                       >
-                        <Edit className="w-4 h-4 mr-1" />
+                        <span className="mr-1">✏️</span>
                         Bearbeiten
                       </Button>
                     </div>
