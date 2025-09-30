@@ -443,12 +443,9 @@ const CleaningManagement = () => {
                   <CardContent className="p-4">
                     <div className="flex justify-between items-start">
                       <div className="space-y-2">
-                        <div className="flex items-center gap-3">
-                          <h4 className="font-semibold">
-                            Reinigung - {task.houses?.name}
-                          </h4>
-                          {getStatusBadge(task.status)}
-                        </div>
+                        <h4 className="font-semibold">
+                          Reinigung - {task.houses?.name}
+                        </h4>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <span>📍</span>
                           {task.houses?.address}
@@ -479,6 +476,10 @@ const CleaningManagement = () => {
                             Provider: {task.service_providers.name}
                           </div>
                         )}
+                        <div className="flex items-center gap-2 text-sm">
+                          <span>📊</span>
+                          Status: {getStatusBadge(task.status)}
+                        </div>
                         {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
                           <div className="flex items-center gap-2 text-sm">
                             <span>👤</span>
