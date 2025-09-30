@@ -25,13 +25,13 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
-        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Ausstehend</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">⏳ Ausstehend</Badge>;
       case 'assigned':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">Zugewiesen</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">👤 Zugewiesen</Badge>;
       case 'in_progress':
-        return <Badge className="bg-orange-100 text-orange-800 border-orange-300">In Bearbeitung</Badge>;
+        return <Badge className="bg-orange-100 text-orange-800 border-orange-300">🔄 In Bearbeitung</Badge>;
       case 'completed':
-        return <Badge className="bg-green-100 text-green-800 border-green-300">Abgeschlossen</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-300">✅ Abgeschlossen</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }

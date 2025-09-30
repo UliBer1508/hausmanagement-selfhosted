@@ -31,11 +31,11 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'scheduled':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">Geplant</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">📅 Geplant</Badge>;
       case 'in_progress':
-        return <Badge className="bg-orange-100 text-orange-800 border-orange-300">Läuft</Badge>;
+        return <Badge className="bg-orange-100 text-orange-800 border-orange-300">🔄 Läuft</Badge>;
       case 'completed':
-        return <Badge className="bg-green-100 text-green-800 border-green-300">Fertig</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-300">✅ Fertig</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }

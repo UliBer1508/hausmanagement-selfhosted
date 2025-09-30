@@ -30,11 +30,11 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'confirmed':
-        return <Badge className="bg-green-100 text-green-800 border-green-300">Bestätigt</Badge>;
+        return <Badge className="bg-green-100 text-green-800 border-green-300">✅ Bestätigt</Badge>;
       case 'checked_in':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">Eingecheckt</Badge>;
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">🏠 Eingecheckt</Badge>;
       case 'completed':
-        return <Badge className="bg-gray-100 text-gray-800 border-gray-300">Abgeschlossen</Badge>;
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-300">✔️ Abgeschlossen</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
