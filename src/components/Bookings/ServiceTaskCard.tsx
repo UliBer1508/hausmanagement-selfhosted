@@ -53,14 +53,11 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
     <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50`}>
       <CardContent className="p-4">
         <div className="space-y-3">
-          {/* Header with Service Type, Status and Edit Button */}
+          {/* Header with Title and Edit Button */}
           <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg shrink-0">{getServiceIcon(task.service_type)}</span>
-                <h4 className="font-medium truncate">{getServiceLabel(task.service_type)}</h4>
-              </div>
-              {getStatusBadge(task.status)}
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="text-lg shrink-0">{getServiceIcon(task.service_type)}</span>
+              <h4 className="font-medium truncate">{getServiceLabel(task.service_type)}</h4>
             </div>
             <Button
               variant="ghost"
@@ -70,6 +67,11 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
             >
               <Edit className="w-4 h-4" />
             </Button>
+          </div>
+
+          {/* Status Badge */}
+          <div className="flex items-center">
+            {getStatusBadge(task.status)}
           </div>
 
           {/* Date */}
