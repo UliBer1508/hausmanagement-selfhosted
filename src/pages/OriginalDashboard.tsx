@@ -650,6 +650,8 @@ const OriginalDashboard = () => {
               mode="single"
               selected={selectedDate}
               onSelect={(date) => date && setSelectedDate(date)}
+              month={selectedDate}
+              onMonthChange={setSelectedDate}
               locale={de}
               className="pointer-events-auto w-full bg-white"
               classNames={{
