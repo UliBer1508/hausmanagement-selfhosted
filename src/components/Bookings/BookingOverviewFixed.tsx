@@ -322,12 +322,14 @@ const BookingOverviewFixed = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Buchungsübersicht</h1>
           <p className="text-muted-foreground">Alle Buchungen verwalten und bearbeiten</p>
         </div>
-        <CreateBookingDialog onBookingCreated={() => window.location.reload()} />
+        <div className="sm:ml-auto">
+          <CreateBookingDialog onBookingCreated={() => window.location.reload()} />
+        </div>
       </div>
 
       {/* Statistics - Shows ALL bookings */}
