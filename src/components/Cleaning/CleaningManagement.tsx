@@ -325,12 +325,10 @@ const CleaningManagement = () => {
                               size="sm" 
                               variant="outline"
                               onClick={() => handleCreateCleaningTask(booking)}
+                              title={booking.service_tasks?.some(task => task.service_type === 'cleaning') ? 'Bearbeiten' : 'Reinigung hinzufügen'}
                             >
                               {booking.service_tasks?.some(task => task.service_type === 'cleaning') ? (
-                                <>
-                                  <span className="mr-1">✏️</span>
-                                  Bearbeiten
-                                </>
+                                <>✏️</>
                               ) : (
                                 <>
                                   <span className="mr-1">➕</span>
@@ -495,9 +493,9 @@ const CleaningManagement = () => {
                           setEditTaskId(task.id);
                           setShowEditDialog(true);
                         }}
+                        title="Bearbeiten"
                       >
-                        <span className="mr-1">✏️</span>
-                        Bearbeiten
+                        ✏️
                       </Button>
                     </div>
                   </CardContent>
