@@ -1310,8 +1310,8 @@ const OriginalDashboard = () => {
       <div>
         {/* Search and Filters */}
         <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-          {/* Mobile: Filter Toggle Button */}
-          <div className="lg:hidden mb-4">
+          {/* Filter Toggle Button - All devices */}
+          <div className="mb-4">
             <Button
               variant="outline"
               onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
@@ -1329,8 +1329,8 @@ const OriginalDashboard = () => {
             </Button>
           </div>
 
-          {/* Filter Content - Always visible on desktop, collapsible on mobile */}
-          <div className={`${isFiltersExpanded ? 'block' : 'hidden'} lg:block`}>
+          {/* Filter Content - Collapsible on all devices */}
+          <div className={`${isFiltersExpanded ? 'block' : 'hidden'}`}>
             <div className="flex flex-col lg:flex-row gap-4">
               <div className="flex-1">
                 <div className="relative">
