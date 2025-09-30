@@ -337,24 +337,36 @@ const BookingOverviewFixed = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-2xl">📊</span>
+            </div>
             <div className="text-2xl font-bold">{allBookingsStats.total}</div>
             <p className="text-xs text-muted-foreground">Buchungen gesamt</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-2xl">✅</span>
+            </div>
             <div className="text-2xl font-bold text-green-600">{allBookingsStats.confirmed}</div>
             <p className="text-xs text-muted-foreground">Bestätigt</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-2xl">✔️</span>
+            </div>
             <div className="text-2xl font-bold text-blue-600">{allBookingsStats.completed}</div>
             <p className="text-xs text-muted-foreground">Abgeschlossen</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-2xl">💰</span>
+            </div>
             <div className="text-2xl font-bold text-orange-600">
               {allBookingsStats.totalRevenue.toLocaleString('de-DE')} EUR
             </div>
