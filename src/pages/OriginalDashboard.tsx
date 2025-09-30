@@ -66,9 +66,9 @@ const OriginalDashboard = () => {
   
   // Settings state
   const [profileSettings, setProfileSettings] = useState({
-    displayName: 'Amela',
-    email: 'amela@steinbock.com',
-    phone: '+43 660 8005926'
+    displayName: 'Uli Berresheim',
+    email: 'uli.berresheim@hotmail.de',
+    phone: '+49 171 3020406'
   });
 
   const [notificationSettings, setNotificationSettings] = useState({
