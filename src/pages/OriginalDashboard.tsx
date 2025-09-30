@@ -449,7 +449,15 @@ const OriginalDashboard = () => {
   );
 
   const tabs = [
-    'Übersicht', 'Kalender', 'Buchungen', 'Gäste', 'Häuser', 'Reinigung', 'Provider', 'Wäsche', 'Einstellungen'
+    { name: 'Übersicht', emoji: '📊' },
+    { name: 'Kalender', emoji: '📅' },
+    { name: 'Buchungen', emoji: '📅' },
+    { name: 'Gäste', emoji: '👥' },
+    { name: 'Häuser', emoji: '🏠' },
+    { name: 'Reinigung', emoji: '✨' },
+    { name: 'Provider', emoji: '🏢' },
+    { name: 'Wäsche', emoji: '💧' },
+    { name: 'Einstellungen', emoji: '⚙️' }
   ];
 
   const houses = [
@@ -1578,11 +1586,12 @@ const OriginalDashboard = () => {
           <nav className="flex space-x-4 sm:space-x-8 overflow-x-auto scrollbar-hide pb-1">
             {tabs.map((tab) => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`${tab === activeTab ? 'nav-tab-active' : 'nav-tab'} whitespace-nowrap flex-shrink-0`}
+                key={tab.name}
+                onClick={() => setActiveTab(tab.name)}
+                className={`${tab.name === activeTab ? 'nav-tab-active' : 'nav-tab'} whitespace-nowrap flex-shrink-0 flex items-center gap-2`}
               >
-                {tab}
+                <span className="text-lg">{tab.emoji}</span>
+                {tab.name}
               </button>
             ))}
           </nav>
