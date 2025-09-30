@@ -1,14 +1,140 @@
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, Save } from 'lucide-react';
 import AppLayout from '@/components/Layout/AppLayout';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+interface ProfileData {
+  display_name: string;
+  email: string;
+  phone: string;
+}
 
 const Settings = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [profileData, setProfileData] = useState<ProfileData>({
+    display_name: '',
+    email: '',
+    phone: '',
+  });
+
+  // Lade Benutzerprofil aus der Datenbank
+  const { data: profile, isLoading } = useQuery({
+    queryKey: ['user-profile'],
+    queryFn: async () => {
+      // Hole aktuelle Session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        return null;
+      }
+
+      // Lade Profil aus der notification_preferences Tabelle (da wir hier user_name speichern)
+      const { data: notifPrefs } = await supabase
+        .from('notification_preferences')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+
+      return {
+        email: session.user.email || '',
+        display_name: notifPrefs?.user_name || '',
+        phone: '', // Kann später erweitert werden
+      };
+    },
+  });
+
+  // Aktualisiere lokalen State wenn Profil geladen wird
+  useEffect(() => {
+    if (profile) {
+      setProfileData({
+        display_name: profile.display_name || '',
+        email: profile.email || '',
+        phone: profile.phone || '',
+      });
+    }
+  }, [profile]);
+
+  // Mutation zum Speichern des Profils
+  const saveProfileMutation = useMutation({
+    mutationFn: async (data: ProfileData) => {
+      // Hole aktuelle Session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        throw new Error('Nicht angemeldet');
+      }
+
+      // Aktualisiere notification_preferences mit dem neuen user_name
+      const { data: existingPrefs } = await supabase
+        .from('notification_preferences')
+        .select('id')
+        .limit(1)
+        .maybeSingle();
+
+      if (existingPrefs) {
+        // Update existing
+        const { error } = await supabase
+          .from('notification_preferences')
+          .update({
+            user_name: data.display_name,
+            email_address: data.email,
+          })
+          .eq('id', existingPrefs.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new
+        const { error } = await supabase
+          .from('notification_preferences')
+          .insert({
+            user_name: data.display_name,
+            email_address: data.email,
+          });
+
+        if (error) throw error;
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
+      toast({
+        title: 'Profil gespeichert',
+        description: 'Ihre Profileinstellungen wurden erfolgreich aktualisiert.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Fehler',
+        description: 'Das Profil konnte nicht gespeichert werden: ' + error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleSaveProfile = () => {
+    saveProfileMutation.mutate(profileData);
+  };
+
+  const getInitials = (name: string) => {
+    if (!name) return 'U';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
   return (
     <AppLayout>
       <div className="space-y-8">
@@ -32,33 +158,59 @@ const Settings = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
                 <Avatar className="w-16 h-16">
-                  <AvatarImage src="/placeholder-avatar.jpg" />
-                  <AvatarFallback>AM</AvatarFallback>
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xl">
+                    {getInitials(profileData.display_name)}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
-                  <h3 className="font-medium">Admin</h3>
-                  <p className="text-sm text-muted-foreground">admin@ferienhaus.de</p>
+                  <h3 className="font-medium">
+                    {isLoading ? 'Lädt...' : (profileData.display_name || 'Benutzer')}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {profileData.email || 'Keine E-Mail'}
+                  </p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="displayName">Anzeigename</Label>
-                  <Input id="displayName" defaultValue="Admin" />
+                  <Input 
+                    id="displayName" 
+                    value={profileData.display_name}
+                    onChange={(e) => setProfileData({ ...profileData, display_name: e.target.value })}
+                    placeholder="Ihr Name"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="email">E-Mail</Label>
-                  <Input id="email" type="email" defaultValue="admin@ferienhaus.de" />
+                  <Input 
+                    id="email" 
+                    type="email" 
+                    value={profileData.email}
+                    onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                    placeholder="ihre@email.de"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="phone">Telefon</Label>
-                  <Input id="phone" type="tel" placeholder="+49 123 456789" />
+                  <Input 
+                    id="phone" 
+                    type="tel" 
+                    value={profileData.phone}
+                    onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
+                    placeholder="+49 123 456789" 
+                  />
                 </div>
               </div>
 
-              <Button className="w-full">
+              <Button 
+                className="w-full" 
+                onClick={handleSaveProfile}
+                disabled={saveProfileMutation.isPending}
+              >
                 <Save className="w-4 h-4 mr-2" />
-                Profil speichern
+                {saveProfileMutation.isPending ? 'Speichert...' : 'Profil speichern'}
               </Button>
             </CardContent>
           </Card>
@@ -251,14 +403,14 @@ const Settings = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Button className="w-full" size="lg">
+              <Button className="w-full" size="lg" onClick={handleSaveProfile}>
                 <Save className="w-4 h-4 mr-2" />
                 Alle Einstellungen speichern
               </Button>
               
               <div className="text-center pt-4">
                 <p className="text-sm text-muted-foreground">
-                  Letzte Änderung: Heute, 14:30
+                  Profildaten werden in der Datenbank gespeichert
                 </p>
               </div>
 
