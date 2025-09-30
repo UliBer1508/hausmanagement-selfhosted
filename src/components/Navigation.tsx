@@ -1,21 +1,20 @@
-import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Home, Calendar, Settings, Sparkles, Droplets, BarChart3, Users, Menu, X, Building2 } from 'lucide-react';
+import { Home } from 'lucide-react';
 
 const Navigation = () => {
   const location = useLocation();
 
   const navigationItems = [
-    { name: 'Dashboard', href: '/', icon: BarChart3 },
-    { name: 'Ferienhäuser', href: '/houses', icon: Home },
-    { name: 'Buchungen', href: '/bookings', icon: Calendar },
-    { name: 'Gäste', href: '/guests', icon: Users },
-    { name: 'Reinigung', href: '/cleaning', icon: Sparkles },
-    { name: 'Wäscherei', href: '/laundry', icon: Droplets },
-    { name: 'Provider', href: '/service-portal', icon: Building2 },
-    { name: 'Einstellungen', href: '/settings', icon: Settings }
+    { name: 'Dashboard', href: '/', emoji: '📊' },
+    { name: 'Ferienhäuser', href: '/houses', emoji: '🏠' },
+    { name: 'Buchungen', href: '/bookings', emoji: '📅' },
+    { name: 'Gäste', href: '/guests', emoji: '👥' },
+    { name: 'Reinigung', href: '/cleaning', emoji: '✨' },
+    { name: 'Wäscherei', href: '/laundry', emoji: '💧' },
+    { name: 'Provider', href: '/service-portal', emoji: '🏢' },
+    { name: 'Einstellungen', href: '/settings', emoji: '⚙️' }
   ];
 
   const isActivePath = (path: string) => {
@@ -40,7 +39,6 @@ const Navigation = () => {
 
         <nav className="flex-1 p-4 space-y-1">
           {navigationItems.map((item) => {
-            const Icon = item.icon;
             const isActive = isActivePath(item.href);
             
             return (
@@ -53,7 +51,7 @@ const Navigation = () => {
                       : 'hover:bg-accent/50 hover:translate-x-1'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <span className="text-lg">{item.emoji}</span>
                   {item.name}
                 </Button>
               </Link>
@@ -79,7 +77,6 @@ const Navigation = () => {
           {/* Navigation Grid - 4 columns, multiple rows */}
           <div className="grid grid-cols-4 gap-2">
             {navigationItems.map((item) => {
-              const Icon = item.icon;
               const isActive = isActivePath(item.href);
               
               return (
@@ -92,7 +89,7 @@ const Navigation = () => {
                         : 'hover:bg-accent/50'
                     }`}
                   >
-                    <Icon className="w-5 h-5" />
+                    <span className="text-2xl">{item.emoji}</span>
                     <span className="text-xs leading-tight text-center">{item.name}</span>
                   </Button>
                 </Link>
