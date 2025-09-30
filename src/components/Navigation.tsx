@@ -66,26 +66,25 @@ const Navigation = () => {
         </nav>
       </Card>
 
-      {/* Mobile Navigation - Multi-row Grid */}
+      {/* Mobile Navigation - Compact */}
       <Card className="lg:hidden bg-card/50 backdrop-blur-sm border-b">
-        <div className="p-3">
-          {/* Logo Header */}
-          <div className="flex items-center gap-3 mb-3 pb-3 border-b border-border/50">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center">
-              <Home className="w-4 h-4 text-primary-foreground" />
+        <div className="p-2">
+          {/* Compact Logo Header */}
+          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border/50">
+            <div className="w-7 h-7 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center">
+              <Home className="w-3.5 h-3.5 text-primary-foreground" />
             </div>
-            <div className="flex-1">
-              <h2 className="font-bold text-base text-gradient">Ferienhaus</h2>
-              <p className="text-xs text-muted-foreground">Manager</p>
+            <div className="flex-1 min-w-0">
+              <h2 className="font-bold text-sm text-gradient truncate">Ferienhaus</h2>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <ConnectionStatus />
               <PWAStatus />
             </div>
           </div>
           
-          {/* Navigation Grid - 4 columns, multiple rows */}
-          <div className="grid grid-cols-4 gap-2">
+          {/* Compact Navigation Grid - 4 columns */}
+          <div className="grid grid-cols-4 gap-1.5">
             {navigationItems.map((item) => {
               const isActive = isActivePath(item.href);
               
@@ -93,14 +92,15 @@ const Navigation = () => {
                 <Link key={item.name} to={item.href}>
                   <Button
                     variant={isActive ? "default" : "ghost"}
-                    className={`w-full h-auto flex flex-col items-center gap-1 py-3 px-2 transition-all duration-200 ${
+                    size="sm"
+                    className={`w-full h-auto flex flex-col items-center gap-0.5 py-2 px-1 transition-all duration-200 ${
                       isActive 
                         ? 'bg-primary text-primary-foreground shadow-md' 
                         : 'hover:bg-accent/50'
                     }`}
                   >
-                    <span className="text-2xl">{item.emoji}</span>
-                    <span className="text-xs leading-tight text-center">{item.name}</span>
+                    <span className="text-lg leading-none">{item.emoji}</span>
+                    <span className="text-[10px] leading-tight text-center">{item.name}</span>
                   </Button>
                 </Link>
               );
