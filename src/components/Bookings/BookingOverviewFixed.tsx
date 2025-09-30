@@ -24,7 +24,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Plus, Search, Edit, Calendar as CalendarIcon, Filter } from 'lucide-react';
+import { Plus, Search, Edit, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO, isAfter, isBefore, startOfDay, endOfDay, addMonths, startOfYear, endOfYear } from 'date-fns';
@@ -99,6 +99,7 @@ const BookingOverviewFixed = () => {
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
 
   // Fetch bookings with house information
   const { data: bookingsData, isLoading, error } = useQuery({
@@ -364,126 +365,148 @@ const BookingOverviewFixed = () => {
 
       {/* Filters */}
       <Card>
-        <CardContent className="p-6">
-          <div className="space-y-4">
-            {/* Main Filter Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Nach Gast oder Haus suchen..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+        <CardContent className="p-4">
+          {/* Filter Toggle Button */}
+          <div className="mb-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
+              className="w-full flex items-center justify-between"
+            >
+              <span className="flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Filter & Suche
+              </span>
+              {isFiltersExpanded ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+
+          {/* Filter Content - Collapsible */}
+          <div className={`${isFiltersExpanded ? 'block' : 'hidden'}`}>
+            <div className="space-y-4">
+              {/* Main Filter Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Nach Gast oder Haus suchen..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                {/* Status Filter */}
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border shadow-md z-50">
+                    <SelectItem value="all">Alle Status</SelectItem>
+                    <SelectItem value="confirmed">Bestätigt</SelectItem>
+                    <SelectItem value="checked_in">Eingecheckt</SelectItem>
+                    <SelectItem value="completed">Abgeschlossen</SelectItem>
+                    <SelectItem value="cancelled">Storniert</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* House Filter */}
+                <Select value={houseFilter} onValueChange={setHouseFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Haus" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border shadow-md z-50">
+                    <SelectItem value="all">Alle Häuser</SelectItem>
+                    {houses?.map((house) => (
+                      <SelectItem key={house.id} value={house.id}>
+                        {house.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Time Filter */}
+                <Select value={timeFilter} onValueChange={setTimeFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Zeitraum" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border shadow-md z-50">
+                    <SelectItem value="all">Alle Zeiträume</SelectItem>
+                    <SelectItem value="next-3-months">Nächsten 3 Monate</SelectItem>
+                    <SelectItem value="next-6-months">Nächsten 6 Monate</SelectItem>
+                    <SelectItem value="current-year">Aktuelles Jahr</SelectItem>
+                    <SelectItem value="next-year">Nächstes Jahr</SelectItem>
+                    <SelectItem value="last-year">Letztes Jahr</SelectItem>
+                    <SelectItem value="custom">Benutzerdefiniert</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              {/* Status Filter */}
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border shadow-md z-50">
-                  <SelectItem value="all">Alle Status</SelectItem>
-                  <SelectItem value="confirmed">Bestätigt</SelectItem>
-                  <SelectItem value="checked_in">Eingecheckt</SelectItem>
-                  <SelectItem value="completed">Abgeschlossen</SelectItem>
-                  <SelectItem value="cancelled">Storniert</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Custom Date Range */}
+              {timeFilter === 'custom' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Von Datum</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !customDateFrom && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {customDateFrom ? format(customDateFrom, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-background border shadow-md z-50" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={customDateFrom}
+                          onSelect={setCustomDateFrom}
+                          locale={de}
+                          className="pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
 
-              {/* House Filter */}
-              <Select value={houseFilter} onValueChange={setHouseFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Haus" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border shadow-md z-50">
-                  <SelectItem value="all">Alle Häuser</SelectItem>
-                  {houses?.map((house) => (
-                    <SelectItem key={house.id} value={house.id}>
-                      {house.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Time Filter */}
-              <Select value={timeFilter} onValueChange={setTimeFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Zeitraum" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border shadow-md z-50">
-                  <SelectItem value="all">Alle Zeiträume</SelectItem>
-                  <SelectItem value="next-3-months">Nächsten 3 Monate</SelectItem>
-                  <SelectItem value="next-6-months">Nächsten 6 Monate</SelectItem>
-                  <SelectItem value="current-year">Aktuelles Jahr</SelectItem>
-                  <SelectItem value="next-year">Nächstes Jahr</SelectItem>
-                  <SelectItem value="last-year">Letztes Jahr</SelectItem>
-                  <SelectItem value="custom">Benutzerdefiniert</SelectItem>
-                </SelectContent>
-              </Select>
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Bis Datum</label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !customDateTo && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {customDateTo ? format(customDateTo, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0 bg-background border shadow-md z-50" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={customDateTo}
+                          onSelect={setCustomDateTo}
+                          locale={de}
+                          className="pointer-events-auto"
+                          disabled={(date) => customDateFrom ? date < customDateFrom : false}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+              )}
             </div>
-
-            {/* Custom Date Range */}
-            {timeFilter === 'custom' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Von Datum</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !customDateFrom && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {customDateFrom ? format(customDateFrom, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 bg-background border shadow-md z-50" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={customDateFrom}
-                        onSelect={setCustomDateFrom}
-                        locale={de}
-                        className="pointer-events-auto"
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Bis Datum</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !customDateTo && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {customDateTo ? format(customDateTo, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 bg-background border shadow-md z-50" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={customDateTo}
-                        onSelect={setCustomDateTo}
-                        locale={de}
-                        className="pointer-events-auto"
-                        disabled={(date) => customDateFrom ? date < customDateFrom : false}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
