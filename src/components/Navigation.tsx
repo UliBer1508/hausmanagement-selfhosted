@@ -84,23 +84,23 @@ const Navigation = () => {
           </div>
           
           {/* Navigation Grid - 4 columns x 2 rows */}
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-4 auto-rows-fr gap-1.5">
             {navigationItems.map((item) => {
               const isActive = isActivePath(item.href);
               
               return (
-                <Link key={item.name} to={item.href} className="block">
+                <Link key={item.name} to={item.href}>
                   <Button
                     variant={isActive ? "default" : "ghost"}
                     size="sm"
-                    className={`w-full h-full min-h-[60px] flex flex-col items-center justify-center gap-1 p-1.5 transition-all duration-200 ${
+                    className={`w-full h-[65px] flex flex-col items-center justify-center gap-1 p-1 transition-all duration-200 ${
                       isActive 
                         ? 'bg-primary text-primary-foreground shadow-md' 
                         : 'hover:bg-accent/50'
                     }`}
                   >
-                    <span className="text-xl leading-none">{item.emoji}</span>
-                    <span className="text-[9px] leading-tight text-center break-words line-clamp-2 w-full px-0.5">{item.name}</span>
+                    <span className="text-xl shrink-0">{item.emoji}</span>
+                    <span className="text-[9px] leading-[10px] text-center w-full px-1">{item.name}</span>
                   </Button>
                 </Link>
               );
