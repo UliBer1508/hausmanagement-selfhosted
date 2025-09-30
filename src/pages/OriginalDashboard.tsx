@@ -572,10 +572,10 @@ const OriginalDashboard = () => {
       const weekDates = getWeekDates(weekStart);
       
       return (
-        <div className="bg-white rounded-lg border shadow-sm">
-          <div className="p-6">
+        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+          <div className="p-3 sm:p-6">
             {/* Week Header */}
-            <div className="grid grid-cols-7 gap-2 mb-4">
+            <div className="hidden sm:grid grid-cols-7 gap-2 mb-4">
               {['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'].map((day, index) => (
                 <div key={day} className="text-center font-medium text-sm text-muted-foreground p-2">
                   {day}
@@ -583,8 +583,17 @@ const OriginalDashboard = () => {
               ))}
             </div>
             
+            {/* Mobile: Short day names */}
+            <div className="grid grid-cols-7 gap-1 sm:hidden mb-4">
+              {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map((day) => (
+                <div key={day} className="text-center font-medium text-xs text-muted-foreground p-1">
+                  {day}
+                </div>
+              ))}
+            </div>
+            
             {/* Week Days */}
-            <div className="grid grid-cols-7 gap-2">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {weekDates.map((date) => {
                 const events = getEventsForDate(date);
                 const isToday = isSameDay(date, new Date());
@@ -594,21 +603,21 @@ const OriginalDashboard = () => {
                   <div 
                     key={date.toISOString()}
                     className={`
-                      relative p-3 border border-border min-h-[120px] cursor-pointer transition-colors
+                      relative p-1 sm:p-3 border border-border min-h-[80px] sm:min-h-[120px] cursor-pointer transition-colors
                       hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground
                       ${isSelected ? 'bg-primary text-primary-foreground' : ''}
                       ${isToday ? 'bg-accent text-accent-foreground font-semibold border-2 border-primary' : ''}
                     `}
                     onClick={() => setSelectedDate(date)}
                   >
-                    <div className="font-medium text-sm mb-2">
+                    <div className="font-medium text-xs sm:text-sm mb-1 sm:mb-2">
                       {format(date, 'd')}
                     </div>
-                    <div className="space-y-1">
-                      {events.slice(0, 4).map((event, index) => (
+                    <div className="space-y-0.5 sm:space-y-1">
+                      {events.slice(0, 3).map((event, index) => (
                         <div
                           key={index}
-                          className={`text-xs px-2 py-1 rounded-md ${event.color} truncate font-medium cursor-pointer hover:opacity-80`}
+                          className={`text-[10px] sm:text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded-md ${event.color} truncate font-medium cursor-pointer hover:opacity-80`}
                           title={`${event.title} - ${event.booking.house}`}
                           onClick={(e) => {
                             e.stopPropagation();
@@ -618,9 +627,9 @@ const OriginalDashboard = () => {
                           {event.title}
                         </div>
                       ))}
-                      {events.length > 4 && (
-                        <div className="text-xs text-muted-foreground font-medium">
-                          +{events.length - 4} weitere
+                      {events.length > 3 && (
+                        <div className="text-[10px] sm:text-xs text-muted-foreground font-medium">
+                          +{events.length - 3}
                         </div>
                       )}
                     </div>
@@ -635,8 +644,8 @@ const OriginalDashboard = () => {
 
     const renderMonthView = () => {
       return (
-        <div className="bg-white rounded-lg border shadow-sm">
-          <div className="p-6">
+        <div className="bg-white rounded-lg border shadow-sm overflow-hidden">
+          <div className="p-3 sm:p-6">
             <Calendar
               mode="single"
               selected={selectedDate}
@@ -647,17 +656,17 @@ const OriginalDashboard = () => {
                 months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0 w-full",
                 month: "space-y-4 w-full",
                 caption: "flex justify-center pt-1 relative items-center mb-4",
-                caption_label: "text-lg font-semibold text-foreground",
+                caption_label: "text-base sm:text-lg font-semibold text-foreground",
                 nav: "space-x-1 flex items-center",
-                nav_button: "h-8 w-8 bg-transparent p-0 opacity-50 hover:opacity-100 hover:bg-muted rounded-md",
+                nav_button: "h-7 w-7 sm:h-8 sm:w-8 bg-transparent p-0 opacity-50 hover:opacity-100 hover:bg-muted rounded-md",
                 nav_button_previous: "absolute left-1",
                 nav_button_next: "absolute right-1",
                 table: "w-full border-collapse",
                 head_row: "flex w-full mb-2",
-                head_cell: "text-muted-foreground rounded-md w-full font-medium text-sm p-2 text-center",
+                head_cell: "text-muted-foreground rounded-md w-full font-medium text-xs sm:text-sm p-1 sm:p-2 text-center",
                 row: "flex w-full",
                 cell: "relative p-0 text-center text-sm w-full border border-border",
-                day: "h-24 w-full p-2 font-normal aria-selected:opacity-100 hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground flex flex-col items-start justify-start cursor-pointer transition-colors",
+                day: "h-16 sm:h-24 w-full p-1 sm:p-2 font-normal aria-selected:opacity-100 hover:bg-muted hover:text-foreground focus:bg-muted focus:text-foreground flex flex-col items-start justify-start cursor-pointer transition-colors",
                 day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
                 day_today: "bg-accent text-accent-foreground font-semibold border-2 border-primary",
                 day_outside: "text-muted-foreground opacity-50",
@@ -668,23 +677,23 @@ const OriginalDashboard = () => {
                   const events = getEventsForDate(date);
                   return (
                     <div className="w-full h-full flex flex-col">
-                      <div className="font-medium text-sm mb-1 text-foreground">
+                      <div className="font-medium text-xs sm:text-sm mb-0.5 sm:mb-1 text-foreground">
                         {format(date, 'd')}
                       </div>
-                      <div className="flex-1 space-y-1 w-full overflow-hidden">
-                        {events.slice(0, 3).map((event, index) => (
+                      <div className="flex-1 space-y-0.5 sm:space-y-1 w-full overflow-hidden">
+                        {events.slice(0, 2).map((event, index) => (
                           <div
                             key={index}
-                            className={`text-xs px-2 py-1 rounded-md ${event.color} truncate w-full font-medium cursor-pointer hover:opacity-80`}
+                            className={`text-[10px] sm:text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded-md ${event.color} truncate w-full font-medium cursor-pointer hover:opacity-80`}
                             title={`${event.title} - ${event.booking.house}`}
                             onClick={() => setSelectedEvent(event)}
                           >
                             {event.title}
                           </div>
                         ))}
-                        {events.length > 3 && (
-                          <div className="text-xs text-muted-foreground font-medium">
-                            +{events.length - 3} weitere
+                        {events.length > 2 && (
+                          <div className="text-[10px] sm:text-xs text-muted-foreground font-medium">
+                            +{events.length - 2}
                           </div>
                         )}
                       </div>
@@ -701,9 +710,9 @@ const OriginalDashboard = () => {
     return (
       <div className="space-y-6">
         {/* Calendar Header */}
-        <div className="flex items-center justify-between bg-card p-4 rounded-lg border">
-          <div className="flex items-center space-x-4">
-            <h2 className="text-2xl font-bold text-foreground">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-card p-4 rounded-lg border">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+            <h2 className="text-xl sm:text-2xl font-bold text-foreground">
               {calendarView === 'week' 
                 ? `${format(getWeekStart(selectedDate), 'dd. MMM', { locale: de })} - ${format(addDays(getWeekStart(selectedDate), 6), 'dd. MMM yyyy', { locale: de })}`
                 : format(selectedDate, 'MMMM yyyy', { locale: de })
@@ -752,9 +761,9 @@ const OriginalDashboard = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
           {/* Calendar */}
-          <div className="lg:col-span-3">
+          <div className="xl:col-span-3 overflow-x-auto">
             {calendarView === 'week' ? renderWeekView() : renderMonthView()}
           </div>
 
