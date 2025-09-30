@@ -431,6 +431,63 @@ export type Database = {
           },
         ]
       }
+      ai_preferences_config: {
+        Row: {
+          category_description: string | null
+          category_key: string
+          category_name: string
+          conditional_logic: Json | null
+          created_at: string
+          display_order: number
+          id: string
+          input_type: string
+          is_enabled: boolean
+          is_required: boolean
+          options: Json
+          parent_category: string | null
+          question_description: string | null
+          question_text: string | null
+          updated_at: string
+          validation_rules: Json | null
+        }
+        Insert: {
+          category_description?: string | null
+          category_key: string
+          category_name: string
+          conditional_logic?: Json | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          input_type?: string
+          is_enabled?: boolean
+          is_required?: boolean
+          options?: Json
+          parent_category?: string | null
+          question_description?: string | null
+          question_text?: string | null
+          updated_at?: string
+          validation_rules?: Json | null
+        }
+        Update: {
+          category_description?: string | null
+          category_key?: string
+          category_name?: string
+          conditional_logic?: Json | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          input_type?: string
+          is_enabled?: boolean
+          is_required?: boolean
+          options?: Json
+          parent_category?: string | null
+          question_description?: string | null
+          question_text?: string | null
+          updated_at?: string
+          validation_rules?: Json | null
+        }
+        Relationships: []
+      }
       alpine_activities: {
         Row: {
           address: string
@@ -545,6 +602,42 @@ export type Database = {
         }
         Relationships: []
       }
+      app_modules_config: {
+        Row: {
+          config_data: Json | null
+          created_at: string
+          display_order: number
+          id: string
+          is_enabled: boolean
+          module_description: string | null
+          module_name: string
+          module_title: string
+          updated_at: string
+        }
+        Insert: {
+          config_data?: Json | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_enabled?: boolean
+          module_description?: string | null
+          module_name: string
+          module_title: string
+          updated_at?: string
+        }
+        Update: {
+          config_data?: Json | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_enabled?: boolean
+          module_description?: string | null
+          module_name?: string
+          module_title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       blocked_bookings: {
         Row: {
           blocked_at: string | null
@@ -634,6 +727,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      booking_card_config: {
+        Row: {
+          config: Json
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       bookings: {
         Row: {
@@ -1010,6 +1124,83 @@ export type Database = {
             columns: ["activity_cache_id"]
             isOneToOne: false
             referencedRelation: "activity_cache"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_behavior_patterns: {
+        Row: {
+          avg_linen_usage: Json
+          confidence_level: number | null
+          created_at: string | null
+          guest_type: string
+          id: string
+          nationality: string | null
+          sample_size: number | null
+          updated_at: string | null
+          usage_multiplier: number | null
+        }
+        Insert: {
+          avg_linen_usage?: Json
+          confidence_level?: number | null
+          created_at?: string | null
+          guest_type: string
+          id?: string
+          nationality?: string | null
+          sample_size?: number | null
+          updated_at?: string | null
+          usage_multiplier?: number | null
+        }
+        Update: {
+          avg_linen_usage?: Json
+          confidence_level?: number | null
+          created_at?: string | null
+          guest_type?: string
+          id?: string
+          nationality?: string | null
+          sample_size?: number | null
+          updated_at?: string | null
+          usage_multiplier?: number | null
+        }
+        Relationships: []
+      }
+      guest_preference_responses: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          guest_email: string
+          id: string
+          preference_key: string
+          preference_value: Json
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          guest_email: string
+          id?: string
+          preference_key: string
+          preference_value: Json
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          guest_email?: string
+          id?: string
+          preference_key?: string
+          preference_value?: Json
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_preference_responses_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
         ]
@@ -1848,6 +2039,122 @@ export type Database = {
           },
         ]
       }
+      linen_usage_history: {
+        Row: {
+          actual_usage: Json
+          booking_id: string | null
+          created_at: string | null
+          date: string
+          duration_days: number
+          guest_type: string | null
+          house_id: string
+          id: string
+          number_of_guests: number
+          predicted_usage: Json | null
+          season: string | null
+          weather_condition: string | null
+        }
+        Insert: {
+          actual_usage?: Json
+          booking_id?: string | null
+          created_at?: string | null
+          date: string
+          duration_days: number
+          guest_type?: string | null
+          house_id: string
+          id?: string
+          number_of_guests: number
+          predicted_usage?: Json | null
+          season?: string | null
+          weather_condition?: string | null
+        }
+        Update: {
+          actual_usage?: Json
+          booking_id?: string | null
+          created_at?: string | null
+          date?: string
+          duration_days?: number
+          guest_type?: string | null
+          house_id?: string
+          id?: string
+          number_of_guests?: number
+          predicted_usage?: Json | null
+          season?: string | null
+          weather_condition?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "linen_usage_history_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "linen_usage_history_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      model_parameters: {
+        Row: {
+          booking_pattern_influence: number | null
+          created_at: string | null
+          guest_type_multipliers: Json | null
+          house_id: string | null
+          id: string
+          is_active: boolean | null
+          learning_rate: number | null
+          parameter_set_name: string
+          parameters: Json
+          performance_score: number | null
+          seasonal_weights: Json | null
+          updated_at: string | null
+          weather_impact_factor: number | null
+        }
+        Insert: {
+          booking_pattern_influence?: number | null
+          created_at?: string | null
+          guest_type_multipliers?: Json | null
+          house_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          learning_rate?: number | null
+          parameter_set_name: string
+          parameters?: Json
+          performance_score?: number | null
+          seasonal_weights?: Json | null
+          updated_at?: string | null
+          weather_impact_factor?: number | null
+        }
+        Update: {
+          booking_pattern_influence?: number | null
+          created_at?: string | null
+          guest_type_multipliers?: Json | null
+          house_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          learning_rate?: number | null
+          parameter_set_name?: string
+          parameters?: Json
+          performance_score?: number | null
+          seasonal_weights?: Json | null
+          updated_at?: string | null
+          weather_impact_factor?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "model_parameters_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_preferences: {
         Row: {
           created_at: string
@@ -1895,6 +2202,163 @@ export type Database = {
           user_name?: string
         }
         Relationships: []
+      }
+      onboarding_configuration: {
+        Row: {
+          created_at: string | null
+          dependency_rules: Json | null
+          display_order: number | null
+          id: string
+          is_enabled: boolean | null
+          is_sub_question: boolean | null
+          options: Json | null
+          parent_id: string | null
+          required: boolean | null
+          step_name: string
+          updated_at: string | null
+          weight: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          dependency_rules?: Json | null
+          display_order?: number | null
+          id?: string
+          is_enabled?: boolean | null
+          is_sub_question?: boolean | null
+          options?: Json | null
+          parent_id?: string | null
+          required?: boolean | null
+          step_name: string
+          updated_at?: string | null
+          weight?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          dependency_rules?: Json | null
+          display_order?: number | null
+          id?: string
+          is_enabled?: boolean | null
+          is_sub_question?: boolean | null
+          options?: Json | null
+          parent_id?: string | null
+          required?: boolean | null
+          step_name?: string
+          updated_at?: string | null
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_configuration_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "onboarding_configuration"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      optimization_feedback: {
+        Row: {
+          actual_order: Json | null
+          comments: string | null
+          created_at: string | null
+          created_by: string | null
+          feedback_type: string
+          house_id: string
+          id: string
+          optimization_result_id: string | null
+          rating: number | null
+        }
+        Insert: {
+          actual_order?: Json | null
+          comments?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          feedback_type: string
+          house_id: string
+          id?: string
+          optimization_result_id?: string | null
+          rating?: number | null
+        }
+        Update: {
+          actual_order?: Json | null
+          comments?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          feedback_type?: string
+          house_id?: string
+          id?: string
+          optimization_result_id?: string | null
+          rating?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "optimization_feedback_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "optimization_feedback_optimization_result_id_fkey"
+            columns: ["optimization_result_id"]
+            isOneToOne: false
+            referencedRelation: "ai_optimization_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prediction_accuracy: {
+        Row: {
+          accuracy_score: number | null
+          actual_date: string | null
+          actual_values: Json | null
+          created_at: string | null
+          house_id: string
+          id: string
+          mae: number | null
+          model_version: string | null
+          parameters_used: Json | null
+          predicted_values: Json
+          prediction_date: string
+          rmse: number | null
+        }
+        Insert: {
+          accuracy_score?: number | null
+          actual_date?: string | null
+          actual_values?: Json | null
+          created_at?: string | null
+          house_id: string
+          id?: string
+          mae?: number | null
+          model_version?: string | null
+          parameters_used?: Json | null
+          predicted_values: Json
+          prediction_date: string
+          rmse?: number | null
+        }
+        Update: {
+          accuracy_score?: number | null
+          actual_date?: string | null
+          actual_values?: Json | null
+          created_at?: string | null
+          house_id?: string
+          id?: string
+          mae?: number | null
+          model_version?: string | null
+          parameters_used?: Json | null
+          predicted_values?: Json
+          prediction_date?: string
+          rmse?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prediction_accuracy_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -2067,6 +2531,104 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      saved_trip_plans: {
+        Row: {
+          access_token: string
+          booking_id: string | null
+          created_at: string
+          guest_email: string
+          guest_name: string | null
+          id: string
+          is_favorite: boolean | null
+          plan_data: Json
+          plan_name: string
+          preferences: Json | null
+          region: string
+          start_location: string
+          trip_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string
+          booking_id?: string | null
+          created_at?: string
+          guest_email: string
+          guest_name?: string | null
+          id?: string
+          is_favorite?: boolean | null
+          plan_data: Json
+          plan_name: string
+          preferences?: Json | null
+          region: string
+          start_location: string
+          trip_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          booking_id?: string | null
+          created_at?: string
+          guest_email?: string
+          guest_name?: string | null
+          id?: string
+          is_favorite?: boolean | null
+          plan_data?: Json
+          plan_name?: string
+          preferences?: Json | null
+          region?: string
+          start_location?: string
+          trip_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      seasonal_adjustments: {
+        Row: {
+          adjustment_factors: Json
+          based_on_samples: number | null
+          confidence_score: number | null
+          created_at: string | null
+          house_id: string | null
+          id: string
+          last_calculated: string | null
+          month: number | null
+          season: string
+          updated_at: string | null
+        }
+        Insert: {
+          adjustment_factors?: Json
+          based_on_samples?: number | null
+          confidence_score?: number | null
+          created_at?: string | null
+          house_id?: string | null
+          id?: string
+          last_calculated?: string | null
+          month?: number | null
+          season: string
+          updated_at?: string | null
+        }
+        Update: {
+          adjustment_factors?: Json
+          based_on_samples?: number | null
+          confidence_score?: number | null
+          created_at?: string | null
+          house_id?: string | null
+          id?: string
+          last_calculated?: string | null
+          month?: number | null
+          season?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seasonal_adjustments_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       service_providers: {
         Row: {
