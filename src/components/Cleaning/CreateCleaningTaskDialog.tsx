@@ -259,9 +259,10 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button>
+        <Button className="w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" />
-          Neuen Reinigungsauftrag erstellen
+          <span className="hidden sm:inline">Neuen Reinigungsauftrag erstellen</span>
+          <span className="sm:hidden">Neuer Auftrag</span>
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">

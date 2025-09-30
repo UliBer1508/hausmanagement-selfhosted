@@ -352,12 +352,14 @@ const CleaningManagement = () => {
 
       {/* Reinigungsaufträge */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <CardTitle>Reinigungsaufträge</CardTitle>
-          <CreateCleaningTaskDialog onTaskCreated={() => {
-            // Refresh cleaning tasks when new task is created
-            window.location.reload();
-          }} />
+          <div className="w-full sm:w-auto">
+            <CreateCleaningTaskDialog onTaskCreated={() => {
+              // Refresh cleaning tasks when new task is created
+              window.location.reload();
+            }} />
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
