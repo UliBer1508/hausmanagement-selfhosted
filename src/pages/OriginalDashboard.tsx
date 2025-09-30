@@ -32,7 +32,10 @@ import {
   Shield,
   Palette,
   Database,
-  Save
+  Save,
+  Filter,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { format, isSameDay, parseISO, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -59,6 +62,7 @@ const OriginalDashboard = () => {
   // Filter states for overview
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('confirmed');
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   
   // Settings state
   const [profileSettings, setProfileSettings] = useState({
@@ -1306,69 +1310,91 @@ const OriginalDashboard = () => {
       <div>
         {/* Search and Filters */}
         <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Nach Gast oder Haus suchen..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+          {/* Mobile: Filter Toggle Button */}
+          <div className="lg:hidden mb-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
+              className="w-full flex items-center justify-between"
+            >
+              <span className="flex items-center gap-2">
+                <Filter className="w-4 h-4" />
+                Filter & Suche
+              </span>
+              {isFiltersExpanded ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
+
+          {/* Filter Content - Always visible on desktop, collapsible on mobile */}
+          <div className={`${isFiltersExpanded ? 'block' : 'hidden'} lg:block`}>
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Nach Gast oder Haus suchen..."
+                    className="pl-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="flex gap-4">
-              {/* Service Type Filter */}
-              <select 
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                value={serviceTypeFilter}
-                onChange={(e) => setServiceTypeFilter(e.target.value)}
-              >
-                <option value="all">Alle Services</option>
-                <option value="cleaning">Reinigung</option>
-                <option value="laundry">Wäsche</option>
-                <option value="maintenance">Wartung</option>
-              </select>
-              
-              {/* Status Filter */}
-              <select 
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                {availableStatuses.map(status => (
-                  <option key={status.value} value={status.value}>
-                    {status.label}
-                  </option>
-                ))}
-              </select>
-              
-              {/* Houses Filter */}
-              <select 
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                value={houseFilter}
-                onChange={(e) => setHouseFilter(e.target.value)}
-              >
-                {availableHouses.map(house => (
-                  <option key={house.id} value={house.id}>
-                    {house.name}
-                  </option>
-                ))}
-              </select>
-              
-              {/* Time Period Filter */}
-              <select 
-                className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                value={timePeriodFilter}
-                onChange={(e) => setTimePeriodFilter(e.target.value)}
-              >
-                {timePeriods.map(period => (
-                  <option key={period.value} value={period.value}>
-                    {period.label}
-                  </option>
-                ))}
-              </select>
+              <div className="flex flex-col sm:flex-row gap-4">
+                {/* Service Type Filter */}
+                <select 
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  value={serviceTypeFilter}
+                  onChange={(e) => setServiceTypeFilter(e.target.value)}
+                >
+                  <option value="all">Alle Services</option>
+                  <option value="cleaning">Reinigung</option>
+                  <option value="laundry">Wäsche</option>
+                  <option value="maintenance">Wartung</option>
+                </select>
+                
+                {/* Status Filter */}
+                <select 
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  {availableStatuses.map(status => (
+                    <option key={status.value} value={status.value}>
+                      {status.label}
+                    </option>
+                  ))}
+                </select>
+                
+                {/* Houses Filter */}
+                <select 
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  value={houseFilter}
+                  onChange={(e) => setHouseFilter(e.target.value)}
+                >
+                  {availableHouses.map(house => (
+                    <option key={house.id} value={house.id}>
+                      {house.name}
+                    </option>
+                  ))}
+                </select>
+                
+                {/* Time Period Filter */}
+                <select 
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
+                  value={timePeriodFilter}
+                  onChange={(e) => setTimePeriodFilter(e.target.value)}
+                >
+                  {timePeriods.map(period => (
+                    <option key={period.value} value={period.value}>
+                      {period.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>
