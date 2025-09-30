@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { MessageCircle, Eye, Edit, Home, Calendar, User, Phone, Mail } from 'lucide-react';
+
 import GuestDetailsDialog from './GuestDetailsDialog';
 import GuestEmailDialog from './GuestEmailDialog';
 import GuestEditDialog from './GuestEditDialog';
@@ -121,7 +121,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
                     <div className="flex items-center gap-2">
-                      <Home className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-lg">🏠</span>
                       <span>
                         <span className="font-medium">{guest.stay_count}</span> Buchungen
                       </span>
@@ -129,7 +129,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
 
                     {guest.last_booking && (
                       <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-lg">📅</span>
                         <span>
                           Letztes: <span className="font-medium">{guest.last_booking.houses?.name}</span>
                         </span>
@@ -138,7 +138,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
 
                     {guest.next_booking && (
                       <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-lg">📅</span>
                         <span>
                           Nächstes: {format(new Date(guest.next_booking.check_in), 'dd.MM.yyyy', { locale: de })}
                         </span>
@@ -155,13 +155,13 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       {guest.guest_email && (
                         <div className="flex items-center gap-1">
-                          <Mail className="w-4 h-4" />
+                          <span className="text-lg">📧</span>
                           <span>{guest.guest_email}</span>
                         </div>
                       )}
                       {guest.guest_phone && (
                         <div className="flex items-center gap-1">
-                          <Phone className="w-4 h-4" />
+                          <span className="text-lg">📱</span>
                           <span>{guest.guest_phone}</span>
                         </div>
                       )}
@@ -176,7 +176,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                     onClick={() => handleContact(guest)}
                     disabled={!guest.guest_email && !guest.guest_phone}
                   >
-                    <MessageCircle className="w-4 h-4 mr-1" />
+                    <span className="mr-1">💬</span>
                     Kontakt
                   </Button>
                   <Button 
@@ -184,7 +184,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                     variant="outline"
                     onClick={() => handleViewDetails(guest)}
                   >
-                    <Eye className="w-4 h-4 mr-1" />
+                    <span className="mr-1">👁️</span>
                     Details
                   </Button>
                   <Button 
@@ -192,7 +192,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                     variant="outline"
                     onClick={() => handleEdit(guest)}
                   >
-                    <Edit className="w-4 h-4 mr-1" />
+                    <span className="mr-1">✏️</span>
                     Bearbeiten
                   </Button>
                 </div>
