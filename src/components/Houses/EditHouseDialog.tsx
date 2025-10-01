@@ -12,6 +12,8 @@ import { useEffect } from 'react';
 import LinenInventory from './LinenInventory';
 import LinenManagement from './LinenManagement';
 import HouseInventory from './HouseInventory';
+import SmartLinenSettings from './SmartLinenSettings';
+import { useLinenAI } from '@/hooks/useLinenAI';
 
 interface EditHouseDialogProps {
   house: any;
@@ -29,6 +31,14 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // KI-Einstellungen Hook
+  const {
+    aiSettings,
+    updateAISettings,
+    saveAISettings,
+    loadAISettings
+  } = useLinenAI();
 
   const updateHouseMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -96,10 +106,11 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         </DialogHeader>
         
         <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="basic">Grunddaten</TabsTrigger>
             <TabsTrigger value="linen">Wäsche-Inventar</TabsTrigger>
             <TabsTrigger value="linen-management">Wäsche-Management</TabsTrigger>
+            <TabsTrigger value="ai-settings">KI-Einstellungen</TabsTrigger>
             <TabsTrigger value="inventory">Inventar</TabsTrigger>
           </TabsList>
           
@@ -177,6 +188,16 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
           
           <TabsContent value="linen-management">
             <LinenManagement house={house} />
+          </TabsContent>
+          
+          <TabsContent value="ai-settings">
+            <SmartLinenSettings
+              houseId={house.id}
+              settings={aiSettings}
+              onSettingsChange={updateAISettings}
+              onSave={() => saveAISettings(house.id)}
+              onLoad={loadAISettings}
+            />
           </TabsContent>
           
           <TabsContent value="inventory">
