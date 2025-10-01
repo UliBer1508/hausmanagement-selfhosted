@@ -44,7 +44,7 @@ export interface HouseLinenOverview {
   };
 }
 
-// Predictive Analytics Module
+// Predictive Analytics Module with corrected field mapping
 const calculatePredictiveAnalytics = (
   bookings: any[],
   historicalData: any,
@@ -52,46 +52,68 @@ const calculatePredictiveAnalytics = (
   currentStock: number,
   linenDef: any
 ) => {
-  // Calculate next week and month demand based on bookings
   const now = new Date();
   const nextWeek = addDays(now, 7);
   const nextMonth = addDays(now, 30);
 
   const nextWeekBookings = bookings.filter(b => 
-    new Date(b.check_in) <= nextWeek
+    new Date(b.check_in) >= now && new Date(b.check_in) <= nextWeek
   );
   
   const nextMonthBookings = bookings.filter(b => 
-    new Date(b.check_in) <= nextMonth
+    new Date(b.check_in) >= now && new Date(b.check_in) <= nextMonth
   );
 
   let nextWeekDemand = 0;
   let nextMonthDemand = 0;
 
+  // Corrected mapping: Use the exact database field names
+  const perGuestItems = ['bedding', 'large_towels', 'small_towels', 'sauna_towels', 'blankets', 'pillow_cases'];
+  const isPerGuest = perGuestItems.includes(itemType);
+  
   const perGuestKey = `${itemType}_per_guest`;
   const perBookingKey = `${itemType}_per_booking`;
 
+  console.log(`[Predictive] Analyzing ${itemType}:`, {
+    nextWeekBookings: nextWeekBookings.length,
+    nextMonthBookings: nextMonthBookings.length,
+    perGuestKey,
+    perBookingKey,
+    linenDefValue: linenDef[perGuestKey] || linenDef[perBookingKey] || 0
+  });
+
   nextWeekBookings.forEach(booking => {
-    if (linenDef[perGuestKey]) {
-      nextWeekDemand += booking.number_of_guests * linenDef[perGuestKey];
-    } else if (linenDef[perBookingKey]) {
+    if (isPerGuest && linenDef[perGuestKey]) {
+      const demand = booking.number_of_guests * linenDef[perGuestKey];
+      nextWeekDemand += demand;
+      console.log(`  Week: ${booking.guest_name} = ${booking.number_of_guests} × ${linenDef[perGuestKey]} = ${demand}`);
+    } else if (!isPerGuest && linenDef[perBookingKey]) {
       nextWeekDemand += linenDef[perBookingKey];
+      console.log(`  Week: ${booking.guest_name} = ${linenDef[perBookingKey]}`);
     }
   });
 
   nextMonthBookings.forEach(booking => {
-    if (linenDef[perGuestKey]) {
-      nextMonthDemand += booking.number_of_guests * linenDef[perGuestKey];
-    } else if (linenDef[perBookingKey]) {
+    if (isPerGuest && linenDef[perGuestKey]) {
+      const demand = booking.number_of_guests * linenDef[perGuestKey];
+      nextMonthDemand += demand;
+    } else if (!isPerGuest && linenDef[perBookingKey]) {
       nextMonthDemand += linenDef[perBookingKey];
     }
   });
 
-  // Calculate reorder point using formula: (average daily usage × lead time) + safety stock
-  const averageDailyUsage = nextMonthDemand / 30;
-  const leadTimeDays = 3; // Assuming 3 day delivery
-  const safetyStock = Math.ceil(averageDailyUsage * 2); // 2 days safety stock
+  // Calculate reorder point
+  const averageDailyUsage = nextMonthDemand > 0 ? nextMonthDemand / 30 : 0;
+  const leadTimeDays = 3;
+  const safetyStock = Math.ceil(averageDailyUsage * 2);
   const reorderPoint = Math.ceil((averageDailyUsage * leadTimeDays) + safetyStock);
+
+  console.log(`[Predictive] ${itemType} Results:`, {
+    nextWeekDemand,
+    nextMonthDemand,
+    currentStock,
+    reorderPoint
+  });
 
   return {
     nextWeekDemand,
