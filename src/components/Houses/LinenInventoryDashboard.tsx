@@ -57,6 +57,7 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
   const [selectedBookings, setSelectedBookings] = useState<string[]>([]);
   const [showOrderDialog, setShowOrderDialog] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [aiOrderData, setAiOrderData] = useState<any>(null);
 
   // Fetch linen set definitions
   const { data: linenDef } = useQuery({
@@ -307,7 +308,47 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
   };
 
   const handleCreateOrder = () => {
+    setAiOrderData(null);
     setShowOrderDialog(true);
+  };
+
+  const handleGenerateAIOrder = (optimization: any) => {
+    console.log('🤖 Generiere Bestellung aus KI-Empfehlung:', optimization);
+    
+    // Extrahiere Artikel aus KI-Empfehlung
+    const orderItems: Record<string, number> = {};
+    Object.entries(optimization.order_suggestion.items).forEach(([itemType, itemData]) => {
+      const orderQty = typeof itemData === 'object' ? (itemData as any).order_quantity : itemData;
+      if (orderQty > 0) {
+        orderItems[itemType] = orderQty;
+      }
+    });
+
+    // Berechne intelligentes Lieferdatum basierend auf Priorität
+    const daysToAdd = optimization.order_suggestion.order_priority === 'high' ? 1 : 
+                      optimization.order_suggestion.order_priority === 'medium' ? 2 : 3;
+    const deliveryDate = format(new Date(Date.now() + daysToAdd * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+
+    // Erstelle vorbefüllte Notizen aus KI-Insights
+    const notes = optimization.ai_insights && optimization.ai_insights.length > 0
+      ? `KI-Empfehlung (${optimization.order_suggestion.order_priority} Priorität):\n${optimization.ai_insights.join('\n')}`
+      : `Automatisch generierte Bestellung basierend auf KI-Analyse (${optimization.order_suggestion.order_priority} Priorität)`;
+
+    setAiOrderData({
+      orderItems,
+      deliveryDate,
+      deliveryType: 'delivery' as const,
+      notes,
+      priority: optimization.order_suggestion.order_priority,
+      estimatedCost: optimization.order_suggestion.estimated_cost
+    });
+    
+    setShowOrderDialog(true);
+    
+    toast({
+      title: "KI-Bestellung vorbereitet",
+      description: `${Object.keys(orderItems).length} Artikel wurden automatisch ausgewählt`,
+    });
   };
 
   return (
@@ -475,7 +516,7 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
         <LinenOrderDialog
           open={showOrderDialog}
           onOpenChange={setShowOrderDialog}
-          orderItems={criticalCategories.reduce((acc, cat) => ({
+          orderItems={aiOrderData ? aiOrderData.orderItems : criticalCategories.reduce((acc, cat) => ({
             ...acc,
             [cat.key]: cat.shortage
           }), {})}
@@ -484,8 +525,13 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
           selectedBooking={
             selectedBookings.length > 0 
               ? upcomingBookings?.find(b => b.id === selectedBookings[0])
-              : upcomingBookings?.[0] // Fallback to first booking
+              : upcomingBookings?.[0]
           }
+          initialData={aiOrderData ? {
+            deliveryDate: aiOrderData.deliveryDate,
+            deliveryType: aiOrderData.deliveryType,
+            notes: aiOrderData.notes
+          } : undefined}
           onCreateOrder={(orderData) => {
             console.log('🚀 Creating order with hook:', orderData);
             
@@ -497,6 +543,7 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
             });
             
             setShowOrderDialog(false);
+            setAiOrderData(null);
           }}
           isCreating={createLinenOrderMutation.isPending}
         />

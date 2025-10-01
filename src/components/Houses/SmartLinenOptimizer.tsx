@@ -50,13 +50,15 @@ interface SmartLinenOptimizerProps {
   houseName: string;
   aiSettings: any;
   onOptimizationStart?: () => void;
+  onGenerateOrder?: (optimization: OptimizationResult) => void;
 }
 
 const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
   houseId,
   houseName,
   aiSettings,
-  onOptimizationStart
+  onOptimizationStart,
+  onGenerateOrder
 }) => {
   const { toast } = useToast();
   const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
@@ -192,17 +194,31 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
           {optimization.order_suggestion && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5" />
-                  Intelligente Bestellempfehlung
-                  <Badge variant={getPriorityColor(optimization.order_suggestion.order_priority)}>
-                    {optimization.order_suggestion.order_priority}
-                  </Badge>
-                </CardTitle>
-                <CardDescription>
-                  {optimization.order_suggestion.total_items} Artikel • 
-                  Geschätzte Kosten: €{optimization.order_suggestion.estimated_cost}
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <ShoppingCart className="w-5 h-5" />
+                      Intelligente Bestellempfehlung
+                      <Badge variant={getPriorityColor(optimization.order_suggestion.order_priority)}>
+                        {optimization.order_suggestion.order_priority}
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      {optimization.order_suggestion.total_items} Artikel • 
+                      Geschätzte Kosten: €{optimization.order_suggestion.estimated_cost}
+                    </CardDescription>
+                  </div>
+                  {onGenerateOrder && (
+                    <Button 
+                      onClick={() => onGenerateOrder(optimization)}
+                      size="default"
+                      className="gap-2"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      Bestellung generieren
+                    </Button>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">

@@ -32,16 +32,19 @@ import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useOptimizedLinenManagement, LinenDemandAnalysis } from '@/hooks/useOptimizedLinenManagement';
 import { useLinenAI } from '@/hooks/useLinenAI';
+import { useToast } from '@/hooks/use-toast';
 import LinenSetRulesTab from './LinenSetRulesTab';
 import LinenOrdersTab from './LinenOrdersTab';
 import SmartLinenSettings from './SmartLinenSettings';
 import SmartLinenOptimizer from './SmartLinenOptimizer';
+import LinenOrderDialog from './LinenOrderDialog';
 
 interface SmartLinenInventoryDashboardProps {
   house: any;
 }
 
 const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardProps) => {
+  const { toast } = useToast();
   const { housesWithLinenData, createOptimizedOrderMutation } = useOptimizedLinenManagement();
   const { 
     aiSettings, 
@@ -52,6 +55,8 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
   const [selectedCategory, setSelectedCategory] = useState<'bedroom' | 'bathroom' | 'kitchen' | null>(null);
   const [showAISettings, setShowAISettings] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [aiOrderData, setAiOrderData] = useState<any>(null);
+  const [showOrderDialog, setShowOrderDialog] = useState(false);
 
   // Lade AI-Einstellungen beim Mount
   React.useEffect(() => {
@@ -147,6 +152,40 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
     }
   };
 
+  const handleGenerateAIOrder = (optimization: any) => {
+    console.log('🤖 Generiere Bestellung aus KI-Empfehlung:', optimization);
+    
+    // Extrahiere Artikel aus KI-Empfehlung
+    const orderItems: Record<string, number> = {};
+    Object.entries(optimization.order_suggestion.items).forEach(([itemType, itemData]) => {
+      const orderQty = typeof itemData === 'object' ? (itemData as any).order_quantity : itemData;
+      if (orderQty > 0) {
+        orderItems[itemType] = orderQty;
+      }
+    });
+
+    // Berechne intelligentes Lieferdatum basierend auf Priorität
+    const daysToAdd = optimization.order_suggestion.order_priority === 'high' ? 1 : 
+                      optimization.order_suggestion.order_priority === 'medium' ? 2 : 3;
+    const deliveryDate = format(new Date(Date.now() + daysToAdd * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+
+    // Erstelle vorbefüllte Notizen aus KI-Insights
+    const notes = optimization.ai_insights && optimization.ai_insights.length > 0
+      ? `KI-Empfehlung (${optimization.order_suggestion.order_priority} Priorität):\n${optimization.ai_insights.join('\n')}`
+      : `Automatisch generierte Bestellung basierend auf KI-Analyse (${optimization.order_suggestion.order_priority} Priorität)`;
+
+    setAiOrderData({
+      orderItems,
+      deliveryDate,
+      deliveryType: 'delivery' as const,
+      notes,
+      priority: optimization.order_suggestion.order_priority,
+      estimatedCost: optimization.order_suggestion.estimated_cost
+    });
+    
+    setShowOrderDialog(true);
+  };
+
   if (!houseData) {
     return (
       <div className="text-center py-8">
@@ -216,6 +255,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
           houseName={house.name}
           aiSettings={aiSettings}
           onOptimizationStart={() => setShowAISettings(false)}
+          onGenerateOrder={handleGenerateAIOrder}
         />
       </div>
 
@@ -534,6 +574,37 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* AI-generated Order Dialog */}
+      {showOrderDialog && aiOrderData && (
+        <LinenOrderDialog
+          open={showOrderDialog}
+          onOpenChange={setShowOrderDialog}
+          orderItems={aiOrderData.orderItems}
+          houseName={house.name}
+          houseId={house.id}
+          selectedBooking={undefined}
+          initialData={{
+            deliveryDate: aiOrderData.deliveryDate,
+            deliveryType: aiOrderData.deliveryType,
+            notes: aiOrderData.notes
+          }}
+          onCreateOrder={(orderData) => {
+            console.log('🚀 Erstelle KI-Bestellung:', orderData);
+            
+            createOptimizedOrderMutation.mutate({
+              houseId: house.id,
+              orderItems: orderData.orderItems,
+              priority: aiOrderData.priority,
+              notes: orderData.notes
+            });
+            
+            setShowOrderDialog(false);
+            setAiOrderData(null);
+          }}
+          isCreating={createOptimizedOrderMutation.isPending}
+        />
+      )}
     </div>
   );
 };

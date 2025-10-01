@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,7 @@ interface LinenOrderDialogProps {
   orderItems: Record<string, number>;
   houseName: string;
   houseId: string;
-  selectedBooking?: any; // Booking information
+  selectedBooking?: any;
   onCreateOrder: (orderData: {
     orderItems: Record<string, number>;
     notes?: string;
@@ -35,7 +35,12 @@ interface LinenOrderDialogProps {
   }) => void;
   onSendEmail?: (orderId: string) => void;
   isCreating?: boolean;
-  allowExceptionalOrder?: boolean; // Allow creating orders without booking
+  allowExceptionalOrder?: boolean;
+  initialData?: {
+    deliveryDate?: string;
+    deliveryType?: 'delivery' | 'pickup';
+    notes?: string;
+  };
 }
 
 const LinenOrderDialog = ({
@@ -48,11 +53,16 @@ const LinenOrderDialog = ({
   onCreateOrder,
   onSendEmail,
   isCreating = false,
-  allowExceptionalOrder = false
+  allowExceptionalOrder = false,
+  initialData
 }: LinenOrderDialogProps) => {
-  const [deliveryDate, setDeliveryDate] = useState<Date>(addDays(new Date(), 2));
-  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
-  const [notes, setNotes] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState<Date>(
+    initialData?.deliveryDate ? new Date(initialData.deliveryDate) : addDays(new Date(), 2)
+  );
+  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>(
+    initialData?.deliveryType || 'delivery'
+  );
+  const [notes, setNotes] = useState(initialData?.notes || '');
   const [sendToTeuni, setSendToTeuni] = useState(false);
   const [editableItems, setEditableItems] = useState(orderItems);
   const [orderType, setOrderType] = useState<'standard' | 'exceptional'>(
@@ -60,6 +70,20 @@ const LinenOrderDialog = ({
   );
   const [exceptionReason, setExceptionReason] = useState<string>('general_cleaning');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Update state when props change (e.g., when opening with AI-generated data)
+  useEffect(() => {
+    setEditableItems(orderItems);
+    if (initialData?.deliveryDate) {
+      setDeliveryDate(new Date(initialData.deliveryDate));
+    }
+    if (initialData?.deliveryType) {
+      setDeliveryType(initialData.deliveryType);
+    }
+    if (initialData?.notes) {
+      setNotes(initialData.notes);
+    }
+  }, [orderItems, initialData]);
 
   const linenLabels: Record<string, string> = {
     bedding: 'Bettwäsche',
