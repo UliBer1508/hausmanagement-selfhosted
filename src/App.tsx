@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import AppStatusBar from "@/components/PWA/AppStatusBar";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Cleaning from "./pages/Cleaning";
@@ -26,13 +27,15 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <AppStatusBar />
         <BrowserRouter 
           future={{
             v7_startTransition: true,
             v7_relativeSplatPath: true
           }}
         >
-          <Routes>
+          <div className="pt-12">
+            <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/cleaning" element={<Cleaning />} />
@@ -47,7 +50,8 @@ const App = () => {
             <Route path="/settings" element={<Settings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
-          </Routes>
+            </Routes>
+          </div>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
