@@ -122,8 +122,9 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
             </div>
           )}
 
-          {/* Status Badge - moved to the end */}
-          <div className="flex items-center pt-1 border-t border-border/50">
+          {/* Status Badge - displayed bottom right */}
+          <div className="flex items-center justify-between pt-1 border-t border-border/50">
+            <span className="text-sm text-muted-foreground">Status:</span>
             {getStatusBadge(task.status)}
           </div>
         </div>
