@@ -52,11 +52,11 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
 
           {/* Dates */}
           <div className="text-sm">
-            <div className="flex justify-between">
+            <div className="flex gap-2">
               <span className="text-muted-foreground">Check-in:</span>
               <span>{format(parseISO(booking.check_in), "dd.MM.yyyy", { locale: de })}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex gap-2">
               <span className="text-muted-foreground">Check-out:</span>
               <span>{format(parseISO(booking.check_out), "dd.MM.yyyy", { locale: de })}</span>
             </div>
