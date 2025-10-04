@@ -288,29 +288,43 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
       </Collapsible>
 
       <Tabs defaultValue="smart-analysis" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="smart-analysis">Smart-Analyse</TabsTrigger>
-          <TabsTrigger value="predictions">Vorhersagen</TabsTrigger>
-          <TabsTrigger value="wäscheset-regeln">Regeln</TabsTrigger>
-          <TabsTrigger value="bestellungen">Bestellungen</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 h-auto">
+          <TabsTrigger value="smart-analysis" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
+            <span className="hidden sm:inline">Smart-Analyse</span>
+            <span className="sm:hidden">Analyse</span>
+          </TabsTrigger>
+          <TabsTrigger value="predictions" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
+            <span className="hidden xs:inline">Vorhersagen</span>
+            <span className="xs:hidden">Prog.</span>
+          </TabsTrigger>
+          <TabsTrigger value="wäscheset-regeln" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
+            Regeln
+          </TabsTrigger>
+          <TabsTrigger value="bestellungen" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
+            <span className="hidden xs:inline">Bestellungen</span>
+            <span className="xs:hidden">Best.</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="smart-analysis" className="space-y-6">
           {/* Critical Alert */}
           {criticalItems.length > 0 && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>{criticalItems.length} kritische Artikel</strong> erkannt.{' '}
+            <Alert variant="destructive" className="p-3 md:p-4">
+              <AlertTriangle className="h-3 w-3 md:h-4 md:w-4" />
+              <AlertDescription className="text-xs md:text-sm">
+                <strong className="block xs:inline">{criticalItems.length} kritische Artikel</strong>
+                <span className="hidden xs:inline"> erkannt.</span>{' '}
                 {houseData.nextBookingDaysAway !== undefined && houseData.nextBookingDaysAway <= 2 && (
-                  <strong className="text-red-700">Check-in in {houseData.nextBookingDaysAway} Tag(en)!</strong>
+                  <strong className="text-red-700 block xs:inline mt-1 xs:mt-0">
+                    Check-in in {houseData.nextBookingDaysAway} Tag(en)!
+                  </strong>
                 )}
               </AlertDescription>
             </Alert>
           )}
 
           {/* Category Overview */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {Object.entries(houseData.categories).map(([categoryKey, items]) => {
               if (items.length === 0) return null;
               
@@ -326,34 +340,34 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                     selectedCategory === categoryKey ? 'ring-2 ring-primary' : ''
                   }`}
                 >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                  <CardHeader className="p-3 md:pb-3 md:px-6 md:pt-6">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
                         {getCategoryIcon(categoryKey)}
-                        <CardTitle className="text-base">{getCategoryTitle(categoryKey)}</CardTitle>
+                        <CardTitle className="text-sm md:text-base truncate">{getCategoryTitle(categoryKey)}</CardTitle>
                       </div>
                       {criticalInCategory > 0 && (
-                        <Badge variant="destructive" className="text-xs">
-                          {criticalInCategory} kritisch
+                        <Badge variant="destructive" className="text-[10px] md:text-xs px-1 md:px-2 py-0 md:py-0.5 h-4 md:h-auto shrink-0">
+                          {criticalInCategory}
                         </Badge>
                       )}
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="text-center p-2 rounded bg-green-50">
-                        <div className="font-bold text-green-600">{sufficientInCategory}</div>
-                        <div className="text-muted-foreground">Gut</div>
+                  <CardContent className="space-y-2 md:space-y-3 p-3 md:p-6 pt-0">
+                    <div className="grid grid-cols-2 gap-1.5 md:gap-2 text-xs">
+                      <div className="text-center p-1.5 md:p-2 rounded bg-green-50">
+                        <div className="font-bold text-green-600 text-sm md:text-base">{sufficientInCategory}</div>
+                        <div className="text-muted-foreground text-[10px] md:text-xs">Gut</div>
                       </div>
-                      <div className="text-center p-2 rounded bg-yellow-50">
-                        <div className="font-bold text-yellow-600">{lowInCategory}</div>
-                        <div className="text-muted-foreground">Niedrig</div>
+                      <div className="text-center p-1.5 md:p-2 rounded bg-yellow-50">
+                        <div className="font-bold text-yellow-600 text-sm md:text-base">{lowInCategory}</div>
+                        <div className="text-muted-foreground text-[10px] md:text-xs">Niedrig</div>
                       </div>
                     </div>
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="w-full"
+                      className="w-full text-xs md:text-sm h-7 md:h-9"
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedCategory(categoryKey as any);
