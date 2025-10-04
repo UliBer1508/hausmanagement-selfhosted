@@ -236,28 +236,32 @@ const SmartLinenDashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
         {housesWithLinenData?.map((houseOverview) => (
           <Card key={houseOverview.house.id} className={`relative ${getStatusColor(houseOverview.status)} transition-all hover:shadow-lg`}>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="min-w-0 flex-1">
-                  <CardTitle className="text-base md:text-lg truncate">{houseOverview.house.name}</CardTitle>
-                  <p className="text-xs md:text-sm text-muted-foreground mt-1 truncate">
-                    {houseOverview.house.address}
-                  </p>
-                </div>
-                <div className="shrink-0 ml-2">
-                  {getStatusBadge(houseOverview.status, houseOverview.nextBookingDaysAway)}
+            <CardHeader className="p-3 md:pb-3 md:px-6 md:pt-6">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <CardTitle className="text-sm md:text-base lg:text-lg truncate leading-tight">
+                      {houseOverview.house.name}
+                    </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5 md:mt-1 truncate">
+                      {houseOverview.house.address}
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    {getStatusBadge(houseOverview.status, houseOverview.nextBookingDaysAway)}
+                  </div>
                 </div>
               </div>
             </CardHeader>
             
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3 md:space-y-4 p-3 md:p-6 pt-0">
               {/* Next Booking Urgency */}
               {houseOverview.nextBookingDate && (
-                <div className={`flex items-center gap-2 p-2 rounded-lg ${
+                <div className={`flex items-center gap-1.5 md:gap-2 p-1.5 md:p-2 rounded-lg ${
                   houseOverview.nextBookingDaysAway! <= 2 ? 'bg-red-50 border border-red-200' : 'bg-muted/50'
                 }`}>
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                  <div className="text-xs md:text-sm">
+                  <Clock className="w-3 h-3 md:w-4 md:h-4 text-muted-foreground shrink-0" />
+                  <div className="text-xs">
                     <span className="font-medium">
                       {houseOverview.nextBookingDaysAway === 0 ? 'Heute' :
                        houseOverview.nextBookingDaysAway === 1 ? 'Morgen' :
@@ -271,7 +275,7 @@ const SmartLinenDashboard = () => {
               )}
 
               {/* Hierarchical Category Status */}
-              <div className="space-y-3">
+              <div className="space-y-2 md:space-y-3">
                 {Object.entries(houseOverview.categories).map(([categoryKey, items]) => {
                   if (items.length === 0) return null;
                   
@@ -280,40 +284,40 @@ const SmartLinenDashboard = () => {
                   const totalInCategory = items.length;
                   
                   return (
-                    <div key={categoryKey} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                    <div key={categoryKey} className="space-y-1.5 md:space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
                           {getCategoryIcon(categoryKey)}
-                          <span className="text-sm font-medium capitalize">
+                          <span className="text-xs md:text-sm font-medium truncate">
                             {categoryKey === 'bedroom' ? 'Schlafbereich' :
                              categoryKey === 'bathroom' ? 'Badbereich' : 'Küchenbereich'}
                           </span>
                         </div>
-                        <div className="flex gap-1">
+                        <div className="flex flex-wrap gap-1 shrink-0">
                           {criticalInCategory > 0 && (
-                            <Badge variant="destructive" className="text-xs px-1.5 py-0.5">
-                              {criticalInCategory} kritisch
+                            <Badge variant="destructive" className="text-[10px] md:text-xs px-1 md:px-1.5 py-0 md:py-0.5 h-4 md:h-auto">
+                              {criticalInCategory}
                             </Badge>
                           )}
                           {lowInCategory > 0 && (
-                            <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-yellow-50 text-yellow-700 border-yellow-200">
-                              {lowInCategory} niedrig
+                            <Badge variant="outline" className="text-[10px] md:text-xs px-1 md:px-1.5 py-0 md:py-0.5 h-4 md:h-auto bg-yellow-50 text-yellow-700 border-yellow-200">
+                              {lowInCategory}
                             </Badge>
                           )}
                         </div>
                       </div>
                       
                       {/* Category items summary */}
-                      <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 md:gap-2">
                         {items.slice(0, 4).map(item => (
-                          <div key={item.itemType} className="flex items-center justify-between p-1.5 rounded bg-background/50">
-                            <span className="truncate">{item.label.replace(/\w+\s/, '')}</span>
-                            <div className="flex items-center gap-1 shrink-0">
+                          <div key={item.itemType} className="flex items-center justify-between p-1.5 md:p-2 rounded bg-background/50 text-xs min-w-0">
+                            <span className="truncate flex-1 mr-1">{item.label.replace(/\w+\s/, '')}</span>
+                            <div className="flex items-center gap-0.5 md:gap-1 shrink-0">
                               {getTrendIcon(item.trend)}
                               {item.deficit > 0 ? (
-                                <span className="text-red-600 font-medium">-{item.deficit}</span>
+                                <span className="text-red-600 font-medium text-xs">-{item.deficit}</span>
                               ) : (
-                                <span className="text-green-600">✓</span>
+                                <span className="text-green-600 text-xs">✓</span>
                               )}
                             </div>
                           </div>
@@ -325,26 +329,28 @@ const SmartLinenDashboard = () => {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-2 pt-2">
+              <div className="flex flex-col xs:flex-row gap-1.5 md:gap-2 pt-1 md:pt-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1 text-xs md:text-sm"
+                  className="flex-1 text-xs h-8 md:h-9"
                   onClick={() => setSelectedHouse(houseOverview.house)}
                 >
-                  <BarChart3 className="w-3 md:w-4 h-3 md:h-4 mr-1" />
-                  Analysieren
+                  <BarChart3 className="w-3 h-3 md:w-4 md:h-4 md:mr-1" />
+                  <span className="hidden xs:inline ml-1">Analysieren</span>
                 </Button>
                 {houseOverview.criticalCount > 0 && (
                   <Button
                     size="sm"
-                    className="flex-1 text-xs md:text-sm"
+                    className="flex-1 text-xs h-8 md:h-9"
                     onClick={() => handleQuickOrder(houseOverview)}
                     disabled={createOptimizedOrderMutation.isPending}
                   >
-                    <ShoppingCart className="w-3 md:w-4 h-3 md:h-4 mr-1" />
-                    {houseOverview.nextBookingDaysAway !== undefined && houseOverview.nextBookingDaysAway <= 2 
-                      ? 'Express' : 'Bestellen'}
+                    <ShoppingCart className="w-3 h-3 md:w-4 md:h-4 md:mr-1" />
+                    <span className="ml-1">
+                      {houseOverview.nextBookingDaysAway !== undefined && houseOverview.nextBookingDaysAway <= 2 
+                        ? 'Express' : 'Bestellen'}
+                    </span>
                   </Button>
                 )}
               </div>

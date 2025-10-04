@@ -152,19 +152,19 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
     <div className="space-y-6">
       {/* Header & Steuerung */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="w-5 h-5" />
+        <CardHeader className="p-4 md:p-6">
+          <CardTitle className="flex items-center gap-2 text-base md:text-lg">
+            <Brain className="w-4 h-4 md:w-5 md:h-5" />
             KI-Optimierung
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs md:text-sm">
             Intelligente Bedarfsanalyse und Bestellempfehlungen basierend auf kommenden Buchungen
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
+        <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs md:text-sm text-muted-foreground">
                 Letzte Analyse: {optimization ? 'Gerade durchgeführt' : 'Noch nicht durchgeführt'}
               </p>
               {optimization && (
@@ -178,10 +178,12 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
             <Button 
               onClick={runOptimization}
               disabled={isOptimizing}
-              size="lg"
+              size="sm"
+              className="w-full sm:w-auto text-sm"
             >
-              <Zap className="w-4 h-4 mr-2" />
-              {isOptimizing ? 'Analysiere...' : 'KI-Optimierung starten'}
+              <Zap className="w-4 h-4 sm:mr-2" />
+              <span className="hidden sm:inline">{isOptimizing ? 'Analysiere...' : 'KI-Optimierung starten'}</span>
+              <span className="sm:hidden">{isOptimizing ? 'Analysiere...' : 'Starten'}</span>
             </Button>
           </div>
         </CardContent>
@@ -193,45 +195,51 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
           {/* Bestellempfehlung */}
           {optimization.order_suggestion && (
             <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <ShoppingCart className="w-5 h-5" />
-                      Intelligente Bestellempfehlung
-                      <Badge variant={getPriorityColor(optimization.order_suggestion.order_priority)}>
-                        {optimization.order_suggestion.order_priority}
-                      </Badge>
-                    </CardTitle>
-                    <CardDescription>
-                      {optimization.order_suggestion.total_items} Artikel • 
-                      Geschätzte Kosten: €{optimization.order_suggestion.estimated_cost}
-                    </CardDescription>
+              <CardHeader className="p-4 md:p-6">
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+                    <div className="space-y-1">
+                      <CardTitle className="flex flex-wrap items-center gap-2 text-base md:text-lg">
+                        <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" />
+                        <span>Intelligente Bestellempfehlung</span>
+                        <Badge 
+                          variant={getPriorityColor(optimization.order_suggestion.order_priority)}
+                          className="text-xs"
+                        >
+                          {optimization.order_suggestion.order_priority}
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription className="text-xs md:text-sm">
+                        {optimization.order_suggestion.total_items} Artikel • 
+                        Kosten: €{optimization.order_suggestion.estimated_cost}
+                      </CardDescription>
+                    </div>
+                    {onGenerateOrder && (
+                      <Button 
+                        onClick={() => onGenerateOrder(optimization)}
+                        size="sm"
+                        className="w-full sm:w-auto text-sm shrink-0"
+                      >
+                        <ShoppingCart className="w-4 h-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Bestellung generieren</span>
+                        <span className="sm:hidden">Generieren</span>
+                      </Button>
+                    )}
                   </div>
-                  {onGenerateOrder && (
-                    <Button 
-                      onClick={() => onGenerateOrder(optimization)}
-                      size="default"
-                      className="gap-2"
-                    >
-                      <ShoppingCart className="w-4 h-4" />
-                      Bestellung generieren
-                    </Button>
-                  )}
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 md:gap-4">
                   {Object.entries(optimization.order_suggestion.items).map(([itemType, itemData]) => {
                     const orderQty = typeof itemData === 'object' ? itemData.order_quantity : itemData;
                     if (orderQty === 0) return null;
                     return (
-                      <div key={itemType} className="flex items-center justify-between p-3 border rounded-lg">
-                        <span className="text-sm font-medium">
+                      <div key={itemType} className="flex items-center justify-between p-2 md:p-3 border rounded-lg">
+                        <span className="text-xs md:text-sm font-medium truncate">
                           {linenLabels[itemType as keyof LinenItem] || itemType}
                         </span>
-                        <Badge variant="secondary">
-                          {orderQty} Stück
+                        <Badge variant="secondary" className="text-xs shrink-0 ml-2">
+                          {orderQty}
                         </Badge>
                       </div>
                     );
