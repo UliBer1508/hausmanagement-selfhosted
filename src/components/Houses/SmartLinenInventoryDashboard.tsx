@@ -355,14 +355,30 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                   </CardHeader>
                   <CardContent className="space-y-2 md:space-y-3 p-3 md:p-6 pt-0">
                     <div className="grid grid-cols-2 gap-1.5 md:gap-2 text-xs">
-                      <div className="text-center p-1.5 md:p-2 rounded bg-green-50">
-                        <div className="font-bold text-green-600 text-sm md:text-base">{sufficientInCategory}</div>
-                        <div className="text-muted-foreground text-[10px] md:text-xs">Gut</div>
-                      </div>
-                      <div className="text-center p-1.5 md:p-2 rounded bg-yellow-50">
-                        <div className="font-bold text-yellow-600 text-sm md:text-base">{lowInCategory}</div>
-                        <div className="text-muted-foreground text-[10px] md:text-xs">Niedrig</div>
-                      </div>
+                      {criticalInCategory > 0 && (
+                        <div className="text-center p-1.5 md:p-2 rounded bg-red-50 border border-red-200">
+                          <div className="font-bold text-red-600 text-sm md:text-base">{criticalInCategory}</div>
+                          <div className="text-muted-foreground text-[10px] md:text-xs">Kritisch</div>
+                        </div>
+                      )}
+                      {lowInCategory > 0 && (
+                        <div className="text-center p-1.5 md:p-2 rounded bg-yellow-50">
+                          <div className="font-bold text-yellow-600 text-sm md:text-base">{lowInCategory}</div>
+                          <div className="text-muted-foreground text-[10px] md:text-xs">Niedrig</div>
+                        </div>
+                      )}
+                      {sufficientInCategory > 0 && (
+                        <div className="text-center p-1.5 md:p-2 rounded bg-green-50">
+                          <div className="font-bold text-green-600 text-sm md:text-base">{sufficientInCategory}</div>
+                          <div className="text-muted-foreground text-[10px] md:text-xs">Gut</div>
+                        </div>
+                      )}
+                      {overstockInCategory > 0 && (
+                        <div className="text-center p-1.5 md:p-2 rounded bg-blue-50">
+                          <div className="font-bold text-blue-600 text-sm md:text-base">{overstockInCategory}</div>
+                          <div className="text-muted-foreground text-[10px] md:text-xs">Überbestand</div>
+                        </div>
+                      )}
                     </div>
                     <Button 
                       variant="outline" 
