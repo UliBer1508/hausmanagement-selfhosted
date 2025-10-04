@@ -181,9 +181,8 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
               size="sm"
               className="w-full sm:w-auto text-sm"
             >
-              <Zap className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">{isOptimizing ? 'Analysiere...' : 'KI-Optimierung starten'}</span>
-              <span className="sm:hidden">{isOptimizing ? 'Analysiere...' : 'Starten'}</span>
+              <Zap className="w-4 h-4 mr-2" />
+              {isOptimizing ? 'Analysiere...' : 'KI-Optimierung starten'}
             </Button>
           </div>
         </CardContent>
