@@ -372,14 +372,16 @@ const SmartLinenDashboard = () => {
 
       {/* Smart House Detail View */}
       {selectedHouse && (
-        <div className="mt-8">
+        <div className="mt-6 md:mt-8">
           <div className="mb-4">
             <Button 
               variant="outline" 
               onClick={() => setSelectedHouse(null)}
-              className="mb-4"
+              className="mb-4 w-full sm:w-auto text-sm"
+              size="sm"
             >
-              ← Zurück zur Smart-Übersicht
+              <span className="hidden sm:inline">← Zurück zur Smart-Übersicht</span>
+              <span className="sm:hidden">← Zurück</span>
             </Button>
           </div>
           <SmartLinenInventoryDashboard house={selectedHouse} />
