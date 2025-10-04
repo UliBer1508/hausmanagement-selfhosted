@@ -280,52 +280,67 @@ export type Database = {
       activity_recommendations: {
         Row: {
           activity_id: string | null
+          booking_count: number | null
           booking_id: string | null
           custom_duration: number | null
+          dislike_count: number | null
           expires_at: string | null
           generated_at: string | null
           guest_email: string
           id: string
+          like_count: number | null
           optimal_time_slot: string | null
           personalized_description: string | null
           reasoning: Json | null
           recommendation_score: number | null
           status: string | null
+          success_score: number | null
+          view_count: number | null
         }
         Insert: {
           activity_id?: string | null
+          booking_count?: number | null
           booking_id?: string | null
           custom_duration?: number | null
+          dislike_count?: number | null
           expires_at?: string | null
           generated_at?: string | null
           guest_email: string
           id?: string
+          like_count?: number | null
           optimal_time_slot?: string | null
           personalized_description?: string | null
           reasoning?: Json | null
           recommendation_score?: number | null
           status?: string | null
+          success_score?: number | null
+          view_count?: number | null
         }
         Update: {
           activity_id?: string | null
+          booking_count?: number | null
           booking_id?: string | null
           custom_duration?: number | null
+          dislike_count?: number | null
           expires_at?: string | null
           generated_at?: string | null
           guest_email?: string
           id?: string
+          like_count?: number | null
           optimal_time_slot?: string | null
           personalized_description?: string | null
           reasoning?: Json | null
           recommendation_score?: number | null
           status?: string | null
+          success_score?: number | null
+          view_count?: number | null
         }
         Relationships: [
           {
             foreignKeyName: "activity_recommendations_activity_id_fkey"
             columns: ["activity_id"]
             isOneToOne: false
-            referencedRelation: "activities"
+            referencedRelation: "alpine_activities"
             referencedColumns: ["id"]
           },
           {
@@ -430,63 +445,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      ai_preferences_config: {
-        Row: {
-          category_description: string | null
-          category_key: string
-          category_name: string
-          conditional_logic: Json | null
-          created_at: string
-          display_order: number
-          id: string
-          input_type: string
-          is_enabled: boolean
-          is_required: boolean
-          options: Json
-          parent_category: string | null
-          question_description: string | null
-          question_text: string | null
-          updated_at: string
-          validation_rules: Json | null
-        }
-        Insert: {
-          category_description?: string | null
-          category_key: string
-          category_name: string
-          conditional_logic?: Json | null
-          created_at?: string
-          display_order?: number
-          id?: string
-          input_type?: string
-          is_enabled?: boolean
-          is_required?: boolean
-          options?: Json
-          parent_category?: string | null
-          question_description?: string | null
-          question_text?: string | null
-          updated_at?: string
-          validation_rules?: Json | null
-        }
-        Update: {
-          category_description?: string | null
-          category_key?: string
-          category_name?: string
-          conditional_logic?: Json | null
-          created_at?: string
-          display_order?: number
-          id?: string
-          input_type?: string
-          is_enabled?: boolean
-          is_required?: boolean
-          options?: Json
-          parent_category?: string | null
-          question_description?: string | null
-          question_text?: string | null
-          updated_at?: string
-          validation_rules?: Json | null
-        }
-        Relationships: []
       }
       alpine_activities: {
         Row: {
@@ -2203,59 +2161,6 @@ export type Database = {
         }
         Relationships: []
       }
-      onboarding_configuration: {
-        Row: {
-          created_at: string | null
-          dependency_rules: Json | null
-          display_order: number | null
-          id: string
-          is_enabled: boolean | null
-          is_sub_question: boolean | null
-          options: Json | null
-          parent_id: string | null
-          required: boolean | null
-          step_name: string
-          updated_at: string | null
-          weight: number | null
-        }
-        Insert: {
-          created_at?: string | null
-          dependency_rules?: Json | null
-          display_order?: number | null
-          id?: string
-          is_enabled?: boolean | null
-          is_sub_question?: boolean | null
-          options?: Json | null
-          parent_id?: string | null
-          required?: boolean | null
-          step_name: string
-          updated_at?: string | null
-          weight?: number | null
-        }
-        Update: {
-          created_at?: string | null
-          dependency_rules?: Json | null
-          display_order?: number | null
-          id?: string
-          is_enabled?: boolean | null
-          is_sub_question?: boolean | null
-          options?: Json | null
-          parent_id?: string | null
-          required?: boolean | null
-          step_name?: string
-          updated_at?: string | null
-          weight?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "onboarding_configuration_parent_id_fkey"
-            columns: ["parent_id"]
-            isOneToOne: false
-            referencedRelation: "onboarding_configuration"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       optimization_feedback: {
         Row: {
           actual_order: Json | null
@@ -2360,6 +2265,83 @@ export type Database = {
           },
         ]
       }
+      preference_configuration: {
+        Row: {
+          category_key: string | null
+          conditional_logic: Json | null
+          created_at: string | null
+          dependency_rules: Json | null
+          display_order: number | null
+          id: string
+          input_type: string | null
+          is_enabled: boolean | null
+          is_sub_question: boolean | null
+          options: Json | null
+          parent_id: string | null
+          question_description: string | null
+          question_text: string | null
+          required: boolean | null
+          search_strategy: Json | null
+          step_name: string
+          updated_at: string | null
+          usage_context: string | null
+          validation_rules: Json | null
+          weight: number | null
+        }
+        Insert: {
+          category_key?: string | null
+          conditional_logic?: Json | null
+          created_at?: string | null
+          dependency_rules?: Json | null
+          display_order?: number | null
+          id?: string
+          input_type?: string | null
+          is_enabled?: boolean | null
+          is_sub_question?: boolean | null
+          options?: Json | null
+          parent_id?: string | null
+          question_description?: string | null
+          question_text?: string | null
+          required?: boolean | null
+          search_strategy?: Json | null
+          step_name: string
+          updated_at?: string | null
+          usage_context?: string | null
+          validation_rules?: Json | null
+          weight?: number | null
+        }
+        Update: {
+          category_key?: string | null
+          conditional_logic?: Json | null
+          created_at?: string | null
+          dependency_rules?: Json | null
+          display_order?: number | null
+          id?: string
+          input_type?: string | null
+          is_enabled?: boolean | null
+          is_sub_question?: boolean | null
+          options?: Json | null
+          parent_id?: string | null
+          question_description?: string | null
+          question_text?: string | null
+          required?: boolean | null
+          search_strategy?: Json | null
+          step_name?: string
+          updated_at?: string | null
+          usage_context?: string | null
+          validation_rules?: Json | null
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_configuration_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "preference_configuration"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
@@ -2447,6 +2429,93 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      recommendation_feedback: {
+        Row: {
+          booking_id: string | null
+          created_at: string | null
+          feedback_type: string
+          guest_email: string
+          id: string
+          notes: string | null
+          recommendation_id: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string | null
+          feedback_type: string
+          guest_email: string
+          id?: string
+          notes?: string | null
+          recommendation_id?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string | null
+          feedback_type?: string
+          guest_email?: string
+          id?: string
+          notes?: string | null
+          recommendation_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendation_feedback_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recommendation_feedback_recommendation_id_fkey"
+            columns: ["recommendation_id"]
+            isOneToOne: false
+            referencedRelation: "activity_recommendations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recommendation_metrics: {
+        Row: {
+          avg_recommendation_score: number | null
+          conversion_rate: number | null
+          created_at: string | null
+          date: string
+          id: string
+          total_bookings: number | null
+          total_dislikes: number | null
+          total_likes: number | null
+          total_recommendations: number | null
+          total_views: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          avg_recommendation_score?: number | null
+          conversion_rate?: number | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          total_bookings?: number | null
+          total_dislikes?: number | null
+          total_likes?: number | null
+          total_recommendations?: number | null
+          total_views?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          avg_recommendation_score?: number | null
+          conversion_rate?: number | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          total_bookings?: number | null
+          total_dislikes?: number | null
+          total_likes?: number | null
+          total_recommendations?: number | null
+          total_views?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       route_cache: {
         Row: {
@@ -2580,6 +2649,57 @@ export type Database = {
           start_location?: string
           trip_date?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      search_algorithm_config: {
+        Row: {
+          algorithm_name: string
+          categories: Json | null
+          config_data: Json | null
+          created_at: string | null
+          data_source: string
+          description: string | null
+          display_name: string
+          id: string
+          is_enabled: boolean
+          last_run_duration_seconds: number | null
+          last_used: string | null
+          success_rate: number | null
+          total_activities_found: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          algorithm_name: string
+          categories?: Json | null
+          config_data?: Json | null
+          created_at?: string | null
+          data_source: string
+          description?: string | null
+          display_name: string
+          id?: string
+          is_enabled?: boolean
+          last_run_duration_seconds?: number | null
+          last_used?: string | null
+          success_rate?: number | null
+          total_activities_found?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          algorithm_name?: string
+          categories?: Json | null
+          config_data?: Json | null
+          created_at?: string | null
+          data_source?: string
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_enabled?: boolean
+          last_run_duration_seconds?: number | null
+          last_used?: string | null
+          success_rate?: number | null
+          total_activities_found?: number | null
+          updated_at?: string | null
         }
         Relationships: []
       }
