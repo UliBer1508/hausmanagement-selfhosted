@@ -75,20 +75,34 @@ const CleaningManagement = () => {
 
       const { data } = await query;
 
+      console.log('Raw bookings data:', data);
+      console.log('Booking filter:', bookingFilter);
+
       if (bookingFilter === 'without_cleaning') {
         // Filter for bookings without ACTIVE cleaning tasks
-        return data?.filter(booking => {
+        const filtered = data?.filter(booking => {
           const cleaningTasks = booking.service_tasks?.filter(
             task => task.service_type === 'cleaning'
           ) || [];
+          
+          console.log(`Booking ${booking.guest_name}:`, {
+            service_tasks: booking.service_tasks,
+            cleaningTasks,
+            statuses: cleaningTasks.map(t => t.status)
+          });
           
           // Exclude bookings with active cleaning tasks (not completed or cancelled)
           const hasActiveCleaning = cleaningTasks.some(
             task => task.status !== 'completed' && task.status !== 'cancelled'
           );
           
+          console.log(`  -> hasActiveCleaning: ${hasActiveCleaning}`);
+          
           return !hasActiveCleaning;
         }) || [];
+        
+        console.log('Filtered bookings without cleaning:', filtered);
+        return filtered;
       } else if (bookingFilter === 'with_cleaning') {
         // Filter for bookings with ACTIVE cleaning tasks
         return data?.filter(booking => {
