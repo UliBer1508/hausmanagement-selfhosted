@@ -184,13 +184,19 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
     
     try {
       // Check for conflicting bookings (skip for same booking in edit mode)
-      const { data: conflictingBookings, error: conflictError } = await supabase
+      let query = supabase
         .from('bookings')
         .select('id')
         .eq('house_id', data.house_id)
         .or(`and(check_in.lte.${data.check_out.toISOString()},check_out.gte.${data.check_in.toISOString()})`)
-        .neq('status', 'cancelled')
-        .neq('id', mode === 'edit' && initialData ? initialData.id : 'never-match');
+        .neq('status', 'cancelled');
+
+      // Only exclude the current booking ID in edit mode
+      if (mode === 'edit' && initialData) {
+        query = query.neq('id', initialData.id);
+      }
+
+      const { data: conflictingBookings, error: conflictError } = await query;
 
       if (conflictError) throw conflictError;
 
