@@ -4,6 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Info as InfoIcon } from 'lucide-react';
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -302,9 +304,13 @@ const CleaningManagement = () => {
               ) : (
                 <div className="space-y-3">
                   {bookingsWithoutCleaning?.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      Keine Buchungen ohne Reinigungsaufträge gefunden.
-                    </div>
+                    <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800">
+                      <InfoIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      <AlertTitle className="text-blue-900 dark:text-blue-100">Alle Buchungen haben Reinigungsaufträge</AlertTitle>
+                      <AlertDescription className="text-blue-700 dark:text-blue-300">
+                        Keine Buchungen ohne Reinigungsaufträge gefunden.
+                      </AlertDescription>
+                    </Alert>
                   ) : (
                     bookingsWithoutCleaning?.map((booking) => (
                       <Card key={booking.id} className="border-l-4 border-l-orange-500">
