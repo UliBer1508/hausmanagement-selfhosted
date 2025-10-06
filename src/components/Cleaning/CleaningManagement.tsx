@@ -75,46 +75,25 @@ const CleaningManagement = () => {
 
       const { data } = await query;
 
-      console.log('Raw bookings data:', data);
-      console.log('Booking filter:', bookingFilter);
-
       if (bookingFilter === 'without_cleaning') {
-        // Filter for bookings without ACTIVE cleaning tasks
-        const filtered = data?.filter(booking => {
-          const cleaningTasks = booking.service_tasks?.filter(
-            task => task.service_type === 'cleaning'
-          ) || [];
-          
-          console.log(`Booking ${booking.guest_name}:`, {
-            service_tasks: booking.service_tasks,
-            cleaningTasks,
-            statuses: cleaningTasks.map(t => t.status)
-          });
-          
-          // Exclude bookings with active cleaning tasks (not completed or cancelled)
-          const hasActiveCleaning = cleaningTasks.some(
-            task => task.status !== 'completed' && task.status !== 'cancelled'
-          );
-          
-          console.log(`  -> hasActiveCleaning: ${hasActiveCleaning}`);
-          
-          return !hasActiveCleaning;
-        }) || [];
-        
-        console.log('Filtered bookings without cleaning:', filtered);
-        return filtered;
-      } else if (bookingFilter === 'with_cleaning') {
-        // Filter for bookings with ACTIVE cleaning tasks
+        // Filter for bookings without ANY cleaning tasks
         return data?.filter(booking => {
           const cleaningTasks = booking.service_tasks?.filter(
             task => task.service_type === 'cleaning'
           ) || [];
           
-          const hasActiveCleaning = cleaningTasks.some(
-            task => task.status !== 'completed' && task.status !== 'cancelled'
-          );
+          // Return true only if there are NO cleaning tasks at all
+          return cleaningTasks.length === 0;
+        }) || [];
+      } else if (bookingFilter === 'with_cleaning') {
+        // Filter for bookings with ANY cleaning tasks
+        return data?.filter(booking => {
+          const cleaningTasks = booking.service_tasks?.filter(
+            task => task.service_type === 'cleaning'
+          ) || [];
           
-          return hasActiveCleaning;
+          // Return true if there are ANY cleaning tasks
+          return cleaningTasks.length > 0;
         }) || [];
       }
 
