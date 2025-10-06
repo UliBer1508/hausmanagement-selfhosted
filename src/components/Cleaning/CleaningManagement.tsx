@@ -25,7 +25,7 @@ const CleaningManagement = () => {
   const [taskServiceType, setTaskServiceType] = useState('cleaning');
   const [taskHouseFilter, setTaskHouseFilter] = useState('all');
   const [taskTimeFilter, setTaskTimeFilter] = useState('3months');
-  const [taskStatusFilter, setTaskStatusFilter] = useState('all');
+  const [taskStatusFilter, setTaskStatusFilter] = useState('scheduled');
   const [editTaskId, setEditTaskId] = useState<string | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
