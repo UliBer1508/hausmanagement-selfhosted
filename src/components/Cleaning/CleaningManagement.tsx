@@ -38,7 +38,7 @@ const CleaningManagement = () => {
         .select(`
           *,
           houses!inner(id, name, address),
-          service_tasks(id, service_type)
+          service_tasks(id, service_type, status)
         `)
         .neq('status', 'completed') // Exclude completed bookings
         .gte('check_out', new Date().toISOString()); // Only future or current bookings
@@ -76,15 +76,32 @@ const CleaningManagement = () => {
       const { data } = await query;
 
       if (bookingFilter === 'without_cleaning') {
-        // Filter for bookings without cleaning tasks
-        return data?.filter(booking => 
-          !booking.service_tasks?.some(task => task.service_type === 'cleaning')
-        ) || [];
+        // Filter for bookings without ACTIVE cleaning tasks
+        return data?.filter(booking => {
+          const cleaningTasks = booking.service_tasks?.filter(
+            task => task.service_type === 'cleaning'
+          ) || [];
+          
+          // Exclude bookings with active cleaning tasks (not completed or cancelled)
+          const hasActiveCleaning = cleaningTasks.some(
+            task => task.status !== 'completed' && task.status !== 'cancelled'
+          );
+          
+          return !hasActiveCleaning;
+        }) || [];
       } else if (bookingFilter === 'with_cleaning') {
-        // Filter for bookings with cleaning tasks
-        return data?.filter(booking => 
-          booking.service_tasks?.some(task => task.service_type === 'cleaning')
-        ) || [];
+        // Filter for bookings with ACTIVE cleaning tasks
+        return data?.filter(booking => {
+          const cleaningTasks = booking.service_tasks?.filter(
+            task => task.service_type === 'cleaning'
+          ) || [];
+          
+          const hasActiveCleaning = cleaningTasks.some(
+            task => task.status !== 'completed' && task.status !== 'cancelled'
+          );
+          
+          return hasActiveCleaning;
+        }) || [];
       }
 
       return data || [];
