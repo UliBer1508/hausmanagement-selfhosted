@@ -61,7 +61,8 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
   // Lade AI-Einstellungen beim Mount
   React.useEffect(() => {
     loadAISettings(house.id);
-  }, [house.id, loadAISettings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [house.id]);
 
   // Find current house data in the optimized dataset
   const houseData = useMemo(() => {
