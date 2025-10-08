@@ -33,7 +33,7 @@ const LinenOrderEmailDialog = ({
   const [customText, setCustomText] = useState('');
   // Immer Teuni's E-Mail-Adresse verwenden (Wäscherei-Anbieter)
   const [recipientEmail, setRecipientEmail] = useState(
-    order?.service_providers?.contact_email || 'uli.berresheim@hotmail.de'
+    order?.service_providers?.contact_email || 'waescheoberpinzgau@gmail.com'
   );
   const [subject, setSubject] = useState(
     `Neue Wäschebestellung #${order?.id?.slice(-8)} - ${houseName}`
