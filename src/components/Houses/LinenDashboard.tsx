@@ -56,7 +56,7 @@ const LinenDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('house_id, check_in, number_of_guests, guest_name')
+        .select('*, linen_orders!linen_orders_booking_id_fkey(id)')
         .gte('check_in', format(new Date(), 'yyyy-MM-dd'))
         .order('check_in', { ascending: true });
       
@@ -461,6 +461,12 @@ const LinenDashboard = () => {
           houseName={orderHouse.name || 'Unbekannt'}
           houseId={orderHouse.id}
           selectedBooking={selectedBooking}
+          availableBookings={
+            upcomingBookings?.filter(
+              b => b.house_id === orderHouse.id && 
+                   (!b.linen_orders || b.linen_orders.length === 0)
+            ) || []
+          }
           onCreateOrder={handleOrderCreation}
           isCreating={createOptimizedOrderMutation.isPending}
           allowExceptionalOrder={true}

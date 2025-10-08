@@ -24,6 +24,7 @@ interface LinenOrderDialogProps {
   houseName: string;
   houseId: string;
   selectedBooking?: any;
+  availableBookings?: any[];
   onCreateOrder: (orderData: {
     orderItems: Record<string, number>;
     notes?: string;
@@ -50,12 +51,14 @@ const LinenOrderDialog = ({
   houseName,
   houseId,
   selectedBooking,
+  availableBookings = [],
   onCreateOrder,
   onSendEmail,
   isCreating = false,
   allowExceptionalOrder = false,
   initialData
 }: LinenOrderDialogProps) => {
+  const [internalSelectedBooking, setInternalSelectedBooking] = useState<any>(selectedBooking);
   const [deliveryDate, setDeliveryDate] = useState<Date>(
     initialData?.deliveryDate ? new Date(initialData.deliveryDate) : addDays(new Date(), 2)
   );
@@ -74,6 +77,7 @@ const LinenOrderDialog = ({
   // Update state when props change (e.g., when opening with AI-generated data)
   useEffect(() => {
     setEditableItems(orderItems);
+    setInternalSelectedBooking(selectedBooking);
     if (initialData?.deliveryDate) {
       setDeliveryDate(new Date(initialData.deliveryDate));
     }
@@ -83,7 +87,7 @@ const LinenOrderDialog = ({
     if (initialData?.notes) {
       setNotes(initialData.notes);
     }
-  }, [orderItems, initialData]);
+  }, [orderItems, initialData, selectedBooking]);
 
   const linenLabels: Record<string, string> = {
     bedding: 'Bettwäsche',
@@ -125,19 +129,19 @@ const LinenOrderDialog = ({
 
     try {
       if (orderType === 'standard') {
-        if (!selectedBooking) {
+        if (!internalSelectedBooking) {
           setValidationErrors(['Für Standardbestellungen ist eine Buchungsverknüpfung erforderlich']);
           return;
         }
         
         const validatedData = standardLinenOrderSchema.parse({
           ...baseOrderData,
-          booking_id: selectedBooking.id,
+          booking_id: internalSelectedBooking.id,
         });
         
         onCreateOrder({
           ...baseOrderData,
-          booking_id: selectedBooking.id,
+          booking_id: internalSelectedBooking.id,
           orderType: 'standard',
         });
       } else {
@@ -231,12 +235,12 @@ const LinenOrderDialog = ({
                   className="space-y-3"
                 >
                   <div className="flex items-start space-x-2">
-                    <RadioGroupItem value="standard" id="standard" disabled={!selectedBooking} />
+                    <RadioGroupItem value="standard" id="standard" disabled={!internalSelectedBooking && availableBookings.length === 0} />
                     <div className="flex-1">
-                      <Label htmlFor="standard" className={cn("cursor-pointer", !selectedBooking && "text-muted-foreground")}>
+                      <Label htmlFor="standard" className={cn("cursor-pointer", (!internalSelectedBooking && availableBookings.length === 0) && "text-muted-foreground")}>
                         📋 Standardbestellung (mit Buchung)
                       </Label>
-                      {!selectedBooking && (
+                      {!internalSelectedBooking && availableBookings.length === 0 && (
                         <p className="text-xs text-orange-600 mt-1">
                           Keine Buchung verfügbar - nur Ausnahmebestellungen möglich
                         </p>
@@ -277,8 +281,40 @@ const LinenOrderDialog = ({
             </div>
           )}
 
+          {/* Booking Selection */}
+          {availableBookings.length > 0 && orderType === 'standard' && (
+            <div className="space-y-2">
+              <Label>Buchung auswählen</Label>
+              <Select 
+                value={internalSelectedBooking?.id || 'none'} 
+                onValueChange={(value) => {
+                  if (value === 'none') {
+                    setInternalSelectedBooking(null);
+                  } else {
+                    const booking = availableBookings.find(b => b.id === value);
+                    setInternalSelectedBooking(booking);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Buchung auswählen (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keine Buchung zuordnen</SelectItem>
+                  {availableBookings.map((booking) => (
+                    <SelectItem key={booking.id} value={booking.id}>
+                      {booking.guest_name} ({booking.number_of_guests} Gäste) - {
+                        format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de })
+                      }
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Booking Information */}
-          {selectedBooking && orderType === 'standard' && (
+          {internalSelectedBooking && orderType === 'standard' && (
             <Card className="bg-blue-50 border-blue-200">
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -290,19 +326,19 @@ const LinenOrderDialog = ({
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-blue-700 font-medium">Gast:</span>
-                    <span className="ml-2">{selectedBooking.guest_name || 'N/A'}</span>
+                    <span className="ml-2">{internalSelectedBooking.guest_name || 'N/A'}</span>
                   </div>
                   <div>
                     <span className="text-blue-700 font-medium">Gäste:</span>
-                    <span className="ml-2">{selectedBooking.number_of_guests || 'N/A'}</span>
+                    <span className="ml-2">{internalSelectedBooking.number_of_guests || 'N/A'}</span>
                   </div>
-                  {selectedBooking.check_in && (
+                  {internalSelectedBooking.check_in && (
                     <div>
                       <span className="text-blue-700 font-medium">Check-in:</span>
                       <span className="ml-2">
                         {(() => {
                           try {
-                            const date = new Date(selectedBooking.check_in);
+                            const date = new Date(internalSelectedBooking.check_in);
                             return isNaN(date.getTime()) ? 'Ungültiges Datum' : format(date, 'dd.MM.yyyy', { locale: de });
                           } catch {
                             return 'Ungültiges Datum';
@@ -311,13 +347,13 @@ const LinenOrderDialog = ({
                       </span>
                     </div>
                   )}
-                  {selectedBooking.check_out && (
+                  {internalSelectedBooking.check_out && (
                     <div>
                       <span className="text-blue-700 font-medium">Check-out:</span>
                       <span className="ml-2">
                         {(() => {
                           try {
-                            const date = new Date(selectedBooking.check_out);
+                            const date = new Date(internalSelectedBooking.check_out);
                             return isNaN(date.getTime()) ? 'Ungültiges Datum' : format(date, 'dd.MM.yyyy', { locale: de });
                           } catch {
                             return 'Ungültiges Datum';
@@ -326,10 +362,10 @@ const LinenOrderDialog = ({
                       </span>
                     </div>
                   )}
-                  {selectedBooking.external_booking_id && (
+                  {internalSelectedBooking.external_booking_id && (
                     <div className="col-span-2">
                       <span className="text-blue-700 font-medium">Buchungs-ID:</span>
-                      <span className="ml-2">{selectedBooking.external_booking_id}</span>
+                      <span className="ml-2">{internalSelectedBooking.external_booking_id}</span>
                     </div>
                   )}
                 </div>
