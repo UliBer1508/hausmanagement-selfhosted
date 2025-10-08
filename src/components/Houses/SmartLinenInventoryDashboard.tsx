@@ -38,6 +38,7 @@ import LinenOrdersTab from './LinenOrdersTab';
 import SmartLinenSettings from './SmartLinenSettings';
 import SmartLinenOptimizer from './SmartLinenOptimizer';
 import LinenOrderDialog from './LinenOrderDialog';
+import EditHouseDialog from './EditHouseDialog';
 
 interface SmartLinenInventoryDashboardProps {
   house: any;
@@ -57,6 +58,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [aiOrderData, setAiOrderData] = useState<any>(null);
   const [showOrderDialog, setShowOrderDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
 
   // Lade AI-Einstellungen beim Mount
   React.useEffect(() => {
@@ -244,7 +246,12 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                 <span className="hidden sm:inline">KI-Einstellungen</span>
                 <span className="sm:hidden">Einstellungen</span>
               </Button>
-              <Button variant="outline" className="w-full sm:w-auto text-sm" size="sm">
+              <Button 
+                variant="outline" 
+                className="w-full sm:w-auto text-sm" 
+                size="sm"
+                onClick={() => setShowEditDialog(true)}
+              >
                 <Edit className="w-4 h-4 sm:mr-2" />
                 <span className="hidden sm:inline">Bearbeiten</span>
                 <span className="sm:hidden">Haus bearbeiten</span>
@@ -644,6 +651,13 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
           isCreating={createOptimizedOrderMutation.isPending}
         />
       )}
+
+      {/* Edit House Dialog */}
+      <EditHouseDialog
+        house={house}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+      />
     </div>
   );
 };
