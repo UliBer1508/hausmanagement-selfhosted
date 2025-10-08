@@ -1,11 +1,9 @@
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Sparkles, Droplets, Bell, Settings, Building2 } from 'lucide-react';
+import { Sparkles, Droplets, Bell, Settings } from 'lucide-react';
 import { Provider } from '@/types';
-import { ProviderManagementDialog } from './ProviderManagementDialog';
 
 interface ServiceHeaderProps {
   selectedService: 'cleaning' | 'laundry';
@@ -14,7 +12,6 @@ interface ServiceHeaderProps {
 }
 
 const ServiceHeader = ({ selectedService, onServiceChange, provider }: ServiceHeaderProps) => {
-  const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
   
   const serviceConfig = {
     cleaning: {
@@ -40,30 +37,19 @@ const ServiceHeader = ({ selectedService, onServiceChange, provider }: ServiceHe
     <>
     <Card className="p-6 mb-6 card-glow">
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-        <div className="space-y-3">
-          <div className="flex items-center gap-4">
-            <div className={`p-3 rounded-xl ${currentConfig.bgColor}`}>
-              <ServiceIcon className={`w-6 h-6 bg-gradient-to-r ${currentConfig.color} bg-clip-text text-transparent`} />
-            </div>
-            
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">{currentConfig.title}</h1>
-              <p className="text-muted-foreground">{currentConfig.provider}</p>
-            </div>
-            
-            <Badge className="bg-primary-green/20 text-primary-green">
-              Online
-            </Badge>
+      <div className="flex items-center gap-4">
+          <div className={`p-3 rounded-xl ${currentConfig.bgColor}`}>
+            <ServiceIcon className={`w-6 h-6 bg-gradient-to-r ${currentConfig.color} bg-clip-text text-transparent`} />
           </div>
           
-          <Button
-            variant="outline"
-            onClick={() => setIsProviderDialogOpen(true)}
-            className="gap-2 hover:bg-accent"
-          >
-            <Building2 className="w-4 h-4" />
-            Provider Verwalten
-          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">{currentConfig.title}</h1>
+            <p className="text-muted-foreground">{currentConfig.provider}</p>
+          </div>
+          
+          <Badge className="bg-primary-green/20 text-primary-green">
+            Online
+          </Badge>
         </div>
 
         <div className="flex items-center gap-3">
@@ -108,11 +94,6 @@ const ServiceHeader = ({ selectedService, onServiceChange, provider }: ServiceHe
         </div>
       </div>
     </Card>
-
-    <ProviderManagementDialog 
-      open={isProviderDialogOpen} 
-      onOpenChange={setIsProviderDialogOpen}
-    />
     </>
   );
 };
