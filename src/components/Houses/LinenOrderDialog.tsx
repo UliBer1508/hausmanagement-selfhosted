@@ -235,12 +235,12 @@ const LinenOrderDialog = ({
                   className="space-y-3"
                 >
                   <div className="flex items-start space-x-2">
-                    <RadioGroupItem value="standard" id="standard" disabled={!internalSelectedBooking && availableBookings.length === 0} />
+                    <RadioGroupItem value="standard" id="standard" disabled={availableBookings.length === 0} />
                     <div className="flex-1">
-                      <Label htmlFor="standard" className={cn("cursor-pointer", (!internalSelectedBooking && availableBookings.length === 0) && "text-muted-foreground")}>
+                      <Label htmlFor="standard" className={cn("cursor-pointer", availableBookings.length === 0 && "text-muted-foreground")}>
                         📋 Standardbestellung (mit Buchung)
                       </Label>
-                      {!internalSelectedBooking && availableBookings.length === 0 && (
+                      {availableBookings.length === 0 && (
                         <p className="text-xs text-orange-600 mt-1">
                           Keine Buchung verfügbar - nur Ausnahmebestellungen möglich
                         </p>
