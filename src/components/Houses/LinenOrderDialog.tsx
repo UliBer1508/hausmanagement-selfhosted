@@ -290,20 +290,42 @@ const LinenOrderDialog = ({
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-blue-700 font-medium">Gast:</span>
-                    <span className="ml-2">{selectedBooking.guest_name}</span>
+                    <span className="ml-2">{selectedBooking.guest_name || 'N/A'}</span>
                   </div>
                   <div>
                     <span className="text-blue-700 font-medium">Gäste:</span>
-                    <span className="ml-2">{selectedBooking.number_of_guests}</span>
+                    <span className="ml-2">{selectedBooking.number_of_guests || 'N/A'}</span>
                   </div>
-                  <div>
-                    <span className="text-blue-700 font-medium">Check-in:</span>
-                    <span className="ml-2">{format(new Date(selectedBooking.check_in), 'dd.MM.yyyy', { locale: de })}</span>
-                  </div>
-                  <div>
-                    <span className="text-blue-700 font-medium">Check-out:</span>
-                    <span className="ml-2">{format(new Date(selectedBooking.check_out), 'dd.MM.yyyy', { locale: de })}</span>
-                  </div>
+                  {selectedBooking.check_in && (
+                    <div>
+                      <span className="text-blue-700 font-medium">Check-in:</span>
+                      <span className="ml-2">
+                        {(() => {
+                          try {
+                            const date = new Date(selectedBooking.check_in);
+                            return isNaN(date.getTime()) ? 'Ungültiges Datum' : format(date, 'dd.MM.yyyy', { locale: de });
+                          } catch {
+                            return 'Ungültiges Datum';
+                          }
+                        })()}
+                      </span>
+                    </div>
+                  )}
+                  {selectedBooking.check_out && (
+                    <div>
+                      <span className="text-blue-700 font-medium">Check-out:</span>
+                      <span className="ml-2">
+                        {(() => {
+                          try {
+                            const date = new Date(selectedBooking.check_out);
+                            return isNaN(date.getTime()) ? 'Ungültiges Datum' : format(date, 'dd.MM.yyyy', { locale: de });
+                          } catch {
+                            return 'Ungültiges Datum';
+                          }
+                        })()}
+                      </span>
+                    </div>
+                  )}
                   {selectedBooking.external_booking_id && (
                     <div className="col-span-2">
                       <span className="text-blue-700 font-medium">Buchungs-ID:</span>
