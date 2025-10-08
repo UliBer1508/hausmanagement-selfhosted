@@ -28,6 +28,7 @@ const LinenDashboard = () => {
   const [showOrderDialog, setShowOrderDialog] = useState(false);
   const [orderHouse, setOrderHouse] = useState<any>(null);
   const [calculatedOrderItems, setCalculatedOrderItems] = useState<Record<string, number>>({});
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
   
   const { toast } = useToast();
   const { createOptimizedOrderMutation } = useOptimizedLinenManagement();
@@ -212,6 +213,7 @@ const LinenDashboard = () => {
     if (Object.keys(orderItems).length > 0) {
       setOrderHouse(house);
       setCalculatedOrderItems(orderItems);
+      setSelectedBooking(nearTermBookings[0] || null); // Erste kritische Buchung
       setShowOrderDialog(true);
     } else {
       toast({
@@ -226,6 +228,7 @@ const LinenDashboard = () => {
     try {
       await createOptimizedOrderMutation.mutateAsync({
         houseId: orderHouse.id,
+        bookingId: orderData.booking_id || selectedBooking?.id,
         orderItems: orderData.orderItems,
         notes: orderData.notes,
         deliveryDate: orderData.deliveryDate,
@@ -235,6 +238,7 @@ const LinenDashboard = () => {
       setShowOrderDialog(false);
       setOrderHouse(null);
       setCalculatedOrderItems({});
+      setSelectedBooking(null);
       
       toast({
         title: "Bestellung erstellt",
@@ -456,6 +460,7 @@ const LinenDashboard = () => {
           orderItems={calculatedOrderItems}
           houseName={orderHouse.name || 'Unbekannt'}
           houseId={orderHouse.id}
+          selectedBooking={selectedBooking}
           onCreateOrder={handleOrderCreation}
           isCreating={createOptimizedOrderMutation.isPending}
           allowExceptionalOrder={true}
