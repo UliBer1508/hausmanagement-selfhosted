@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,25 +50,18 @@ const handler = async (req: Request): Promise<Response> => {
       emailContent = emailContent.replace(/\{GUEST_NAME\}/g, guestName);
     }
 
-    console.log("Connecting to Gmail SMTP server...");
-
-    // Initialize SMTP client with configuration
-    const client = new SMTPClient({
-      connection: {
-        hostname: "smtp.gmail.com",
-        port: 587,
-        tls: true,
-        auth: {
-          username: "steinbockchalets@gmail.com",
-          password: gmailPassword,
-        },
-      },
+    console.log("Connecting to Gmail SMTP...");
+    
+    const client = new SmtpClient();
+    
+    await client.connectTLS({
+      hostname: "smtp.gmail.com",
+      port: 587,
+      username: "steinbockchalets@gmail.com",
+      password: gmailPassword,
     });
 
-    console.log("Connecting to Gmail SMTP...");
-    await client.connect();
-
-    console.log("Connected to Gmail SMTP. Sending email...");
+    console.log("Connected to Gmail SMTP. Sending emails...");
 
     // Send email to all recipients
     for (const recipient of to) {
@@ -77,8 +70,8 @@ const handler = async (req: Request): Promise<Response> => {
           from: "steinbockchalets@gmail.com",
           to: recipient,
           subject: subject,
-          content: text || emailContent,
-          html: html ? emailContent : undefined,
+          content: emailContent,
+          mimeType: html ? "text/html" : "text/plain",
         });
         console.log(`Email sent successfully to: ${recipient}`);
       } catch (error) {
