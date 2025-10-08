@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Sparkles, Droplets, Bell, Settings } from 'lucide-react';
+import { Sparkles, Droplets, Bell, Settings, Building2 } from 'lucide-react';
 import { Provider } from '@/types';
+import { ProviderManagementDialog } from './ProviderManagementDialog';
 
 interface ServiceHeaderProps {
   selectedService: 'cleaning' | 'laundry';
@@ -12,6 +14,8 @@ interface ServiceHeaderProps {
 }
 
 const ServiceHeader = ({ selectedService, onServiceChange, provider }: ServiceHeaderProps) => {
+  const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
+  
   const serviceConfig = {
     cleaning: {
       title: 'Reinigungsportal',
@@ -33,6 +37,7 @@ const ServiceHeader = ({ selectedService, onServiceChange, provider }: ServiceHe
   const ServiceIcon = currentConfig.icon;
 
   return (
+    <>
     <Card className="p-6 mb-6 card-glow">
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -74,6 +79,10 @@ const ServiceHeader = ({ selectedService, onServiceChange, provider }: ServiceHe
           </div>
 
           {/* User Actions */}
+          <Button variant="ghost" size="sm" onClick={() => setIsProviderDialogOpen(true)}>
+            <Building2 className="w-4 h-4" />
+          </Button>
+
           <Button variant="ghost" size="sm">
             <Bell className="w-4 h-4" />
           </Button>
@@ -92,6 +101,12 @@ const ServiceHeader = ({ selectedService, onServiceChange, provider }: ServiceHe
         </div>
       </div>
     </Card>
+
+    <ProviderManagementDialog 
+      open={isProviderDialogOpen} 
+      onOpenChange={setIsProviderDialogOpen}
+    />
+    </>
   );
 };
 
