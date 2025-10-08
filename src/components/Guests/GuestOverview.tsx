@@ -29,6 +29,7 @@ const GuestOverview = () => {
       let query = supabase
         .from('bookings')
         .select(`
+          id,
           guest_name,
           guest_email,
           guest_phone,
