@@ -35,7 +35,8 @@ import {
   Save,
   Filter,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Building2
 } from 'lucide-react';
 import { format, isSameDay, parseISO, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -49,6 +50,7 @@ import Houses from '@/pages/Houses';
 import CleaningManagement from '@/components/Cleaning/CleaningManagement';
 import GuestManagement from '@/components/Guests/GuestManagement';
 import LinenDashboard from '@/components/Houses/LinenDashboard';
+import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderManagementDialog';
 import { supabase } from '@/integrations/supabase/client';
 
 const OriginalDashboard = () => {
@@ -87,6 +89,7 @@ const OriginalDashboard = () => {
   });
   const [houseFilter, setHouseFilter] = useState('all');
   const [serviceTypeFilter, setServiceTypeFilter] = useState('all');
+  const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
 
   // Settings save functions
   const saveProfileSettings = async () => {
@@ -1532,6 +1535,16 @@ const OriginalDashboard = () => {
               </p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => setIsProviderDialogOpen(true)}
+              className="gap-2"
+              variant="default"
+            >
+              <Building2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Provider Verwalten</span>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1655,6 +1668,11 @@ const OriginalDashboard = () => {
           )}
         </div>
       </div>
+
+      <ProviderManagementDialog 
+        open={isProviderDialogOpen}
+        onOpenChange={setIsProviderDialogOpen}
+      />
     </div>
   );
 };
