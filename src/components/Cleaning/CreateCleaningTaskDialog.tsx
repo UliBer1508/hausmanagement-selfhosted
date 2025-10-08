@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -79,12 +79,25 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
     },
   });
 
+  // Pre-fill form when preselectedBooking is provided
+  useEffect(() => {
+    if (preselectedBooking && isOpen) {
+      form.setValue('house_id', preselectedBooking.house_id);
+      form.setValue('booking_id', preselectedBooking.id);
+      const suggestedDate = suggestCleaningDate(preselectedBooking);
+      form.setValue('scheduled_date', suggestedDate);
+      setStep('details');
+    }
+  }, [preselectedBooking, isOpen, form]);
+
   // Reset form and step when dialog opens/closes
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (!newOpen) {
-      setStep('house');
+      setStep(preselectedBooking ? 'details' : 'house');
       form.reset();
+    } else if (preselectedBooking) {
+      setStep('details');
     }
   };
 
@@ -147,6 +160,9 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
 
   // Get selected booking details
   const selectedBooking = bookings?.find(b => b.id === selectedBookingId);
+  
+  // Use preselected booking if available, otherwise use selected booking
+  const displayBooking = preselectedBooking || selectedBooking;
 
   // Auto-suggest cleaning date based on booking
   const suggestCleaningDate = (booking: any) => {
@@ -377,7 +393,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
         )}
 
         {/* Step 3: Cleaning Details */}
-        {step === 'details' && selectedBooking && (
+        {step === 'details' && displayBooking && (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               
@@ -385,25 +401,27 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
               <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold">Buchungsübersicht</h4>
-                  <Button variant="outline" size="sm" onClick={handleBackToBookings}>
-                    ← Buchung ändern
-                  </Button>
+                  {!preselectedBooking && (
+                    <Button variant="outline" size="sm" onClick={handleBackToBookings}>
+                      ← Buchung ändern
+                    </Button>
+                  )}
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                   <div className="space-y-2">
                     <div><strong>Haus:</strong> {houses?.find(h => h.id === form.watch('house_id'))?.name}</div>
-                    <div><strong>Gast:</strong> {selectedBooking.guest_name}</div>
-                    <div><strong>Gäste:</strong> {selectedBooking.number_of_guests}</div>
-                    {selectedBooking.guest_email && (
-                      <div><strong>E-Mail:</strong> {selectedBooking.guest_email}</div>
+                    <div><strong>Gast:</strong> {displayBooking.guest_name}</div>
+                    <div><strong>Gäste:</strong> {displayBooking.number_of_guests}</div>
+                    {displayBooking.guest_email && (
+                      <div><strong>E-Mail:</strong> {displayBooking.guest_email}</div>
                     )}
                   </div>
                   <div className="space-y-2">
-                    <div><strong>Check-in:</strong> {new Date(selectedBooking.check_in).toLocaleDateString('de-DE')}</div>
-                    <div><strong>Check-out:</strong> {new Date(selectedBooking.check_out).toLocaleDateString('de-DE')}</div>
-                    {selectedBooking.booking_amount && (
-                      <div><strong>Betrag:</strong> {selectedBooking.booking_amount} {selectedBooking.currency || 'EUR'}</div>
+                    <div><strong>Check-in:</strong> {new Date(displayBooking.check_in).toLocaleDateString('de-DE')}</div>
+                    <div><strong>Check-out:</strong> {new Date(displayBooking.check_out).toLocaleDateString('de-DE')}</div>
+                    {displayBooking.booking_amount && (
+                      <div><strong>Betrag:</strong> {displayBooking.booking_amount} {displayBooking.currency || 'EUR'}</div>
                     )}
                   </div>
                 </div>
