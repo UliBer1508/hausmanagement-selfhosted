@@ -120,14 +120,29 @@ const GuestOverview = () => {
       if (sortBy === 'name') {
         guests.sort((a, b) => a.guest_name.localeCompare(b.guest_name));
       } else {
-        // Sort by most recent or next booking date
+        // Sort by next booking date (upcoming bookings first)
         guests.sort((a, b) => {
-          const dateA = a.next_booking?.check_in || a.last_booking?.check_in;
-          const dateB = b.next_booking?.check_in || b.last_booking?.check_in;
-          if (!dateA && !dateB) return 0;
-          if (!dateA) return 1;
-          if (!dateB) return -1;
-          return new Date(dateB).getTime() - new Date(dateA).getTime();
+          const hasNextA = !!a.next_booking;
+          const hasNextB = !!b.next_booking;
+          
+          // Both have upcoming bookings - sort by earliest check-in
+          if (hasNextA && hasNextB) {
+            return new Date(a.next_booking!.check_in).getTime() - new Date(b.next_booking!.check_in).getTime();
+          }
+          
+          // Only A has upcoming booking - A comes first
+          if (hasNextA && !hasNextB) return -1;
+          
+          // Only B has upcoming booking - B comes first
+          if (!hasNextA && hasNextB) return 1;
+          
+          // Neither has upcoming bookings - sort by last booking (most recent first)
+          const lastA = a.last_booking?.check_in;
+          const lastB = b.last_booking?.check_in;
+          if (!lastA && !lastB) return 0;
+          if (!lastA) return 1;
+          if (!lastB) return -1;
+          return new Date(lastB).getTime() - new Date(lastA).getTime();
         });
       }
 
