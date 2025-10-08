@@ -35,6 +35,7 @@ import { useLinenAI } from '@/hooks/useLinenAI';
 import { useToast } from '@/hooks/use-toast';
 import LinenSetRulesTab from './LinenSetRulesTab';
 import LinenOrdersTab from './LinenOrdersTab';
+import LinenPricesTab from './LinenPricesTab';
 import SmartLinenSettings from './SmartLinenSettings';
 import SmartLinenOptimizer from './SmartLinenOptimizer';
 import LinenOrderDialog from './LinenOrderDialog';
@@ -296,7 +297,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
       </Collapsible>
 
       <Tabs defaultValue="smart-analysis" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="smart-analysis" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
             <span className="hidden sm:inline">Smart-Analyse</span>
             <span className="sm:hidden">Analyse</span>
@@ -307,6 +308,9 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
           </TabsTrigger>
           <TabsTrigger value="wäscheset-regeln" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
             Regeln
+          </TabsTrigger>
+          <TabsTrigger value="preise" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
+            Preise
           </TabsTrigger>
           <TabsTrigger value="bestellungen" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
             <span className="hidden xs:inline">Bestellungen</span>
@@ -545,6 +549,10 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
 
         <TabsContent value="wäscheset-regeln">
           <LinenSetRulesTab house={house} />
+        </TabsContent>
+
+        <TabsContent value="preise">
+          <LinenPricesTab houseId={house.id} />
         </TabsContent>
 
         <TabsContent value="bestellungen">

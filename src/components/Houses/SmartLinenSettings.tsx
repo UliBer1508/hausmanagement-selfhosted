@@ -132,31 +132,6 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
     setLocalSettings(updated);
   };
 
-  const updatePrice = (itemType: keyof AISettings['prices'], price: number) => {
-    const updated = { 
-      ...localSettings, 
-      prices: { 
-        ...localSettings.prices, 
-        [itemType]: price 
-      } 
-    };
-    setLocalSettings(updated);
-  };
-
-  // Sichere Preis-Zugriffe
-  const getCurrentPrice = (itemType: keyof AISettings['prices']) => {
-    return localSettings.prices?.[itemType] || 0;
-  };
-
-  const linenLabels = {
-    bedding: 'Bettwäsche',
-    large_towels: 'Große Handtücher',
-    small_towels: 'Kleine Handtücher',
-    bath_mats: 'Badematten',
-    sink_towels: 'Waschbeckentücher',
-    sauna_towels: 'Saunatücher'
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -283,35 +258,6 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
               onCheckedChange={(checked) => updateSetting('seasonal_factor', checked)}
             />
           </div>
-        </div>
-
-        <Separator />
-
-        {/* Preiskonfiguration */}
-        <div className="space-y-3">
-          <Label className="text-base font-medium">Preiskonfiguration (€)</Label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(linenLabels).map(([itemType, label]) => (
-              <div key={itemType} className="space-y-2">
-                <Label htmlFor={`price_${itemType}`} className="text-sm">
-                  {label}
-                </Label>
-                <Input
-                  id={`price_${itemType}`}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={getCurrentPrice(itemType as keyof AISettings['prices'])}
-                  onChange={(e) => updatePrice(itemType as keyof AISettings['prices'], parseFloat(e.target.value) || 0)}
-                  placeholder="Preis in Euro"
-                  className="text-right"
-                />
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Diese Preise werden für die Kostenberechnung bei Bestellempfehlungen verwendet.
-          </p>
         </div>
 
         <Separator />
