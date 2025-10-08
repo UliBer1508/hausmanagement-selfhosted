@@ -15,7 +15,7 @@ const Navigation = () => {
     { name: 'Gäste', href: '/guests', emoji: '👥' },
     { name: 'Reinigung', href: '/cleaning', emoji: '✨' },
     { name: 'Wäsche', href: '/laundry', emoji: '💧' },
-    { name: 'Provider', href: '/service-portal', emoji: '🏢' },
+    { name: 'Provider', href: '/providers', emoji: '🏢' },
     { name: 'Einstellungen', href: '/settings', emoji: '⚙️' }
   ];
 
