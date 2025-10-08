@@ -52,16 +52,21 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Connecting to Gmail SMTP server...");
 
-    // Initialize SMTP client
-    const client = new SMTPClient();
-
-    // Connect to Gmail SMTP
-    await client.connectTLS({
-      hostname: "smtp.gmail.com",
-      port: 587,
-      username: "steinbockchalets@gmail.com",
-      password: gmailPassword,
+    // Initialize SMTP client with configuration
+    const client = new SMTPClient({
+      connection: {
+        hostname: "smtp.gmail.com",
+        port: 587,
+        tls: true,
+        auth: {
+          username: "steinbockchalets@gmail.com",
+          password: gmailPassword,
+        },
+      },
     });
+
+    console.log("Connecting to Gmail SMTP...");
+    await client.connect();
 
     console.log("Connected to Gmail SMTP. Sending email...");
 
