@@ -31,6 +31,7 @@ const LinenOrderEmailDialog = ({
   isLoading = false
 }: LinenOrderEmailDialogProps) => {
   const [customText, setCustomText] = useState('');
+  // Immer Teuni's E-Mail-Adresse verwenden (Wäscherei-Anbieter)
   const [recipientEmail, setRecipientEmail] = useState(
     order?.service_providers?.contact_email || 'uli.berresheim@hotmail.de'
   );
