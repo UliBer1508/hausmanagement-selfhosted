@@ -215,7 +215,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
               </div>
               <div className="min-w-0 flex-1">
                 <CardTitle className="text-base md:text-xl truncate">{house.name}</CardTitle>
-                <p className="text-xs md:text-sm text-muted-foreground flex flex-wrap items-center gap-1 md:gap-2 mt-1">
+                <div className="text-xs md:text-sm text-muted-foreground flex flex-wrap items-center gap-1 md:gap-2 mt-1">
                   <Home className="w-3 h-3 md:w-4 md:h-4 shrink-0" />
                   <span className="truncate">{house.address}</span>
                   {houseData.nextBookingDate && (
@@ -229,7 +229,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
                       </span>
                     </>
                   )}
-                </p>
+                </div>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">

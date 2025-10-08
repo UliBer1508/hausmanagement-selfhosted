@@ -110,6 +110,9 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
             <User className="w-5 h-5" />
             Gast bearbeiten
           </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Aktualisieren Sie die Kontaktinformationen des Gastes
+          </p>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">

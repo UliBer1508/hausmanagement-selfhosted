@@ -117,6 +117,9 @@ const EmailTemplateEditor = ({ onCreateTemplate, onUpdateTemplate, onDeleteTempl
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Neue Vorlage erstellen</DialogTitle>
+              <p className="text-sm text-muted-foreground">
+                Erstellen Sie eine neue E-Mail-Vorlage für Ihre Gästekommunikation
+              </p>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">

@@ -204,6 +204,9 @@ const LinenOrderDialog = ({
             <ShoppingCart className="w-5 h-5" />
             Wäschebestellung für {houseName}
           </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Erstellen Sie eine neue Wäschebestellung für dieses Haus mit optionaler Buchungsverknüpfung.
+          </p>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">

@@ -90,6 +90,9 @@ const GuestDetailsDialog = ({ guest, open, onOpenChange }: GuestDetailsDialogPro
             {guest.guest_name}
             {getCategoryBadge(guest.category)}
           </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Detaillierte Übersicht über Buchungshistorie und Gastprofil
+          </p>
         </DialogHeader>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
