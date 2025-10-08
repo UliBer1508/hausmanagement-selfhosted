@@ -76,18 +76,20 @@ const LinenOrderDialog = ({
 
   // Update state when props change (e.g., when opening with AI-generated data)
   useEffect(() => {
-    setEditableItems(orderItems);
-    setInternalSelectedBooking(selectedBooking);
-    if (initialData?.deliveryDate) {
-      setDeliveryDate(new Date(initialData.deliveryDate));
+    if (open) {
+      setEditableItems(orderItems);
+      setInternalSelectedBooking(selectedBooking);
+      if (initialData?.deliveryDate) {
+        setDeliveryDate(new Date(initialData.deliveryDate));
+      }
+      if (initialData?.deliveryType) {
+        setDeliveryType(initialData.deliveryType);
+      }
+      if (initialData?.notes) {
+        setNotes(initialData.notes);
+      }
     }
-    if (initialData?.deliveryType) {
-      setDeliveryType(initialData.deliveryType);
-    }
-    if (initialData?.notes) {
-      setNotes(initialData.notes);
-    }
-  }, [orderItems, initialData, selectedBooking]);
+  }, [open]);
 
   const linenLabels: Record<string, string> = {
     bedding: 'Bettwäsche',
