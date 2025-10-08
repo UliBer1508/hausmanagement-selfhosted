@@ -915,6 +915,17 @@ const OriginalDashboard = () => {
               <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Service Provider Portale</h3>
               <p className="text-gray-600 mb-6">Zugang zu den externen Provider-Webapps</p>
+              
+              <div className="flex justify-center">
+                <Button 
+                  onClick={() => setIsProviderDialogOpen(true)}
+                  variant="outline"
+                  className="gap-2"
+                >
+                  <Building2 className="w-4 h-4" />
+                  Provider Verwalten
+                </Button>
+              </div>
             </div>
             
             {/* Provider Links */}
