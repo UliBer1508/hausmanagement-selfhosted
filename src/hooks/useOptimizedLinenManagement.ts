@@ -334,6 +334,7 @@ export const useOptimizedLinenManagement = () => {
       notes?: string;
       deliveryDate?: string;
       priority?: 'normal' | 'urgent';
+      bookingId?: string;
     }) => {
       console.log('🔍 Bestelldaten validieren:', {
         houseId: orderData.houseId,
@@ -362,6 +363,7 @@ export const useOptimizedLinenManagement = () => {
       
       const insertData = {
         house_id: orderData.houseId,
+        booking_id: orderData.bookingId || null,
         provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c',
         items: orderData.orderItems,
         total_items: totalItems,
