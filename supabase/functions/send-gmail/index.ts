@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { SmtpClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,14 +50,42 @@ const handler = async (req: Request): Promise<Response> => {
       emailContent = emailContent.replace(/\{GUEST_NAME\}/g, guestName);
     }
 
-    console.log("Email prepared successfully. Gmail credentials available:", !!gmailPassword);
-    console.log("Recipients count:", to.length);
-    console.log("Content length:", emailContent.length);
+    console.log("Connecting to Gmail SMTP server...");
 
-    // For now, we'll simulate successful email sending
-    // In a real implementation, you would integrate with an SMTP library like nodemailer
-    // or use the Gmail API with proper authentication
-    
+    // Initialize SMTP client
+    const client = new SmtpClient();
+
+    // Connect to Gmail SMTP
+    await client.connectTLS({
+      hostname: "smtp.gmail.com",
+      port: 587,
+      username: "steinbockchalets@gmail.com",
+      password: gmailPassword,
+    });
+
+    console.log("Connected to Gmail SMTP. Sending email...");
+
+    // Send email to all recipients
+    for (const recipient of to) {
+      try {
+        await client.send({
+          from: "steinbockchalets@gmail.com",
+          to: recipient,
+          subject: subject,
+          content: text || emailContent,
+          html: html ? emailContent : undefined,
+        });
+        console.log(`Email sent successfully to: ${recipient}`);
+      } catch (error) {
+        console.error(`Failed to send email to ${recipient}:`, error);
+        throw error;
+      }
+    }
+
+    // Close connection
+    await client.close();
+    console.log("SMTP connection closed");
+
     const emailResults = {
       success: true, 
       messageId: `msg_${Date.now()}`,
