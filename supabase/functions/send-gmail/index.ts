@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { SmtpClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,7 +53,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Connecting to Gmail SMTP server...");
 
     // Initialize SMTP client
-    const client = new SmtpClient();
+    const client = new SMTPClient();
 
     // Connect to Gmail SMTP
     await client.connectTLS({
