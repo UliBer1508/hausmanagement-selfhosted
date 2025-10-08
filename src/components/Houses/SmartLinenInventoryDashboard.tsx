@@ -632,10 +632,13 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
               orderItems: orderData.orderItems,
               priority: aiOrderData.priority,
               notes: orderData.notes
+            }, {
+              onSuccess: () => {
+                // Schließe Dialog nach erfolgreicher Bestellung
+                setShowOrderDialog(false);
+                setAiOrderData(null);
+              }
             });
-            
-            setShowOrderDialog(false);
-            setAiOrderData(null);
           }}
           isCreating={createOptimizedOrderMutation.isPending}
         />

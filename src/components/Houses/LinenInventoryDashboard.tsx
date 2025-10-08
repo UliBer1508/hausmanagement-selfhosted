@@ -169,6 +169,9 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
         title: "Bestellung erstellt",
         description: `Bestellung mit ${data.total_items} Artikeln wurde erfolgreich erstellt.`,
       });
+      // Schließe Dialog nach erfolgreichem Erstellen
+      setShowOrderDialog(false);
+      setAiOrderData(null);
     },
     onError: (error: any) => {
       console.error('❌ Bestellfehler:', error);
@@ -541,9 +544,6 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
               deliveryDate: orderData.deliveryDate,
               deliveryType: orderData.deliveryType
             });
-            
-            setShowOrderDialog(false);
-            setAiOrderData(null);
           }}
           isCreating={createLinenOrderMutation.isPending}
         />
