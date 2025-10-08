@@ -446,6 +446,12 @@ const GuestCommunication = () => {
         </div>
       </TabsContent>
 
+      <TabsContent value="personalization" className="space-y-6">
+        <GuestPersonalization 
+          onSendPersonalizedMessage={handleSendPersonalizedMessage}
+        />
+      </TabsContent>
+
       <TabsContent value="manage">
             <EmailTemplateEditor 
               onCreateTemplate={createTemplate}
