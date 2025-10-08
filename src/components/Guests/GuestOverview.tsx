@@ -12,6 +12,7 @@ const GuestOverview = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [houseFilter, setHouseFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'booking' | 'name'>('booking');
 
   // Fetch houses for filter
   const { data: houses } = useQuery({
@@ -24,7 +25,7 @@ const GuestOverview = () => {
 
   // Fetch guest data with aggregated information
   const { data: guestData, isLoading } = useQuery({
-    queryKey: ['guest-overview', searchTerm, statusFilter, houseFilter, categoryFilter],
+    queryKey: ['guest-overview', searchTerm, statusFilter, houseFilter, categoryFilter, sortBy],
     queryFn: async () => {
       let query = supabase
         .from('bookings')
@@ -115,6 +116,21 @@ const GuestOverview = () => {
         });
       }
 
+      // Apply sorting
+      if (sortBy === 'name') {
+        guests.sort((a, b) => a.guest_name.localeCompare(b.guest_name));
+      } else {
+        // Sort by most recent or next booking date
+        guests.sort((a, b) => {
+          const dateA = a.next_booking?.check_in || a.last_booking?.check_in;
+          const dateB = b.next_booking?.check_in || b.last_booking?.check_in;
+          if (!dateA && !dateB) return 0;
+          if (!dateA) return 1;
+          if (!dateB) return -1;
+          return new Date(dateB).getTime() - new Date(dateA).getTime();
+        });
+      }
+
       return guests;
     },
   });
@@ -126,7 +142,7 @@ const GuestOverview = () => {
       <div className="space-y-4">
         <h3 className="text-lg font-semibold">Filter & Suche</h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="relative">
             <span className="absolute left-3 top-3 text-lg">🔍</span>
             <Input
@@ -176,10 +192,21 @@ const GuestOverview = () => {
               ))}
             </SelectContent>
           </Select>
+
+          <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'booking' | 'name')}>
+            <SelectTrigger>
+              <span className="mr-2">↕️</span>
+              <SelectValue placeholder="Sortierung" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="booking">Nach Buchungsdatum</SelectItem>
+              <SelectItem value="name">Nach Name (A-Z)</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
-      <GuestList 
+      <GuestList
         guests={guestData || []} 
         isLoading={isLoading}
       />
