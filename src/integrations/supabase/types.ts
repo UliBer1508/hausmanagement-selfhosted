@@ -28,6 +28,7 @@ export type Database = {
           description: string | null
           difficulty_level: number | null
           duration_minutes: number | null
+          enriched_data: Json | null
           equipment_needed: string[] | null
           group_size_max: number | null
           group_size_min: number | null
@@ -63,6 +64,7 @@ export type Database = {
           description?: string | null
           difficulty_level?: number | null
           duration_minutes?: number | null
+          enriched_data?: Json | null
           equipment_needed?: string[] | null
           group_size_max?: number | null
           group_size_min?: number | null
@@ -98,6 +100,7 @@ export type Database = {
           description?: string | null
           difficulty_level?: number | null
           duration_minutes?: number | null
+          enriched_data?: Json | null
           equipment_needed?: string[] | null
           group_size_max?: number | null
           group_size_min?: number | null
@@ -1086,6 +1089,39 @@ export type Database = {
           },
         ]
       }
+      email_templates: {
+        Row: {
+          content: string
+          created_at: string | null
+          id: string
+          is_system: boolean | null
+          name: string
+          subject: string
+          template_key: string
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          id?: string
+          is_system?: boolean | null
+          name: string
+          subject: string
+          template_key: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          id?: string
+          is_system?: boolean | null
+          name?: string
+          subject?: string
+          template_key?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       guest_behavior_patterns: {
         Row: {
           avg_linen_usage: Json
@@ -1228,6 +1264,76 @@ export type Database = {
           },
           {
             foreignKeyName: "guest_preferences_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_saved_activities: {
+        Row: {
+          activity_id: string
+          booking_id: string | null
+          created_at: string | null
+          guest_email: string
+          guest_name: string
+          guest_notes: string | null
+          house_id: string | null
+          id: string
+          scheduled_date: string
+          scheduled_time: string | null
+          session_id: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          activity_id: string
+          booking_id?: string | null
+          created_at?: string | null
+          guest_email: string
+          guest_name: string
+          guest_notes?: string | null
+          house_id?: string | null
+          id?: string
+          scheduled_date: string
+          scheduled_time?: string | null
+          session_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          activity_id?: string
+          booking_id?: string | null
+          created_at?: string | null
+          guest_email?: string
+          guest_name?: string
+          guest_notes?: string | null
+          house_id?: string | null
+          id?: string
+          scheduled_date?: string
+          scheduled_time?: string | null
+          session_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_saved_activities_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_saved_activities_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_saved_activities_house_id_fkey"
             columns: ["house_id"]
             isOneToOne: false
             referencedRelation: "houses"

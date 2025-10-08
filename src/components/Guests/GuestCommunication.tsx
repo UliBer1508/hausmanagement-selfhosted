@@ -12,115 +12,22 @@ import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import EmailTemplateEditor from './EmailTemplateEditor';
 import GuestPersonalization from './GuestPersonalization';
-
-interface EmailTemplate {
-  id: string;
-  name: string;
-  subject: string;
-  content: string;
-}
+import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 
 const GuestCommunication = () => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [customMessage, setCustomMessage] = useState('');
   const [selectedSegment, setSelectedSegment] = useState('all');
   const { toast } = useToast();
-
-  // Pre-defined email templates (now editable)
-  const [emailTemplates, setEmailTemplates] = useState<Record<string, EmailTemplate>>(() => {
-    // Load templates from localStorage if available
-    const saved = localStorage.getItem('steinbock_email_templates');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (error) {
-        console.error('Failed to load saved templates:', error);
-      }
-    }
-    
-    // Default templates
-    return {
-      welcome: {
-        id: 'welcome',
-        name: 'Willkommens-E-Mail',
-        subject: 'Willkommen - Wir freuen uns auf Sie!',
-        content: `Liebe/r {GUEST_NAME},
-
-vielen Dank für Ihre Buchung! Wir freuen uns sehr, Sie vom {CHECK_IN} bis {CHECK_OUT} bei uns begrüßen zu dürfen.
-
-Ihre Buchungsdetails:
-- Haus: {HOUSE_NAME}
-- Zeitraum: {CHECK_IN} - {CHECK_OUT}
-- Gäste: {GUEST_COUNT}
-
-Falls Sie Fragen haben, können Sie uns gerne kontaktieren.
-
-Herzliche Grüße
-Ihr Steinbock Chalets Team`
-      },
-      reminder: {
-        id: 'reminder',
-        name: 'Check-in Erinnerung',
-        subject: 'Ihr Aufenthalt beginnt bald!',
-        content: `Liebe/r {GUEST_NAME},
-
-Ihr Aufenthalt bei uns beginnt in Kürze! Wir möchten Sie daran erinnern:
-
-Check-in: {CHECK_IN}
-Adresse: {HOUSE_ADDRESS}
-
-Wichtige Hinweise:
-- Check-in Zeit: ab 15:00 Uhr
-- Parkplätze sind verfügbar
-- Bei Fragen: +43 123 456 789
-
-Wir freuen uns auf Sie!
-Ihr Steinbock Chalets Team`
-      },
-      feedback: {
-        id: 'feedback',
-        name: 'Feedback-Anfrage',
-        subject: 'Wie war Ihr Aufenthalt bei uns?',
-        content: `Liebe/r {GUEST_NAME},
-
-wir hoffen, Sie hatten einen wunderschönen Aufenthalt bei uns!
-
-Ihre Meinung ist uns sehr wichtig. Würden Sie uns kurz mitteilen, wie Ihnen Ihr Aufenthalt gefallen hat?
-
-Über eine Bewertung würden wir uns sehr freuen.
-
-Vielen Dank und bis bald!
-Ihr Steinbock Chalets Team`
-      },
-      returner: {
-        id: 'returner',
-        name: 'Stammkunden-Angebot',
-        subject: 'Spezielles Angebot für Sie als Stammgast',
-        content: `Liebe/r {GUEST_NAME},
-
-als geschätzte/r Stammgast möchten wir Ihnen ein besonderes Angebot machen:
-
-🎉 15% Rabatt auf Ihre nächste Buchung
-✨ Upgrade je nach Verfügbarkeit
-🍾 Willkommensgeschenk bei Ankunft
-
-Der Rabattcode: STAMM15
-
-Gültig bis {EXPIRY_DATE}. Wir freuen uns auf Ihren nächsten Besuch!
-Ihr Steinbock Chalets Team`
-      }
-    };
-  });
-
-  const handleUpdateTemplates = (updatedTemplates: Record<string, EmailTemplate>) => {
-    setEmailTemplates(updatedTemplates);
-    // Here you could also save to localStorage or database
-    localStorage.setItem('steinbock_email_templates', JSON.stringify(updatedTemplates));
-    toast({
-      title: "Vorlagen aktualisiert",
-      description: "Ihre E-Mail-Vorlagen wurden erfolgreich gespeichert."
-    });
-  };
+  
+  // Use the email templates hook
+  const { 
+    templates: emailTemplates, 
+    isLoading: templatesLoading,
+    createTemplate,
+    updateTemplate,
+    deleteTemplate 
+  } = useEmailTemplates();
 
   // Fetch guest segments for targeting
   const { data: segmentData } = useQuery({
@@ -540,10 +447,11 @@ Ihr Steinbock Chalets Team`
       </TabsContent>
 
       <TabsContent value="manage">
-        <EmailTemplateEditor 
-          templates={emailTemplates}
-          onUpdateTemplate={handleUpdateTemplates}
-        />
+            <EmailTemplateEditor 
+              onCreateTemplate={createTemplate}
+              onUpdateTemplate={updateTemplate}
+              onDeleteTemplate={deleteTemplate}
+            />
       </TabsContent>
     </Tabs>
   );
