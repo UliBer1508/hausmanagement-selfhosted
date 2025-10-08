@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { SmtpClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
+import nodemailer from "npm:nodemailer@6.9.7";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,39 +50,40 @@ const handler = async (req: Request): Promise<Response> => {
       emailContent = emailContent.replace(/\{GUEST_NAME\}/g, guestName);
     }
 
-    console.log("Connecting to Gmail SMTP...");
+    console.log("Creating Gmail transporter...");
     
-    const client = new SmtpClient();
-    
-    await client.connectTLS({
-      hostname: "smtp.gmail.com",
+    // Create nodemailer transporter for Gmail
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
       port: 587,
-      username: "steinbockchalets@gmail.com",
-      password: gmailPassword,
+      secure: false, // use TLS
+      auth: {
+        user: "steinbockchalets@gmail.com",
+        pass: gmailPassword,
+      },
     });
 
-    console.log("Connected to Gmail SMTP. Sending emails...");
+    console.log("Sending emails...");
 
     // Send email to all recipients
     for (const recipient of to) {
       try {
-        await client.send({
-          from: "steinbockchalets@gmail.com",
+        const info = await transporter.sendMail({
+          from: '"Steinbock Chalets" <steinbockchalets@gmail.com>',
           to: recipient,
           subject: subject,
-          content: emailContent,
-          mimeType: html ? "text/html" : "text/plain",
+          text: html ? undefined : emailContent,
+          html: html ? emailContent : undefined,
         });
-        console.log(`Email sent successfully to: ${recipient}`);
+        console.log(`Email sent successfully to: ${recipient}`, info.messageId);
       } catch (error) {
         console.error(`Failed to send email to ${recipient}:`, error);
         throw error;
       }
     }
 
-    // Close connection
-    await client.close();
-    console.log("SMTP connection closed");
+    // Nodemailer doesn't need explicit close
+    console.log("All emails sent successfully");
 
     const emailResults = {
       success: true, 
