@@ -40,19 +40,30 @@ const ServiceHeader = ({ selectedService, onServiceChange, provider }: ServiceHe
     <>
     <Card className="p-6 mb-6 card-glow">
       <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className={`p-3 rounded-xl ${currentConfig.bgColor}`}>
-            <ServiceIcon className={`w-6 h-6 bg-gradient-to-r ${currentConfig.color} bg-clip-text text-transparent`} />
+        <div className="space-y-3">
+          <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${currentConfig.bgColor}`}>
+              <ServiceIcon className={`w-6 h-6 bg-gradient-to-r ${currentConfig.color} bg-clip-text text-transparent`} />
+            </div>
+            
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">{currentConfig.title}</h1>
+              <p className="text-muted-foreground">{currentConfig.provider}</p>
+            </div>
+            
+            <Badge className="bg-primary-green/20 text-primary-green">
+              Online
+            </Badge>
           </div>
           
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{currentConfig.title}</h1>
-            <p className="text-muted-foreground">{currentConfig.provider}</p>
-          </div>
-          
-          <Badge className="bg-primary-green/20 text-primary-green">
-            Online
-          </Badge>
+          <Button
+            variant="outline"
+            onClick={() => setIsProviderDialogOpen(true)}
+            className="gap-2 hover:bg-accent"
+          >
+            <Building2 className="w-4 h-4" />
+            Provider Verwalten
+          </Button>
         </div>
 
         <div className="flex items-center gap-3">
@@ -79,10 +90,6 @@ const ServiceHeader = ({ selectedService, onServiceChange, provider }: ServiceHe
           </div>
 
           {/* User Actions */}
-          <Button variant="ghost" size="sm" onClick={() => setIsProviderDialogOpen(true)}>
-            <Building2 className="w-4 h-4" />
-          </Button>
-
           <Button variant="ghost" size="sm">
             <Bell className="w-4 h-4" />
           </Button>
