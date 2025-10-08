@@ -35,6 +35,7 @@ interface OptimizationResult {
 
 export const useLinenAI = () => {
   const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
   const [aiSettings, setAISettings] = useState<AISettings>({
     lookahead_bookings: 3,
@@ -86,9 +87,12 @@ export const useLinenAI = () => {
   }, []);
 
   const saveAISettings = useCallback(async (houseId: string) => {
+    console.log('🔄 Saving AI settings for house:', houseId, aiSettings);
+    setIsSavingSettings(true);
+    
     try {
       // Speichere AI-Einstellungen in der Datenbank mit korrektem upsert
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('ai_linen_settings')
         .upsert({
           house_id: houseId,
@@ -99,19 +103,23 @@ export const useLinenAI = () => {
           seasonal_factor: aiSettings.seasonal_factor,
           prices: aiSettings.prices
         }, {
-          onConflict: 'house_id',  // Wichtig: Konflikt auf house_id beheben
-          ignoreDuplicates: false  // Update bei Duplikaten
-        });
+          onConflict: 'house_id',
+          ignoreDuplicates: false
+        })
+        .select();
 
       if (error) {
-        console.error('Error saving AI settings:', error);
+        console.error('❌ Error saving AI settings:', error);
+        setIsSavingSettings(false);
         return false;
       }
 
-      console.log('AI settings saved successfully for house:', houseId);
+      console.log('✅ AI settings saved successfully:', data);
+      setIsSavingSettings(false);
       return true;
     } catch (error) {
-      console.error('Failed to save AI settings:', error);
+      console.error('❌ Failed to save AI settings:', error);
+      setIsSavingSettings(false);
       return false;
     }
   }, [aiSettings]);
@@ -205,6 +213,7 @@ export const useLinenAI = () => {
   return {
     // State
     isOptimizing,
+    isSavingSettings,
     optimization,
     aiSettings,
     

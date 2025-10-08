@@ -35,6 +35,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
   // KI-Einstellungen Hook
   const {
     aiSettings,
+    isSavingSettings,
     updateAISettings,
     saveAISettings,
     loadAISettings
@@ -197,6 +198,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
               onSettingsChange={updateAISettings}
               onSave={() => saveAISettings(house.id)}
               onLoad={loadAISettings}
+              isSaving={isSavingSettings}
             />
           </TabsContent>
           

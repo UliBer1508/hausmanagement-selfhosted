@@ -31,7 +31,7 @@ interface SmartLinenSettingsProps {
   onSettingsChange: (settings: AISettings) => void;
   onSave: () => Promise<boolean>;
   onLoad: (houseId: string) => void;
-  isLoading?: boolean;
+  isSaving?: boolean;
 }
 
 const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
@@ -40,7 +40,7 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
   onSettingsChange,
   onSave,
   onLoad,
-  isLoading = false
+  isSaving = false
 }) => {
   const { toast } = useToast();
   
@@ -90,19 +90,39 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
   };
 
   const handleSave = async () => {
-    onSettingsChange(localSettings);
-    const success = await onSave();
+    console.log('💾 Save button clicked in SmartLinenSettings');
+    console.log('📋 Current settings:', localSettings);
     
-    if (success) {
+    try {
+      console.log('📤 Updating parent settings...');
+      onSettingsChange(localSettings);
+      
+      console.log('⏳ Calling onSave()...');
+      const success = await onSave();
+      
+      console.log('📊 Save result:', success);
+      
+      if (success) {
+        toast({
+          title: "✅ Einstellungen gespeichert",
+          description: "Die KI-Parameter wurden erfolgreich in der Datenbank gespeichert",
+          duration: 5000,
+        });
+      } else {
+        toast({
+          title: "❌ Fehler beim Speichern",
+          description: "Die Einstellungen konnten nicht gespeichert werden. Bitte versuchen Sie es erneut.",
+          variant: "destructive",
+          duration: 7000,
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error in handleSave:', error);
       toast({
-        title: "Einstellungen gespeichert",
-        description: "Die KI-Parameter wurden erfolgreich in der Datenbank gespeichert",
-      });
-    } else {
-      toast({
-        title: "Fehler beim Speichern",
-        description: "Die Einstellungen konnten nicht gespeichert werden",
+        title: "❌ Fehler",
+        description: "Ein unerwarteter Fehler ist aufgetreten.",
         variant: "destructive",
+        duration: 7000,
       });
     }
   };
@@ -298,11 +318,11 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
 
         {/* Aktionen */}
         <div className="flex gap-2 pt-2">
-          <Button onClick={handleSave} disabled={isLoading} className="flex-1">
+          <Button onClick={handleSave} disabled={isSaving} className="flex-1">
             <Save className="w-4 h-4 mr-2" />
-            {isLoading ? 'Speichern...' : 'Einstellungen speichern'}
+            {isSaving ? 'Speichern...' : 'Einstellungen speichern'}
           </Button>
-          <Button variant="outline" onClick={handleReset} disabled={isLoading}>
+          <Button variant="outline" onClick={handleReset} disabled={isSaving}>
             <RotateCcw className="w-4 h-4 mr-2" />
             Zurücksetzen
           </Button>
