@@ -7,8 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
+import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import LinenInventoryDashboard from './LinenInventoryDashboard';
 import SmartLinenInventoryDashboard from './SmartLinenInventoryDashboard';
+import LinenOrderDialog from './LinenOrderDialog';
 
 interface HouseLinenStatus {
   house: any;
@@ -22,6 +25,12 @@ interface HouseLinenStatus {
 
 const LinenDashboard = () => {
   const [selectedHouse, setSelectedHouse] = useState<any>(null);
+  const [showOrderDialog, setShowOrderDialog] = useState(false);
+  const [orderHouse, setOrderHouse] = useState<any>(null);
+  const [calculatedOrderItems, setCalculatedOrderItems] = useState<Record<string, number>>({});
+  
+  const { toast } = useToast();
+  const { createOptimizedOrderMutation } = useOptimizedLinenManagement();
 
   // Fetch all houses with linen data
   const { data: houses, isLoading } = useQuery({
@@ -157,6 +166,82 @@ const LinenDashboard = () => {
         );
       default: 
         return null;
+    }
+  };
+
+  // Handle quick order creation
+  const handleQuickOrder = (houseStatus: HouseLinenStatus) => {
+    console.log('🛒 Quick order for', houseStatus.house.name);
+    
+    const house = houseStatus.house;
+    const linenStock = house.linen_stock || {};
+    const orderedLinen = house.ordered_linen || {};
+    const linenDef = house.linen_set_definitions?.[0] || {};
+    const houseBookings = upcomingBookings?.filter(b => b.house_id === house.id) || [];
+    const nearTermBookings = houseBookings.slice(0, 3); // Next 3 bookings
+    
+    const linenTypes = [
+      'bedding', 'large_towels', 'small_towels', 'sauna_towels',
+      'bath_mats', 'sink_towels', 'kitchen_towels', 'blankets', 'pillow_cases'
+    ];
+
+    const orderItems: Record<string, number> = {};
+    
+    // Calculate deficits for each linen type
+    linenTypes.forEach(type => {
+      const currentStock = (linenStock[type] || 0) + (orderedLinen[type] || 0);
+      
+      let demand = 0;
+      nearTermBookings.forEach(booking => {
+        const perGuestKey = `${type}_per_guest`;
+        const perBookingKey = `${type}_per_booking`;
+        
+        if (linenDef[perGuestKey]) {
+          demand += booking.number_of_guests * linenDef[perGuestKey];
+        } else if (linenDef[perBookingKey]) {
+          demand += linenDef[perBookingKey];
+        }
+      });
+
+      const deficit = Math.max(0, demand - currentStock);
+      if (deficit > 0) {
+        orderItems[type] = deficit;
+      }
+    });
+
+    if (Object.keys(orderItems).length > 0) {
+      setOrderHouse(house);
+      setCalculatedOrderItems(orderItems);
+      setShowOrderDialog(true);
+    } else {
+      toast({
+        title: "Keine Bestellung nötig",
+        description: "Ausreichend Lagerbestand für die nächsten Buchungen.",
+      });
+    }
+  };
+
+  // Handle order creation from dialog
+  const handleOrderCreation = async (orderData: any) => {
+    try {
+      await createOptimizedOrderMutation.mutateAsync({
+        houseId: orderHouse.id,
+        orderItems: orderData.orderItems,
+        notes: orderData.notes,
+        deliveryDate: orderData.deliveryDate,
+        priority: 'normal'
+      });
+
+      setShowOrderDialog(false);
+      setOrderHouse(null);
+      setCalculatedOrderItems({});
+      
+      toast({
+        title: "Bestellung erstellt",
+        description: "Die Wäschebestellung wurde erfolgreich angelegt.",
+      });
+    } catch (error) {
+      console.error('❌ Fehler beim Erstellen der Bestellung:', error);
     }
   };
 
@@ -322,10 +407,7 @@ const LinenDashboard = () => {
                   <Button
                     size="sm"
                     className="flex-1"
-                    onClick={() => {
-                      // Open quick order dialog
-                      console.log('Quick order for', houseStatus.house.name);
-                    }}
+                    onClick={() => handleQuickOrder(houseStatus)}
                   >
                     <span className="mr-1">🛒</span>
                     Bestellen
@@ -364,6 +446,20 @@ const LinenDashboard = () => {
           </div>
           <SmartLinenInventoryDashboard house={selectedHouse} />
         </div>
+      )}
+
+      {/* Linen Order Dialog */}
+      {orderHouse && (
+        <LinenOrderDialog
+          open={showOrderDialog}
+          onOpenChange={setShowOrderDialog}
+          orderItems={calculatedOrderItems}
+          houseName={orderHouse.name || 'Unbekannt'}
+          houseId={orderHouse.id}
+          onCreateOrder={handleOrderCreation}
+          isCreating={createOptimizedOrderMutation.isPending}
+          allowExceptionalOrder={true}
+        />
       )}
     </div>
   );
