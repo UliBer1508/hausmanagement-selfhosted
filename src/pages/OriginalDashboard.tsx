@@ -1546,16 +1546,6 @@ const OriginalDashboard = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button 
-              onClick={() => setIsProviderDialogOpen(true)}
-              className="gap-2"
-              variant="default"
-            >
-              <Building2 className="w-4 h-4" />
-              <span className="hidden sm:inline">Provider Verwalten</span>
-            </Button>
-          </div>
         </div>
       </div>
 
