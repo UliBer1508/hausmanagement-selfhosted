@@ -2,3 +2,6 @@ project_id = "usblrulkcgucxtkhugck"
 
 [functions.send-gmail]
 verify_jwt = false
+
+[functions.generate-personalized-email]
+verify_jwt = false
