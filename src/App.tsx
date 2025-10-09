@@ -17,6 +17,7 @@ import Guests from "./pages/Guests";
 import Laundry from "./pages/Laundry";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import ChatAssistant from "./components/Chat/ChatAssistant";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +54,7 @@ const App = () => {
             </Routes>
           </div>
         </BrowserRouter>
+        <ChatAssistant />
       </TooltipProvider>
     </QueryClientProvider>
   );
