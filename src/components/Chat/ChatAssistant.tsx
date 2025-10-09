@@ -49,17 +49,18 @@ const ChatAssistant = () => {
           />
           
           {/* Draggable Window */}
-          <Draggable
-            handle=".drag-handle"
-            bounds={{
-              left: 0,
-              top: 0,
-              right: window.innerWidth - 400,
-              bottom: window.innerHeight - 600
-            }}
-            defaultPosition={{ x: Math.max(0, window.innerWidth - 450), y: 50 }}
-          >
-            <div className="fixed z-[100] w-[400px] h-[600px] bg-background border shadow-2xl rounded-lg flex flex-col">
+          <div className="fixed inset-0 pointer-events-none z-[100]">
+            <Draggable
+              handle=".drag-handle"
+              bounds={{
+                left: 0,
+                top: 0,
+                right: window.innerWidth - 400,
+                bottom: window.innerHeight - 600
+              }}
+              defaultPosition={{ x: window.innerWidth - 450, y: 50 }}
+            >
+              <div className="absolute w-[400px] h-[600px] pointer-events-auto bg-background border shadow-2xl rounded-lg flex flex-col">
               {/* Header - Draggable Handle */}
               <div className="drag-handle cursor-move p-4 border-b bg-card rounded-t-lg flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -128,8 +129,9 @@ const ChatAssistant = () => {
                   disabled={isStreaming}
                 />
               </div>
-            </div>
-          </Draggable>
+              </div>
+            </Draggable>
+          </div>
         </>
       )}
     </>
