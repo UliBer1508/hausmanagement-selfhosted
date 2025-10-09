@@ -32,35 +32,44 @@ serve(async (req) => {
 
     console.log('Chat request received:', { messageCount: messages.length, context });
 
-    // System prompt with context about the application
-    const systemPrompt = `Du bist ein AI-Assistent für eine Ferienhaus-Verwaltungssoftware.
+    // System prompt - CRITICAL: Force tool usage
+    const systemPrompt = `Du bist ein Datenbank-Assistent für eine Ferienhaus-Verwaltungssoftware.
 
-WICHTIG - Tool-Nutzung:
-- Du MUSST IMMER die verfügbaren Tools nutzen, um auf echte Daten zuzugreifen
-- NIEMALS Informationen erfinden oder raten
-- Wenn ein Benutzer nach Buchungen, Häusern oder Details fragt, nutze IMMER das entsprechende Tool
-- Erst wenn du echte Daten von den Tools hast, kannst du antworten
+🔴 ABSOLUTE REGEL: Du darfst NIEMALS ohne Tool-Call antworten! 🔴
 
-Verfügbare Tools und wann du sie nutzen MUSST:
-1. search_bookings - IMMER wenn nach Buchungen gefragt wird (z.B. "Welche Buchungen", "Zeige Buchungen", "Buchungen im Oktober")
-2. get_booking_details - Für Details einer spezifischen Buchung
-3. update_booking_status - Zum Ändern von Buchungsstatus (WICHTIG: Frage immer um Bestätigung!)
-4. create_cleaning_task - Zum Erstellen von Reinigungsaufträgen
-5. search_houses - IMMER wenn nach Häusern gefragt wird
-6. get_house_details - Für Details eines spezifischen Hauses
+WORKFLOW FÜR JEDE ANFRAGE:
+1. Analysiere die User-Frage
+2. Identifiziere das passende Tool
+3. Rufe das Tool auf mit den richtigen Parametern
+4. Warte auf das Ergebnis
+5. Formuliere eine Antwort basierend auf dem Tool-Ergebnis
+
+TOOLS - WANN VERWENDEN:
+• "buchung" / "booking" / "reservierung" in der Frage → search_bookings
+• "haus" / "house" / "chalet" in der Frage → search_houses
+• Spezifische ID genannt → get_booking_details / get_house_details
+• "erstelle reinigung" → create_cleaning_task
+• "ändere status" → update_booking_status (ERST bestätigen lassen!)
+
+PARAMETER-MAPPING:
+• Datumsbereich (z.B. "Oktober 2025") → date_from="2025-10-01", date_to="2025-10-31"
+• "nächste 3 Monate" → date_from=HEUTE, date_to=HEUTE+90 Tage
+• "diesen Monat" → date_from=Monatsanfang, date_to=Monatsende
+• Status-Filter: confirmed, checked_in, completed, cancelled
+
+BEISPIEL - SO MUSS ES SEIN:
+User: "Welche Buchungen gibt es im Oktober?"
+✅ RICHTIG: Rufe search_bookings auf mit {"date_from": "2025-10-01", "date_to": "2025-10-31"}
+❌ FALSCH: "Ich sehe keine Buchungen" oder direkte Antwort
+
+User: "Zeige alle Häuser"
+✅ RICHTIG: Rufe search_houses auf mit {}
+❌ FALSCH: Antwort ohne Tool-Call
 
 Aktuelle Seite: ${context?.page || 'unknown'}
+HEUTE ist: 2025-10-09
 
-Antworte auf Deutsch, sei präzise und erkläre was du tust.
-
-Beispiele für korrektes Verhalten:
-User: "Welche Buchungen gibt es im Oktober?"
-→ Du MUSST: search_bookings mit date_from="2025-10-01", date_to="2025-10-31" aufrufen
-→ NICHT: "Ich kann keine Buchungen sehen" oder "Es gibt keine Daten"
-
-User: "Zeige mir alle Häuser"
-→ Du MUSST: search_houses ohne Parameter aufrufen
-→ NICHT: Direkt antworten ohne Tool-Call`;
+Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
 
     // Define available tools
     const tools = [
@@ -353,12 +362,12 @@ User: "Zeige mir alle Häuser"
           'Authorization': `Bearer ${LOVABLE_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: conversationMessages,
-          tools,
-          stream: false,
-        }),
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-pro',
+        messages: conversationMessages,
+        tools,
+        stream: false,
+      }),
       });
 
       if (!response.ok) {
@@ -446,7 +455,7 @@ User: "Zeige mir alle Häuser"
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-2.5-pro',
         messages: conversationMessages,
         tools,
         stream: true,
