@@ -26,7 +26,7 @@ export const useDashboardData = () => {
         totalHouses: houses.length,
         activeBookings: bookings.filter(b => b.status === 'confirmed').length,
         pendingTasks: tasks.filter(t => t.status === 'scheduled').length,
-        totalRevenue: bookings.reduce((sum, b) => sum + (b.booking_amount || 0), 0)
+        totalRevenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0)
       };
 
       return {

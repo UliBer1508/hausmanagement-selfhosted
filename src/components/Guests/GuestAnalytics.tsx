@@ -84,7 +84,7 @@ const GuestAnalytics = () => {
         nationalityData,
         avgStayDuration: Math.round(avgStayDuration * 10) / 10,
         durationData,
-        totalRevenue: bookings.reduce((sum, b) => sum + (b.booking_amount || 0), 0),
+        totalRevenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
         totalBookings: bookings.length,
         totalGuests: bookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0)
       };

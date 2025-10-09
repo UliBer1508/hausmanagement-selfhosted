@@ -273,7 +273,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
     total: bookingsData?.length || 0,
     confirmed: bookingsData?.filter(b => b.status === 'confirmed').length || 0,
     completed: bookingsData?.filter(b => b.status === 'completed').length || 0,
-    totalRevenue: bookingsData?.reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
+    totalRevenue: bookingsData?.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
   };
 
   // Statistics for filtered results (for reference only)
@@ -281,7 +281,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
     total: filteredBookings.length,
     confirmed: filteredBookings.filter(b => b.status === 'confirmed').length,
     completed: filteredBookings.filter(b => b.status === 'completed').length,
-    totalRevenue: filteredBookings.reduce((sum, b) => sum + (b.booking_amount || 0), 0)
+    totalRevenue: filteredBookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0)
   };
 
   const getStatusBadge = (status: string) => {
