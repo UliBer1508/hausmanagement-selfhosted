@@ -141,7 +141,21 @@ const CleaningManagement = () => {
       }
 
       const { data } = await query;
-      return data || [];
+
+      // Apply search filter on client side
+      let filteredData = data || [];
+
+      if (taskSearchTerm && taskSearchTerm.trim() !== '') {
+        const searchLower = taskSearchTerm.trim().toLowerCase();
+        filteredData = filteredData.filter(task => {
+          const guestName = task.bookings?.guest_name?.toLowerCase() || '';
+          const houseName = task.houses?.name?.toLowerCase() || '';
+          
+          return guestName.includes(searchLower) || houseName.includes(searchLower);
+        });
+      }
+
+      return filteredData;
     },
   });
 
