@@ -453,12 +453,49 @@ Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
       // No more tool calls, break the loop
       console.log('No more tool calls, preparing final response');
       
-      // Explizite Anweisung für strukturierte Antwort
-      conversationMessages.push({
-        role: 'user',
-        content: 'Formatiere die Tool-Results in einer klaren, strukturierten deutschen Antwort. Zeige ALLE Daten, auch wenn Status="cancelled"!'
+      // Extrahiere Tool-Results und formatiere sie in einer User-Message
+      const toolResults: any[] = [];
+      const messagesForFinal = conversationMessages.filter(msg => {
+        if (msg.role === 'tool') {
+          try {
+            toolResults.push(JSON.parse(msg.content));
+          } catch (e) {
+            console.error('Failed to parse tool result:', e);
+          }
+          return false; // Entferne tool messages
+        }
+        if (msg.role === 'assistant' && msg.tool_calls) {
+          return false; // Entferne assistant messages mit tool_calls
+        }
+        return true;
       });
       
+      // Formatiere Tool-Results als lesbaren Text
+      let resultsText = 'Hier sind die Ergebnisse der Suche:\n\n';
+      toolResults.forEach(result => {
+        if (result.bookings && Array.isArray(result.bookings)) {
+          resultsText += `Gefundene Buchungen (${result.count}):\n`;
+          result.bookings.forEach((b: any, i: number) => {
+            resultsText += `\nBuchung ${i + 1}:\n`;
+            resultsText += `- Gast: ${b.guest_name}\n`;
+            resultsText += `- Check-in: ${new Date(b.check_in).toLocaleString('de-DE')}\n`;
+            resultsText += `- Check-out: ${new Date(b.check_out).toLocaleString('de-DE')}\n`;
+            resultsText += `- Gäste: ${b.number_of_guests}\n`;
+            resultsText += `- Status: ${b.status}\n`;
+            if (b.houses?.name) resultsText += `- Haus: ${b.houses.name}\n`;
+            if (b.booking_amount) resultsText += `- Betrag: ${b.booking_amount} ${b.currency || 'EUR'}\n`;
+          });
+        }
+      });
+      
+      resultsText += '\n\nBitte formatiere diese Informationen in einer klaren, strukturierten deutschen Antwort. Hebe den Status besonders hervor, wenn er "cancelled" ist!';
+      
+      messagesForFinal.push({
+        role: 'user',
+        content: resultsText
+      });
+      
+      conversationMessages = messagesForFinal;
       break;
     }
 
