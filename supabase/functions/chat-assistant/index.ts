@@ -501,7 +501,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
           'Content-Type': 'application/json',
         },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
+        model: 'google/gemini-2.5-flash', // Flash statt Pro - viel schneller
         messages: conversationMessages,
         tools,
         stream: false,
