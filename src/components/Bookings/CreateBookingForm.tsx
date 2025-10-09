@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCreateBooking, useUpdateBooking } from '@/hooks/useBookings';
+import { useUpdateServiceTask } from '@/hooks/useServiceTasks';
 import { Booking, BookingWithHouse } from '@/types';
 
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,16 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 
 const bookingSchema = z.object({
@@ -117,10 +128,15 @@ interface CreateBookingFormProps {
 
 const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }: CreateBookingFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCancelCleaningDialog, setShowCancelCleaningDialog] = useState(false);
+  const [relatedCleaningTasks, setRelatedCleaningTasks] = useState<any[]>([]);
+  const [pendingBookingData, setPendingBookingData] = useState<any>(null);
+  
   const { toast } = useToast();
 
   const createBooking = useCreateBooking();
   const updateBooking = useUpdateBooking();
+  const updateServiceTask = useUpdateServiceTask();
 
   // Set default values based on mode and initial data
   const getDefaultValues = () => {
@@ -183,8 +199,52 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
 
   const onSubmit = async (data: BookingFormData) => {
     console.log('Form submit - mode:', mode, 'data:', data, 'initialData:', initialData);
-    setIsSubmitting(true);
     
+    try {
+      setIsSubmitting(true);
+      
+      // Prüfen ob Status zu "cancelled" wechselt (nur im Edit-Mode)
+      const isBeingCancelled = mode === 'edit' && 
+                              initialData?.status !== 'cancelled' && 
+                              data.status === 'cancelled';
+      
+      if (isBeingCancelled && initialData?.id) {
+        // Suche nach zugehörigen Reinigungsaufträgen
+        const { data: cleaningTasks, error: tasksError } = await supabase
+          .from('service_tasks')
+          .select('*')
+          .eq('booking_id', initialData.id)
+          .eq('service_type', 'cleaning')
+          .neq('status', 'cancelled')
+          .neq('status', 'completed');
+        
+        if (tasksError) throw tasksError;
+        
+        if (cleaningTasks && cleaningTasks.length > 0) {
+          // Aufgaben gefunden - Dialog anzeigen
+          setRelatedCleaningTasks(cleaningTasks);
+          setPendingBookingData(data);
+          setShowCancelCleaningDialog(true);
+          setIsSubmitting(false);
+          return; // Warten auf Benutzerentscheidung
+        }
+      }
+      
+      // Normale Buchungsaktualisierung fortsetzen
+      await performBookingUpdate(data);
+      
+    } catch (error: any) {
+      console.error('Booking error:', error);
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Fehler beim Speichern der Buchung',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+    }
+  };
+
+  const performBookingUpdate = async (data: BookingFormData) => {
     try {
       // Check for conflicting bookings (skip for same booking in edit mode)
       let query = supabase
@@ -219,7 +279,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         number_of_guests: data.number_of_guests,
         check_in: data.check_in.toISOString(),
         check_out: data.check_out.toISOString(),
-        guest_name: data.guest_name.trim(), // Remove any leading/trailing whitespace
+        guest_name: data.guest_name.trim(),
         guest_email: data.guest_email || null,
         guest_phone: data.guest_phone || null,
         nationality: (data.nationality && data.nationality !== 'none' && data.nationality !== '') ? data.nationality : null,
@@ -259,17 +319,70 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
 
       onSuccess();
     } catch (error: any) {
-      console.error('Booking error:', error);
+      console.error('Booking update error:', error);
       toast({
         title: 'Fehler',
-        description: mode === 'edit' 
-          ? 'Die Buchung konnte nicht aktualisiert werden.'
-          : 'Die Buchung konnte nicht erstellt werden.',
+        description: error.message || 'Fehler beim Speichern der Buchung',
         variant: 'destructive',
       });
+      throw error;
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleCancelCleaningTasks = async () => {
+    try {
+      setShowCancelCleaningDialog(false);
+      setIsSubmitting(true);
+      
+      // Alle gefundenen Reinigungsaufträge auf "cancelled" setzen
+      for (const task of relatedCleaningTasks) {
+        await updateServiceTask.mutateAsync({
+          id: task.id,
+          status: 'cancelled',
+        });
+      }
+      
+      toast({
+        title: 'Reinigungsaufträge storniert',
+        description: `${relatedCleaningTasks.length} ${relatedCleaningTasks.length === 1 ? 'Reinigungsauftrag wurde' : 'Reinigungsaufträge wurden'} auf "Storniert" gesetzt.`,
+      });
+      
+      // Jetzt die Buchung aktualisieren
+      if (pendingBookingData) {
+        await performBookingUpdate(pendingBookingData);
+      }
+      
+    } catch (error: any) {
+      console.error('Error cancelling cleaning tasks:', error);
+      toast({
+        title: 'Fehler',
+        description: 'Fehler beim Stornieren der Reinigungsaufträge',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+    } finally {
+      setRelatedCleaningTasks([]);
+      setPendingBookingData(null);
+    }
+  };
+
+  const handleKeepCleaningTasks = async () => {
+    setShowCancelCleaningDialog(false);
+    
+    toast({
+      title: 'Reinigungsaufträge beibehalten',
+      description: 'Die Reinigungsaufträge bleiben aktiv.',
+    });
+    
+    // Nur Buchung aktualisieren
+    if (pendingBookingData) {
+      await performBookingUpdate(pendingBookingData);
+    }
+    
+    setRelatedCleaningTasks([]);
+    setPendingBookingData(null);
   };
 
   return (
@@ -602,6 +715,53 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
           )}
         </div>
       </form>
+
+      {/* AlertDialog für Reinigungsstornierung */}
+      <AlertDialog open={showCancelCleaningDialog} onOpenChange={setShowCancelCleaningDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reinigungsaufträge stornieren?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Diese Buchung hat {relatedCleaningTasks.length} zugehörige{' '}
+              {relatedCleaningTasks.length === 1 ? 'Reinigungsauftrag' : 'Reinigungsaufträge'}:
+              
+              <div className="mt-3 space-y-2">
+                {relatedCleaningTasks.map((task, index) => (
+                  <div key={task.id} className="text-sm bg-muted p-2 rounded">
+                    <div className="font-medium">Reinigung #{index + 1}</div>
+                    <div>Datum: {format(new Date(task.scheduled_date), 'dd.MM.yyyy', { locale: de })}</div>
+                    {task.scheduled_time && <div>Zeit: {task.scheduled_time}</div>}
+                    <div className="text-muted-foreground">Status: {task.status}</div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mt-4">
+                Möchten Sie {relatedCleaningTasks.length === 1 ? 'diesen Reinigungsauftrag' : 'diese Reinigungsaufträge'} ebenfalls auf "Storniert" setzen?
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowCancelCleaningDialog(false);
+              setIsSubmitting(false);
+              setRelatedCleaningTasks([]);
+              setPendingBookingData(null);
+            }}>
+              Abbrechen
+            </AlertDialogCancel>
+            <Button 
+              variant="outline" 
+              onClick={handleKeepCleaningTasks}
+            >
+              Nein, beibehalten
+            </Button>
+            <AlertDialogAction onClick={handleCancelCleaningTasks}>
+              Ja, stornieren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Form>
   );
 };
