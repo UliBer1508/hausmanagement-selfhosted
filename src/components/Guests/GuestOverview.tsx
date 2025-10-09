@@ -76,31 +76,39 @@ const GuestOverview = () => {
             last_booking: null,
             next_booking: null,
             stay_count: 0,
+            active_booking_count: 0,
             category: 'new', // will be determined later
           });
         }
 
         const guest = guestMap.get(guestKey);
         guest.bookings.push(booking);
-        guest.total_revenue += booking.booking_amount || 0;
         guest.stay_count += 1;
 
-        // Determine last and next bookings
+        // Only count revenue for non-cancelled bookings
+        if (booking.status !== 'cancelled') {
+          guest.total_revenue += booking.booking_amount || 0;
+          guest.active_booking_count += 1;
+        }
+
+        // Determine last and next bookings (only non-cancelled)
         const bookingDate = new Date(booking.check_in);
         const now = new Date();
 
-        if (bookingDate <= now) {
-          if (!guest.last_booking || new Date(booking.check_in) > new Date(guest.last_booking.check_in)) {
-            guest.last_booking = booking;
-          }
-        } else {
-          if (!guest.next_booking || new Date(booking.check_in) < new Date(guest.next_booking.check_in)) {
-            guest.next_booking = booking;
+        if (booking.status !== 'cancelled') {
+          if (bookingDate <= now) {
+            if (!guest.last_booking || new Date(booking.check_in) > new Date(guest.last_booking.check_in)) {
+              guest.last_booking = booking;
+            }
+          } else {
+            if (!guest.next_booking || new Date(booking.check_in) < new Date(guest.next_booking.check_in)) {
+              guest.next_booking = booking;
+            }
           }
         }
 
-        // Determine category
-        if (guest.stay_count > 1) {
+        // Determine category based on active bookings only
+        if (guest.active_booking_count > 1) {
           guest.category = 'returning';
         }
       });

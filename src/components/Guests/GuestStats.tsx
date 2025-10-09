@@ -7,12 +7,13 @@ const GuestStats = () => {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['guest-stats'],
     queryFn: async () => {
-      // Get overall statistics
+      // Get overall statistics (exclude cancelled bookings)
       const { data: overallStats } = await supabase
         .from('bookings')
-        .select('guest_name, booking_amount, check_in, check_out')
+        .select('guest_name, booking_amount, check_in, check_out, status')
         .not('guest_name', 'is', null)
-        .not('booking_amount', 'is', null);
+        .not('booking_amount', 'is', null)
+        .neq('status', 'cancelled');
 
       if (!overallStats) return null;
 
@@ -57,6 +58,7 @@ const GuestStats = () => {
         .from('bookings')
         .select('guest_name')
         .not('guest_name', 'is', null)
+        .neq('status', 'cancelled')
         .gte('created_at', sixMonthsAgo.toISOString());
 
       const recentGuestsCount = new Set(recentBookings?.map(b => b.guest_name) || []).size;
