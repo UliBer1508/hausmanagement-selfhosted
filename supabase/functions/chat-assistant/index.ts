@@ -355,7 +355,7 @@ Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
     }
 
     // Build conversation messages
-    const conversationMessages: any[] = [
+    let conversationMessages: any[] = [
       { role: 'system', content: systemPrompt },
       ...messages
     ];
