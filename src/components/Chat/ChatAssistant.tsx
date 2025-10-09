@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { MessageCircle, X } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useChat } from '@/hooks/useChat';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
@@ -38,89 +39,74 @@ const ChatAssistant = () => {
         </Button>
       )}
 
-      {/* Chat Panel */}
-      <div
-        className={`fixed top-0 right-0 h-screen bg-background border-l shadow-xl z-[100] transition-transform duration-300 ease-in-out flex flex-col
-          ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-          w-[90%] sm:w-[60%] max-w-[500px] min-w-[320px]
-        `}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b bg-card">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="h-5 w-5 text-primary" />
-            <h2 className="font-semibold">AI Assistent</h2>
-          </div>
-          <div className="flex items-center gap-2">
-            {messages.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearMessages}
-                className="text-xs"
-              >
-                Löschen
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsOpen(false)}
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 && (
-            <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
-              <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
-              <p className="text-sm">Hallo! Ich bin dein AI-Assistent.</p>
-              <p className="text-xs mt-2">Stelle mir Fragen zu Buchungen, Reinigungen oder Häusern.</p>
-            </div>
-          )}
-          
-          {messages.map((message) => (
-            <ChatMessage key={message.id} message={message} />
-          ))}
-
-          {isStreaming && (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <div className="flex gap-1">
-                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+      {/* Chat Sheet */}
+      <Sheet open={isOpen} onOpenChange={setIsOpen}>
+        <SheetContent 
+          side="right" 
+          className="w-[90%] sm:w-[60%] max-w-[500px] min-w-[320px] h-[85vh] flex flex-col p-0"
+        >
+          {/* Header */}
+          <SheetHeader className="p-4 border-b bg-card">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-primary" />
+                <SheetTitle>AI Assistent</SheetTitle>
               </div>
-              <span>Schreibt...</span>
+              {messages.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearMessages}
+                  className="text-xs"
+                >
+                  Löschen
+                </Button>
+              )}
             </div>
-          )}
+          </SheetHeader>
 
-          {error && (
-            <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm">
-              <p className="font-semibold">Fehler:</p>
-              <p>{error}</p>
-            </div>
-          )}
-        </div>
+          {/* Messages Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                <MessageCircle className="h-12 w-12 mb-4 opacity-50" />
+                <p className="text-sm">Hallo! Ich bin dein AI-Assistent.</p>
+                <p className="text-xs mt-2">Stelle mir Fragen zu Buchungen, Reinigungen oder Häusern.</p>
+              </div>
+            )}
+            
+            {messages.map((message) => (
+              <ChatMessage key={message.id} message={message} />
+            ))}
 
-        {/* Input Area */}
-        <div className="border-t p-4 bg-card">
-          <ChatInput 
-            onSendMessage={handleSendMessage} 
-            disabled={isStreaming}
-          />
-        </div>
-      </div>
+            {isStreaming && (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <span>Schreibt...</span>
+              </div>
+            )}
 
-      {/* Backdrop for mobile */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-[90] lg:hidden"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+            {error && (
+              <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm">
+                <p className="font-semibold">Fehler:</p>
+                <p>{error}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Input Area */}
+          <div className="border-t p-4 bg-card">
+            <ChatInput 
+              onSendMessage={handleSendMessage} 
+              disabled={isStreaming}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 };
