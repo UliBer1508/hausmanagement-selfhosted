@@ -56,22 +56,22 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
   const handleEntityClick = (link: EntityLink) => {
     switch (link.type) {
       case 'booking':
-        navigate('/bookings', { state: { openBookingId: link.id } });
+        navigate('/', { state: { activeTab: 'Buchungen', openBookingId: link.id } });
         break;
       case 'cleaning_task':
-        navigate('/cleaning', { state: { openTaskId: link.id } });
+        navigate('/', { state: { activeTab: 'Reinigung', openTaskId: link.id } });
         break;
       case 'laundry_order':
-        navigate('/laundry', { state: { openOrderId: link.id } });
+        navigate('/', { state: { activeTab: 'Wäsche', openOrderId: link.id } });
         break;
       case 'house':
-        navigate('/houses', { state: { openHouseId: link.id } });
+        navigate('/', { state: { activeTab: 'Häuser', openHouseId: link.id } });
         break;
       case 'guest':
-        navigate('/guests', { state: { openGuestEmail: link.id } });
+        navigate('/', { state: { activeTab: 'Gäste', openGuestEmail: link.id } });
         break;
       case 'calendar':
-        navigate('/dashboard');
+        navigate('/');
         break;
     }
     // Chat schließen nach Navigation

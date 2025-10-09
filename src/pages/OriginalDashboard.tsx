@@ -1,4 +1,5 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -54,9 +55,19 @@ import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderMan
 import { supabase } from '@/integrations/supabase/client';
 
 const OriginalDashboard = () => {
+  const location = useLocation();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState('Übersicht');
+  
+  // Tab-Aktivierung über Navigation State
+  useEffect(() => {
+    if (location.state?.activeTab) {
+      setActiveTab(location.state.activeTab);
+      // State zurücksetzen nach Navigation
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);

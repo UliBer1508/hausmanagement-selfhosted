@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,13 +25,26 @@ interface HouseLinenStatus {
 }
 
 const LinenDashboard = () => {
+  const location = useLocation();
   const [selectedHouse, setSelectedHouse] = useState<any>(null);
   const [showOrderDialog, setShowOrderDialog] = useState(false);
   const [orderHouse, setOrderHouse] = useState<any>(null);
   const [calculatedOrderItems, setCalculatedOrderItems] = useState<Record<string, number>>({});
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [highlightedOrderId, setHighlightedOrderId] = useState<string | null>(null);
   
   const { toast } = useToast();
+  
+  // Automatisches Öffnen einer spezifischen Bestellung
+  useEffect(() => {
+    if (location.state?.openOrderId) {
+      setHighlightedOrderId(location.state.openOrderId);
+      // Nach 3 Sekunden Highlight entfernen
+      setTimeout(() => setHighlightedOrderId(null), 3000);
+      // State zurücksetzen
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
   const { createOptimizedOrderMutation } = useOptimizedLinenManagement();
 
   // Fetch all houses with linen data
