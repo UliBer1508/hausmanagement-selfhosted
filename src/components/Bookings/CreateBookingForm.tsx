@@ -67,6 +67,9 @@ const bookingSchema = z.object({
   currency: z.string().default('EUR'),
   status: z.enum(['confirmed', 'checked_in', 'completed', 'cancelled']).default('confirmed'),
   notes: z.string().optional(),
+  cancellation_date: z.string().optional(),
+  cancellation_reason: z.string().optional(),
+  cancelled_by: z.string().optional(),
 }).refine((data) => data.check_out > data.check_in, {
   message: 'Check-out muss nach Check-in liegen',
   path: ['check_out'],
@@ -209,6 +212,15 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                               data.status === 'cancelled';
       
       if (isBeingCancelled && initialData?.id) {
+        // Frage nach Stornierungsgrund
+        const reason = prompt('Bitte geben Sie den Stornierungsgrund ein (optional):');
+        const cancelledBy = prompt('Storniert durch (z.B. "Gast", "Host", "System"):') || 'Host';
+        
+        // Stornierungsinformationen zur Buchung hinzufügen
+        data.cancellation_date = new Date().toISOString();
+        data.cancellation_reason = reason || undefined;
+        data.cancelled_by = cancelledBy;
+        
         // Suche nach zugehörigen Reinigungsaufträgen
         const { data: cleaningTasks, error: tasksError } = await supabase
           .from('service_tasks')

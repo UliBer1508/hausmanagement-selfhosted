@@ -242,7 +242,7 @@ const GuestDetailsDialog = ({ guest, open, onOpenChange }: GuestDetailsDialogPro
             <div className="space-y-3">
               {sortedBookings.map((booking, index) => (
                 <div key={booking.id || index} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="space-y-1">
+                  <div className="space-y-1 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium">{booking.houses?.name}</span>
                       {getStatusBadge(booking.status)}
@@ -257,8 +257,22 @@ const GuestDetailsDialog = ({ guest, open, onOpenChange }: GuestDetailsDialogPro
                         <span className="ml-3">€{booking.booking_amount.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
                       )}
                     </div>
+                    {booking.status === 'cancelled' && (booking.cancellation_date || booking.cancellation_reason || booking.cancelled_by) && (
+                      <div className="text-xs text-muted-foreground border-t pt-2 mt-2">
+                        <div className="font-medium text-destructive mb-1">Stornierungsinformationen:</div>
+                        {booking.cancellation_date && (
+                          <div>Storniert am: {format(new Date(booking.cancellation_date), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
+                        )}
+                        {booking.cancelled_by && (
+                          <div>Storniert durch: {booking.cancelled_by}</div>
+                        )}
+                        {booking.cancellation_reason && (
+                          <div>Grund: {booking.cancellation_reason}</div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <div className="text-sm text-muted-foreground">
+                  <div className="text-sm text-muted-foreground ml-4">
                     {Math.ceil((new Date(booking.check_out).getTime() - new Date(booking.check_in).getTime()) / (1000 * 60 * 60 * 24))} Tage
                   </div>
                 </div>

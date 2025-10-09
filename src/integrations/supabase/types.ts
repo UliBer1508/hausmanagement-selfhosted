@@ -713,6 +713,9 @@ export type Database = {
       bookings: {
         Row: {
           booking_amount: number | null
+          cancellation_date: string | null
+          cancellation_reason: string | null
+          cancelled_by: string | null
           check_in: string
           check_out: string
           created_at: string | null
@@ -735,6 +738,9 @@ export type Database = {
         }
         Insert: {
           booking_amount?: number | null
+          cancellation_date?: string | null
+          cancellation_reason?: string | null
+          cancelled_by?: string | null
           check_in: string
           check_out: string
           created_at?: string | null
@@ -757,6 +763,9 @@ export type Database = {
         }
         Update: {
           booking_amount?: number | null
+          cancellation_date?: string | null
+          cancellation_reason?: string | null
+          cancelled_by?: string | null
           check_in?: string
           check_out?: string
           created_at?: string | null
@@ -2388,6 +2397,7 @@ export type Database = {
           question_text: string | null
           required: boolean | null
           search_strategy: Json | null
+          special_interests_mapping: Json | null
           step_name: string
           updated_at: string | null
           usage_context: string | null
@@ -2410,6 +2420,7 @@ export type Database = {
           question_text?: string | null
           required?: boolean | null
           search_strategy?: Json | null
+          special_interests_mapping?: Json | null
           step_name: string
           updated_at?: string | null
           usage_context?: string | null
@@ -2432,6 +2443,7 @@ export type Database = {
           question_text?: string | null
           required?: boolean | null
           search_strategy?: Json | null
+          special_interests_mapping?: Json | null
           step_name?: string
           updated_at?: string | null
           usage_context?: string | null

@@ -124,7 +124,20 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                   <div className="flex items-center gap-2">
                     <span className="text-lg">🏠</span>
                     <span>
-                      <span className="font-medium">{guest.stay_count}</span> Buchungen
+                      {(() => {
+                        const cancelledCount = guest.bookings.filter((b: any) => b.status === 'cancelled').length;
+                        const activeCount = guest.stay_count - cancelledCount;
+                        return (
+                          <>
+                            <span className="font-medium">{activeCount}</span> Buchungen
+                            {cancelledCount > 0 && (
+                              <span className="text-muted-foreground ml-1">
+                                ({cancelledCount} storniert)
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </span>
                   </div>
 
