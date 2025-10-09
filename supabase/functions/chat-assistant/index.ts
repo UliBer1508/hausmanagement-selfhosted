@@ -48,6 +48,10 @@ WORKFLOW FÜR JEDE ANFRAGE:
 - Enthält Frage "buchung" ODER nur Gastname? → search_bookings
 - Enthält Frage "reinigung" / "cleaning" / "putzen" ODER "reinigung von [Name]"? → search_cleaning_tasks
 - Enthält Frage "haus" / "chalet"? → search_houses
+- Enthält Frage "gast" / "gäste" / "kunde"? → search_guests
+- Enthält Frage "wäsche" / "linen" / "bettwäsche"? → get_linen_overview / search_linen_orders
+- Enthält Frage "übersicht" / "dashboard" / "statistik"? → get_dashboard_stats
+- Enthält Frage "kalender" / "termine" / "events"? → get_calendar_events
 - Wird eine spezifische UUID erwähnt? → get_*_details Tools
 
 WICHTIG: Bei "reinigung von [Name]" IMMER search_cleaning_tasks aufrufen!
@@ -76,11 +80,50 @@ ANTWORT-FORMATE:
 • Buchung: [guest_name] (falls vorhanden)
 • Notizen: [notes]"
 
+**Gäste:**
+"Ich habe [Anzahl] Gast/Gäste gefunden:
+• Name: [guest_name]
+• Email: [guest_email]
+• Telefon: [guest_phone]
+• Nationalität: [nationality]
+• Anzahl Buchungen: [booking_count]
+• Letzte Buchung: [last_booking_date]"
+
+**Wäschestatus:**
+"Wäsche-Übersicht:
+🟢 [X] Häuser: Optimal versorgt
+🟡 [Y] Häuser: Niedrige Bestände
+🔴 [Z] Häuser: Kritische Bestände
+
+Kritische Häuser:
+• [Haus 1]: [kritische Items]
+• [Haus 2]: [kritische Items]"
+
+**Dashboard:**
+"Übersicht:
+🏠 Häuser: [Anzahl]
+📅 Aktive Buchungen: [Anzahl]
+🧹 Offene Aufgaben: [Anzahl]
+💰 Umsatz: [Betrag]"
+
+**Kalender:**
+"Termine vom [von] bis [bis]:
+📅 Check-ins: [Anzahl]
+🧹 Reinigungen: [Anzahl]
+🧺 Wäsche-Lieferungen: [Anzahl]
+
+Details:
+• [Datum] [Zeit]: [Event-Typ] - [Details]"
+
 TOOLS - KRITISCHE REGELN:
 1. Bei "reinigung von [Name]" → IMMER search_cleaning_tasks mit guest_name Parameter!
 2. Bei nur einem Namen → ERST search_bookings, DANN bei Bedarf search_cleaning_tasks
 3. Bei "haus" / "chalet" → search_houses
-4. Bei UUID → entsprechendes get_*_details Tool
+4. Bei "gast" / "gäste" → search_guests
+5. Bei "wäsche" / "linen" → get_linen_overview
+6. Bei "statistik" / "übersicht" → get_dashboard_stats
+7. Bei "kalender" / "termine" → get_calendar_events
+8. Bei UUID → entsprechendes get_*_details Tool
 
 📋 BEISPIELE FÜR TOOL-CALLS:
 
@@ -97,6 +140,18 @@ User: "Zeige mir die Buchung von Lukas Frankenhauser"
 Beispiel 3:
 User: "Welche Reinigungen sind heute geplant?"
 ✅ Tool: search_cleaning_tasks({"status": "scheduled", "date_from": "2025-10-09", "date_to": "2025-10-09"})
+
+Beispiel 4:
+User: "Zeige mir alle Gäste aus Deutschland"
+✅ Tool: search_guests({"nationality": "Deutschland"})
+
+Beispiel 5:
+User: "Wie ist der Wäschestatus?"
+✅ Tool: get_linen_overview()
+
+Beispiel 6:
+User: "Was passiert nächste Woche?"
+✅ Tool: get_calendar_events({"date_from": "2025-10-13", "date_to": "2025-10-20"})
 
 Aktuelle Seite: ${context?.page || 'unknown'}
 HEUTE ist: 2025-10-09
@@ -230,6 +285,94 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               task_id: { type: "string", description: "UUID des Tasks" }
             },
             required: ["task_id"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_dashboard_stats",
+          description: "Zeigt Übersichts-Statistiken: Anzahl Häuser, Buchungen, Tasks, Umsatz",
+          parameters: {
+            type: "object",
+            properties: {}
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_guests",
+          description: "Sucht Gäste nach Name, Email, Nationalität oder Buchungshistorie",
+          parameters: {
+            type: "object",
+            properties: {
+              guest_name: { type: "string", description: "Name des Gastes (Teilstring-Suche)" },
+              guest_email: { type: "string", description: "Email des Gastes (Teilstring-Suche)" },
+              nationality: { type: "string", description: "Nationalität (Teilstring-Suche)" },
+              min_bookings: { type: "number", description: "Mindestanzahl Buchungen" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_linen_overview",
+          description: "Übersicht aller Häuser mit Wäschestatus (kritisch/niedrig/gut)",
+          parameters: {
+            type: "object",
+            properties: {}
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_house_linen_status",
+          description: "Detaillierter Wäschestatus für ein spezifisches Haus",
+          parameters: {
+            type: "object",
+            properties: {
+              house_id: { type: "string", description: "UUID des Hauses" }
+            },
+            required: ["house_id"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_linen_orders",
+          description: "Sucht Wäschebestellungen nach Kriterien",
+          parameters: {
+            type: "object",
+            properties: {
+              house_id: { type: "string", description: "UUID des Hauses" },
+              status: { type: "string", enum: ["pending", "confirmed", "in_progress", "completed", "cancelled"], description: "Status" },
+              date_from: { type: "string", description: "Von-Datum (ISO 8601)" },
+              date_to: { type: "string", description: "Bis-Datum (ISO 8601)" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_calendar_events",
+          description: "Zeigt alle Termine (Buchungen, Reinigungen) für einen Zeitraum",
+          parameters: {
+            type: "object",
+            properties: {
+              date_from: { type: "string", description: "Von-Datum (ISO 8601)" },
+              date_to: { type: "string", description: "Bis-Datum (ISO 8601)" },
+              event_types: { 
+                type: "array", 
+                items: { type: "string", enum: ["booking", "cleaning", "laundry"] },
+                description: "Event-Typen (optional, default: alle)" 
+              }
+            },
+            required: ["date_from", "date_to"]
           }
         }
       }
@@ -446,6 +589,258 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       return { success: true, task: data };
     }
 
+    async function executeGetDashboardStats() {
+      console.log('Executing get_dashboard_stats');
+      
+      const [housesRes, bookingsRes, tasksRes] = await Promise.all([
+        supabase.from('houses').select('*'),
+        supabase.from('bookings').select('*'),
+        supabase.from('service_tasks').select('*')
+      ]);
+
+      const stats = {
+        totalHouses: housesRes.data?.length || 0,
+        activeBookings: bookingsRes.data?.filter((b: any) => b.status === 'confirmed').length || 0,
+        pendingTasks: tasksRes.data?.filter((t: any) => t.status === 'scheduled').length || 0,
+        totalRevenue: bookingsRes.data?.reduce((sum: number, b: any) => sum + (b.booking_amount || 0), 0) || 0
+      };
+
+      console.log('Dashboard stats:', stats);
+      return { success: true, stats };
+    }
+
+    async function executeSearchGuests(params: any) {
+      console.log('Executing search_guests with params:', params);
+      
+      let query = supabase
+        .from('bookings')
+        .select('guest_name, guest_email, guest_phone, nationality, check_in, check_out, id')
+        .not('guest_name', 'is', null);
+
+      if (params.guest_name) {
+        query = query.ilike('guest_name', `%${params.guest_name}%`);
+      }
+      if (params.guest_email) {
+        query = query.ilike('guest_email', `%${params.guest_email}%`);
+      }
+      if (params.nationality) {
+        query = query.ilike('nationality', `%${params.nationality}%`);
+      }
+
+      const { data, error } = await query.order('check_in', { ascending: false });
+      
+      if (error) {
+        console.error('Error searching guests:', error);
+        return { success: false, error: error.message };
+      }
+
+      // Gruppiere nach Gast (Name + Email)
+      const guestMap = new Map();
+      data?.forEach((booking: any) => {
+        const key = `${booking.guest_name}-${booking.guest_email || 'no-email'}`;
+        if (!guestMap.has(key)) {
+          guestMap.set(key, {
+            name: booking.guest_name,
+            email: booking.guest_email,
+            phone: booking.guest_phone,
+            nationality: booking.nationality,
+            bookings: [],
+            lastBooking: booking.check_in
+          });
+        }
+        guestMap.get(key).bookings.push({
+          id: booking.id,
+          check_in: booking.check_in,
+          check_out: booking.check_out
+        });
+      });
+
+      const guests = Array.from(guestMap.values())
+        .map((g: any) => ({ 
+          ...g, 
+          bookingCount: g.bookings.length 
+        }))
+        .filter((g: any) => !params.min_bookings || g.bookingCount >= params.min_bookings);
+
+      console.log(`Found ${guests.length} guests`);
+      return { success: true, guests, count: guests.length };
+    }
+
+    async function executeGetLinenOverview() {
+      console.log('Executing get_linen_overview');
+      
+      const { data: houses, error } = await supabase
+        .from('houses')
+        .select('id, name, address, linen_stock, linen_in_use, linen_dirty')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error getting linen overview:', error);
+        return { success: false, error: error.message };
+      }
+
+      const overview = houses?.map((house: any) => {
+        const stock = house.linen_stock || {};
+        const inUse = house.linen_in_use || {};
+        const dirty = house.linen_dirty || {};
+        
+        // Berechne verfügbaren Bestand
+        const available: any = {};
+        Object.keys(stock).forEach(key => {
+          available[key] = (stock[key] || 0) - (inUse[key] || 0) - (dirty[key] || 0);
+        });
+        
+        // Kritische Items identifizieren (< 5 verfügbar)
+        const criticalItems = Object.keys(available).filter(key => available[key] < 5);
+        
+        const status = criticalItems.length > 2 ? 'critical' : 
+                       criticalItems.length > 0 ? 'warning' : 'good';
+
+        return {
+          house_id: house.id,
+          house_name: house.name,
+          status,
+          critical_items: criticalItems,
+          available_stock: available,
+          total_stock: Object.values(stock).reduce((sum: number, val: any) => sum + (val || 0), 0)
+        };
+      });
+
+      const summary = {
+        critical: overview?.filter((h: any) => h.status === 'critical').length || 0,
+        warning: overview?.filter((h: any) => h.status === 'warning').length || 0,
+        good: overview?.filter((h: any) => h.status === 'good').length || 0
+      };
+
+      console.log('Linen overview:', { summary, totalHouses: overview?.length });
+      return { success: true, houses: overview, summary };
+    }
+
+    async function executeGetHouseLinenStatus(house_id: string) {
+      console.log('Executing get_house_linen_status for:', house_id);
+      
+      const { data, error } = await supabase
+        .from('houses')
+        .select('id, name, address, linen_stock, linen_in_use, linen_dirty, linen_reserved, linen_in_cleaning')
+        .eq('id', house_id)
+        .single();
+
+      if (error) {
+        console.error('Error getting house linen status:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, house: data };
+    }
+
+    async function executeSearchLinenOrders(params: any) {
+      console.log('Executing search_linen_orders with params:', params);
+      
+      let query = supabase
+        .from('linen_orders')
+        .select('*, houses(name, address)');
+
+      if (params.house_id) query = query.eq('house_id', params.house_id);
+      if (params.status) query = query.eq('status', params.status);
+      if (params.date_from) query = query.gte('delivery_date', params.date_from);
+      if (params.date_to) query = query.lte('delivery_date', params.date_to);
+
+      const { data, error } = await query.order('delivery_date', { ascending: true });
+
+      if (error) {
+        console.error('Error searching linen orders:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`Found ${data.length} linen orders`);
+      return { success: true, orders: data, count: data.length };
+    }
+
+    async function executeGetCalendarEvents(params: any) {
+      console.log('Executing get_calendar_events with params:', params);
+      
+      const eventTypes = params.event_types || ['booking', 'cleaning'];
+      const events: any[] = [];
+
+      if (eventTypes.includes('booking')) {
+        const { data: bookings } = await supabase
+          .from('bookings')
+          .select('*, houses(name)')
+          .gte('check_in', params.date_from)
+          .lte('check_out', params.date_to)
+          .order('check_in', { ascending: true });
+
+        bookings?.forEach((b: any) => {
+          events.push({
+            type: 'booking',
+            id: b.id,
+            title: `Check-in: ${b.guest_name}`,
+            date: b.check_in,
+            house: b.houses?.name || 'Unbekannt',
+            status: b.status,
+            guest_name: b.guest_name
+          });
+        });
+      }
+
+      if (eventTypes.includes('cleaning')) {
+        const { data: tasks } = await supabase
+          .from('service_tasks')
+          .select('*, houses(name)')
+          .eq('service_type', 'cleaning')
+          .gte('scheduled_date', params.date_from)
+          .lte('scheduled_date', params.date_to)
+          .order('scheduled_date', { ascending: true });
+
+        tasks?.forEach((t: any) => {
+          events.push({
+            type: 'cleaning',
+            id: t.id,
+            title: `Reinigung: ${t.houses?.name || 'Unbekannt'}`,
+            date: t.scheduled_date,
+            time: t.scheduled_time,
+            house: t.houses?.name || 'Unbekannt',
+            status: t.status
+          });
+        });
+      }
+
+      if (eventTypes.includes('laundry')) {
+        const { data: orders } = await supabase
+          .from('linen_orders')
+          .select('*, houses(name)')
+          .gte('delivery_date', params.date_from)
+          .lte('delivery_date', params.date_to)
+          .order('delivery_date', { ascending: true });
+
+        orders?.forEach((o: any) => {
+          events.push({
+            type: 'laundry',
+            id: o.id,
+            title: `Wäsche-Lieferung: ${o.houses?.name || 'Unbekannt'}`,
+            date: o.delivery_date,
+            house: o.houses?.name || 'Unbekannt',
+            status: o.status
+          });
+        });
+      }
+
+      // Sortiere Events nach Datum
+      events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      console.log(`Found ${events.length} calendar events`);
+      return { 
+        success: true, 
+        events,
+        count: events.length,
+        summary: {
+          bookings: events.filter(e => e.type === 'booking').length,
+          cleanings: events.filter(e => e.type === 'cleaning').length,
+          laundry: events.filter(e => e.type === 'laundry').length
+        }
+      };
+    }
+
     // Tool router
     async function executeTool(toolName: string, args: any) {
       try {
@@ -466,6 +861,18 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
             return await executeSearchCleaningTasks(args);
           case 'get_cleaning_task_details':
             return await executeGetCleaningTaskDetails(args.task_id);
+          case 'get_dashboard_stats':
+            return await executeGetDashboardStats();
+          case 'search_guests':
+            return await executeSearchGuests(args);
+          case 'get_linen_overview':
+            return await executeGetLinenOverview();
+          case 'get_house_linen_status':
+            return await executeGetHouseLinenStatus(args.house_id);
+          case 'search_linen_orders':
+            return await executeSearchLinenOrders(args);
+          case 'get_calendar_events':
+            return await executeGetCalendarEvents(args);
           default:
             throw new Error(`Unknown tool: ${toolName}`);
         }
@@ -653,6 +1060,99 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               id: t.id,
               type: 'cleaning_task',
               label: `${t.houses?.name || 'Reinigung'} (${new Date(t.scheduled_date).toLocaleDateString('de-DE')})`
+            });
+          });
+        }
+
+        if (result.stats) {
+          resultsText += `\n\nDashboard-Statistiken:\n`;
+          resultsText += `- Häuser: ${result.stats.totalHouses}\n`;
+          resultsText += `- Aktive Buchungen: ${result.stats.activeBookings}\n`;
+          resultsText += `- Offene Aufgaben: ${result.stats.pendingTasks}\n`;
+          resultsText += `- Gesamtumsatz: ${result.stats.totalRevenue} EUR\n`;
+        }
+
+        if (result.guests && Array.isArray(result.guests)) {
+          resultsText += `\n\nGefundene Gäste (${result.count}):\n`;
+          result.guests.forEach((g: any, i: number) => {
+            resultsText += `\nGast ${i + 1}:\n`;
+            resultsText += `- Name: ${g.name}\n`;
+            if (g.email) resultsText += `- Email: ${g.email}\n`;
+            if (g.phone) resultsText += `- Telefon: ${g.phone}\n`;
+            if (g.nationality) resultsText += `- Nationalität: ${g.nationality}\n`;
+            resultsText += `- Anzahl Buchungen: ${g.bookingCount}\n`;
+            if (g.lastBooking) resultsText += `- Letzte Buchung: ${new Date(g.lastBooking).toLocaleDateString('de-DE')}\n`;
+            
+            // Link zur Gäste-Seite mit Email-Filter
+            if (g.email) {
+              entityLinks.push({
+                id: g.email,
+                type: 'guest',
+                label: g.name
+              });
+            }
+          });
+        }
+
+        if (result.summary) {
+          resultsText += `\n\nWäsche-Übersicht:\n`;
+          resultsText += `🟢 ${result.summary.good} Häuser: Optimal versorgt\n`;
+          resultsText += `🟡 ${result.summary.warning} Häuser: Niedrige Bestände\n`;
+          resultsText += `🔴 ${result.summary.critical} Häuser: Kritische Bestände\n\n`;
+          
+          if (result.houses && Array.isArray(result.houses)) {
+            const criticalHouses = result.houses.filter((h: any) => h.status === 'critical');
+            if (criticalHouses.length > 0) {
+              resultsText += `Kritische Häuser:\n`;
+              criticalHouses.forEach((h: any) => {
+                resultsText += `• ${h.house_name}: ${h.critical_items.join(', ')}\n`;
+                entityLinks.push({
+                  id: h.house_id,
+                  type: 'house',
+                  label: `${h.house_name} (Wäsche kritisch)`
+                });
+              });
+            }
+          }
+        }
+
+        if (result.orders && Array.isArray(result.orders)) {
+          resultsText += `\n\nGefundene Wäschebestellungen (${result.count}):\n`;
+          result.orders.forEach((o: any, i: number) => {
+            resultsText += `\nBestellung ${i + 1}:\n`;
+            resultsText += `- Haus: ${o.houses?.name || 'Unbekannt'}\n`;
+            if (o.delivery_date) resultsText += `- Lieferdatum: ${new Date(o.delivery_date).toLocaleDateString('de-DE')}\n`;
+            resultsText += `- Status: ${o.status}\n`;
+            resultsText += `- Artikel: ${o.total_items}\n`;
+            
+            entityLinks.push({
+              id: o.id,
+              type: 'laundry_order',
+              label: `Bestellung ${o.houses?.name || 'Unbekannt'} (${new Date(o.delivery_date).toLocaleDateString('de-DE')})`
+            });
+          });
+        }
+
+        if (result.events && Array.isArray(result.events)) {
+          resultsText += `\n\nKalender-Termine (${result.count}):\n`;
+          if (result.summary) {
+            resultsText += `📅 Check-ins: ${result.summary.bookings}\n`;
+            resultsText += `🧹 Reinigungen: ${result.summary.cleanings}\n`;
+            resultsText += `🧺 Wäsche-Lieferungen: ${result.summary.laundry}\n\n`;
+          }
+          
+          resultsText += `Details:\n`;
+          result.events.forEach((e: any) => {
+            const dateStr = new Date(e.date).toLocaleDateString('de-DE');
+            const timeStr = e.time ? ` ${e.time}` : '';
+            const icon = e.type === 'booking' ? '📅' : e.type === 'cleaning' ? '🧹' : '🧺';
+            resultsText += `• ${icon} ${dateStr}${timeStr}: ${e.title} (${e.status})\n`;
+            
+            // Link zum jeweiligen Event-Typ
+            entityLinks.push({
+              id: e.id,
+              type: e.type === 'booking' ? 'booking' : e.type === 'cleaning' ? 'cleaning_task' : 'laundry_order',
+              label: `${e.title}`
             });
           });
         }

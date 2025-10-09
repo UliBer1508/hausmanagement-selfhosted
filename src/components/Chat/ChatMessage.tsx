@@ -6,7 +6,7 @@ import ActionCard from './ActionCard';
 
 interface EntityLink {
   id: string;
-  type: 'booking' | 'cleaning_task' | 'laundry_order' | 'house';
+  type: 'booking' | 'cleaning_task' | 'laundry_order' | 'house' | 'guest' | 'calendar';
   label: string;
 }
 
@@ -66,6 +66,12 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
         break;
       case 'house':
         navigate('/houses', { state: { openHouseId: link.id } });
+        break;
+      case 'guest':
+        navigate('/guests', { state: { openGuestEmail: link.id } });
+        break;
+      case 'calendar':
+        navigate('/dashboard');
         break;
     }
     // Chat schließen nach Navigation
