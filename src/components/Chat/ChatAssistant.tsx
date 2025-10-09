@@ -42,7 +42,7 @@ const ChatAssistant = () => {
       <div
         className={`fixed top-0 right-0 h-screen bg-background border-l shadow-xl z-[100] transition-transform duration-300 ease-in-out flex flex-col
           ${isOpen ? 'translate-x-0' : 'translate-x-full'}
-          w-full lg:w-[400px]
+          w-[90%] sm:w-[60%] max-w-[500px] min-w-[320px]
         `}
       >
         {/* Header */}
