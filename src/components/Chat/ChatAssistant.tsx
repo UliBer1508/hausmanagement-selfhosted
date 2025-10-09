@@ -51,8 +51,13 @@ const ChatAssistant = () => {
           {/* Draggable Window */}
           <Draggable
             handle=".drag-handle"
-            bounds="parent"
-            defaultPosition={{ x: window.innerWidth - 450, y: 50 }}
+            bounds={{
+              left: 0,
+              top: 0,
+              right: window.innerWidth - 400,
+              bottom: window.innerHeight - 600
+            }}
+            defaultPosition={{ x: Math.max(0, window.innerWidth - 450), y: 50 }}
           >
             <div className="fixed z-[100] w-[400px] h-[600px] bg-background border shadow-2xl rounded-lg flex flex-col">
               {/* Header - Draggable Handle */}
