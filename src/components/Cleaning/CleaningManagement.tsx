@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
 import EditCleaningTaskDialog from './EditCleaningTaskDialog';
 
 const CleaningManagement = () => {
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedHouse, setSelectedHouse] = useState('all');
   const [timeFilter, setTimeFilter] = useState('24months');
@@ -30,6 +32,18 @@ const CleaningManagement = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedBookingForCreation, setSelectedBookingForCreation] = useState<any>(null);
+
+  // Auto-open task dialog when navigating from chat
+  useEffect(() => {
+    const state = location.state as { openTaskId?: string } | null;
+    if (state?.openTaskId) {
+      setEditTaskId(state.openTaskId);
+      setShowEditDialog(true);
+      
+      // Clear state to prevent reopening on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   // Fetch bookings without cleaning tasks
   const { data: bookingsWithoutCleaning, isLoading: loadingBookings } = useQuery({
