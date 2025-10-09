@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 import GuestDetailsDialog from './GuestDetailsDialog';
 import GuestEmailDialog from './GuestEmailDialog';
@@ -119,50 +120,90 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                   {getCategoryBadge(guest.category)}
                 </div>
 
-                {/* Info grid - responsive */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">🏠</span>
-                    <span>
-                      {(() => {
-                        const cancelledCount = guest.bookings.filter((b: any) => b.status === 'cancelled').length;
-                        const activeCount = guest.stay_count - cancelledCount;
+                {/* Buchungsliste */}
+                <div className="space-y-2">
+                  <h5 className="font-medium text-sm flex items-center gap-2">
+                    <span>📋</span>
+                    Buchungen ({guest.bookings.length})
+                  </h5>
+                  
+                  <div className="space-y-1.5 pl-6">
+                    {guest.bookings
+                      .sort((a: any, b: any) => new Date(b.check_in).getTime() - new Date(a.check_in).getTime())
+                      .map((booking: any, idx: number) => {
+                        const checkIn = format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de });
+                        const checkOut = format(new Date(booking.check_out), 'dd.MM.yyyy', { locale: de });
+                        const isCancelled = booking.status === 'cancelled';
+                        
                         return (
-                          <>
-                            <span className="font-medium">{activeCount}</span> Buchungen
-                            {cancelledCount > 0 && (
-                              <span className="text-muted-foreground ml-1">
-                                ({cancelledCount} storniert)
-                              </span>
+                          <div 
+                            key={booking.id || idx} 
+                            className={cn(
+                              "flex items-center justify-between gap-2 text-sm p-2 rounded",
+                              isCancelled ? "bg-red-50 border border-red-200" : "bg-muted/30"
                             )}
-                          </>
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-medium truncate">
+                                  {booking.houses?.name || 'Unbekanntes Haus'}
+                                </span>
+                                <span className="text-muted-foreground text-xs">
+                                  {checkIn} - {checkOut}
+                                </span>
+                              </div>
+                              {booking.booking_amount && (
+                                <span className="text-xs text-muted-foreground">
+                                  €{booking.booking_amount.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Status Badge */}
+                            <div className="shrink-0">
+                              {isCancelled ? (
+                                <Badge 
+                                  variant="destructive" 
+                                  className="bg-red-500 text-white font-semibold"
+                                >
+                                  STORNIERT
+                                </Badge>
+                              ) : booking.status === 'confirmed' ? (
+                                <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
+                                  Bestätigt
+                                </Badge>
+                              ) : booking.status === 'pending' ? (
+                                <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">
+                                  Ausstehend
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline">
+                                  {booking.status}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
                         );
-                      })()}
-                    </span>
+                      })}
                   </div>
+                </div>
 
-                  {guest.last_booking && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">📅</span>
-                      <span className="truncate">
-                        Letztes: <span className="font-medium">{guest.last_booking.houses?.name}</span>
-                      </span>
-                    </div>
-                  )}
-
-                  {guest.next_booking && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">📅</span>
-                      <span>
-                        Nächstes: {format(new Date(guest.next_booking.check_in), 'dd.MM.yyyy', { locale: de })}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Umsatz:</span>
-                    <span className="font-medium">€{guest.total_revenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
-                  </div>
+                {/* Gesamt-Umsatz */}
+                <div className="flex items-center gap-2 text-sm pt-2 border-t">
+                  <span className="text-muted-foreground">Gesamt-Umsatz:</span>
+                  <span className="font-medium">
+                    €{guest.total_revenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}
+                  </span>
+                  {(() => {
+                    const cancelledCount = guest.bookings.filter((b: any) => b.status === 'cancelled').length;
+                    if (cancelledCount > 0) {
+                      return (
+                        <span className="text-xs text-muted-foreground">
+                          (ohne {cancelledCount} stornierte)
+                        </span>
+                      );
+                    }
+                  })()}
                 </div>
 
                 {/* Contact info */}
