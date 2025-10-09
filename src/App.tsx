@@ -53,8 +53,8 @@ const App = () => {
             <Route path="*" element={<NotFound />} />
             </Routes>
           </div>
+          <ChatAssistant />
         </BrowserRouter>
-        <ChatAssistant />
       </TooltipProvider>
     </QueryClientProvider>
   );
