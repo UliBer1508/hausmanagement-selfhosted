@@ -452,6 +452,13 @@ Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
 
       // No more tool calls, break the loop
       console.log('No more tool calls, preparing final response');
+      
+      // Explizite Anweisung für strukturierte Antwort
+      conversationMessages.push({
+        role: 'user',
+        content: 'Formatiere die Tool-Results in einer klaren, strukturierten deutschen Antwort. Zeige ALLE Daten, auch wenn Status="cancelled"!'
+      });
+      
       break;
     }
 
