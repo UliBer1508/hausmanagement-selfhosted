@@ -677,8 +677,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       console.warn('Max iterations reached in tool-calling loop');
     }
 
-    // Now stream the final response
-    console.log('Streaming final response to client');
+    // Get final response WITHOUT streaming, then manually stream it
+    console.log('Getting final response from AI');
     const finalResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -686,10 +686,9 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash', // Flash statt Pro - kein reasoning mode
+        model: 'google/gemini-2.5-flash',
         messages: conversationMessages,
-        stream: true,
-        tool_choice: 'none', // Wichtig: Verhindert weitere Tool-Calls
+        stream: false, // Get complete response first
       }),
     });
 
@@ -697,40 +696,50 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       throw new Error(`Final response error: ${finalResponse.status}`);
     }
 
-    // Create a custom stream that appends entity links at the end
-    const reader = finalResponse.body!.getReader();
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
+    const finalData = await finalResponse.json();
+    const finalText = finalData.choices[0].message.content || 'Keine Antwort erhalten.';
+    
+    console.log('Final response received:', { textLength: finalText.length });
 
+    // Create manual SSE stream
+    const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Forward all chunks from AI response
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            controller.enqueue(value);
+          // Stream the AI response word by word for progressive display
+          const words = finalText.split(' ');
+          for (let i = 0; i < words.length; i++) {
+            const chunk = (i === 0 ? '' : ' ') + words[i];
+            const sseData = `data: ${JSON.stringify({
+              choices: [{
+                delta: { content: chunk },
+                finish_reason: null
+              }]
+            })}\n\n`;
+            controller.enqueue(encoder.encode(sseData));
+            
+            // Small delay for streaming effect
+            await new Promise(resolve => setTimeout(resolve, 10));
           }
 
-          // After AI stream is done, append entity links if any
+          // Append entity links if any
           if (entityLinks.length > 0) {
             const entityText = `\n\n___ENTITIES___\n${JSON.stringify(entityLinks)}`;
-            const entityChunk = encoder.encode(
-              `data: ${JSON.stringify({
-                choices: [{
-                  delta: { content: entityText },
-                  finish_reason: null
-                }]
-              })}\n\n`
-            );
-            controller.enqueue(entityChunk);
+            const entityChunk = `data: ${JSON.stringify({
+              choices: [{
+                delta: { content: entityText },
+                finish_reason: null
+              }]
+            })}\n\n`;
+            controller.enqueue(encoder.encode(entityChunk));
             
             console.log('Appended entity links to stream:', { 
-              entityCount: entityLinks.length 
+              entityCount: entityLinks.length,
+              links: entityLinks
             });
           }
 
-          // Send final [DONE] marker
+          // Send [DONE] marker
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         } catch (error) {
