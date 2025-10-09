@@ -353,6 +353,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
           parameters: {
             type: "object",
             properties: {
+              guest_name: { type: "string", description: "Name des Gastes (sucht in verknüpften Buchungen)" },
               house_id: { type: "string", description: "UUID des Hauses" },
               status: { type: "string", enum: ["pending", "confirmed", "in_progress", "completed", "cancelled"], description: "Status" },
               date_from: { type: "string", description: "Von-Datum (ISO 8601)" },
@@ -743,7 +744,22 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       let query = supabase
         .from('linen_orders')
-        .select('*, houses(name, address), service_providers:provider_id(name, service_type)');
+        .select('*, houses(name, address), service_providers:provider_id(name, service_type), bookings:booking_id(guest_name, check_in, check_out)');
+
+      // Wenn nach guest_name gesucht wird, erst die Buchungen finden
+      if (params.guest_name) {
+        const { data: bookings } = await supabase
+          .from('bookings')
+          .select('id')
+          .ilike('guest_name', `%${params.guest_name}%`);
+        
+        if (bookings && bookings.length > 0) {
+          const bookingIds = bookings.map(b => b.id);
+          query = query.in('booking_id', bookingIds);
+        } else {
+          return { success: true, orders: [], count: 0, message: 'Keine Buchung für diesen Gast gefunden' };
+        }
+      }
 
       if (params.house_id) query = query.eq('house_id', params.house_id);
       if (params.status) query = query.eq('status', params.status);
@@ -1140,6 +1156,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
           result.orders.forEach((o: any, i: number) => {
             resultsText += `\nBestellung ${i + 1}:\n`;
             resultsText += `- Haus: ${o.houses?.name || 'Unbekannt'}\n`;
+            if (o.bookings?.guest_name) resultsText += `- Gast: ${o.bookings.guest_name}\n`;
             resultsText += `- Bestelldatum: ${new Date(o.order_date).toLocaleDateString('de-DE')}\n`;
             if (o.delivery_date) {
               resultsText += `- Lieferdatum: ${new Date(o.delivery_date).toLocaleDateString('de-DE')}`;
@@ -1159,10 +1176,12 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               ? new Date(o.delivery_date).toLocaleDateString('de-DE')
               : new Date(o.order_date).toLocaleDateString('de-DE');
             
+            const guestStr = o.bookings?.guest_name ? ` - ${o.bookings.guest_name}` : '';
+            
             entityLinks.push({
               id: o.id,
               type: 'laundry_order',
-              label: `${o.houses?.name || 'Bestellung'} - ${dateStr}`
+              label: `${o.houses?.name || 'Bestellung'} - ${dateStr}${guestStr}`
             });
           });
         }
