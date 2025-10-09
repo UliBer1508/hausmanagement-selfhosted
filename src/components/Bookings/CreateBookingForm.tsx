@@ -54,6 +54,7 @@ const bookingSchema = z.object({
   }).optional(),
   booking_amount: z.number().optional(),
   currency: z.string().default('EUR'),
+  status: z.enum(['confirmed', 'checked_in', 'completed', 'cancelled']).default('confirmed'),
   notes: z.string().optional(),
 }).refine((data) => data.check_out > data.check_in, {
   message: 'Check-out muss nach Check-in liegen',
@@ -135,12 +136,14 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         nationality: initialData.nationality && initialData.nationality !== 'none' ? initialData.nationality : '',
         booking_amount: initialData.booking_amount || undefined,
         currency: initialData.currency || 'EUR',
+        status: initialData.status || 'confirmed',
         notes: initialData.notes || '',
       };
     }
     return {
       number_of_guests: 1,
       currency: 'EUR',
+      status: 'confirmed' as const,
       guest_email: '',
       guest_phone: '',
       nationality: '',
@@ -223,7 +226,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         booking_amount: data.booking_amount || null,
         currency: data.currency || 'EUR',
         notes: data.notes || null,
-        status: 'confirmed' as const,
+        status: data.status,
         source: 'manual',
       };
 
@@ -529,6 +532,31 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                     )}
                   />
                 </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Status */}
+          <FormField
+            control={form.control}
+            name="status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Status</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status wählen" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="bg-background border shadow-lg z-50">
+                    <SelectItem value="confirmed">Bestätigt</SelectItem>
+                    <SelectItem value="checked_in">Eingecheckt</SelectItem>
+                    <SelectItem value="completed">Abgeschlossen</SelectItem>
+                    <SelectItem value="cancelled">Storniert</SelectItem>
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
