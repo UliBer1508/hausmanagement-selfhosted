@@ -470,8 +470,10 @@ Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
         return true;
       });
       
-      // Formatiere Tool-Results als lesbaren Text
+      // Formatiere Tool-Results als lesbaren Text + Entity-Links
       let resultsText = 'Hier sind die Ergebnisse der Suche:\n\n';
+      const entityLinks: Array<{id: string, type: string, label: string}> = [];
+      
       toolResults.forEach(result => {
         if (result.bookings && Array.isArray(result.bookings)) {
           resultsText += `Gefundene Buchungen (${result.count}):\n`;
@@ -484,11 +486,39 @@ Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
             resultsText += `- Status: ${b.status}\n`;
             if (b.houses?.name) resultsText += `- Haus: ${b.houses.name}\n`;
             if (b.booking_amount) resultsText += `- Betrag: ${b.booking_amount} ${b.currency || 'EUR'}\n`;
+            
+            // Entity-Link hinzufügen
+            entityLinks.push({
+              id: b.id,
+              type: 'booking',
+              label: `${b.guest_name} (${new Date(b.check_in).toLocaleDateString('de-DE')})`
+            });
+          });
+        }
+        
+        if (result.houses && Array.isArray(result.houses)) {
+          resultsText += `\n\nGefundene Häuser (${result.count}):\n`;
+          result.houses.forEach((h: any, i: number) => {
+            resultsText += `\nHaus ${i + 1}:\n`;
+            resultsText += `- Name: ${h.name}\n`;
+            resultsText += `- Adresse: ${h.address}\n`;
+            resultsText += `- Max. Gäste: ${h.max_guests}\n`;
+            
+            entityLinks.push({
+              id: h.id,
+              type: 'house',
+              label: h.name
+            });
           });
         }
       });
       
       resultsText += '\n\nBitte formatiere diese Informationen in einer klaren, strukturierten deutschen Antwort. Hebe den Status besonders hervor, wenn er "cancelled" ist!';
+      
+      // Füge Entity-Links als JSON-Marker am Ende hinzu
+      if (entityLinks.length > 0) {
+        resultsText += `\n\n___ENTITIES___\n${JSON.stringify(entityLinks)}`;
+      }
       
       messagesForFinal.push({
         role: 'user',

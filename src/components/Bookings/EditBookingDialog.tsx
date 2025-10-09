@@ -16,10 +16,21 @@ interface EditBookingDialogProps {
   booking: BookingWithHouse;
   onBookingUpdated?: () => void;
   trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-const EditBookingDialog = ({ booking, onBookingUpdated, trigger }: EditBookingDialogProps) => {
-  const [open, setOpen] = useState(false);
+const EditBookingDialog = ({ 
+  booking, 
+  onBookingUpdated, 
+  trigger,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange
+}: EditBookingDialogProps) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = controlledOnOpenChange || setInternalOpen;
 
   const handleSuccess = () => {
     setOpen(false);
@@ -34,9 +45,11 @@ const EditBookingDialog = ({ booking, onBookingUpdated, trigger }: EditBookingDi
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || defaultTrigger}
-      </DialogTrigger>
+      {trigger !== undefined && (
+        <DialogTrigger asChild>
+          {trigger || defaultTrigger}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Buchung bearbeiten</DialogTitle>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,7 +91,11 @@ const getFullCountryName = (code: string | undefined) => {
   return country ? country.name : code;
 };
 
-const BookingOverviewFixed = () => {
+interface BookingOverviewFixedProps {
+  autoOpenBookingId?: string | null;
+}
+
+const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('confirmed');
   const [houseFilter, setHouseFilter] = useState('all');
@@ -100,6 +104,7 @@ const BookingOverviewFixed = () => {
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const [selectedBookingForEdit, setSelectedBookingForEdit] = useState<any | null>(null);
 
   // Fetch bookings with house information
   const { data: bookingsData, isLoading, error } = useQuery({
@@ -161,6 +166,16 @@ const BookingOverviewFixed = () => {
       return data;
     },
   });
+
+  // Auto-Open Booking Dialog wenn via Chat navigiert
+  useEffect(() => {
+    if (autoOpenBookingId && bookingsData) {
+      const booking = bookingsData.find(b => b.id === autoOpenBookingId);
+      if (booking) {
+        setSelectedBookingForEdit(booking);
+      }
+    }
+  }, [autoOpenBookingId, bookingsData]);
 
   // Enhanced time filtering logic
   const getTimeFilterDates = () => {
@@ -588,6 +603,11 @@ const BookingOverviewFixed = () => {
                         console.log('Booking updated, invalidating cache');
                         window.location.reload();
                       }}
+                      trigger={
+                        <Button variant="ghost" size="sm">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      }
                     />
                   </TableCell>
                 </TableRow>
@@ -607,6 +627,25 @@ const BookingOverviewFixed = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Auto-Open Dialog für Chat-Navigation */}
+      {selectedBookingForEdit && (
+        <div style={{ display: 'none' }}>
+          <EditBookingDialog
+            booking={selectedBookingForEdit}
+            open={true}
+            onOpenChange={(open) => {
+              if (!open) {
+                setSelectedBookingForEdit(null);
+              }
+            }}
+            onBookingUpdated={() => {
+              setSelectedBookingForEdit(null);
+              window.location.reload();
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

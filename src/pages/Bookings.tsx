@@ -1,9 +1,21 @@
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import BookingOverviewFixed from '@/components/Bookings/BookingOverviewFixed';
 import ConnectedBookingView from '@/components/Bookings/ConnectedBookingView';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/components/Layout/AppLayout';
 
 const Bookings = () => {
+  const location = useLocation();
+  const [autoOpenBookingId, setAutoOpenBookingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (location.state?.openBookingId) {
+      setAutoOpenBookingId(location.state.openBookingId);
+      // Clear state nach Öffnen
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
   
   return (
     <AppLayout>
@@ -20,7 +32,7 @@ const Bookings = () => {
           </TabsList>
           
           <TabsContent value="table" className="space-y-0">
-            <BookingOverviewFixed />
+            <BookingOverviewFixed autoOpenBookingId={autoOpenBookingId} />
           </TabsContent>
           
           <TabsContent value="connected" className="space-y-0">
