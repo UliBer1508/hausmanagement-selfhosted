@@ -477,7 +477,6 @@ Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
       body: JSON.stringify({
         model: 'google/gemini-2.5-pro',
         messages: conversationMessages,
-        tools,
         stream: true,
       }),
     });
