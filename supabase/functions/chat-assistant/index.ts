@@ -487,6 +487,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
     // Tool-calling loop
     const MAX_ITERATIONS = 5;
     let iteration = 0;
+    let entityLinks: Array<{id: string, type: string, label: string}> = []; // Entity-Links außerhalb der Schleife
 
     while (iteration < MAX_ITERATIONS) {
       iteration++;
@@ -596,7 +597,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       // Formatiere Tool-Results als lesbaren Text + Entity-Links
       let resultsText = 'Hier sind die Ergebnisse der Suche:\n\n';
-      const entityLinks: Array<{id: string, type: string, label: string}> = [];
+      entityLinks = []; // Reset für neue Tool-Results
       
       toolResults.forEach(result => {
         if (result.bookings && Array.isArray(result.bookings)) {
@@ -663,11 +664,6 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       resultsText += '\n\nBitte formatiere diese Informationen in einer klaren, strukturierten deutschen Antwort. Hebe den Status besonders hervor, wenn er "cancelled" ist!';
       
-      // Füge Entity-Links als JSON-Marker am Ende hinzu
-      if (entityLinks.length > 0) {
-        resultsText += `\n\n___ENTITIES___\n${JSON.stringify(entityLinks)}`;
-      }
-      
       messagesForFinal.push({
         role: 'user',
         content: resultsText
@@ -700,7 +696,50 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       throw new Error(`Final response error: ${finalResponse.status}`);
     }
 
-    return new Response(finalResponse.body, {
+    // Create a custom stream that appends entity links at the end
+    const reader = finalResponse.body!.getReader();
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Forward all chunks from AI response
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            controller.enqueue(value);
+          }
+
+          // After AI stream is done, append entity links if any
+          if (entityLinks.length > 0) {
+            const entityText = `\n\n___ENTITIES___\n${JSON.stringify(entityLinks)}`;
+            const entityChunk = encoder.encode(
+              `data: ${JSON.stringify({
+                choices: [{
+                  delta: { content: entityText },
+                  finish_reason: null
+                }]
+              })}\n\n`
+            );
+            controller.enqueue(entityChunk);
+            
+            console.log('Appended entity links to stream:', { 
+              entityCount: entityLinks.length 
+            });
+          }
+
+          // Send final [DONE] marker
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        } catch (error) {
+          console.error('Stream error:', error);
+          controller.error(error);
+        }
+      }
+    });
+
+    return new Response(stream, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',
