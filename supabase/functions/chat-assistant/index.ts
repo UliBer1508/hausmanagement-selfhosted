@@ -46,7 +46,9 @@ WORKFLOW FÜR JEDE ANFRAGE:
 
 WICHTIG: Zeige IMMER alle gefundenen Daten an, auch wenn der Status "cancelled" ist!
 
-ANTWORT-FORMAT:
+ANTWORT-FORMATE:
+
+**Buchungen:**
 - Beginne mit einer klaren Zusammenfassung (z.B. "Ich habe 1 Buchung gefunden:")
 - Liste alle relevanten Details auf:
   • Gast: [Name]
@@ -58,10 +60,20 @@ ANTWORT-FORMAT:
   • Betrag: [Betrag]
 - Wenn Status "cancelled": Weise explizit darauf hin!
 
+**Reinigungsaufträge:**
+"Ich habe [Anzahl] Reinigungsauftrag/-aufträge gefunden:
+
+• Haus: [house_name]
+• Datum: [scheduled_date] um [scheduled_time] Uhr
+• Status: [status mit Icon: scheduled=📅, in_progress=🧹, completed=✅, cancelled=❌]
+• Buchung: [guest_name] (falls vorhanden)
+• Notizen: [notes]"
+
 TOOLS - WANN VERWENDEN:
 • "buchung" / "booking" / "reservierung" / Name eines Gastes → search_bookings
+• "reinigung" / "cleaning" / "putzen" / Name eines Gastes → search_cleaning_tasks
 • "haus" / "house" / "chalet" in der Frage → search_houses
-• Spezifische ID genannt → get_booking_details / get_house_details
+• Spezifische ID genannt → get_booking_details / get_house_details / get_cleaning_task_details
 • "erstelle reinigung" → create_cleaning_task
 • "ändere status" → update_booking_status (ERST bestätigen lassen!)
 
@@ -175,6 +187,42 @@ Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
               house_id: { type: "string", description: "UUID des Hauses" }
             },
             required: ["house_id"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_cleaning_tasks",
+          description: "Sucht Reinigungsaufträge nach Kriterien wie Haus, Buchung, Status, Datum oder Personal",
+          parameters: {
+            type: "object",
+            properties: {
+              house_id: { type: "string", description: "UUID des Hauses" },
+              booking_id: { type: "string", description: "UUID der Buchung" },
+              guest_name: { type: "string", description: "Name des Gastes (sucht über Buchung)" },
+              status: { 
+                type: "string", 
+                enum: ["scheduled", "in_progress", "completed", "cancelled", "delayed"],
+                description: "Status" 
+              },
+              date_from: { type: "string", description: "Von-Datum (ISO 8601)" },
+              date_to: { type: "string", description: "Bis-Datum (ISO 8601)" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_cleaning_task_details",
+          description: "Details zu einem spezifischen Reinigungsauftrag",
+          parameters: {
+            type: "object",
+            properties: {
+              task_id: { type: "string", description: "UUID des Tasks" }
+            },
+            required: ["task_id"]
           }
         }
       }
@@ -326,6 +374,71 @@ Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
       return { success: true, house: data };
     }
 
+    async function executeSearchCleaningTasks(params: any) {
+      console.log('Executing search_cleaning_tasks with params:', params);
+      
+      let query = supabase
+        .from('service_tasks')
+        .select(`
+          *,
+          houses:house_id (name, address),
+          bookings:booking_id (guest_name, check_in, check_out)
+        `)
+        .eq('service_type', 'cleaning');
+
+      // Wenn nach guest_name gesucht wird, erst die Buchung finden
+      if (params.guest_name) {
+        const { data: bookings } = await supabase
+          .from('bookings')
+          .select('id')
+          .ilike('guest_name', `%${params.guest_name}%`);
+        
+        if (bookings && bookings.length > 0) {
+          const bookingIds = bookings.map(b => b.id);
+          query = query.in('booking_id', bookingIds);
+        } else {
+          return { success: true, tasks: [], count: 0, message: 'Keine Buchung für diesen Gast gefunden' };
+        }
+      }
+
+      if (params.house_id) query = query.eq('house_id', params.house_id);
+      if (params.booking_id) query = query.eq('booking_id', params.booking_id);
+      if (params.status) query = query.eq('status', params.status);
+      if (params.date_from) query = query.gte('scheduled_date', params.date_from);
+      if (params.date_to) query = query.lte('scheduled_date', params.date_to);
+
+      const { data, error } = await query.order('scheduled_date', { ascending: true });
+      
+      if (error) {
+        console.error('Error searching cleaning tasks:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`Found ${data.length} cleaning tasks`);
+      return { success: true, tasks: data, count: data.length };
+    }
+
+    async function executeGetCleaningTaskDetails(task_id: string) {
+      console.log('Executing get_cleaning_task_details for:', task_id);
+      
+      const { data, error } = await supabase
+        .from('service_tasks')
+        .select(`
+          *,
+          houses:house_id (*),
+          bookings:booking_id (*)
+        `)
+        .eq('id', task_id)
+        .single();
+
+      if (error) {
+        console.error('Error getting cleaning task details:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, task: data };
+    }
+
     // Tool router
     async function executeTool(toolName: string, args: any) {
       try {
@@ -342,6 +455,10 @@ Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
             return await executeSearchHouses(args.search_term);
           case 'get_house_details':
             return await executeGetHouseDetails(args.house_id);
+          case 'search_cleaning_tasks':
+            return await executeSearchCleaningTasks(args);
+          case 'get_cleaning_task_details':
+            return await executeGetCleaningTaskDetails(args.task_id);
           default:
             throw new Error(`Unknown tool: ${toolName}`);
         }
@@ -510,6 +627,30 @@ Du antwortest auf Deutsch. ABER: Du MUSST ZUERST die Tools aufrufen!`;
               label: h.name
             });
           });
+        }
+
+        if (result.tasks && Array.isArray(result.tasks)) {
+          resultsText += `\n\nGefundene Reinigungsaufträge (${result.count}):\n`;
+          result.tasks.forEach((t: any, i: number) => {
+            resultsText += `\nReinigungsauftrag ${i + 1}:\n`;
+            resultsText += `- Haus: ${t.houses?.name || 'Unbekannt'}\n`;
+            resultsText += `- Datum: ${new Date(t.scheduled_date).toLocaleDateString('de-DE')}`;
+            if (t.scheduled_time) resultsText += ` um ${t.scheduled_time}`;
+            resultsText += `\n`;
+            resultsText += `- Status: ${t.status}\n`;
+            if (t.bookings?.guest_name) resultsText += `- Buchung: ${t.bookings.guest_name}\n`;
+            if (t.notes) resultsText += `- Notizen: ${t.notes}\n`;
+            
+            entityLinks.push({
+              id: t.id,
+              type: 'cleaning_task',
+              label: `${t.houses?.name || 'Reinigung'} (${new Date(t.scheduled_date).toLocaleDateString('de-DE')})`
+            });
+          });
+        }
+
+        if (result.message) {
+          resultsText += `\n\n${result.message}\n`;
         }
       });
       
