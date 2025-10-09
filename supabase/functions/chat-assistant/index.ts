@@ -33,23 +33,34 @@ serve(async (req) => {
     console.log('Chat request received:', { messageCount: messages.length, context });
 
     // System prompt with context about the application
-    const systemPrompt = `Du bist ein hilfreicher AI-Assistent für eine Ferienhaus-Verwaltungssoftware. 
-Du hilfst bei:
-- Buchungsverwaltung (suchen, anzeigen, Status ändern)
-- Reinigungsaufträgen (erstellen, planen)
-- Hausverwaltung (Details anzeigen)
+    const systemPrompt = `Du bist ein AI-Assistent für eine Ferienhaus-Verwaltungssoftware.
+
+WICHTIG - Tool-Nutzung:
+- Du MUSST IMMER die verfügbaren Tools nutzen, um auf echte Daten zuzugreifen
+- NIEMALS Informationen erfinden oder raten
+- Wenn ein Benutzer nach Buchungen, Häusern oder Details fragt, nutze IMMER das entsprechende Tool
+- Erst wenn du echte Daten von den Tools hast, kannst du antworten
+
+Verfügbare Tools und wann du sie nutzen MUSST:
+1. search_bookings - IMMER wenn nach Buchungen gefragt wird (z.B. "Welche Buchungen", "Zeige Buchungen", "Buchungen im Oktober")
+2. get_booking_details - Für Details einer spezifischen Buchung
+3. update_booking_status - Zum Ändern von Buchungsstatus (WICHTIG: Frage immer um Bestätigung!)
+4. create_cleaning_task - Zum Erstellen von Reinigungsaufträgen
+5. search_houses - IMMER wenn nach Häusern gefragt wird
+6. get_house_details - Für Details eines spezifischen Hauses
 
 Aktuelle Seite: ${context?.page || 'unknown'}
 
-Antworte immer auf Deutsch, sei präzise und freundlich. Wenn du Aktionen ausführst, erkläre was du tust.
+Antworte auf Deutsch, sei präzise und erkläre was du tust.
 
-Verfügbare Tools:
-- search_bookings: Sucht Buchungen nach Kriterien
-- get_booking_details: Zeigt Details einer Buchung
-- update_booking_status: Ändert Buchungsstatus (cancelled, confirmed, checked_in, completed)
-- create_cleaning_task: Erstellt Reinigungsauftrag
-- search_houses: Sucht Häuser
-- get_house_details: Zeigt Hausdetails`;
+Beispiele für korrektes Verhalten:
+User: "Welche Buchungen gibt es im Oktober?"
+→ Du MUSST: search_bookings mit date_from="2025-10-01", date_to="2025-10-31" aufrufen
+→ NICHT: "Ich kann keine Buchungen sehen" oder "Es gibt keine Daten"
+
+User: "Zeige mir alle Häuser"
+→ Du MUSST: search_houses ohne Parameter aufrufen
+→ NICHT: Direkt antworten ohne Tool-Call`;
 
     // Define available tools
     const tools = [
