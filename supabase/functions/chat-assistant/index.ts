@@ -738,22 +738,22 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       let query = supabase
         .from('linen_orders')
-        .select('*, houses(name, address)');
+        .select('*, houses(name, address), service_providers:provider_id(name, service_type)');
 
       if (params.house_id) query = query.eq('house_id', params.house_id);
       if (params.status) query = query.eq('status', params.status);
       if (params.date_from) query = query.gte('delivery_date', params.date_from);
       if (params.date_to) query = query.lte('delivery_date', params.date_to);
 
-      const { data, error } = await query.order('delivery_date', { ascending: true });
+      const { data, error } = await query.order('order_date', { ascending: false });
 
       if (error) {
         console.error('Error searching linen orders:', error);
         return { success: false, error: error.message };
       }
 
-      console.log(`Found ${data.length} linen orders`);
-      return { success: true, orders: data, count: data.length };
+      console.log(`Found ${data?.length || 0} linen orders`);
+      return { success: true, orders: data || [], count: data?.length || 0 };
     }
 
     async function executeGetCalendarEvents(params: any) {
@@ -1121,14 +1121,29 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
           result.orders.forEach((o: any, i: number) => {
             resultsText += `\nBestellung ${i + 1}:\n`;
             resultsText += `- Haus: ${o.houses?.name || 'Unbekannt'}\n`;
-            if (o.delivery_date) resultsText += `- Lieferdatum: ${new Date(o.delivery_date).toLocaleDateString('de-DE')}\n`;
+            resultsText += `- Bestelldatum: ${new Date(o.order_date).toLocaleDateString('de-DE')}\n`;
+            if (o.delivery_date) {
+              resultsText += `- Lieferdatum: ${new Date(o.delivery_date).toLocaleDateString('de-DE')}`;
+              if (o.delivery_time) resultsText += ` um ${o.delivery_time}`;
+              resultsText += `\n`;
+            } else {
+              resultsText += `- Lieferdatum: Noch nicht festgelegt\n`;
+            }
             resultsText += `- Status: ${o.status}\n`;
             resultsText += `- Artikel: ${o.total_items}\n`;
+            resultsText += `- Typ: ${o.delivery_type === 'delivery' ? 'Lieferung' : 'Abholung'}\n`;
+            if (o.service_providers?.name) resultsText += `- Anbieter: ${o.service_providers.name}\n`;
+            if (o.notes) resultsText += `- Notizen: ${o.notes}\n`;
+            
+            // Formatiere Label mit verfügbaren Daten
+            const dateStr = o.delivery_date 
+              ? new Date(o.delivery_date).toLocaleDateString('de-DE')
+              : new Date(o.order_date).toLocaleDateString('de-DE');
             
             entityLinks.push({
               id: o.id,
               type: 'laundry_order',
-              label: `Bestellung ${o.houses?.name || 'Unbekannt'} (${new Date(o.delivery_date).toLocaleDateString('de-DE')})`
+              label: `${o.houses?.name || 'Bestellung'} - ${dateStr}`
             });
           });
         }
