@@ -100,7 +100,11 @@ const ChatAssistant = () => {
                 )}
                 
                 {messages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
+                  <ChatMessage 
+                    key={message.id} 
+                    message={message}
+                    onClose={() => setIsOpen(false)}
+                  />
                 ))}
 
                 {isStreaming && (

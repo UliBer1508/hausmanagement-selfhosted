@@ -25,9 +25,10 @@ interface Message {
 
 interface ChatMessageProps {
   message: Message;
+  onClose?: () => void;
 }
 
-const ChatMessage = ({ message }: ChatMessageProps) => {
+const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
   const isUser = message.role === 'user';
   const navigate = useNavigate();
 
@@ -67,6 +68,8 @@ const ChatMessage = ({ message }: ChatMessageProps) => {
         navigate('/houses', { state: { openHouseId: link.id } });
         break;
     }
+    // Chat schließen nach Navigation
+    onClose?.();
   };
 
   return (
