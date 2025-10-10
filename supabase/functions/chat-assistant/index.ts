@@ -52,6 +52,7 @@ WORKFLOW (ZWINGEND!):
 - "gast" / "gäste" / "kunde" → search_guests
 - "wäsche" / "bettwäsche" / "linen" / "bestellung" → search_linen_orders
 - "wäschestatus" / "linen status" → get_linen_overview
+- "wieviel wäsche" / "wäsche für [Hausname]" → ERST search_houses, DANN get_house_linen_status
 - "übersicht" / "dashboard" / "statistik" → get_dashboard_stats
 - "kalender" / "termine" / "events" → get_calendar_events
 - UUID erwähnt → get_*_details Tools
@@ -94,7 +95,34 @@ ANTWORT-FORMATE:
 • Anzahl Buchungen: [booking_count]
 • Letzte Buchung: [last_booking_date]"
 
-**Wäschestatus:**
+**Wäschestatus für Haus:**
+"Wäsche-Status für [Hausname]:
+
+📦 AKTUELLER BESTAND:
+• Bettbezüge: [stock] Stück
+• Große Handtücher: [stock] Stück
+• Kleine Handtücher: [stock] Stück
+• Saunatücher: [stock] Stück
+• Badematten: [stock] Stück
+• Spültücher: [stock] Stück
+• Küchentücher: [stock] Stück
+
+📅 BEDARF (nächste 30 Tage):
+[booking_count] Buchungen geplant:
+• Bettbezüge benötigt: [demand] Stück
+• Große Handtücher benötigt: [demand] Stück
+... (für alle Wäsche-Typen)
+
+⚖️ BILANZ:
+✅ Ausreichend: [items mit surplus > 3]
+⚠️ Knapp: [items mit surplus 0-3]
+❌ KRITISCH: [items mit shortage] → [X] Stück fehlen!
+
+💡 EMPFEHLUNG:
+[Falls shortage > 0: 'Du solltest [X] [Item] bestellen']
+[Falls alles ok: 'Keine Bestellung erforderlich']"
+
+**Wäschestatus-Übersicht:**
 "Wäsche-Übersicht:
 🟢 [X] Häuser: Optimal versorgt
 🟡 [Y] Häuser: Niedrige Bestände
@@ -380,7 +408,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         type: "function",
         function: {
           name: "get_house_linen_status",
-          description: "Detaillierter Wäschestatus für ein spezifisches Haus",
+          description: "Zeigt detaillierten Wäschestatus für ein Haus inkl. Bestand, Bedarf für kommende Buchungen (nächste 30 Tage) und Bestellempfehlungen",
           parameters: {
             type: "object",
             properties: {
@@ -786,18 +814,88 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
     async function executeGetHouseLinenStatus(house_id: string) {
       console.log('Executing get_house_linen_status for:', house_id);
       
-      const { data, error } = await supabase
+      // 1. Hausdaten mit allen Wäsche-Status-Feldern
+      const { data: house, error: houseError } = await supabase
         .from('houses')
-        .select('id, name, address, linen_stock, linen_in_use, linen_dirty, linen_reserved, linen_in_cleaning')
+        .select('id, name, address, linen_stock, linen_in_use, linen_dirty, linen_reserved, linen_in_cleaning, ordered_linen')
         .eq('id', house_id)
         .single();
 
-      if (error) {
-        console.error('Error getting house linen status:', error);
-        return { success: false, error: error.message };
+      if (houseError) {
+        console.error('Error getting house linen status:', houseError);
+        return { success: false, error: houseError.message };
       }
 
-      return { success: true, house: data };
+      // 2. Wäsche-Definitionen (Bedarf pro Gast/Buchung)
+      const { data: definitions } = await supabase
+        .from('linen_set_definitions')
+        .select('*')
+        .eq('house_id', house_id)
+        .maybeSingle();
+
+      // 3. Kommende Buchungen (nächste 30 Tage)
+      const today = new Date().toISOString();
+      const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      
+      const { data: bookings } = await supabase
+        .from('bookings')
+        .select('id, guest_name, check_in, check_out, number_of_guests, status')
+        .eq('house_id', house_id)
+        .gte('check_in', today)
+        .lte('check_in', in30Days)
+        .neq('status', 'cancelled')
+        .order('check_in', { ascending: true });
+
+      // 4. Bedarfsberechnung durchführen
+      const linenTypes = ['bedding', 'large_towels', 'small_towels', 'sauna_towels', 'bath_mats', 'sink_towels', 'kitchen_towels', 'pillow_cases', 'blankets'];
+      const totalDemand: any = {};
+      linenTypes.forEach(type => totalDemand[type] = 0);
+      
+      if (definitions && bookings && bookings.length > 0) {
+        bookings.forEach(booking => {
+          // Per-Guest Items
+          totalDemand.bedding += booking.number_of_guests * (definitions.bedding_per_guest || 0);
+          totalDemand.large_towels += booking.number_of_guests * (definitions.large_towels_per_guest || 0);
+          totalDemand.small_towels += booking.number_of_guests * (definitions.small_towels_per_guest || 0);
+          totalDemand.sauna_towels += booking.number_of_guests * (definitions.sauna_towels_per_guest || 0);
+          totalDemand.pillow_cases += booking.number_of_guests * (definitions.pillow_cases_per_guest || 0);
+          totalDemand.blankets += booking.number_of_guests * (definitions.blankets_per_guest || 0);
+          
+          // Per-Booking Items
+          totalDemand.bath_mats += (definitions.bath_mats_per_booking || 0);
+          totalDemand.sink_towels += (definitions.sink_towels_per_booking || 0);
+          totalDemand.kitchen_towels += (definitions.kitchen_towels_per_booking || 0);
+        });
+      }
+
+      // 5. Verfügbarkeit berechnen (Bestand + Bestellt - Bedarf)
+      const availability: any = {};
+      linenTypes.forEach(item => {
+        const stock = (house.linen_stock?.[item] || 0);
+        const ordered = (house.ordered_linen?.[item] || 0);
+        const demand = totalDemand[item];
+        const totalAvailable = stock + ordered;
+        const shortage = Math.max(0, demand - totalAvailable);
+        
+        availability[item] = {
+          stock,
+          ordered,
+          demand,
+          total_available: totalAvailable,
+          shortage,
+          surplus: totalAvailable - demand
+        };
+      });
+
+      return { 
+        success: true, 
+        house: house,
+        definitions: definitions,
+        upcoming_bookings: bookings || [],
+        total_demand: totalDemand,
+        availability: availability,
+        summary: `${bookings?.length || 0} Buchungen in den nächsten 30 Tagen`
+      };
     }
 
     async function executeSearchLinenOrders(params: any) {
