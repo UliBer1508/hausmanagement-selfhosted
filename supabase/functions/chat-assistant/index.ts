@@ -53,6 +53,7 @@ WORKFLOW (ZWINGEND!):
 - "wäsche" / "bettwäsche" / "linen" / "bestellung" → search_linen_orders
 - "wäschestatus" / "linen status" → get_linen_overview
 - "wieviel wäsche" / "wäsche für [Hausname]" → ERST search_houses, DANN get_house_linen_status
+- Bei get_house_linen_status: Priorisiere KI-Daten (confidence >= 60%, <7 Tage alt), sonst Fallback-Berechnung
 - "übersicht" / "dashboard" / "statistik" → get_dashboard_stats
 - "kalender" / "termine" / "events" → get_calendar_events
 - UUID erwähnt → get_*_details Tools
@@ -96,19 +97,49 @@ ANTWORT-FORMATE:
 • Letzte Buchung: [last_booking_date]"
 
 **Wäschestatus für Haus:**
-"Wäsche-Status für [Hausname]:
+[Falls source === 'ai_optimization']
+"🧺 Wäsche-Status für [Hausname]:
+🤖 KI-ANALYSE (Konfidenz: [confidence_score]%)
+Letzte Analyse: [last_analysis]
 
 📦 AKTUELLER BESTAND:
-• Bettbezüge: [stock] Stück
-• Große Handtücher: [stock] Stück
-• Kleine Handtücher: [stock] Stück
-• Saunatücher: [stock] Stück
-• Badematten: [stock] Stück
-• Spültücher: [stock] Stück
-• Küchentücher: [stock] Stück
+• Bettbezüge: [stock] Stück (+ [ordered] bestellt)
+• Große Handtücher: [stock] Stück (+ [ordered] bestellt)
+... (für alle Wäsche-Typen)
+
+📊 KI-EMPFOHLENER BESTAND:
+• Bettbezüge: [recommended] Stück [✅ Erfüllt / ⚠️ [X] Stück unter Empfehlung]
+• Große Handtücher: [recommended] Stück [Status]
+... (für alle Wäsche-Typen)
+
+📅 PROGNOSTIZIERTER BEDARF (KI-berechnet):
+• Bettbezüge: [demand] Stück
+• Große Handtücher: [demand] Stück
+... (für alle Wäsche-Typen)
+
+⚖️ BILANZ:
+[Für jeden Item: ✅ Surplus / ⚠️ Knapp / ❌ Shortage anzeigen]
+
+💡 KI-INSIGHTS:
+[ai_insights als Bullet Points, falls vorhanden]
+
+🛒 BESTELLVORSCHLAG:
+[order_suggestion.items mit Mengen und Preisen]
+Gesamt: [order_suggestion.total_cost] EUR
+Priorität: [order_suggestion.priority]"
+
+[Falls source === 'simple_calculation']
+"🧺 Wäsche-Status für [Hausname]:
+📊 EINFACHE BERECHNUNG
+(Keine aktuellen KI-Daten verfügbar - Basierend auf kommenden Buchungen)
+
+📦 AKTUELLER BESTAND:
+• Bettbezüge: [stock] Stück (+ [ordered] bestellt)
+• Große Handtücher: [stock] Stück (+ [ordered] bestellt)
+... (für alle Wäsche-Typen)
 
 📅 BEDARF (nächste 30 Tage):
-[booking_count] Buchungen geplant:
+[X] Buchungen geplant
 • Bettbezüge benötigt: [demand] Stück
 • Große Handtücher benötigt: [demand] Stück
 ... (für alle Wäsche-Typen)
@@ -118,9 +149,8 @@ ANTWORT-FORMATE:
 ⚠️ Knapp: [items mit surplus 0-3]
 ❌ KRITISCH: [items mit shortage] → [X] Stück fehlen!
 
-💡 EMPFEHLUNG:
-[Falls shortage > 0: 'Du solltest [X] [Item] bestellen']
-[Falls alles ok: 'Keine Bestellung erforderlich']"
+💡 HINWEIS:
+Für genauere Empfehlungen mit KI-Analyse führe eine Optimierung im Wäscheverwaltungs-Modul durch."
 
 **Wäschestatus-Übersicht:**
 "Wäsche-Übersicht:
@@ -408,7 +438,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         type: "function",
         function: {
           name: "get_house_linen_status",
-          description: "Zeigt detaillierten Wäschestatus für ein Haus inkl. Bestand, Bedarf für kommende Buchungen (nächste 30 Tage) und Bestellempfehlungen",
+          description: "Zeigt intelligenten Wäschestatus inkl. KI-Empfehlungen (falls vorhanden) oder Echtzeit-Bedarfsberechnung für kommende Buchungen",
           parameters: {
             type: "object",
             properties: {
@@ -814,10 +844,10 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
     async function executeGetHouseLinenStatus(house_id: string) {
       console.log('Executing get_house_linen_status for:', house_id);
       
-      // 1. Hausdaten mit allen Wäsche-Status-Feldern
+      // 1. Hausdaten laden
       const { data: house, error: houseError } = await supabase
         .from('houses')
-        .select('id, name, address, linen_stock, linen_in_use, linen_dirty, linen_reserved, linen_in_cleaning, ordered_linen')
+        .select('id, name, address, linen_stock, linen_in_use, linen_dirty, linen_reserved, linen_in_cleaning, ordered_linen, max_guests')
         .eq('id', house_id)
         .single();
 
@@ -826,14 +856,99 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         return { success: false, error: houseError.message };
       }
 
-      // 2. Wäsche-Definitionen (Bedarf pro Gast/Buchung)
+      // 2. KI-Optimierungsergebnisse abfragen (neueste innerhalb der letzten 7 Tage)
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      
+      const { data: aiOptimization } = await supabase
+        .from('ai_optimization_results')
+        .select('optimization_result, confidence_score, analysis_date, recommendations')
+        .eq('house_id', house_id)
+        .gte('analysis_date', sevenDaysAgo)
+        .order('analysis_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      console.log('AI Optimization data:', { 
+        found: !!aiOptimization, 
+        confidence: aiOptimization?.confidence_score,
+        date: aiOptimization?.analysis_date 
+      });
+
+      // 3. Entscheidung: KI-Daten oder Fallback?
+      if (aiOptimization && aiOptimization.confidence_score >= 0.6) {
+        // === OPTION A: KI-basierte Antwort ===
+        return buildAIBasedResponse(house, aiOptimization);
+      } else {
+        // === OPTION B: Fallback auf einfache Berechnung ===
+        return buildSimpleCalculationResponse(house, house_id);
+      }
+    }
+
+    function buildAIBasedResponse(house: any, aiOptimization: any) {
+      console.log('Building AI-based response');
+      
+      const result = aiOptimization.optimization_result;
+      
+      // Extrahiere Daten aus KI-Ergebnis
+      const currentStock = result.current_stock || {};
+      const upcomingDemand = result.upcoming_demand || {};
+      const recommendedStock = result.recommended_stock || {};
+      const orderSuggestion = result.order_suggestion || {};
+      const aiInsights = result.ai_insights || [];
+      const confidenceScore = aiOptimization.confidence_score;
+      
+      // Berechne Verfügbarkeit und Mangel
+      const linenTypes = ['bedding', 'large_towels', 'small_towels', 'sauna_towels', 'bath_mats', 'sink_towels'];
+      const availability: any = {};
+      
+      linenTypes.forEach(item => {
+        const stock = currentStock[item] || 0;
+        const ordered = (house.ordered_linen?.[item] || 0);
+        const demand = upcomingDemand[item] || 0;
+        const recommended = recommendedStock[item] || 0;
+        const totalAvailable = stock + ordered;
+        const shortage = Math.max(0, demand - totalAvailable);
+        
+        availability[item] = {
+          stock,
+          ordered,
+          demand,
+          recommended,
+          total_available: totalAvailable,
+          shortage,
+          surplus: totalAvailable - demand,
+          meets_recommendation: totalAvailable >= recommended
+        };
+      });
+      
+      return {
+        success: true,
+        source: 'ai_optimization',
+        house: {
+          id: house.id,
+          name: house.name,
+          address: house.address
+        },
+        availability: availability,
+        order_suggestion: orderSuggestion,
+        ai_insights: aiInsights,
+        confidence_score: confidenceScore,
+        last_analysis: aiOptimization.analysis_date,
+        summary: `KI-basierte Analyse (Konfidenz: ${(confidenceScore * 100).toFixed(0)}%)`
+      };
+    }
+
+    async function buildSimpleCalculationResponse(house: any, house_id: string) {
+      console.log('Building simple calculation response (fallback)');
+      
+      // Wäsche-Definitionen laden
       const { data: definitions } = await supabase
         .from('linen_set_definitions')
         .select('*')
         .eq('house_id', house_id)
         .maybeSingle();
 
-      // 3. Kommende Buchungen (nächste 30 Tage)
+      // Kommende Buchungen (nächste 30 Tage)
       const today = new Date().toISOString();
       const in30Days = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       
@@ -846,29 +961,23 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         .neq('status', 'cancelled')
         .order('check_in', { ascending: true });
 
-      // 4. Bedarfsberechnung durchführen
-      const linenTypes = ['bedding', 'large_towels', 'small_towels', 'sauna_towels', 'bath_mats', 'sink_towels', 'kitchen_towels', 'pillow_cases', 'blankets'];
+      // Bedarfsberechnung
+      const linenTypes = ['bedding', 'large_towels', 'small_towels', 'sauna_towels', 'bath_mats', 'sink_towels'];
       const totalDemand: any = {};
       linenTypes.forEach(type => totalDemand[type] = 0);
       
       if (definitions && bookings && bookings.length > 0) {
         bookings.forEach(booking => {
-          // Per-Guest Items
           totalDemand.bedding += booking.number_of_guests * (definitions.bedding_per_guest || 0);
           totalDemand.large_towels += booking.number_of_guests * (definitions.large_towels_per_guest || 0);
           totalDemand.small_towels += booking.number_of_guests * (definitions.small_towels_per_guest || 0);
           totalDemand.sauna_towels += booking.number_of_guests * (definitions.sauna_towels_per_guest || 0);
-          totalDemand.pillow_cases += booking.number_of_guests * (definitions.pillow_cases_per_guest || 0);
-          totalDemand.blankets += booking.number_of_guests * (definitions.blankets_per_guest || 0);
-          
-          // Per-Booking Items
           totalDemand.bath_mats += (definitions.bath_mats_per_booking || 0);
           totalDemand.sink_towels += (definitions.sink_towels_per_booking || 0);
-          totalDemand.kitchen_towels += (definitions.kitchen_towels_per_booking || 0);
         });
       }
 
-      // 5. Verfügbarkeit berechnen (Bestand + Bestellt - Bedarf)
+      // Verfügbarkeit berechnen
       const availability: any = {};
       linenTypes.forEach(item => {
         const stock = (house.linen_stock?.[item] || 0);
@@ -887,14 +996,18 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         };
       });
 
-      return { 
-        success: true, 
-        house: house,
+      return {
+        success: true,
+        source: 'simple_calculation',
+        house: {
+          id: house.id,
+          name: house.name,
+          address: house.address
+        },
         definitions: definitions,
         upcoming_bookings: bookings || [],
-        total_demand: totalDemand,
         availability: availability,
-        summary: `${bookings?.length || 0} Buchungen in den nächsten 30 Tagen`
+        summary: `${bookings?.length || 0} Buchungen in den nächsten 30 Tagen (Einfache Berechnung)`
       };
     }
 
