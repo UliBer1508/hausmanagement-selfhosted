@@ -162,7 +162,6 @@ Beispiel 7:
 User: "Welche Buchungen wurden heute geändert?"
 ✅ Tool: search_bookings({"updated_from": "2025-10-09T00:00:00Z", "updated_to": "2025-10-09T23:59:59Z"})
 
-Aktuelle Seite: ${context?.page || 'unknown'}
 HEUTE ist: 2025-10-09
 
 Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
