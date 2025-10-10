@@ -74,16 +74,16 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
               <div className="space-y-1 max-h-20 overflow-y-auto">
                 {/* Handle laundry_order_items (array format) */}
                 {order.laundry_order_items && order.laundry_order_items.slice(0, 3).map((item: any, index: number) => (
-                  <div key={item.id} className="flex justify-between text-xs">
-                    <span>{item.item_name}</span>
+                  <div key={item.id} className="grid grid-cols-[1fr_auto] gap-4 text-xs">
+                    <span className="truncate">{item.item_name}</span>
                     <span className="text-muted-foreground">{item.quantity}x</span>
                   </div>
                 ))}
                 
                 {/* Handle linen order items (JSON object format) */}
                 {order.items && Object.entries(order.items).slice(0, 3).map(([itemType, count]: [string, any], index: number) => (
-                  <div key={itemType} className="flex justify-between text-xs">
-                    <span>
+                  <div key={itemType} className="grid grid-cols-[1fr_auto] gap-4 text-xs">
+                    <span className="truncate">
                       {itemType === 'kitchen_towels' ? 'Küchentücher' : 
                        itemType === 'bedding' ? 'Bettwäsche' :
                        itemType === 'large_towels' ? 'Große Handtücher' :
@@ -116,13 +116,13 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
           {(order.pickup_date || order.delivery_date) && (
             <div className="text-xs space-y-1">
               {order.pickup_date && (
-                <div className="flex justify-between">
+                <div className="grid grid-cols-[1fr_auto] gap-4">
                   <span className="text-muted-foreground">Abholung:</span>
                   <span>{order.pickup_date}</span>
                 </div>
               )}
               {order.delivery_date && (
-                <div className="flex justify-between">
+                <div className="grid grid-cols-[1fr_auto] gap-4">
                   <span className="text-muted-foreground">Lieferung:</span>
                   <span>{order.delivery_date}</span>
                 </div>
