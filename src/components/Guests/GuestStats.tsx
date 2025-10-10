@@ -38,10 +38,11 @@ const GuestStats = () => {
         totalBookings += 1;
         
         // Calculate stay duration
-        const checkIn = new Date(booking.check_in);
-        const checkOut = new Date(booking.check_out);
-        const stayDays = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-        totalStayDays += stayDays;
+          const checkIn = new Date(booking.check_in);
+          const checkOut = new Date(booking.check_out);
+          const daysDifference = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+          const nights = Math.max(0, daysDifference - 1); // Nächte = Tage - 1
+          totalStayDays += nights;
       });
 
       const totalGuests = guestMap.size;
@@ -140,7 +141,7 @@ const GuestStats = () => {
           <span className="text-2xl">📅</span>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{stats.avgStayDuration} Tage</div>
+          <div className="text-2xl font-bold">{stats.avgStayDuration} Nächte</div>
           <p className="text-xs text-muted-foreground">
             Durchschnittlich
           </p>

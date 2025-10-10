@@ -61,7 +61,8 @@ const GuestAnalytics = () => {
         .map(b => {
           const checkIn = new Date(b.check_in);
           const checkOut = new Date(b.check_out);
-          return Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+          const daysDifference = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+          return Math.max(0, daysDifference - 1); // Nächte = Tage - 1
         });
 
       const avgStayDuration = stayDurations.length > 0 
