@@ -186,6 +186,20 @@ User: "Welche Reinigungen wurden gestern geändert?" (Heute ist 09.10.2025 in De
   "updated_to": "2025-10-08T21:59:59Z"     // 08.10. 23:59 Uhr Berlin = 08.10. 21:59 Uhr UTC
 })
 
+Beispiel 10 (Gäste nach Änderungsdatum):
+User: "Welche Gäste wurden gestern geändert?" (Heute ist 09.10.2025 in Deutschland)
+✅ Tool: search_guests({
+  "updated_from": "2025-10-07T22:00:00Z",  // 08.10. 00:00 Uhr Berlin = 07.10. 22:00 Uhr UTC
+  "updated_to": "2025-10-08T21:59:59Z"     // 08.10. 23:59 Uhr Berlin = 08.10. 21:59 Uhr UTC
+})
+
+Beispiel 11 (Wäschebestellungen nach Änderungsdatum):
+User: "Welche Wäschebestellungen wurden gestern geändert?" (Heute ist 09.10.2025 in Deutschland)
+✅ Tool: search_linen_orders({
+  "updated_from": "2025-10-07T22:00:00Z",
+  "updated_to": "2025-10-08T21:59:59Z"
+})
+
 Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
 
     // Define available tools
@@ -344,7 +358,9 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               guest_name: { type: "string", description: "Name des Gastes (Teilstring-Suche)" },
               guest_email: { type: "string", description: "Email des Gastes (Teilstring-Suche)" },
               nationality: { type: "string", description: "Nationalität (Teilstring-Suche)" },
-              min_bookings: { type: "number", description: "Mindestanzahl Buchungen" }
+              min_bookings: { type: "number", description: "Mindestanzahl Buchungen" },
+              updated_from: { type: "string", description: "Gäste mit Buchungen geändert ab diesem Zeitpunkt (ISO 8601, UTC)" },
+              updated_to: { type: "string", description: "Gäste mit Buchungen geändert bis zu diesem Zeitpunkt (ISO 8601, UTC)" }
             }
           }
         }
@@ -385,8 +401,10 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               guest_name: { type: "string", description: "Name des Gastes (sucht in verknüpften Buchungen)" },
               house_id: { type: "string", description: "UUID des Hauses" },
               status: { type: "string", enum: ["pending", "confirmed", "in_progress", "completed", "cancelled"], description: "Status" },
-              date_from: { type: "string", description: "Von-Datum (ISO 8601)" },
-              date_to: { type: "string", description: "Bis-Datum (ISO 8601)" }
+              date_from: { type: "string", description: "Von-Datum für Lieferdatum (ISO 8601)" },
+              date_to: { type: "string", description: "Bis-Datum für Lieferdatum (ISO 8601)" },
+              updated_from: { type: "string", description: "Von-Datum für Änderungsdatum (ISO 8601, UTC)" },
+              updated_to: { type: "string", description: "Bis-Datum für Änderungsdatum (ISO 8601, UTC)" }
             }
           }
         }
@@ -669,6 +687,12 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       if (params.nationality) {
         query = query.ilike('nationality', `%${params.nationality}%`);
       }
+      if (params.updated_from) {
+        query = query.gte('updated_at', params.updated_from);
+      }
+      if (params.updated_to) {
+        query = query.lte('updated_at', params.updated_to);
+      }
 
       const { data, error } = await query.order('check_in', { ascending: false });
       
@@ -802,6 +826,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       if (params.status) query = query.eq('status', params.status);
       if (params.date_from) query = query.gte('delivery_date', params.date_from);
       if (params.date_to) query = query.lte('delivery_date', params.date_to);
+      if (params.updated_from) query = query.gte('updated_at', params.updated_from);
+      if (params.updated_to) query = query.lte('updated_at', params.updated_to);
 
       const { data, error } = await query.order('order_date', { ascending: false });
 
