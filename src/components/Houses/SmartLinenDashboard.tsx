@@ -29,10 +29,12 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useOptimizedLinenManagement, HouseLinenOverview, LinenDemandAnalysis } from '@/hooks/useOptimizedLinenManagement';
 import SmartLinenInventoryDashboard from './SmartLinenInventoryDashboard';
+import { useToast } from '@/hooks/use-toast';
 
 const SmartLinenDashboard = () => {
   const [selectedHouse, setSelectedHouse] = useState<any>(null);
   const { housesWithLinenData, isLoading, createOptimizedOrderMutation } = useOptimizedLinenManagement();
+  const { toast } = useToast();
 
   // Calculate overall statistics
   const overallStats = {

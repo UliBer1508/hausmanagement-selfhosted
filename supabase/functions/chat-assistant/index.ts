@@ -228,6 +228,31 @@ WICHTIG für Datumsberechnungen:
 - Konvertiere relative Zeitangaben IMMER in UTC für Datenbankabfragen
 - Berücksichtige die Zeitverschiebung: Im Oktober (Sommerzeit) ist Berlin UTC+2
 
+WICHTIG - Wäschebestellungen:
+- "Was brauche ich für [Buchung]?" → generate_booking_linen_order
+- "Wieviel Wäsche für Dr. Mirtschink?" → 
+  1. ERST search_bookings (Buchungs-ID finden)
+  2. DANN generate_booking_linen_order mit booking_id
+
+- "Wie ist mein Buffer?" / "Buffer-Status?" → get_house_linen_status
+  → Zeige buffer_status aus Optimierungsergebnis falls vorhanden
+
+ANTWORT-FORMAT für Buchungs-Bestellungen:
+"🧺 Wäschebestellung für [Gast] ([X] Personen):
+
+📦 BESTELLUNG:
+• [X]x Bettwäsche (je [Preis] EUR)
+• [X]x Große Handtücher (je [Preis] EUR)
+• [X]x Kleine Handtücher (je [Preis] EUR)
+...
+
+💶 KOSTEN:
+Gesamt: [X] EUR
+
+💡 HINWEIS:
+Dies ist nur für diese Buchung berechnet.
+Dein Safety Buffer im Inventar bleibt unberührt und muss separat verwaltet werden."
+
 Beispiel 8 (KORREKTE Zeitzone-Konvertierung):
 User: "Welche Buchungen wurden gestern geändert?" (Heute ist 09.10.2025 in Deutschland)
 "Gestern" = 08.10.2025 in deutscher Zeit
@@ -464,6 +489,23 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               updated_from: { type: "string", description: "Von-Datum für Änderungsdatum (ISO 8601, UTC)" },
               updated_to: { type: "string", description: "Bis-Datum für Änderungsdatum (ISO 8601, UTC)" }
             }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "generate_booking_linen_order",
+          description: "Erstellt Wäschebestellung für eine EINZELNE Buchung (ohne Safety Buffer)",
+          parameters: {
+            type: "object",
+            properties: {
+              booking_id: { 
+                type: "string", 
+                description: "UUID der Buchung" 
+              }
+            },
+            required: ["booking_id"]
           }
         }
       },
@@ -1051,6 +1093,24 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       return { success: true, orders: data || [], count: data?.length || 0 };
     }
 
+    async function executeGenerateBookingLinenOrder(booking_id: string) {
+      console.log('Executing generate_booking_linen_order for:', booking_id);
+      
+      const { data, error } = await supabase.functions.invoke('generate-booking-linen-order', {
+        body: { booking_id }
+      });
+
+      if (error) {
+        console.error('Error generating linen order:', error);
+        return { success: false, error: error.message };
+      }
+
+      return {
+        success: true,
+        ...data
+      };
+    }
+
     async function executeGetCalendarEvents(params: any) {
       console.log('Executing get_calendar_events with params:', params);
       
@@ -1166,6 +1226,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
             return await executeGetHouseLinenStatus(args.house_id);
           case 'search_linen_orders':
             return await executeSearchLinenOrders(args);
+          case 'generate_booking_linen_order':
+            return await executeGenerateBookingLinenOrder(args.booking_id);
           case 'get_calendar_events':
             return await executeGetCalendarEvents(args);
           default:

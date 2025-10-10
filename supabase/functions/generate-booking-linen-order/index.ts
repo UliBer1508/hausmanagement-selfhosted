@@ -1,0 +1,174 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { booking_id } = await req.json();
+    console.log('🧺 Generating linen order for booking:', booking_id);
+
+    // 1. Load booking with house data
+    const { data: booking, error: bookingError } = await supabase
+      .from('bookings')
+      .select(`
+        id,
+        guest_name,
+        number_of_guests,
+        check_in,
+        check_out,
+        house_id,
+        houses (
+          id,
+          name,
+          address
+        )
+      `)
+      .eq('id', booking_id)
+      .single();
+
+    if (bookingError) {
+      console.error('❌ Error loading booking:', bookingError);
+      throw bookingError;
+    }
+
+    console.log('✅ Booking loaded:', { guest: booking.guest_name, guests: booking.number_of_guests });
+
+    // 2. Load linen set definitions for this house
+    const { data: rules, error: rulesError } = await supabase
+      .from('linen_set_definitions')
+      .select('*')
+      .eq('house_id', booking.house_id)
+      .maybeSingle();
+
+    if (rulesError) {
+      console.error('❌ Error loading linen rules:', rulesError);
+      throw rulesError;
+    }
+
+    if (!rules) {
+      throw new Error('Keine Wäsche-Definitionen für dieses Haus gefunden. Bitte legen Sie zuerst Wäsche-Regeln an.');
+    }
+
+    console.log('✅ Linen rules loaded for house:', booking.houses.name);
+
+    // 3. Calculate order items (WITHOUT safety buffer, ONLY for this booking)
+    const orderItems: any = {};
+    
+    if (rules.bedding_per_guest) {
+      orderItems.bedding = booking.number_of_guests * rules.bedding_per_guest;
+    }
+    if (rules.large_towels_per_guest) {
+      orderItems.large_towels = booking.number_of_guests * rules.large_towels_per_guest;
+    }
+    if (rules.small_towels_per_guest) {
+      orderItems.small_towels = booking.number_of_guests * rules.small_towels_per_guest;
+    }
+    if (rules.sauna_towels_per_guest) {
+      orderItems.sauna_towels = booking.number_of_guests * rules.sauna_towels_per_guest;
+    }
+    if (rules.sink_towels_per_booking) {
+      orderItems.sink_towels = rules.sink_towels_per_booking;
+    }
+    if (rules.bath_mats_per_booking) {
+      orderItems.bath_mats = rules.bath_mats_per_booking;
+    }
+    if (rules.kitchen_towels_per_booking) {
+      orderItems.kitchen_towels = rules.kitchen_towels_per_booking;
+    }
+
+    // Remove items with 0 quantity
+    Object.keys(orderItems).forEach(key => {
+      if (!orderItems[key] || orderItems[key] === 0) {
+        delete orderItems[key];
+      }
+    });
+
+    console.log('📦 Calculated order items:', orderItems);
+
+    // 4. Load prices from AI settings
+    const { data: aiSettings } = await supabase
+      .from('ai_linen_settings')
+      .select('prices')
+      .eq('house_id', booking.house_id)
+      .maybeSingle();
+
+    const defaultPrices = {
+      bedding: 30,
+      large_towels: 18,
+      small_towels: 10,
+      sauna_towels: 20,
+      bath_mats: 15,
+      sink_towels: 8,
+      kitchen_towels: 5
+    };
+
+    const prices = aiSettings?.prices || defaultPrices;
+    console.log('💶 Using prices:', prices);
+
+    // 5. Calculate costs
+    let totalCost = 0;
+    const itemDetails = Object.entries(orderItems).map(([item, qty]: [string, any]) => {
+      const price = prices[item] || 0;
+      const itemTotal = qty * price;
+      totalCost += itemTotal;
+      return {
+        item,
+        quantity: qty,
+        unit_price: price,
+        total_price: itemTotal
+      };
+    });
+
+    const totalItems = Object.values(orderItems).reduce((sum: number, qty: any) => sum + qty, 0);
+
+    console.log('✅ Order generated successfully:', {
+      booking_id,
+      total_items: totalItems,
+      total_cost: totalCost
+    });
+
+    return new Response(JSON.stringify({
+      success: true,
+      booking: {
+        id: booking.id,
+        guest_name: booking.guest_name,
+        number_of_guests: booking.number_of_guests,
+        check_in: booking.check_in,
+        check_out: booking.check_out,
+        house: booking.houses
+      },
+      order_items: orderItems,
+      item_details: itemDetails,
+      total_items: totalItems,
+      estimated_cost: Math.round(totalCost * 100) / 100, // Round to 2 decimals
+      currency: 'EUR',
+      note: 'Bestellung NUR für diese Buchung - Safety Buffer im Inventar bleibt unberührt'
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error generating linen order:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message || 'Unbekannter Fehler beim Erstellen der Wäschebestellung'
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+});

@@ -796,6 +796,38 @@ export type Database = {
           },
         ]
       }
+      buffer_settings: {
+        Row: {
+          created_at: string
+          house_id: string
+          id: string
+          min_buffer_stock: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          house_id: string
+          id?: string
+          min_buffer_stock?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          house_id?: string
+          id?: string
+          min_buffer_stock?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buffer_settings_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: true
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cleaning_assignments: {
         Row: {
           actual_duration: number | null

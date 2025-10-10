@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.chat-assistant]
 verify_jwt = false
+
+[functions.generate-booking-linen-order]
+verify_jwt = false

@@ -176,9 +176,16 @@ serve(async (req) => {
       await updatePredictionAccuracy(supabase, house_id, optimization, historicalUsage);
     }
 
+    // Check buffer status
+    const bufferStatus = await checkBufferStatus(supabase, house_id, currentStock);
+    console.log('🎯 Buffer status:', bufferStatus);
+
     console.log('ML-enhanced optimization completed successfully');
 
-    return new Response(JSON.stringify(result), {
+    return new Response(JSON.stringify({
+      ...result,
+      buffer_status: bufferStatus // NEW: Buffer status
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
@@ -262,8 +269,9 @@ function calculateOptimalInventory(
     const baseDemand = (totalGuests * perGuest) + (totalBookings * perBooking);
     forecasted[type] = Math.ceil(baseDemand * demandMultiplier);
     
-    // Apply safety buffer
-    recommended[type] = Math.ceil(forecasted[type] * settings.safety_buffer);
+    // Berechne empfohlenen Bestand OHNE Safety Buffer
+    // Buffer wird separat im Inventar vorgehalten
+    recommended[type] = forecasted[type]; // Kein Safety Buffer mehr!
     
     // Apply max storage ratio
     const maxStorage = Math.ceil(recommended[type] * settings.max_storage_ratio);
@@ -409,6 +417,58 @@ function getDefaultLinenRules() {
     bath_mats_per_booking: 1,
     sink_towels_per_booking: 1,
     sauna_towels_per_guest: 1
+  };
+}
+
+async function checkBufferStatus(
+  supabase: any,
+  house_id: string,
+  currentStock: LinenItem
+) {
+  // Load buffer settings from database
+  const { data: bufferSettings } = await supabase
+    .from('buffer_settings')
+    .select('min_buffer_stock')
+    .eq('house_id', house_id)
+    .maybeSingle();
+
+  // Use default values if no settings found
+  const defaultBuffer = {
+    bedding: 5,
+    large_towels: 5,
+    small_towels: 5,
+    sauna_towels: 5,
+    bath_mats: 3,
+    sink_towels: 3,
+    kitchen_towels: 2
+  };
+
+  const minBufferStock = bufferSettings?.min_buffer_stock || defaultBuffer;
+  return checkBufferDeficit(currentStock, minBufferStock);
+}
+
+function checkBufferDeficit(currentStock: LinenItem, minBufferStock: any) {
+  const bufferDeficit: any = {};
+  let needsBufferRefill = false;
+
+  Object.keys(minBufferStock).forEach(itemType => {
+    const current = currentStock[itemType as keyof LinenItem] || 0;
+    const minBuffer = minBufferStock[itemType];
+
+    if (current < minBuffer) {
+      bufferDeficit[itemType] = {
+        current_buffer: current,
+        min_buffer: minBuffer,
+        refill_quantity: minBuffer - current
+      };
+      needsBufferRefill = true;
+    }
+  });
+
+  return {
+    needs_refill: needsBufferRefill,
+    deficit: bufferDeficit,
+    status: needsBufferRefill ? 'critical' : 'ok'
   };
 }
 

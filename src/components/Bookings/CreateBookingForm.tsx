@@ -4,8 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { CalendarIcon } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { CalendarIcon, Loader2, ShoppingCart } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCreateBooking, useUpdateBooking } from '@/hooks/useBookings';
@@ -134,6 +134,8 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
   const [showCancelCleaningDialog, setShowCancelCleaningDialog] = useState(false);
   const [relatedCleaningTasks, setRelatedCleaningTasks] = useState<any[]>([]);
   const [pendingBookingData, setPendingBookingData] = useState<any>(null);
+  const [linenOrderDialogOpen, setLinenOrderDialogOpen] = useState(false);
+  const [prefilledOrderData, setPrefilledOrderData] = useState<any>(null);
   
   const { toast } = useToast();
 
@@ -395,6 +397,39 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
     
     setRelatedCleaningTasks([]);
     setPendingBookingData(null);
+  };
+
+  // Generate linen order for this booking
+  const generateLinenOrderMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { data, error } = await supabase.functions.invoke('generate-booking-linen-order', {
+        body: { booking_id: bookingId }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Wäschebestellung berechnet",
+        description: `${data.total_items} Teile für ${data.booking.guest_name} - Geschätzte Kosten: ${data.estimated_cost} EUR`
+      });
+      
+      setPrefilledOrderData(data);
+      setLinenOrderDialogOpen(true);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler",
+        description: error.message || "Fehler beim Erstellen der Wäschebestellung",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleGenerateLinenOrder = () => {
+    if (initialData?.id) {
+      generateLinenOrderMutation.mutate(initialData.id);
+    }
   };
 
   return (
@@ -774,6 +809,30 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Linen Order Button - Only in edit mode */}
+      {mode === 'edit' && initialData && (
+        <div className="border-t pt-4 mt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleGenerateLinenOrder}
+            disabled={generateLinenOrderMutation.isPending}
+            className="w-full"
+          >
+            <ShoppingCart className="w-4 h-4 mr-2" />
+            {generateLinenOrderMutation.isPending 
+              ? 'Berechne Wäschebedarf...' 
+              : 'Wäschebestellung für diese Buchung erstellen'
+            }
+          </Button>
+          {prefilledOrderData && (
+            <p className="text-sm text-muted-foreground mt-2 text-center">
+              {prefilledOrderData.note}
+            </p>
+          )}
+        </div>
+      )}
     </Form>
   );
 };
