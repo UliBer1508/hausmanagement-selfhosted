@@ -178,6 +178,14 @@ User: "Welche Buchungen wurden gestern geändert?" (Heute ist 09.10.2025 in Deut
   "updated_to": "2025-10-08T21:59:59Z"     // 08.10. 23:59 Uhr Berlin = 08.10. 21:59 Uhr UTC
 })
 
+Beispiel 9 (Reinigungen nach Änderungsdatum):
+User: "Welche Reinigungen wurden gestern geändert?" (Heute ist 09.10.2025 in Deutschland)
+"Gestern" = 08.10.2025 in deutscher Zeit
+✅ Tool: search_cleaning_tasks({
+  "updated_from": "2025-10-07T22:00:00Z",  // 08.10. 00:00 Uhr Berlin = 07.10. 22:00 Uhr UTC
+  "updated_to": "2025-10-08T21:59:59Z"     // 08.10. 23:59 Uhr Berlin = 08.10. 21:59 Uhr UTC
+})
+
 Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
 
     // Define available tools
@@ -292,8 +300,10 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
                 enum: ["scheduled", "in_progress", "completed", "cancelled", "delayed"],
                 description: "Status" 
               },
-              date_from: { type: "string", description: "Von-Datum (ISO 8601)" },
-              date_to: { type: "string", description: "Bis-Datum (ISO 8601)" }
+              date_from: { type: "string", description: "Von-Datum für geplantes Datum (ISO 8601)" },
+              date_to: { type: "string", description: "Bis-Datum für geplantes Datum (ISO 8601)" },
+              updated_from: { type: "string", description: "Von-Datum für Änderungsdatum (ISO 8601, UTC)" },
+              updated_to: { type: "string", description: "Bis-Datum für Änderungsdatum (ISO 8601, UTC)" }
             }
           }
         }
@@ -587,6 +597,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       if (params.status) query = query.eq('status', params.status);
       if (params.date_from) query = query.gte('scheduled_date', params.date_from);
       if (params.date_to) query = query.lte('scheduled_date', params.date_to);
+      if (params.updated_from) query = query.gte('updated_at', params.updated_from);
+      if (params.updated_to) query = query.lte('updated_at', params.updated_to);
 
       const { data, error } = await query.order('scheduled_date', { ascending: true });
       
