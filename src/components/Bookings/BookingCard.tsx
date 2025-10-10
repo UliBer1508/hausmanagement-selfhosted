@@ -51,25 +51,27 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
           </div>
 
           {/* Dates */}
-          <div className="text-sm">
-            <div className="flex gap-2">
-              <span className="text-muted-foreground">Check-in:</span>
+          <div className="text-sm space-y-1">
+            <div className="flex gap-1">
+              <span className="text-muted-foreground">📅 Check-in:</span>
               <span>{format(parseISO(booking.check_in), "dd.MM.yyyy", { locale: de })}</span>
             </div>
-            <div className="flex gap-2">
-              <span className="text-muted-foreground">Check-out:</span>
+            <div className="flex gap-1">
+              <span className="text-muted-foreground">📅 Check-out:</span>
               <span>{format(parseISO(booking.check_out), "dd.MM.yyyy", { locale: de })}</span>
             </div>
           </div>
 
-          {/* Guests and Status */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-base">👥</span>
-              <span className="text-sm">{booking.number_of_guests}</span>
-            </div>
-            {getStatusBadge(booking.status)}
+          {/* Guests */}
+          <div className="flex items-center gap-2">
+            <span className="text-base">👥</span>
+            <span className="text-sm">{booking.number_of_guests}</span>
           </div>
+        </div>
+
+        {/* Status Badge - Bottom Right */}
+        <div className="absolute bottom-2 right-2">
+          {getStatusBadge(booking.status)}
         </div>
 
         {/* Edit Button */}
