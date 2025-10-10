@@ -158,6 +158,10 @@ Beispiel 6:
 User: "Was passiert nächste Woche?"
 ✅ Tool: get_calendar_events({"date_from": "2025-10-13", "date_to": "2025-10-20"})
 
+Beispiel 7:
+User: "Welche Buchungen wurden heute geändert?"
+✅ Tool: search_bookings({"updated_from": "2025-10-09T00:00:00Z", "updated_to": "2025-10-09T23:59:59Z"})
+
 Aktuelle Seite: ${context?.page || 'unknown'}
 HEUTE ist: 2025-10-09
 
@@ -169,15 +173,17 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         type: "function",
         function: {
           name: "search_bookings",
-          description: "Sucht Buchungen nach verschiedenen Kriterien wie Gastname, Status, Haus-ID oder Datumsbereich",
+          description: "Sucht Buchungen nach verschiedenen Kriterien wie Gastname, Status, Haus-ID, Datumsbereich oder Änderungsdatum",
           parameters: {
             type: "object",
             properties: {
               guest_name: { type: "string", description: "Name des Gastes (Teilstring-Suche)" },
               status: { type: "string", enum: ["confirmed", "checked_in", "completed", "cancelled"], description: "Buchungsstatus" },
               house_id: { type: "string", description: "UUID des Hauses" },
-              date_from: { type: "string", description: "Startdatum (ISO 8601)" },
-              date_to: { type: "string", description: "Enddatum (ISO 8601)" }
+              date_from: { type: "string", description: "Startdatum für Check-in (ISO 8601)" },
+              date_to: { type: "string", description: "Enddatum für Check-out (ISO 8601)" },
+              updated_from: { type: "string", description: "Buchungen geändert ab diesem Zeitpunkt (ISO 8601)" },
+              updated_to: { type: "string", description: "Buchungen geändert bis zu diesem Zeitpunkt (ISO 8601)" }
             }
           }
         }
@@ -406,6 +412,12 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       }
       if (params.date_to) {
         query = query.lte('check_out', params.date_to);
+      }
+      if (params.updated_from) {
+        query = query.gte('updated_at', params.updated_from);
+      }
+      if (params.updated_to) {
+        query = query.lte('updated_at', params.updated_to);
       }
 
       const { data, error } = await query.order('check_in', { ascending: true });
