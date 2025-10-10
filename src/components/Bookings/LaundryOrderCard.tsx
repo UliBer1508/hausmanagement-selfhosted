@@ -53,12 +53,9 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
       <CardContent className="p-4">
         <div className="space-y-3">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-base">📦</span>
-              <h4 className="font-medium">Wäschebestellung</h4>
-            </div>
-            {getStatusBadge(order.status)}
+          <div className="flex items-center gap-2">
+            <span className="text-base">📦</span>
+            <h4 className="font-medium">Wäschebestellung</h4>
           </div>
 
           {/* Items Summary */}
@@ -139,6 +136,11 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
         >
           <Edit className="w-4 h-4" />
         </Button>
+
+        {/* Status Badge - Bottom Right */}
+        <div className="absolute bottom-2 right-2">
+          {getStatusBadge(order.status)}
+        </div>
       </CardContent>
     </Card>
   );
