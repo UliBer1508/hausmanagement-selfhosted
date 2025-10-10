@@ -163,6 +163,20 @@ User: "Welche Buchungen wurden heute geändert?"
 ✅ Tool: search_bookings({"updated_from": "2025-10-09T00:00:00Z", "updated_to": "2025-10-09T23:59:59Z"})
 
 HEUTE ist: 2025-10-09
+ZEITZONE: Europe/Berlin (UTC+2 Sommerzeit, UTC+1 Winterzeit)
+
+WICHTIG für Datumsberechnungen:
+- Wenn der User "heute", "gestern", "diese Woche" sagt, meint er IMMER deutsche Zeit (Europe/Berlin)
+- Konvertiere relative Zeitangaben IMMER in UTC für Datenbankabfragen
+- Berücksichtige die Zeitverschiebung: Im Oktober (Sommerzeit) ist Berlin UTC+2
+
+Beispiel 8 (KORREKTE Zeitzone-Konvertierung):
+User: "Welche Buchungen wurden gestern geändert?" (Heute ist 09.10.2025 in Deutschland)
+"Gestern" = 08.10.2025 in deutscher Zeit
+✅ Tool: search_bookings({
+  "updated_from": "2025-10-07T22:00:00Z",  // 08.10. 00:00 Uhr Berlin = 07.10. 22:00 Uhr UTC
+  "updated_to": "2025-10-08T21:59:59Z"     // 08.10. 23:59 Uhr Berlin = 08.10. 21:59 Uhr UTC
+})
 
 Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
 
