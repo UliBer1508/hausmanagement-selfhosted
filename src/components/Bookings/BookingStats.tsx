@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, Calendar, Users, Euro } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { TrendingUp, Calendar, Users, Euro, RefreshCw } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface BookingStatsProps {
   total: number;
@@ -11,6 +13,14 @@ interface BookingStatsProps {
 }
 
 const BookingStats = ({ total, confirmed, completed, totalRevenue, timeFilter }: BookingStatsProps) => {
+  const queryClient = useQueryClient();
+  
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['bookings'] });
+    queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+  };
+
   const getTimeFilterLabel = (filter: string) => {
     switch (filter) {
       case 'all':
@@ -66,12 +76,23 @@ const BookingStats = ({ total, confirmed, completed, totalRevenue, timeFilter }:
   return (
     <div className="space-y-4">
       {/* Time Filter Info */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Calendar className="w-4 h-4" />
-        <span>Zeitraum:</span>
-        <Badge variant="outline" className="font-normal">
-          {getTimeFilterLabel(timeFilter)}
-        </Badge>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Calendar className="w-4 h-4" />
+          <span>Zeitraum:</span>
+          <Badge variant="outline" className="font-normal">
+            {getTimeFilterLabel(timeFilter)}
+          </Badge>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          className="gap-2"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Aktualisieren
+        </Button>
       </div>
 
       {/* Stats Grid */}

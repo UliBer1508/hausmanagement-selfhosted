@@ -73,6 +73,7 @@ export const useUpdateBooking = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 };
