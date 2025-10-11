@@ -224,10 +224,18 @@ const ConnectedBookingView = () => {
 
   // Handler for editing existing linen orders
   const handleEditLinenOrder = async (order: any) => {
+    // Prevent multiple clicks
+    if (showLinenOrderDialog) {
+      console.log('⏭️ Dialog bereits offen, ignoriere Klick');
+      return;
+    }
+
     console.log('✏️ Bearbeite Wäschebestellung:', order.id);
+    console.log('📋 Order Details:', { booking_id: order.booking_id, items: order.items });
     
     // Erst in gefilterten Daten suchen
     let booking = bookingsData?.find(b => b.id === order.booking_id);
+    console.log('🔍 Buchung gefunden in bookingsData:', booking ? 'Ja' : 'Nein');
     
     // Falls nicht gefunden: Direkt aus DB laden (Fallback für gefilterte Buchungen)
     if (!booking) {
@@ -250,7 +258,14 @@ const ConnectedBookingView = () => {
       }
       
       booking = fetchedBooking;
+      console.log('✅ Buchung aus DB geladen:', booking.guest_name);
     }
+    
+    console.log('📦 Setze Dialog-Daten:', {
+      guestName: booking.guest_name,
+      houseName: booking.houses?.name,
+      itemsCount: Object.keys(order.items || {}).length
+    });
     
     // Open dialog with existing data
     setSelectedBookingForOrder(booking);
@@ -258,6 +273,8 @@ const ConnectedBookingView = () => {
     setEditingOrderId(order.id);
     setIsEditMode(true);
     setShowLinenOrderDialog(true);
+    
+    console.log('🎬 Dialog-States gesetzt, Dialog sollte jetzt öffnen');
   };
 
   // Handle order creation/update from dialog
