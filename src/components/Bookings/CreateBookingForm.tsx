@@ -273,9 +273,8 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       // Check for conflicting bookings (skip for same booking in edit mode)
       let query = supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out')
+        .select('id, guest_name, check_in, check_out, status')
         .eq('house_id', data.house_id)
-        .or(`and(check_in.lt.${data.check_out.toISOString()},check_out.gt.${data.check_in.toISOString()})`)
         .neq('status', 'cancelled');
 
       // Only exclude the current booking ID in edit mode
@@ -283,11 +282,28 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         query = query.neq('id', initialData.id);
       }
 
-      const { data: conflictingBookings, error: conflictError } = await query;
+      const { data: allBookings, error: conflictError } = await query;
       
-      console.log('Conflicting bookings found:', conflictingBookings);
+      console.log('All non-cancelled bookings:', allBookings);
 
       if (conflictError) throw conflictError;
+      
+      // Manual overlap check
+      const conflictingBookings = allBookings?.filter(booking => {
+        const bookingCheckIn = new Date(booking.check_in);
+        const bookingCheckOut = new Date(booking.check_out);
+        const newCheckIn = data.check_in;
+        const newCheckOut = data.check_out;
+        
+        // Check if there's an overlap
+        const hasOverlap = bookingCheckIn < newCheckOut && bookingCheckOut > newCheckIn;
+        
+        if (hasOverlap) {
+          console.log('Conflict found with:', booking.guest_name, bookingCheckIn, bookingCheckOut);
+        }
+        
+        return hasOverlap;
+      }) || [];
 
       if (conflictingBookings && conflictingBookings.length > 0) {
         const conflictDetails = conflictingBookings[0];
