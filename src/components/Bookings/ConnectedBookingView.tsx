@@ -444,20 +444,14 @@ const ConnectedBookingView = () => {
                 {/* Laundry Orders */}
                 <div className="space-y-3">
                   {laundry.length > 0 ? (
-                    laundry.map((order) => {
-                      console.log('🎨 Rendering LaundryOrderCard', { 
-                        orderId: order.id, 
-                        hasEditHandler: !!handleEditLinenOrder 
-                      });
-                      return (
-                        <LaundryOrderCard 
-                          key={order.id} 
-                          order={order} 
-                          colorVariant={colorVariant}
-                          onEdit={handleEditLinenOrder}
-                        />
-                      );
-                    })
+                    laundry.map((order) => (
+                      <LaundryOrderCard 
+                        key={order.id} 
+                        order={order} 
+                        colorVariant={colorVariant}
+                        onEdit={handleEditLinenOrder}
+                      />
+                    ))
                   ) : (
                     <Card 
                       className="border-2 border-dashed border-muted hover:border-primary/50 hover:bg-accent/50 transition-all cursor-pointer" 

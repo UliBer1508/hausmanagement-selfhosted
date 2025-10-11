@@ -52,6 +52,7 @@ import CleaningManagement from '@/components/Cleaning/CleaningManagement';
 import GuestManagement from '@/components/Guests/GuestManagement';
 import LinenDashboard from '@/components/Houses/LinenDashboard';
 import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderManagementDialog';
+import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
 import { supabase } from '@/integrations/supabase/client';
 
 const OriginalDashboard = () => {
@@ -101,6 +102,12 @@ const OriginalDashboard = () => {
   const [houseFilter, setHouseFilter] = useState('all');
   const [serviceTypeFilter, setServiceTypeFilter] = useState('all');
   const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
+
+  // Linen Order Dialog States
+  const [showLinenOrderDialog, setShowLinenOrderDialog] = useState(false);
+  const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<any>(null);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [editingOrderData, setEditingOrderData] = useState<any>(null);
 
   // Settings save functions
   const saveProfileSettings = async () => {
@@ -223,6 +230,136 @@ const OriginalDashboard = () => {
       description: "Alle Ihre Einstellungen wurden erfolgreich aktualisiert.",
     });
   };
+
+  // Handler für Wäschebestellungs-Bearbeitung
+  const handleEditLinenOrder = async (order: any) => {
+    if (showLinenOrderDialog) {
+      console.log('⏭️ Dialog bereits offen, ignoriere Klick');
+      return;
+    }
+
+    console.log('✏️ Bearbeite Wäschebestellung:', order.id);
+    
+    // Lade die Buchung mit Haus-Details
+    const { data: booking, error } = await supabase
+      .from('bookings')
+      .select('*, houses(*)')
+      .eq('id', order.booking_id)
+      .single();
+    
+    if (error || !booking) {
+      console.error('❌ Buchung konnte nicht geladen werden:', error);
+      toast({
+        title: "Fehler",
+        description: "Zugehörige Buchung nicht gefunden.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Lade die vollständige Order mit allen Details
+    const { data: fullOrder, error: orderError } = await supabase
+      .from('linen_orders')
+      .select('*')
+      .eq('id', order.id)
+      .single();
+    
+    if (orderError || !fullOrder) {
+      console.error('❌ Bestellung konnte nicht geladen werden:', orderError);
+      toast({
+        title: "Fehler",
+        description: "Bestellung konnte nicht geladen werden.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setSelectedBookingForOrder(booking);
+    setEditingOrderId(order.id);
+    setEditingOrderData(fullOrder);
+    setShowLinenOrderDialog(true);
+    
+    console.log('🎬 Dialog öffnen für Order:', order.id);
+  };
+
+  // Handler für Erstellen/Aktualisieren von Wäschebestellungen
+  const handleCreateOrUpdateOrder = async (orderData: any) => {
+    try {
+      console.log('💾 Speichere Bestellung:', { editingOrderId, orderData });
+
+      const totalItems: number = Object.values(orderData.orderItems || {}).reduce((sum: number, val: any) => sum + Number(val || 0), 0) as number;
+
+      if (editingOrderId) {
+        // Update existierende Bestellung
+        const updatePayload = {
+          items: orderData.orderItems,
+          total_items: totalItems as number,
+          delivery_date: orderData.deliveryDate,
+          delivery_time: '09:00:00' as const,
+          delivery_type: orderData.deliveryType || 'delivery',
+          notes: orderData.notes,
+          updated_at: new Date().toISOString()
+        };
+
+        console.log('📝 Update Payload:', updatePayload);
+
+        const { error } = await supabase
+          .from('linen_orders')
+          .update(updatePayload as any)
+          .eq('id', editingOrderId);
+
+        if (error) throw error;
+
+        toast({
+          title: "Bestellung aktualisiert",
+          description: "Die Wäschebestellung wurde erfolgreich aktualisiert.",
+        });
+      } else {
+        // Neue Bestellung erstellen
+        const insertPayload = {
+          house_id: selectedBookingForOrder?.houses?.id || selectedBookingForOrder?.house_id,
+          booking_id: selectedBookingForOrder?.id,
+          items: orderData.orderItems,
+          total_items: totalItems as number,
+          delivery_date: orderData.deliveryDate,
+          delivery_time: '09:00:00' as const,
+          delivery_type: orderData.deliveryType || 'delivery',
+          notes: orderData.notes,
+          status: 'pending' as const
+        };
+
+        console.log('➕ Insert Payload:', insertPayload);
+
+        const { error } = await supabase
+          .from('linen_orders')
+          .insert([insertPayload as any]);
+
+        if (error) throw error;
+
+        toast({
+          title: "Bestellung erstellt",
+          description: "Die Wäschebestellung wurde erfolgreich erstellt.",
+        });
+      }
+
+      // Dialog schließen und States zurücksetzen
+      setShowLinenOrderDialog(false);
+      setSelectedBookingForOrder(null);
+      setEditingOrderId(null);
+      setEditingOrderData(null);
+      
+      // Daten neu laden
+      window.location.reload();
+    } catch (error: any) {
+      console.error('❌ Fehler beim Speichern der Bestellung:', error);
+      toast({
+        title: "Fehler",
+        description: error.message || "Bestellung konnte nicht gespeichert werden.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const [timePeriodFilter, setTimePeriodFilter] = useState('all');
 
   // Fetch real bookings data with optimized caching
@@ -1495,7 +1632,12 @@ const OriginalDashboard = () => {
                         <div className="space-y-3">
                           {laundry.length > 0 ? (
                             laundry.map((order) => (
-                              <LaundryOrderCard key={order.id} order={order} colorVariant={colorVariant} />
+                              <LaundryOrderCard 
+                                key={order.id} 
+                                order={order} 
+                                colorVariant={colorVariant}
+                                onEdit={handleEditLinenOrder}
+                              />
                             ))
                           ) : (
                             <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg bg-gray-50">
@@ -1694,6 +1836,32 @@ const OriginalDashboard = () => {
         open={isProviderDialogOpen}
         onOpenChange={setIsProviderDialogOpen}
       />
+
+      {/* Wäschebestellungs-Dialog */}
+      {selectedBookingForOrder && (
+        <LinenOrderDialog 
+          open={showLinenOrderDialog}
+          onOpenChange={(open) => {
+            setShowLinenOrderDialog(open);
+            if (!open) {
+              setSelectedBookingForOrder(null);
+              setEditingOrderId(null);
+              setEditingOrderData(null);
+            }
+          }}
+          orderItems={editingOrderData?.items || {}}
+          houseName={selectedBookingForOrder?.houses?.name || ''}
+          houseId={selectedBookingForOrder?.houses?.id || selectedBookingForOrder?.house_id || ''}
+          selectedBooking={selectedBookingForOrder}
+          onCreateOrder={handleCreateOrUpdateOrder}
+          mode={editingOrderId ? 'edit' : 'create'}
+          initialData={editingOrderData ? {
+            deliveryDate: editingOrderData.delivery_date,
+            deliveryType: editingOrderData.delivery_type,
+            notes: editingOrderData.notes
+          } : undefined}
+        />
+      )}
     </div>
   );
 };
