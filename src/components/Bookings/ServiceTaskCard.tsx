@@ -130,12 +130,11 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
                     <span className="text-muted-foreground">Putzkraft:</span>
                     <span className="font-medium truncate">{assignment.cleaning_staff?.name || 'Unbekannt'}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span>Status: {assignment.status}</span>
-                    {assignment.estimated_duration && (
-                      <span>• Dauer: {assignment.estimated_duration}min</span>
-                    )}
-                  </div>
+                  {assignment.estimated_duration && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Dauer: {assignment.estimated_duration}min</span>
+                    </div>
+                  )}
                   {assignment.special_instructions && (
                     <div className="text-xs text-muted-foreground break-words">
                       Anweisungen: {assignment.special_instructions}
