@@ -32,7 +32,10 @@ const LinenOrdersList = ({ onEditOrder }: LinenOrdersListProps) => {
           bookings (
             id,
             guest_name,
-            guest_email
+            guest_email,
+            check_in,
+            check_out,
+            number_of_guests
           )
         `)
         .order('delivery_date', { ascending: false });

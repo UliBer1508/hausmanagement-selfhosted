@@ -55,21 +55,54 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
   };
 
   const houseName = order.houses?.name || 'Unbekannt';
+  const houseAddress = order.houses?.address || '';
   const orderDate = order.order_date ? new Date(order.order_date).toLocaleDateString('de-DE') : '-';
+  
+  // Booking information
+  const checkIn = order.bookings?.check_in ? new Date(order.bookings.check_in).toLocaleDateString('de-DE') : null;
+  const checkOut = order.bookings?.check_out ? new Date(order.bookings.check_out).toLocaleDateString('de-DE') : null;
+  const numberOfGuests = order.bookings?.number_of_guests || null;
+  const guestName = order.bookings?.guest_name || null;
 
   return (
     <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50 relative`}>
       <CardContent className="p-3 relative pb-10">
         <div className="grid grid-cols-2 gap-4">
-          {/* Left Column: Items & Dates */}
+          {/* Left Column: House Info & Booking */}
           <div className="space-y-2">
-            {/* Header */}
+            {/* Header with House Name */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="text-base">📦</span>
                 <h4 className="font-medium text-sm">Wäschebestellung - {houseName}</h4>
               </div>
             </div>
+
+            {/* House Address */}
+            {houseAddress && (
+              <div className="flex items-start gap-2 text-sm">
+                <span className="text-base">📍</span>
+                <span className="text-muted-foreground">{houseAddress}</span>
+              </div>
+            )}
+
+            {/* Booking Information */}
+            {checkIn && checkOut && (
+              <div className="flex items-start gap-2 text-sm">
+                <span className="text-base">📅</span>
+                <span>
+                  <span className="text-muted-foreground">Buchung:</span> {checkIn} - {checkOut}
+                </span>
+              </div>
+            )}
+
+            {/* Number of Guests */}
+            {numberOfGuests && (
+              <div className="flex items-start gap-2 text-sm">
+                <span className="text-base">👤</span>
+                <span>{numberOfGuests} {numberOfGuests === 1 ? 'Gast' : 'Gäste'}</span>
+              </div>
+            )}
 
             {/* Items Summary */}
             <div className="text-sm">
@@ -143,6 +176,16 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
 
           {/* Right Column: Order Details */}
           <div className="space-y-2 text-sm">
+            {/* Guest Name */}
+            {guestName && (
+              <div className="flex items-start gap-2">
+                <span className="text-base">👤</span>
+                <div>
+                  <span className="text-muted-foreground">Gast:</span> {guestName}
+                </div>
+              </div>
+            )}
+
             <div>
               <span className="text-muted-foreground">Bestelldatum: </span>
               <span>{orderDate}</span>
