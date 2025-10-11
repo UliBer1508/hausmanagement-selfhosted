@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,7 @@ import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement
 import LinenInventoryDashboard from './LinenInventoryDashboard';
 import SmartLinenInventoryDashboard from './SmartLinenInventoryDashboard';
 import LinenOrderDialog from './LinenOrderDialog';
+import LinenOrdersWithBookings from './LinenOrdersWithBookings';
 
 interface HouseLinenStatus {
   house: any;
@@ -32,8 +33,11 @@ const LinenDashboard = () => {
   const [calculatedOrderItems, setCalculatedOrderItems] = useState<Record<string, number>>({});
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [highlightedOrderId, setHighlightedOrderId] = useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = useState<any>(null);
+  const [editMode, setEditMode] = useState(false);
   
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   
   // Automatisches Öffnen einer spezifischen Bestellung
   useEffect(() => {
@@ -263,6 +267,78 @@ const LinenDashboard = () => {
     }
   };
 
+  // Handle edit order
+  const handleEditOrder = (order: any) => {
+    console.log('📝 Edit Order:', order);
+    setEditingOrder(order);
+    setEditMode(true);
+    setOrderHouse({ id: order.house_id, name: order.houses?.name });
+    setCalculatedOrderItems(order.items || {});
+    setSelectedBooking(order.bookings || null);
+    setShowOrderDialog(true);
+  };
+
+  // Update order mutation
+  const updateOrderMutation = useMutation({
+    mutationFn: async ({ orderId, orderData }: { orderId: string; orderData: any }) => {
+      const totalItems = Object.values<number>(orderData.orderItems as Record<string, number>).reduce(
+        (sum, count) => sum + count, 
+        0
+      );
+      
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .update({
+          items: orderData.orderItems,
+          total_items: totalItems,
+          notes: orderData.notes,
+          delivery_date: orderData.deliveryDate,
+          delivery_type: orderData.deliveryType,
+          booking_id: orderData.booking_id,
+        })
+        .eq('id', orderId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['linen-orders-with-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['houses-linen-overview'] });
+      setShowOrderDialog(false);
+      setEditingOrder(null);
+      setEditMode(false);
+      setOrderHouse(null);
+      toast({
+        title: "Bestellung aktualisiert",
+        description: "Die Änderungen wurden erfolgreich gespeichert.",
+      });
+    },
+    onError: (error) => {
+      console.error('❌ Update error:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Bestellung konnte nicht aktualisiert werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Handle order update
+  const handleOrderUpdate = async (orderData: any) => {
+    if (!editingOrder) return;
+    
+    try {
+      await updateOrderMutation.mutateAsync({
+        orderId: editingOrder.id,
+        orderData
+      });
+    } catch (error) {
+      console.error('❌ Fehler beim Aktualisieren:', error);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-6">
@@ -447,6 +523,18 @@ const LinenDashboard = () => {
           </p>
         </div>
       )}
+
+      {/* Linen Orders with Bookings Section */}
+      <div className="mt-8">
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold tracking-tight">Wäschebestellungen</h2>
+          <p className="text-muted-foreground">
+            Übersicht aller Wäschebestellungen mit Buchungsinformationen
+          </p>
+        </div>
+        <LinenOrdersWithBookings onEditOrder={handleEditOrder} />
+      </div>
+
       {/* House Detail View */}
       {selectedHouse && (
         <div className="mt-8">
@@ -470,7 +558,15 @@ const LinenDashboard = () => {
       {orderHouse && (
         <LinenOrderDialog
           open={showOrderDialog}
-          onOpenChange={setShowOrderDialog}
+          onOpenChange={(open) => {
+            setShowOrderDialog(open);
+            if (!open) {
+              setEditMode(false);
+              setEditingOrder(null);
+            }
+          }}
+          mode={editMode ? 'edit' : 'create'}
+          initialData={editMode ? editingOrder : undefined}
           orderItems={calculatedOrderItems}
           houseName={orderHouse.name || 'Unbekannt'}
           houseId={orderHouse.id}
@@ -482,8 +578,8 @@ const LinenDashboard = () => {
             ) || []
           }
           linenSetDefinition={orderHouse.linen_set_definitions?.[0]}
-          onCreateOrder={handleOrderCreation}
-          isCreating={createOptimizedOrderMutation.isPending}
+          onCreateOrder={editMode ? handleOrderUpdate : handleOrderCreation}
+          isCreating={editMode ? updateOrderMutation.isPending : createOptimizedOrderMutation.isPending}
           allowExceptionalOrder={true}
         />
       )}

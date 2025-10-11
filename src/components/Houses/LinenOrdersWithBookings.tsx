@@ -1,0 +1,203 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search } from 'lucide-react';
+import BookingCard from '@/components/Bookings/BookingCard';
+import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
+
+interface LinenOrdersWithBookingsProps {
+  onEditOrder?: (order: any) => void;
+}
+
+const LinenOrdersWithBookings = ({ onEditOrder }: LinenOrdersWithBookingsProps) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [houseFilter, setHouseFilter] = useState<string>('all');
+
+  // Fetch linen orders with related data
+  const { data: linenOrders, isLoading } = useQuery({
+    queryKey: ['linen-orders-with-bookings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .select(`
+          *,
+          houses (
+            id,
+            name,
+            address
+          ),
+          bookings (
+            id,
+            guest_name,
+            guest_email,
+            check_in,
+            check_out,
+            number_of_guests,
+            status
+          )
+        `)
+        .order('delivery_date', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch houses for filter
+  const { data: houses } = useQuery({
+    queryKey: ['houses-filter'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('houses')
+        .select('id, name')
+        .order('name');
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Filter orders
+  const filteredOrders = linenOrders?.filter(order => {
+    const matchesSearch = 
+      order.bookings?.guest_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.houses?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    const matchesHouse = houseFilter === 'all' || order.house_id === houseFilter;
+
+    return matchesSearch && matchesStatus && matchesHouse;
+  }) || [];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Bestellungen werden geladen...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Filter Bar */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Gast, Haus oder Notizen durchsuchen..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Status Filter */}
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Status filtern" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Status</SelectItem>
+                <SelectItem value="pending">⏳ Ausstehend</SelectItem>
+                <SelectItem value="in_progress">🔄 In Bearbeitung</SelectItem>
+                <SelectItem value="completed">✅ Abgeschlossen</SelectItem>
+                <SelectItem value="delivered">📦 Geliefert</SelectItem>
+                <SelectItem value="cancelled">❌ Storniert</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* House Filter */}
+            <Select value={houseFilter} onValueChange={setHouseFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Haus filtern" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Häuser</SelectItem>
+                {houses?.map(house => (
+                  <SelectItem key={house.id} value={house.id}>
+                    {house.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Orders List */}
+      {filteredOrders.length === 0 ? (
+        <Card>
+          <CardContent className="p-12 text-center">
+            <span className="text-5xl block mb-4">📦</span>
+            <h3 className="text-lg font-medium mb-2">Keine Bestellungen gefunden</h3>
+            <p className="text-muted-foreground">
+              {searchTerm || statusFilter !== 'all' || houseFilter !== 'all'
+                ? 'Versuchen Sie andere Filter.'
+                : 'Erstellen Sie Ihre erste Wäschebestellung.'}
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredOrders.map((order) => (
+            <div key={order.id} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Left: Booking Info */}
+              <div>
+                {order.bookings ? (
+                  <BookingCard
+                    booking={{
+                      ...order.bookings,
+                      houses: order.houses,
+                    }}
+                    colorVariant="green"
+                  />
+                ) : (
+                  <Card className="border-l-4 border-l-gray-500 bg-gray-50">
+                    <CardContent className="p-3">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🏠</span>
+                          <h4 className="font-medium text-sm text-muted-foreground">
+                            {order.houses?.name || 'Keine Buchung verknüpft'}
+                          </h4>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Ausnahme-Bestellung (Generalreinigung oder Inventar-Auffüllung)
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* Middle: Empty Column */}
+              <div></div>
+
+              {/* Right: Laundry Order */}
+              <div>
+                <LaundryOrderCard
+                  order={order}
+                  colorVariant="purple"
+                  onEdit={onEditOrder}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default LinenOrdersWithBookings;
