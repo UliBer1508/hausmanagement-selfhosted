@@ -25,6 +25,7 @@ interface LinenOrderDialogProps {
   houseId: string;
   selectedBooking?: any;
   availableBookings?: any[];
+  linenSetDefinition?: any;
   onCreateOrder: (orderData: {
     orderItems: Record<string, number>;
     notes?: string;
@@ -44,6 +45,51 @@ interface LinenOrderDialogProps {
   };
 }
 
+// Helper function to calculate linen order for a specific booking
+const calculateBookingLinenOrder = (
+  booking: any,
+  linenDef: any
+): Record<string, number> => {
+  const guests = booking.number_of_guests || 0;
+  const items: Record<string, number> = {};
+  
+  // Per-Guest Items
+  if (linenDef?.bedding_per_guest) {
+    items.bedding = guests * linenDef.bedding_per_guest;
+  }
+  if (linenDef?.large_towels_per_guest) {
+    items.large_towels = guests * linenDef.large_towels_per_guest;
+  }
+  if (linenDef?.small_towels_per_guest) {
+    items.small_towels = guests * linenDef.small_towels_per_guest;
+  }
+  if (linenDef?.sauna_towels_per_guest) {
+    items.sauna_towels = guests * linenDef.sauna_towels_per_guest;
+  }
+  if (linenDef?.pillow_cases_per_guest) {
+    items.pillow_cases = guests * linenDef.pillow_cases_per_guest;
+  }
+  if (linenDef?.blankets_per_guest) {
+    items.blankets = guests * linenDef.blankets_per_guest;
+  }
+  
+  // Per-Booking Items
+  if (linenDef?.bath_mats_per_booking) {
+    items.bath_mats = linenDef.bath_mats_per_booking;
+  }
+  if (linenDef?.sink_towels_per_booking) {
+    items.sink_towels = linenDef.sink_towels_per_booking;
+  }
+  if (linenDef?.kitchen_towels_per_booking) {
+    items.kitchen_towels = linenDef.kitchen_towels_per_booking;
+  }
+  
+  // Remove items with 0 quantity
+  return Object.fromEntries(
+    Object.entries(items).filter(([_, qty]) => qty > 0)
+  );
+};
+
 const LinenOrderDialog = ({
   open,
   onOpenChange,
@@ -52,6 +98,7 @@ const LinenOrderDialog = ({
   houseId,
   selectedBooking,
   availableBookings = [],
+  linenSetDefinition,
   onCreateOrder,
   onSendEmail,
   isCreating = false,
@@ -77,7 +124,15 @@ const LinenOrderDialog = ({
   // Update state when props change (e.g., when opening with AI-generated data)
   useEffect(() => {
     if (open) {
-      setEditableItems(orderItems);
+      // If a booking is selected and linen definitions are available, calculate booking-specific order
+      if (selectedBooking && linenSetDefinition && selectedBooking !== internalSelectedBooking) {
+        const bookingSpecificItems = calculateBookingLinenOrder(selectedBooking, linenSetDefinition);
+        setEditableItems(bookingSpecificItems);
+      } else {
+        // Otherwise, use the passed orderItems
+        setEditableItems(orderItems);
+      }
+      
       setInternalSelectedBooking(selectedBooking);
       if (initialData?.deliveryDate) {
         setDeliveryDate(new Date(initialData.deliveryDate));
@@ -89,7 +144,7 @@ const LinenOrderDialog = ({
         setNotes(initialData.notes);
       }
     }
-  }, [open]);
+  }, [open, selectedBooking, linenSetDefinition]);
 
   const linenLabels: Record<string, string> = {
     bedding: 'Bettwäsche',
@@ -290,17 +345,24 @@ const LinenOrderDialog = ({
           {availableBookings.length > 0 && orderType === 'standard' && (
             <div className="space-y-2">
               <Label>Buchung auswählen</Label>
-              <Select 
+               <Select 
                 value={internalSelectedBooking?.id || 'none'} 
                 onValueChange={(value) => {
                   if (value === 'none') {
                     setInternalSelectedBooking(null);
+                    setEditableItems(orderItems);
                   } else {
                     const booking = availableBookings.find(b => b.id === value);
                     setInternalSelectedBooking(booking);
+                    
+                    // Calculate booking-specific linen order
+                    if (booking && linenSetDefinition) {
+                      const bookingSpecificItems = calculateBookingLinenOrder(booking, linenSetDefinition);
+                      setEditableItems(bookingSpecificItems);
+                    }
                   }
                 }}
-              >
+               >
                 <SelectTrigger>
                   <SelectValue placeholder="Buchung auswählen (optional)" />
                 </SelectTrigger>

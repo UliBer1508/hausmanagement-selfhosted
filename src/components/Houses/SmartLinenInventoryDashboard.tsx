@@ -635,6 +635,8 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
           houseName={house.name}
           houseId={house.id}
           selectedBooking={undefined}
+          availableBookings={houseData?.house?.bookings || []}
+          linenSetDefinition={houseData?.house?.linen_set_definitions?.[0]}
           initialData={{
             deliveryDate: aiOrderData.deliveryDate,
             deliveryType: aiOrderData.deliveryType,
