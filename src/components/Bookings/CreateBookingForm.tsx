@@ -132,13 +132,10 @@ interface CreateBookingFormProps {
 const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }: CreateBookingFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Helper function to set default time on date if not already set
+  // Helper function to set standard time on date
   const setTimeOnDate = (date: Date, hours: number, minutes: number = 0): Date => {
     const newDate = new Date(date);
-    // Only set time if it's 00:00:00 (no time specified)
-    if (newDate.getHours() === 0 && newDate.getMinutes() === 0 && newDate.getSeconds() === 0) {
-      newDate.setHours(hours, minutes, 0, 0);
-    }
+    newDate.setHours(hours, minutes, 0, 0);
     return newDate;
   };
   const [showCancelCleaningDialog, setShowCancelCleaningDialog] = useState(false);
@@ -270,6 +267,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
 
   const performBookingUpdate = async (data: BookingFormData) => {
     try {
+      console.log('performBookingUpdate - check_in:', data.check_in.toISOString());
+      console.log('performBookingUpdate - check_out:', data.check_out.toISOString());
+      
       // Check for conflicting bookings (skip for same booking in edit mode)
       let query = supabase
         .from('bookings')
@@ -284,6 +284,8 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       }
 
       const { data: conflictingBookings, error: conflictError } = await query;
+      
+      console.log('Conflicting bookings found:', conflictingBookings);
 
       if (conflictError) throw conflictError;
 
