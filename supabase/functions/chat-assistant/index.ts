@@ -84,7 +84,9 @@ ANTWORT-FORMATE:
 • Haus: [house_name]
 • Datum: [scheduled_date] um [scheduled_time] Uhr
 • Status: [status mit Icon: scheduled=📅, in_progress=🧹, completed=✅, cancelled=❌]
+• Reinigungskraft: [staff_name] (falls zugewiesen)
 • Buchung: [guest_name] (falls vorhanden)
+• Zahlungsstatus: [payment_status mit Icon: paid=✅, unpaid=❌, pending=⏳] (falls vorhanden)
 • Notizen: [notes]"
 
 **Gäste:**
@@ -179,14 +181,16 @@ Details:
 • [Datum] [Zeit]: [Event-Typ] - [Details]"
 
 TOOLS - KRITISCHE REGELN:
-1. Bei "reinigung von [Name]" → IMMER search_cleaning_tasks mit guest_name Parameter!
-2. Bei nur einem Namen → ERST search_bookings, DANN bei Bedarf search_cleaning_tasks
-3. Bei "haus" / "chalet" → search_houses
-4. Bei "gast" / "gäste" → search_guests
-5. Bei "wäsche" / "linen" → get_linen_overview
-6. Bei "statistik" / "übersicht" → get_dashboard_stats
-7. Bei "kalender" / "termine" → get_calendar_events
-8. Bei UUID → entsprechendes get_*_details Tool
+1. Bei "reinigung von [Gastname]" → IMMER search_cleaning_tasks mit guest_name Parameter!
+2. Bei "reinigung von [Reinigungskraft]" / "Amelas Reinigungen" → search_cleaning_tasks mit staff_name Parameter!
+3. Bei "unbezahlte Reinigungen" / "offene Zahlungen" → search_cleaning_tasks mit payment_status="unpaid"!
+4. Bei nur einem Namen → ERST search_bookings, DANN bei Bedarf search_cleaning_tasks
+5. Bei "haus" / "chalet" → search_houses
+6. Bei "gast" / "gäste" → search_guests
+7. Bei "wäsche" / "linen" → get_linen_overview
+8. Bei "statistik" / "übersicht" → get_dashboard_stats
+9. Bei "kalender" / "termine" → get_calendar_events
+10. Bei UUID → entsprechendes get_*_details Tool
 
 📋 BEISPIELE FÜR TOOL-CALLS:
 
@@ -385,13 +389,21 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         type: "function",
         function: {
           name: "search_cleaning_tasks",
-          description: "Sucht Reinigungsaufträge nach Kriterien wie Haus, Buchung, Status, Datum oder Personal",
+          description: "Sucht Reinigungsaufträge nach Kriterien wie Haus, Buchung, Status, Datum, Personal oder Provider",
           parameters: {
             type: "object",
             properties: {
               house_id: { type: "string", description: "UUID des Hauses" },
               booking_id: { type: "string", description: "UUID der Buchung" },
               guest_name: { type: "string", description: "Name des Gastes (sucht über Buchung)" },
+              staff_name: { type: "string", description: "Name der Reinigungskraft (z.B. 'Amela', 'Boris')" },
+              assigned_staff_id: { type: "string", description: "UUID der zugewiesenen Reinigungskraft" },
+              provider_id: { type: "string", description: "UUID des Service-Providers" },
+              payment_status: { 
+                type: "string", 
+                enum: ["paid", "unpaid", "pending"],
+                description: "Zahlungsstatus" 
+              },
               status: { 
                 type: "string", 
                 enum: ["scheduled", "in_progress", "completed", "cancelled", "delayed"],
@@ -691,9 +703,26 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         .select(`
           *,
           houses:house_id (name, address),
-          bookings:booking_id (guest_name, check_in, check_out)
+          bookings:booking_id (guest_name, check_in, check_out),
+          cleaning_staff:assigned_staff_id (id, name, email, phone),
+          service_providers:provider_id (id, name, contact_email, contact_phone)
         `)
         .eq('service_type', 'cleaning');
+
+      // Wenn nach staff_name gesucht wird, erst die cleaning_staff finden
+      if (params.staff_name) {
+        const { data: staff } = await supabase
+          .from('cleaning_staff')
+          .select('id')
+          .ilike('name', `%${params.staff_name}%`);
+        
+        if (staff && staff.length > 0) {
+          const staffIds = staff.map(s => s.id);
+          query = query.in('assigned_staff_id', staffIds);
+        } else {
+          return { success: true, tasks: [], count: 0, message: 'Keine Reinigungskraft mit diesem Namen gefunden' };
+        }
+      }
 
       // Wenn nach guest_name gesucht wird, erst die Buchung finden
       if (params.guest_name) {
@@ -712,6 +741,9 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
 
       if (params.house_id) query = query.eq('house_id', params.house_id);
       if (params.booking_id) query = query.eq('booking_id', params.booking_id);
+      if (params.assigned_staff_id) query = query.eq('assigned_staff_id', params.assigned_staff_id);
+      if (params.provider_id) query = query.eq('provider_id', params.provider_id);
+      if (params.payment_status) query = query.eq('payment_status', params.payment_status);
       if (params.status) query = query.eq('status', params.status);
       if (params.date_from) query = query.gte('scheduled_date', params.date_from);
       if (params.date_to) query = query.lte('scheduled_date', params.date_to);
