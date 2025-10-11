@@ -131,6 +131,13 @@ interface CreateBookingFormProps {
 
 const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }: CreateBookingFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Helper function to set time on date
+  const setTimeOnDate = (date: Date, hours: number, minutes: number = 0): Date => {
+    const newDate = new Date(date);
+    newDate.setHours(hours, minutes, 0, 0);
+    return newDate;
+  };
   const [showCancelCleaningDialog, setShowCancelCleaningDialog] = useState(false);
   const [relatedCleaningTasks, setRelatedCleaningTasks] = useState<any[]>([]);
   const [pendingBookingData, setPendingBookingData] = useState<any>(null);
@@ -263,9 +270,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       // Check for conflicting bookings (skip for same booking in edit mode)
       let query = supabase
         .from('bookings')
-        .select('id')
+        .select('id, guest_name, check_in, check_out')
         .eq('house_id', data.house_id)
-        .or(`and(check_in.lte.${data.check_out.toISOString()},check_out.gte.${data.check_in.toISOString()})`)
+        .or(`and(check_in.lt.${data.check_out.toISOString()},check_out.gt.${data.check_in.toISOString()})`)
         .neq('status', 'cancelled');
 
       // Only exclude the current booking ID in edit mode
@@ -278,9 +285,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       if (conflictError) throw conflictError;
 
       if (conflictingBookings && conflictingBookings.length > 0) {
+        const conflictDetails = conflictingBookings[0];
         toast({
           title: 'Buchungskonflikt',
-          description: 'Für diesen Zeitraum existiert bereits eine Buchung.',
+          description: `Konflikt mit Buchung von ${conflictDetails.guest_name} (${format(new Date(conflictDetails.check_in), 'dd.MM.yyyy HH:mm', { locale: de })} - ${format(new Date(conflictDetails.check_out), 'dd.MM.yyyy HH:mm', { locale: de })})`,
           variant: 'destructive',
         });
         setIsSubmitting(false);
@@ -519,7 +527,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                     <Calendar
                       mode="single"
                       selected={field.value}
-                      onSelect={field.onChange}
+                      onSelect={(date) => date && field.onChange(setTimeOnDate(date, 15))}
                       disabled={(date) => date < new Date()}
                       initialFocus
                       locale={de}
@@ -562,7 +570,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                     <Calendar
                       mode="single"
                       selected={field.value}
-                      onSelect={field.onChange}
+                      onSelect={(date) => date && field.onChange(setTimeOnDate(date, 10))}
                       disabled={(date) => {
                         const checkIn = form.getValues('check_in');
                         return date < new Date() || (checkIn && date <= checkIn);
