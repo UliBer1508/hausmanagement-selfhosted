@@ -45,7 +45,7 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
       
       const taskIds = assignments.map((a: any) => a.service_task_id);
       
-      // 3. Tasks mit Details laden
+      // 3. Tasks mit Details laden - NUR abgeschlossene!
       const { data: tasks, error: tasksError } = await supabase
         .from('service_tasks')
         .select(`
@@ -59,6 +59,7 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
           bookings:booking_id (guest_name)
         `)
         .in('id', taskIds)
+        .eq('status', 'completed')
         .order('scheduled_date', { ascending: false });
       
       if (tasksError) return [];
@@ -88,6 +89,15 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
         groups[status as keyof typeof groups].sum += Number(task.cleaning_cost) || 0;
         groups[status as keyof typeof groups].count++;
       }
+    });
+    
+    // Jede Gruppe nach scheduled_date sortieren (neueste zuerst)
+    Object.values(groups).forEach(group => {
+      group.tasks.sort((a, b) => {
+        const dateA = new Date(a.scheduled_date).getTime();
+        const dateB = new Date(b.scheduled_date).getTime();
+        return dateB - dateA; // Absteigende Sortierung
+      });
     });
     
     return Object.values(groups).filter(g => g.count > 0);
