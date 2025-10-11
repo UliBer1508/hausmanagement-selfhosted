@@ -289,7 +289,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
 
       const { data: allBookings, error: conflictError } = await query;
       
-      console.log('All non-cancelled bookings:', allBookings);
+      console.log('🔍 CONFLICT CHECK START');
+      console.log('House ID:', data.house_id);
+      console.log('New booking times:', data.check_in.toISOString(), 'to', data.check_out.toISOString());
+      console.log('All non-cancelled bookings for this house:', allBookings);
 
       if (conflictError) throw conflictError;
       
@@ -300,15 +303,28 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         const newCheckIn = data.check_in;
         const newCheckOut = data.check_out;
         
+        console.log('---');
+        console.log('Checking booking:', booking.guest_name, booking.status);
+        console.log('Existing: CheckIn:', bookingCheckIn.toISOString(), 'CheckOut:', bookingCheckOut.toISOString());
+        console.log('New:      CheckIn:', newCheckIn.toISOString(), 'CheckOut:', newCheckOut.toISOString());
+        
         // Check if there's an overlap
-        const hasOverlap = bookingCheckIn < newCheckOut && bookingCheckOut > newCheckIn;
+        const condition1 = bookingCheckIn < newCheckOut;
+        const condition2 = bookingCheckOut > newCheckIn;
+        const hasOverlap = condition1 && condition2;
+        
+        console.log('Overlap check: bookingCheckIn < newCheckOut?', condition1);
+        console.log('Overlap check: bookingCheckOut > newCheckIn?', condition2);
+        console.log('Has overlap?', hasOverlap);
         
         if (hasOverlap) {
-          console.log('Conflict found with:', booking.guest_name, bookingCheckIn, bookingCheckOut);
+          console.log('❌ CONFLICT FOUND with:', booking.guest_name);
         }
         
         return hasOverlap;
       }) || [];
+      
+      console.log('🔍 CONFLICT CHECK END - Total conflicts:', conflictingBookings.length);
 
       if (conflictingBookings && conflictingBookings.length > 0) {
         const conflictDetails = conflictingBookings[0];
