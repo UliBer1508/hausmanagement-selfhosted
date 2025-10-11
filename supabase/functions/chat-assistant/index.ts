@@ -703,9 +703,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         .select(`
           *,
           houses:house_id (name, address),
-          bookings:booking_id (guest_name, check_in, check_out),
-          cleaning_staff:assigned_staff_id (id, name, email, phone),
-          service_providers:provider_id (id, name, contact_email, contact_phone)
+          bookings:booking_id (guest_name, check_in, check_out)
         `)
         .eq('service_type', 'cleaning');
 
@@ -757,8 +755,31 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         return { success: false, error: error.message };
       }
 
-      console.log(`Found ${data.length} cleaning tasks`);
-      return { success: true, tasks: data, count: data.length };
+      // Lade cleaning_staff und service_provider Daten separat
+      const staffIds = [...new Set(data.map((t: any) => t.assigned_staff_id).filter(Boolean))];
+      const providerIds = [...new Set(data.map((t: any) => t.provider_id).filter(Boolean))];
+      
+      const [staffData, providerData] = await Promise.all([
+        staffIds.length > 0 
+          ? supabase.from('cleaning_staff').select('id, name, email, phone').in('id', staffIds)
+          : { data: [] },
+        providerIds.length > 0
+          ? supabase.from('service_providers').select('id, name, contact_email, contact_phone').in('id', providerIds)
+          : { data: [] }
+      ]);
+
+      const staffMap = new Map((staffData.data || []).map((s: any) => [s.id, s]));
+      const providerMap = new Map((providerData.data || []).map((p: any) => [p.id, p]));
+
+      // Füge die Daten zu den Tasks hinzu
+      const enrichedData = data.map((task: any) => ({
+        ...task,
+        cleaning_staff: task.assigned_staff_id ? staffMap.get(task.assigned_staff_id) : null,
+        service_providers: task.provider_id ? providerMap.get(task.provider_id) : null
+      }));
+
+      console.log(`Found ${enrichedData.length} cleaning tasks`);
+      return { success: true, tasks: enrichedData, count: enrichedData.length };
     }
 
     async function executeGetCleaningTaskDetails(task_id: string) {
