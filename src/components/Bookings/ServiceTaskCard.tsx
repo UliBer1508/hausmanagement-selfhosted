@@ -64,7 +64,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
 
   return (
     <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50`}>
-      <CardContent className="p-3">
+      <CardContent className="p-3 relative pb-10">
         <div className="space-y-2">
           {/* Header with Title and Edit Button */}
           <div className="flex items-start justify-between gap-2">
@@ -87,12 +87,6 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
           <div className="text-sm">
             <span className="text-muted-foreground">Datum: </span>
             <span>{format(new Date(task.scheduled_date), "dd.MM.yyyy", { locale: de })}</span>
-          </div>
-
-          {/* Status Badge */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Status:</span>
-            {getStatusBadge(task.status)}
           </div>
 
           {/* Payment Status */}
@@ -156,6 +150,11 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
             </div>
           )}
 
+        </div>
+
+        {/* Status Badge - Bottom Right Corner */}
+        <div className="absolute bottom-2 right-2">
+          {getStatusBadge(task.status)}
         </div>
       </CardContent>
 
