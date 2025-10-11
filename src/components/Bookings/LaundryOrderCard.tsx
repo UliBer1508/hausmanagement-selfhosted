@@ -30,9 +30,12 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
       case 'assigned':
         return <Badge className="bg-blue-100 text-blue-800 border-blue-300">👤 Zugewiesen</Badge>;
       case 'in_progress':
+      case 'in-progress':
         return <Badge className="bg-orange-100 text-orange-800 border-orange-300">🔄 In Bearbeitung</Badge>;
       case 'completed':
         return <Badge className="bg-green-100 text-green-800 border-green-300">✅ Abgeschlossen</Badge>;
+      case 'delivered':
+        return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">📦 Geliefert</Badge>;
       case 'cancelled':
         return <Badge className="bg-red-100 text-red-800 border-red-300">❌ Storniert</Badge>;
       default:
