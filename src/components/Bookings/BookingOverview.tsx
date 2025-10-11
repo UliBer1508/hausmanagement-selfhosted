@@ -43,9 +43,9 @@ const BookingOverview = () => {
 
   // Fetch bookings with house information
   const { data: bookingsData, isLoading } = useQuery({
-    queryKey: ['bookings-overview'],
+    queryKey: ['bookings-overview', statusFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bookings')
         .select(`
           *,
@@ -53,9 +53,16 @@ const BookingOverview = () => {
             id,
             name
           )
-        `)
-        .order('check_in', { ascending: true });
+        `);
       
+      // Only include cancelled bookings when explicitly selected
+      if (statusFilter !== 'cancelled') {
+        query = query.neq('status', 'cancelled');
+      }
+      
+      query = query.order('check_in', { ascending: true });
+      
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },

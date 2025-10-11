@@ -280,7 +280,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         .from('bookings')
         .select('id, guest_name, check_in, check_out, status')
         .eq('house_id', data.house_id)
-        .neq('status', 'cancelled');
+        .in('status', ['confirmed', 'checked_in']);
 
       // Only exclude the current booking ID in edit mode
       if (mode === 'edit' && initialData) {

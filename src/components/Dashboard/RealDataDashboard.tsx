@@ -42,6 +42,9 @@ const RealDataDashboard = () => {
     
     // Check-ins and check-outs for all bookings (including completed ones)
     bookings.forEach(booking => {
+      // Skip cancelled bookings
+      if (booking.status === 'cancelled') return;
+      
       const checkIn = new Date(booking.check_in);
       const checkOut = new Date(booking.check_out);
       

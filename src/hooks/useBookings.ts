@@ -9,6 +9,7 @@ export const useBookings = () => {
       const { data, error } = await supabase
         .from('bookings')
         .select('*')
+        .neq('status', 'cancelled')
         .order('check_in', { ascending: true });
       
       if (error) throw error;
