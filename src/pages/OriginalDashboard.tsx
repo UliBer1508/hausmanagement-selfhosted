@@ -250,6 +250,7 @@ const OriginalDashboard = () => {
             address
           )
         `)
+        .neq('status', 'cancelled')
         .order('check_in', { ascending: true });
       
       if (error) throw error;
@@ -310,6 +311,11 @@ const OriginalDashboard = () => {
     if (!bookingsData) return [];
     
     return bookingsData.filter(booking => {
+      // Skip cancelled unless explicitly filtered
+      if (booking.status === 'cancelled' && statusFilter !== 'cancelled') {
+        return false;
+      }
+      
       // Search filter
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
@@ -505,6 +511,9 @@ const OriginalDashboard = () => {
     const realBookings = bookingsData || [];
     
     realBookings.forEach(booking => {
+      // Skip cancelled bookings
+      if (booking.status === 'cancelled') return;
+      
       const checkIn = parseISO(booking.check_in);
       const checkOut = parseISO(booking.check_out);
       const guestDisplayName = booking.guest_name.split(' ')[0];
