@@ -528,62 +528,64 @@ const CleaningManagement = () => {
                 <Card key={task.id} className="border-l-4 border-l-blue-600 bg-blue-50 dark:bg-blue-950/20">
                   <CardContent className="p-4">
                     <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
-                      <div className="space-y-2 flex-1">
-                        <h4 className="font-semibold">
+                      <div className="flex-1">
+                        <h4 className="font-semibold mb-3">
                           Reinigung - {task.houses?.name}
                         </h4>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span>📍</span>
-                          {task.houses?.address}
-                        </div>
-                        <div className="flex items-center gap-2 text-sm">
-                          <span>📅</span>
-                          Service: {new Date(task.scheduled_date).toLocaleDateString('de-DE')} {task.scheduled_time ? `${task.scheduled_time.slice(0,5)}` : ''} 
-                        </div>
-                        {task.bookings && (
-                          <>
-                            <div className="flex items-center gap-2 text-sm">
-                              <span>📅</span>
-                              Buchung: {new Date(task.bookings.check_in).toLocaleDateString('de-DE')} - {new Date(task.bookings.check_out).toLocaleDateString('de-DE')}
-                            </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>📍</span>
+                            {task.houses?.address}
+                          </div>
+                          <div className="flex items-center gap-2 text-sm">
+                            <span>📅</span>
+                            Service: {new Date(task.scheduled_date).toLocaleDateString('de-DE')} {task.scheduled_time ? `${task.scheduled_time.slice(0,5)}` : ''} 
+                          </div>
+                          {task.bookings && (
+                            <>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span>📅</span>
+                                Buchung: {new Date(task.bookings.check_in).toLocaleDateString('de-DE')} - {new Date(task.bookings.check_out).toLocaleDateString('de-DE')}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span>👤</span>
+                                Gast: {task.bookings.guest_name}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span>👤</span>
+                                {task.bookings.number_of_guests} Gäste
+                              </div>
+                            </>
+                          )}
+                          {task.service_providers && (
                             <div className="flex items-center gap-2 text-sm">
                               <span>👤</span>
-                              Gast: {task.bookings.guest_name}
+                              Provider: {task.service_providers.name}
                             </div>
+                          )}
+                          <div className="flex items-center gap-2 text-sm">
+                            <span>📊</span>
+                            Status: {getStatusBadge(task.status)}
+                          </div>
+                          {task.cleaning_cost && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <span>💶</span>
+                              Kosten: <span className="font-semibold text-green-700">{task.cleaning_cost.toFixed(2)} EUR</span>
+                            </div>
+                          )}
+                          {task.payment_status && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <span>💳</span>
+                              Bezahlung: {getPaymentStatusBadge(task.payment_status)}
+                            </div>
+                          )}
+                          {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
                             <div className="flex items-center gap-2 text-sm">
                               <span>👤</span>
-                              {task.bookings.number_of_guests} Gäste
+                              Personal: {task.cleaning_assignments[0].cleaning_staff.name}
                             </div>
-                          </>
-                        )}
-                        {task.service_providers && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span>👤</span>
-                            Provider: {task.service_providers.name}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 text-sm">
-                          <span>📊</span>
-                          Status: {getStatusBadge(task.status)}
+                          )}
                         </div>
-                        {task.cleaning_cost && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span>💶</span>
-                            Kosten: <span className="font-semibold text-green-700">{task.cleaning_cost.toFixed(2)} EUR</span>
-                          </div>
-                        )}
-                        {task.payment_status && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span>💳</span>
-                            Bezahlung: {getPaymentStatusBadge(task.payment_status)}
-                          </div>
-                        )}
-                        {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <span>👤</span>
-                            Personal: {task.cleaning_assignments[0].cleaning_staff.name}
-                          </div>
-                        )}
                       </div>
                       <Button 
                         size="default"
