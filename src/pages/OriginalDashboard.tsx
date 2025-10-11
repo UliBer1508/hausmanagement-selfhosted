@@ -276,7 +276,10 @@ const OriginalDashboard = () => {
     
     setSelectedBookingForOrder(booking);
     setEditingOrderId(order.id);
-    setEditingOrderData(fullOrder);
+    setEditingOrderData({
+      ...fullOrder,
+      status: fullOrder.status || 'pending'
+    });
     setShowLinenOrderDialog(true);
     
     console.log('🎬 Dialog öffnen für Order:', order.id);
@@ -298,6 +301,7 @@ const OriginalDashboard = () => {
           delivery_time: '09:00:00' as const,
           delivery_type: orderData.deliveryType || 'delivery',
           notes: orderData.notes,
+          status: orderData.status || 'pending',
           updated_at: new Date().toISOString()
         };
 
@@ -1858,7 +1862,8 @@ const OriginalDashboard = () => {
           initialData={editingOrderData ? {
             deliveryDate: editingOrderData.delivery_date,
             deliveryType: editingOrderData.delivery_type,
-            notes: editingOrderData.notes
+            notes: editingOrderData.notes,
+            status: editingOrderData.status
           } : undefined}
         />
       )}

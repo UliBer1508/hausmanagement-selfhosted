@@ -34,6 +34,7 @@ interface LinenOrderDialogProps {
     booking_id?: string;
     orderType?: 'standard' | 'exceptional';
     exceptionReason?: string;
+    status?: 'pending' | 'in-progress' | 'completed' | 'delivered';
   }) => void;
   onSendEmail?: (orderId: string) => void;
   isCreating?: boolean;
@@ -42,6 +43,7 @@ interface LinenOrderDialogProps {
     deliveryDate?: string;
     deliveryType?: 'delivery' | 'pickup';
     notes?: string;
+    status?: 'pending' | 'in-progress' | 'completed' | 'delivered';
   };
   mode?: 'create' | 'edit';
 }
@@ -123,6 +125,9 @@ const LinenOrderDialog = ({
     initialData?.deliveryType || 'delivery'
   );
   const [notes, setNotes] = useState(initialData?.notes || '');
+  const [status, setStatus] = useState<'pending' | 'in-progress' | 'completed' | 'delivered'>(
+    initialData?.status || 'pending'
+  );
   const [sendToTeuni, setSendToTeuni] = useState(false);
   const [editableItems, setEditableItems] = useState(orderItems);
   const [orderType, setOrderType] = useState<'standard' | 'exceptional'>(
@@ -157,6 +162,9 @@ const LinenOrderDialog = ({
       }
       if (initialData?.notes) {
         setNotes(initialData.notes);
+      }
+      if (initialData?.status) {
+        setStatus(initialData.status);
       }
     }
   }, [open, selectedBooking, linenSetDefinition, initialData]);
@@ -215,6 +223,7 @@ const LinenOrderDialog = ({
           ...baseOrderData,
           booking_id: internalSelectedBooking.id,
           orderType: 'standard',
+          status: status,
         });
       } else {
         const validatedData = exceptionalLinenOrderSchema.parse({
@@ -229,6 +238,7 @@ const LinenOrderDialog = ({
           orderType: 'exceptional',
           exceptionReason,
           notes: notes.trim() || `Ausnahmebestellung: ${getExceptionReasonLabel(exceptionReason)}`,
+          status: status,
         });
       }
 
@@ -236,6 +246,7 @@ const LinenOrderDialog = ({
       setNotes('');
       setDeliveryDate(addDays(new Date(), 2));
       setDeliveryType('delivery');
+      setStatus('pending');
       setEditableItems(orderItems);
       setOrderType(selectedBooking ? 'standard' : 'exceptional');
       setExceptionReason('general_cleaning');
@@ -555,6 +566,44 @@ const LinenOrderDialog = ({
               </div>
             </RadioGroup>
           </div>
+
+          {/* Status Selection - nur im Edit Mode */}
+          {mode === 'edit' && (
+            <div className="space-y-2">
+              <Label htmlFor="status">Bestellstatus</Label>
+              <Select value={status} onValueChange={(value: any) => setStatus(value)}>
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Status wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-yellow-500" />
+                      <span>Ausstehend</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="in-progress">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span>In Bearbeitung</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="completed">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
+                      <span>Abgeschlossen</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="delivered">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span>Geliefert</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Notes */}
           <div className="space-y-2">
