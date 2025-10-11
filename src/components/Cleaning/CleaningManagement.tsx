@@ -169,6 +169,35 @@ const CleaningManagement = () => {
         });
       }
 
+      // Sort based on status: upcoming tasks ascending, completed/cancelled descending
+      filteredData.sort((a, b) => {
+        const dateA = new Date(a.scheduled_date).getTime();
+        const dateB = new Date(b.scheduled_date).getTime();
+        
+        // For scheduled/in_progress: show nearest first (ascending)
+        if (taskStatusFilter === 'scheduled' || taskStatusFilter === 'in_progress') {
+          return dateA - dateB;
+        }
+        // For completed/cancelled: show newest first (descending)
+        else if (taskStatusFilter === 'completed' || taskStatusFilter === 'cancelled') {
+          return dateB - dateA;
+        }
+        // For "all": show scheduled ascending, completed/cancelled descending
+        else {
+          if ((a.status === 'scheduled' || a.status === 'in_progress') && 
+              (b.status === 'scheduled' || b.status === 'in_progress')) {
+            return dateA - dateB;
+          } else if ((a.status === 'completed' || a.status === 'cancelled') && 
+                     (b.status === 'completed' || b.status === 'cancelled')) {
+            return dateB - dateA;
+          } else if (a.status === 'scheduled' || a.status === 'in_progress') {
+            return -1; // Scheduled tasks first
+          } else {
+            return 1;
+          }
+        }
+      });
+
       return filteredData;
     },
   });
