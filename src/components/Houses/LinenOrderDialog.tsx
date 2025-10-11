@@ -125,7 +125,7 @@ const LinenOrderDialog = ({
   useEffect(() => {
     if (open) {
       // If a booking is selected and linen definitions are available, calculate booking-specific order
-      if (selectedBooking && linenSetDefinition && selectedBooking !== internalSelectedBooking) {
+      if (selectedBooking && linenSetDefinition) {
         const bookingSpecificItems = calculateBookingLinenOrder(selectedBooking, linenSetDefinition);
         setEditableItems(bookingSpecificItems);
       } else {

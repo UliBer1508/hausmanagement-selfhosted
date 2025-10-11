@@ -481,6 +481,7 @@ const LinenDashboard = () => {
                    (!b.linen_orders || b.linen_orders.length === 0)
             ) || []
           }
+          linenSetDefinition={orderHouse.linen_set_definitions?.[0]}
           onCreateOrder={handleOrderCreation}
           isCreating={createOptimizedOrderMutation.isPending}
           allowExceptionalOrder={true}
