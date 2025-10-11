@@ -238,6 +238,19 @@ const CleaningManagement = () => {
     }
   };
 
+  const getPaymentStatusBadge = (paymentStatus: string) => {
+    switch(paymentStatus) {
+      case 'paid':
+        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900/20 dark:text-green-400">✅ Bezahlt</Badge>;
+      case 'unpaid':
+        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300 dark:bg-red-900/20 dark:text-red-400">💳 Offen</Badge>;
+      case 'pending':
+        return <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/20 dark:text-orange-400">⏳ Ausstehend</Badge>;
+      default:
+        return <Badge variant="outline">{paymentStatus}</Badge>;
+    }
+  };
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
@@ -553,6 +566,18 @@ const CleaningManagement = () => {
                           <span>📊</span>
                           Status: {getStatusBadge(task.status)}
                         </div>
+                        {task.cleaning_cost && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span>💶</span>
+                            Kosten: <span className="font-semibold text-green-700">{task.cleaning_cost.toFixed(2)} EUR</span>
+                          </div>
+                        )}
+                        {task.payment_status && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <span>💳</span>
+                            Bezahlung: {getPaymentStatusBadge(task.payment_status)}
+                          </div>
+                        )}
                         {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
                           <div className="flex items-center gap-2 text-sm">
                             <span>👤</span>

@@ -49,6 +49,19 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
     return type === 'cleaning' ? 'Reinigung' : 'Wäscherei';
   };
 
+  const getPaymentStatusBadge = (paymentStatus: string) => {
+    switch(paymentStatus) {
+      case 'paid':
+        return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900/20 dark:text-green-400">✅ Bezahlt</Badge>;
+      case 'unpaid':
+        return <Badge variant="outline" className="bg-red-100 text-red-800 border-red-300 dark:bg-red-900/20 dark:text-red-400">💳 Offen</Badge>;
+      case 'pending':
+        return <Badge variant="outline" className="bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-900/20 dark:text-orange-400">⏳ Ausstehend</Badge>;
+      default:
+        return <Badge variant="outline">{paymentStatus}</Badge>;
+    }
+  };
+
   return (
     <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50`}>
       <CardContent className="p-3">
@@ -75,6 +88,28 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
             <span className="text-muted-foreground">Datum: </span>
             <span>{format(new Date(task.scheduled_date), "dd.MM.yyyy", { locale: de })}</span>
           </div>
+
+          {/* Status Badge */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Status:</span>
+            {getStatusBadge(task.status)}
+          </div>
+
+          {/* Payment Status */}
+          {task.cleaning_cost && (
+            <div className="flex items-center gap-2 text-sm">
+              <span>💶</span>
+              <span className="text-muted-foreground">Kosten:</span>
+              <span className="font-semibold text-green-700">{task.cleaning_cost.toFixed(2)} EUR</span>
+            </div>
+          )}
+          {task.payment_status && (
+            <div className="flex items-center gap-2 text-sm">
+              <span>💳</span>
+              <span className="text-muted-foreground">Bezahlung:</span>
+              {getPaymentStatusBadge(task.payment_status)}
+            </div>
+          )}
 
           {/* Provider */}
           {task.service_providers && (
@@ -122,27 +157,6 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
             </div>
           )}
 
-          {/* Status Badge - displayed bottom right */}
-          <div className="flex items-center justify-between pt-1 border-t border-border/50">
-            <div className="flex items-center gap-2">
-              {task.cleaning_cost && (
-                <span className="text-sm font-semibold text-green-700">
-                  {task.cleaning_cost.toFixed(2)} EUR
-                </span>
-              )}
-              {task.payment_status && task.payment_status !== 'paid' && (
-                <Badge variant="outline" className="text-xs bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
-                  {task.payment_status === 'unpaid' ? '💳 Offen' : '⏳ Ausstehend'}
-                </Badge>
-              )}
-              {task.payment_status === 'paid' && (
-                <Badge variant="outline" className="text-xs bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                  ✅ Bezahlt
-                </Badge>
-              )}
-            </div>
-            {getStatusBadge(task.status)}
-          </div>
         </div>
       </CardContent>
 
