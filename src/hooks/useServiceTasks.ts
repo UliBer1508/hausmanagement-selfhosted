@@ -13,7 +13,7 @@ export const useServiceTasks = () => {
           houses:house_id (*),
           bookings:booking_id (*)
         `)
-        .order('scheduled_date', { ascending: true });
+        .order('scheduled_date', { ascending: false });
       
       if (error) throw error;
       return data as ServiceTask[];
@@ -33,7 +33,7 @@ export const useServiceTasksByStatus = (status: 'scheduled' | 'in_progress' | 'c
           bookings:booking_id (*)
         `)
         .eq('status', status)
-        .order('scheduled_date', { ascending: true });
+        .order('scheduled_date', { ascending: false });
       
       if (error) throw error;
       return data as ServiceTask[];
@@ -54,7 +54,7 @@ export const useServiceTasksByProvider = (providerId: string) => {
           bookings:booking_id (*)
         `)
         .eq('provider_id', providerId)
-        .order('scheduled_date', { ascending: true });
+        .order('scheduled_date', { ascending: false });
       
       if (error) throw error;
       return data as ServiceTask[];
