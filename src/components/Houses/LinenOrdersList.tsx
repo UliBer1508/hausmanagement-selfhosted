@@ -5,21 +5,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search } from 'lucide-react';
-import BookingCard from '@/components/Bookings/BookingCard';
 import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
 
-interface LinenOrdersWithBookingsProps {
+interface LinenOrdersListProps {
   onEditOrder?: (order: any) => void;
 }
 
-const LinenOrdersWithBookings = ({ onEditOrder }: LinenOrdersWithBookingsProps) => {
+const LinenOrdersList = ({ onEditOrder }: LinenOrdersListProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [houseFilter, setHouseFilter] = useState<string>('all');
 
   // Fetch linen orders with related data
   const { data: linenOrders, isLoading } = useQuery({
-    queryKey: ['linen-orders-with-bookings'],
+    queryKey: ['linen-orders-list'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('linen_orders')
@@ -33,11 +32,7 @@ const LinenOrdersWithBookings = ({ onEditOrder }: LinenOrdersWithBookingsProps) 
           bookings (
             id,
             guest_name,
-            guest_email,
-            check_in,
-            check_out,
-            number_of_guests,
-            status
+            guest_email
           )
         `)
         .order('delivery_date', { ascending: false });
@@ -151,48 +146,12 @@ const LinenOrdersWithBookings = ({ onEditOrder }: LinenOrdersWithBookingsProps) 
       ) : (
         <div className="space-y-4">
           {filteredOrders.map((order) => (
-            <div key={order.id} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Left: Booking Info */}
-              <div>
-                {order.bookings ? (
-                  <BookingCard
-                    booking={{
-                      ...order.bookings,
-                      houses: order.houses,
-                    }}
-                    colorVariant="green"
-                  />
-                ) : (
-                  <Card className="border-l-4 border-l-gray-500 bg-gray-50">
-                    <CardContent className="p-3">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">🏠</span>
-                          <h4 className="font-medium text-sm text-muted-foreground">
-                            {order.houses?.name || 'Keine Buchung verknüpft'}
-                          </h4>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Ausnahme-Bestellung (Generalreinigung oder Inventar-Auffüllung)
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-
-              {/* Middle: Empty Column */}
-              <div></div>
-
-              {/* Right: Laundry Order */}
-              <div>
-                <LaundryOrderCard
-                  order={order}
-                  colorVariant="purple"
-                  onEdit={onEditOrder}
-                />
-              </div>
-            </div>
+            <LaundryOrderCard
+              key={order.id}
+              order={order}
+              colorVariant="purple"
+              onEdit={onEditOrder}
+            />
           ))}
         </div>
       )}
@@ -200,4 +159,4 @@ const LinenOrdersWithBookings = ({ onEditOrder }: LinenOrdersWithBookingsProps) 
   );
 };
 
-export default LinenOrdersWithBookings;
+export default LinenOrdersList;

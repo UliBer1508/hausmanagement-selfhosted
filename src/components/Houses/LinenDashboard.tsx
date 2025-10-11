@@ -13,7 +13,7 @@ import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement
 import LinenInventoryDashboard from './LinenInventoryDashboard';
 import SmartLinenInventoryDashboard from './SmartLinenInventoryDashboard';
 import LinenOrderDialog from './LinenOrderDialog';
-import LinenOrdersWithBookings from './LinenOrdersWithBookings';
+import LinenOrdersList from './LinenOrdersList';
 
 interface HouseLinenStatus {
   house: any;
@@ -532,7 +532,7 @@ const LinenDashboard = () => {
             Übersicht aller Wäschebestellungen mit Buchungsinformationen
           </p>
         </div>
-        <LinenOrdersWithBookings onEditOrder={handleEditOrder} />
+        <LinenOrdersList onEditOrder={handleEditOrder} />
       </div>
 
       {/* House Detail View */}
