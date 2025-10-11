@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { format, addDays } from 'date-fns';
+import { format, addDays, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { CalendarIcon, ShoppingCart, Mail, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -106,9 +106,17 @@ const LinenOrderDialog = ({
   initialData
 }: LinenOrderDialogProps) => {
   const [internalSelectedBooking, setInternalSelectedBooking] = useState<any>(selectedBooking);
-  const [deliveryDate, setDeliveryDate] = useState<Date>(
-    initialData?.deliveryDate ? new Date(initialData.deliveryDate) : addDays(new Date(), 2)
-  );
+  const [deliveryDate, setDeliveryDate] = useState<Date>(() => {
+    if (initialData?.deliveryDate) {
+      return new Date(initialData.deliveryDate);
+    }
+    // If booking is selected, set delivery date to 1 day before check-in
+    if (selectedBooking?.check_in) {
+      return subDays(new Date(selectedBooking.check_in), 1);
+    }
+    // Fallback: 2 days from today
+    return addDays(new Date(), 2);
+  });
   const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>(
     initialData?.deliveryType || 'delivery'
   );
@@ -128,6 +136,11 @@ const LinenOrderDialog = ({
       if (selectedBooking && linenSetDefinition) {
         const bookingSpecificItems = calculateBookingLinenOrder(selectedBooking, linenSetDefinition);
         setEditableItems(bookingSpecificItems);
+        
+        // Set delivery date to 1 day before check-in if not overridden by initialData
+        if (selectedBooking.check_in && !initialData?.deliveryDate) {
+          setDeliveryDate(subDays(new Date(selectedBooking.check_in), 1));
+        }
       } else {
         // Otherwise, use the passed orderItems
         setEditableItems(orderItems);
@@ -144,7 +157,7 @@ const LinenOrderDialog = ({
         setNotes(initialData.notes);
       }
     }
-  }, [open, selectedBooking, linenSetDefinition]);
+  }, [open, selectedBooking, linenSetDefinition, initialData]);
 
   const linenLabels: Record<string, string> = {
     bedding: 'Bettwäsche',
@@ -351,6 +364,7 @@ const LinenOrderDialog = ({
                   if (value === 'none') {
                     setInternalSelectedBooking(null);
                     setEditableItems(orderItems);
+                    setDeliveryDate(addDays(new Date(), 2)); // Reset to default
                   } else {
                     const booking = availableBookings.find(b => b.id === value);
                     setInternalSelectedBooking(booking);
@@ -359,6 +373,11 @@ const LinenOrderDialog = ({
                     if (booking && linenSetDefinition) {
                       const bookingSpecificItems = calculateBookingLinenOrder(booking, linenSetDefinition);
                       setEditableItems(bookingSpecificItems);
+                    }
+                    
+                    // Set delivery date to 1 day before check-in
+                    if (booking?.check_in) {
+                      setDeliveryDate(subDays(new Date(booking.check_in), 1));
                     }
                   }
                 }}
