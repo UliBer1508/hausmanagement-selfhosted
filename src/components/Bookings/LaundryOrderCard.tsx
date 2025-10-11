@@ -117,6 +117,16 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
               </div>
             )}
 
+            {/* Delivery Date - unter Gästeanzahl */}
+            {order.delivery_date && (
+              <div className="flex items-start gap-2 text-sm">
+                <span className="text-base">🚚</span>
+                <span>
+                  <span className="text-muted-foreground">Lieferung:</span> {order.delivery_date}
+                </span>
+              </div>
+            )}
+
             {/* Items Summary */}
             <div className="text-sm">
               <span className="text-muted-foreground">Artikel gesamt: </span>
@@ -167,28 +177,17 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
                 </div>
               </div>
             )}
-
-            {/* Dates */}
-            {(order.pickup_date || order.delivery_date) && (
-              <div className="text-xs space-y-1">
-                {order.pickup_date && (
-                  <div className="flex gap-1">
-                    <span className="text-muted-foreground">Abholung:</span>
-                    <span>{order.pickup_date}</span>
-                  </div>
-                )}
-                {order.delivery_date && (
-                  <div className="flex gap-1">
-                    <span className="text-muted-foreground">Lieferung:</span>
-                    <span>{order.delivery_date}</span>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Right Column: Order Details */}
           <div className="space-y-2 text-sm">
+            {order.pickup_date && (
+              <div>
+                <span className="text-muted-foreground">Abholung: </span>
+                <span>{order.pickup_date}</span>
+              </div>
+            )}
+
             <div>
               <span className="text-muted-foreground">Bestelldatum: </span>
               <span>{orderDate}</span>
