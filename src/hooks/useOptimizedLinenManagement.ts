@@ -389,7 +389,7 @@ export const useOptimizedLinenManagement = () => {
       console.log('✅ Bestellung erfolgreich in DB erstellt:', data);
       return data;
     },
-    onSuccess: (data, variables) => {
+    onSuccess: async (data, variables) => {
       // Optimistic updates
       queryClient.setQueryData(['houses-linen-optimized'], (old: any) => {
         if (!old) return old;
@@ -405,13 +405,24 @@ export const useOptimizedLinenManagement = () => {
         });
       });
 
-      queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      // Invalidate all relevant queries with await
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['houses-linen-optimized'] });
+      
+      // Force immediate refetch
+      await queryClient.refetchQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
+      
       console.log('✅ Bestellung erfolgreich erstellt:', {
         orderId: data.id,
         houseId: variables.houseId,
+        bookingId: variables.bookingId,
         items: variables.orderItems,
         totalItems: Object.values(variables.orderItems).reduce((sum, count) => sum + count, 0)
       });
+      
       toast({
         title: "Intelligente Bestellung erstellt",
         description: `${Object.values(variables.orderItems).reduce((sum, count) => sum + count, 0)} Artikel bestellt basierend auf prädiktiver Analyse.`,

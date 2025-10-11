@@ -77,8 +77,15 @@ export const useCreateServiceTask = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      
+      // Force immediate refetch
+      await queryClient.refetchQueries({ queryKey: ['service-tasks-connected'] });
+      await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
     },
   });
 };
@@ -98,8 +105,13 @@ export const useUpdateServiceTask = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      
+      await queryClient.refetchQueries({ queryKey: ['service-tasks-connected'] });
+      await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
     },
   });
 };
@@ -116,8 +128,10 @@ export const useDeleteServiceTask = () => {
       
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
+      await queryClient.refetchQueries({ queryKey: ['service-tasks-connected'] });
     },
   });
 };

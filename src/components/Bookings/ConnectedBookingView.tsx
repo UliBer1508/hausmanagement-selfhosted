@@ -28,26 +28,61 @@ const ConnectedBookingView = () => {
 
   console.log('ConnectedBookingView rendering with filters:', { statusFilter, houseFilter, searchTerm });
 
-  // Real-time updates for linen orders
+  // Real-time updates for ALL tables
   useEffect(() => {
-    const channel = supabase
+    console.log('🔌 Setting up realtime channels...');
+    
+    // Channel 1: Linen Orders
+    const linenChannel = supabase
       .channel('linen-orders-realtime')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'linen_orders'
-        },
-        () => {
-          console.log('Linen order updated, invalidating queries...');
+        { event: '*', schema: 'public', table: 'linen_orders' },
+        (payload) => {
+          console.log('🔔 Linen order changed:', payload);
           queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+          queryClient.refetchQueries({ queryKey: ['linen-orders-connected'] });
+          queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
+        }
+      )
+      .subscribe();
+
+    // Channel 2: Bookings
+    const bookingsChannel = supabase
+      .channel('bookings-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bookings' },
+        (payload) => {
+          console.log('🔔 Booking changed:', payload);
+          queryClient.invalidateQueries({ queryKey: ['bookings'] });
+          queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+          queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
+        }
+      )
+      .subscribe();
+
+    // Channel 3: Service Tasks (Reinigungen)
+    const tasksChannel = supabase
+      .channel('service-tasks-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'service_tasks' },
+        (payload) => {
+          console.log('🔔 Service task changed:', payload);
+          queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+          queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
+          queryClient.refetchQueries({ queryKey: ['service-tasks-connected'] });
+          queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      console.log('🔌 Cleaning up realtime channels...');
+      supabase.removeChannel(linenChannel);
+      supabase.removeChannel(bookingsChannel);
+      supabase.removeChannel(tasksChannel);
     };
   }, [queryClient]);
 
@@ -196,10 +231,14 @@ const ConnectedBookingView = () => {
         priority: 'normal'
       });
 
-      // Link order to booking by updating the linen_orders table
-      // The mutation already handles this, so we just need to refresh the queries
-      queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
-      queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      // SOFORTIGE Invalidierung + Refetch ALLER Queries
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      
+      // Erzwinge sofortiges Refetch
+      await queryClient.refetchQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
       
       setShowLinenOrderDialog(false);
       setSelectedBookingForOrder(null);
@@ -207,10 +246,15 @@ const ConnectedBookingView = () => {
       
       toast({
         title: "Bestellung erfolgreich erstellt",
-        description: "Die Wäschebestellung wurde erfolgreich angelegt.",
+        description: `Wäschebestellung für ${selectedBookingForOrder.guest_name} wurde erstellt.`,
       });
     } catch (error) {
       console.error('❌ Fehler beim Erstellen der Bestellung:', error);
+      toast({
+        title: "Fehler beim Erstellen",
+        description: "Die Bestellung konnte nicht erstellt werden.",
+        variant: "destructive",
+      });
     }
   };
 

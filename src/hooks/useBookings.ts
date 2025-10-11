@@ -49,9 +49,14 @@ export const useCreateBooking = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      
+      // Force immediate refetch for connected view
+      await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
     },
   });
 };
@@ -71,10 +76,14 @@ export const useUpdateBooking = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      
+      // Force immediate refetch
+      await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
     },
   });
 };
@@ -91,8 +100,10 @@ export const useDeleteBooking = () => {
       
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
     },
   });
 };
