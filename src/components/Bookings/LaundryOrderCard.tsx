@@ -86,7 +86,17 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
               </div>
             )}
 
-            {/* Booking Information - direkt unter Adresse */}
+            {/* Guest Name - über Buchung */}
+            {guestName && (
+              <div className="flex items-start gap-2 text-sm">
+                <span className="text-base">👤</span>
+                <span>
+                  <span className="text-muted-foreground">Gast:</span> {guestName}
+                </span>
+              </div>
+            )}
+
+            {/* Booking Information - direkt unter Gastname */}
             {(checkIn || checkOut || numberOfGuests) && (
               <div className="space-y-1">
                 {checkIn && checkOut && (
@@ -179,16 +189,6 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
 
           {/* Right Column: Order Details */}
           <div className="space-y-2 text-sm">
-            {/* Guest Name */}
-            {guestName && (
-              <div className="flex items-start gap-2">
-                <span className="text-base">👤</span>
-                <div>
-                  <span className="text-muted-foreground">Gast:</span> {guestName}
-                </div>
-              </div>
-            )}
-
             <div>
               <span className="text-muted-foreground">Bestelldatum: </span>
               <span>{orderDate}</span>
