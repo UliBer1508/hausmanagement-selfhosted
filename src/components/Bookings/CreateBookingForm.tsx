@@ -210,7 +210,12 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
   });
 
   const onSubmit = async (data: BookingFormData) => {
-    console.log('Form submit - mode:', mode, 'data:', data, 'initialData:', initialData);
+    console.log('🔵 FORM SUBMIT CALLED');
+    console.log('Form submit - mode:', mode);
+    console.log('Check-in:', data.check_in.toISOString());
+    console.log('Check-out:', data.check_out.toISOString());
+    console.log('House ID:', data.house_id);
+    console.log('Guest name:', data.guest_name);
     
     try {
       setIsSubmitting(true);
