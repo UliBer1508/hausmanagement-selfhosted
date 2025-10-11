@@ -8,9 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Trash2, Mail, Phone, Building2, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, Mail, Phone, Building2, CheckCircle, XCircle, FileSpreadsheet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import { ProviderBillingDialog } from './ProviderBillingDialog';
 
 const providerSchema = z.object({
   name: z.string().trim().min(1, 'Name ist erforderlich').max(100),
@@ -34,6 +35,7 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
   const queryClient = useQueryClient();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingProvider, setEditingProvider] = useState<any>(null);
+  const [selectedProviderForBilling, setSelectedProviderForBilling] = useState<any>(null);
   const [formData, setFormData] = useState<ProviderFormData>({
     name: '',
     service_type: 'cleaning',
@@ -278,6 +280,15 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() => setSelectedProviderForBilling(provider)}
+                          className="flex-1"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 mr-2" />
+                          Abrechnung
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => handleEdit(provider)}
                           className="flex-1"
                         >
@@ -442,6 +453,13 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Billing Dialog */}
+      <ProviderBillingDialog
+        provider={selectedProviderForBilling}
+        open={!!selectedProviderForBilling}
+        onOpenChange={(open) => !open && setSelectedProviderForBilling(null)}
+      />
     </>
   );
 };
