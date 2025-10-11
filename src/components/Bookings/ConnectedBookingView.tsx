@@ -21,6 +21,8 @@ const ConnectedBookingView = () => {
   const [showLinenOrderDialog, setShowLinenOrderDialog] = useState(false);
   const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<any>(null);
   const [calculatedOrderItems, setCalculatedOrderItems] = useState<Record<string, number>>({});
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
   
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -214,45 +216,98 @@ const ConnectedBookingView = () => {
     console.log('✅ Button geklickt für Buchung:', booking);
     setSelectedBookingForOrder(booking);
     setCalculatedOrderItems({}); // Empty - user fills manually
+    setEditingOrderId(null);
+    setIsEditMode(false);
     setShowLinenOrderDialog(true);
   };
 
-  // Handle order creation from dialog
+  // Handler for editing existing linen orders
+  const handleEditLinenOrder = (order: any) => {
+    console.log('✏️ Bearbeite Wäschebestellung:', order.id);
+    
+    // Find associated booking
+    const booking = bookingsData?.find(b => b.id === order.booking_id);
+    
+    if (!booking) {
+      toast({
+        title: "Fehler",
+        description: "Zugehörige Buchung nicht gefunden.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Open dialog with existing data
+    setSelectedBookingForOrder(booking);
+    setCalculatedOrderItems(order.items || {});
+    setEditingOrderId(order.id);
+    setIsEditMode(true);
+    setShowLinenOrderDialog(true);
+  };
+
+  // Handle order creation/update from dialog
   const handleOrderCreation = async (orderData: any) => {
-    console.log('📝 Erstelle Bestellung:', orderData);
+    console.log('📝 Speichere Bestellung:', orderData);
     
     try {
-      await createOptimizedOrderMutation.mutateAsync({
-        houseId: selectedBookingForOrder.house_id,
-        bookingId: selectedBookingForOrder.id,
-        orderItems: orderData.orderItems,
-        notes: orderData.notes,
-        deliveryDate: orderData.deliveryDate,
-        priority: 'normal'
-      });
+      if (isEditMode && editingOrderId) {
+        // UPDATE existing order
+        console.log('🔄 Update Bestellung:', editingOrderId);
+        
+        const { error } = await supabase
+          .from('linen_orders')
+          .update({
+            items: orderData.orderItems,
+            notes: orderData.notes,
+            delivery_date: orderData.deliveryDate,
+            delivery_type: orderData.deliveryType || 'delivery',
+            status: 'pending', // Set to pending when editing
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', editingOrderId);
+        
+        if (error) throw error;
+        
+        toast({
+          title: "Bestellung aktualisiert",
+          description: `Wäschebestellung für ${selectedBookingForOrder.guest_name} wurde aktualisiert.`,
+        });
+      } else {
+        // CREATE new order
+        await createOptimizedOrderMutation.mutateAsync({
+          houseId: selectedBookingForOrder.house_id,
+          bookingId: selectedBookingForOrder.id,
+          orderItems: orderData.orderItems,
+          notes: orderData.notes,
+          deliveryDate: orderData.deliveryDate,
+          priority: 'normal'
+        });
+        
+        toast({
+          title: "Bestellung erstellt",
+          description: `Wäschebestellung für ${selectedBookingForOrder.guest_name} wurde erstellt.`,
+        });
+      }
 
-      // SOFORTIGE Invalidierung + Refetch ALLER Queries
+      // Invalidate and refetch all queries
       await queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
       await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
       await queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
-      
-      // Erzwinge sofortiges Refetch
       await queryClient.refetchQueries({ queryKey: ['linen-orders-connected'] });
       await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
       
+      // Close dialog and reset state
       setShowLinenOrderDialog(false);
       setSelectedBookingForOrder(null);
       setCalculatedOrderItems({});
+      setEditingOrderId(null);
+      setIsEditMode(false);
       
-      toast({
-        title: "Bestellung erfolgreich erstellt",
-        description: `Wäschebestellung für ${selectedBookingForOrder.guest_name} wurde erstellt.`,
-      });
     } catch (error) {
-      console.error('❌ Fehler beim Erstellen der Bestellung:', error);
+      console.error('❌ Fehler:', error);
       toast({
-        title: "Fehler beim Erstellen",
-        description: "Die Bestellung konnte nicht erstellt werden.",
+        title: "Fehler",
+        description: "Die Bestellung konnte nicht gespeichert werden.",
         variant: "destructive",
       });
     }
@@ -358,7 +413,12 @@ const ConnectedBookingView = () => {
                 <div className="space-y-3">
                   {laundry.length > 0 ? (
                     laundry.map((order) => (
-                      <LaundryOrderCard key={order.id} order={order} colorVariant={colorVariant} />
+                      <LaundryOrderCard 
+                        key={order.id} 
+                        order={order} 
+                        colorVariant={colorVariant}
+                        onEdit={handleEditLinenOrder}
+                      />
                     ))
                   ) : (
                     <Card 
@@ -409,13 +469,22 @@ const ConnectedBookingView = () => {
       {selectedBookingForOrder && (
         <LinenOrderDialog
           open={showLinenOrderDialog}
-          onOpenChange={setShowLinenOrderDialog}
+          onOpenChange={(open) => {
+            setShowLinenOrderDialog(open);
+            if (!open) {
+              setSelectedBookingForOrder(null);
+              setCalculatedOrderItems({});
+              setEditingOrderId(null);
+              setIsEditMode(false);
+            }
+          }}
           orderItems={calculatedOrderItems}
           houseName={selectedBookingForOrder.houses?.name || 'Unbekannt'}
           houseId={selectedBookingForOrder.house_id}
           selectedBooking={selectedBookingForOrder}
           onCreateOrder={handleOrderCreation}
           isCreating={createOptimizedOrderMutation.isPending}
+          mode={isEditMode ? 'edit' : 'create'}
         />
       )}
     </div>

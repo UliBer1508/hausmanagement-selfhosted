@@ -43,6 +43,7 @@ interface LinenOrderDialogProps {
     deliveryType?: 'delivery' | 'pickup';
     notes?: string;
   };
+  mode?: 'create' | 'edit';
 }
 
 // Helper function to calculate linen order for a specific booking
@@ -103,7 +104,8 @@ const LinenOrderDialog = ({
   onSendEmail,
   isCreating = false,
   allowExceptionalOrder = false,
-  initialData
+  initialData,
+  mode = 'create'
 }: LinenOrderDialogProps) => {
   const [internalSelectedBooking, setInternalSelectedBooking] = useState<any>(selectedBooking);
   const [deliveryDate, setDeliveryDate] = useState<Date>(() => {
@@ -270,10 +272,13 @@ const LinenOrderDialog = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShoppingCart className="w-5 h-5" />
-            Wäschebestellung für {houseName}
+            {mode === 'edit' ? 'Wäschebestellung bearbeiten' : `Wäschebestellung für ${houseName}`}
           </DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Erstellen Sie eine neue Wäschebestellung für dieses Haus mit optionaler Buchungsverknüpfung.
+            {mode === 'edit' 
+              ? 'Bearbeiten Sie die Wäschebestellung und passen Sie die Details an.'
+              : 'Erstellen Sie eine neue Wäschebestellung für dieses Haus mit optionaler Buchungsverknüpfung.'
+            }
           </p>
         </DialogHeader>
 
@@ -611,7 +616,11 @@ const LinenOrderDialog = ({
               type="submit"
               disabled={isCreating || totalItems === 0}
             >
-              {isCreating ? 'Erstelle Bestellung...' : 'Bestellung erstellen'}
+              {isCreating ? (
+                mode === 'edit' ? 'Wird aktualisiert...' : 'Erstelle Bestellung...'
+              ) : (
+                mode === 'edit' ? 'Bestellung aktualisieren' : 'Bestellung erstellen'
+              )}
             </Button>
           </div>
         </form>

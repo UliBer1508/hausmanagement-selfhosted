@@ -6,9 +6,10 @@ import { Edit, Package } from 'lucide-react';
 interface LaundryOrderCardProps {
   order: any;
   colorVariant: 'green' | 'blue' | 'purple';
+  onEdit?: (order: any) => void;
 }
 
-const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
+const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps) => {
   const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
@@ -32,6 +33,8 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
         return <Badge className="bg-orange-100 text-orange-800 border-orange-300">🔄 In Bearbeitung</Badge>;
       case 'completed':
         return <Badge className="bg-green-100 text-green-800 border-green-300">✅ Abgeschlossen</Badge>;
+      case 'cancelled':
+        return <Badge className="bg-red-100 text-red-800 border-red-300">❌ Storniert</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -133,6 +136,12 @@ const LaundryOrderCard = ({ order, colorVariant }: LaundryOrderCardProps) => {
           variant="ghost"
           size="sm"
           className="absolute top-2 right-2 h-8 w-8 p-0"
+          onClick={() => {
+            console.log('✏️ Bearbeite Bestellung:', order.id);
+            if (onEdit) {
+              onEdit(order);
+            }
+          }}
         >
           <Edit className="w-4 h-4" />
         </Button>
