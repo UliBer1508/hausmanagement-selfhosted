@@ -126,30 +126,34 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
                 </span>
               </div>
             )}
+          </div>
 
-            {/* Items Summary */}
-            <div className="text-sm">
-              <span className="text-muted-foreground">Artikel gesamt: </span>
-              <span className="font-medium">{getTotalItems()}</span>
-            </div>
+          {/* Right Column: All Items */}
+          <div className="space-y-2 text-sm">
+            {order.pickup_date && (
+              <div>
+                <span className="text-muted-foreground">Abholung: </span>
+                <span>{order.pickup_date}</span>
+              </div>
+            )}
 
-            {/* Items List */}
+            {/* Items List - alle Artikel untereinander */}
             {((order.laundry_order_items && order.laundry_order_items.length > 0) || order.items) && (
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Artikel:</p>
-                <div className="space-y-1 max-h-20 overflow-y-auto">
+                <p className="text-xs text-muted-foreground font-medium">Artikel ({getTotalItems()} gesamt):</p>
+                <div className="space-y-1">
                   {/* Handle laundry_order_items (array format) */}
-                  {order.laundry_order_items && order.laundry_order_items.slice(0, 3).map((item: any) => (
-                    <div key={item.id} className="flex gap-1 text-xs">
-                      <span className="truncate">{item.item_name}:</span>
+                  {order.laundry_order_items && order.laundry_order_items.map((item: any) => (
+                    <div key={item.id} className="flex justify-between gap-2 text-xs">
+                      <span>{item.item_name}</span>
                       <span className="text-muted-foreground flex-shrink-0">{item.quantity}x</span>
                     </div>
                   ))}
                   
                   {/* Handle linen order items (JSON object format) */}
-                  {order.items && Object.entries(order.items).slice(0, 3).map(([itemType, count]: [string, any]) => (
-                    <div key={itemType} className="flex gap-1 text-xs">
-                      <span className="truncate">
+                  {order.items && Object.entries(order.items).map(([itemType, count]: [string, any]) => (
+                    <div key={itemType} className="flex justify-between gap-2 text-xs">
+                      <span>
                         {itemType === 'kitchen_towels' ? 'Küchentücher' : 
                          itemType === 'bedding' ? 'Bettwäsche' :
                          itemType === 'large_towels' ? 'Große Handtücher' :
@@ -157,34 +161,12 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
                          itemType === 'bath_mats' ? 'Badematten' :
                          itemType === 'sauna_towels' ? 'Saunatücher' :
                          itemType === 'sink_towels' ? 'Waschbeckentücher' :
-                         itemType}:
+                         itemType}
                       </span>
                       <span className="text-muted-foreground flex-shrink-0">{count}x</span>
                     </div>
                   ))}
-                  
-                  {/* Show "more items" indicator */}
-                  {order.laundry_order_items && order.laundry_order_items.length > 3 && (
-                    <p className="text-xs text-muted-foreground">
-                      ... und {order.laundry_order_items.length - 3} weitere
-                    </p>
-                  )}
-                  {order.items && Object.keys(order.items).length > 3 && (
-                    <p className="text-xs text-muted-foreground">
-                      ... und {Object.keys(order.items).length - 3} weitere
-                    </p>
-                  )}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column: Order Details */}
-          <div className="space-y-2 text-sm">
-            {order.pickup_date && (
-              <div>
-                <span className="text-muted-foreground">Abholung: </span>
-                <span>{order.pickup_date}</span>
               </div>
             )}
 
