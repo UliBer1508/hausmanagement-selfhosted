@@ -86,21 +86,24 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
               </div>
             )}
 
-            {/* Booking Information */}
-            {checkIn && checkOut && (
-              <div className="flex items-start gap-2 text-sm">
-                <span className="text-base">📅</span>
-                <span>
-                  <span className="text-muted-foreground">Buchung:</span> {checkIn} - {checkOut}
-                </span>
-              </div>
-            )}
+            {/* Booking Information - direkt unter Adresse */}
+            {(checkIn || checkOut || numberOfGuests) && (
+              <div className="space-y-1">
+                {checkIn && checkOut && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <span className="text-base">📅</span>
+                    <span>
+                      <span className="text-muted-foreground">Buchung:</span> {checkIn} - {checkOut}
+                    </span>
+                  </div>
+                )}
 
-            {/* Number of Guests */}
-            {numberOfGuests && (
-              <div className="flex items-start gap-2 text-sm">
-                <span className="text-base">👤</span>
-                <span>{numberOfGuests} {numberOfGuests === 1 ? 'Gast' : 'Gäste'}</span>
+                {numberOfGuests && (
+                  <div className="flex items-start gap-2 text-sm">
+                    <span className="text-base">👤</span>
+                    <span>{numberOfGuests} {numberOfGuests === 1 ? 'Gast' : 'Gäste'}</span>
+                  </div>
+                )}
               </div>
             )}
 
