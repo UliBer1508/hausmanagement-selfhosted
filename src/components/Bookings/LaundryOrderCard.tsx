@@ -6,7 +6,7 @@ import { Edit, Package } from 'lucide-react';
 interface LaundryOrderCardProps {
   order: any;
   colorVariant: 'green' | 'blue' | 'purple';
-  onEdit?: (order: any) => void;
+  onEdit?: (order: any) => Promise<void> | void;
 }
 
 const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps) => {
@@ -135,11 +135,20 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
         <Button
           variant="ghost"
           size="sm"
-          className="absolute top-2 right-2 h-8 w-8 p-0"
-          onClick={() => {
+          className="absolute top-2 right-2 h-8 w-8 p-0 z-10"
+          onClick={async (e) => {
+            e.stopPropagation();
             console.log('✏️ Bearbeite Bestellung:', order.id);
+            console.log('🔧 onEdit function exists:', !!onEdit);
             if (onEdit) {
-              onEdit(order);
+              try {
+                await onEdit(order);
+                console.log('✅ onEdit completed');
+              } catch (error) {
+                console.error('❌ Error in onEdit:', error);
+              }
+            } else {
+              console.error('❌ onEdit is undefined!');
             }
           }}
         >
