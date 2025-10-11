@@ -2908,6 +2908,7 @@ export type Database = {
           contact_phone: string | null
           created_at: string | null
           has_portal: boolean | null
+          hourly_rate: number | null
           id: string
           is_active: boolean | null
           name: string
@@ -2925,6 +2926,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           has_portal?: boolean | null
+          hourly_rate?: number | null
           id?: string
           is_active?: boolean | null
           name: string
@@ -2942,6 +2944,7 @@ export type Database = {
           contact_phone?: string | null
           created_at?: string | null
           has_portal?: boolean | null
+          hourly_rate?: number | null
           id?: string
           is_active?: boolean | null
           name?: string

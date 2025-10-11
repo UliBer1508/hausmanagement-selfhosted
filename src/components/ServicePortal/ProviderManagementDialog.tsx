@@ -17,6 +17,7 @@ const providerSchema = z.object({
   service_type: z.enum(['cleaning', 'laundry']),
   contact_email: z.string().trim().email('Ungültige E-Mail-Adresse').max(255),
   contact_phone: z.string().trim().max(50),
+  hourly_rate: z.number().min(0, 'Stundensatz muss positiv sein').optional(),
   is_active: z.boolean(),
   has_portal: z.boolean()
 });
@@ -38,6 +39,7 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
     service_type: 'cleaning',
     contact_email: '',
     contact_phone: '',
+    hourly_rate: undefined,
     is_active: true,
     has_portal: false
   });
@@ -66,6 +68,7 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
           service_type: validated.service_type,
           contact_email: validated.contact_email,
           contact_phone: validated.contact_phone,
+          hourly_rate: validated.hourly_rate ?? null,
           is_active: validated.is_active,
           has_portal: validated.has_portal
         }]);
@@ -100,6 +103,7 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
           service_type: validated.service_type,
           contact_email: validated.contact_email,
           contact_phone: validated.contact_phone,
+          hourly_rate: validated.hourly_rate ?? null,
           is_active: validated.is_active,
           has_portal: validated.has_portal
         })
@@ -156,6 +160,7 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
       service_type: 'cleaning',
       contact_email: '',
       contact_phone: '',
+      hourly_rate: undefined,
       is_active: true,
       has_portal: false
     });
@@ -173,6 +178,7 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
       service_type: provider.service_type,
       contact_email: provider.contact_email || '',
       contact_phone: provider.contact_phone || '',
+      hourly_rate: provider.hourly_rate || undefined,
       is_active: provider.is_active,
       has_portal: provider.has_portal || false
     });
@@ -254,6 +260,12 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
                           <div className="flex items-center gap-2">
                             <Phone className="w-4 h-4 text-muted-foreground" />
                             <span>{provider.contact_phone}</span>
+                          </div>
+                        )}
+                        {provider.hourly_rate && (
+                          <div className="flex items-center gap-2 text-sm font-semibold text-green-700">
+                            <span className="text-lg">€</span>
+                            <span>{provider.hourly_rate.toFixed(2)} EUR/Std</span>
                           </div>
                         )}
                         {provider.has_portal && (
@@ -360,6 +372,27 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
                 placeholder="+43 123 456789"
                 maxLength={50}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="hourly_rate">
+                Stundensatz (EUR/Std) {formData.service_type === 'cleaning' && <span className="text-red-500">*</span>}
+              </Label>
+              <Input
+                id="hourly_rate"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.hourly_rate ?? ''}
+                onChange={(e) => setFormData({ 
+                  ...formData, 
+                  hourly_rate: e.target.value ? parseFloat(e.target.value) : undefined 
+                })}
+                placeholder={formData.service_type === 'cleaning' ? 'z.B. 25.00' : 'Optional'}
+              />
+              <p className="text-xs text-muted-foreground">
+                Basis-Stundensatz für Kostenberechnungen
+              </p>
             </div>
 
             <div className="flex items-center gap-4">
