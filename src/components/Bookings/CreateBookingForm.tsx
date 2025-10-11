@@ -132,10 +132,13 @@ interface CreateBookingFormProps {
 const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }: CreateBookingFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Helper function to set time on date
+  // Helper function to set default time on date if not already set
   const setTimeOnDate = (date: Date, hours: number, minutes: number = 0): Date => {
     const newDate = new Date(date);
-    newDate.setHours(hours, minutes, 0, 0);
+    // Only set time if it's 00:00:00 (no time specified)
+    if (newDate.getHours() === 0 && newDate.getMinutes() === 0 && newDate.getSeconds() === 0) {
+      newDate.setHours(hours, minutes, 0, 0);
+    }
     return newDate;
   };
   const [showCancelCleaningDialog, setShowCancelCleaningDialog] = useState(false);
@@ -515,7 +518,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                         )}
                       >
                         {field.value ? (
-                          format(field.value, "dd.MM.yyyy", { locale: de })
+                          format(field.value, "dd.MM.yyyy HH:mm", { locale: de })
                         ) : (
                           <span>Datum wählen</span>
                         )}
@@ -558,7 +561,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                         )}
                       >
                         {field.value ? (
-                          format(field.value, "dd.MM.yyyy", { locale: de })
+                          format(field.value, "dd.MM.yyyy HH:mm", { locale: de })
                         ) : (
                           <span>Datum wählen</span>
                         )}
