@@ -223,19 +223,33 @@ const ConnectedBookingView = () => {
   };
 
   // Handler for editing existing linen orders
-  const handleEditLinenOrder = (order: any) => {
+  const handleEditLinenOrder = async (order: any) => {
     console.log('✏️ Bearbeite Wäschebestellung:', order.id);
     
-    // Find associated booking
-    const booking = bookingsData?.find(b => b.id === order.booking_id);
+    // Erst in gefilterten Daten suchen
+    let booking = bookingsData?.find(b => b.id === order.booking_id);
     
+    // Falls nicht gefunden: Direkt aus DB laden (Fallback für gefilterte Buchungen)
     if (!booking) {
-      toast({
-        title: "Fehler",
-        description: "Zugehörige Buchung nicht gefunden.",
-        variant: "destructive",
-      });
-      return;
+      console.log('⚠️ Buchung nicht in gefilterten Daten. Lade aus DB...');
+      
+      const { data: fetchedBooking, error } = await supabase
+        .from('bookings')
+        .select('*, houses(*)')
+        .eq('id', order.booking_id)
+        .single();
+      
+      if (error || !fetchedBooking) {
+        console.error('❌ Buchung konnte nicht geladen werden:', error);
+        toast({
+          title: "Fehler",
+          description: "Zugehörige Buchung nicht gefunden.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      booking = fetchedBooking;
     }
     
     // Open dialog with existing data
