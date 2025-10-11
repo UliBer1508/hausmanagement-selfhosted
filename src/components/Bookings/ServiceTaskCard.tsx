@@ -124,7 +124,23 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
 
           {/* Status Badge - displayed bottom right */}
           <div className="flex items-center justify-between pt-1 border-t border-border/50">
-            <span className="text-sm text-muted-foreground">Status:</span>
+            <div className="flex items-center gap-2">
+              {task.cleaning_cost && (
+                <span className="text-sm font-semibold text-green-700">
+                  {task.cleaning_cost.toFixed(2)} EUR
+                </span>
+              )}
+              {task.payment_status && task.payment_status !== 'paid' && (
+                <Badge variant="outline" className="text-xs bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
+                  {task.payment_status === 'unpaid' ? '💳 Offen' : '⏳ Ausstehend'}
+                </Badge>
+              )}
+              {task.payment_status === 'paid' && (
+                <Badge variant="outline" className="text-xs bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                  ✅ Bezahlt
+                </Badge>
+              )}
+            </div>
             {getStatusBadge(task.status)}
           </div>
         </div>

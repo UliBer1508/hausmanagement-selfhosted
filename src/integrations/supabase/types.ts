@@ -1534,6 +1534,7 @@ export type Database = {
           address: string
           bathrooms: number | null
           created_at: string | null
+          default_cleaning_hours: number | null
           ical_url: string | null
           id: string
           image_filename: string | null
@@ -1552,6 +1553,7 @@ export type Database = {
           address: string
           bathrooms?: number | null
           created_at?: string | null
+          default_cleaning_hours?: number | null
           ical_url?: string | null
           id?: string
           image_filename?: string | null
@@ -1570,6 +1572,7 @@ export type Database = {
           address?: string
           bathrooms?: number | null
           created_at?: string | null
+          default_cleaning_hours?: number | null
           ical_url?: string | null
           id?: string
           image_filename?: string | null
@@ -2961,11 +2964,14 @@ export type Database = {
         Row: {
           assigned_staff_id: string | null
           booking_id: string | null
+          cleaning_cost: number | null
+          cleaning_hours: number | null
           completed_at: string | null
           created_at: string | null
           house_id: string
           id: string
           notes: string | null
+          payment_status: string | null
           provider_id: string | null
           scheduled_date: string
           scheduled_time: string | null
@@ -2976,11 +2982,14 @@ export type Database = {
         Insert: {
           assigned_staff_id?: string | null
           booking_id?: string | null
+          cleaning_cost?: number | null
+          cleaning_hours?: number | null
           completed_at?: string | null
           created_at?: string | null
           house_id: string
           id?: string
           notes?: string | null
+          payment_status?: string | null
           provider_id?: string | null
           scheduled_date: string
           scheduled_time?: string | null
@@ -2991,11 +3000,14 @@ export type Database = {
         Update: {
           assigned_staff_id?: string | null
           booking_id?: string | null
+          cleaning_cost?: number | null
+          cleaning_hours?: number | null
           completed_at?: string | null
           created_at?: string | null
           house_id?: string
           id?: string
           notes?: string | null
+          payment_status?: string | null
           provider_id?: string | null
           scheduled_date?: string
           scheduled_time?: string | null

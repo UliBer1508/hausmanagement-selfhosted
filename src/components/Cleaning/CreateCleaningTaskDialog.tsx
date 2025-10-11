@@ -44,6 +44,7 @@ const createTaskSchema = z.object({
   assigned_staff_id: z.string().optional(),
   scheduled_date: z.string().min(1, 'Datum erforderlich'),
   scheduled_time: z.string().optional(),
+  cleaning_hours: z.number().min(0.5, 'Mindestens 0,5 Stunden').max(24, 'Maximal 24 Stunden'),
   notes: z.string().optional(),
 });
 
@@ -75,6 +76,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
       assigned_staff_id: 'none',
       scheduled_date: '',
       scheduled_time: '10:00',
+      cleaning_hours: 3,
       notes: '',
     },
   });
@@ -105,18 +107,18 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
   const { data: houses } = useQuery({
     queryKey: ['houses'],
     queryFn: async () => {
-      const { data } = await supabase.from('houses').select('id, name, address');
+      const { data } = await supabase.from('houses').select('id, name, address, default_cleaning_hours');
       return data || [];
     },
   });
 
-  // Fetch cleaning service providers
+  // Fetch cleaning service providers with hourly rate
   const { data: providers } = useQuery({
     queryKey: ['cleaning-providers'],
     queryFn: async () => {
       const { data } = await supabase
         .from('service_providers')
-        .select('id, name')
+        .select('id, name, hourly_rate')
         .eq('service_type', 'cleaning')
         .eq('is_active', true);
       return data || [];
@@ -171,6 +173,13 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
     return checkOut.toISOString().split('T')[0];
   };
 
+  // Calculate cleaning cost
+  const selectedProvider = providers?.find(p => p.id === form.watch('provider_id'));
+  const cleaningHours = form.watch('cleaning_hours');
+  const cleaningCost = selectedProvider?.hourly_rate && cleaningHours 
+    ? (selectedProvider.hourly_rate * cleaningHours)
+    : null;
+
   // Create task mutation
   const createTaskMutation = useMutation({
     mutationFn: async (data: CreateTaskForm) => {
@@ -181,6 +190,9 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
         service_type: 'cleaning' as const,
         scheduled_date: data.scheduled_date,
         scheduled_time: data.scheduled_time || null,
+        cleaning_hours: data.cleaning_hours,
+        cleaning_cost: cleaningCost,
+        payment_status: 'unpaid' as const,
         status: 'scheduled' as const,
         notes: data.notes || null,
       };
@@ -231,6 +243,11 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
 
   const handleHouseSelection = (houseId: string) => {
     form.setValue('house_id', houseId);
+    // Set default cleaning hours for this house
+    const house = houses?.find(h => h.id === houseId);
+    if (house?.default_cleaning_hours) {
+      form.setValue('cleaning_hours', house.default_cleaning_hours);
+    }
     setStep('booking');
   };
 
@@ -453,6 +470,33 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
                             ))}
                           </SelectContent>
                         </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Reinigungsstunden */}
+                  <FormField
+                    control={form.control}
+                    name="cleaning_hours"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Reinigungsstunden *</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.5"
+                            min="0.5"
+                            max="24"
+                            {...field}
+                            onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                          />
+                        </FormControl>
+                        {selectedProvider?.hourly_rate && cleaningCost && (
+                          <p className="text-sm text-muted-foreground">
+                            Kosten: <strong>{cleaningCost.toFixed(2)} EUR</strong> ({selectedProvider.hourly_rate} EUR/Std × {field.value} Std)
+                          </p>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}

@@ -25,6 +25,9 @@ export interface ServiceTask {
   completed_at?: string;
   created_at?: string;
   updated_at?: string;
+  cleaning_hours?: number;
+  cleaning_cost?: number;
+  payment_status?: 'paid' | 'unpaid' | 'pending';
   // Legacy fields for compatibility
   title?: string;
   description?: string;
@@ -103,6 +106,7 @@ export interface House {
   linen_reserved?: any;
   linen_in_use?: any;
   ordered_linen?: any;
+  default_cleaning_hours?: number;
   created_at?: string;
   updated_at?: string;
   // Legacy fields for compatibility

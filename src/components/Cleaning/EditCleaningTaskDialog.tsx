@@ -62,6 +62,8 @@ const editTaskSchema = z.object({
     required_error: 'Datum erforderlich',
   }),
   scheduled_time: z.string().optional(),
+  cleaning_hours: z.number().min(0.5, 'Mindestens 0,5 Stunden').max(24, 'Maximal 24 Stunden'),
+  payment_status: z.enum(['paid', 'unpaid', 'pending']),
   status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
   notes: z.string().optional(),
 });
@@ -87,9 +89,9 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
         .from('service_tasks')
         .select(`
           *,
-          houses(id, name, address),
+          houses(id, name, address, default_cleaning_hours),
           bookings(id, guest_name, guest_email, guest_phone, check_in, check_out, number_of_guests, booking_amount),
-          service_providers(id, name),
+          service_providers(id, name, hourly_rate),
           cleaning_assignments(id, cleaning_staff_id, cleaning_staff(id, name, email, phone, hourly_rate))
         `)
         .eq('id', taskId)
@@ -108,7 +110,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     queryFn: async () => {
       const { data } = await supabase
         .from('service_providers')
-        .select('id, name')
+        .select('id, name, hourly_rate')
         .eq('service_type', 'cleaning')
         .eq('is_active', true);
       return data || [];
@@ -170,6 +172,8 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
       assigned_staff_id: 'none',
       scheduled_date: new Date(),
       scheduled_time: '',
+      cleaning_hours: 3,
+      payment_status: 'unpaid',
       status: 'scheduled',
       notes: '',
     },
@@ -186,11 +190,20 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
         assigned_staff_id: assignedStaffId,
         scheduled_date: new Date(task.scheduled_date),
         scheduled_time: task.scheduled_time || '',
+        cleaning_hours: task.cleaning_hours || task.houses?.default_cleaning_hours || 3,
+        payment_status: (task.payment_status as 'paid' | 'unpaid' | 'pending') || 'unpaid',
         status: task.status as any,
         notes: task.notes || '',
       });
     }
   }, [task, form]);
+
+  // Calculate cleaning cost
+  const selectedProvider = providers?.find(p => p.id === form.watch('provider_id'));
+  const cleaningHours = form.watch('cleaning_hours');
+  const cleaningCost = selectedProvider?.hourly_rate && cleaningHours 
+    ? (selectedProvider.hourly_rate * cleaningHours)
+    : null;
 
   // Update task mutation
   const updateTaskMutation = useMutation({
@@ -203,6 +216,9 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
           assigned_staff_id: data.assigned_staff_id && data.assigned_staff_id !== 'none' ? data.assigned_staff_id : null,
           scheduled_date: format(data.scheduled_date, 'yyyy-MM-dd'),
           scheduled_time: data.scheduled_time || null,
+          cleaning_hours: data.cleaning_hours,
+          cleaning_cost: cleaningCost,
+          payment_status: data.payment_status,
           status: data.status,
           notes: data.notes,
           updated_at: new Date().toISOString(),
@@ -578,6 +594,34 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
 
                     <FormField
                       control={form.control}
+                      name="cleaning_hours"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Reinigungsstunden *</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              step="0.5"
+                              min="0.5"
+                              max="24"
+                              {...field}
+                              onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                            />
+                          </FormControl>
+                          {selectedProvider?.hourly_rate && cleaningCost && (
+                            <p className="text-xs text-muted-foreground">
+                              <strong>{cleaningCost.toFixed(2)} EUR</strong> ({selectedProvider.hourly_rate} EUR/Std)
+                            </p>
+                          )}
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
                       name="status"
                       render={({ field }) => (
                         <FormItem>
@@ -612,6 +656,35 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
                                 className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400 focus:bg-red-200 dark:focus:bg-red-900/30"
                               >
                                 Storniert
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="payment_status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Zahlungsstatus</FormLabel>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="bg-background z-50">
+                              <SelectItem value="unpaid" className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400">
+                                💳 Offen
+                              </SelectItem>
+                              <SelectItem value="pending" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
+                                ⏳ Ausstehend
+                              </SelectItem>
+                              <SelectItem value="paid" className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                                ✅ Bezahlt
                               </SelectItem>
                             </SelectContent>
                           </Select>
