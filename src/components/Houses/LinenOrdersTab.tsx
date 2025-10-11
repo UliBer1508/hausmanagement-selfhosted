@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +36,34 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   const [isEmailSending, setIsEmailSending] = useState(false);
   const queryClient = useQueryClient();
 
+  // Realtime-Channel für Wäschebestellungen
+  useEffect(() => {
+    console.log('🔌 Setting up linen orders realtime channel for house:', house.id);
+    
+    const channel = supabase
+      .channel('linen-orders-realtime-tab')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'linen_orders',
+          filter: `house_id=eq.${house.id}`
+        },
+        (payload) => {
+          console.log('🔔 Realtime: Linen order changed in LinenOrdersTab:', payload);
+          queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+          queryClient.refetchQueries({ queryKey: ['linen-orders-all', house.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      console.log('🔌 Cleaning up linen orders realtime channel');
+      supabase.removeChannel(channel);
+    };
+  }, [house.id, queryClient]);
+
   // Mutation to cancel an order
   const cancelOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
@@ -56,8 +84,17 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
       console.log('✅ Bestellung storniert:', data);
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+    onSuccess: async () => {
+      // ALLE relevanten Query-Keys invalidieren
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      
+      // Sofortiges Refetch für ConnectedBookingView
+      await queryClient.refetchQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
+      
       toast({
         title: "Bestellung storniert",
         description: "Die Bestellung wurde erfolgreich storniert.",
@@ -99,8 +136,16 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
       console.log('✅ Bestellung aktualisiert:', data);
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+    onSuccess: async () => {
+      // ALLE relevanten Query-Keys invalidieren
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      
+      // Sofortiges Refetch
+      await queryClient.refetchQueries({ queryKey: ['linen-orders-connected'] });
+      
       setIsEditDialogOpen(false);
       setEditingOrder(null);
       toast({
@@ -159,7 +204,10 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
       });
 
       // Refresh orders to show updated email timestamp
-      queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.refetchQueries({ queryKey: ['linen-orders-connected'] });
       
       // Close dialog
       setIsEmailDialogOpen(false);
