@@ -188,18 +188,6 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
               </div>
             )}
 
-            <div>
-              <span className="text-muted-foreground">Bestelldatum: </span>
-              <span>{orderDate}</span>
-            </div>
-
-            {order.delivery_type && (
-              <div>
-                <span className="text-muted-foreground">Lieferart: </span>
-                <span>{order.delivery_type === 'delivery' ? '🚚 Lieferung' : '🏪 Abholung'}</span>
-              </div>
-            )}
-
             {order.notes && (
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Notizen:</p>
