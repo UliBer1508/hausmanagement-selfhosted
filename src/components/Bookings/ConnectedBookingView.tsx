@@ -205,7 +205,8 @@ const ConnectedBookingView = () => {
     const bookingTasks = serviceTasks?.filter(task => task.booking_id === bookingId) || [];
     // Get linen orders directly by booking_id
     const bookingLaundry = linenOrders?.filter(order => 
-      order.booking_id === bookingId
+      order.booking_id === bookingId && 
+      order.status !== 'cancelled' // Stornierte ausblenden
     ) || [];
     
     return { tasks: bookingTasks, laundry: bookingLaundry };
