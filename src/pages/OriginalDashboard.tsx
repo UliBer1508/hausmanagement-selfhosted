@@ -54,6 +54,8 @@ import LinenDashboard from '@/components/Houses/LinenDashboard';
 import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderManagementDialog';
 import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
+import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
 
 const OriginalDashboard = () => {
   const location = useLocation();
@@ -102,6 +104,9 @@ const OriginalDashboard = () => {
   const [houseFilter, setHouseFilter] = useState('all');
   const [serviceTypeFilter, setServiceTypeFilter] = useState('all');
   const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
+
+  // Wäsche-Daten mit useOptimizedLinenManagement Hook abrufen
+  const { housesWithLinenData: linenData, isLoading: linenLoading } = useOptimizedLinenManagement();
 
   // Linen Order Dialog States
   const [showLinenOrderDialog, setShowLinenOrderDialog] = useState(false);
@@ -640,10 +645,30 @@ const OriginalDashboard = () => {
     { house: 'Wald', guest: 'Anke', date: '19.12.', count: 1, icon: '🏔️' }
   ];
 
-  const laundryNeeds = [
-    { name: 'Wald Chalet', status: 'Kritisch', icon: '🏔️' },
-    { name: 'Venedigersiedlung', status: 'Kritisch', icon: '🏘️' }
-  ];
+  // Echte Daten aus useOptimizedLinenManagement verwenden
+  const laundryNeeds = useMemo(() => {
+    if (!linenData || linenData.length === 0) return [];
+    
+    return linenData
+      .filter(house => house.status === 'critical' || house.status === 'warning')
+      .map(house => ({
+        name: house.house.name,
+        status: house.status === 'critical' ? 'Kritisch' : 
+                house.status === 'warning' ? 'Niedrig' : 'Gut',
+        icon: getHouseIcon(house.house.name),
+        criticalCount: house.criticalCount,
+        lowCount: house.lowCount,
+        nextBooking: house.nextBookingDate,
+        daysAway: house.nextBookingDaysAway
+      }))
+      .sort((a, b) => {
+        // Kritische Häuser zuerst
+        if (a.status === 'Kritisch' && b.status !== 'Kritisch') return -1;
+        if (a.status !== 'Kritisch' && b.status === 'Kritisch') return 1;
+        // Dann nach nächstem Check-in sortieren
+        return (a.daysAway || 999) - (b.daysAway || 999);
+      });
+  }, [linenData]);
 
   const getEventsForDate = (date: Date) => {
     const events = [];
@@ -1788,24 +1813,43 @@ const OriginalDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {laundryNeeds.map((item, index) => (
-                <div key={index} className="flex items-center justify-between min-w-0">
-                  <span className="text-sm truncate flex-1">
-                    {item.icon && <span className="mr-1.5">{item.icon}</span>}
-                    {item.name}
-                  </span>
-                  <div className={`flex items-center flex-shrink-0 ${
-                    item.status === 'Kritisch' ? 'text-red-600' : 
-                    item.status === 'Niedrig' ? 'text-yellow-600' : 
-                    'text-green-600'
-                  }`}>
-                    <span className="text-base mr-1">
-                      {item.status === 'Kritisch' ? '🔴' : item.status === 'Niedrig' ? '🟡' : '🟢'}
-                    </span>
-                    <span className="text-sm font-medium">{item.status}</span>
-                  </div>
+              {linenLoading ? (
+                <div className="text-sm text-muted-foreground">Lade Daten...</div>
+              ) : laundryNeeds.length === 0 ? (
+                <div className="text-sm text-muted-foreground flex items-center">
+                  <span className="mr-2">🟢</span>
+                  Alle Häuser optimal bestückt
                 </div>
-              ))}
+              ) : (
+                laundryNeeds.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between min-w-0 gap-2">
+                    <span className="text-sm truncate flex-1">
+                      {item.icon && <span className="mr-1.5">{item.icon}</span>}
+                      {item.name}
+                    </span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className={`flex items-center ${
+                        item.status === 'Kritisch' ? 'text-red-600' : 
+                        item.status === 'Niedrig' ? 'text-yellow-600' : 
+                        'text-green-600'
+                      }`}>
+                        <span className="text-base mr-1">{getLinenStatusEmoji(item.status)}</span>
+                        <span className="text-sm font-medium">{item.status}</span>
+                      </div>
+                      {item.criticalCount > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          ({item.criticalCount})
+                        </span>
+                      )}
+                      {item.daysAway !== undefined && item.daysAway < 7 && (
+                        <span className="text-xs text-orange-600 font-medium">
+                          {item.daysAway}d
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
