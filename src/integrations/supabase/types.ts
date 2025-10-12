@@ -710,6 +710,44 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_linen_config: {
+        Row: {
+          auto_suggest: boolean | null
+          created_at: string | null
+          house_id: string | null
+          id: string
+          lookahead_bookings: number
+          updated_at: string | null
+          warning_days_before: number
+        }
+        Insert: {
+          auto_suggest?: boolean | null
+          created_at?: string | null
+          house_id?: string | null
+          id?: string
+          lookahead_bookings?: number
+          updated_at?: string | null
+          warning_days_before?: number
+        }
+        Update: {
+          auto_suggest?: boolean | null
+          created_at?: string | null
+          house_id?: string | null
+          id?: string
+          lookahead_bookings?: number
+          updated_at?: string | null
+          warning_days_before?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_linen_config_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: true
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           booking_amount: number | null
@@ -1885,8 +1923,10 @@ export type Database = {
           items: Json
           notes: string | null
           order_date: string
+          order_source: string | null
           provider_id: string | null
           status: string | null
+          suggested_at: string | null
           total_items: number
           updated_at: string | null
         }
@@ -1904,8 +1944,10 @@ export type Database = {
           items: Json
           notes?: string | null
           order_date?: string
+          order_source?: string | null
           provider_id?: string | null
           status?: string | null
+          suggested_at?: string | null
           total_items: number
           updated_at?: string | null
         }
@@ -1923,8 +1965,10 @@ export type Database = {
           items?: Json
           notes?: string | null
           order_date?: string
+          order_source?: string | null
           provider_id?: string | null
           status?: string | null
+          suggested_at?: string | null
           total_items?: number
           updated_at?: string | null
         }

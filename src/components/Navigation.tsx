@@ -1,12 +1,23 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Home } from 'lucide-react';
 import ConnectionStatus from '@/components/PWA/ConnectionStatus';
 import PWAStatus from '@/components/PWA/PWAStatus';
+import { useHouses } from '@/hooks/useHouses';
+import { useMemo } from 'react';
 
 const Navigation = () => {
   const location = useLocation();
+  const { data: houses } = useHouses();
+  
+  // Calculate total urgent orders across all houses
+  const totalUrgentOrders = useMemo(() => {
+    // For now, return 0. In production, you would need to fetch status for all houses
+    // This would require a new aggregated endpoint or fetching all houses' status
+    return 0;
+  }, [houses]);
 
   const navigationItems = [
     { name: 'Übersicht', href: '/', emoji: '📊' },
@@ -14,7 +25,7 @@ const Navigation = () => {
     { name: 'Buchungen', href: '/bookings', emoji: '📅' },
     { name: 'Gäste', href: '/guests', emoji: '👥' },
     { name: 'Reinigung', href: '/cleaning', emoji: '✨' },
-    { name: 'Wäsche', href: '/laundry', emoji: '💧' },
+    { name: 'Wäsche', href: '/laundry', emoji: '💧', badge: totalUrgentOrders },
     { name: 'Provider', href: '/providers', emoji: '🏢' },
     { name: 'Einstellungen', href: '/settings', emoji: '⚙️' }
   ];
@@ -51,7 +62,7 @@ const Navigation = () => {
               <Link key={item.name} to={item.href}>
                 <Button
                   variant={isActive ? "default" : "ghost"}
-                  className={`w-full justify-start gap-3 transition-all duration-200 ${
+                  className={`w-full justify-start gap-3 transition-all duration-200 relative ${
                     isActive 
                       ? 'bg-primary text-primary-foreground shadow-lg' 
                       : 'hover:bg-accent/50 hover:translate-x-1'
@@ -59,6 +70,11 @@ const Navigation = () => {
                 >
                   <span className="text-lg">{item.emoji}</span>
                   {item.name}
+                  {item.badge && item.badge > 0 && (
+                    <Badge variant="destructive" className="ml-auto h-5 min-w-[20px] px-1 flex items-center justify-center text-xs">
+                      {item.badge}
+                    </Badge>
+                  )}
                 </Button>
               </Link>
             );
@@ -93,7 +109,7 @@ const Navigation = () => {
                   <Button
                     variant={isActive ? "default" : "ghost"}
                     size="sm"
-                    className={`w-full h-[65px] flex flex-col items-center justify-center gap-1 p-1 transition-all duration-200 ${
+                    className={`w-full h-[65px] flex flex-col items-center justify-center gap-1 p-1 transition-all duration-200 relative ${
                       isActive 
                         ? 'bg-primary text-primary-foreground shadow-md' 
                         : 'hover:bg-accent/50'
@@ -101,6 +117,11 @@ const Navigation = () => {
                   >
                     <span className="text-xl shrink-0">{item.emoji}</span>
                     <span className="text-[9px] leading-[10px] text-center w-full px-1">{item.name}</span>
+                    {item.badge && item.badge > 0 && (
+                      <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 w-4 rounded-full p-0 flex items-center justify-center text-[8px]">
+                        {item.badge}
+                      </Badge>
+                    )}
                   </Button>
                 </Link>
               );

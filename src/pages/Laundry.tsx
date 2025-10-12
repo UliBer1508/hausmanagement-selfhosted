@@ -1,4 +1,4 @@
-import SmartLinenDashboard from '@/components/Houses/SmartLinenDashboard';
+import { SmartLinenDashboardWithTabs } from '@/components/Houses/SmartLinenDashboardWithTabs';
 import AppLayout from '@/components/Layout/AppLayout';
 
 const Laundry = () => {
@@ -8,10 +8,10 @@ const Laundry = () => {
         <div>
           <h1 className="text-3xl font-bold text-foreground">Wäscherei Management</h1>
           <p className="text-muted-foreground mt-2">
-            Intelligente Verwaltung von Bettwäsche und Handtüchern
+            Buchungsbezogene Bestellungen und intelligentes Inventar-Management
           </p>
         </div>
-        <SmartLinenDashboard />
+        <SmartLinenDashboardWithTabs />
       </div>
     </AppLayout>
   );

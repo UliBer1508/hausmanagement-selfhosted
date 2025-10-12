@@ -6,8 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
-import { Settings, Brain, Save, RotateCcw } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Settings, Brain, Save, RotateCcw, Calendar, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useBookingLinenOrders } from "@/hooks/useBookingLinenOrders";
+import { useBookings } from "@/hooks/useBookings";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 
 interface AISettings {
   lookahead_bookings: number;
@@ -43,11 +48,35 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
   isSaving = false
 }) => {
   const { toast } = useToast();
+  const { config, orderStatus, saveConfig, isSavingConfig } = useBookingLinenOrders(houseId);
+  const { data: bookings } = useBookings();
+  
+  // Get upcoming bookings for this house
+  const upcomingBookings = bookings?.filter(b => 
+    b.house_id === houseId && 
+    b.status === 'confirmed' &&
+    new Date(b.check_in) >= new Date()
+  ).sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime()) || [];
+  
+  const [bookingConfig, setBookingConfig] = useState({
+    lookahead_bookings: config?.lookahead_bookings || 3,
+    warning_days_before: config?.warning_days_before || 7,
+  });
   
   // Lade Einstellungen beim Komponenten-Mount
   useEffect(() => {
     onLoad(houseId);
   }, [houseId, onLoad]);
+  
+  // Sync with config when loaded
+  useEffect(() => {
+    if (config) {
+      setBookingConfig({
+        lookahead_bookings: config.lookahead_bookings,
+        warning_days_before: config.warning_days_before,
+      });
+    }
+  }, [config]);
   
   // Sichere Default-Preise falls nicht vorhanden
   const safeSettings = {
@@ -131,6 +160,10 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
     const updated = { ...localSettings, [key]: value };
     setLocalSettings(updated);
   };
+  
+  const handleSaveBookingConfig = async () => {
+    saveConfig(bookingConfig);
+  };
 
   return (
     <Card>
@@ -144,9 +177,102 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Vorhersage-Zeitraum */}
+        {/* Buchungsbezogene Konfiguration */}
+        <div className="space-y-4 p-4 border-2 border-primary/20 rounded-lg bg-primary/5">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-primary" />
+            <Label className="text-base font-medium">Buchungsbezogene Bestellungen (NEU)</Label>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="booking_lookahead" className="text-sm text-muted-foreground">
+                Anzahl Buchungen im Voraus: {bookingConfig.lookahead_bookings}
+              </Label>
+              <Slider
+                id="booking_lookahead"
+                min={1}
+                max={10}
+                step={1}
+                value={[bookingConfig.lookahead_bookings]}
+                onValueChange={(value) => setBookingConfig({ ...bookingConfig, lookahead_bookings: value[0] })}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Legt fest, für wieviele kommende Buchungen automatisch Bestellungen vorgeschlagen werden.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="warning_days" className="text-sm text-muted-foreground">
+                Warnung vor Check-in (Tage)
+              </Label>
+              <Input
+                id="warning_days"
+                type="number"
+                min={1}
+                max={30}
+                value={bookingConfig.warning_days_before}
+                onChange={(e) => setBookingConfig({ ...bookingConfig, warning_days_before: parseInt(e.target.value) || 7 })}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Markiert Bestellungen als DRINGEND wenn Check-in in weniger als X Tagen ist.
+              </p>
+            </div>
+
+            {/* Preview der berücksichtigten Buchungen */}
+            {upcomingBookings.length > 0 && (
+              <Alert>
+                <AlertDescription>
+                  <p className="font-medium mb-2">Berücksichtigte Buchungen:</p>
+                  <ul className="space-y-1">
+                    {upcomingBookings.slice(0, bookingConfig.lookahead_bookings).map(booking => {
+                      const hasOrder = orderStatus?.bookings.find(b => b.booking_id === booking.id)?.linen_order.exists;
+                      return (
+                        <li key={booking.id} className="flex items-center gap-2 text-sm">
+                          {hasOrder ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <AlertTriangle className="w-4 h-4 text-orange-600" />
+                          )}
+                          <span className="flex-1">
+                            {booking.guest_name} ({format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de })})
+                          </span>
+                          {hasOrder ? (
+                            <span className="text-xs text-green-600">✓ Bestellt</span>
+                          ) : (
+                            <span className="text-xs text-orange-600">⚠ Fehlt</span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {upcomingBookings.length > bookingConfig.lookahead_bookings && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      + {upcomingBookings.length - bookingConfig.lookahead_bookings} weitere Buchung(en) werden nicht berücksichtigt
+                    </p>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Button 
+              onClick={handleSaveBookingConfig} 
+              disabled={isSavingConfig}
+              className="w-full"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {isSavingConfig ? 'Speichern...' : 'Buchungskonfiguration speichern'}
+            </Button>
+          </div>
+        </div>
+
+        <Separator />
+        
+        {/* Alte KI-Einstellungen */}
         <div className="space-y-3">
-          <Label className="text-base font-medium">Vorhersage-Zeitraum</Label>
+          <Label className="text-base font-medium">KI-Optimierung (Legacy)</Label>
           <div className="space-y-2">
             <Label htmlFor="lookahead_bookings" className="text-sm text-muted-foreground">
               Anzahl Buchungen im Voraus: {localSettings.lookahead_bookings}

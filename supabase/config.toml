@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.generate-booking-linen-order]
 verify_jwt = false
+
+[functions.check-booking-linen-orders]
+verify_jwt = false
