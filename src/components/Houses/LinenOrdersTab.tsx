@@ -17,7 +17,8 @@ import {
   Calendar,
   User,
   Truck,
-  XCircle
+  XCircle,
+  Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -158,6 +159,43 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
       toast({
         title: "Fehler beim Aktualisieren",
         description: error.message || "Die Bestellung konnte nicht aktualisiert werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to delete an order
+  const deleteOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      console.log('🗑️ Lösche Bestellung:', orderId);
+      
+      const { error } = await supabase
+        .from('linen_orders')
+        .delete()
+        .eq('id', orderId);
+
+      if (error) {
+        console.error('❌ Löschen fehlgeschlagen:', error);
+        throw error;
+      }
+      
+      console.log('✅ Bestellung erfolgreich gelöscht');
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-all', house.id] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      
+      toast({
+        title: "Bestellung gelöscht",
+        description: "Die Wäschebestellung wurde dauerhaft aus der Datenbank entfernt.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler beim Löschen",
+        description: error.message || "Die Bestellung konnte nicht gelöscht werden.",
         variant: "destructive",
       });
     },
@@ -469,6 +507,28 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
               {cancelOrderMutation.isPending ? 'Storniere...' : 'Stornieren'}
             </Button>
           )}
+          
+          {/* Universal Delete Button */}
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="ml-auto text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            onClick={() => {
+              if (window.confirm(
+                `Möchten Sie diese Bestellung wirklich dauerhaft löschen?\n\n` +
+                `Bestellung #${order.id.slice(0, 8)}\n` +
+                `Status: ${getStatusText(order.status)}\n` +
+                `Artikel: ${order.total_items}\n\n` +
+                `Diese Aktion kann nicht rückgängig gemacht werden!`
+              )) {
+                deleteOrderMutation.mutate(order.id);
+              }
+            }}
+            disabled={deleteOrderMutation.isPending}
+          >
+            <Trash2 className="w-4 h-4 mr-1" />
+            {deleteOrderMutation.isPending ? 'Lösche...' : 'Löschen'}
+          </Button>
         </div>
       </CardContent>
     </Card>
