@@ -467,37 +467,47 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
         )}
 
         {/* Actions */}
-        <div className="flex justify-between items-center gap-2 pt-2 border-t">
-          <div className="flex gap-2">
-            {order.status === 'pending' && (
-              <>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => sendEmailToProvider(order)}
-                >
-                  <Mail className="w-4 h-4 mr-1" />
-                  E-Mail senden
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    setEditingOrder(order);
-                    setIsEditDialogOpen(true);
-                  }}
-                >
-                  Bearbeiten
-                </Button>
-              </>
-            )}
-            {order.status === 'confirmed' && (
-              <Button variant="outline" size="sm">
-                <Calendar className="w-4 h-4 mr-1" />
-                Lieferung verfolgen
+        <div className="flex gap-2 pt-2 border-t">
+          {order.status === 'pending' && (
+            <>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => sendEmailToProvider(order)}
+              >
+                <Mail className="w-4 h-4 mr-1" />
+                E-Mail senden
               </Button>
-            )}
-            {['pending', 'confirmed'].includes(order.status) && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setEditingOrder(order);
+                  setIsEditDialogOpen(true);
+                }}
+              >
+                Bearbeiten
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                onClick={() => {
+                  if (window.confirm(
+                    `Möchten Sie diese Bestellung wirklich dauerhaft löschen?\n\n` +
+                    `Bestellung #${order.id.slice(0, 8)}\n` +
+                    `Status: ${getStatusText(order.status)}\n` +
+                    `Artikel: ${order.total_items}\n\n` +
+                    `Diese Aktion kann nicht rückgängig gemacht werden!`
+                  )) {
+                    deleteOrderMutation.mutate(order.id);
+                  }
+                }}
+                disabled={deleteOrderMutation.isPending}
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                {deleteOrderMutation.isPending ? 'Lösche...' : 'Löschen'}
+              </Button>
               <Button 
                 variant="destructive" 
                 size="sm"
@@ -507,30 +517,67 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
                 <XCircle className="w-4 h-4 mr-1" />
                 {cancelOrderMutation.isPending ? 'Storniere...' : 'Stornieren'}
               </Button>
-            )}
-          </div>
-          
-          {/* Universal Delete Button - Always visible */}
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
-            onClick={() => {
-              if (window.confirm(
-                `Möchten Sie diese Bestellung wirklich dauerhaft löschen?\n\n` +
-                `Bestellung #${order.id.slice(0, 8)}\n` +
-                `Status: ${getStatusText(order.status)}\n` +
-                `Artikel: ${order.total_items}\n\n` +
-                `Diese Aktion kann nicht rückgängig gemacht werden!`
-              )) {
-                deleteOrderMutation.mutate(order.id);
-              }
-            }}
-            disabled={deleteOrderMutation.isPending}
-          >
-            <Trash2 className="w-4 h-4 mr-1" />
-            {deleteOrderMutation.isPending ? 'Lösche...' : 'Löschen'}
-          </Button>
+            </>
+          )}
+          {order.status === 'confirmed' && (
+            <>
+              <Button variant="outline" size="sm">
+                <Calendar className="w-4 h-4 mr-1" />
+                Lieferung verfolgen
+              </Button>
+              <Button 
+                variant="destructive" 
+                size="sm"
+                onClick={() => cancelOrderMutation.mutate(order.id)}
+                disabled={cancelOrderMutation.isPending}
+              >
+                <XCircle className="w-4 h-4 mr-1" />
+                {cancelOrderMutation.isPending ? 'Storniere...' : 'Stornieren'}
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                onClick={() => {
+                  if (window.confirm(
+                    `Möchten Sie diese Bestellung wirklich dauerhaft löschen?\n\n` +
+                    `Bestellung #${order.id.slice(0, 8)}\n` +
+                    `Status: ${getStatusText(order.status)}\n` +
+                    `Artikel: ${order.total_items}\n\n` +
+                    `Diese Aktion kann nicht rückgängig gemacht werden!`
+                  )) {
+                    deleteOrderMutation.mutate(order.id);
+                  }
+                }}
+                disabled={deleteOrderMutation.isPending}
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                {deleteOrderMutation.isPending ? 'Lösche...' : 'Löschen'}
+              </Button>
+            </>
+          )}
+          {['delivered', 'cancelled'].includes(order.status) && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+              onClick={() => {
+                if (window.confirm(
+                  `Möchten Sie diese Bestellung wirklich dauerhaft löschen?\n\n` +
+                  `Bestellung #${order.id.slice(0, 8)}\n` +
+                  `Status: ${getStatusText(order.status)}\n` +
+                  `Artikel: ${order.total_items}\n\n` +
+                  `Diese Aktion kann nicht rückgängig gemacht werden!`
+                )) {
+                  deleteOrderMutation.mutate(order.id);
+                }
+              }}
+              disabled={deleteOrderMutation.isPending}
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              {deleteOrderMutation.isPending ? 'Lösche...' : 'Löschen'}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
