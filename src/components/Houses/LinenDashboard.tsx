@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
-import LinenInventoryDashboard from './LinenInventoryDashboard';
+import LinenInventoryDialog from './LinenInventoryDialog';
 import LinenOrderDialog from './LinenOrderDialog';
 import LinenOrdersList from './LinenOrdersList';
 
@@ -534,23 +534,15 @@ const LinenDashboard = () => {
         <LinenOrdersList onEditOrder={handleEditOrder} />
       </div>
 
-      {/* House Detail View */}
+      {/* House Detail Dialog */}
       {selectedHouse && (
-        <div className="mt-8">
-          <div className="mb-4 flex items-center justify-between">
-            <Button 
-              variant="outline" 
-              onClick={() => setSelectedHouse(null)}
-            >
-              ← Zurück zur Übersicht
-            </Button>
-            <Badge variant="secondary" className="flex items-center gap-1">
-              <span>🧠</span>
-              KI-optimiert
-            </Badge>
-          </div>
-          <LinenInventoryDashboard house={selectedHouse} />
-        </div>
+        <LinenInventoryDialog
+          house={selectedHouse}
+          open={!!selectedHouse}
+          onOpenChange={(open) => {
+            if (!open) setSelectedHouse(null);
+          }}
+        />
       )}
 
       {/* Linen Order Dialog */}
