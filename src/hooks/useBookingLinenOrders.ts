@@ -15,6 +15,7 @@ interface BookingOrderStatus {
   booking_id: string;
   guest_name: string;
   check_in: string;
+  check_out: string;
   number_of_guests: number;
   days_until_checkin: number;
   linen_order: {
@@ -147,6 +148,7 @@ export const useBookingLinenOrders = (houseId: string) => {
           order_date: new Date().toISOString().split('T')[0],
           delivery_date: calculateDeliveryDate(orderData.booking.check_in),
           delivery_type: 'delivery',
+          notes: 'Automatische Bestellung basierend auf prädiktiver Analyse',
         })
         .select()
         .single();

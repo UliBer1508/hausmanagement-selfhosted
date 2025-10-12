@@ -10,6 +10,7 @@ interface BookingOrderStatus {
   booking_id: string;
   guest_name: string;
   check_in: string;
+  check_out: string;
   number_of_guests: number;
   days_until_checkin: number;
   linen_order: {
@@ -57,7 +58,7 @@ serve(async (req) => {
     // 2. Get next X confirmed bookings
     const { data: bookings, error: bookingsError } = await supabase
       .from('bookings')
-      .select('id, guest_name, check_in, number_of_guests, house_id, houses(id, name)')
+      .select('id, guest_name, check_in, check_out, number_of_guests, house_id, houses(id, name)')
       .eq('house_id', house_id)
       .eq('status', 'confirmed')
       .gte('check_in', new Date().toISOString())
@@ -168,6 +169,7 @@ serve(async (req) => {
         booking_id: booking.id,
         guest_name: booking.guest_name,
         check_in: booking.check_in,
+        check_out: booking.check_out,
         number_of_guests: booking.number_of_guests,
         days_until_checkin: daysUntilCheckin,
         linen_order: {

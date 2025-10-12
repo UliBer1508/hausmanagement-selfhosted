@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useBookingLinenOrders } from "@/hooks/useBookingLinenOrders";
-import { translateItemType, getUrgencyVariant, getUrgencyLabel, formatCurrency } from "@/lib/linenOrderHelpers";
+import { translateItemType, getUrgencyVariant, getUrgencyLabel, formatCurrency, calculateDeliveryDate } from "@/lib/linenOrderHelpers";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react";
+import LaundryOrderCard from "../Bookings/LaundryOrderCard";
 
 interface BookingLinenOverviewProps {
   houseId: string;
@@ -155,67 +156,71 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
         {/* Missing Orders Tab */}
         <TabsContent value="missing" className="space-y-4">
           {missingOrders.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <CheckCircle2 className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                <p className="text-lg font-medium">Alle Bestellungen sind erstellt!</p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Für alle berücksichtigten Buchungen existieren Wäschebestellungen.
-                </p>
-              </CardContent>
-            </Card>
+            <Alert>
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertDescription>
+                Großartig! Alle kommenden Buchungen haben Wäschebestellungen. 🎉
+              </AlertDescription>
+            </Alert>
           ) : (
-            missingOrders.map((booking) => (
-              <Card key={booking.booking_id} className="border-orange-200 dark:border-orange-900">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg">{booking.guest_name}</CardTitle>
-                      <CardDescription>
-                        Check-in: {format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de })} 
-                        ({booking.days_until_checkin} Tage)
-                      </CardDescription>
-                    </div>
-                    <Badge variant={getUrgencyVariant(booking.days_until_checkin)}>
-                      {getUrgencyLabel(booking.days_until_checkin)}
-                    </Badge>
+            <div className="space-y-4">
+              {missingOrders.map((booking) => {
+                const daysUntilCheckIn = booking.days_until_checkin;
+
+                return (
+                  <div key={booking.booking_id} className="space-y-2">
+                    <LaundryOrderCard
+                      order={{
+                        id: `pending-${booking.booking_id}`,
+                        house_id: houseId,
+                        booking_id: booking.booking_id,
+                        status: 'pending',
+                        order_date: new Date().toISOString().split('T')[0],
+                        delivery_date: calculateDeliveryDate(booking.check_in),
+                        items: booking.required_items,
+                        total_items: Object.values(booking.required_items || {}).reduce(
+                          (sum, qty) => sum + (qty as number), 
+                          0
+                        ),
+                        notes: 'Automatische Bestellung basierend auf prädiktiver Analyse',
+                        houses: { 
+                          name: orderStatus?.house_name || '', 
+                          address: '' 
+                        },
+                        bookings: {
+                          guest_name: booking.guest_name,
+                          check_in: booking.check_in,
+                          check_out: booking.check_in,
+                          number_of_guests: booking.number_of_guests
+                        }
+                      }}
+                      colorVariant="purple"
+                      isPending={true}
+                      onEdit={undefined}
+                      onDelete={undefined}
+                    />
+                    
+                    <Button 
+                      className="w-full"
+                      onClick={() => createOrder(booking.booking_id)}
+                      disabled={isCreatingOrder}
+                    >
+                      <Package className="h-4 w-4 mr-2" />
+                      {isCreatingOrder ? 'Erstelle Bestellung...' : 'Bestellung jetzt erstellen'}
+                    </Button>
+                    
+                    {daysUntilCheckIn <= 7 && (
+                      <Alert variant="destructive" className="mt-2">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>
+                          <strong>DRINGEND:</strong> Check-in in {daysUntilCheckIn} Tagen!
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <p className="text-sm font-medium mb-2">Benötigte Wäsche:</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {booking.required_items && Object.entries(booking.required_items)
-                        .filter(([_, qty]) => qty > 0)
-                        .map(([item, qty]) => (
-                          <div key={item} className="flex justify-between p-2 bg-muted rounded text-sm">
-                            <span>{translateItemType(item)}</span>
-                            <span className="font-medium">{qty}x</span>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                  
-                  <Separator />
-                  
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium">Geschätzte Kosten:</span>
-                    <span className="text-lg font-bold">
-                      {booking.estimated_cost ? formatCurrency(booking.estimated_cost) : 'N/A'}
-                    </span>
-                  </div>
-                  
-                  <Button 
-                    className="w-full"
-                    onClick={() => createOrder(booking.booking_id)}
-                    disabled={isCreatingOrder}
-                  >
-                    <Package className="h-4 w-4 mr-2" />
-                    {isCreatingOrder ? 'Erstelle...' : 'Bestellung jetzt erstellen'}
-                  </Button>
-                </CardContent>
-              </Card>
-            ))
+                );
+              })}
+            </div>
           )}
         </TabsContent>
 
