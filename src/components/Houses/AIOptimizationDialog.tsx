@@ -12,7 +12,7 @@ interface AIOptimizationDialogProps {
   houseName: string;
   aiSettings: any;
   updateAISettings: (settings: any) => void;
-  saveAISettings: (houseId: string) => Promise<boolean>;
+  saveAISettings: (houseId: string) => Promise<boolean | void>;
   loadAISettings: (houseId: string) => Promise<void>;
   onGenerateOrder?: (optimization: any) => void;
 }
@@ -68,7 +68,10 @@ const AIOptimizationDialog = ({
               houseId={houseId}
               settings={aiSettings}
               onSettingsChange={updateAISettings}
-              onSave={() => saveAISettings(houseId)}
+              onSave={async () => {
+                await saveAISettings(houseId);
+                return true;
+              }}
               onLoad={loadAISettings}
             />
           </TabsContent>
