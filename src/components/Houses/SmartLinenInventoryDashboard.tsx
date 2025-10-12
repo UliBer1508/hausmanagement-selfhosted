@@ -15,28 +15,21 @@ import {
   TrendingDown,
   Minus,
   ShoppingCart,
-  Edit,
-  Home,
-  Brain,
   Target,
   Calendar,
   BarChart3,
   Bed,
   Bath,
-  ChefHat,
-  Clock
+  ChefHat
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useOptimizedLinenManagement, LinenDemandAnalysis } from '@/hooks/useOptimizedLinenManagement';
-import { useLinenAI } from '@/hooks/useLinenAI';
 import { useToast } from '@/hooks/use-toast';
 import LinenSetRulesTab from './LinenSetRulesTab';
 import LinenOrdersTab from './LinenOrdersTab';
 import LinenPricesTab from './LinenPricesTab';
-import AIOptimizationDialog from './AIOptimizationDialog';
 import LinenOrderDialog from './LinenOrderDialog';
-import EditHouseDialog from './EditHouseDialog';
 
 interface SmartLinenInventoryDashboardProps {
   house: any;
@@ -45,24 +38,10 @@ interface SmartLinenInventoryDashboardProps {
 const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardProps) => {
   const { toast } = useToast();
   const { housesWithLinenData, createOptimizedOrderMutation } = useOptimizedLinenManagement();
-  const { 
-    aiSettings, 
-    updateAISettings, 
-    saveAISettings, 
-    loadAISettings,
-  } = useLinenAI();
   const [selectedCategory, setSelectedCategory] = useState<'bedroom' | 'bathroom' | 'kitchen' | null>(null);
-  const [showAIDialog, setShowAIDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [aiOrderData, setAiOrderData] = useState<any>(null);
   const [showOrderDialog, setShowOrderDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-
-  // Lade AI-Einstellungen beim Mount
-  React.useEffect(() => {
-    loadAISettings(house.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [house.id]);
 
   // Find current house data in the optimized dataset
   const houseData = useMemo(() => {
@@ -153,44 +132,11 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
     }
   };
 
-  const handleGenerateAIOrder = (optimization: any) => {
-    console.log('🤖 Generiere Bestellung aus KI-Empfehlung:', optimization);
-    
-    // Extrahiere Artikel aus KI-Empfehlung
-    const orderItems: Record<string, number> = {};
-    Object.entries(optimization.order_suggestion.items).forEach(([itemType, itemData]) => {
-      const orderQty = typeof itemData === 'object' ? (itemData as any).order_quantity : itemData;
-      if (orderQty > 0) {
-        orderItems[itemType] = orderQty;
-      }
-    });
-
-    // Berechne intelligentes Lieferdatum basierend auf Priorität
-    const daysToAdd = optimization.order_suggestion.order_priority === 'high' ? 1 : 
-                      optimization.order_suggestion.order_priority === 'medium' ? 2 : 3;
-    const deliveryDate = format(new Date(Date.now() + daysToAdd * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
-
-    // Erstelle vorbefüllte Notizen aus KI-Insights
-    const notes = optimization.ai_insights && optimization.ai_insights.length > 0
-      ? `KI-Empfehlung (${optimization.order_suggestion.order_priority} Priorität):\n${optimization.ai_insights.join('\n')}`
-      : `Automatisch generierte Bestellung basierend auf KI-Analyse (${optimization.order_suggestion.order_priority} Priorität)`;
-
-    setAiOrderData({
-      orderItems,
-      deliveryDate,
-      deliveryType: 'delivery' as const,
-      notes,
-      priority: optimization.order_suggestion.order_priority,
-      estimatedCost: optimization.order_suggestion.estimated_cost
-    });
-    
-    setShowOrderDialog(true);
-  };
 
   if (!houseData) {
     return (
       <div className="text-center py-8">
-        <Brain className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+        <Package className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
         <p className="text-muted-foreground">Lade intelligente Analyse...</p>
       </div>
     );
@@ -202,60 +148,6 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
 
   return (
     <div className="space-y-6">
-      {/* Smart Header */}
-      <Card className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-blue-500/5 pointer-events-none" />
-        <CardHeader className="p-4 md:p-6">
-          <div className="flex flex-col gap-3 md:gap-4">
-            <div className="flex items-start gap-2 md:gap-3">
-              <div className="p-1.5 md:p-2 rounded-lg bg-primary/10 shrink-0">
-                <Brain className="w-5 h-5 md:w-6 md:h-6 text-primary" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <CardTitle className="text-base md:text-xl truncate">{house.name}</CardTitle>
-                <div className="text-xs md:text-sm text-muted-foreground flex flex-wrap items-center gap-1 md:gap-2 mt-1">
-                  <Home className="w-3 h-3 md:w-4 md:h-4 shrink-0" />
-                  <span className="truncate">{house.address}</span>
-                  {houseData.nextBookingDate && (
-                    <>
-                      <Separator orientation="vertical" className="h-3 md:h-4" />
-                      <Clock className="w-3 h-3 md:w-4 md:h-4 shrink-0" />
-                      <span className="whitespace-nowrap text-xs md:text-sm">
-                        {houseData.nextBookingDaysAway === 0 ? 'Heute' :
-                         houseData.nextBookingDaysAway === 1 ? 'Morgen' :
-                         `In ${houseData.nextBookingDaysAway} Tagen`}
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button 
-                onClick={() => setShowAIDialog(true)}
-                variant="default"
-                className="w-full sm:w-auto text-sm"
-                size="sm"
-              >
-                <Brain className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">KI-Optimierung</span>
-                <span className="sm:hidden">KI</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                className="w-full sm:w-auto text-sm" 
-                size="sm"
-                onClick={() => setShowEditDialog(true)}
-              >
-                <Edit className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Bearbeiten</span>
-                <span className="sm:hidden">Haus bearbeiten</span>
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-
       <Tabs defaultValue="smart-analysis" className="w-full">
         <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="smart-analysis" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
@@ -622,25 +514,6 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
         />
       )}
 
-      {/* AI Optimization Dialog */}
-      <AIOptimizationDialog
-        open={showAIDialog}
-        onOpenChange={setShowAIDialog}
-        houseId={house.id}
-        houseName={house.name}
-        aiSettings={aiSettings}
-        updateAISettings={updateAISettings}
-        saveAISettings={saveAISettings}
-        loadAISettings={loadAISettings}
-        onGenerateOrder={handleGenerateAIOrder}
-      />
-
-      {/* Edit House Dialog */}
-      <EditHouseDialog
-        house={house}
-        open={showEditDialog}
-        onOpenChange={setShowEditDialog}
-      />
     </div>
   );
 };
