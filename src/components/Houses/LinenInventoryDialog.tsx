@@ -24,6 +24,7 @@ import LinenOrderDialog from './LinenOrderDialog';
 import LinenSetRulesTab from './LinenSetRulesTab';
 import LinenOrdersTab from './LinenOrdersTab';
 import LinenPricesTab from './LinenPricesTab';
+import SmartLinenSettings from './SmartLinenSettings';
 
 interface LinenInventoryDialogProps {
   house: any;
@@ -237,8 +238,8 @@ const LinenInventoryDialog = ({ house, open, onOpenChange }: LinenInventoryDialo
                       <span className="sm:hidden">Analyse</span>
                     </TabsTrigger>
                     <TabsTrigger value="predictions" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
-                      <span className="hidden xs:inline">Vorhersagen</span>
-                      <span className="xs:hidden">Prog.</span>
+                      <span className="hidden xs:inline">Konfiguration</span>
+                      <span className="xs:hidden">Config</span>
                     </TabsTrigger>
                     <TabsTrigger value="wäscheset-regeln" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
                       Regeln
@@ -424,61 +425,23 @@ const LinenInventoryDialog = ({ house, open, onOpenChange }: LinenInventoryDialo
                   </TabsContent>
 
                   <TabsContent value="predictions" className="space-y-6">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <BarChart3 className="w-5 h-5" />
-                          Prädiktive Analyse & KI-Vorhersagen
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {allItems.map((item) => (
-                            <Card key={item.itemType} className="relative">
-                              <CardContent className="p-4">
-                                <div className="space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <h4 className="font-medium text-sm">{item.label}</h4>
-                                    {getTrendIcon(item.trend)}
-                                  </div>
-                                  
-                                  <div className="space-y-2 text-sm">
-                                    <div className="bg-muted/50 p-2 rounded">
-                                      <div className="font-medium text-xs mb-1">Vorhersagen</div>
-                                      <div className="flex justify-between">
-                                        <span>Diese Woche:</span>
-                                        <span className="font-medium">{item.prediction.nextWeekDemand}</span>
-                                      </div>
-                                      <div className="flex justify-between">
-                                        <span>Nächster Monat:</span>
-                                        <span className="font-medium">{item.prediction.nextMonthDemand}</span>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="bg-blue-50 p-2 rounded border border-blue-200">
-                                      <div className="font-medium text-xs mb-1 text-blue-700">Reorder Point</div>
-                                      <div className="flex justify-between">
-                                        <span className="text-blue-600">Nachbestellen bei:</span>
-                                        <span className="font-bold text-blue-700">{item.prediction.reorderPoint}</span>
-                                      </div>
-                                    </div>
-                                    
-                                    {item.currentStock <= item.prediction.reorderPoint && (
-                                      <Alert className="p-2">
-                                        <Target className="w-4 h-4" />
-                                        <AlertDescription className="text-xs">
-                                          Reorder Point erreicht! Nachbestellung empfohlen.
-                                        </AlertDescription>
-                                      </Alert>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <SmartLinenSettings
+                      houseId={house.id}
+                      settings={aiSettings}
+                      onSettingsChange={updateAISettings}
+                      onSave={async () => {
+                        const success = await saveAISettings(house.id);
+                        if (success) {
+                          toast({
+                            title: "✅ Einstellungen gespeichert",
+                            description: "Die Buchungskonfiguration wurde aktualisiert",
+                          });
+                        }
+                        return success;
+                      }}
+                      onLoad={loadAISettings}
+                      isSaving={false}
+                    />
                   </TabsContent>
 
                   <TabsContent value="wäscheset-regeln">
