@@ -6,7 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import {
   Package,
@@ -25,8 +24,7 @@ import {
   Bed,
   Bath,
   ChefHat,
-  Clock,
-  Zap
+  Clock
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -36,8 +34,7 @@ import { useToast } from '@/hooks/use-toast';
 import LinenSetRulesTab from './LinenSetRulesTab';
 import LinenOrdersTab from './LinenOrdersTab';
 import LinenPricesTab from './LinenPricesTab';
-import SmartLinenSettings from './SmartLinenSettings';
-import SmartLinenOptimizer from './SmartLinenOptimizer';
+import AIOptimizationDialog from './AIOptimizationDialog';
 import LinenOrderDialog from './LinenOrderDialog';
 import EditHouseDialog from './EditHouseDialog';
 
@@ -55,7 +52,7 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
     loadAISettings,
   } = useLinenAI();
   const [selectedCategory, setSelectedCategory] = useState<'bedroom' | 'bathroom' | 'kitchen' | null>(null);
-  const [showAISettings, setShowAISettings] = useState(false);
+  const [showAIDialog, setShowAIDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [aiOrderData, setAiOrderData] = useState<any>(null);
   const [showOrderDialog, setShowOrderDialog] = useState(false);
@@ -235,17 +232,14 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
               <Button 
-                onClick={() => {
-                  console.log('KI-Einstellungen clicked, current state:', showAISettings);
-                  setShowAISettings(prev => !prev);
-                }}
-                variant={showAISettings ? "default" : "outline"}
+                onClick={() => setShowAIDialog(true)}
+                variant="default"
                 className="w-full sm:w-auto text-sm"
                 size="sm"
               >
-                <Zap className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">KI-Einstellungen</span>
-                <span className="sm:hidden">Einstellungen</span>
+                <Brain className="w-4 h-4 sm:mr-2" />
+                <span className="hidden sm:inline">KI-Optimierung</span>
+                <span className="sm:hidden">KI</span>
               </Button>
               <Button 
                 variant="outline" 
@@ -261,40 +255,6 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
           </div>
         </CardHeader>
       </Card>
-
-      {/* KI-Optimierung - Always visible */}
-      <div>
-        <SmartLinenOptimizer 
-          houseId={house.id}
-          houseName={house.name}
-          aiSettings={aiSettings}
-          onOptimizationStart={() => setShowAISettings(false)}
-          onGenerateOrder={handleGenerateAIOrder}
-        />
-      </div>
-
-      {/* Collapsible AI Settings - Only Settings */}
-      <Collapsible open={showAISettings} onOpenChange={setShowAISettings}>
-        <CollapsibleContent className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Brain className="w-5 h-5" />
-                KI-Einstellungen
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SmartLinenSettings 
-                houseId={house.id}
-                settings={aiSettings}
-                onSettingsChange={updateAISettings}
-                onSave={() => saveAISettings(house.id)}
-                onLoad={loadAISettings}
-              />
-            </CardContent>
-          </Card>
-        </CollapsibleContent>
-      </Collapsible>
 
       <Tabs defaultValue="smart-analysis" className="w-full">
         <TabsList className="grid w-full grid-cols-5 h-auto">
@@ -661,6 +621,19 @@ const SmartLinenInventoryDashboard = ({ house }: SmartLinenInventoryDashboardPro
           isCreating={createOptimizedOrderMutation.isPending}
         />
       )}
+
+      {/* AI Optimization Dialog */}
+      <AIOptimizationDialog
+        open={showAIDialog}
+        onOpenChange={setShowAIDialog}
+        houseId={house.id}
+        houseName={house.name}
+        aiSettings={aiSettings}
+        updateAISettings={updateAISettings}
+        saveAISettings={saveAISettings}
+        loadAISettings={loadAISettings}
+        onGenerateOrder={handleGenerateAIOrder}
+      />
 
       {/* Edit House Dialog */}
       <EditHouseDialog
