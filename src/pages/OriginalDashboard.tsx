@@ -641,8 +641,8 @@ const OriginalDashboard = () => {
   ];
 
   const laundryNeeds = [
-    { name: 'Wald Chalet', status: 'Kritisch' },
-    { name: 'Venedigersiedlung', status: 'Kritisch' }
+    { name: 'Wald Chalet', status: 'Kritisch', icon: '🏔️' },
+    { name: 'Venedigersiedlung', status: 'Kritisch', icon: '🏘️' }
   ];
 
   const getEventsForDate = (date: Date) => {
@@ -1790,9 +1790,18 @@ const OriginalDashboard = () => {
             <CardContent className="space-y-2">
               {laundryNeeds.map((item, index) => (
                 <div key={index} className="flex items-center justify-between min-w-0">
-                  <span className="text-sm truncate flex-1">{item.name}</span>
-                  <div className="flex items-center text-red-600 flex-shrink-0">
-                    <span className="text-base mr-1">❌</span>
+                  <span className="text-sm truncate flex-1">
+                    {item.icon && <span className="mr-1.5">{item.icon}</span>}
+                    {item.name}
+                  </span>
+                  <div className={`flex items-center flex-shrink-0 ${
+                    item.status === 'Kritisch' ? 'text-red-600' : 
+                    item.status === 'Niedrig' ? 'text-yellow-600' : 
+                    'text-green-600'
+                  }`}>
+                    <span className="text-base mr-1">
+                      {item.status === 'Kritisch' ? '🔴' : item.status === 'Niedrig' ? '🟡' : '🟢'}
+                    </span>
                     <span className="text-sm font-medium">{item.status}</span>
                   </div>
                 </div>
