@@ -9,9 +9,10 @@ import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
 
 interface LinenOrdersListProps {
   onEditOrder?: (order: any) => void;
+  onDeleteOrder?: (order: any) => Promise<void>;
 }
 
-const LinenOrdersList = ({ onEditOrder }: LinenOrdersListProps) => {
+const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [houseFilter, setHouseFilter] = useState<string>('all');
@@ -154,6 +155,7 @@ const LinenOrdersList = ({ onEditOrder }: LinenOrdersListProps) => {
               order={order}
               colorVariant="purple"
               onEdit={onEditOrder}
+              onDelete={onDeleteOrder}
             />
           ))}
         </div>

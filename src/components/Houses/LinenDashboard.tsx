@@ -338,6 +338,33 @@ const LinenDashboard = () => {
     }
   };
 
+  // Handle delete order
+  const handleDeleteOrder = async (order: any) => {
+    try {
+      const { error } = await supabase
+        .from('linen_orders')
+        .delete()
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Bestellung gelöscht",
+        description: `Die Wäschebestellung wurde erfolgreich gelöscht.`,
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['linen-orders-list'] });
+      queryClient.invalidateQueries({ queryKey: ['houses-linen-overview'] });
+    } catch (error) {
+      console.error('Error deleting linen order:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Bestellung konnte nicht gelöscht werden.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-6">
@@ -531,7 +558,7 @@ const LinenDashboard = () => {
             Übersicht aller Wäschebestellungen mit Buchungsinformationen
           </p>
         </div>
-        <LinenOrdersList onEditOrder={handleEditOrder} />
+        <LinenOrdersList onEditOrder={handleEditOrder} onDeleteOrder={handleDeleteOrder} />
       </div>
 
       {/* House Detail Dialog */}

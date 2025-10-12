@@ -1,15 +1,16 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Edit, Package } from 'lucide-react';
+import { Edit, Package, Trash2 } from 'lucide-react';
 
 interface LaundryOrderCardProps {
   order: any;
   colorVariant: 'green' | 'blue' | 'purple';
   onEdit?: (order: any) => Promise<void> | void;
+  onDelete?: (order: any) => Promise<void> | void;
 }
 
-const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps) => {
+const LaundryOrderCard = ({ order, colorVariant, onEdit, onDelete }: LaundryOrderCardProps) => {
   const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
@@ -179,24 +180,48 @@ const LaundryOrderCard = ({ order, colorVariant, onEdit }: LaundryOrderCardProps
           </div>
         </div>
 
-        {/* Edit Button - Top Right */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute top-2 right-2 h-8 w-8 p-0 z-10"
-          onClick={async (e) => {
-            e.stopPropagation();
-            if (onEdit) {
-              try {
-                await onEdit(order);
-              } catch (error) {
-                console.error('❌ Error in onEdit:', error);
-              }
-            }
-          }}
-        >
-          <Edit className="w-4 h-4" />
-        </Button>
+        {/* Action Buttons - Top Right */}
+        <div className="absolute top-2 right-2 flex gap-1 z-10">
+          {/* Edit Button */}
+          {onEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={async (e) => {
+                e.stopPropagation();
+                try {
+                  await onEdit(order);
+                } catch (error) {
+                  console.error('Error in onEdit:', error);
+                }
+              }}
+            >
+              <Edit className="w-4 h-4" />
+            </Button>
+          )}
+
+          {/* Delete Button */}
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (window.confirm('Möchten Sie diese Wäschebestellung wirklich löschen?')) {
+                  try {
+                    await onDelete(order);
+                  } catch (error) {
+                    console.error('Error in onDelete:', error);
+                  }
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
 
         {/* Status Badge - Bottom Right */}
         <div className="absolute bottom-2 right-2">
