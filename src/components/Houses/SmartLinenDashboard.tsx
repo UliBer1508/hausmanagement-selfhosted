@@ -28,7 +28,7 @@ import {
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useOptimizedLinenManagement, HouseLinenOverview, LinenDemandAnalysis } from '@/hooks/useOptimizedLinenManagement';
-import SmartLinenInventoryDashboard from './SmartLinenInventoryDashboard';
+import LinenInventoryDialog from './LinenInventoryDialog';
 import { useToast } from '@/hooks/use-toast';
 
 const SmartLinenDashboard = () => {
@@ -373,23 +373,12 @@ const SmartLinenDashboard = () => {
         </div>
       )}
 
-      {/* Smart House Detail View */}
-      {selectedHouse && (
-        <div className="mt-6 md:mt-8">
-          <div className="mb-4">
-            <Button 
-              variant="outline" 
-              onClick={() => setSelectedHouse(null)}
-              className="mb-4 w-full sm:w-auto text-sm"
-              size="sm"
-            >
-              <span className="hidden sm:inline">← Zurück zur Smart-Übersicht</span>
-              <span className="sm:hidden">← Zurück</span>
-            </Button>
-          </div>
-          <SmartLinenInventoryDashboard house={selectedHouse} />
-        </div>
-      )}
+      {/* Linen Inventory Dialog */}
+      <LinenInventoryDialog
+        house={selectedHouse}
+        open={!!selectedHouse}
+        onOpenChange={(open) => !open && setSelectedHouse(null)}
+      />
     </div>
   );
 };
