@@ -751,6 +751,76 @@ const OriginalDashboard = () => {
       });
   }, [serviceTasks, housesData, bookingsData]);
 
+  // Wäschebestellstatus für nächste 2 Buchungen
+  const laundryOrderStatus = useMemo(() => {
+    if (!bookingsData || !housesData) return [];
+    
+    const now = new Date();
+    const nowTime = now.getTime();
+    
+    // Nächste 2 bestätigte Buchungen finden
+    const upcomingBookings = bookingsData
+      .filter(booking => 
+        booking.status === 'confirmed' &&
+        new Date(booking.check_in).getTime() > nowTime
+      )
+      .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())
+      .slice(0, 2);
+    
+    return upcomingBookings.map(booking => {
+      const houseName = booking.houses?.name || 'Unbekannt';
+      
+      // Suche zugehörige Wäschebestellung
+      const linenOrder = linenOrders?.find(order => order.booking_id === booking.id);
+      
+      let orderStatus = 'keine';
+      let statusText = 'Nicht bestellt';
+      let statusIcon = '⚠️';
+      let statusColor = 'text-red-600';
+      
+      if (linenOrder) {
+        switch (linenOrder.status) {
+          case 'delivered':
+            orderStatus = 'delivered';
+            statusText = 'Geliefert';
+            statusIcon = '✅';
+            statusColor = 'text-green-600';
+            break;
+          case 'pending':
+          case 'confirmed':
+            orderStatus = 'ordered';
+            statusText = 'Bestellt';
+            statusIcon = '📦';
+            statusColor = 'text-blue-600';
+            break;
+          case 'in_transit':
+            orderStatus = 'transit';
+            statusText = 'Unterwegs';
+            statusIcon = '🚚';
+            statusColor = 'text-orange-600';
+            break;
+          default:
+            orderStatus = 'unknown';
+            statusText = linenOrder.status;
+            statusIcon = '❓';
+            statusColor = 'text-gray-600';
+        }
+      }
+      
+      return {
+        id: booking.id,
+        house: houseName.replace(' Chalet', ''),
+        guest: booking.guest_name.split(' ')[0],
+        checkIn: booking.check_in,
+        orderStatus,
+        statusText,
+        statusIcon,
+        statusColor,
+        icon: getHouseIcon(houseName)
+      };
+    });
+  }, [bookingsData, housesData, linenOrders]);
+
   // Echte Daten aus useOptimizedLinenManagement verwenden
   const laundryNeeds = useMemo(() => {
     if (!linenData || linenData.length === 0) return [];
@@ -1938,39 +2008,22 @@ const OriginalDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {linenLoading ? (
-                <div className="text-sm text-muted-foreground">Lade Daten...</div>
-              ) : laundryNeeds.length === 0 ? (
+              {laundryOrderStatus.length === 0 ? (
                 <div className="text-sm text-muted-foreground flex items-center">
-                  <span className="mr-2">🟢</span>
-                  Alle Häuser optimal bestückt
+                  <span className="mr-2">ℹ️</span>
+                  Keine kommenden Buchungen
                 </div>
               ) : (
-                laundryNeeds.map((item, index) => (
-                  <div key={index} className="flex items-center justify-between min-w-0 gap-2">
+                laundryOrderStatus.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between min-w-0 gap-2">
                     <span className="text-sm truncate flex-1">
-                      {item.icon && <span className="mr-1.5">{item.icon}</span>}
-                      {item.name}
+                      <span className="mr-1.5">{item.icon}</span>
+                      <span className="font-medium">{item.house}</span>
+                      <span className="text-muted-foreground"> · {item.guest}</span>
                     </span>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <div className={`flex items-center ${
-                        item.status === 'Kritisch' ? 'text-red-600' : 
-                        item.status === 'Niedrig' ? 'text-yellow-600' : 
-                        'text-green-600'
-                      }`}>
-                        <span className="text-base mr-1">{getLinenStatusEmoji(item.status)}</span>
-                        <span className="text-sm font-medium">{item.status}</span>
-                      </div>
-                      {item.criticalCount > 0 && (
-                        <span className="text-xs text-muted-foreground">
-                          ({item.criticalCount})
-                        </span>
-                      )}
-                      {item.daysAway !== undefined && item.daysAway < 7 && (
-                        <span className="text-xs text-orange-600 font-medium">
-                          {item.daysAway}d
-                        </span>
-                      )}
+                    <div className={`flex items-center gap-1.5 flex-shrink-0 ${item.statusColor}`}>
+                      <span className="text-base">{item.statusIcon}</span>
+                      <span className="text-sm font-medium">{item.statusText}</span>
                     </div>
                   </div>
                 ))
