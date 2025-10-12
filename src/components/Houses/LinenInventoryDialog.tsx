@@ -22,7 +22,7 @@ import AIOptimizationDialog from './AIOptimizationDialog';
 import EditHouseDialog from './EditHouseDialog';
 import LinenOrderDialog from './LinenOrderDialog';
 import LinenSetRulesTab from './LinenSetRulesTab';
-import LinenOrdersTab from './LinenOrdersTab';
+import { LinenOrderAnalytics } from './LinenOrderAnalytics';
 import LinenPricesTab from './LinenPricesTab';
 import SmartLinenSettings from './SmartLinenSettings';
 import { BookingLinenOverview } from './BookingLinenOverview';
@@ -287,7 +287,7 @@ const LinenInventoryDialog = ({ house, open, onOpenChange }: LinenInventoryDialo
                   </TabsContent>
 
                   <TabsContent value="bestellungen">
-                    <LinenOrdersTab house={house} />
+                    <LinenOrderAnalytics house={house} />
                   </TabsContent>
                 </Tabs>
 
