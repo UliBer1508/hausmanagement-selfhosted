@@ -630,15 +630,56 @@ const OriginalDashboard = () => {
     { name: 'Einstellungen', emoji: '⚙️' }
   ];
 
-  const houses = [
-    { name: 'Venedig', status: 'Frei', icon: '🏘️' },
-    { name: 'Wald', status: 'Frei', icon: '🏔️' }
-  ];
+  // Dynamisch berechneter Haus-Status basierend auf echten Buchungsdaten
+  const housesWithStatus = useMemo(() => {
+    if (!housesData || !bookingsData) return [];
+    
+    return housesData.map(house => {
+      // Prüfe ob Haus aktuell belegt ist
+      const now = new Date();
+      const activeBooking = bookingsData.find(booking => 
+        booking.houses?.id === house.id &&
+        booking.status !== 'cancelled' &&
+        new Date(booking.check_in) <= now &&
+        new Date(booking.check_out) >= now
+      );
+      
+      return {
+        id: house.id,
+        name: house.name,
+        status: activeBooking ? 'Belegt' : 'Frei',
+        icon: getHouseIcon(house.name),
+        currentGuest: activeBooking?.guest_name || null
+      };
+    });
+  }, [housesData, bookingsData]);
 
-  const activeBookings = [
-    { house: 'Wald', guest: 'Dr', date: '12.10.', icon: '🏔️' },
-    { house: 'Wald', guest: 'Anke', date: '20.12.', icon: '🏔️' }
-  ];
+  // Kommende Buchungen in den nächsten 7 Tagen
+  const upcomingBookings = useMemo(() => {
+    if (!bookingsData || !housesData) return [];
+    
+    const now = new Date();
+    const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    
+    return bookingsData
+      .filter(booking => 
+        booking.status === 'confirmed' &&
+        new Date(booking.check_in) >= now &&
+        new Date(booking.check_in) <= next7Days
+      )
+      .map(booking => {
+        const houseName = booking.houses?.name || 'Unbekannt';
+        return {
+          house: houseName,
+          guest: booking.guest_name.split(' ')[0], // Nur Vorname
+          date: format(new Date(booking.check_in), 'dd.MM.', { locale: de }),
+          icon: getHouseIcon(houseName),
+          checkIn: booking.check_in
+        };
+      })
+      .sort((a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime())
+      .slice(0, 5); // Nur erste 5 anzeigen
+  }, [bookingsData, housesData]);
 
   const cleaningTasks = [
     { house: 'Wald', guest: 'Dr', date: '10.10.', count: 1, icon: '🏔️' },
@@ -1752,13 +1793,17 @@ const OriginalDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {houses.map((house, index) => (
-                <div key={index} className="flex items-center justify-between min-w-0">
+              {housesWithStatus.map((house) => (
+                <div key={house.id} className="flex items-center justify-between min-w-0">
                   <div className="flex items-center space-x-2 min-w-0 flex-1">
                     <span className="text-sm flex-shrink-0">{house.icon}</span>
                     <span className="text-sm font-medium truncate">{house.name}</span>
                   </div>
-                  <span className="status-free text-xs whitespace-nowrap">🟢{house.status}</span>
+                  <span className={`text-xs whitespace-nowrap ${
+                    house.status === 'Belegt' ? 'text-orange-600' : 'text-green-600'
+                  }`}>
+                    {house.status === 'Belegt' ? '🔴' : '🟢'}{house.status}
+                  </span>
                 </div>
               ))}
             </CardContent>
@@ -1773,14 +1818,22 @@ const OriginalDashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {activeBookings.map((booking, index) => (
-                <div key={index} className="flex items-center justify-between min-w-0">
-                  <span className="text-sm truncate flex-1">
-                    {booking.icon}{booking.house} • {booking.guest} • {booking.date}
-                  </span>
-                  <span className="status-pending text-xs whitespace-nowrap ml-2">📅Anstehend</span>
-                </div>
-              ))}
+              {upcomingBookings.length > 0 ? (
+                upcomingBookings.map((booking, index) => (
+                  <div key={index} className="flex items-center justify-between min-w-0">
+                    <div className="flex items-center space-x-2 min-w-0 flex-1">
+                      <span className="text-sm flex-shrink-0">{booking.icon}</span>
+                      <span className="text-xs truncate">
+                        <span className="font-medium">{booking.house}</span>
+                        <span className="text-muted-foreground"> · {booking.guest}</span>
+                      </span>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{booking.date}</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-xs text-muted-foreground">Keine kommenden Buchungen</p>
+              )}
             </CardContent>
           </Card>
 
