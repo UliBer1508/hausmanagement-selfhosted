@@ -654,31 +654,65 @@ const OriginalDashboard = () => {
     });
   }, [housesData, bookingsData]);
 
-  // Kommende Buchungen in den nächsten 7 Tagen
+  // Aktive + Nächste Buchung pro Haus
   const upcomingBookings = useMemo(() => {
     if (!bookingsData || !housesData) return [];
     
     const now = new Date();
-    const next7Days = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const nowTime = now.getTime();
+    const result: any[] = [];
     
-    return bookingsData
-      .filter(booking => 
+    // Für jedes Haus: Aktive + Nächste Buchung finden
+    housesData.forEach(house => {
+      const houseName = house.name;
+      const houseIcon = getHouseIcon(houseName);
+      
+      // 1. Aktive Buchung (Check-in <= now && Check-out >= now)
+      const activeBooking = bookingsData.find(booking => 
+        booking.houses?.id === house.id &&
         booking.status === 'confirmed' &&
-        new Date(booking.check_in) >= now &&
-        new Date(booking.check_in) <= next7Days
-      )
-      .map(booking => {
-        const houseName = booking.houses?.name || 'Unbekannt';
-        return {
+        new Date(booking.check_in).getTime() <= nowTime &&
+        new Date(booking.check_out).getTime() >= nowTime
+      );
+      
+      if (activeBooking) {
+        result.push({
           house: houseName,
-          guest: booking.guest_name.split(' ')[0], // Nur Vorname
-          date: format(new Date(booking.check_in), 'dd.MM.', { locale: de }),
-          icon: getHouseIcon(houseName),
-          checkIn: booking.check_in
-        };
-      })
-      .sort((a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime())
-      .slice(0, 5); // Nur erste 5 anzeigen
+          guest: activeBooking.guest_name.split(' ')[0],
+          date: `bis ${format(new Date(activeBooking.check_out), 'dd.MM.', { locale: de })}`,
+          icon: houseIcon,
+          checkIn: activeBooking.check_in,
+          isActive: true
+        });
+      }
+      
+      // 2. Nächste kommende Buchung (Check-in > now)
+      const nextBooking = bookingsData
+        .filter(booking => 
+          booking.houses?.id === house.id &&
+          booking.status === 'confirmed' &&
+          new Date(booking.check_in).getTime() > nowTime
+        )
+        .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime())[0];
+      
+      if (nextBooking) {
+        result.push({
+          house: houseName,
+          guest: nextBooking.guest_name.split(' ')[0],
+          date: format(new Date(nextBooking.check_in), 'dd.MM.', { locale: de }),
+          icon: houseIcon,
+          checkIn: nextBooking.check_in,
+          isActive: false
+        });
+      }
+    });
+    
+    // Sortierung: Aktive zuerst, dann nach Check-in Datum
+    return result.sort((a, b) => {
+      if (a.isActive && !b.isActive) return -1;
+      if (!a.isActive && b.isActive) return 1;
+      return new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime();
+    });
   }, [bookingsData, housesData]);
 
   const cleaningTasks = [
@@ -1822,13 +1856,20 @@ const OriginalDashboard = () => {
                 upcomingBookings.map((booking, index) => (
                   <div key={index} className="flex items-center justify-between min-w-0">
                     <div className="flex items-center space-x-2 min-w-0 flex-1">
+                      <span className="text-sm flex-shrink-0">
+                        {booking.isActive ? '🔴' : '🟢'}
+                      </span>
                       <span className="text-sm flex-shrink-0">{booking.icon}</span>
                       <span className="text-xs truncate">
                         <span className="font-medium">{booking.house}</span>
                         <span className="text-muted-foreground"> · {booking.guest}</span>
                       </span>
                     </div>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">{booking.date}</span>
+                    <span className={`text-xs whitespace-nowrap ${
+                      booking.isActive ? 'text-orange-600 font-medium' : 'text-muted-foreground'
+                    }`}>
+                      {booking.date}
+                    </span>
                   </div>
                 ))
               ) : (
