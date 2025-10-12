@@ -715,10 +715,41 @@ const OriginalDashboard = () => {
     });
   }, [bookingsData, housesData]);
 
-  const cleaningTasks = [
-    { house: 'Wald', guest: 'Dr', date: '10.10.', count: 1, icon: '🏔️' },
-    { house: 'Wald', guest: 'Anke', date: '19.12.', count: 1, icon: '🏔️' }
-  ];
+  // Nächste 2 Reinigungsaufträge
+  const cleaningTasks = useMemo(() => {
+    if (!serviceTasks || !housesData || !bookingsData) return [];
+    
+    const now = new Date();
+    const nowTime = now.getTime();
+    
+    return serviceTasks
+      .filter(task => 
+        task.service_type === 'cleaning' &&
+        task.status !== 'completed' &&
+        task.status !== 'cancelled' &&
+        new Date(task.scheduled_date).getTime() >= nowTime - (24 * 60 * 60 * 1000)
+      )
+      .sort((a, b) => new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime())
+      .slice(0, 2) // Nur die nächsten 2 Reinigungen
+      .map(task => {
+        const house = housesData.find(h => h.id === task.house_id);
+        const houseName = house?.name || 'Unbekannt';
+        
+        // Finde zugehörige Buchung für Gast-Namen
+        const booking = bookingsData.find(b => b.id === task.booking_id);
+        const guestName = booking?.guest_name || 'Gast';
+        const firstName = guestName.split(' ')[0];
+        
+        return {
+          id: task.id,
+          house: houseName.replace(' Chalet', ''),
+          guest: firstName,
+          date: format(new Date(task.scheduled_date), 'dd.MM.', { locale: de }),
+          count: 1,
+          icon: getHouseIcon(houseName)
+        };
+      });
+  }, [serviceTasks, housesData, bookingsData]);
 
   // Echte Daten aus useOptimizedLinenManagement verwenden
   const laundryNeeds = useMemo(() => {
