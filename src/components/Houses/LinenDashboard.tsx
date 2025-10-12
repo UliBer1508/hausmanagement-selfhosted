@@ -11,7 +11,6 @@ import { de } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import LinenInventoryDashboard from './LinenInventoryDashboard';
-import SmartLinenInventoryDashboard from './SmartLinenInventoryDashboard';
 import LinenOrderDialog from './LinenOrderDialog';
 import LinenOrdersList from './LinenOrdersList';
 
@@ -550,7 +549,7 @@ const LinenDashboard = () => {
               KI-optimiert
             </Badge>
           </div>
-          <SmartLinenInventoryDashboard house={selectedHouse} />
+          <LinenInventoryDashboard house={selectedHouse} />
         </div>
       )}
 
