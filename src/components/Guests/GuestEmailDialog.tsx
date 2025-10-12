@@ -79,7 +79,7 @@ const GuestEmailDialog = ({ guest, open, onOpenChange }: GuestEmailDialogProps) 
 
       const { data, error } = await supabase.functions.invoke('send-gmail', {
         body: {
-          to: guest.guest_email,
+          to: [guest.guest_email],
           subject: processedSubject,
           text: processedMessage,
           html: processedMessage.replace(/\n/g, '<br>'),

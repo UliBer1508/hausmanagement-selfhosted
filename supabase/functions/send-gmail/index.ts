@@ -32,7 +32,26 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { to, subject, html, text, guestName }: EmailRequest = await req.json();
     
-    console.log("Sending email to:", to.length, "recipients. Subject:", subject);
+    // Validate and normalize 'to' field
+    if (!to || (Array.isArray(to) && to.length === 0)) {
+      throw new Error("No recipients specified");
+    }
+
+    // Ensure 'to' is always an array
+    const recipients = Array.isArray(to) ? to : [to];
+
+    // Validate email addresses
+    const validEmails = recipients.filter(email => 
+      typeof email === 'string' && 
+      email.includes('@') && 
+      email.length > 3
+    );
+
+    if (validEmails.length === 0) {
+      throw new Error("No valid email addresses found");
+    }
+
+    console.log(`Sending email to: ${validEmails.length} recipients. Subject: ${subject}`);
 
     const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
     if (!gmailPassword) {
@@ -66,7 +85,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Sending emails...");
 
     // Send email to all recipients
-    for (const recipient of to) {
+    for (const recipient of validEmails) {
       try {
         const info = await transporter.sendMail({
           from: '"Steinbock Chalets" <steinbockchalets@gmail.com>',
@@ -89,7 +108,7 @@ const handler = async (req: Request): Promise<Response> => {
       success: true, 
       messageId: `msg_${Date.now()}`,
       method: "Gmail SMTP",
-      recipients: to.length,
+      recipients: validEmails.length,
       from: "steinbockchalets@gmail.com",
       subject: subject,
       timestamp: new Date().toISOString()
