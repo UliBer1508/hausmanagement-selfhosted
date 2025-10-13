@@ -417,7 +417,7 @@ const LinenOrderDialog = ({
 
           {/* Booking Information */}
           {internalSelectedBooking && orderType === 'standard' && (
-            <Card className="bg-blue-50 border-blue-200">
+            <Card className="bg-laundry-bg border-laundry-border">
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
                   <CalendarIcon className="w-4 h-4 text-blue-600" />

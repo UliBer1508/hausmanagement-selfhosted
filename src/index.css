@@ -64,7 +64,13 @@
     --status-occupied: 217 91% 60%;
     --booking-confirmed: 142 76% 36%;
     --service-cleaning: 217 91% 60%;
-    --service-laundry: 259 85% 65%;
+    --service-laundry: 142 71% 45%;
+    
+    /* Laundry/Wäsche Domain Colors */
+    --laundry-primary: 142 71% 45%;
+    --laundry-secondary: 142 71% 40%;
+    --laundry-bg: 142 60% 96%;
+    --laundry-border: 142 60% 75%;
     
     /* Advanced Design Tokens */
     --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-hover)));
@@ -107,6 +113,12 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 217 91% 60%;
+    
+    /* Laundry Colors für Dark Mode */
+    --laundry-primary: 142 71% 50%;
+    --laundry-secondary: 142 71% 45%;
+    --laundry-bg: 142 30% 15%;
+    --laundry-border: 142 40% 30%;
   }
 }
 

@@ -413,7 +413,7 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
 
         {/* Booking Information */}
         {order.bookings && (
-          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="p-3 bg-laundry-bg rounded-lg border border-laundry-border">
             <h4 className="font-medium text-sm mb-2 text-blue-800 flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               Verknüpfte Buchung

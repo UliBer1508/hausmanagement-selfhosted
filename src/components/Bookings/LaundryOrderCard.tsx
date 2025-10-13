@@ -72,7 +72,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
 
   return (
     <Card className={cn(
-      `border-l-4 ${getBorderColor(colorVariant)} bg-blue-50 relative`,
+      `border-l-4 ${getBorderColor(colorVariant)} bg-laundry-bg relative`,
       isPending && "border-dashed opacity-90"
     )}>
       <CardContent className="p-3 relative pb-10">
