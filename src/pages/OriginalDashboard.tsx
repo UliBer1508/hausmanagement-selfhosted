@@ -1248,8 +1248,12 @@ const OriginalDashboard = () => {
                   <span className="text-sm text-foreground">Check-out</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-orange-500 rounded-md"></div>
-                  <span className="text-sm text-foreground">Belegt</span>
+                  <div className="w-4 h-4 bg-orange-200 rounded-md border border-orange-300"></div>
+                  <span className="text-sm text-foreground">Venedigersiedlung Belegt</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-yellow-100 rounded-md border border-yellow-300"></div>
+                  <span className="text-sm text-foreground">Wald Chalet Belegt</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <div className="w-4 h-4 bg-blue-500 rounded-md"></div>
