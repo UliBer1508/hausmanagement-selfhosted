@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, Clock, Package } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -17,10 +18,11 @@ import LinenOrdersList from './LinenOrdersList';
 interface HouseLinenStatus {
   house: any;
   totalItems: number;
-  criticalItems: number;
-  lowItems: number;
   upcomingBookings: number;
   nextBookingDate?: string;
+  bookingsWithoutOrder: number;
+  urgentBookingsWithoutOrder: number;
+  soonBookingsWithoutOrder: number;
   status: 'good' | 'warning' | 'critical';
 }
 
@@ -85,59 +87,48 @@ const LinenDashboard = () => {
   // Calculate linen status for each house
   const houseStatuses: HouseLinenStatus[] = houses?.map(house => {
     const linenStock = house.linen_stock || {};
-    const linenDef = house.linen_set_definitions?.[0] || {};
     const houseBookings = upcomingBookings?.filter(b => b.house_id === house.id) || [];
     
-    const linenTypes = [
-      'bedding', 'large_towels', 'small_towels', 'sauna_towels',
-      'bath_mats', 'sink_towels', 'kitchen_towels', 'blankets', 'pillow_cases'
-    ];
-
-    let criticalCount = 0;
-    let lowCount = 0;
-    let totalItems = 0;
-
-    // Calculate demand for next 30 days
-    const nearTermBookings = houseBookings.slice(0, 3); // Next 3 bookings
-    
-    linenTypes.forEach(type => {
-      const currentStock = linenStock[type] || 0;
-      totalItems += currentStock;
-      
-      // Calculate demand based on bookings
-      let demand = 0;
-      nearTermBookings.forEach(booking => {
-        const perGuestKey = `${type}_per_guest`;
-        const perBookingKey = `${type}_per_booking`;
-        
-        if (linenDef[perGuestKey]) {
-          demand += booking.number_of_guests * linenDef[perGuestKey];
-        } else if (linenDef[perBookingKey]) {
-          demand += linenDef[perBookingKey];
-        }
-      });
-
-      if (demand > currentStock) {
-        criticalCount++;
-      } else if (demand > currentStock * 0.8) {
-        lowCount++;
-      }
+    // Buchungen OHNE Wäschebestellung
+    const bookingsWithoutOrder = houseBookings.filter(booking => {
+      return !booking.linen_orders || booking.linen_orders.length === 0;
     });
 
+    // Dringlichkeit berechnen (Tage bis Check-in)
+    const today = new Date();
+    const urgentBookings = bookingsWithoutOrder.filter(booking => {
+      const daysUntil = Math.ceil((new Date(booking.check_in).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return daysUntil <= 7;
+    });
+
+    const soonBookings = bookingsWithoutOrder.filter(booking => {
+      const daysUntil = Math.ceil((new Date(booking.check_in).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return daysUntil > 7 && daysUntil <= 14;
+    });
+
+    // Status bestimmen
     let status: HouseLinenStatus['status'] = 'good';
-    if (criticalCount > 0) {
-      status = 'critical';
-    } else if (lowCount > 2) {
-      status = 'warning';
+    if (urgentBookings.length > 0) {
+      status = 'critical';  // Mindestens 1 Buchung innerhalb 7 Tage ohne Bestellung
+    } else if (bookingsWithoutOrder.length > 0) {
+      status = 'warning';   // Buchungen ohne Bestellung vorhanden
     }
+
+    // Nächste Buchung OHNE Bestellung finden
+    const nextUnorderedBooking = bookingsWithoutOrder.sort((a, b) => 
+      new Date(a.check_in).getTime() - new Date(b.check_in).getTime()
+    )[0];
+
+    const totalItems = Object.values(linenStock).reduce((sum, val) => sum + (val as number), 0);
 
     return {
       house,
       totalItems,
-      criticalItems: criticalCount,
-      lowItems: lowCount,
       upcomingBookings: houseBookings.length,
-      nextBookingDate: houseBookings[0]?.check_in,
+      nextBookingDate: nextUnorderedBooking?.check_in,
+      bookingsWithoutOrder: bookingsWithoutOrder.length,
+      urgentBookingsWithoutOrder: urgentBookings.length,
+      soonBookingsWithoutOrder: soonBookings.length,
       status
     };
   }) || [];
@@ -147,7 +138,8 @@ const LinenDashboard = () => {
     criticalHouses: houseStatuses.filter(h => h.status === 'critical').length,
     warningHouses: houseStatuses.filter(h => h.status === 'warning').length,
     goodHouses: houseStatuses.filter(h => h.status === 'good').length,
-    totalCriticalItems: houseStatuses.reduce((sum, h) => sum + h.criticalItems, 0),
+    totalBookingsWithoutOrder: houseStatuses.reduce((sum, h) => sum + h.bookingsWithoutOrder, 0),
+    totalUrgentBookings: houseStatuses.reduce((sum, h) => sum + h.urgentBookingsWithoutOrder, 0),
   };
 
   const getStatusColor = (status: HouseLinenStatus['status']) => {
@@ -447,10 +439,15 @@ const LinenDashboard = () => {
       {/* Critical Alert */}
       {overallStatus.criticalHouses > 0 && (
         <Alert variant="destructive">
-          <span className="text-xl">⚠️</span>
+          <AlertTriangle className="h-5 w-5" />
           <AlertDescription>
-            <strong>{overallStatus.criticalHouses} Häuser</strong> haben kritische Wäschebestände. 
-            Insgesamt <strong>{overallStatus.totalCriticalItems} Artikel</strong> sind unterversorgt.
+            <strong>{overallStatus.criticalHouses} Häuser</strong> haben dringende Buchungen ohne Wäschebestellung. 
+            Insgesamt <strong>{overallStatus.totalBookingsWithoutOrder} Buchungen</strong> benötigen eine Bestellung.
+            {overallStatus.totalUrgentBookings > 0 && (
+              <span className="block mt-1 font-bold">
+                ⚠️ Davon {overallStatus.totalUrgentBookings} mit Check-in in den nächsten 7 Tagen!
+              </span>
+            )}
           </AlertDescription>
         </Alert>
       )}
@@ -485,18 +482,26 @@ const LinenDashboard = () => {
               </div>
 
               {/* Issues Summary */}
-              {(houseStatus.criticalItems > 0 || houseStatus.lowItems > 0) && (
+              {houseStatus.bookingsWithoutOrder > 0 && (
                 <div className="space-y-2">
-                  {houseStatus.criticalItems > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-red-700">
-                      <span>⚠️</span>
-                      <span>{houseStatus.criticalItems} kritische Artikel</span>
+                  {houseStatus.urgentBookingsWithoutOrder > 0 && (
+                    <div className="flex items-center gap-2 text-sm text-red-700 font-bold">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span>{houseStatus.urgentBookingsWithoutOrder} dringende Buchung(en) ohne Bestellung</span>
                     </div>
                   )}
-                  {houseStatus.lowItems > 0 && (
+                  {houseStatus.soonBookingsWithoutOrder > 0 && (
                     <div className="flex items-center gap-2 text-sm text-yellow-700">
-                      <span>⚠️</span>
-                      <span>{houseStatus.lowItems} niedrige Bestände</span>
+                      <Clock className="h-4 w-4" />
+                      <span>{houseStatus.soonBookingsWithoutOrder} Buchung(en) bald fällig</span>
+                    </div>
+                  )}
+                  {houseStatus.bookingsWithoutOrder > houseStatus.urgentBookingsWithoutOrder + houseStatus.soonBookingsWithoutOrder && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Package className="h-4 w-4" />
+                      <span>
+                        {houseStatus.bookingsWithoutOrder - houseStatus.urgentBookingsWithoutOrder - houseStatus.soonBookingsWithoutOrder} weitere
+                      </span>
                     </div>
                   )}
                 </div>
@@ -505,9 +510,9 @@ const LinenDashboard = () => {
               {/* Next Booking */}
               {houseStatus.nextBookingDate && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>🕐</span>
+                  <Clock className="h-4 w-4" />
                   <span>
-                    Nächste Buchung: {format(new Date(houseStatus.nextBookingDate), 'dd.MM.yyyy', { locale: de })}
+                    Nächste unbest. Buchung: {format(new Date(houseStatus.nextBookingDate), 'dd.MM.yyyy', { locale: de })}
                   </span>
                 </div>
               )}
