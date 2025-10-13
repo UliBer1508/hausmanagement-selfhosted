@@ -142,6 +142,15 @@ const LinenDashboard = () => {
     totalUrgentBookings: houseStatuses.reduce((sum, h) => sum + h.urgentBookingsWithoutOrder, 0),
   };
 
+  // Countdown in Tagen berechnen
+  const calculateDaysUntil = (dateString: string) => {
+    const today = new Date();
+    const targetDate = new Date(dateString);
+    const diffTime = targetDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
   const getStatusColor = (status: HouseLinenStatus['status']) => {
     switch (status) {
       case 'good': return 'border-green-200 bg-green-50';
@@ -157,21 +166,21 @@ const LinenDashboard = () => {
         return (
           <Badge className="bg-green-100 text-green-800 border-green-200">
             <span className="mr-1">✅</span>
-            Gut
+            OK
           </Badge>
         );
       case 'warning': 
         return (
           <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
             <span className="mr-1">⚠️</span>
-            Niedrig
+            Zu prüfen
           </Badge>
         );
       case 'critical': 
         return (
           <Badge className="bg-red-100 text-red-800 border-red-200">
-            <span className="mr-1">⚠️</span>
-            Kritisch
+            <span className="mr-1">🔴</span>
+            Dringend
           </Badge>
         );
       default: 
@@ -472,12 +481,24 @@ const LinenDashboard = () => {
               {/* Linen Stats */}
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <div className="font-medium">Wäscheteile gesamt</div>
-                  <div className="text-lg font-bold">{houseStatus.totalItems}</div>
+                  <div className="font-medium">Bestellstatus</div>
+                  <div className="text-lg font-bold">
+                    {houseStatus.bookingsWithoutOrder === 0 ? (
+                      <span className="text-green-600">Alle erfasst ✓</span>
+                    ) : (
+                      <span className="text-red-600">{houseStatus.bookingsWithoutOrder} offen</span>
+                    )}
+                  </div>
                 </div>
                 <div>
-                  <div className="font-medium">Kommende Buchungen</div>
-                  <div className="text-lg font-bold">{houseStatus.upcomingBookings}</div>
+                  <div className="font-medium">Davon dringend</div>
+                  <div className="text-lg font-bold">
+                    {houseStatus.urgentBookingsWithoutOrder > 0 ? (
+                      <span className="text-red-700">{houseStatus.urgentBookingsWithoutOrder}</span>
+                    ) : (
+                      <span className="text-muted-foreground">0</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -487,20 +508,20 @@ const LinenDashboard = () => {
                   {houseStatus.urgentBookingsWithoutOrder > 0 && (
                     <div className="flex items-center gap-2 text-sm text-red-700 font-bold">
                       <AlertTriangle className="h-4 w-4" />
-                      <span>{houseStatus.urgentBookingsWithoutOrder} dringende Buchung(en) ohne Bestellung</span>
+                      <span>{houseStatus.urgentBookingsWithoutOrder} dringende (Check-in ≤ 7 Tage)</span>
                     </div>
                   )}
                   {houseStatus.soonBookingsWithoutOrder > 0 && (
                     <div className="flex items-center gap-2 text-sm text-yellow-700">
                       <Clock className="h-4 w-4" />
-                      <span>{houseStatus.soonBookingsWithoutOrder} Buchung(en) bald fällig</span>
+                      <span>{houseStatus.soonBookingsWithoutOrder} bald fällig (Check-in ≤ 14 Tage)</span>
                     </div>
                   )}
                   {houseStatus.bookingsWithoutOrder > houseStatus.urgentBookingsWithoutOrder + houseStatus.soonBookingsWithoutOrder && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Package className="h-4 w-4" />
                       <span>
-                        {houseStatus.bookingsWithoutOrder - houseStatus.urgentBookingsWithoutOrder - houseStatus.soonBookingsWithoutOrder} weitere
+                        {houseStatus.bookingsWithoutOrder - houseStatus.urgentBookingsWithoutOrder - houseStatus.soonBookingsWithoutOrder} weitere ohne Bestellung
                       </span>
                     </div>
                   )}
@@ -509,11 +530,16 @@ const LinenDashboard = () => {
 
               {/* Next Booking */}
               {houseStatus.nextBookingDate && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  <span>
-                    Nächste unbest. Buchung: {format(new Date(houseStatus.nextBookingDate), 'dd.MM.yyyy', { locale: de })}
-                  </span>
+                <div className="p-3 bg-muted/50 rounded-lg space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">Nächste Buchung ohne Bestellung:</span>
+                    <Badge variant={houseStatus.urgentBookingsWithoutOrder > 0 ? "destructive" : "secondary"}>
+                      in {calculateDaysUntil(houseStatus.nextBookingDate)} Tagen
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {format(new Date(houseStatus.nextBookingDate), 'EEEE, dd.MM.yyyy', { locale: de })}
+                  </div>
                 </div>
               )}
 
