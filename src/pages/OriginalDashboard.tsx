@@ -846,6 +846,17 @@ const OriginalDashboard = () => {
       });
   }, [linenData]);
 
+  // Helper-Funktion: Haus-spezifische Farbe für "Belegt"-Status
+  const getHouseOccupiedColor = (houseName: string): string => {
+    const houseColors: Record<string, string> = {
+      'Venedigersiedlung Chalet': 'bg-orange-200 text-orange-900',
+      'Wald Chalet': 'bg-yellow-100 text-yellow-800',
+    };
+    
+    // Fallback auf orange wenn Haus nicht in der Liste
+    return houseColors[houseName] || 'bg-orange-200 text-orange-900';
+  };
+
   const getEventsForDate = (date: Date) => {
     const events = [];
     
@@ -904,7 +915,7 @@ const OriginalDashboard = () => {
             checkIn: booking.check_in,
             checkOut: booking.check_out
           },
-          color: 'bg-orange-100 text-orange-800'
+          color: getHouseOccupiedColor(houseDisplayName)
         });
       }
     });
