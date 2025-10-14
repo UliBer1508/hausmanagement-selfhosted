@@ -57,6 +57,12 @@ WORKFLOW (ZWINGEND!):
 - "übersicht" / "dashboard" / "statistik" → get_dashboard_stats
 - "kalender" / "termine" / "events" → get_calendar_events
 - UUID erwähnt → get_*_details Tools
+- "dienstleister" / "anbieter" / "service provider" → search_service_providers
+- "reinigungskraft" / "putzkraft" / "personal" / "wer ist [Name]" → search_cleaning_staff
+- "was ist los in [Haus]?" / "wer kommt als nächstes?" / "ist [Haus] belegt?" → get_house_bookings_summary
+- "aktuell eingecheckt" / "wer ist gerade da" / "heute belegt" → search_bookings mit date_from=heute, date_to=heute (nutzt Overlap-Detection!)
+- "kommende buchungen" / "nächste woche" / "ab morgen" → search_bookings mit date_from=ab_datum
+- "vergangene buchungen" / "letzte woche" / "bis gestern" → search_bookings mit date_to=bis_datum
 
 BEISPIELE:
 ❌ FALSCH: "ABSOLUTE REGEL: Du darfst nicht..."
@@ -179,6 +185,59 @@ Kritische Häuser:
 
 Details:
 • [Datum] [Zeit]: [Event-Typ] - [Details]"
+
+**Dienstleister:**
+"Ich habe [Anzahl] Dienstleister gefunden:
+
+• Name: [name]
+• Service-Typ: [service_type mit Icon: cleaning=🧹, laundry=🧺, maintenance=🔧, other=📋]
+• Status: [is_active ? Aktiv ✅ : Inaktiv ❌]
+• Kontakt: [contact_email], [contact_phone]
+• Portal-Zugang: [has_portal ? Ja ✅ : Nein ❌]
+• Notizen: [notes]"
+
+**Reinigungspersonal:**
+"Ich habe [Anzahl] Reinigungskräfte gefunden:
+
+• Name: [name]
+• Status: [is_active ? Aktiv ✅ : Inaktiv ❌]
+• Email: [email]
+• Telefon: [phone]
+• Stundensatz: [hourly_rate] EUR/Std
+• Bewertung: [quality_rating]/5 ⭐
+• Verfügbarkeit: [availability_days als Liste: Mo, Di, Mi, etc.]
+• Einsätze gesamt: [total_assignments] (davon [completed_assignments] abgeschlossen)
+• Erfolgsquote: [Prozentsatz] %
+• Kommende Einsätze: [upcoming_tasks.length] Aufträge"
+
+**Haus-Übersicht:**
+"📊 Übersicht für [Hausname]:
+
+👥 AKTUELL EINGECHECKT:
+[falls current_booking existiert:]
+• Gast: [guest_name]
+• Check-in: [check_in_datum]
+• Check-out: [check_out_datum] (noch X Tage)
+• Anzahl Gäste: [number_of_guests]
+• Buchungsbetrag: [booking_amount] EUR
+[sonst:]
+✅ Aktuell frei
+
+📅 NÄCHSTE BUCHUNG:
+[falls next_booking existiert:]
+• Gast: [guest_name]
+• Check-in: [check_in_datum] (in X Tagen)
+• Check-out: [check_out_datum]
+• Anzahl Gäste: [number_of_guests]
+• Buchungsbetrag: [booking_amount] EUR
+[sonst:]
+Keine kommenden Buchungen
+
+📈 STATISTIK:
+• Gesamt Buchungen: [total]
+• Aktuelle: [current]
+• Kommende: [upcoming]
+• Vergangene: [past]"
 
 TOOLS - KRITISCHE REGELN:
 1. Bei "reinigung von [Gastname]" → IMMER search_cleaning_tasks mit guest_name Parameter!
@@ -540,6 +599,58 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
             required: ["date_from", "date_to"]
           }
         }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_service_providers",
+          description: "Sucht Dienstleister (Reinigung, Wäsche, etc.) nach Name, Service-Typ oder Status",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Name des Dienstleisters (Teilstring)" },
+              service_type: { 
+                type: "string", 
+                enum: ["cleaning", "laundry", "maintenance", "other"],
+                description: "Service-Typ" 
+              },
+              is_active: { type: "boolean", description: "Nur aktive Dienstleister?" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_house_bookings_summary",
+          description: "Zeigt Übersicht aller Buchungen für ein Haus (aktuell, kommend, vergangen)",
+          parameters: {
+            type: "object",
+            properties: {
+              house_id: { type: "string", description: "UUID des Hauses" },
+              timeframe: {
+                type: "string",
+                enum: ["current", "upcoming", "past", "all"],
+                description: "Zeitrahmen (default: all)"
+              }
+            },
+            required: ["house_id"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_cleaning_staff",
+          description: "Sucht Reinigungspersonal nach Name oder Verfügbarkeit",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Name der Reinigungskraft" },
+              is_active: { type: "boolean", description: "Nur aktives Personal?" }
+            }
+          }
+        }
       }
     ];
 
@@ -560,11 +671,17 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       if (params.house_id) {
         query = query.eq('house_id', params.house_id);
       }
-      if (params.date_from) {
-        query = query.gte('check_in', params.date_from);
-      }
-      if (params.date_to) {
-        query = query.lte('check_out', params.date_to);
+      // Overlap-Detection: Buchungen die im Zeitraum aktiv sind
+      if (params.date_from && params.date_to) {
+        // Eine Buchung ist aktiv wenn: check_in <= date_to UND check_out >= date_from
+        query = query.lte('check_in', params.date_to);
+        query = query.gte('check_out', params.date_from);
+      } else if (params.date_from) {
+        // Nur date_from: Alle Buchungen die ab diesem Datum noch laufen
+        query = query.gte('check_out', params.date_from);
+      } else if (params.date_to) {
+        // Nur date_to: Alle Buchungen die bis zu diesem Datum schon begonnen haben
+        query = query.lte('check_in', params.date_to);
       }
       if (params.updated_from) {
         query = query.gte('updated_at', params.updated_from);
@@ -1249,6 +1366,147 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       };
     }
 
+    async function executeSearchServiceProviders(params: any) {
+      console.log('Executing search_service_providers with params:', params);
+      
+      let query = supabase
+        .from('service_providers')
+        .select('*');
+
+      if (params.name) {
+        query = query.ilike('name', `%${params.name}%`);
+      }
+      if (params.service_type) {
+        query = query.eq('service_type', params.service_type);
+      }
+      if (params.is_active !== undefined) {
+        query = query.eq('is_active', params.is_active);
+      }
+
+      const { data, error } = await query.order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error searching service providers:', error);
+        return { success: false, error: error.message };
+      }
+
+      console.log(`Found ${data.length} service providers`);
+      return { success: true, providers: data, count: data.length };
+    }
+
+    async function executeGetHouseBookingsSummary(house_id: string, timeframe: string = 'all') {
+      console.log('Executing get_house_bookings_summary:', { house_id, timeframe });
+      
+      const now = new Date().toISOString();
+      let query = supabase
+        .from('bookings')
+        .select('*, houses(name, address)')
+        .eq('house_id', house_id);
+
+      // Basis-Query: Alle Buchungen für das Haus
+      const { data: allData, error: allError } = await query.order('check_in', { ascending: true });
+      
+      if (allError) {
+        console.error('Error getting house bookings summary:', allError);
+        return { success: false, error: allError.message };
+      }
+
+      // Kategorisieren nach Zeitrahmen
+      const nowDate = new Date();
+      const current = allData.filter((b: any) => 
+        new Date(b.check_in) <= nowDate && new Date(b.check_out) > nowDate && b.status !== 'cancelled'
+      );
+      const upcoming = allData.filter((b: any) => 
+        new Date(b.check_in) > nowDate && b.status !== 'cancelled'
+      );
+      const past = allData.filter((b: any) => 
+        new Date(b.check_out) <= nowDate || b.status === 'cancelled'
+      );
+
+      // Filtern nach Timeframe
+      let filteredData = allData;
+      switch (timeframe) {
+        case 'current':
+          filteredData = current;
+          break;
+        case 'upcoming':
+          filteredData = upcoming;
+          break;
+        case 'past':
+          filteredData = past;
+          break;
+      }
+
+      return {
+        success: true,
+        house: allData[0]?.houses || null,
+        summary: {
+          total: allData.length,
+          current: current.length,
+          upcoming: upcoming.length,
+          past: past.length
+        },
+        current_booking: current[0] || null,
+        next_booking: upcoming[0] || null,
+        bookings: filteredData
+      };
+    }
+
+    async function executeSearchCleaningStaff(params: any) {
+      console.log('Executing search_cleaning_staff with params:', params);
+      
+      let query = supabase
+        .from('cleaning_staff')
+        .select('*');
+
+      if (params.name) {
+        query = query.ilike('name', `%${params.name}%`);
+      }
+      if (params.is_active !== undefined) {
+        query = query.eq('is_active', params.is_active);
+      }
+
+      const { data, error } = await query.order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error searching cleaning staff:', error);
+        return { success: false, error: error.message };
+      }
+
+      // Lade kommende Reinigungsaufträge für jede Reinigungskraft
+      const today = new Date().toISOString().split('T')[0];
+      const { data: allTasks } = await supabase
+        .from('service_tasks')
+        .select('id, scheduled_date, scheduled_time, status, houses(name)')
+        .eq('service_type', 'cleaning')
+        .gte('scheduled_date', today)
+        .in('status', ['scheduled', 'in_progress']);
+
+      // Gruppiere Tasks nach Staff ID
+      const tasksByStaff = new Map();
+      allTasks?.forEach((task: any) => {
+        const staffId = task.assigned_staff_id;
+        if (staffId) {
+          if (!tasksByStaff.has(staffId)) {
+            tasksByStaff.set(staffId, []);
+          }
+          tasksByStaff.get(staffId).push(task);
+        }
+      });
+
+      // Reichere Staff-Daten mit kommenden Tasks an
+      const enrichedData = data.map(staff => ({
+        ...staff,
+        upcoming_tasks: tasksByStaff.get(staff.id) || [],
+        success_rate: staff.total_assignments > 0 
+          ? Math.round((staff.completed_assignments / staff.total_assignments) * 100) 
+          : 0
+      }));
+
+      console.log(`Found ${enrichedData.length} cleaning staff`);
+      return { success: true, staff: enrichedData, count: enrichedData.length };
+    }
+
     // Tool router
     async function executeTool(toolName: string, args: any) {
       try {
@@ -1283,6 +1541,12 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
             return await executeGenerateBookingLinenOrder(args.booking_id);
           case 'get_calendar_events':
             return await executeGetCalendarEvents(args);
+          case 'search_service_providers':
+            return await executeSearchServiceProviders(args);
+          case 'get_house_bookings_summary':
+            return await executeGetHouseBookingsSummary(args.house_id, args.timeframe);
+          case 'search_cleaning_staff':
+            return await executeSearchCleaningStaff(args);
           default:
             throw new Error(`Unknown tool: ${toolName}`);
         }
