@@ -159,7 +159,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                   {order.laundry_order_items && order.laundry_order_items
                     .filter((item: any) => item.quantity > 0)
                     .map((item: any) => (
-                    <div key={item.id} className="flex justify-between gap-2 text-xs">
+                    <div key={item.id} className="flex justify-between gap-2 text-sm">
                       <span>{item.item_name}</span>
                       <span className="text-muted-foreground flex-shrink-0">{item.quantity}x</span>
                     </div>
@@ -169,7 +169,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                   {order.items && Object.entries(order.items)
                     .filter(([_, count]: [string, any]) => count > 0)
                     .map(([itemType, count]: [string, any]) => (
-                    <div key={itemType} className="flex justify-between gap-2 text-xs">
+                    <div key={itemType} className="flex justify-between gap-2 text-sm">
                       <span>
                         {itemType === 'kitchen_towels' ? 'Küchentücher' : 
                          itemType === 'bedding' ? 'Bettwäsche' :
