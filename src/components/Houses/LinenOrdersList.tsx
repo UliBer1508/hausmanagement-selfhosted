@@ -16,6 +16,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [houseFilter, setHouseFilter] = useState<string>('all');
+  const [timeFilter, setTimeFilter] = useState<string>('all');
 
   // Fetch linen orders with related data
   const { data: linenOrders, isLoading } = useQuery({
@@ -70,7 +71,34 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     const matchesHouse = houseFilter === 'all' || order.house_id === houseFilter;
 
-    return matchesSearch && matchesStatus && matchesHouse;
+    // Zeitfilter-Logik (vorausschauend)
+    let matchesTime = true;
+    if (timeFilter !== 'all' && order.delivery_date) {
+      const deliveryDate = new Date(order.delivery_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      const futureDate = new Date();
+      
+      switch (timeFilter) {
+        case '1':
+          futureDate.setMonth(today.getMonth() + 1);
+          break;
+        case '3':
+          futureDate.setMonth(today.getMonth() + 3);
+          break;
+        case '6':
+          futureDate.setMonth(today.getMonth() + 6);
+          break;
+        case '12':
+          futureDate.setMonth(today.getMonth() + 12);
+          break;
+      }
+      
+      matchesTime = deliveryDate >= today && deliveryDate <= futureDate;
+    }
+
+    return matchesSearch && matchesStatus && matchesHouse && matchesTime;
   }) || [];
 
   if (isLoading) {
@@ -89,7 +117,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
       {/* Filter Bar */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -130,6 +158,20 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
                 ))}
               </SelectContent>
             </Select>
+
+            {/* Time Filter */}
+            <Select value={timeFilter} onValueChange={setTimeFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Zeitraum filtern" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Zeiträume</SelectItem>
+                <SelectItem value="1">📅 Nächster Monat</SelectItem>
+                <SelectItem value="3">📅 Nächste 3 Monate</SelectItem>
+                <SelectItem value="6">📅 Nächste 6 Monate</SelectItem>
+                <SelectItem value="12">📅 Nächstes Jahr</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -141,7 +183,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
             <span className="text-5xl block mb-4">📦</span>
             <h3 className="text-lg font-medium mb-2">Keine Bestellungen gefunden</h3>
             <p className="text-muted-foreground">
-              {searchTerm || statusFilter !== 'all' || houseFilter !== 'all'
+              {searchTerm || statusFilter !== 'all' || houseFilter !== 'all' || timeFilter !== 'all'
                 ? 'Versuchen Sie andere Filter.'
                 : 'Erstellen Sie Ihre erste Wäschebestellung.'}
             </p>
