@@ -135,7 +135,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
               <div className="flex items-start gap-2 text-sm">
                 <span className="text-base">🚚</span>
                 <span>
-                  <span className="text-muted-foreground">Lieferung:</span> {order.delivery_date}
+                  <span className="text-muted-foreground">Lieferung:</span> {new Date(order.delivery_date).toLocaleDateString('de-DE')}
                 </span>
               </div>
             )}
@@ -146,7 +146,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             {order.pickup_date && (
               <div>
                 <span className="text-muted-foreground">Abholung: </span>
-                <span>{order.pickup_date}</span>
+                <span>{new Date(order.pickup_date).toLocaleDateString('de-DE')}</span>
               </div>
             )}
 
