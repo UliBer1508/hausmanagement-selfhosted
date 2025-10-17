@@ -52,10 +52,14 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
   const getTotalItems = () => {
     // Handle both laundry_order_items (array) and linen order items (JSON object)
     if (order.laundry_order_items) {
-      return order.laundry_order_items.reduce((sum: number, item: any) => sum + item.quantity, 0);
+      return order.laundry_order_items
+        .filter((item: any) => item.quantity > 0)
+        .reduce((sum: number, item: any) => sum + item.quantity, 0);
     } else if (order.items) {
       // For linen orders, items is a JSON object like {"kitchen_towels": 1}
-      return Object.values(order.items).reduce((sum: number, count: any) => sum + count, 0);
+      return Object.entries(order.items)
+        .filter(([_, count]: [string, any]) => count > 0)
+        .reduce((sum: number, [_, count]: [string, any]) => sum + count, 0);
     }
     return order.total_items || 0;
   };
@@ -152,7 +156,9 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                 <p className="text-xs text-muted-foreground font-medium">Artikel ({getTotalItems()} gesamt):</p>
                 <div className="space-y-1">
                   {/* Handle laundry_order_items (array format) */}
-                  {order.laundry_order_items && order.laundry_order_items.map((item: any) => (
+                  {order.laundry_order_items && order.laundry_order_items
+                    .filter((item: any) => item.quantity > 0)
+                    .map((item: any) => (
                     <div key={item.id} className="flex justify-between gap-2 text-xs">
                       <span>{item.item_name}</span>
                       <span className="text-muted-foreground flex-shrink-0">{item.quantity}x</span>
@@ -160,7 +166,9 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                   ))}
                   
                   {/* Handle linen order items (JSON object format) */}
-                  {order.items && Object.entries(order.items).map(([itemType, count]: [string, any]) => (
+                  {order.items && Object.entries(order.items)
+                    .filter(([_, count]: [string, any]) => count > 0)
+                    .map(([itemType, count]: [string, any]) => (
                     <div key={itemType} className="flex justify-between gap-2 text-xs">
                       <span>
                         {itemType === 'kitchen_towels' ? 'Küchentücher' : 
@@ -170,6 +178,8 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                          itemType === 'bath_mats' ? 'Badematten' :
                          itemType === 'sauna_towels' ? 'Saunatücher' :
                          itemType === 'sink_towels' ? 'Waschbeckentücher' :
+                         itemType === 'blankets' ? 'Decken' :
+                         itemType === 'pillow_cases' ? 'Kissenbezüge' :
                          itemType}
                       </span>
                       <span className="text-muted-foreground flex-shrink-0">{count}x</span>
