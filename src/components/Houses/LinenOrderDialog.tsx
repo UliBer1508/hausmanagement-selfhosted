@@ -172,7 +172,22 @@ const LinenOrderDialog = ({
   // Separater useEffect für Edit-Mode: Lade tatsächliche Order-Items
   useEffect(() => {
     if (open && mode === 'edit' && orderItems) {
-      setEditableItems(orderItems);
+      // Alle verfügbaren Kategorien mit Wert 0 initialisieren
+      const allCategories: Record<string, number> = {
+        bedding: 0,
+        large_towels: 0,
+        small_towels: 0,
+        sauna_towels: 0,
+        bath_mats: 0,
+        sink_towels: 0,
+        kitchen_towels: 0,
+        blankets: 0,
+        pillow_cases: 0,
+      };
+      
+      // Bestehende Werte überschreiben
+      const mergedItems = { ...allCategories, ...orderItems };
+      setEditableItems(mergedItems);
     }
   }, [open, mode, orderItems]);
 
