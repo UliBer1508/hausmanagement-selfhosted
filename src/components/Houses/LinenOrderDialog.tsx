@@ -138,7 +138,7 @@ const LinenOrderDialog = ({
 
   // Update state when props change (e.g., when opening with AI-generated data)
   useEffect(() => {
-    if (open) {
+    if (open && mode === 'create') {
       // If a booking is selected and linen definitions are available, calculate booking-specific order
       if (selectedBooking && linenSetDefinition) {
         const bookingSpecificItems = calculateBookingLinenOrder(selectedBooking, linenSetDefinition);
@@ -167,7 +167,14 @@ const LinenOrderDialog = ({
         setStatus(initialData.status);
       }
     }
-  }, [open, selectedBooking, linenSetDefinition, initialData]);
+  }, [open, mode, selectedBooking, linenSetDefinition, initialData, orderItems]);
+
+  // Separater useEffect für Edit-Mode: Lade tatsächliche Order-Items
+  useEffect(() => {
+    if (open && mode === 'edit' && orderItems) {
+      setEditableItems(orderItems);
+    }
+  }, [open, mode, orderItems]);
 
   const linenLabels: Record<string, string> = {
     bedding: 'Bettwäsche',
@@ -190,9 +197,13 @@ const LinenOrderDialog = ({
     e.preventDefault();
     setValidationErrors([]);
     
-    const filteredItems = Object.fromEntries(
-      Object.entries(editableItems).filter(([_, count]) => count > 0)
-    );
+    // Im Edit-Mode: ALLE Artikel behalten (auch mit Menge 0)
+    // Im Create-Mode: Nur Artikel mit Menge > 0
+    const filteredItems = mode === 'edit' 
+      ? editableItems
+      : Object.fromEntries(
+          Object.entries(editableItems).filter(([_, count]) => count > 0)
+        );
 
     if (Object.keys(filteredItems).length === 0) {
       setValidationErrors(['Mindestens ein Artikel muss bestellt werden']);
