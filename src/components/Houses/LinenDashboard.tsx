@@ -303,9 +303,20 @@ const LinenDashboard = () => {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['linen-orders-with-bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['houses-linen-overview'] });
+    onSuccess: async () => {
+      // Invalidate all linen order related queries
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-with-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['houses-linen-overview'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-list'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['booking-orders-status'] });
+      
+      // Force refetch of critical queries
+      await queryClient.refetchQueries({ queryKey: ['linen-orders-list'] });
+      await queryClient.refetchQueries({ queryKey: ['linen-orders-connected'] });
+      
       setShowOrderDialog(false);
       setEditingOrder(null);
       setEditMode(false);
