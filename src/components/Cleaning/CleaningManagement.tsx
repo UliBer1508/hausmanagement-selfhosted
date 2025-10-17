@@ -8,13 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Info as InfoIcon } from 'lucide-react';
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
 import EditCleaningTaskDialog from './EditCleaningTaskDialog';
 
 const CleaningManagement = () => {
   const location = useLocation();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedHouse, setSelectedHouse] = useState('all');
   const [timeFilter, setTimeFilter] = useState('24months');
@@ -44,6 +45,30 @@ const CleaningManagement = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location]);
+
+  // Realtime updates for cleaning tasks
+  useEffect(() => {
+    const channel = supabase
+      .channel('cleaning-tasks-realtime')
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'service_tasks',
+          filter: 'service_type=eq.cleaning'
+        },
+        (payload) => {
+          console.log('Realtime update für cleaning tasks:', payload);
+          queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   // Fetch bookings without cleaning tasks
   const { data: bookingsWithoutCleaning, isLoading: loadingBookings } = useQuery({
@@ -115,9 +140,10 @@ const CleaningManagement = () => {
 
       return data || [];
     },
-    enabled: showBookingResults, // Only run query when button is clicked
+    enabled: showBookingResults,
     refetchOnWindowFocus: false,
-    staleTime: 0, // Always fetch fresh data
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 
   // Function to handle creating cleaning task for specific booking
@@ -200,6 +226,8 @@ const CleaningManagement = () => {
 
       return filteredData;
     },
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 
   // Fetch houses for filters

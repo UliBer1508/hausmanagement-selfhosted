@@ -82,10 +82,12 @@ export const useCreateServiceTask = () => {
       await queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
       await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
       
       // Force immediate refetch
       await queryClient.refetchQueries({ queryKey: ['service-tasks-connected'] });
       await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.refetchQueries({ queryKey: ['cleaning-tasks'] });
     },
   });
 };
@@ -109,9 +111,11 @@ export const useUpdateServiceTask = () => {
       await queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
       await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
       
       await queryClient.refetchQueries({ queryKey: ['service-tasks-connected'] });
       await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.refetchQueries({ queryKey: ['cleaning-tasks'] });
     },
   });
 };
@@ -131,7 +135,10 @@ export const useDeleteServiceTask = () => {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
       await queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
+      await queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
+      
       await queryClient.refetchQueries({ queryKey: ['service-tasks-connected'] });
+      await queryClient.refetchQueries({ queryKey: ['cleaning-tasks'] });
     },
   });
 };
