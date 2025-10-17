@@ -507,7 +507,9 @@ const LinenOrderDialog = ({
               <CardTitle className="text-sm">Bestellpositionen</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {Object.entries(editableItems).map(([itemType, quantity]) => (
+              {Object.entries(editableItems)
+                .filter(([_, quantity]) => quantity > 0)
+                .map(([itemType, quantity]) => (
                 <div key={itemType} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex-1">
                     <div className="font-medium">{linenLabels[itemType] || itemType}</div>
