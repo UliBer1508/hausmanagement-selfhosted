@@ -434,7 +434,7 @@ const OriginalDashboard = () => {
       return data;
     },
     staleTime: 3 * 60 * 1000, // 3 minutes
-    enabled: activeTab === 'Übersicht' || activeTab === 'Reinigung',
+    enabled: true, // Immer aktiv, damit Daten im Hintergrund aktualisiert werden
   });
 
   // Fetch houses data for filters
