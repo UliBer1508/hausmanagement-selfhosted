@@ -39,7 +39,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
             number_of_guests
           )
         `)
-        .order('delivery_date', { ascending: false });
+        .order('delivery_date', { ascending: true, nullsFirst: false });
 
       if (error) throw error;
       return data || [];
