@@ -116,6 +116,7 @@ const countries = [
   { code: 'AR', name: 'Argentinien' },
   { code: 'MX', name: 'Mexiko' },
   { code: 'RU', name: 'Russland' },
+  { code: 'UA', name: 'Ukraine' },
   { code: 'TR', name: 'Türkei' },
   { code: 'ZA', name: 'Südafrika' },
 ];
