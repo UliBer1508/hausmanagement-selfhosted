@@ -66,6 +66,7 @@ const bookingSchema = z.object({
   booking_amount: z.number().optional(),
   currency: z.string().default('EUR'),
   status: z.enum(['confirmed', 'checked_in', 'completed', 'cancelled']).default('confirmed'),
+  platform: z.string().optional(),
   notes: z.string().optional(),
   cancellation_date: z.string().optional(),
   cancellation_reason: z.string().optional(),
@@ -166,6 +167,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         booking_amount: initialData.booking_amount || undefined,
         currency: initialData.currency || 'EUR',
         status: initialData.status || 'confirmed',
+        platform: initialData.platform || '',
         notes: initialData.notes || '',
       };
     }
@@ -176,6 +178,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       guest_email: '',
       guest_phone: '',
       nationality: '',
+      platform: '',
       notes: '',
     };
   };
@@ -350,6 +353,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         nationality: (data.nationality && data.nationality !== 'none' && data.nationality !== '') ? data.nationality : null,
         booking_amount: data.booking_amount || null,
         currency: data.currency || 'EUR',
+        platform: data.platform || null,
         notes: data.notes || null,
         status: data.status,
         source: 'manual',
@@ -698,6 +702,35 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                         {country.code} - {country.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Platform */}
+          <FormField
+            control={form.control}
+            name="platform"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Plattform</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value || ''}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Plattform wählen" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="bg-background border shadow-lg z-50">
+                    <SelectItem value="none">Keine Angabe</SelectItem>
+                    <SelectItem value="booking.com">Booking.com</SelectItem>
+                    <SelectItem value="airbnb">Airbnb</SelectItem>
+                    <SelectItem value="vrbo">VRBO</SelectItem>
+                    <SelectItem value="direct">Direktbuchung</SelectItem>
+                    <SelectItem value="other">Sonstige</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
