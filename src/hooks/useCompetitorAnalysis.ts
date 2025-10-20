@@ -190,14 +190,24 @@ export const useSearchCompetitors = () => {
     mutationFn: async ({ 
       house_id, 
       search_radius_km,
-      min_rating
+      min_rating,
+      platforms,
+      property_types
     }: { 
       house_id: string; 
       search_radius_km?: number;
       min_rating?: number;
+      platforms?: string[];
+      property_types?: string[];
     }) => {
       const { data, error } = await supabase.functions.invoke('search-competitors', {
-        body: { house_id, search_radius_km, min_rating }
+        body: { 
+          house_id, 
+          search_radius_km, 
+          min_rating,
+          platforms,
+          property_types
+        }
       });
 
       if (error) throw error;

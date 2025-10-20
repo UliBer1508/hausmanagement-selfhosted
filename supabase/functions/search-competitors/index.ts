@@ -15,7 +15,9 @@ serve(async (req) => {
     const { 
       house_id, 
       search_radius_km = 10,
-      min_rating = 8.5
+      min_rating = 8.5,
+      platforms = ['booking.com', 'airbnb'],
+      property_types = ['chalet', 'ferienhaus']
     } = await req.json();
     
     console.log(`[search-competitors] Searching for competitors: house_id=${house_id}, radius=${search_radius_km}km`);
@@ -56,18 +58,37 @@ serve(async (req) => {
     if (amenities.glacier_view) amenityFilters.push('- Panoramablick (Gletscher/Berge)');
     if (amenities.additional_toilet) amenityFilters.push('- Zusätzliche separate Toilette');
 
+    console.log(`[search-competitors] Platforms: ${platforms.join(', ')}, Property Types: ${property_types.join(', ')}`);
+
+    // Plattform-spezifische Suchanweisungen
+    const platformInstructions = [];
+    if (platforms.includes('booking.com')) {
+      platformInstructions.push('1. Öffne Booking.com → Suche "Neukirchen am Großvenediger Chalet"');
+    }
+    if (platforms.includes('airbnb')) {
+      platformInstructions.push(`${platformInstructions.length + 1}. Öffne Airbnb → Suche "Neukirchen Ferienhaus entire home"`);
+    }
+
+    // Objekttyp-String für Query
+    const propertyTypeStr = property_types.map(t => {
+      if (t === 'chalet') return 'Chalet';
+      if (t === 'ferienhaus') return 'Ferienhaus';
+      if (t === 'ferienwohnung') return 'Ferienwohnung';
+      return t;
+    }).join(' ODER ');
+
     const searchQuery = `
-Suche auf Booking.com und Airbnb nach ECHTEN Ferienhäusern/Chalets in Neukirchen am Großvenediger, Österreich (Umkreis ${search_radius_km} km).
+Suche auf ${platforms.map(p => p === 'booking.com' ? 'Booking.com' : 'Airbnb').join(' und ')} nach ECHTEN Ferienhäusern/Chalets in Neukirchen am Großvenediger, Österreich (Umkreis ${search_radius_km} km).
 
 LOCATION: Neukirchen am Großvenediger, 5741, Salzburg, Österreich
 RADIUS: ${search_radius_km} km (inkl. Bramberg, Krimml, Wald im Pinzgau)
 
 SUCHAUFTRAG:
-1. Öffne Booking.com → Suche "Neukirchen am Großvenediger Chalet"
-2. Öffne Airbnb → Suche "Neukirchen Ferienhaus entire home"
-3. Finde REALE, BUCHBARE Unterkünfte
+${platformInstructions.join('\n')}
+${platformInstructions.length + 1}. Finde REALE, BUCHBARE Unterkünfte
 
 KRITERIEN (flexibel):
+- Objekttyp: ${propertyTypeStr}
 - ${house.max_guests} Gäste (±2 OK)
 - ${house.bedrooms || 3} Schlafzimmer (±1 OK)
 - Ganze Unterkunft (kein Studio/Zimmer)
@@ -122,7 +143,7 @@ Falls KEINE Ergebnisse: []
         ],
         temperature: 0.1,
         max_tokens: 3000,
-        search_domain_filter: ['booking.com', 'airbnb.com', 'airbnb.at'],
+        search_domain_filter: platforms.flatMap(p => p === 'booking.com' ? ['booking.com'] : ['airbnb.com', 'airbnb.at']),
         return_images: false,
         return_related_questions: false
       }),
@@ -199,7 +220,7 @@ Falls KEINE Ergebnisse: []
 
     console.log(`[search-competitors] ${competitors.length} Wettbewerber von Perplexity erhalten`);
 
-    // Filter out obviously fake/example data and low ratings
+    // Filter out obviously fake/example data, low ratings, and wrong property types
     const filteredCompetitors = competitors.filter(comp => {
       // Remove example entries
       if (comp.property_name?.toLowerCase().includes('beispiel')) {
@@ -213,7 +234,18 @@ Falls KEINE Ergebnisse: []
         return false;
       }
       
-      console.log(`[filter] ✅ ${comp.property_name}: Akzeptiert (Bewertung: ${comp.normalized_rating}/10)`);
+      // Filter by property type
+      if (comp.property_type && property_types.length > 0) {
+        const typeMatch = property_types.some(type => 
+          comp.property_type.toLowerCase().includes(type.toLowerCase())
+        );
+        if (!typeMatch) {
+          console.log(`[filter] ❌ ${comp.property_name}: Objekttyp "${comp.property_type}" nicht in ${property_types.join(', ')}`);
+          return false;
+        }
+      }
+      
+      console.log(`[filter] ✅ ${comp.property_name}: Akzeptiert (Bewertung: ${comp.normalized_rating}/10, Typ: ${comp.property_type})`);
       return true;
     });
 
@@ -227,6 +259,8 @@ Falls KEINE Ergebnisse: []
         search_params: { 
           radius_km: search_radius_km,
           min_rating: min_rating,
+          platforms: platforms,
+          property_types: property_types,
           location: house.address
         }
       }),

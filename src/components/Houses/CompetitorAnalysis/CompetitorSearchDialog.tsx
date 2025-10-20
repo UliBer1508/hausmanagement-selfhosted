@@ -17,15 +17,23 @@ const CompetitorSearchDialog = ({ house_id }: CompetitorSearchDialogProps) => {
   const [searchRadius, setSearchRadius] = useState(10);
   const [minRating, setMinRating] = useState(8.5);
   const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['booking.com', 'airbnb']);
+  const [selectedPropertyTypes, setSelectedPropertyTypes] = useState<string[]>(['chalet', 'ferienhaus']);
 
   const searchMutation = useSearchCompetitors();
   const addMutation = useAddCompetitor();
 
   const handleSearch = async () => {
+    if (selectedPlatforms.length === 0) {
+      return;
+    }
+    
     const result = await searchMutation.mutateAsync({ 
       house_id, 
       search_radius_km: searchRadius,
-      min_rating: minRating
+      min_rating: minRating,
+      platforms: selectedPlatforms,
+      property_types: selectedPropertyTypes
     });
     
     if (result.competitors) {
@@ -97,9 +105,104 @@ const CompetitorSearchDialog = ({ house_id }: CompetitorSearchDialogProps) => {
             </div>
           </div>
 
+          {/* Plattform-Auswahl */}
+          <div className="space-y-2">
+            <Label>Plattformen durchsuchen:</Label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedPlatforms.includes('booking.com')}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedPlatforms([...selectedPlatforms, 'booking.com']);
+                    } else {
+                      setSelectedPlatforms(selectedPlatforms.filter(p => p !== 'booking.com'));
+                    }
+                  }}
+                  className="w-4 h-4"
+                />
+                <span>Booking.com</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedPlatforms.includes('airbnb')}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedPlatforms([...selectedPlatforms, 'airbnb']);
+                    } else {
+                      setSelectedPlatforms(selectedPlatforms.filter(p => p !== 'airbnb'));
+                    }
+                  }}
+                  className="w-4 h-4"
+                />
+                <span>Airbnb</span>
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Mindestens eine Plattform muss ausgewählt sein
+            </p>
+          </div>
+
+          {/* Objekttyp-Auswahl */}
+          <div className="space-y-2">
+            <Label>Objekttyp:</Label>
+            <div className="flex flex-wrap gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedPropertyTypes.includes('chalet')}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedPropertyTypes([...selectedPropertyTypes, 'chalet']);
+                    } else {
+                      setSelectedPropertyTypes(selectedPropertyTypes.filter(t => t !== 'chalet'));
+                    }
+                  }}
+                  className="w-4 h-4"
+                />
+                <span>Chalet</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedPropertyTypes.includes('ferienhaus')}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedPropertyTypes([...selectedPropertyTypes, 'ferienhaus']);
+                    } else {
+                      setSelectedPropertyTypes(selectedPropertyTypes.filter(t => t !== 'ferienhaus'));
+                    }
+                  }}
+                  className="w-4 h-4"
+                />
+                <span>Ferienhaus</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedPropertyTypes.includes('ferienwohnung')}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedPropertyTypes([...selectedPropertyTypes, 'ferienwohnung']);
+                    } else {
+                      setSelectedPropertyTypes(selectedPropertyTypes.filter(t => t !== 'ferienwohnung'));
+                    }
+                  }}
+                  className="w-4 h-4"
+                />
+                <span>Ferienwohnung</span>
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Mehrfachauswahl möglich
+            </p>
+          </div>
+
           <Button 
             onClick={handleSearch} 
-            disabled={searchMutation.isPending}
+            disabled={searchMutation.isPending || selectedPlatforms.length === 0}
             className="w-full"
           >
             {searchMutation.isPending ? (
