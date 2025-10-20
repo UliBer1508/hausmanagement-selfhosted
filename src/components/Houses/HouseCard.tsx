@@ -1,9 +1,11 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Edit, RefreshCw, Trash2, Users, MapPin, Package } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Edit, RefreshCw, Trash2, Users, MapPin, Package, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import EditHouseDialog from './EditHouseDialog';
+import CompetitorAnalysisDashboard from './CompetitorAnalysis/CompetitorAnalysisDashboard';
 
 interface HouseCardProps {
   house: any;
@@ -15,6 +17,7 @@ interface HouseCardProps {
 
 const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [showPriceAnalysis, setShowPriceAnalysis] = useState(false);
 
   // Calculate total linen items
   const getTotalLinenItems = (linenStock: any) => {
@@ -128,6 +131,16 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
                 </div>
               </div>
             )}
+
+            {/* Price Analysis Button */}
+            <Button 
+              onClick={() => setShowPriceAnalysis(true)}
+              variant="outline"
+              className="w-full"
+            >
+              <TrendingUp className="w-4 h-4 mr-2" />
+              Preisanalyse
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -137,6 +150,15 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
       />
+
+      <Dialog open={showPriceAnalysis} onOpenChange={setShowPriceAnalysis}>
+        <DialogContent className="max-w-[95vw] h-[90vh] overflow-auto">
+          <CompetitorAnalysisDashboard 
+            house_id={house.id} 
+            house_name={house.name}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

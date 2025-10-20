@@ -14,3 +14,12 @@ verify_jwt = false
 
 [functions.check-booking-linen-orders]
 verify_jwt = false
+
+[functions.search-competitors]
+verify_jwt = false
+
+[functions.scrape-competitor-prices]
+verify_jwt = false
+
+[functions.add-competitor]
+verify_jwt = false

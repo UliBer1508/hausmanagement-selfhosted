@@ -1053,6 +1053,71 @@ export type Database = {
           },
         ]
       }
+      competitor_properties: {
+        Row: {
+          address: string | null
+          amenities: Json | null
+          bathrooms: number | null
+          bedrooms: number | null
+          competitor_name: string
+          created_at: string | null
+          distance_km: number | null
+          house_id: string
+          id: string
+          is_active: boolean | null
+          max_guests: number | null
+          notes: string | null
+          platform: string | null
+          property_name: string
+          property_url: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          amenities?: Json | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          competitor_name: string
+          created_at?: string | null
+          distance_km?: number | null
+          house_id: string
+          id?: string
+          is_active?: boolean | null
+          max_guests?: number | null
+          notes?: string | null
+          platform?: string | null
+          property_name: string
+          property_url?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          amenities?: Json | null
+          bathrooms?: number | null
+          bedrooms?: number | null
+          competitor_name?: string
+          created_at?: string | null
+          distance_km?: number | null
+          house_id?: string
+          id?: string
+          is_active?: boolean | null
+          max_guests?: number | null
+          notes?: string | null
+          platform?: string | null
+          property_name?: string
+          property_url?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_properties_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cron_job_logs: {
         Row: {
           activities_added: number | null
@@ -1082,6 +1147,66 @@ export type Database = {
           status?: string | null
         }
         Relationships: []
+      }
+      daily_pricing: {
+        Row: {
+          competitor_property_id: string | null
+          created_at: string | null
+          currency: string | null
+          date: string
+          house_id: string | null
+          id: string
+          is_available: boolean | null
+          min_stay: number | null
+          price: number
+          scraped_at: string | null
+          source: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          competitor_property_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          date: string
+          house_id?: string | null
+          id?: string
+          is_available?: boolean | null
+          min_stay?: number | null
+          price: number
+          scraped_at?: string | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          competitor_property_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          date?: string
+          house_id?: string | null
+          id?: string
+          is_available?: boolean | null
+          min_stay?: number | null
+          price?: number
+          scraped_at?: string | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_pricing_competitor_property_id_fkey"
+            columns: ["competitor_property_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_pricing_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       day_trips: {
         Row: {
@@ -2535,6 +2660,106 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "preference_configuration"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_comparison_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string | null
+          date_range_end: string | null
+          date_range_start: string | null
+          house_id: string
+          id: string
+          is_active: boolean | null
+          last_triggered_at: string | null
+          message: string | null
+          threshold_percentage: number | null
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string | null
+          date_range_end?: string | null
+          date_range_start?: string | null
+          house_id: string
+          id?: string
+          is_active?: boolean | null
+          last_triggered_at?: string | null
+          message?: string | null
+          threshold_percentage?: number | null
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string | null
+          date_range_end?: string | null
+          date_range_start?: string | null
+          house_id?: string
+          id?: string
+          is_active?: boolean | null
+          last_triggered_at?: string | null
+          message?: string | null
+          threshold_percentage?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_comparison_alerts_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      price_scraping_config: {
+        Row: {
+          competitor_property_id: string
+          created_at: string | null
+          error_count: number | null
+          id: string
+          is_active: boolean | null
+          last_error: string | null
+          last_scraped_at: string | null
+          next_scrape_at: string | null
+          scraping_frequency: string | null
+          scraping_method: string | null
+          scraping_params: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          competitor_property_id: string
+          created_at?: string | null
+          error_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_scraped_at?: string | null
+          next_scrape_at?: string | null
+          scraping_frequency?: string | null
+          scraping_method?: string | null
+          scraping_params?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          competitor_property_id?: string
+          created_at?: string | null
+          error_count?: number | null
+          id?: string
+          is_active?: boolean | null
+          last_error?: string | null
+          last_scraped_at?: string | null
+          next_scrape_at?: string | null
+          scraping_frequency?: string | null
+          scraping_method?: string | null
+          scraping_params?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "price_scraping_config_competitor_property_id_fkey"
+            columns: ["competitor_property_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_properties"
             referencedColumns: ["id"]
           },
         ]
