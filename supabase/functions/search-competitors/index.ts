@@ -50,6 +50,13 @@ Kriterien:
 - Aktuelle Preise wenn möglich (pro Nacht)
 - Entfernung vom Ausgangsort
 
+WICHTIG: Die Preise müssen REINE TAGESPREISE (Basispreis pro Nacht) sein:
+- OHNE Endreinigung
+- OHNE Nebenkosten (Strom, Wasser, etc.)
+- OHNE Bettwäsche/Handtücher
+- OHNE sonstige Zusatzkosten
+- NUR der Grundpreis für die Unterkunft pro Nacht
+
 Gib eine JSON-Array zurück mit folgendem Format:
 [
   {
