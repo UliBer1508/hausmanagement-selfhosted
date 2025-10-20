@@ -53,56 +53,41 @@ serve(async (req) => {
     if (amenities.additional_toilet) amenityFilters.push('- Zusätzliche separate Toilette');
 
     const searchQuery = `
-Finde AUSSCHLIESSLICH PREMIUM-CHALETS und FERIENHÄUSER mit HOHEN BEWERTUNGEN in einem Umkreis von ${search_radius_km} km von "${house.address}".
+Finde vergleichbare FERIENHÄUSER und CHALETS in einem Umkreis von ${search_radius_km} km von "${house.address}".
 
-🚫 AUSSCHLUSSKRITERIEN:
-- Ferienwohnungen, Apartments, Studios
-- Objekte unter 120€/Nacht
-- Bewertungen unter 8.5/10 (Booking) bzw. 4.2/5 (Airbnb)
-- Weniger als 10 Bewertungen
-- Objekte ohne Sauna/Wellness
-- Nur 1 Badezimmer
-
-✅ PREMIUM-KRITERIEN (ALLE PFLICHT):
-- Objekttyp: Freistehende Chalets oder Ferienhäuser
-- Wohnfläche: ${house.living_area_sqm || 130} qm (±30 qm, mind. 100 qm)
-- Mindestpreis: 120€/Nacht
-- Badezimmer: Mind. ${house.bathrooms || 2}
+SUCHKRITERIEN:
+- Region: Neukirchen am Großvenediger, Österreich (Pinzgau/Salzburg)
+- Umkreis: ${search_radius_km} km
+- Objekttyp: Chalets, Ferienhäuser, große Ferienwohnungen (ganze Unterkunft)
+- Gästekapazität: ${house.max_guests} Gäste (±2)
 - Schlafzimmer: ${house.bedrooms || 3} (±1)
-- Gäste: ${house.max_guests} (±2)
+- Badezimmer: ${house.bathrooms || 2} oder mehr
 
-🌟 BEWERTUNGS-ANFORDERUNGEN (SEHR WICHTIG):
-- Booking.com: Mindestens 8.5/10 (ausgezeichnet)
-- Airbnb: Mindestens 4.2/5 Sterne
-- VRBO/FeWo-direkt: Mindestens 4.5/5
-- Anzahl Bewertungen: Mindestens 10 Reviews
-- Nur verifizierte Premium-Objekte mit konsistent hohen Bewertungen
+WICHTIGE AUSSTATTUNG (wenn möglich):
+${amenityFilters.length > 0 ? amenityFilters.join('\n') : '- Sauna oder Wellness\n- Parkplatz\n- Terrasse/Balkon'}
 
-PREMIUM-AUSSTATTUNG (mind. 3 PFLICHT):
-${amenityFilters.join('\n')}
-- Sauna oder Wellness-Bereich
-- Kamin oder Ofen
-- Hochwertige Küche
-- Parkplatz/Garage
-- Terrasse mit Bergblick
+PLATTFORMEN zum Durchsuchen:
+- Booking.com (Ferienhäuser & Chalets in Neukirchen)
+- Airbnb (Entire homes in Neukirchen am Großvenediger)
+- VRBO/FeWo-direkt (Ferienunterkünfte Pinzgau)
 
-PLATTFORMEN (Priorisierung):
-1. Booking.com → Filter: "Chalets", Bewertung ≥8.5, "Hervorragend"
-2. Airbnb → Filter: "Entire home", Bewertung ≥4.2, "Superhost" bevorzugt
-3. VRBO → Premium-Kategorie, Bewertung ≥4.5
+BEWERTUNGEN:
+- Bevorzugt: Bewertungen ≥8.0/10 (Booking) oder ≥4.0/5 (Airbnb)
+- Falls vorhanden: Anzahl der Bewertungen angeben
+- Falls KEINE Bewertungen verfügbar: trotzdem aufnehmen
 
-PREISANGABEN:
-- Basispreis pro Nacht (OHNE Zusatzkosten)
-- Bei Preisspanne: Durchschnittspreis
+PREISE:
+- Durchschnittlicher Preis pro Nacht (Basispreis)
+- Falls Preisinformationen fehlen: "estimated_price": null
 
-JSON-Format (3-5 PREMIUM-Objekte):
+Gib ein JSON-Array mit 5-10 REALEN Objekten zurück:
 [
   {
-    "property_name": "Luxus Chalet Bergkristall",
-    "competitor_name": "Alpin Lodges GmbH",
-    "address": "Bergstraße 12, 5632 Neukirchen",
-    "platform": "booking.com",
-    "property_url": "https://...",
+    "property_name": "Echter Name des Objekts",
+    "competitor_name": "Vermieter oder Agentur",
+    "address": "Vollständige Adresse mit PLZ",
+    "platform": "booking.com oder airbnb oder vrbo",
+    "property_url": "https://www.booking.com/...",
     "distance_km": 3.5,
     "max_guests": 6,
     "bedrooms": 3,
@@ -110,13 +95,17 @@ JSON-Format (3-5 PREMIUM-Objekte):
     "property_type": "Chalet",
     "living_area_sqm": 140,
     "estimated_price": 180,
-    "rating": 9.2,
-    "review_count": 156,
-    "amenities": ["Sauna", "Kamin", "Terrasse", "Gletscherblick", "Garage"]
+    "rating": 8.9,
+    "review_count": 45,
+    "amenities": ["Sauna", "Parkplatz", "Terrasse", "WiFi"]
   }
 ]
 
-NUR Premium-Chalets mit HOHEN BEWERTUNGEN (≥8.5/10 bzw. ≥4.2/5) und mind. 10 Reviews!
+WICHTIG: 
+- Finde ECHTE, EXISTIERENDE Objekte auf den genannten Plattformen
+- Nutze aktuelle Suchergebnisse von Booking.com, Airbnb, VRBO
+- Auch Objekte OHNE perfekte Bewertungen sind OK
+- Mindestens 5 Objekte zurückgeben
     `;
 
     console.log('[search-competitors] Calling Perplexity API with model: sonar');
@@ -204,62 +193,41 @@ NUR Premium-Chalets mit HOHEN BEWERTUNGEN (≥8.5/10 bzw. ≥4.2/5) und mind. 10
       return rating <= 5 ? rating * 2 : rating;
     }
 
-    // Qualitäts-Filter mit Bewertungen
-    competitors = competitors
-      .map(comp => ({
-        ...comp,
-        normalized_rating: normalizeRating(comp.rating, comp.platform || '')
-      }))
-      .filter(comp => {
-        // 1. PREIS-FILTER: Mind. 120€
-        if (comp.estimated_price && comp.estimated_price < 120) {
-          console.log(`[filter] ❌ ${comp.property_name}: Preis zu niedrig (${comp.estimated_price}€)`);
-          return false;
-        }
-        
-        // 2. OBJEKTTYP-FILTER
-        const allowedTypes = ['chalet', 'ferienhaus', 'berghütte', 'lodge'];
-        const propertyType = (comp.property_type || '').toLowerCase();
-        if (!allowedTypes.some(type => propertyType.includes(type))) {
-          console.log(`[filter] ❌ ${comp.property_name}: Falscher Objekttyp (${comp.property_type})`);
-          return false;
-        }
-        
-        // 3. BEWERTUNGS-FILTER: Mind. 8.5/10 (normalisiert)
-        if (!comp.rating || !comp.normalized_rating || comp.normalized_rating < 8.5) {
-          console.log(`[filter] ❌ ${comp.property_name}: Bewertung zu niedrig (${comp.rating}, normalisiert: ${comp.normalized_rating})`);
-          return false;
-        }
-        
-        // 4. REVIEW-COUNT-FILTER: Mind. 10 Bewertungen
-        if (!comp.review_count || comp.review_count < 10) {
-          console.log(`[filter] ❌ ${comp.property_name}: Zu wenige Bewertungen (${comp.review_count})`);
-          return false;
-        }
-        
-        // 5. BADEZIMMER-FILTER: Mind. 2
-        if (comp.bathrooms && comp.bathrooms < 2) {
-          console.log(`[filter] ❌ ${comp.property_name}: Nur ${comp.bathrooms} Badezimmer`);
-          return false;
-        }
-        
-        // 6. WOHNFLÄCHE-FILTER: Mind. 100 qm (falls vorhanden)
-        if (comp.living_area_sqm && comp.living_area_sqm < 100) {
-          console.log(`[filter] ❌ ${comp.property_name}: Zu klein (${comp.living_area_sqm} qm)`);
-          return false;
-        }
-        
-        console.log(`[filter] ✅ ${comp.property_name}: Alle Kriterien erfüllt (Rating: ${comp.normalized_rating}/10, Reviews: ${comp.review_count})`);
-        return true;
-      });
+    // Bewertungs-Normalisierung mit erweiterten Daten
+    competitors = competitors.map(comp => ({
+      ...comp,
+      normalized_rating: normalizeRating(comp.rating, comp.platform || '')
+    }));
 
-    console.log(`[search-competitors] ${competitors.length} Premium-Chalets nach Qualitäts-Filter`);
+    console.log(`[search-competitors] ${competitors.length} Wettbewerber von Perplexity erhalten`);
+
+    // Lockere Filter: Nur kritische Ausschlusskriterien
+    const filteredCompetitors = competitors.filter(comp => {
+      // 1. PREIS-FILTER: Mind. 80€ (statt 120€)
+      if (comp.estimated_price && comp.estimated_price < 80) {
+        console.log(`[filter] ❌ ${comp.property_name}: Preis zu niedrig (${comp.estimated_price}€)`);
+        return false;
+      }
+      
+      // 2. OBJEKTTYP-FILTER: Erweitert um Ferienwohnungen
+      const allowedTypes = ['chalet', 'ferienhaus', 'berghütte', 'lodge', 'ferienwohnung', 'apartment'];
+      const propertyType = (comp.property_type || '').toLowerCase();
+      if (!allowedTypes.some(type => propertyType.includes(type))) {
+        console.log(`[filter] ❌ ${comp.property_name}: Unpassender Objekttyp (${comp.property_type})`);
+        return false;
+      }
+      
+      console.log(`[filter] ✅ ${comp.property_name}: Kriterien erfüllt (Rating: ${comp.normalized_rating || 'n/a'}, Reviews: ${comp.review_count || 0})`);
+      return true;
+    });
+
+    console.log(`[search-competitors] ${filteredCompetitors.length} Wettbewerber nach Filter`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
         house: house,
-        competitors: competitors,
+        competitors: filteredCompetitors,
         search_params: { 
           radius_km: search_radius_km,
           location: house.address
