@@ -136,7 +136,7 @@ JSON-Format:
 Falls KEINE Ergebnisse: []
     `;
 
-    console.log('[search-competitors] Calling Perplexity API with model: sonar');
+    console.log('[search-competitors] Calling Perplexity API with model: llama-3.1-sonar-large-128k-online');
 
     const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
@@ -145,7 +145,7 @@ Falls KEINE Ergebnisse: []
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar-pro',
+        model: 'llama-3.1-sonar-large-128k-online',
         messages: [
           { 
             role: 'system', 
@@ -182,24 +182,68 @@ Falls KEINE Ergebnisse: []
     
     console.log('[search-competitors] Raw Perplexity response:', content);
 
-    // Parse JSON (mit Fehlerbehandlung)
+    // Parse JSON (mit robuster Fehlerbehandlung)
     let competitors = [];
     try {
-      // Versuche direkt zu parsen
+      // Strategie 1: Direktes Parsen
       competitors = JSON.parse(content);
     } catch (e) {
-      // Falls Markdown-Code-Block, extrahiere JSON
+      // Strategie 2: Markdown-Code-Block extrahieren
       const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/);
       if (jsonMatch) {
-        competitors = JSON.parse(jsonMatch[1]);
-      } else {
-        // Versuche nach [ oder { zu suchen
-        const startIndex = content.indexOf('[') !== -1 ? content.indexOf('[') : content.indexOf('{');
-        if (startIndex !== -1) {
-          competitors = JSON.parse(content.substring(startIndex));
-        } else {
-          throw new Error('Konnte kein JSON in Perplexity-Antwort finden');
+        try {
+          competitors = JSON.parse(jsonMatch[1]);
+        } catch (e2) {
+          console.error('[search-competitors] Markdown-Block-Parsing fehlgeschlagen:', e2);
         }
+      }
+      
+      // Strategie 3: JSON-Array oder Objekt isolieren
+      if (competitors.length === 0) {
+        const startIndex = content.indexOf('[');
+        if (startIndex !== -1) {
+          // Finde das Ende des Arrays durch Bracket-Matching
+          let depth = 0;
+          let endIndex = -1;
+          for (let i = startIndex; i < content.length; i++) {
+            if (content[i] === '[') depth++;
+            if (content[i] === ']') {
+              depth--;
+              if (depth === 0) {
+                endIndex = i + 1;
+                break;
+              }
+            }
+          }
+          
+          if (endIndex !== -1) {
+            try {
+              const jsonStr = content.substring(startIndex, endIndex);
+              competitors = JSON.parse(jsonStr);
+              console.log('[search-competitors] JSON erfolgreich isoliert und geparst');
+            } catch (e3) {
+              console.error('[search-competitors] Isoliertes JSON konnte nicht geparst werden:', e3);
+            }
+          }
+        }
+      }
+      
+      // Strategie 4: Objekt statt Array
+      if (competitors.length === 0) {
+        const startIndex = content.indexOf('{');
+        if (startIndex !== -1) {
+          try {
+            competitors = [JSON.parse(content.substring(startIndex))];
+          } catch (e4) {
+            console.error('[search-competitors] Object-Parsing fehlgeschlagen:', e4);
+          }
+        }
+      }
+      
+      // Wenn immer noch nichts gefunden: Leeres Array zurückgeben
+      if (competitors.length === 0) {
+        console.log('[search-competitors] Keine validen JSON-Daten gefunden, gebe leeres Array zurück');
+        competitors = [];
       }
     }
 
