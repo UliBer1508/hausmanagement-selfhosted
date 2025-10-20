@@ -53,59 +53,48 @@ serve(async (req) => {
     if (amenities.additional_toilet) amenityFilters.push('- Zusätzliche separate Toilette');
 
     const searchQuery = `
-Finde vergleichbare FERIENHÄUSER und CHALETS in einem Umkreis von ${search_radius_km} km von "${house.address}".
+Suche auf Booking.com und Airbnb nach ECHTEN Ferienhäusern/Chalets in Neukirchen am Großvenediger, Österreich (Umkreis ${search_radius_km} km).
 
-SUCHKRITERIEN:
-- Region: Neukirchen am Großvenediger, Österreich (Pinzgau/Salzburg)
-- Umkreis: ${search_radius_km} km
-- Objekttyp: Chalets, Ferienhäuser, große Ferienwohnungen (ganze Unterkunft)
-- Gästekapazität: ${house.max_guests} Gäste (±2)
-- Schlafzimmer: ${house.bedrooms || 3} (±1)
-- Badezimmer: ${house.bathrooms || 2} oder mehr
+LOCATION: Neukirchen am Großvenediger, 5741, Salzburg, Österreich
+RADIUS: ${search_radius_km} km (inkl. Bramberg, Krimml, Wald im Pinzgau)
 
-WICHTIGE AUSSTATTUNG (wenn möglich):
-${amenityFilters.length > 0 ? amenityFilters.join('\n') : '- Sauna oder Wellness\n- Parkplatz\n- Terrasse/Balkon'}
+SUCHAUFTRAG:
+1. Öffne Booking.com → Suche "Neukirchen am Großvenediger Chalet"
+2. Öffne Airbnb → Suche "Neukirchen Ferienhaus entire home"
+3. Finde REALE, BUCHBARE Unterkünfte
 
-PLATTFORMEN zum Durchsuchen:
-- Booking.com (Ferienhäuser & Chalets in Neukirchen)
-- Airbnb (Entire homes in Neukirchen am Großvenediger)
-- VRBO/FeWo-direkt (Ferienunterkünfte Pinzgau)
+KRITERIEN (flexibel):
+- ${house.max_guests} Gäste (±2 OK)
+- ${house.bedrooms || 3} Schlafzimmer (±1 OK)
+- Ganze Unterkunft (kein Studio/Zimmer)
+- Mit Bewertungen (falls vorhanden)
 
-BEWERTUNGEN:
-- Bevorzugt: Bewertungen ≥8.0/10 (Booking) oder ≥4.0/5 (Airbnb)
-- Falls vorhanden: Anzahl der Bewertungen angeben
-- Falls KEINE Bewertungen verfügbar: trotzdem aufnehmen
+WICHTIG:
+- Gib NUR ECHTE Objekte zurück, die du JETZT auf den Plattformen findest
+- Falls KEINE Objekte gefunden: Gib leeres Array [] zurück
+- KEINE erfundenen oder Beispiel-Daten!
 
-PREISE:
-- Durchschnittlicher Preis pro Nacht (Basispreis)
-- Falls Preisinformationen fehlen: "estimated_price": null
-
-Gib ein JSON-Array mit 5-10 REALEN Objekten zurück:
+JSON-Format:
 [
   {
-    "property_name": "Echter Name des Objekts",
-    "competitor_name": "Vermieter oder Agentur",
-    "address": "Vollständige Adresse mit PLZ",
-    "platform": "booking.com oder airbnb oder vrbo",
+    "property_name": "Echter Name von Booking.com",
+    "competitor_name": "Vermieter-Name",
+    "address": "Echte Adresse",
+    "platform": "booking.com",
     "property_url": "https://www.booking.com/...",
-    "distance_km": 3.5,
+    "distance_km": 2.5,
     "max_guests": 6,
     "bedrooms": 3,
     "bathrooms": 2,
     "property_type": "Chalet",
-    "living_area_sqm": 140,
-    "estimated_price": 180,
+    "estimated_price": 150,
     "rating": 8.9,
     "review_count": 45,
-    "amenities": ["Sauna", "Parkplatz", "Terrasse", "WiFi"]
+    "amenities": ["WiFi", "Sauna", "Parkplatz"]
   }
 ]
 
-WICHTIG: 
-- Finde ECHTE, EXISTIERENDE Objekte auf den genannten Plattformen
-- Nutze aktuelle Suchergebnisse von Booking.com, Airbnb, VRBO
-- Auch Objekte OHNE perfekte Bewertungen sind OK
-- Mindestens 5 Objekte zurückgeben
+Falls KEINE Ergebnisse: []
     `;
 
     console.log('[search-competitors] Calling Perplexity API with model: sonar');
@@ -117,16 +106,19 @@ WICHTIG:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar',
+        model: 'sonar-pro',
         messages: [
           { 
             role: 'system', 
-            content: 'Du bist ein Experte für Ferienhaus-Marktanalysen. Antworte NUR mit validen JSON-Arrays. Keine zusätzlichen Erklärungen.' 
+            content: 'Du bist ein Experte für Ferienhaus-Marktanalysen. Durchsuche JETZT AKTIV Booking.com und Airbnb nach REALEN Objekten. Antworte NUR mit validen JSON-Arrays ECHTER Objekte oder einem leeren Array []. KEINE Beispieldaten, KEINE Erklärungen.' 
           },
           { role: 'user', content: searchQuery }
         ],
-        temperature: 0.2,
-        max_tokens: 2000,
+        temperature: 0.1,
+        max_tokens: 3000,
+        search_domain_filter: ['booking.com', 'airbnb.com', 'airbnb.at'],
+        return_images: false,
+        return_related_questions: false
       }),
     });
 
@@ -201,23 +193,15 @@ WICHTIG:
 
     console.log(`[search-competitors] ${competitors.length} Wettbewerber von Perplexity erhalten`);
 
-    // Lockere Filter: Nur kritische Ausschlusskriterien
+    // Minimale Filter: Nur offensichtlich falsche Einträge ausschließen
     const filteredCompetitors = competitors.filter(comp => {
-      // 1. PREIS-FILTER: Mind. 80€ (statt 120€)
-      if (comp.estimated_price && comp.estimated_price < 80) {
-        console.log(`[filter] ❌ ${comp.property_name}: Preis zu niedrig (${comp.estimated_price}€)`);
+      // Schließe nur Beispiel-Daten aus
+      if (comp.property_name?.toLowerCase().includes('beispiel')) {
+        console.log(`[filter] ❌ ${comp.property_name}: Beispiel-Daten erkannt`);
         return false;
       }
       
-      // 2. OBJEKTTYP-FILTER: Erweitert um Ferienwohnungen
-      const allowedTypes = ['chalet', 'ferienhaus', 'berghütte', 'lodge', 'ferienwohnung', 'apartment'];
-      const propertyType = (comp.property_type || '').toLowerCase();
-      if (!allowedTypes.some(type => propertyType.includes(type))) {
-        console.log(`[filter] ❌ ${comp.property_name}: Unpassender Objekttyp (${comp.property_type})`);
-        return false;
-      }
-      
-      console.log(`[filter] ✅ ${comp.property_name}: Kriterien erfüllt (Rating: ${comp.normalized_rating || 'n/a'}, Reviews: ${comp.review_count || 0})`);
+      console.log(`[filter] ✅ ${comp.property_name}: Akzeptiert`);
       return true;
     });
 
