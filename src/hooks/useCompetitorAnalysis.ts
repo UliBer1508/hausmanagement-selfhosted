@@ -16,6 +16,9 @@ export interface CompetitorProperty {
   bedrooms?: number;
   bathrooms?: number;
   amenities?: string[];
+  rating?: number;
+  review_count?: number;
+  normalized_rating?: number;
   notes?: string;
   is_active: boolean;
   created_at: string;

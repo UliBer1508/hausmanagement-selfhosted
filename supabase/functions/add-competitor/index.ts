@@ -29,6 +29,22 @@ function normalizePlatform(platform: string | undefined): string {
   return 'other';
 }
 
+// Bewertungs-Normalisierung (plattformabhängig)
+function normalizeRating(rating: number | undefined, platform: string): number | null {
+  if (!rating) return null;
+  
+  // Booking.com: 0-10 Skala (bereits normalisiert)
+  if (platform.includes('booking')) return rating;
+  
+  // Airbnb, VRBO, FeWo: 0-5 Skala → 0-10 konvertieren
+  if (platform.includes('airbnb') || platform.includes('vrbo') || platform.includes('fewo')) {
+    return rating * 2;
+  }
+  
+  // Default: Annahme 0-5 Skala
+  return rating <= 5 ? rating * 2 : rating;
+}
+
 export default serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -66,6 +82,10 @@ export default serve(async (req) => {
     const normalizedPlatform = normalizePlatform(competitor_data.platform);
     console.log(`[add-competitor] Platform "${competitor_data.platform}" -> "${normalizedPlatform}"`);
 
+    // Normalisiere Bewertung
+    const normalizedRating = normalizeRating(competitor_data.rating, normalizedPlatform);
+    console.log(`[add-competitor] Rating "${competitor_data.rating}" -> normalized "${normalizedRating}"`);
+
     // Speichere Wettbewerber
     const { data: competitor, error: competitorError } = await supabase
       .from('competitor_properties')
@@ -81,6 +101,9 @@ export default serve(async (req) => {
         bedrooms: competitor_data.bedrooms || null,
         bathrooms: competitor_data.bathrooms || null,
         amenities: competitor_data.amenities || [],
+        rating: competitor_data.rating || null,
+        review_count: competitor_data.review_count || 0,
+        normalized_rating: normalizedRating,
         notes: competitor_data.notes || null,
         is_active: true
       })

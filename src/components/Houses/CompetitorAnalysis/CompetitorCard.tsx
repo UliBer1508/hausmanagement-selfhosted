@@ -47,6 +47,20 @@ const CompetitorCard = ({ competitor, house_id }: CompetitorCardProps) => {
             <CardDescription className="text-sm mt-1">
               von {competitor.competitor_name}
             </CardDescription>
+            
+            {/* Bewertungs-Badge */}
+            {competitor.rating && (
+              <div className="flex items-center gap-2 mt-2">
+                <Badge variant={competitor.normalized_rating && competitor.normalized_rating >= 9 ? "default" : "secondary"} className="text-xs">
+                  ⭐ {competitor.rating}/10
+                </Badge>
+                {competitor.review_count && competitor.review_count > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    ({competitor.review_count} Bewertungen)
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             {competitor.property_url && (

@@ -53,54 +53,70 @@ serve(async (req) => {
     if (amenities.additional_toilet) amenityFilters.push('- Zusätzliche separate Toilette');
 
     const searchQuery = `
-Finde GANZE CHALETS, FERIENHÄUSER oder GROSSE WOHNUNGEN (keine Zimmer, Studios oder Apartments) in einem Umkreis von ${search_radius_km} km von "${house.address}".
+Finde AUSSCHLIESSLICH PREMIUM-CHALETS und FERIENHÄUSER mit HOHEN BEWERTUNGEN in einem Umkreis von ${search_radius_km} km von "${house.address}".
 
-WICHTIG - NUR GANZE UNTERKÜNFTE:
-- Ganze Chalets / Ferienhäuser (komplette Häuser zur Alleinnutzung)
-- Große Ferienwohnungen mit mehreren Schlafzimmern (ganze Wohnung, nicht geteilt)
-- KEINE einzelnen Zimmer, Studios, oder geteilten Unterkünfte
-- "Entire home" / "Ganze Unterkunft" / "Chalet complet"
+🚫 AUSSCHLUSSKRITERIEN:
+- Ferienwohnungen, Apartments, Studios
+- Objekte unter 120€/Nacht
+- Bewertungen unter 8.5/10 (Booking) bzw. 4.2/5 (Airbnb)
+- Weniger als 10 Bewertungen
+- Objekte ohne Sauna/Wellness
+- Nur 1 Badezimmer
 
-OBJEKTKRITERIEN:
-- Wohnfläche: ${house.living_area_sqm || 130} qm (±20 qm)
-- Gästekapazität: ${house.max_guests} Gäste (±2 Gäste)
-- Schlafzimmer: ${house.bedrooms || 3} Schlafzimmer mit Doppelbetten
-- Badezimmer: ${house.bathrooms} ${amenities.additional_toilet ? '(+ zusätzliche Toilette)' : ''}
-- Objekttyp: Chalet, Ferienhaus, oder große Ferienwohnung (ganze Unterkunft)
+✅ PREMIUM-KRITERIEN (ALLE PFLICHT):
+- Objekttyp: Freistehende Chalets oder Ferienhäuser
+- Wohnfläche: ${house.living_area_sqm || 130} qm (±30 qm, mind. 100 qm)
+- Mindestpreis: 120€/Nacht
+- Badezimmer: Mind. ${house.bathrooms || 2}
+- Schlafzimmer: ${house.bedrooms || 3} (±1)
+- Gäste: ${house.max_guests} (±2)
 
-${amenityFilters.length > 0 ? `AUSSTATTUNG (WICHTIG - nur vergleichbare Objekte):
-${amenityFilters.join('\n')}` : ''}
+🌟 BEWERTUNGS-ANFORDERUNGEN (SEHR WICHTIG):
+- Booking.com: Mindestens 8.5/10 (ausgezeichnet)
+- Airbnb: Mindestens 4.2/5 Sterne
+- VRBO/FeWo-direkt: Mindestens 4.5/5
+- Anzahl Bewertungen: Mindestens 10 Reviews
+- Nur verifizierte Premium-Objekte mit konsistent hohen Bewertungen
+
+PREMIUM-AUSSTATTUNG (mind. 3 PFLICHT):
+${amenityFilters.join('\n')}
+- Sauna oder Wellness-Bereich
+- Kamin oder Ofen
+- Hochwertige Küche
+- Parkplatz/Garage
+- Terrasse mit Bergblick
+
+PLATTFORMEN (Priorisierung):
+1. Booking.com → Filter: "Chalets", Bewertung ≥8.5, "Hervorragend"
+2. Airbnb → Filter: "Entire home", Bewertung ≥4.2, "Superhost" bevorzugt
+3. VRBO → Premium-Kategorie, Bewertung ≥4.5
 
 PREISANGABEN:
-- REINE TAGESPREISE (Basispreis pro Nacht)
-- OHNE Endreinigung
-- OHNE Nebenkosten (Strom, Wasser, etc.)
-- OHNE Bettwäsche/Handtücher
-- OHNE sonstige Zusatzkosten
-- NUR der Grundpreis für die Unterkunft pro Nacht
+- Basispreis pro Nacht (OHNE Zusatzkosten)
+- Bei Preisspanne: Durchschnittspreis
 
-PLATTFORMEN:
-- Booking.com (Filter: "Ganze Unterkunft"), Airbnb (Filter: "Entire home"), VRBO, FeWo-direkt oder ähnliche
-
-Gib eine JSON-Array zurück mit folgendem Format:
+JSON-Format (3-5 PREMIUM-Objekte):
 [
   {
-    "property_name": "Name des Objekts",
-    "competitor_name": "Besitzer/Verwalter",
-    "address": "Vollständige Adresse",
-    "platform": "booking.com/airbnb/vrbo/fewo-direkt/other",
+    "property_name": "Luxus Chalet Bergkristall",
+    "competitor_name": "Alpin Lodges GmbH",
+    "address": "Bergstraße 12, 5632 Neukirchen",
+    "platform": "booking.com",
     "property_url": "https://...",
     "distance_km": 3.5,
     "max_guests": 6,
     "bedrooms": 3,
     "bathrooms": 2,
-    "property_type": "Chalet/Ferienhaus/Ferienwohnung",
-    "estimated_price": 150,
-    "amenities": ["WiFi", "Sauna", "Parkplatz", "Gletscherblick"]
+    "property_type": "Chalet",
+    "living_area_sqm": 140,
+    "estimated_price": 180,
+    "rating": 9.2,
+    "review_count": 156,
+    "amenities": ["Sauna", "Kamin", "Terrasse", "Gletscherblick", "Garage"]
   }
 ]
 
-Finde mindestens 3-5 vergleichbare Premium-Objekte (nur ganze Unterkünfte, keine Zimmer).
+NUR Premium-Chalets mit HOHEN BEWERTUNGEN (≥8.5/10 bzw. ≥4.2/5) und mind. 10 Reviews!
     `;
 
     console.log('[search-competitors] Calling Perplexity API with model: sonar');
@@ -172,7 +188,72 @@ Finde mindestens 3-5 vergleichbare Premium-Objekte (nur ganze Unterkünfte, kein
       competitors = [competitors];
     }
 
-    console.log(`[search-competitors] Found ${competitors.length} competitors`);
+    // Bewertungs-Normalisierung (plattformabhängig)
+    function normalizeRating(rating: number | undefined, platform: string): number | null {
+      if (!rating) return null;
+      
+      // Booking.com: 0-10 Skala (bereits normalisiert)
+      if (platform.includes('booking')) return rating;
+      
+      // Airbnb, VRBO, FeWo: 0-5 Skala → 0-10 konvertieren
+      if (platform.includes('airbnb') || platform.includes('vrbo') || platform.includes('fewo')) {
+        return rating * 2;
+      }
+      
+      // Default: Annahme 0-5 Skala
+      return rating <= 5 ? rating * 2 : rating;
+    }
+
+    // Qualitäts-Filter mit Bewertungen
+    competitors = competitors
+      .map(comp => ({
+        ...comp,
+        normalized_rating: normalizeRating(comp.rating, comp.platform || '')
+      }))
+      .filter(comp => {
+        // 1. PREIS-FILTER: Mind. 120€
+        if (comp.estimated_price && comp.estimated_price < 120) {
+          console.log(`[filter] ❌ ${comp.property_name}: Preis zu niedrig (${comp.estimated_price}€)`);
+          return false;
+        }
+        
+        // 2. OBJEKTTYP-FILTER
+        const allowedTypes = ['chalet', 'ferienhaus', 'berghütte', 'lodge'];
+        const propertyType = (comp.property_type || '').toLowerCase();
+        if (!allowedTypes.some(type => propertyType.includes(type))) {
+          console.log(`[filter] ❌ ${comp.property_name}: Falscher Objekttyp (${comp.property_type})`);
+          return false;
+        }
+        
+        // 3. BEWERTUNGS-FILTER: Mind. 8.5/10 (normalisiert)
+        if (!comp.rating || !comp.normalized_rating || comp.normalized_rating < 8.5) {
+          console.log(`[filter] ❌ ${comp.property_name}: Bewertung zu niedrig (${comp.rating}, normalisiert: ${comp.normalized_rating})`);
+          return false;
+        }
+        
+        // 4. REVIEW-COUNT-FILTER: Mind. 10 Bewertungen
+        if (!comp.review_count || comp.review_count < 10) {
+          console.log(`[filter] ❌ ${comp.property_name}: Zu wenige Bewertungen (${comp.review_count})`);
+          return false;
+        }
+        
+        // 5. BADEZIMMER-FILTER: Mind. 2
+        if (comp.bathrooms && comp.bathrooms < 2) {
+          console.log(`[filter] ❌ ${comp.property_name}: Nur ${comp.bathrooms} Badezimmer`);
+          return false;
+        }
+        
+        // 6. WOHNFLÄCHE-FILTER: Mind. 100 qm (falls vorhanden)
+        if (comp.living_area_sqm && comp.living_area_sqm < 100) {
+          console.log(`[filter] ❌ ${comp.property_name}: Zu klein (${comp.living_area_sqm} qm)`);
+          return false;
+        }
+        
+        console.log(`[filter] ✅ ${comp.property_name}: Alle Kriterien erfüllt (Rating: ${comp.normalized_rating}/10, Reviews: ${comp.review_count})`);
+        return true;
+      });
+
+    console.log(`[search-competitors] ${competitors.length} Premium-Chalets nach Qualitäts-Filter`);
 
     return new Response(
       JSON.stringify({ 

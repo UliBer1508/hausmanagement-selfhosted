@@ -15,6 +15,7 @@ interface CompetitorSearchDialogProps {
 const CompetitorSearchDialog = ({ house_id }: CompetitorSearchDialogProps) => {
   const [open, setOpen] = useState(false);
   const [searchRadius, setSearchRadius] = useState(10);
+  const [minRating, setMinRating] = useState(8.5);
   const [searchResults, setSearchResults] = useState<any[]>([]);
 
   const searchMutation = useSearchCompetitors();
@@ -62,18 +63,37 @@ const CompetitorSearchDialog = ({ house_id }: CompetitorSearchDialogProps) => {
 
         <div className="space-y-4">
           {/* Suchparameter */}
-          <div className="space-y-2">
-            <Label htmlFor="radius">Suchradius: {searchRadius} km</Label>
-            <Input
-              id="radius"
-              type="range"
-              min="5"
-              max="50"
-              step="5"
-              value={searchRadius}
-              onChange={(e) => setSearchRadius(parseInt(e.target.value))}
-              className="w-full"
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="radius">Suchradius: {searchRadius} km</Label>
+              <Input
+                id="radius"
+                type="range"
+                min="5"
+                max="50"
+                step="5"
+                value={searchRadius}
+                onChange={(e) => setSearchRadius(parseInt(e.target.value))}
+                className="w-full"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="minRating">Mindest-Bewertung: {minRating}/10</Label>
+              <Input
+                id="minRating"
+                type="range"
+                min="7.0"
+                max="10.0"
+                step="0.5"
+                value={minRating}
+                onChange={(e) => setMinRating(parseFloat(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-xs text-muted-foreground">
+                Nur Premium-Objekte ab {minRating}/10
+              </p>
+            </div>
           </div>
 
           <Button 
@@ -120,6 +140,12 @@ const CompetitorSearchDialog = ({ house_id }: CompetitorSearchDialogProps) => {
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2 mb-3">
+                      {competitor.rating && (
+                        <Badge variant={competitor.normalized_rating >= 9 ? "default" : "secondary"}>
+                          ⭐ {competitor.rating}/10
+                          {competitor.review_count && ` (${competitor.review_count})`}
+                        </Badge>
+                      )}
                       {competitor.platform && (
                         <Badge variant="outline">{competitor.platform}</Badge>
                       )}
