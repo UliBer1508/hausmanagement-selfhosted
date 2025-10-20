@@ -24,7 +24,8 @@ const CompetitorSearchDialog = ({ house_id }: CompetitorSearchDialogProps) => {
   const handleSearch = async () => {
     const result = await searchMutation.mutateAsync({ 
       house_id, 
-      search_radius_km: searchRadius 
+      search_radius_km: searchRadius,
+      min_rating: minRating
     });
     
     if (result.competitors) {

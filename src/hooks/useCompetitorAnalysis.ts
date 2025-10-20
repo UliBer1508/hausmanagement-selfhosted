@@ -187,9 +187,17 @@ export const useSearchCompetitors = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ house_id, search_radius_km }: { house_id: string; search_radius_km?: number }) => {
+    mutationFn: async ({ 
+      house_id, 
+      search_radius_km,
+      min_rating
+    }: { 
+      house_id: string; 
+      search_radius_km?: number;
+      min_rating?: number;
+    }) => {
       const { data, error } = await supabase.functions.invoke('search-competitors', {
-        body: { house_id, search_radius_km }
+        body: { house_id, search_radius_km, min_rating }
       });
 
       if (error) throw error;

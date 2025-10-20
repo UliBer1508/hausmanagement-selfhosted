@@ -12,7 +12,11 @@ serve(async (req) => {
   }
 
   try {
-    const { house_id, search_radius_km = 10 } = await req.json();
+    const { 
+      house_id, 
+      search_radius_km = 10,
+      min_rating = 8.5
+    } = await req.json();
     
     console.log(`[search-competitors] Searching for competitors: house_id=${house_id}, radius=${search_radius_km}km`);
     
@@ -67,12 +71,14 @@ KRITERIEN (flexibel):
 - ${house.max_guests} Gäste (±2 OK)
 - ${house.bedrooms || 3} Schlafzimmer (±1 OK)
 - Ganze Unterkunft (kein Studio/Zimmer)
-- Mit Bewertungen (falls vorhanden)
+- Mindestbewertung: ${min_rating}/10 (Booking.com Skala)
+- Mit echten Bewertungen
 
 WICHTIG:
 - Gib NUR ECHTE Objekte zurück, die du JETZT auf den Plattformen findest
-- Falls KEINE Objekte gefunden: Gib leeres Array [] zurück
+- NUR Objekte mit Bewertung ≥ ${min_rating}/10 (Booking.com Skala)
 - KEINE erfundenen oder Beispiel-Daten!
+- Falls KEINE Objekte gefunden: Gib leeres Array [] zurück
 
 JSON-Format:
 [
@@ -193,15 +199,21 @@ Falls KEINE Ergebnisse: []
 
     console.log(`[search-competitors] ${competitors.length} Wettbewerber von Perplexity erhalten`);
 
-    // Minimale Filter: Nur offensichtlich falsche Einträge ausschließen
+    // Filter out obviously fake/example data and low ratings
     const filteredCompetitors = competitors.filter(comp => {
-      // Schließe nur Beispiel-Daten aus
+      // Remove example entries
       if (comp.property_name?.toLowerCase().includes('beispiel')) {
         console.log(`[filter] ❌ ${comp.property_name}: Beispiel-Daten erkannt`);
         return false;
       }
       
-      console.log(`[filter] ✅ ${comp.property_name}: Akzeptiert`);
+      // Filter by minimum rating
+      if (comp.normalized_rating && comp.normalized_rating < min_rating) {
+        console.log(`[filter] ❌ ${comp.property_name}: Bewertung ${comp.normalized_rating}/10 unter ${min_rating}/10`);
+        return false;
+      }
+      
+      console.log(`[filter] ✅ ${comp.property_name}: Akzeptiert (Bewertung: ${comp.normalized_rating}/10)`);
       return true;
     });
 
@@ -214,6 +226,7 @@ Falls KEINE Ergebnisse: []
         competitors: filteredCompetitors,
         search_params: { 
           radius_km: search_radius_km,
+          min_rating: min_rating,
           location: house.address
         }
       }),
