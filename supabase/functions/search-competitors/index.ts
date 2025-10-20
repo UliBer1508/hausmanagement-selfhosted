@@ -77,6 +77,17 @@ serve(async (req) => {
       return t;
     }).join(' ODER ');
 
+    // Plattform-spezifische Mindestbewertungen
+    const ratingRequirements = [];
+    if (platforms.includes('booking.com')) {
+      ratingRequirements.push(`Booking.com: mindestens ${min_rating}/10`);
+    }
+    if (platforms.includes('airbnb')) {
+      const airbnbRating = (min_rating / 2).toFixed(1); // 10-Punkte → 5-Sterne
+      ratingRequirements.push(`Airbnb: mindestens ${airbnbRating}/5 Sterne`);
+    }
+    const ratingRequirementStr = ratingRequirements.join(' | ');
+
     const searchQuery = `
 Suche auf ${platforms.map(p => p === 'booking.com' ? 'Booking.com' : 'Airbnb').join(' und ')} nach ECHTEN Ferienhäusern/Chalets in Neukirchen am Großvenediger, Österreich (Umkreis ${search_radius_km} km).
 
@@ -92,12 +103,13 @@ KRITERIEN (flexibel):
 - ${house.max_guests} Gäste (±2 OK)
 - ${house.bedrooms || 3} Schlafzimmer (±1 OK)
 - Ganze Unterkunft (kein Studio/Zimmer)
-- Mindestbewertung: ${min_rating}/10 (Booking.com Skala)
+- Mindestbewertung: ${ratingRequirementStr}
 - Mit echten Bewertungen
 
 WICHTIG:
 - Gib NUR ECHTE Objekte zurück, die du JETZT auf den Plattformen findest
-- NUR Objekte mit Bewertung ≥ ${min_rating}/10 (Booking.com Skala)
+- NUR Objekte mit den oben genannten Mindestbewertungen
+- KEINE erfundenen oder Beispiel-Daten!
 - KEINE erfundenen oder Beispiel-Daten!
 - Falls KEINE Objekte gefunden: Gib leeres Array [] zurück
 
