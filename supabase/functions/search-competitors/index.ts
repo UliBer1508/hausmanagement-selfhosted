@@ -102,7 +102,10 @@ Finde mindestens 3-5 vergleichbare Objekte.
       if (perplexityResponse.status === 402) {
         throw new Error('Perplexity API: Keine Credits verfügbar. Bitte Lovable Workspace aufladen.');
       }
-      throw new Error(`Perplexity API Fehler: ${perplexityResponse.status}`);
+      if (perplexityResponse.status === 400) {
+        throw new Error('Perplexity API: Ungültige Anfrage. Modell möglicherweise nicht verfügbar.');
+      }
+      throw new Error(`Perplexity API Fehler: ${perplexityResponse.status} - ${errorText}`);
     }
 
     const perplexityData = await perplexityResponse.json();
