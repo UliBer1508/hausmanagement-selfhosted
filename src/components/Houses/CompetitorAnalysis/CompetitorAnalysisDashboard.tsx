@@ -8,6 +8,7 @@ import PriceComparisonTable from './PriceComparisonTable';
 import PriceComparisonChart from './PriceComparisonChart';
 import CompetitorSearchDialog from './CompetitorSearchDialog';
 import CompetitorCard from './CompetitorCard';
+import OwnPricingDialog from './OwnPricingDialog';
 import { addDays, format } from 'date-fns';
 
 interface CompetitorAnalysisDashboardProps {
@@ -57,6 +58,7 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
           <p className="text-muted-foreground mt-1">{house_name}</p>
         </div>
         <div className="flex gap-2">
+          <OwnPricingDialog house_id={house_id} />
           <CompetitorSearchDialog house_id={house_id} />
           <Button
             variant="outline"
