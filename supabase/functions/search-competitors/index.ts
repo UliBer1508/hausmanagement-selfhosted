@@ -21,10 +21,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Haus-Daten laden
+    // Haus-Daten laden (inkl. neue Felder)
     const { data: house, error: houseError } = await supabase
       .from('houses')
-      .select('id, name, address, max_guests, bathrooms')
+      .select('id, name, address, max_guests, bathrooms, bedrooms, living_area_sqm, amenities')
       .eq('id', house_id)
       .single();
 
@@ -41,21 +41,39 @@ serve(async (req) => {
       throw new Error('PERPLEXITY_API_KEY nicht konfiguriert');
     }
     
+    // Ausstattungsmerkmale dynamisch aufbereiten
+    const amenities = house.amenities || {};
+    const amenityFilters: string[] = [];
+    
+    if (amenities.sauna) amenityFilters.push('- Sauna vorhanden (PFLICHT)');
+    if (amenities.terrace) amenityFilters.push('- Terrasse oder Balkon');
+    if (amenities.ski_cellar) amenityFilters.push('- Skikeller oder Skiaufbewahrung');
+    if (amenities.garage_spaces) amenityFilters.push(`- Garage für mindestens ${amenities.garage_spaces} Fahrzeuge`);
+    if (amenities.glacier_view) amenityFilters.push('- Panoramablick (Gletscher/Berge)');
+    if (amenities.additional_toilet) amenityFilters.push('- Zusätzliche separate Toilette');
+
     const searchQuery = `
 Finde Ferienhäuser und Ferienwohnungen in einem Umkreis von ${search_radius_km} km von "${house.address}".
 
-Kriterien:
-- Ähnliche Größe: ${house.max_guests} Gäste (±2 Gäste)
-- Mit URLs zu Booking.com, Airbnb, VRBO oder FeWo-direkt
-- Aktuelle Preise wenn möglich (pro Nacht)
-- Entfernung vom Ausgangsort
+OBJEKTKRITERIEN:
+- Wohnfläche: ${house.living_area_sqm || 130} qm (±20 qm)
+- Gästekapazität: ${house.max_guests} Gäste (±2 Gäste)
+- Schlafzimmer: ${house.bedrooms || 3} Schlafzimmer mit Doppelbetten
+- Badezimmer: ${house.bathrooms} ${amenities.additional_toilet ? '(+ zusätzliche Toilette)' : ''}
 
-WICHTIG: Die Preise müssen REINE TAGESPREISE (Basispreis pro Nacht) sein:
+${amenityFilters.length > 0 ? `AUSSTATTUNG (WICHTIG - nur vergleichbare Objekte):
+${amenityFilters.join('\n')}` : ''}
+
+PREISANGABEN:
+- REINE TAGESPREISE (Basispreis pro Nacht)
 - OHNE Endreinigung
 - OHNE Nebenkosten (Strom, Wasser, etc.)
 - OHNE Bettwäsche/Handtücher
 - OHNE sonstige Zusatzkosten
 - NUR der Grundpreis für die Unterkunft pro Nacht
+
+PLATTFORMEN:
+- Booking.com, Airbnb, VRBO, FeWo-direkt oder ähnliche
 
 Gib eine JSON-Array zurück mit folgendem Format:
 [
@@ -70,11 +88,11 @@ Gib eine JSON-Array zurück mit folgendem Format:
     "bedrooms": 3,
     "bathrooms": 2,
     "estimated_price": 150,
-    "amenities": ["WiFi", "Sauna", "Parkplatz"]
+    "amenities": ["WiFi", "Sauna", "Parkplatz", "Gletscherblick"]
   }
 ]
 
-Finde mindestens 3-5 vergleichbare Objekte.
+Finde mindestens 3-5 vergleichbare Premium-Objekte mit ähnlicher Ausstattung.
     `;
 
     console.log('[search-competitors] Calling Perplexity API with model: sonar');

@@ -1695,7 +1695,9 @@ export type Database = {
       houses: {
         Row: {
           address: string
+          amenities: Json | null
           bathrooms: number | null
+          bedrooms: number | null
           created_at: string | null
           default_cleaning_hours: number | null
           ical_url: string | null
@@ -1707,6 +1709,7 @@ export type Database = {
           linen_in_use: Json | null
           linen_reserved: Json | null
           linen_stock: Json | null
+          living_area_sqm: number | null
           max_guests: number
           name: string
           ordered_linen: Json | null
@@ -1714,7 +1717,9 @@ export type Database = {
         }
         Insert: {
           address: string
+          amenities?: Json | null
           bathrooms?: number | null
+          bedrooms?: number | null
           created_at?: string | null
           default_cleaning_hours?: number | null
           ical_url?: string | null
@@ -1726,6 +1731,7 @@ export type Database = {
           linen_in_use?: Json | null
           linen_reserved?: Json | null
           linen_stock?: Json | null
+          living_area_sqm?: number | null
           max_guests: number
           name: string
           ordered_linen?: Json | null
@@ -1733,7 +1739,9 @@ export type Database = {
         }
         Update: {
           address?: string
+          amenities?: Json | null
           bathrooms?: number | null
+          bedrooms?: number | null
           created_at?: string | null
           default_cleaning_hours?: number | null
           ical_url?: string | null
@@ -1745,6 +1753,7 @@ export type Database = {
           linen_in_use?: Json | null
           linen_reserved?: Json | null
           linen_stock?: Json | null
+          living_area_sqm?: number | null
           max_guests?: number
           name?: string
           ordered_linen?: Json | null

@@ -97,6 +97,16 @@ export interface House {
   address: string;
   max_guests: number;
   bathrooms?: number;
+  bedrooms?: number;
+  living_area_sqm?: number;
+  amenities?: {
+    sauna?: boolean;
+    terrace?: boolean;
+    ski_cellar?: boolean;
+    garage_spaces?: number;
+    glacier_view?: boolean;
+    additional_toilet?: boolean;
+  };
   image_url?: string;
   image_filename?: string;
   ical_url?: string;

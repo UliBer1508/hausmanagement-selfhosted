@@ -96,6 +96,38 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
                   <span>Inventar: {inventoryCount.total} Teile</span>
                 </div>
               </div>
+
+              {/* Property Details */}
+              {(house.bedrooms || house.living_area_sqm) && (
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  {house.bedrooms && <span>🛏️ {house.bedrooms} Schlafzimmer</span>}
+                  {house.living_area_sqm && <span>📐 {house.living_area_sqm} qm</span>}
+                </div>
+              )}
+
+              {/* Amenities */}
+              {house.amenities && Object.values(house.amenities).some(v => v) && (
+                <div className="flex flex-wrap gap-1.5">
+                  {house.amenities.sauna && (
+                    <Badge variant="secondary" className="text-xs">🧖 Sauna</Badge>
+                  )}
+                  {house.amenities.terrace && (
+                    <Badge variant="secondary" className="text-xs">☀️ Terrasse</Badge>
+                  )}
+                  {house.amenities.ski_cellar && (
+                    <Badge variant="secondary" className="text-xs">⛷️ Skikeller</Badge>
+                  )}
+                  {house.amenities.glacier_view && (
+                    <Badge variant="secondary" className="text-xs">🏔️ Gletscherblick</Badge>
+                  )}
+                  {house.amenities.garage_spaces > 0 && (
+                    <Badge variant="secondary" className="text-xs">🚗 Garage ({house.amenities.garage_spaces})</Badge>
+                  )}
+                  {house.amenities.additional_toilet && (
+                    <Badge variant="secondary" className="text-xs">🚻 Zusätzliche Toilette</Badge>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Linen Inventory */}
