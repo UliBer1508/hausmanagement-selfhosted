@@ -1722,6 +1722,9 @@ export type Database = {
           max_guests: number
           name: string
           ordered_linen: Json | null
+          own_rating: number | null
+          own_rating_platform: string | null
+          own_review_count: number | null
           updated_at: string | null
         }
         Insert: {
@@ -1744,6 +1747,9 @@ export type Database = {
           max_guests: number
           name: string
           ordered_linen?: Json | null
+          own_rating?: number | null
+          own_rating_platform?: string | null
+          own_review_count?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -1766,6 +1772,9 @@ export type Database = {
           max_guests?: number
           name?: string
           ordered_linen?: Json | null
+          own_rating?: number | null
+          own_rating_platform?: string | null
+          own_review_count?: number | null
           updated_at?: string | null
         }
         Relationships: []
