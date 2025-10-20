@@ -53,13 +53,20 @@ serve(async (req) => {
     if (amenities.additional_toilet) amenityFilters.push('- Zusätzliche separate Toilette');
 
     const searchQuery = `
-Finde Ferienhäuser und Ferienwohnungen in einem Umkreis von ${search_radius_km} km von "${house.address}".
+Finde GANZE CHALETS, FERIENHÄUSER oder GROSSE WOHNUNGEN (keine Zimmer, Studios oder Apartments) in einem Umkreis von ${search_radius_km} km von "${house.address}".
+
+WICHTIG - NUR GANZE UNTERKÜNFTE:
+- Ganze Chalets / Ferienhäuser (komplette Häuser zur Alleinnutzung)
+- Große Ferienwohnungen mit mehreren Schlafzimmern (ganze Wohnung, nicht geteilt)
+- KEINE einzelnen Zimmer, Studios, oder geteilten Unterkünfte
+- "Entire home" / "Ganze Unterkunft" / "Chalet complet"
 
 OBJEKTKRITERIEN:
 - Wohnfläche: ${house.living_area_sqm || 130} qm (±20 qm)
 - Gästekapazität: ${house.max_guests} Gäste (±2 Gäste)
 - Schlafzimmer: ${house.bedrooms || 3} Schlafzimmer mit Doppelbetten
 - Badezimmer: ${house.bathrooms} ${amenities.additional_toilet ? '(+ zusätzliche Toilette)' : ''}
+- Objekttyp: Chalet, Ferienhaus, oder große Ferienwohnung (ganze Unterkunft)
 
 ${amenityFilters.length > 0 ? `AUSSTATTUNG (WICHTIG - nur vergleichbare Objekte):
 ${amenityFilters.join('\n')}` : ''}
@@ -73,7 +80,7 @@ PREISANGABEN:
 - NUR der Grundpreis für die Unterkunft pro Nacht
 
 PLATTFORMEN:
-- Booking.com, Airbnb, VRBO, FeWo-direkt oder ähnliche
+- Booking.com (Filter: "Ganze Unterkunft"), Airbnb (Filter: "Entire home"), VRBO, FeWo-direkt oder ähnliche
 
 Gib eine JSON-Array zurück mit folgendem Format:
 [
@@ -87,12 +94,13 @@ Gib eine JSON-Array zurück mit folgendem Format:
     "max_guests": 6,
     "bedrooms": 3,
     "bathrooms": 2,
+    "property_type": "Chalet/Ferienhaus/Ferienwohnung",
     "estimated_price": 150,
     "amenities": ["WiFi", "Sauna", "Parkplatz", "Gletscherblick"]
   }
 ]
 
-Finde mindestens 3-5 vergleichbare Premium-Objekte mit ähnlicher Ausstattung.
+Finde mindestens 3-5 vergleichbare Premium-Objekte (nur ganze Unterkünfte, keine Zimmer).
     `;
 
     console.log('[search-competitors] Calling Perplexity API with model: sonar');
