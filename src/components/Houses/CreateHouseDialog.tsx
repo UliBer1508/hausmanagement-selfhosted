@@ -43,6 +43,9 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
           address: data.address,
           max_guests: data.max_guests,
           bathrooms: data.bathrooms,
+          bedrooms: data.bedrooms,
+          living_area_sqm: data.living_area_sqm || null,
+          amenities: data.amenities,
           linen_stock: {
             bedding: 0,
             large_towels: 0,
