@@ -77,7 +77,7 @@ Gib eine JSON-Array zurück mit folgendem Format:
 Finde mindestens 3-5 vergleichbare Objekte.
     `;
 
-    console.log('[search-competitors] Calling Perplexity API...');
+    console.log('[search-competitors] Calling Perplexity API with model: sonar');
 
     const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
