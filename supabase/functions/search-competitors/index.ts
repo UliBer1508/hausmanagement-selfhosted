@@ -15,7 +15,7 @@ serve(async (req) => {
     const { 
       house_id, 
       search_radius_km = 10,
-      min_rating = 8.5,
+      min_rating = 7.5,
       platforms = ['booking.com', 'airbnb'],
       property_types = ['chalet', 'ferienhaus']
     } = await req.json();
@@ -91,20 +91,20 @@ serve(async (req) => {
     const searchQuery = `
 Suche auf ${platforms.map(p => p === 'booking.com' ? 'Booking.com' : 'Airbnb').join(' und ')} nach ECHTEN Ferienhäusern/Chalets in Neukirchen am Großvenediger, Österreich (Umkreis ${search_radius_km} km).
 
-LOCATION: Neukirchen am Großvenediger, 5741, Salzburg, Österreich
-RADIUS: ${search_radius_km} km (inkl. Bramberg, Krimml, Wald im Pinzgau)
+LOCATION: Neukirchen am Großvenediger, Bramberg, Krimml, Wald im Pinzgau (Nationalpark Hohe Tauern Region)
+RADIUS: ${search_radius_km} km
 
 SUCHAUFTRAG:
 ${platformInstructions.join('\n')}
 ${platformInstructions.length + 1}. Finde REALE, BUCHBARE Unterkünfte
 
-KRITERIEN (flexibel):
-- Objekttyp: ${propertyTypeStr}
-- ${house.max_guests} Gäste (±2 OK)
-- ${house.bedrooms || 3} Schlafzimmer (±1 OK)
-- Ganze Unterkunft (kein Studio/Zimmer)
+KRITERIEN (FLEXIBEL - nicht alle müssen erfüllt sein):
+- Objekttyp: ${propertyTypeStr} (auch ähnliche Typen OK)
+- Ca. ${house.max_guests} Gäste (±3 akzeptabel)
+- Ca. ${house.bedrooms || 3} Schlafzimmer (±2 OK)
+- Bevorzugt ganze Unterkunft
 - Mindestbewertung: ${ratingRequirementStr}
-- Mit echten Bewertungen
+- Aktiv auf der Plattform
 
 WICHTIG:
 - Gib NUR ECHTE Objekte zurück, die du JETZT auf den Plattformen findest
@@ -149,12 +149,12 @@ Falls KEINE Ergebnisse: []
         messages: [
           { 
             role: 'system', 
-            content: 'Du bist ein Experte für Ferienhaus-Marktanalysen. Durchsuche JETZT AKTIV Booking.com und Airbnb nach REALEN Objekten. Antworte NUR mit validen JSON-Arrays ECHTER Objekte oder einem leeren Array []. KEINE Beispieldaten, KEINE Erklärungen.' 
+            content: 'Du bist ein Experte für Ferienhaus-Marktanalysen. Durchsuche Booking.com und Airbnb nach verfügbaren Ferienhäusern und Chalets. Antworte mit einem JSON-Array. Gib mindestens 10-15 Objekte zurück wenn verfügbar.' 
           },
           { role: 'user', content: searchQuery }
         ],
-        temperature: 0.1,
-        max_tokens: 3000,
+        temperature: 0.3,
+        max_tokens: 5000,
         search_domain_filter: platforms.flatMap(p => p === 'booking.com' ? ['booking.com'] : ['airbnb.com', 'airbnb.at']),
         return_images: false,
         return_related_questions: false
@@ -231,6 +231,12 @@ Falls KEINE Ergebnisse: []
     }));
 
     console.log(`[search-competitors] ${competitors.length} Wettbewerber von Perplexity erhalten`);
+    console.log('[search-competitors] Objekte vor Filterung:', competitors.map(c => ({
+      name: c.property_name,
+      rating: c.rating,
+      normalized: c.normalized_rating,
+      type: c.property_type
+    })));
 
     // Filter out obviously fake/example data, low ratings, and wrong property types
     const filteredCompetitors = competitors.filter(comp => {
@@ -240,20 +246,26 @@ Falls KEINE Ergebnisse: []
         return false;
       }
       
-      // Filter by minimum rating
+      // Rating-Filter wird im Frontend gemacht - hier nur noch Logging
       if (comp.normalized_rating && comp.normalized_rating < min_rating) {
-        console.log(`[filter] ❌ ${comp.property_name}: Bewertung ${comp.normalized_rating}/10 unter ${min_rating}/10`);
-        return false;
+        console.log(`[filter] ⚠️ ${comp.property_name}: Bewertung ${comp.normalized_rating}/10 unter ${min_rating}/10, aber wird akzeptiert`);
       }
       
-      // Filter by property type
+      // Lockererer Property-Type Filter mit Synonymen
       if (comp.property_type && property_types.length > 0) {
-        const typeMatch = property_types.some(type => 
-          comp.property_type.toLowerCase().includes(type.toLowerCase())
-        );
+        const compType = comp.property_type.toLowerCase();
+        const typeMatch = property_types.some(type => {
+          const searchType = type.toLowerCase();
+          
+          // Lockerer Match: auch Teilstrings und Synonyme
+          return compType.includes(searchType) || 
+                 (searchType === 'ferienhaus' && (compType.includes('haus') || compType.includes('home'))) ||
+                 (searchType === 'chalet' && compType.includes('lodge')) ||
+                 (searchType === 'ferienwohnung' && (compType.includes('wohnung') || compType.includes('apartment')));
+        });
+        
         if (!typeMatch) {
-          console.log(`[filter] ❌ ${comp.property_name}: Objekttyp "${comp.property_type}" nicht in ${property_types.join(', ')}`);
-          return false;
+          console.log(`[filter] ⚠️ ${comp.property_name}: Objekttyp "${comp.property_type}" nicht exakt in ${property_types.join(', ')}, aber wird akzeptiert`);
         }
       }
       
