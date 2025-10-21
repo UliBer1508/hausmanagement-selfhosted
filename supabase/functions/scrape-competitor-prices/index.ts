@@ -121,7 +121,9 @@ Falls Preise nicht verfügbar: Gib einen geschätzten Durchschnittspreis für di
         });
 
         if (!response.ok) {
-          throw new Error(`Perplexity API error: ${response.status}`);
+          const errorBody = await response.text();
+          console.error(`[scrape-competitor-prices] Perplexity API error ${response.status}:`, errorBody);
+          throw new Error(`Perplexity API error: ${response.status} - ${errorBody}`);
         }
 
         const data = await response.json();
