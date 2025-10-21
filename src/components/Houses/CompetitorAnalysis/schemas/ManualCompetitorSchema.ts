@@ -16,7 +16,30 @@ export const manualCompetitorSchema = z.object({
   review_count: z.coerce.number().int().min(0, "Muss positiv sein").optional().or(z.literal('')),
   notes: z.string().max(1000, "Maximal 1000 Zeichen").optional().or(z.literal('')),
   amenities: z.array(z.string()).optional(),
-  enable_scraping: z.boolean().default(false)
+  enable_scraping: z.boolean().default(false),
+  // Preise (Optional)
+  pricing_checkin: z.date().optional(),
+  pricing_checkout: z.date().optional(),
+  pricing_total: z.coerce.number().positive("Muss größer als 0 sein").optional().or(z.literal('')),
+}).refine((data) => {
+  // Wenn eines der Preis-Felder ausgefüllt ist, müssen alle drei vorhanden sein
+  const hasPricing = data.pricing_checkin || data.pricing_checkout || data.pricing_total;
+  if (hasPricing) {
+    return data.pricing_checkin && data.pricing_checkout && data.pricing_total;
+  }
+  return true;
+}, {
+  message: "Bitte alle Preisfelder ausfüllen (Check-in, Check-out, Gesamtpreis)",
+  path: ["pricing_total"]
+}).refine((data) => {
+  // Check-out muss nach Check-in liegen
+  if (data.pricing_checkin && data.pricing_checkout) {
+    return data.pricing_checkout > data.pricing_checkin;
+  }
+  return true;
+}, {
+  message: "Check-out muss nach Check-in liegen",
+  path: ["pricing_checkout"]
 });
 
 export type ManualCompetitorFormData = z.infer<typeof manualCompetitorSchema>;

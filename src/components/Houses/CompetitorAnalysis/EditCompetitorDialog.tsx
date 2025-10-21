@@ -26,7 +26,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Pencil } from 'lucide-react';
+import { Calendar as CalendarIcon, Euro, Pencil } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 import { manualCompetitorSchema, type ManualCompetitorFormData } from './schemas/ManualCompetitorSchema';
 import AmenitiesSelect from './AmenitiesSelect';
 import { CompetitorProperty, useUpdateCompetitor } from '@/hooks/useCompetitorAnalysis';
@@ -57,6 +63,9 @@ const EditCompetitorDialog = ({ competitor, house_id }: EditCompetitorDialogProp
       notes: competitor.notes || '',
       amenities: competitor.amenities || [],
       enable_scraping: false,
+      pricing_checkin: undefined,
+      pricing_checkout: undefined,
+      pricing_total: undefined,
     },
   });
 
@@ -77,10 +86,18 @@ const EditCompetitorDialog = ({ competitor, house_id }: EditCompetitorDialogProp
         amenities: data.amenities && data.amenities.length > 0 ? data.amenities : undefined,
       };
 
+      // Preis-Daten sammeln (wenn vorhanden)
+      const pricingData = data.pricing_checkin && data.pricing_checkout && data.pricing_total ? {
+        checkin: data.pricing_checkin,
+        checkout: data.pricing_checkout,
+        total: Number(data.pricing_total)
+      } : null;
+
       await updateCompetitor.mutateAsync({
         competitor_id: competitor.id,
         house_id,
         competitor_data: cleanedData,
+        pricing: pricingData,
       });
 
       setOpen(false);
@@ -322,6 +339,154 @@ const EditCompetitorDialog = ({ competitor, house_id }: EditCompetitorDialogProp
                 </FormItem>
               )}
             />
+
+            {/* Preisinformationen */}
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="pricing">
+                <AccordionTrigger>
+                  <div className="flex items-center gap-2">
+                    <Euro className="w-4 h-4" />
+                    <span>Preisinformationen (Optional)</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4 pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Gib hier bekannte Preise für diesen Wettbewerber ein. 
+                    Das System berechnet automatisch den Preis pro Nacht.
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="pricing_checkin"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Check-in</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value ? (
+                                    format(field.value, "PPP", { locale: de })
+                                  ) : (
+                                    <span>Datum wählen</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                locale={de}
+                                disabled={(date) => date < new Date("1900-01-01")}
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="pricing_checkout"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Check-out</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    "w-full pl-3 text-left font-normal",
+                                    !field.value && "text-muted-foreground"
+                                  )}
+                                >
+                                  {field.value ? (
+                                    format(field.value, "PPP", { locale: de })
+                                  ) : (
+                                    <span>Datum wählen</span>
+                                  )}
+                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                locale={de}
+                                disabled={(date) => 
+                                  date < new Date("1900-01-01") ||
+                                  (form.watch('pricing_checkin') && date <= form.watch('pricing_checkin'))
+                                }
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="pricing_total"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Gesamtpreis (EUR)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              step="0.01"
+                              placeholder="z.B. 1400" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Price Preview */}
+                  {form.watch('pricing_checkin') && 
+                   form.watch('pricing_checkout') && 
+                   form.watch('pricing_total') && (
+                    <div className="rounded-lg bg-muted p-3 space-y-1">
+                      <p className="text-sm font-medium">Berechnung:</p>
+                      <p className="text-sm text-muted-foreground">
+                        {(() => {
+                          const checkin = form.watch('pricing_checkin');
+                          const checkout = form.watch('pricing_checkout');
+                          const total = Number(form.watch('pricing_total'));
+                          
+                          if (checkin && checkout && total > 0) {
+                            const nights = Math.ceil(
+                              (checkout.getTime() - checkin.getTime()) / (1000 * 60 * 60 * 24)
+                            );
+                            const pricePerNight = (total / nights).toFixed(2);
+                            
+                            return `${nights} Nächte × ${pricePerNight} EUR/Nacht = ${total.toFixed(2)} EUR`;
+                          }
+                          return '';
+                        })()}
+                      </p>
+                    </div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
             {/* Actions */}
             <div className="flex justify-end gap-2">

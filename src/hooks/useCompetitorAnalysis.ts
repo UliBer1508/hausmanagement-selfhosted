@@ -236,20 +236,78 @@ export const useAddCompetitor = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ house_id, competitor_data, enable_scraping }: any) => {
+    mutationFn: async ({ 
+      house_id, 
+      competitor_data, 
+      enable_scraping,
+      pricing
+    }: { 
+      house_id: string; 
+      competitor_data: any; 
+      enable_scraping: boolean;
+      pricing?: { checkin: Date; checkout: Date; total: number } | null;
+    }) => {
       const { data, error } = await supabase.functions.invoke('add-competitor', {
         body: { house_id, competitor_data, enable_scraping }
       });
 
       if (error) throw error;
+      
+      // Wenn Pricing-Daten vorhanden sind, direkt in daily_pricing speichern
+      if (pricing && data.competitor_id) {
+        const nights = Math.ceil(
+          (pricing.checkout.getTime() - pricing.checkin.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        const pricePerNight = pricing.total / nights;
+        
+        // Erstelle Einträge für jeden Tag
+        const dailyEntries = [];
+        const currentDate = new Date(pricing.checkin);
+        
+        for (let i = 0; i < nights; i++) {
+          dailyEntries.push({
+            competitor_property_id: data.competitor_id,
+            house_id,
+            date: new Date(currentDate).toISOString().split('T')[0],
+            price: pricePerNight,
+            currency: 'EUR',
+            is_available: true,
+            source: 'manual',
+            scraped_at: new Date().toISOString(),
+          });
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        // Bulk Insert in daily_pricing
+        const { error: pricingError } = await supabase
+          .from('daily_pricing')
+          .insert(dailyEntries);
+        
+        if (pricingError) {
+          console.error('Error inserting pricing data:', pricingError);
+          toast({
+            title: "Teilweise erfolgreich",
+            description: "Wettbewerber gespeichert, aber Preise konnten nicht gespeichert werden",
+            variant: "destructive"
+          });
+        }
+      }
+      
       return data;
     },
     onSuccess: (data, variables) => {
+      const nights = variables.pricing ? Math.ceil(
+        (variables.pricing.checkout.getTime() - variables.pricing.checkin.getTime()) / (1000 * 60 * 60 * 24)
+      ) : 0;
+      
       toast({
         title: "Wettbewerber hinzugefügt",
-        description: data.message,
+        description: nights > 0 
+          ? `Wettbewerber inkl. ${nights} Nächte Preisdaten gespeichert` 
+          : data.message,
       });
       queryClient.invalidateQueries({ queryKey: ['competitor-properties', variables.house_id] });
+      queryClient.invalidateQueries({ queryKey: ['price-comparison'] });
     },
     onError: (error: Error) => {
       toast({
@@ -313,11 +371,13 @@ export const useUpdateCompetitor = () => {
     mutationFn: async ({ 
       competitor_id, 
       house_id, 
-      competitor_data 
+      competitor_data,
+      pricing
     }: { 
       competitor_id: string; 
       house_id: string; 
       competitor_data: any;
+      pricing?: { checkin: Date; checkout: Date; total: number } | null;
     }) => {
       const { data, error } = await supabase
         .from('competitor_properties')
@@ -342,12 +402,57 @@ export const useUpdateCompetitor = () => {
         .single();
 
       if (error) throw error;
-      return { data, house_id };
+      
+      // Wenn Pricing-Daten vorhanden sind, in daily_pricing speichern
+      if (pricing) {
+        const nights = Math.ceil(
+          (pricing.checkout.getTime() - pricing.checkin.getTime()) / (1000 * 60 * 60 * 24)
+        );
+        const pricePerNight = pricing.total / nights;
+        
+        // Erstelle Einträge für jeden Tag
+        const dailyEntries = [];
+        const currentDate = new Date(pricing.checkin);
+        
+        for (let i = 0; i < nights; i++) {
+          dailyEntries.push({
+            competitor_property_id: competitor_id,
+            house_id,
+            date: new Date(currentDate).toISOString().split('T')[0],
+            price: pricePerNight,
+            currency: 'EUR',
+            is_available: true,
+            source: 'manual',
+            scraped_at: new Date().toISOString(),
+          });
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        // Bulk Insert in daily_pricing
+        const { error: pricingError } = await supabase
+          .from('daily_pricing')
+          .insert(dailyEntries);
+        
+        if (pricingError) {
+          console.error('Error inserting pricing data:', pricingError);
+          toast({
+            title: "Teilweise erfolgreich",
+            description: "Wettbewerber aktualisiert, aber Preise konnten nicht gespeichert werden",
+            variant: "destructive"
+          });
+        }
+      }
+      
+      return { data, house_id, nights: pricing ? Math.ceil(
+        (pricing.checkout.getTime() - pricing.checkin.getTime()) / (1000 * 60 * 60 * 24)
+      ) : 0 };
     },
     onSuccess: (result) => {
       toast({
         title: "Wettbewerber aktualisiert",
-        description: "Die Änderungen wurden erfolgreich gespeichert.",
+        description: result.nights > 0 
+          ? `Änderungen gespeichert inkl. ${result.nights} Nächte Preisdaten` 
+          : "Die Änderungen wurden erfolgreich gespeichert.",
       });
       queryClient.invalidateQueries({ queryKey: ['competitor-properties', result.house_id] });
       queryClient.invalidateQueries({ queryKey: ['price-comparison'] });
