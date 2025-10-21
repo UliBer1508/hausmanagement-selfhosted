@@ -269,18 +269,29 @@ export const useScrapePrices = () => {
   return useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke('scrape-competitor-prices', {
-        body: {}
+        body: { manual: true }
       });
 
       if (error) throw error;
       return data;
     },
     onSuccess: (data) => {
-      const successCount = data.results?.filter((r: any) => r.success).length || 0;
-      toast({
-        title: "Preis-Scraping abgeschlossen",
-        description: `${successCount} Wettbewerber erfolgreich aktualisiert.`,
-      });
+      const total = data.total || 0;
+      const successful = data.successful || 0;
+      const failed = data.failed || 0;
+      
+      if (failed === 0) {
+        toast({
+          title: "✅ Preise erfolgreich aktualisiert",
+          description: `${successful} Wettbewerber wurden gescraped`,
+        });
+      } else {
+        toast({
+          title: "⚠️ Scraping teilweise erfolgreich",
+          description: `${successful}/${total} erfolgreich, ${failed} fehlgeschlagen`,
+          variant: "destructive"
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['price-comparison'] });
     },
     onError: (error: Error) => {

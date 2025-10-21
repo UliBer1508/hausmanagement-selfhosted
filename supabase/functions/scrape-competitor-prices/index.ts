@@ -14,13 +14,17 @@ serve(async (req) => {
   try {
     console.log('[scrape-competitor-prices] Starting price scraping...');
     
+    // Parse request body for manual flag
+    const { manual = false } = await req.json().catch(() => ({ manual: false }));
+    console.log(`[scrape-competitor-prices] Mode: ${manual ? 'MANUAL' : 'SCHEDULED'}`);
+    
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Hole alle aktiven Wettbewerber die gescraped werden müssen
-    const { data: configs, error: configError } = await supabase
+    // Hole alle aktiven Wettbewerber
+    let query = supabase
       .from('price_scraping_config')
       .select(`
         *,
@@ -34,22 +38,31 @@ serve(async (req) => {
           max_guests
         )
       `)
-      .eq('is_active', true)
-      .lte('next_scrape_at', new Date().toISOString());
+      .eq('is_active', true);
+
+    // Nur bei SCHEDULED Scraping das Datum-Filter anwenden
+    if (!manual) {
+      query = query.lte('next_scrape_at', new Date().toISOString());
+    }
+
+    const { data: configs, error: configError } = await query;
 
     if (configError) {
       console.error('[scrape-competitor-prices] Config load error:', configError);
       throw configError;
     }
 
-    console.log(`[scrape-competitor-prices] Found ${configs?.length || 0} properties to scrape`);
+    console.log(`[scrape-competitor-prices] ${manual ? 'Manual' : 'Scheduled'} scraping: Found ${configs?.length || 0} properties to scrape`);
 
     if (!configs || configs.length === 0) {
       return new Response(
         JSON.stringify({ 
           success: true, 
-          message: 'Keine Wettbewerber zu scrapen',
-          results: [] 
+          message: manual 
+            ? 'Keine aktiven Wettbewerber gefunden' 
+            : 'Keine Wettbewerber zum geplanten Scrapen',
+          results: [],
+          manual
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -216,7 +229,14 @@ Falls Preise nicht verfügbar: Gib einen geschätzten Durchschnittspreis für di
     console.log('[scrape-competitor-prices] Scraping complete');
 
     return new Response(
-      JSON.stringify({ success: true, results }),
+      JSON.stringify({ 
+        success: true, 
+        results,
+        manual,
+        total: configs.length,
+        successful: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
