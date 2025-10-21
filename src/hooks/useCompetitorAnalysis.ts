@@ -36,6 +36,19 @@ export interface DailyPricing {
   is_available: boolean;
   source: string;
   scraped_at?: string;
+  created_at?: string;
+}
+
+export interface CompetitorPriceHistoryEntry {
+  captured_at: string;
+  period_start: string;
+  period_end: string;
+  nights_count: number;
+  avg_price: number;
+  currency: string;
+  source: string;
+  price_change_percent?: number;
+  entries: DailyPricing[];
 }
 
 export interface PriceComparisonData {
@@ -497,5 +510,69 @@ export const useDeleteCompetitor = () => {
         variant: "destructive",
       });
     },
+  });
+};
+
+// Hook: Lade Preis-Historie für einen Wettbewerber
+export const useCompetitorPriceHistory = (competitor_id: string) => {
+  return useQuery({
+    queryKey: ['competitor-price-history', competitor_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('daily_pricing')
+        .select('*')
+        .eq('competitor_property_id', competitor_id)
+        .order('scraped_at', { ascending: false, nullsFirst: false });
+
+      if (error) throw error;
+      
+      // Gruppiere nach scraped_at (Erfassungszeitpunkt)
+      const groupedByCapture: { [key: string]: DailyPricing[] } = {};
+      
+      data?.forEach(entry => {
+        const captureDate = entry.scraped_at 
+          ? new Date(entry.scraped_at).toISOString().split('T')[0]
+          : entry.created_at 
+          ? new Date(entry.created_at).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0];
+        
+        if (!groupedByCapture[captureDate]) {
+          groupedByCapture[captureDate] = [];
+        }
+        groupedByCapture[captureDate].push(entry);
+      });
+      
+      // Berechne Statistiken pro Erfassung
+      const history: CompetitorPriceHistoryEntry[] = Object.entries(groupedByCapture).map(([captureDate, entries]) => {
+        const prices = entries.map(e => e.price);
+        const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+        const dates = entries.map(e => e.date).sort();
+        
+        return {
+          captured_at: captureDate,
+          period_start: dates[0],
+          period_end: dates[dates.length - 1],
+          nights_count: entries.length,
+          avg_price: Math.round(avgPrice * 100) / 100,
+          currency: entries[0]?.currency || 'EUR',
+          source: entries[0]?.source || 'manual',
+          entries: entries
+        };
+      });
+      
+      // Sortiere: Neueste zuerst
+      history.sort((a, b) => b.captured_at.localeCompare(a.captured_at));
+      
+      // Berechne Preis-Änderungen
+      for (let i = 0; i < history.length - 1; i++) {
+        const current = history[i].avg_price;
+        const previous = history[i + 1].avg_price;
+        const change = ((current - previous) / previous) * 100;
+        history[i].price_change_percent = Math.round(change * 10) / 10;
+      }
+      
+      return history;
+    },
+    enabled: !!competitor_id,
   });
 };

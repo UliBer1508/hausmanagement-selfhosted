@@ -11,6 +11,7 @@ import CompetitorCard from './CompetitorCard';
 import OwnPricingDialog from './OwnPricingDialog';
 import AdditionalFeesDialog from './AdditionalFeesDialog';
 import ManualCompetitorDialog from './ManualCompetitorDialog';
+import CompetitorPriceHistoryList from './CompetitorPriceHistoryList';
 import { addDays, format } from 'date-fns';
 
 interface CompetitorAnalysisDashboardProps {
@@ -139,10 +140,11 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
 
       {/* Tabs mit Detailansichten */}
       <Tabs defaultValue="comparison" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="comparison">Preisvergleich</TabsTrigger>
           <TabsTrigger value="competitors">Wettbewerber ({stats.competitorCount})</TabsTrigger>
           <TabsTrigger value="chart">Visualisierung</TabsTrigger>
+          <TabsTrigger value="price-history">Preisentwicklung</TabsTrigger>
         </TabsList>
 
         <TabsContent value="comparison" className="space-y-4">
@@ -227,6 +229,33 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   Keine Daten zum Visualisieren verfügbar.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="price-history" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Preisentwicklung pro Wettbewerber</CardTitle>
+              <CardDescription>
+                Langzeit-Analyse über 12 Monate für jeden Wettbewerber
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {competitorsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : competitors && competitors.length > 0 ? (
+                <CompetitorPriceHistoryList 
+                  competitors={competitors}
+                  house_id={house_id}
+                />
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  Keine Wettbewerber vorhanden.
                 </div>
               )}
             </CardContent>
