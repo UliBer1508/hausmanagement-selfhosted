@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, Users, RefreshCw } from "lucide-react";
-import { useCompetitorProperties, usePriceComparison, useScrapePrices } from "@/hooks/useCompetitorAnalysis";
+import { useCompetitorProperties, usePriceComparison } from "@/hooks/useCompetitorAnalysis";
 import PriceComparisonTable from './PriceComparisonTable';
 import PriceComparisonChart from './PriceComparisonChart';
 import CompetitorSearchDialog from './CompetitorSearchDialog';
@@ -12,6 +12,7 @@ import OwnPricingDialog from './OwnPricingDialog';
 import AdditionalFeesDialog from './AdditionalFeesDialog';
 import ManualCompetitorDialog from './ManualCompetitorDialog';
 import CompetitorPriceHistoryList from './CompetitorPriceHistoryList';
+import ScrapePricesDialog from './ScrapePricesDialog';
 import { addDays, format } from 'date-fns';
 
 interface CompetitorAnalysisDashboardProps {
@@ -31,11 +32,6 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
     dateRange.from,
     dateRange.to
   );
-  const scrapePrices = useScrapePrices();
-
-  const handleScrapePrices = () => {
-    scrapePrices.mutate();
-  };
 
   const stats = {
     competitorCount: competitors?.length || 0,
@@ -65,14 +61,10 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
           <OwnPricingDialog house_id={house_id} />
           <ManualCompetitorDialog house_id={house_id} />
           <CompetitorSearchDialog house_id={house_id} />
-          <Button
-            variant="outline"
-            onClick={handleScrapePrices}
-            disabled={scrapePrices.isPending || !competitors || competitors.length === 0}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${scrapePrices.isPending ? 'animate-spin' : ''}`} />
-            Preise aktualisieren
-          </Button>
+          <ScrapePricesDialog 
+            house_id={house_id} 
+            disabled={!competitors || competitors.length === 0}
+          />
         </div>
       </div>
 

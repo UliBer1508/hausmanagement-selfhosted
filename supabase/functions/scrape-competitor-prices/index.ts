@@ -23,11 +23,17 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Hole alle aktiven Wettbewerber
+    // Hole alle aktiven Wettbewerber mit scraping_params
     let query = supabase
       .from('price_scraping_config')
       .select(`
-        *,
+        id,
+        scraping_frequency,
+        next_scrape_at,
+        last_scraped_at,
+        error_count,
+        scraping_params,
+        is_active,
         competitor_properties (
           id,
           property_name,
@@ -86,18 +92,41 @@ serve(async (req) => {
       console.log(`[scrape-competitor-prices] Scraping: ${property.property_name}`);
 
       try {
-        // Perplexity für Preis-Extraktion
+        // Scraping-Params aus Config holen
+        const scrapingParams = config.scraping_params as { check_in?: string; check_out?: string } | null;
+        const checkIn = scrapingParams?.check_in;
+        const checkOut = scrapingParams?.check_out;
+
+        if (!checkIn || !checkOut) {
+          console.warn(`[scrape-competitor-prices] No scraping params for ${property.property_name}, skipping`);
+          results.push({ 
+            property: property.property_name, 
+            success: false, 
+            error: 'Keine Zeitraum-Parameter festgelegt' 
+          });
+          continue;
+        }
+
+        console.log(`[scrape-competitor-prices] Scraping period: ${checkIn} to ${checkOut}`);
+
+        // Perplexity für Gesamtpreis-Extraktion
         const priceQuery = `
-Welche Preise hat "${property.property_name}" (${property.address}) 
-auf ${property.platform} für die nächsten 30 Tage?
+Suche den GESAMTPREIS für "${property.property_name}" (${property.address}) 
+auf ${property.platform} für den Zeitraum vom ${checkIn} bis ${checkOut}.
 
-Gib ein JSON-Array zurück mit diesem Format:
-[
-  { "date": "2025-01-15", "price": 120, "available": true, "min_stay": 2 },
-  { "date": "2025-01-16", "price": 130, "available": true, "min_stay": 2 }
-]
+Gib NUR ein JSON-Objekt zurück:
+{
+  "check_in": "${checkIn}",
+  "check_out": "${checkOut}",
+  "total_price": 1837,
+  "nights": 7,
+  "available": true
+}
 
-Falls Preise nicht verfügbar: Gib einen geschätzten Durchschnittspreis für die Saison zurück.
+WICHTIG: 
+- Suche nach dem GESAMTPREIS für diesen Aufenthalt (nicht Preise pro Nacht)
+- Falls nicht verfügbar: "available": false
+- Berechne nights korrekt aus check_in und check_out
         `;
 
         const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -153,17 +182,39 @@ Falls Preise nicht verfügbar: Gib einen geschätzten Durchschnittspreis für di
 
         console.log(`[scrape-competitor-prices] Extracted ${prices.length} price entries`);
 
-        // Speichere Preise in DB
-        const priceRecords = prices.map((p: any) => ({
-          competitor_property_id: property.id,
-          date: p.date,
-          price: parseFloat(p.price) || 0,
-          currency: 'EUR',
-          min_stay: p.min_stay || null,
-          is_available: p.available !== false,
-          source: 'scraped',
-          scraped_at: new Date().toISOString(),
-        }));
+        // Konvertiere Gesamtpreis in Tagespreise
+        const priceRecords = [];
+        
+        for (const p of prices) {
+          if (p.check_in && p.check_out && p.total_price && p.nights) {
+            // Gesamtpreis für Zeitraum → Umrechnen in Tagespreise
+            const totalPrice = parseFloat(p.total_price);
+            const nights = parseInt(p.nights);
+            const pricePerNight = totalPrice / nights;
+            const checkInDate = new Date(p.check_in);
+            
+            console.log(`[scrape-competitor-prices] Converting: ${totalPrice} EUR for ${nights} nights = ${pricePerNight.toFixed(2)} EUR/night`);
+            
+            for (let i = 0; i < nights; i++) {
+              const currentDate = new Date(checkInDate);
+              currentDate.setDate(currentDate.getDate() + i);
+              
+              priceRecords.push({
+                competitor_property_id: property.id,
+                date: currentDate.toISOString().split('T')[0],
+                price: pricePerNight,
+                currency: 'EUR',
+                is_available: p.available !== false,
+                source: 'scraped',
+                scraped_at: new Date().toISOString(),
+              });
+            }
+          } else {
+            console.warn(`[scrape-competitor-prices] Invalid price entry:`, p);
+          }
+        }
+
+        console.log(`[scrape-competitor-prices] Prepared ${priceRecords.length} daily price records`);
 
         const { error: insertError } = await supabase
           .from('daily_pricing')

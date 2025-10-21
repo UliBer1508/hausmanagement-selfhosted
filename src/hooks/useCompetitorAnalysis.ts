@@ -574,3 +574,53 @@ export const useCompetitorPriceHistory = (competitor_id: string) => {
     enabled: !!competitor_id,
   });
 };
+
+// Hook: Update Scraping Params
+export const useUpdateScrapingParams = () => {
+  const { toast } = useToast();
+  
+  return useMutation({
+    mutationFn: async ({ house_id, check_in, check_out }: { 
+      house_id: string; 
+      check_in: string; 
+      check_out: string; 
+    }) => {
+      console.log('[useUpdateScrapingParams] Updating scraping params:', { house_id, check_in, check_out });
+
+      // Alle aktiven Wettbewerber für dieses Haus finden
+      const { data: competitors, error: fetchError } = await supabase
+        .from('competitor_properties')
+        .select('id')
+        .eq('house_id', house_id)
+        .eq('is_active', true);
+
+      if (fetchError) throw fetchError;
+
+      if (!competitors || competitors.length === 0) {
+        throw new Error('Keine aktiven Wettbewerber gefunden');
+      }
+
+      console.log(`[useUpdateScrapingParams] Found ${competitors.length} competitors to update`);
+
+      // Scraping-Params für alle Wettbewerber updaten
+      const { error: updateError } = await supabase
+        .from('price_scraping_config')
+        .update({
+          scraping_params: { check_in, check_out }
+        })
+        .in('competitor_property_id', competitors.map(c => c.id));
+
+      if (updateError) throw updateError;
+
+      console.log('[useUpdateScrapingParams] Successfully updated scraping params');
+    },
+    onError: (error: Error) => {
+      console.error('[useUpdateScrapingParams] Error:', error);
+      toast({
+        title: "Fehler beim Speichern der Parameter",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+};
