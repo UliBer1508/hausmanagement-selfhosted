@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useUpdateScrapingParams, useScrapePrices } from "@/hooks/useCompetitorAnalysis";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 
 interface ScrapePricesDialogProps {
   house_id: string;
@@ -20,18 +20,27 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
   const [open, setOpen] = useState(false);
   const [checkIn, setCheckIn] = useState<Date>();
   const [checkOut, setCheckOut] = useState<Date>();
+  const { toast } = useToast();
 
   const updateParams = useUpdateScrapingParams();
   const scrapePrices = useScrapePrices();
 
   const handleScrape = async () => {
     if (!checkIn || !checkOut) {
-      toast.error('Bitte wählen Sie Check-in und Check-out Datum');
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie Check-in und Check-out Datum",
+        variant: "destructive",
+      });
       return;
     }
 
     if (checkOut <= checkIn) {
-      toast.error('Check-out muss nach Check-in liegen');
+      toast({
+        title: "Fehler",
+        description: "Check-out muss nach Check-in liegen",
+        variant: "destructive",
+      });
       return;
     }
 
