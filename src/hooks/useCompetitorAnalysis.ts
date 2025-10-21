@@ -280,7 +280,6 @@ export const useAddCompetitor = () => {
         for (let i = 0; i < nights; i++) {
           dailyEntries.push({
             competitor_property_id: data.competitor_id,
-            house_id,
             date: new Date(currentDate).toISOString().split('T')[0],
             price: pricePerNight,
             currency: 'EUR',
@@ -430,7 +429,6 @@ export const useUpdateCompetitor = () => {
         for (let i = 0; i < nights; i++) {
           dailyEntries.push({
             competitor_property_id: competitor_id,
-            house_id,
             date: new Date(currentDate).toISOString().split('T')[0],
             price: pricePerNight,
             currency: 'EUR',
