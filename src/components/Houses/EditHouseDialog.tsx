@@ -13,6 +13,7 @@ import LinenInventory from './LinenInventory';
 import LinenManagement from './LinenManagement';
 import HouseInventory from './HouseInventory';
 import SmartLinenSettings from './SmartLinenSettings';
+import AdditionalFeesTab from './AdditionalFeesTab';
 import { useLinenAI } from '@/hooks/useLinenAI';
 
 interface EditHouseDialogProps {
@@ -130,11 +131,12 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         </DialogHeader>
         
         <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="basic">Grunddaten</TabsTrigger>
             <TabsTrigger value="linen">Wäsche-Inventar</TabsTrigger>
             <TabsTrigger value="linen-management">Wäsche-Management</TabsTrigger>
             <TabsTrigger value="ai-settings">KI-Einstellungen</TabsTrigger>
+            <TabsTrigger value="fees">Nebenkosten</TabsTrigger>
             <TabsTrigger value="inventory">Inventar</TabsTrigger>
           </TabsList>
           
@@ -336,6 +338,10 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
               onLoad={loadAISettings}
               isSaving={isSavingSettings}
             />
+          </TabsContent>
+          
+          <TabsContent value="fees">
+            <AdditionalFeesTab houseId={house.id} />
           </TabsContent>
           
           <TabsContent value="inventory">

@@ -1703,6 +1703,7 @@ export type Database = {
       }
       houses: {
         Row: {
+          additional_fees: Json | null
           address: string
           amenities: Json | null
           bathrooms: number | null
@@ -1728,6 +1729,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          additional_fees?: Json | null
           address: string
           amenities?: Json | null
           bathrooms?: number | null
@@ -1753,6 +1755,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          additional_fees?: Json | null
           address?: string
           amenities?: Json | null
           bathrooms?: number | null
