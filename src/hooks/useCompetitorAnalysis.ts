@@ -304,6 +304,64 @@ export const useScrapePrices = () => {
   });
 };
 
+// Hook: Aktualisiere Wettbewerber
+export const useUpdateCompetitor = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ 
+      competitor_id, 
+      house_id, 
+      competitor_data 
+    }: { 
+      competitor_id: string; 
+      house_id: string; 
+      competitor_data: any;
+    }) => {
+      const { data, error } = await supabase
+        .from('competitor_properties')
+        .update({
+          competitor_name: competitor_data.competitor_name,
+          property_name: competitor_data.property_name,
+          property_url: competitor_data.property_url,
+          platform: competitor_data.platform,
+          address: competitor_data.address,
+          distance_km: competitor_data.distance_km,
+          max_guests: competitor_data.max_guests,
+          bedrooms: competitor_data.bedrooms,
+          bathrooms: competitor_data.bathrooms,
+          amenities: competitor_data.amenities,
+          rating: competitor_data.rating,
+          review_count: competitor_data.review_count,
+          notes: competitor_data.notes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', competitor_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data, house_id };
+    },
+    onSuccess: (result) => {
+      toast({
+        title: "Wettbewerber aktualisiert",
+        description: "Die Änderungen wurden erfolgreich gespeichert.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['competitor-properties', result.house_id] });
+      queryClient.invalidateQueries({ queryKey: ['price-comparison'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Aktualisieren",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+};
+
 // Hook: Lösche Wettbewerber
 export const useDeleteCompetitor = () => {
   const { toast } = useToast();

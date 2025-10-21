@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Trash2, MapPin } from "lucide-react";
 import { CompetitorProperty, useDeleteCompetitor } from "@/hooks/useCompetitorAnalysis";
+import EditCompetitorDialog from "./EditCompetitorDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,6 +73,7 @@ const CompetitorCard = ({ competitor, house_id }: CompetitorCardProps) => {
                 <ExternalLink className="w-4 h-4" />
               </Button>
             )}
+            <EditCompetitorDialog competitor={competitor} house_id={house_id} />
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
