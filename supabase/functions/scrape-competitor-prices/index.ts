@@ -230,19 +230,6 @@ CRITICAL: Return ONLY valid JSON, no explanations before or after.
         // Konvertiere Gesamtpreis in Tagespreise
         const priceRecords = [];
         
-        // Lade house_id aus competitor_properties
-        const { data: competitorData } = await supabase
-          .from('competitor_properties')
-          .select('house_id')
-          .eq('id', property.id)
-          .single();
-
-        const houseId = competitorData?.house_id;
-
-        if (!houseId) {
-          console.warn(`[scrape-competitor-prices] No house_id for competitor ${property.property_name}`);
-        }
-        
         for (const p of prices) {
           if (p.check_in && p.check_out && p.total_price && p.nights) {
             // Gesamtpreis für Zeitraum → Umrechnen in Tagespreise
@@ -258,7 +245,6 @@ CRITICAL: Return ONLY valid JSON, no explanations before or after.
               currentDate.setDate(currentDate.getDate() + i);
               
               priceRecords.push({
-                house_id: houseId,
                 competitor_property_id: property.id,
                 date: currentDate.toISOString().split('T')[0],
                 price: pricePerNight,
