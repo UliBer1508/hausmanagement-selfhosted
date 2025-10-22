@@ -258,7 +258,7 @@ CRITICAL: Return ONLY valid JSON, no explanations before or after.
               currentDate.setDate(currentDate.getDate() + i);
               
               priceRecords.push({
-                house_id: houseId,  // ✅ NEU: house_id hinzufügen
+                house_id: houseId,
                 competitor_property_id: property.id,
                 date: currentDate.toISOString().split('T')[0],
                 price: pricePerNight,
@@ -266,6 +266,11 @@ CRITICAL: Return ONLY valid JSON, no explanations before or after.
                 is_available: p.available !== false,
                 source: 'scraped',
                 scraped_at: new Date().toISOString(),
+                // Period-based pricing fields
+                period_total_price: totalPrice,
+                period_check_in: p.check_in,
+                period_check_out: p.check_out,
+                period_nights: nights,
               });
             }
           } else {

@@ -1167,6 +1167,10 @@ export type Database = {
           id: string
           is_available: boolean | null
           min_stay: number | null
+          period_check_in: string | null
+          period_check_out: string | null
+          period_nights: number | null
+          period_total_price: number | null
           price: number
           scraped_at: string | null
           source: string | null
@@ -1181,6 +1185,10 @@ export type Database = {
           id?: string
           is_available?: boolean | null
           min_stay?: number | null
+          period_check_in?: string | null
+          period_check_out?: string | null
+          period_nights?: number | null
+          period_total_price?: number | null
           price: number
           scraped_at?: string | null
           source?: string | null
@@ -1195,6 +1203,10 @@ export type Database = {
           id?: string
           is_available?: boolean | null
           min_stay?: number | null
+          period_check_in?: string | null
+          period_check_out?: string | null
+          period_nights?: number | null
+          period_total_price?: number | null
           price?: number
           scraped_at?: string | null
           source?: string | null
@@ -1228,11 +1240,11 @@ export type Database = {
           id: string
           image_url: string | null
           last_data_refresh: string | null
-          planned_duration: unknown | null
+          planned_duration: unknown
           rating: number | null
           route_cache_id: string | null
-          travel_time_from: unknown | null
-          travel_time_to: unknown | null
+          travel_time_from: unknown
+          travel_time_to: unknown
           trip_date: string
           trip_plan_id: string | null
           updated_at: string | null
@@ -1248,11 +1260,11 @@ export type Database = {
           id?: string
           image_url?: string | null
           last_data_refresh?: string | null
-          planned_duration?: unknown | null
+          planned_duration?: unknown
           rating?: number | null
           route_cache_id?: string | null
-          travel_time_from?: unknown | null
-          travel_time_to?: unknown | null
+          travel_time_from?: unknown
+          travel_time_to?: unknown
           trip_date: string
           trip_plan_id?: string | null
           updated_at?: string | null
@@ -1268,11 +1280,11 @@ export type Database = {
           id?: string
           image_url?: string | null
           last_data_refresh?: string | null
-          planned_duration?: unknown | null
+          planned_duration?: unknown
           rating?: number | null
           route_cache_id?: string | null
-          travel_time_from?: unknown | null
-          travel_time_to?: unknown | null
+          travel_time_from?: unknown
+          travel_time_to?: unknown
           trip_date?: string
           trip_plan_id?: string | null
           updated_at?: string | null
