@@ -111,22 +111,32 @@ serve(async (req) => {
 
         // Perplexity für Gesamtpreis-Extraktion
         const priceQuery = `
-Suche den GESAMTPREIS für "${property.property_name}" (${property.address}) 
-auf ${property.platform} für den Zeitraum vom ${checkIn} bis ${checkOut}.
+Find pricing information for "${property.property_name}" on ${property.platform}.
 
-Gib NUR ein JSON-Objekt zurück:
-{
-  "check_in": "${checkIn}",
-  "check_out": "${checkOut}",
-  "total_price": 1837,
-  "nights": 7,
-  "available": true
-}
+TASK: Find the TOTAL PRICE for a 7-night stay (any available period in the next 6 months).
 
-WICHTIG: 
-- Suche nach dem GESAMTPREIS für diesen Aufenthalt (nicht Preise pro Nacht)
-- Falls nicht verfügbar: "available": false
-- Berechne nights korrekt aus check_in und check_out
+IMPORTANT INSTRUCTIONS:
+1. Ignore availability - we only want to know: "What would 7 nights cost?"
+2. Find concrete price examples (e.g., for December 2025, January 2026, or any other month)
+3. Return the TOTAL PRICE for the entire stay (NOT per night)
+4. If multiple periods are found, list them all
+
+Return ONLY a JSON array with this structure:
+[
+  {
+    "check_in": "YYYY-MM-DD",
+    "check_out": "YYYY-MM-DD",
+    "total_price": 1890,
+    "nights": 7,
+    "available": true,
+    "note": "Example period found"
+  }
+]
+
+If NO prices can be found at all, return:
+[{"available": false, "total_price": null, "note": "No pricing information found"}]
+
+CRITICAL: Return ONLY valid JSON, no explanations before or after.
         `;
 
         const response = await fetch('https://api.perplexity.ai/chat/completions', {
