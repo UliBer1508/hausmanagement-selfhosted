@@ -302,6 +302,18 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       
       // Manual overlap check
       const conflictingBookings = allBookings?.filter(booking => {
+        // ✅ CHECK 1: Eigene Buchung im Edit-Mode ausschließen
+        if (mode === 'edit' && initialData?.id && booking.id === initialData.id) {
+          console.log('⏭️ SKIPPING: Same booking being edited (ID:', booking.id, ')');
+          return false;
+        }
+        
+        // ✅ CHECK 2: Stornierte Buchungen ignorieren
+        if (booking.status === 'cancelled') {
+          console.log('⏭️ SKIPPING: Cancelled booking (ID:', booking.id, ')');
+          return false;
+        }
+        
         const bookingCheckIn = new Date(booking.check_in);
         const bookingCheckOut = new Date(booking.check_out);
         const newCheckIn = data.check_in;

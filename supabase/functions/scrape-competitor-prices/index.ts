@@ -158,21 +158,56 @@ WICHTIG:
         const data = await response.json();
         const content = data.choices[0].message.content;
         
-        // Parse JSON (mit Fehlerbehandlung wie in search-competitors)
+        // Parse JSON (ultra-robust)
         let prices = [];
         try {
+          // 1. Versuche direkt zu parsen
           prices = JSON.parse(content);
         } catch (e) {
-          const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/);
-          if (jsonMatch) {
-            prices = JSON.parse(jsonMatch[1]);
-          } else {
-            const startIndex = content.indexOf('[') !== -1 ? content.indexOf('[') : content.indexOf('{');
-            if (startIndex !== -1) {
-              prices = JSON.parse(content.substring(startIndex));
-            } else {
-              throw new Error('Konnte kein JSON in Perplexity-Antwort finden');
+          console.log('[scrape-competitor-prices] Direct JSON parse failed, trying extraction...');
+          console.log('[scrape-competitor-prices] Raw content:', content.substring(0, 500));
+          
+          // 2. Entferne Markdown Code Blocks
+          let cleanedContent = content.trim();
+          const codeBlockMatch = cleanedContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+          if (codeBlockMatch) {
+            cleanedContent = codeBlockMatch[1].trim();
+            console.log('[scrape-competitor-prices] Extracted from code block');
+          }
+          
+          // 3. Entferne führenden Text vor JSON
+          const jsonStartMatch = cleanedContent.match(/(\[|\{)/);
+          if (jsonStartMatch) {
+            const startIndex = cleanedContent.indexOf(jsonStartMatch[0]);
+            cleanedContent = cleanedContent.substring(startIndex);
+            console.log('[scrape-competitor-prices] Trimmed leading text');
+          }
+          
+          // 4. Entferne trailing Text nach JSON
+          let lastBrace = -1;
+          let braceCount = 0;
+          for (let i = 0; i < cleanedContent.length; i++) {
+            if (cleanedContent[i] === '{' || cleanedContent[i] === '[') braceCount++;
+            if (cleanedContent[i] === '}' || cleanedContent[i] === ']') {
+              braceCount--;
+              if (braceCount === 0) {
+                lastBrace = i;
+                break;
+              }
             }
+          }
+          if (lastBrace !== -1) {
+            cleanedContent = cleanedContent.substring(0, lastBrace + 1);
+            console.log('[scrape-competitor-prices] Trimmed trailing text');
+          }
+          
+          // 5. Parse gereinigtes JSON
+          try {
+            prices = JSON.parse(cleanedContent);
+            console.log('[scrape-competitor-prices] Successfully parsed cleaned JSON');
+          } catch (parseError) {
+            console.error('[scrape-competitor-prices] Failed to parse cleaned content:', cleanedContent.substring(0, 200));
+            throw new Error(`JSON parse failed: ${parseError.message}`);
           }
         }
 
@@ -184,6 +219,19 @@ WICHTIG:
 
         // Konvertiere Gesamtpreis in Tagespreise
         const priceRecords = [];
+        
+        // ✅ NEU: Lade house_id aus competitor_properties
+        const { data: competitorData } = await supabase
+          .from('competitor_properties')
+          .select('house_id')
+          .eq('id', property.id)
+          .single();
+
+        const houseId = competitorData?.house_id;
+
+        if (!houseId) {
+          console.warn(`[scrape-competitor-prices] No house_id for competitor ${property.property_name}`);
+        }
         
         for (const p of prices) {
           if (p.check_in && p.check_out && p.total_price && p.nights) {
@@ -200,6 +248,7 @@ WICHTIG:
               currentDate.setDate(currentDate.getDate() + i);
               
               priceRecords.push({
+                house_id: houseId,  // ✅ NEU: house_id hinzufügen
                 competitor_property_id: property.id,
                 date: currentDate.toISOString().split('T')[0],
                 price: pricePerNight,
@@ -258,13 +307,16 @@ WICHTIG:
 
       } catch (error) {
         console.error(`[scrape-competitor-prices] Error scraping ${property.property_name}:`, error);
+        console.error('[scrape-competitor-prices] Error stack:', error.stack);
+        console.error('[scrape-competitor-prices] Property data:', JSON.stringify(property, null, 2));
         
-        // Log Fehler in Config
+        // Log Fehler in Config mit Details
         await supabase
           .from('price_scraping_config')
           .update({
             error_count: (config.error_count || 0) + 1,
-            last_error: error.message
+            last_error: error.message,
+            last_error_details: error.stack || error.toString()
           })
           .eq('id', config.id);
 
