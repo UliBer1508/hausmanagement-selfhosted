@@ -315,10 +315,15 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         // Check if there's an overlap
         const condition1 = bookingCheckIn < newCheckOut;
         const condition2 = bookingCheckOut > newCheckIn;
-        const hasOverlap = condition1 && condition2;
+        
+        // Allow same-day turnover: If check-out time equals check-in time exactly, it's NOT a conflict
+        const isSameDayTurnover = bookingCheckOut.getTime() === newCheckIn.getTime();
+        
+        const hasOverlap = condition1 && condition2 && !isSameDayTurnover;
         
         console.log('Overlap check: bookingCheckIn < newCheckOut?', condition1);
         console.log('Overlap check: bookingCheckOut > newCheckIn?', condition2);
+        console.log('Same-day turnover (exact match)?', isSameDayTurnover);
         console.log('Has overlap?', hasOverlap);
         
         if (hasOverlap) {
