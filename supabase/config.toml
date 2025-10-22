@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.add-competitor]
 verify_jwt = false
+
+[functions.expand-daily-prices]
+verify_jwt = false

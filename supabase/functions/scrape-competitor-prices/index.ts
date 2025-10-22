@@ -111,32 +111,29 @@ serve(async (req) => {
 
         // Perplexity für Gesamtpreis-Extraktion
         const priceQuery = `
-Find pricing information for "${property.property_name}" on ${property.platform}.
+Suche nach Preisen für diese Unterkunft auf ${property.platform}:
+${property.property_url || property.property_name}
 
-TASK: Find the TOTAL PRICE for a 7-night stay (any available period in the next 6 months).
+Zeitraum: Irgendwann zwischen 1. November 2025 und 31. Januar 2026
+Aufenthaltsdauer: 7 Nächte
+Gäste: ${property.max_guests || 2}
 
-IMPORTANT INSTRUCTIONS:
-1. Ignore availability - we only want to know: "What would 7 nights cost?"
-2. Find concrete price examples (e.g., for December 2025, January 2026, or any other month)
-3. Return the TOTAL PRICE for the entire stay (NOT per night)
-4. If multiple periods are found, list them all
+WICHTIG: 
+- Finde EINEN verfügbaren 7-Nächte-Aufenthalt in diesem Zeitraum
+- Gib NUR den Gesamtpreis zurück, keine Einzelnächte
 
-Return ONLY a JSON array with this structure:
+Gib die Daten in diesem JSON-Format zurück:
 [
   {
-    "check_in": "YYYY-MM-DD",
-    "check_out": "YYYY-MM-DD",
-    "total_price": 1890,
+    "check_in": "2025-11-15",
+    "check_out": "2025-11-22",
     "nights": 7,
-    "available": true,
-    "note": "Example period found"
+    "total_price": 1890,
+    "available": true
   }
 ]
 
-If NO prices can be found at all, return:
-[{"available": false, "total_price": null, "note": "No pricing information found"}]
-
-CRITICAL: Return ONLY valid JSON, no explanations before or after.
+Falls kein Preis verfügbar: { "available": false, "total_price": null }
         `;
 
         const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -227,45 +224,38 @@ CRITICAL: Return ONLY valid JSON, no explanations before or after.
 
         console.log(`[scrape-competitor-prices] Extracted ${prices.length} price entries`);
 
-        // Konvertiere Gesamtpreis in Tagespreise
+        // Speichere nur den Gesamtpreis (keine Tagesberechnung)
         const priceRecords = [];
         
         for (const p of prices) {
           if (p.check_in && p.check_out && p.total_price && p.nights) {
-            // Gesamtpreis für Zeitraum → Umrechnen in Tagespreise
             const totalPrice = parseFloat(p.total_price);
             const nights = parseInt(p.nights);
-            const pricePerNight = totalPrice / nights;
-            const checkInDate = new Date(p.check_in);
             
-            console.log(`[scrape-competitor-prices] Converting: ${totalPrice} EUR for ${nights} nights = ${pricePerNight.toFixed(2)} EUR/night`);
+            console.log(`[scrape-competitor-prices] Saving total price: ${totalPrice} EUR for ${nights} nights (${p.check_in} to ${p.check_out})`);
             
-            for (let i = 0; i < nights; i++) {
-              const currentDate = new Date(checkInDate);
-              currentDate.setDate(currentDate.getDate() + i);
+            // NUR EIN EINTRAG mit Gesamtpreis
+            priceRecords.push({
+              competitor_property_id: property.id,
+              date: p.check_in, // Check-in als Referenzdatum
+              price: totalPrice, // GESAMTPREIS (nicht Tagespreis!)
+              currency: 'EUR',
+              is_available: p.available !== false,
+              source: 'scraped',
+              scraped_at: new Date().toISOString(),
               
-              priceRecords.push({
-                competitor_property_id: property.id,
-                date: currentDate.toISOString().split('T')[0],
-                price: pricePerNight,
-                currency: 'EUR',
-                is_available: p.available !== false,
-                source: 'scraped',
-                scraped_at: new Date().toISOString(),
-                
-                // Period-based pricing fields
-                period_total_price: totalPrice,
-                period_check_in: p.check_in,
-                period_check_out: p.check_out,
-                period_nights: nights,
-              });
-            }
+              // Period-Felder für spätere Tagesberechnung
+              period_total_price: totalPrice,
+              period_check_in: p.check_in,
+              period_check_out: p.check_out,
+              period_nights: nights,
+            });
           } else {
             console.warn(`[scrape-competitor-prices] Invalid price entry:`, p);
           }
         }
-
-        console.log(`[scrape-competitor-prices] Prepared ${priceRecords.length} daily price records`);
+        
+        console.log(`[scrape-competitor-prices] Prepared ${priceRecords.length} total price records`);
 
         const { error: insertError } = await supabase
           .from('daily_pricing')
