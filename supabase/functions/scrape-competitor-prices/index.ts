@@ -230,7 +230,7 @@ CRITICAL: Return ONLY valid JSON, no explanations before or after.
         // Konvertiere Gesamtpreis in Tagespreise
         const priceRecords = [];
         
-        // ✅ NEU: Lade house_id aus competitor_properties
+        // Lade house_id aus competitor_properties
         const { data: competitorData } = await supabase
           .from('competitor_properties')
           .select('house_id')
@@ -266,6 +266,7 @@ CRITICAL: Return ONLY valid JSON, no explanations before or after.
                 is_available: p.available !== false,
                 source: 'scraped',
                 scraped_at: new Date().toISOString(),
+                
                 // Period-based pricing fields
                 period_total_price: totalPrice,
                 period_check_in: p.check_in,
