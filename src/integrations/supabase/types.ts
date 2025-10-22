@@ -1166,6 +1166,7 @@ export type Database = {
           house_id: string | null
           id: string
           is_available: boolean | null
+          is_expanded: boolean | null
           min_stay: number | null
           period_check_in: string | null
           period_check_out: string | null
@@ -1184,6 +1185,7 @@ export type Database = {
           house_id?: string | null
           id?: string
           is_available?: boolean | null
+          is_expanded?: boolean | null
           min_stay?: number | null
           period_check_in?: string | null
           period_check_out?: string | null
@@ -1202,6 +1204,7 @@ export type Database = {
           house_id?: string | null
           id?: string
           is_available?: boolean | null
+          is_expanded?: boolean | null
           min_stay?: number | null
           period_check_in?: string | null
           period_check_out?: string | null
