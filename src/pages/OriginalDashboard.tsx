@@ -920,6 +920,43 @@ const OriginalDashboard = () => {
       }
     });
     
+    // NEU: Freie Tage für jedes Haus erkennen
+    const allHouses = housesData || [];
+    
+    allHouses.forEach(house => {
+      // Prüfe ob Haus an diesem Tag eine Buchung hat
+      const hasBookingOnThisDay = realBookings.some(booking => {
+        if (booking.status === 'cancelled') return false;
+        if (booking.houses?.id !== house.id) return false;
+        
+        const checkIn = parseISO(booking.check_in);
+        const checkOut = parseISO(booking.check_out);
+        const currentDate = new Date(date);
+        
+        // Haus ist gebucht wenn Tag zwischen Check-in und Check-out liegt (inklusiv)
+        return currentDate >= checkIn && currentDate <= checkOut;
+      });
+      
+      // Wenn KEINE Buchung → Haus ist frei
+      if (!hasBookingOnThisDay) {
+        const shortHouseName = house.name.replace(' Chalet', ''); // "Venedigersiedlung" oder "Wald"
+        
+        events.push({
+          type: 'free',
+          title: `Frei: ${shortHouseName}`,
+          houseName: house.name,
+          booking: {
+            house: house.name,
+            guest: '',
+            checkIn: '',
+            checkOut: ''
+          },
+          color: getHouseOccupiedColor(house.name),
+          isFreeDayEvent: true
+        });
+      }
+    });
+    
     return events;
   };
 
@@ -1067,7 +1104,11 @@ const OriginalDashboard = () => {
                             title={`${event.title} - ${event.booking.house}`}
                             onClick={() => setSelectedEvent(event)}
                           >
-                            {event.title}
+                            {event.isFreeDayEvent ? (
+                              <span className="text-green-600 font-semibold">{event.title}</span>
+                            ) : (
+                              event.title
+                            )}
                           </div>
                         ))}
                         {events.length > 2 && (
@@ -1170,7 +1211,15 @@ const OriginalDashboard = () => {
                       </Button>
                     </div>
                     
-                    {selectedEvent.type === 'checkin' || selectedEvent.type === 'checkout' || selectedEvent.type === 'occupied' ? (
+                    {selectedEvent.type === 'free' ? (
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-foreground">Verfügbarkeit</h4>
+                        <div className="space-y-2 text-sm">
+                          <div><span className="font-medium">Haus:</span> {selectedEvent.houseName}</div>
+                          <div><span className="font-medium">Status:</span> <span className="text-green-600 font-semibold">Verfügbar</span></div>
+                        </div>
+                      </div>
+                    ) : selectedEvent.type === 'checkin' || selectedEvent.type === 'checkout' || selectedEvent.type === 'occupied' ? (
                       <div className="space-y-3">
                         <h4 className="font-semibold text-foreground">Buchungsdetails</h4>
                         <div className="space-y-2 text-sm">
@@ -1262,6 +1311,14 @@ const OriginalDashboard = () => {
                 <div className="flex items-center space-x-3">
                   <div className="w-4 h-4 bg-purple-500 rounded-md"></div>
                   <span className="text-sm text-foreground">Wäsche</span>
+                </div>
+                <div className="flex items-center space-x-3 pt-2 border-t">
+                  <div className="w-4 h-4 bg-orange-200 rounded-md border border-orange-300"></div>
+                  <span className="text-sm text-green-600 font-semibold">Frei: Venediger</span>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-yellow-100 rounded-md border border-yellow-300"></div>
+                  <span className="text-sm text-green-600 font-semibold">Frei: Wald</span>
                 </div>
               </CardContent>
             </Card>
