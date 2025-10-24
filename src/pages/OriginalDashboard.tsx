@@ -2027,9 +2027,6 @@ const OriginalDashboard = () => {
                 upcomingBookings.map((booking, index) => (
                   <div key={index} className="flex items-center justify-between min-w-0">
                     <div className="flex items-center space-x-2 min-w-0 flex-1">
-                      <span className="text-sm flex-shrink-0">
-                        {booking.isActive ? '🔴' : '🟢'}
-                      </span>
                       <span className="text-sm flex-shrink-0">{booking.icon}</span>
                       <span className="text-xs truncate">
                         <span className="font-medium">{booking.house}</span>
