@@ -1032,14 +1032,18 @@ const OriginalDashboard = () => {
                       {events.slice(0, 3).map((event, index) => (
                         <div
                           key={index}
-                          className={`text-[10px] sm:text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded-md ${event.color} truncate font-medium cursor-pointer hover:opacity-80`}
+                          className={`text-[10px] sm:text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded-md ${event.color} ${event.isFreeDayEvent ? `border-2 ${event.borderColor}` : ''} truncate font-medium cursor-pointer hover:opacity-80`}
                           title={`${event.title} - ${event.booking.house}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedEvent(event);
                           }}
                         >
-                          {event.title}
+                          {event.isFreeDayEvent ? (
+                            <span className="text-green-600 font-semibold">{event.title}</span>
+                          ) : (
+                            event.title
+                          )}
                         </div>
                       ))}
                       {events.length > 3 && (
