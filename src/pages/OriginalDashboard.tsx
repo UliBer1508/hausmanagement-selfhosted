@@ -857,6 +857,14 @@ const OriginalDashboard = () => {
     return houseColors[houseName] || 'bg-orange-200 text-orange-900';
   };
 
+  const getHouseBorderColor = (houseName: string): string => {
+    const houseBorders: Record<string, string> = {
+      'Venedigersiedlung Chalet': 'border-orange-400',
+      'Wald Chalet': 'border-yellow-400',
+    };
+    return houseBorders[houseName] || 'border-gray-400';
+  };
+
   const getEventsForDate = (date: Date) => {
     const events = [];
     
@@ -951,7 +959,8 @@ const OriginalDashboard = () => {
             checkIn: '',
             checkOut: ''
           },
-          color: getHouseOccupiedColor(house.name),
+          color: 'bg-white',
+          borderColor: getHouseBorderColor(house.name),
           isFreeDayEvent: true
         });
       }
@@ -1099,7 +1108,7 @@ const OriginalDashboard = () => {
                         {events.slice(0, 2).map((event, index) => (
                           <div
                             key={index}
-                            className={`text-[7px] sm:text-xs px-0.5 sm:px-2 py-0.5 rounded-sm sm:rounded-md ${event.color} w-full font-medium cursor-pointer hover:opacity-80 leading-tight overflow-hidden`}
+                            className={`text-[7px] sm:text-xs px-0.5 sm:px-2 py-0.5 rounded-sm sm:rounded-md ${event.color} ${event.isFreeDayEvent ? `border-2 ${event.borderColor}` : ''} w-full font-medium cursor-pointer hover:opacity-80 leading-tight overflow-hidden`}
                             style={{ wordBreak: 'break-word' }}
                             title={`${event.title} - ${event.booking.house}`}
                             onClick={() => setSelectedEvent(event)}
@@ -1313,11 +1322,11 @@ const OriginalDashboard = () => {
                   <span className="text-sm text-foreground">Wäsche</span>
                 </div>
                 <div className="flex items-center space-x-3 pt-2 border-t">
-                  <div className="w-4 h-4 bg-orange-200 rounded-md border border-orange-300"></div>
+                  <div className="w-4 h-4 bg-white rounded-md border-2 border-orange-400"></div>
                   <span className="text-sm text-green-600 font-semibold">Frei: Venediger</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-yellow-100 rounded-md border border-yellow-300"></div>
+                  <div className="w-4 h-4 bg-white rounded-md border-2 border-yellow-400"></div>
                   <span className="text-sm text-green-600 font-semibold">Frei: Wald</span>
                 </div>
               </CardContent>
