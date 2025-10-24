@@ -857,13 +857,6 @@ const OriginalDashboard = () => {
     return houseColors[houseName] || 'bg-orange-200 text-orange-900';
   };
 
-  const getHouseBorderColor = (houseName: string): string => {
-    const houseBorders: Record<string, string> = {
-      'Venedigersiedlung Chalet': 'border-orange-400',
-      'Wald Chalet': 'border-yellow-400',
-    };
-    return houseBorders[houseName] || 'border-gray-400';
-  };
 
   const getEventsForDate = (date: Date) => {
     const events = [];
@@ -960,7 +953,7 @@ const OriginalDashboard = () => {
             checkOut: ''
           },
           color: 'bg-white',
-          borderColor: getHouseBorderColor(house.name),
+          borderColor: 'border-green-500',
           isFreeDayEvent: true
         });
       }
@@ -1322,12 +1315,8 @@ const OriginalDashboard = () => {
                   <span className="text-sm text-foreground">Wäsche</span>
                 </div>
                 <div className="flex items-center space-x-3 pt-2 border-t">
-                  <div className="w-4 h-4 bg-white rounded-md border-2 border-orange-400"></div>
-                  <span className="text-sm text-green-600 font-semibold">Frei: Venediger</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-white rounded-md border-2 border-yellow-400"></div>
-                  <span className="text-sm text-green-600 font-semibold">Frei: Wald</span>
+                  <div className="w-4 h-4 bg-white rounded-md border-2 border-green-500"></div>
+                  <span className="text-sm text-green-600 font-semibold">Frei (beide Häuser)</span>
                 </div>
               </CardContent>
             </Card>
