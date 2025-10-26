@@ -65,7 +65,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     { key: 'sauna_towels_per_guest', label: 'Saunatücher', type: 'per_guest', category: 'Wellness', defaultValue: 1 },
     // Per Booking Rules
     { key: 'bath_mats_per_booking', label: 'Badematten', type: 'per_booking', category: 'Badbereich', defaultValue: 3 },
-    { key: 'sink_towels_per_booking', label: 'Waschbecken-Handtücher', type: 'per_booking', category: 'Badbereich', defaultValue: 3 },
+    { key: 'sink_towels_per_booking', label: 'WB-Handtücher', type: 'per_booking', category: 'Badbereich', defaultValue: 3 },
     { key: 'kitchen_towels_per_booking', label: 'Küchentücher', type: 'per_booking', category: 'Küchenbereich', defaultValue: 2 },
     { key: 'table_linens_per_booking', label: 'Tischwäsche', type: 'per_booking', category: 'Küchenbereich', defaultValue: 0 },
   ];

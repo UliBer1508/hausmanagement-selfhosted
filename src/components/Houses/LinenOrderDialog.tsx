@@ -197,7 +197,7 @@ const LinenOrderDialog = ({
     small_towels: 'Handtücher klein',
     sauna_towels: 'Saunatücher',
     bath_mats: 'Badematten',
-    sink_towels: 'Waschbecken Handtücher',
+    sink_towels: 'WB-Handtücher',
     kitchen_towels: 'Küchentücher',
     blankets: 'Decken',
     pillow_cases: 'Kissenbezüge',

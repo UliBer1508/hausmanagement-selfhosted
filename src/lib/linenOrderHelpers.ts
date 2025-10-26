@@ -21,7 +21,7 @@ export const translateItemType = (key: string): string => {
     large_towels: 'Große Handtücher',
     small_towels: 'Kleine Handtücher',
     sauna_towels: 'Saunahandtücher',
-    sink_towels: 'Waschbeckenhandtücher',
+    sink_towels: 'WB-Handtücher',
     bath_mats: 'Badvorleger',
     kitchen_towels: 'Küchenhandtücher',
   };
