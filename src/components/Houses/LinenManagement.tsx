@@ -109,7 +109,7 @@ const LinenManagement = ({ house }: LinenManagementProps) => {
       { key: 'small_towels', label: 'Handtücher klein', perGuestKey: 'small_towels_per_guest', perBookingKey: null },
       { key: 'sauna_towels', label: 'Saunatücher', perGuestKey: 'sauna_towels_per_guest', perBookingKey: null },
       { key: 'bath_mats', label: 'Badematten', perGuestKey: null, perBookingKey: 'bath_mats_per_booking' },
-      { key: 'sink_towels', label: 'Waschbecken', perGuestKey: null, perBookingKey: 'sink_towels_per_booking' },
+      { key: 'sink_towels', label: 'WB-Handtücher', perGuestKey: null, perBookingKey: 'sink_towels_per_booking' },
       { key: 'kitchen_towels', label: 'Küchentücher', perGuestKey: null, perBookingKey: 'kitchen_towels_per_booking' },
       { key: 'blankets', label: 'Decken', perGuestKey: 'blankets_per_guest', perBookingKey: null },
       { key: 'pillow_cases', label: 'Kissenbezüge', perGuestKey: 'pillow_cases_per_guest', perBookingKey: null },

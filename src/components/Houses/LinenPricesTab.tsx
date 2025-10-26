@@ -49,7 +49,7 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
     large_towels: 'Große Handtücher',
     small_towels: 'Kleine Handtücher',
     bath_mats: 'Badematten',
-    sink_towels: 'Waschbeckentücher',
+    sink_towels: 'WB-Handtücher',
     sauna_towels: 'Saunatücher'
   };
 
