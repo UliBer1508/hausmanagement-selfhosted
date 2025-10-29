@@ -27,3 +27,19 @@ export const getHouseIcon = (houseName: string) => {
   if (houseName.toLowerCase().includes('siedlung')) return '🏘️';
   return '🏠';
 };
+
+export const translateLinenItem = (item: string): string => {
+  const labels: Record<string, string> = {
+    bedding: 'Bettwäsche',
+    large_towels: 'Große Handtücher',
+    small_towels: 'Kleine Handtücher',
+    sauna_towels: 'Saunatücher',
+    bath_mats: 'Badematten',
+    sink_towels: 'WB-Handtücher',
+    kitchen_towels: 'Küchenhandtücher',
+    blankets: 'Decken',
+    pillow_cases: 'Kissenbezüge',
+    table_linens: 'Tischwäsche',
+  };
+  return labels[item] || item;
+};

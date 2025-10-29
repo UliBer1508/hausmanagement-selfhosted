@@ -168,6 +168,7 @@ export const useChat = () => {
 
   return {
     messages,
+    setMessages,
     isStreaming,
     error,
     sendMessage,

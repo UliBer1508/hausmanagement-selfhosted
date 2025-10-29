@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MessageCircle, X, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/hooks/useChat';
+import { useMorningSummary } from '@/hooks/useMorningSummary';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import { useLocation } from 'react-router-dom';
@@ -10,7 +11,29 @@ import Draggable from 'react-draggable';
 const ChatAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
-  const { messages, isStreaming, error, sendMessage, clearMessages } = useChat();
+  const { messages, setMessages, isStreaming, error, sendMessage, clearMessages } = useChat();
+  const { summaryMessage, isLoading: summaryLoading, shouldShow, markAsShown } = useMorningSummary();
+
+  // Auto-Insert Summary beim ersten Öffnen des Chats am Tag
+  useEffect(() => {
+    if (isOpen && summaryMessage && shouldShow() && !summaryLoading) {
+      const summaryMsg = {
+        id: crypto.randomUUID(),
+        role: 'assistant' as const,
+        content: summaryMessage,
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => {
+        // Nur hinzufügen wenn noch keine Summary vorhanden
+        if (prev.length === 0 || !prev.some(m => m.content.includes('Guten Morgen'))) {
+          markAsShown();
+          return [summaryMsg, ...prev];
+        }
+        return prev;
+      });
+    }
+  }, [isOpen, summaryMessage, summaryLoading, shouldShow, markAsShown, setMessages]);
 
   const getPageContext = () => {
     const path = location.pathname;
