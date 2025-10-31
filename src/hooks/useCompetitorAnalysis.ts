@@ -53,11 +53,16 @@ export interface CompetitorPriceHistoryEntry {
 
 export interface PriceComparisonData {
   date: string;
+  check_in?: string;
+  check_out?: string;
+  nights?: number;
   own_price?: number;
   competitor_prices: {
     [competitor_id: string]: {
       price: number;
       property_name: string;
+      check_out?: string;
+      nights?: number;
     };
   };
   average_competitor_price?: number;

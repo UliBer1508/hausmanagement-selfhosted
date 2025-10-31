@@ -9,18 +9,26 @@ interface PriceComparisonChartProps {
 }
 
 const PriceComparisonChart = ({ data, competitors }: PriceComparisonChartProps) => {
-  // Bereite Daten für Chart vor
-  const chartData = data.map(row => ({
-    date: format(new Date(row.date), 'dd.MM'),
-    'Dein Preis': row.own_price || null,
-    'Marktdurchschnitt': row.average_competitor_price ? Math.round(row.average_competitor_price) : null,
-    ...Object.fromEntries(
-      competitors.slice(0, 2).map(comp => [
-        comp.property_name,
-        row.competitor_prices[comp.id]?.price || null
-      ])
-    )
-  }));
+  // Bereite Daten für Chart vor (basierend auf check_in Perioden)
+  const chartData = data.map(row => {
+    const checkIn = row.check_in || row.date;
+    const checkOut = row.check_out;
+    const periodLabel = checkOut 
+      ? `${format(new Date(checkIn), 'dd.MM')} → ${format(new Date(checkOut), 'dd.MM')}`
+      : format(new Date(checkIn), 'dd.MM');
+    
+    return {
+      period: periodLabel,
+      'Dein Preis': row.own_price || null,
+      'Marktdurchschnitt': row.average_competitor_price ? Math.round(row.average_competitor_price) : null,
+      ...Object.fromEntries(
+        competitors.slice(0, 2).map(comp => [
+          comp.property_name,
+          row.competitor_prices[comp.id]?.price || null
+        ])
+      )
+    };
+  });
 
   const colors = [
     '#2563eb', // Blau für eigenen Preis
@@ -32,17 +40,20 @@ const PriceComparisonChart = ({ data, competitors }: PriceComparisonChartProps) 
   return (
     <div className="w-full h-[400px]">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+        <LineChart data={chartData} margin={{ top: 5, right: 30, left: 10, bottom: 60 }}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
           <XAxis 
-            dataKey="date" 
-            tick={{ fontSize: 12 }}
+            dataKey="period" 
+            tick={{ fontSize: 11 }}
+            angle={-45}
+            textAnchor="end"
+            height={80}
             className="text-muted-foreground"
           />
           <YAxis 
             tick={{ fontSize: 12 }}
             className="text-muted-foreground"
-            label={{ value: 'Preis (€)', angle: -90, position: 'insideLeft' }}
+            label={{ value: 'Gesamtpreis (€)', angle: -90, position: 'insideLeft' }}
           />
           <Tooltip 
             contentStyle={{ 
@@ -51,6 +62,7 @@ const PriceComparisonChart = ({ data, competitors }: PriceComparisonChartProps) 
               borderRadius: '8px'
             }}
             formatter={(value: number) => [`€${value}`, '']}
+            labelFormatter={(label) => `Zeitraum: ${label}`}
           />
           <Legend />
           <Line 
