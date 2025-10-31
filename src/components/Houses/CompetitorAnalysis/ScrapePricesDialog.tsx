@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, RefreshCw } from "lucide-react";
+import { CalendarIcon, RefreshCw, Zap } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useUpdateScrapingParams, useScrapePrices } from "@/hooks/useCompetitorAnalysis";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ScrapePricesDialogProps {
   house_id: string;
@@ -63,6 +64,42 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
     }
   };
 
+  const handleMonthlyScrapNow = async () => {
+    try {
+      toast({
+        title: "Scraping gestartet",
+        description: "Hole Wochenpreise für alle 12 Monate (15. jedes Monats)...",
+      });
+
+      const { data, error } = await supabase.functions.invoke('scrape-competitor-prices', {
+        body: { 
+          manual: true, 
+          year: new Date().getFullYear() 
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "✅ Scraping erfolgreich",
+          description: `${data.total_months_scraped} Monate für ${data.successful_properties} Wettbewerber geholt`,
+        });
+      } else {
+        throw new Error(data?.error || 'Scraping fehlgeschlagen');
+      }
+
+      setOpen(false);
+    } catch (error) {
+      console.error('Error during monthly scraping:', error);
+      toast({
+        title: "Fehler beim Scraping",
+        description: error instanceof Error ? error.message : 'Unbekannter Fehler',
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -75,9 +112,42 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
         <DialogHeader>
           <DialogTitle>Preise aktualisieren</DialogTitle>
           <DialogDescription>
-            Wählen Sie den Zeitraum für die Preis-Abfrage
+            Monatliches Scraping (15. jeden Monats) oder eigenen Zeitraum wählen
           </DialogDescription>
         </DialogHeader>
+
+        {/* Monatliches Scraping - SCHNELLAKTION */}
+        <div className="py-4 border-b">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h4 className="font-medium flex items-center gap-2">
+                <Zap className="w-4 h-4 text-yellow-500" />
+                Monatliches Scraping
+              </h4>
+              <p className="text-sm text-muted-foreground mt-1">
+                Holt automatisch Wochenpreise für alle 12 Monate (15. → 22. jedes Monats)
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={handleMonthlyScrapNow}
+            disabled={updateParams.isPending || scrapePrices.isPending || disabled}
+            className="w-full"
+            variant="default"
+          >
+            {(updateParams.isPending || scrapePrices.isPending) ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Scraping läuft...
+              </>
+            ) : (
+              <>
+                <Zap className="mr-2 h-4 w-4" />
+                Jetzt scrapen (alle 12 Monate)
+              </>
+            )}
+          </Button>
+        </div>
 
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
