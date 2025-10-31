@@ -21,13 +21,15 @@ interface CompetitorAnalysisDashboardProps {
 }
 
 const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysisDashboardProps) => {
-  // Zeitraum für monatliche Preise: Aktueller Monat bis +12 Monate
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1; // 1-12
+  // Zeitraum für monatliche Preise: Nur aktueller Monat
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const lastDayOfMonth = new Date(currentYear, currentMonth, 0).getDate();
   
   const [dateRange, setDateRange] = useState({
     from: `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`,
-    to: `${currentYear + 1}-${String(currentMonth).padStart(2, '0')}-28`
+    to: `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`
   });
 
   const { data: competitors, isLoading: competitorsLoading } = useCompetitorProperties(house_id);
