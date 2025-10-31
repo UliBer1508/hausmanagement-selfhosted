@@ -17,6 +17,7 @@ import Guests from "./pages/Guests";
 import Laundry from "./pages/Laundry";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import TestScraping from "./pages/TestScraping";
 import ChatAssistant from "./components/Chat/ChatAssistant";
 
 const queryClient = new QueryClient();
@@ -49,6 +50,7 @@ const App = () => {
             <Route path="/original" element={<ServicePortalOriginal />} />
             <Route path="/original-dashboard" element={<OriginalDashboard />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/test-scraping" element={<TestScraping />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
             </Routes>

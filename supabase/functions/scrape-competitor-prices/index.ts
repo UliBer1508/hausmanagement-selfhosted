@@ -186,12 +186,14 @@ Falls nicht verfügbar: { "available": false }
             .from('monthly_pricing')
             .upsert({
               competitor_property_id: property.id,
-              month: period.month,
-              year: period.year,
+              check_in_date: period.check_in,
+              check_out_date: period.check_out,
               base_price_7nights: totalPrice,
+              currency: 'EUR',
               source: 'scraped',
+              scraped_at: new Date().toISOString(),
             }, {
-              onConflict: 'competitor_property_id,month,year',
+              onConflict: 'competitor_property_id,check_in_date',
             });
 
           if (insertError) {

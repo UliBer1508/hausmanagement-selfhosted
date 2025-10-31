@@ -2542,46 +2542,49 @@ export type Database = {
       }
       monthly_pricing: {
         Row: {
-          base_price_7nights: number
+          base_price_7nights: number | null
+          check_in_date: string
+          check_out_date: string
           competitor_property_id: string | null
-          created_at: string | null
+          created_at: string
+          currency: string
           final_price_7nights: number | null
           house_id: string | null
           id: string
           markup_percentage: number | null
-          month: number
-          notes: string | null
+          scraped_at: string | null
           source: string
-          updated_at: string | null
-          year: number
+          updated_at: string
         }
         Insert: {
-          base_price_7nights: number
+          base_price_7nights?: number | null
+          check_in_date: string
+          check_out_date: string
           competitor_property_id?: string | null
-          created_at?: string | null
+          created_at?: string
+          currency?: string
           final_price_7nights?: number | null
           house_id?: string | null
           id?: string
           markup_percentage?: number | null
-          month: number
-          notes?: string | null
+          scraped_at?: string | null
           source?: string
-          updated_at?: string | null
-          year: number
+          updated_at?: string
         }
         Update: {
-          base_price_7nights?: number
+          base_price_7nights?: number | null
+          check_in_date?: string
+          check_out_date?: string
           competitor_property_id?: string | null
-          created_at?: string | null
+          created_at?: string
+          currency?: string
           final_price_7nights?: number | null
           house_id?: string | null
           id?: string
           markup_percentage?: number | null
-          month?: number
-          notes?: string | null
+          scraped_at?: string | null
           source?: string
-          updated_at?: string | null
-          year?: number
+          updated_at?: string
         }
         Relationships: [
           {
