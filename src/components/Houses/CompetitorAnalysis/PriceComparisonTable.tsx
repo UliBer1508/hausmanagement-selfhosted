@@ -31,15 +31,14 @@ const PriceComparisonTable = ({ data, competitors }: PriceComparisonTableProps) 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-[180px]">Zeitraum</TableHead>
-            <TableHead className="text-center w-[80px]">Nächte</TableHead>
-            <TableHead className="text-right">Dein Preis</TableHead>
+            <TableHead className="w-[180px]">Check-in Datum</TableHead>
+            <TableHead className="text-right">Dein Preis (7N)</TableHead>
             {competitors.slice(0, 3).map(comp => (
               <TableHead key={comp.id} className="text-right">
-                {comp.property_name}
+                {comp.property_name} (7N)
               </TableHead>
             ))}
-            <TableHead className="text-right">Ø Wettbewerber</TableHead>
+            <TableHead className="text-right">Ø Wettbewerber (7N)</TableHead>
             <TableHead className="text-right">Differenz</TableHead>
             <TableHead>Status</TableHead>
           </TableRow>
@@ -47,30 +46,25 @@ const PriceComparisonTable = ({ data, competitors }: PriceComparisonTableProps) 
         <TableBody>
           {data.slice(0, 30).map((row) => {
             const checkIn = row.check_in || row.date;
-            const checkOut = row.check_out;
-            const nights = row.nights || 7;
             return (
               <TableRow key={checkIn}>
                 <TableCell className="font-medium">
-                  {format(new Date(checkIn), 'dd.MM', { locale: de })} → {checkOut ? format(new Date(checkOut), 'dd.MM.yyyy', { locale: de }) : '?'}
-                </TableCell>
-                <TableCell className="text-center text-muted-foreground">
-                  {nights}
+                  {format(new Date(checkIn), 'dd. MMMM yyyy', { locale: de })}
                 </TableCell>
                 <TableCell className="text-right font-semibold">
-                  {row.own_price ? `€${row.own_price}` : '-'}
+                  {row.own_price ? `${Math.round(row.own_price).toLocaleString('de-DE')} €` : '-'}
                 </TableCell>
                 {competitors.slice(0, 3).map(comp => {
                   const compPrice = row.competitor_prices[comp.id];
                   return (
                     <TableCell key={comp.id} className="text-right text-muted-foreground">
-                      {compPrice ? `€${compPrice.price}` : '-'}
+                      {compPrice ? `${Math.round(compPrice.price).toLocaleString('de-DE')} €` : '-'}
                     </TableCell>
                   );
                 })}
                 <TableCell className="text-right font-medium">
                   {row.average_competitor_price 
-                    ? `€${Math.round(row.average_competitor_price)}` 
+                    ? `${Math.round(row.average_competitor_price).toLocaleString('de-DE')} €` 
                     : '-'}
                 </TableCell>
                 <TableCell className="text-right">
