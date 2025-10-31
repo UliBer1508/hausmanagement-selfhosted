@@ -3,11 +3,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Euro } from "lucide-react";
-import { format } from "date-fns";
-import { de } from "date-fns/locale";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Euro } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,35 +14,49 @@ interface OwnPricingDialogProps {
   trigger?: React.ReactNode;
 }
 
+const MONTHS = [
+  { value: '01', label: 'Januar' },
+  { value: '02', label: 'Februar' },
+  { value: '03', label: 'März' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'Mai' },
+  { value: '06', label: 'Juni' },
+  { value: '07', label: 'Juli' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'Oktober' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'Dezember' },
+];
+
 const OwnPricingDialog = ({ house_id, trigger }: OwnPricingDialogProps) => {
+  const currentYear = new Date().getFullYear();
   const [open, setOpen] = useState(false);
-  const [dateFrom, setDateFrom] = useState<Date>();
-  const [dateTo, setDateTo] = useState<Date>();
-  const [price, setPrice] = useState<string>('');
-  const [currency, setCurrency] = useState('EUR');
-  const [minStay, setMinStay] = useState<string>('1');
+  const [year, setYear] = useState<string>(currentYear.toString());
+  const [monthlyPrices, setMonthlyPrices] = useState<Record<string, string>>({});
+  const [currency] = useState('EUR');
   const [isLoading, setIsLoading] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const handlePriceChange = (month: string, value: string) => {
+    setMonthlyPrices(prev => ({
+      ...prev,
+      [month]: value
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!dateFrom || !price) {
+    // Filter out empty prices
+    const validPrices = Object.entries(monthlyPrices).filter(([_, price]) => price && parseFloat(price) > 0);
+    
+    if (validPrices.length === 0) {
       toast({
         title: "Fehlende Daten",
-        description: "Bitte geben Sie mindestens ein Startdatum und einen Preis ein.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const priceNum = parseFloat(price);
-    if (isNaN(priceNum) || priceNum <= 0) {
-      toast({
-        title: "Ungültiger Preis",
-        description: "Bitte geben Sie einen gültigen Preis ein.",
+        description: "Bitte geben Sie mindestens einen Preis ein.",
         variant: "destructive",
       });
       return;
@@ -54,34 +65,27 @@ const OwnPricingDialog = ({ house_id, trigger }: OwnPricingDialogProps) => {
     setIsLoading(true);
 
     try {
-      // Wenn kein End-Datum, nur ein Tag
-      const endDate = dateTo || dateFrom;
-      
-      // Erstelle Array mit allen Tagen im Bereich
-      const dates: Date[] = [];
-      const currentDate = new Date(dateFrom);
-      const finalDate = new Date(endDate);
-      
-      while (currentDate <= finalDate) {
-        dates.push(new Date(currentDate));
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-
-      // Füge Preise für jeden Tag hinzu
-      const priceEntries = dates.map(date => ({
-        house_id,
-        date: format(date, 'yyyy-MM-dd'),
-        price: priceNum,
-        currency,
-        min_stay: parseInt(minStay) || 1,
-        is_available: true,
-        source: 'manual'
-      }));
+      // Create entries for monthly_pricing table
+      const priceEntries = validPrices.map(([month, price]) => {
+        const checkInDate = `${year}-${month}-15`;
+        const checkOutDate = new Date(checkInDate);
+        checkOutDate.setDate(checkOutDate.getDate() + 7);
+        
+        return {
+          house_id,
+          competitor_property_id: null,
+          check_in_date: checkInDate,
+          check_out_date: checkOutDate.toISOString().split('T')[0],
+          base_price_7nights: parseFloat(price),
+          currency,
+          source: 'manual'
+        };
+      });
 
       const { error } = await supabase
-        .from('daily_pricing')
+        .from('monthly_pricing')
         .upsert(priceEntries, {
-          onConflict: 'house_id,date',
+          onConflict: 'house_id,check_in_date',
           ignoreDuplicates: false
         });
 
@@ -89,18 +93,15 @@ const OwnPricingDialog = ({ house_id, trigger }: OwnPricingDialogProps) => {
 
       toast({
         title: "Preise gespeichert",
-        description: `${priceEntries.length} Tagespreise erfolgreich hinzugefügt.`,
+        description: `${priceEntries.length} monatliche Preise erfolgreich hinzugefügt.`,
       });
 
-      // Query invalidieren
+      // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ['price-comparison'] });
 
-      // Dialog schließen und Formular zurücksetzen
+      // Close dialog and reset
       setOpen(false);
-      setDateFrom(undefined);
-      setDateTo(undefined);
-      setPrice('');
-      setMinStay('1');
+      setMonthlyPrices({});
 
     } catch (error: any) {
       console.error('Fehler beim Speichern der Preise:', error);
@@ -124,103 +125,59 @@ const OwnPricingDialog = ({ house_id, trigger }: OwnPricingDialogProps) => {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Eigene Preise erfassen</DialogTitle>
+          <DialogTitle>Eigene monatliche 7-Nächte-Preise erfassen</DialogTitle>
           <DialogDescription>
-            Geben Sie Ihre Tagespreise ein, um sie mit Wettbewerbern zu vergleichen.
+            Geben Sie Ihre Wochenpreise (7 Nächte, Check-in am 15.) ein, um sie mit Wettbewerbern zu vergleichen.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <div className="grid grid-cols-2 gap-4">
-            {/* Von Datum */}
-            <div className="space-y-2">
-              <Label>Von Datum *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFrom ? format(dateFrom, 'dd.MM.yyyy', { locale: de }) : 'Datum wählen'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dateFrom}
-                    onSelect={setDateFrom}
-                    locale={de}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Bis Datum */}
-            <div className="space-y-2">
-              <Label>Bis Datum (optional)</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateTo ? format(dateTo, 'dd.MM.yyyy', { locale: de }) : 'Datum wählen'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={dateTo}
-                    onSelect={setDateTo}
-                    disabled={(date) => dateFrom ? date < dateFrom : false}
-                    locale={de}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
+          {/* Jahr Auswahl */}
+          <div className="space-y-2">
+            <Label htmlFor="year">Jahr</Label>
+            <Select value={year} onValueChange={setYear}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={(currentYear - 1).toString()}>{currentYear - 1}</SelectItem>
+                <SelectItem value={currentYear.toString()}>{currentYear}</SelectItem>
+                <SelectItem value={(currentYear + 1).toString()}>{currentYear + 1}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Preis */}
-          <div className="space-y-2">
-            <Label htmlFor="price">Preis pro Nacht *</Label>
-            <div className="flex gap-2">
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="150.00"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                required
-                className="flex-1"
-              />
-              <Input
-                id="currency"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                className="w-20"
-                placeholder="EUR"
-              />
+          {/* Monatliche Preise Tabelle */}
+          <div className="border rounded-lg overflow-hidden">
+            <div className="grid grid-cols-3 gap-px bg-muted">
+              <div className="bg-background p-2 font-medium text-sm">Monat</div>
+              <div className="bg-background p-2 font-medium text-sm">Check-in</div>
+              <div className="bg-background p-2 font-medium text-sm">Preis (7 Nächte)</div>
             </div>
-          </div>
-
-          {/* Mindestaufenthalt */}
-          <div className="space-y-2">
-            <Label htmlFor="minStay">Mindestaufenthalt (Nächte)</Label>
-            <Input
-              id="minStay"
-              type="number"
-              min="1"
-              value={minStay}
-              onChange={(e) => setMinStay(e.target.value)}
-            />
+            {MONTHS.map((month) => (
+              <div key={month.value} className="grid grid-cols-3 gap-px bg-muted">
+                <div className="bg-background p-2 text-sm">{month.label}</div>
+                <div className="bg-background p-2 text-sm text-muted-foreground">
+                  15.{month.value}.{year}
+                </div>
+                <div className="bg-background p-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="1200.00"
+                      value={monthlyPrices[month.value] || ''}
+                      onChange={(e) => handlePriceChange(month.value, e.target.value)}
+                      className="flex-1"
+                    />
+                    <span className="text-sm text-muted-foreground">{currency}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
@@ -233,7 +190,7 @@ const OwnPricingDialog = ({ house_id, trigger }: OwnPricingDialogProps) => {
               Abbrechen
             </Button>
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'Wird gespeichert...' : 'Preise speichern'}
+              {isLoading ? 'Wird gespeichert...' : 'Alle Preise speichern'}
             </Button>
           </div>
         </form>
