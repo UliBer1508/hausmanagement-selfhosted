@@ -20,7 +20,7 @@ serve(async (req) => {
 
     // Lade alle Gesamtpreis-Einträge die noch nicht expandiert wurden
     const { data: totalPrices, error: fetchError } = await supabase
-      .from('daily_pricing')
+      .from('weekly_pricing')
       .select('*')
       .not('period_nights', 'is', null)
       .gt('period_nights', 0)
@@ -86,7 +86,7 @@ serve(async (req) => {
 
         // Upsert Tageseinträge
         const { error: upsertError } = await supabase
-          .from('daily_pricing')
+          .from('weekly_pricing')
           .upsert(dailyRecords, {
             onConflict: 'competitor_property_id,date',
           });
@@ -99,7 +99,7 @@ serve(async (req) => {
 
         // Markiere Original-Eintrag als expandiert
         const { error: updateError } = await supabase
-          .from('daily_pricing')
+          .from('weekly_pricing')
           .update({ is_expanded: true })
           .eq('id', record.id);
 

@@ -243,6 +243,7 @@ Falls kein Preis verfügbar: { "available": false, "total_price": null }
               is_available: p.available !== false,
               source: 'scraped',
               scraped_at: new Date().toISOString(),
+              is_expanded: false, // NEU!
               
               // Period-Felder für spätere Tagesberechnung
               period_total_price: totalPrice,
@@ -258,7 +259,7 @@ Falls kein Preis verfügbar: { "available": false, "total_price": null }
         console.log(`[scrape-competitor-prices] Prepared ${priceRecords.length} total price records`);
 
         const { error: insertError } = await supabase
-          .from('daily_pricing')
+          .from('weekly_pricing')
           .upsert(priceRecords, {
             onConflict: 'competitor_property_id,date',
             ignoreDuplicates: false
