@@ -1232,6 +1232,66 @@ export type Database = {
           },
         ]
       }
+      daily_pricing_backup: {
+        Row: {
+          competitor_property_id: string | null
+          created_at: string | null
+          currency: string | null
+          date: string | null
+          house_id: string | null
+          id: string | null
+          is_available: boolean | null
+          is_expanded: boolean | null
+          min_stay: number | null
+          period_check_in: string | null
+          period_check_out: string | null
+          period_nights: number | null
+          period_total_price: number | null
+          price: number | null
+          scraped_at: string | null
+          source: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          competitor_property_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          date?: string | null
+          house_id?: string | null
+          id?: string | null
+          is_available?: boolean | null
+          is_expanded?: boolean | null
+          min_stay?: number | null
+          period_check_in?: string | null
+          period_check_out?: string | null
+          period_nights?: number | null
+          period_total_price?: number | null
+          price?: number | null
+          scraped_at?: string | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          competitor_property_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          date?: string | null
+          house_id?: string | null
+          id?: string | null
+          is_available?: boolean | null
+          is_expanded?: boolean | null
+          min_stay?: number | null
+          period_check_in?: string | null
+          period_check_out?: string | null
+          period_nights?: number | null
+          period_total_price?: number | null
+          price?: number | null
+          scraped_at?: string | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       day_trips: {
         Row: {
           activity_address: string
@@ -1741,6 +1801,7 @@ export type Database = {
           own_rating: number | null
           own_rating_platform: string | null
           own_review_count: number | null
+          pricing_config: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -1767,6 +1828,7 @@ export type Database = {
           own_rating?: number | null
           own_rating_platform?: string | null
           own_review_count?: number | null
+          pricing_config?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -1793,6 +1855,7 @@ export type Database = {
           own_rating?: number | null
           own_rating_platform?: string | null
           own_review_count?: number | null
+          pricing_config?: Json | null
           updated_at?: string | null
         }
         Relationships: []
@@ -2470,6 +2533,66 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "model_parameters_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      monthly_pricing: {
+        Row: {
+          base_price_7nights: number
+          competitor_property_id: string | null
+          created_at: string | null
+          final_price_7nights: number | null
+          house_id: string | null
+          id: string
+          markup_percentage: number | null
+          month: number
+          notes: string | null
+          source: string
+          updated_at: string | null
+          year: number
+        }
+        Insert: {
+          base_price_7nights: number
+          competitor_property_id?: string | null
+          created_at?: string | null
+          final_price_7nights?: number | null
+          house_id?: string | null
+          id?: string
+          markup_percentage?: number | null
+          month: number
+          notes?: string | null
+          source?: string
+          updated_at?: string | null
+          year: number
+        }
+        Update: {
+          base_price_7nights?: number
+          competitor_property_id?: string | null
+          created_at?: string | null
+          final_price_7nights?: number | null
+          house_id?: string | null
+          id?: string
+          markup_percentage?: number | null
+          month?: number
+          notes?: string | null
+          source?: string
+          updated_at?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_pricing_competitor_property_id_fkey"
+            columns: ["competitor_property_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "monthly_pricing_house_id_fkey"
             columns: ["house_id"]
             isOneToOne: false
             referencedRelation: "houses"
@@ -3587,6 +3710,81 @@ export type Database = {
           weather_data?: Json
         }
         Relationships: []
+      }
+      weekly_pricing: {
+        Row: {
+          competitor_property_id: string | null
+          created_at: string | null
+          currency: string | null
+          date: string
+          house_id: string | null
+          id: string
+          is_available: boolean | null
+          is_expanded: boolean | null
+          min_stay: number | null
+          period_check_in: string | null
+          period_check_out: string | null
+          period_nights: number | null
+          period_total_price: number | null
+          price: number
+          scraped_at: string | null
+          source: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          competitor_property_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          date: string
+          house_id?: string | null
+          id?: string
+          is_available?: boolean | null
+          is_expanded?: boolean | null
+          min_stay?: number | null
+          period_check_in?: string | null
+          period_check_out?: string | null
+          period_nights?: number | null
+          period_total_price?: number | null
+          price: number
+          scraped_at?: string | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          competitor_property_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          date?: string
+          house_id?: string | null
+          id?: string
+          is_available?: boolean | null
+          is_expanded?: boolean | null
+          min_stay?: number | null
+          period_check_in?: string | null
+          period_check_out?: string | null
+          period_nights?: number | null
+          period_total_price?: number | null
+          price?: number
+          scraped_at?: string | null
+          source?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_pricing_competitor_property_id_fkey"
+            columns: ["competitor_property_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_pricing_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

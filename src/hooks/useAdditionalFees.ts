@@ -3,11 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
 interface AdditionalFees {
-  booking_com: PlatformFees;
-  airbnb: PlatformFees;
-}
-
-interface PlatformFees {
   service_fee_per_stay: number;
   tourist_tax_per_night: number;
   cleaning_fee_per_stay: number;
@@ -18,22 +13,12 @@ interface PlatformFees {
 
 function getDefaultFees(): AdditionalFees {
   return {
-    booking_com: {
-      service_fee_per_stay: 0,
-      tourist_tax_per_night: 2.50,
-      cleaning_fee_per_stay: 80,
-      electricity_fee_per_stay: 40,
-      linen_fee_per_stay: 30,
-      vat_percentage: 19
-    },
-    airbnb: {
-      service_fee_per_stay: 0,
-      tourist_tax_per_night: 2.50,
-      cleaning_fee_per_stay: 80,
-      electricity_fee_per_stay: 40,
-      linen_fee_per_stay: 30,
-      vat_percentage: 19
-    }
+    service_fee_per_stay: 0,
+    tourist_tax_per_night: 2.50,
+    cleaning_fee_per_stay: 80,
+    electricity_fee_per_stay: 40,
+    linen_fee_per_stay: 30,
+    vat_percentage: 19
   };
 }
 
@@ -95,17 +80,16 @@ export const useAdditionalFees = (houseId: string) => {
   };
 };
 
-// Hilfsfunktion zur Berechnung der Gesamtkosten
+// Hilfsfunktion zur Berechnung der Nebenkosten (ohne Basispreis)
 export function calculateAdditionalFees(
-  fees: PlatformFees, 
+  fees: AdditionalFees, 
   booking: { nights: number; guests: number }
 ): number {
-  const subtotal = 
+  return (
     fees.service_fee_per_stay +
     fees.tourist_tax_per_night * booking.nights * booking.guests +
     fees.cleaning_fee_per_stay +
     fees.electricity_fee_per_stay +
-    fees.linen_fee_per_stay;
-  
-  return subtotal * (1 + fees.vat_percentage / 100);
+    fees.linen_fee_per_stay
+  );
 }
