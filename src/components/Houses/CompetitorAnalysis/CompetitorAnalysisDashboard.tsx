@@ -13,7 +13,7 @@ import AdditionalFeesDialog from './AdditionalFeesDialog';
 import ManualCompetitorDialog from './ManualCompetitorDialog';
 import CompetitorPriceHistoryList from './CompetitorPriceHistoryList';
 import ScrapePricesDialog from './ScrapePricesDialog';
-import { addDays, format } from 'date-fns';
+import { format } from 'date-fns';
 
 interface CompetitorAnalysisDashboardProps {
   house_id: string;
@@ -21,9 +21,13 @@ interface CompetitorAnalysisDashboardProps {
 }
 
 const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysisDashboardProps) => {
+  // Zeitraum für monatliche Preise: Aktueller Monat bis +12 Monate
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1; // 1-12
+  
   const [dateRange, setDateRange] = useState({
-    from: format(new Date(), 'yyyy-MM-dd'),
-    to: format(addDays(new Date(), 30), 'yyyy-MM-dd')
+    from: `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`,
+    to: `${currentYear + 1}-${String(currentMonth).padStart(2, '0')}-28`
   });
 
   const { data: competitors, isLoading: competitorsLoading } = useCompetitorProperties(house_id);
@@ -158,13 +162,29 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
                   competitors={priceData.competitors}
                 />
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p>Keine Preisdaten verfügbar.</p>
-                  <p className="text-sm mt-2">
-                    {stats.competitorCount === 0 
-                      ? 'Fügen Sie zuerst Wettbewerber hinzu.'
-                      : 'Aktualisieren Sie die Preise, um Daten zu sammeln.'}
-                  </p>
+                <div className="text-center py-12 text-muted-foreground space-y-4">
+                  <p className="text-lg font-medium">Keine Preisdaten verfügbar</p>
+                  <div className="space-y-2 text-sm">
+                    <p>Um den Preisvergleich zu starten, benötigen Sie:</p>
+                    <ol className="list-decimal list-inside space-y-1 text-left max-w-md mx-auto">
+                      <li>Eigene monatliche Preise eingeben (Button "Eigene Preise eingeben")</li>
+                      <li>Wettbewerber-Preise scrapen (Button "Preise aktualisieren")</li>
+                    </ol>
+                  </div>
+                  <div className="flex gap-2 justify-center pt-4">
+                    <OwnPricingDialog 
+                      house_id={house_id}
+                      trigger={
+                        <Button variant="default">
+                          1. Eigene Preise eingeben
+                        </Button>
+                      }
+                    />
+                    <ScrapePricesDialog 
+                      house_id={house_id}
+                      disabled={stats.competitorCount === 0}
+                    />
+                  </div>
                 </div>
               )}
             </CardContent>
