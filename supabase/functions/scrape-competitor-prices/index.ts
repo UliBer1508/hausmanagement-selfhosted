@@ -99,8 +99,37 @@ serve(async (req) => {
         try {
           const period = monthToScrape;
 
-          // Verbesserter Perplexity-Prompt
-          const priceQuery = `
+          // Prüfe ob URL bereits Suchparameter enthält
+          const hasSearchParams = property.property_url.includes('checkin=') && property.property_url.includes('checkout=');
+          
+          // Verbesserter Perplexity-Prompt (unterscheidet zwischen Landing-Page und Such-URL)
+          const priceQuery = hasSearchParams ? `
+AUFGABE: Lies den Preis für diese Booking.com-Suche aus:
+
+URL: ${property.property_url}
+
+WICHTIG:
+- Die URL enthält bereits Check-in/Check-out-Daten und Gästeanzahl
+- Besuche die URL und lies den angezeigten Gesamtpreis aus
+- Der Preis sollte direkt sichtbar sein
+- Falls die Daten außerhalb des Zeitraums ${period.month_start} bis ${period.month_end} liegen, suche nach einem 7-Nächte-Zeitraum in diesem Monat
+
+ANTWORT-FORMAT (NUR JSON):
+Falls Preis gefunden:
+{
+  "total_price": 1890,
+  "check_in": "2025-10-18",
+  "check_out": "2025-10-25",
+  "available": true,
+  "currency": "EUR"
+}
+
+Falls nicht verfügbar:
+{
+  "available": false,
+  "reason": "Genauer Grund"
+}
+          ` : `
 AUFGABE: Finde einen 7-Nächte-Preis für diese Booking.com-Unterkunft:
 
 URL: ${property.property_url}
@@ -110,11 +139,12 @@ GÄSTE: ${property.max_guests || 2} Erwachsene
 AUFENTHALT: 7 Nächte
 
 WICHTIG:
-- Suche nach IRGENDEINEM verfügbaren 7-Nächte-Zeitraum im Monat
-- Wenn nichts verfügbar: Prüfe ob die URL erreichbar ist
-- Wenn Booking.com nicht verfügbar: Gib spezifischen Grund zurück
+- Die URL ist eine Landing-Page OHNE Suchparameter
+- Du musst auf der Seite nach verfügbaren Zeiträumen suchen
+- Suche nach IRGENDEINEM verfügbaren 7-Nächte-Zeitraum im angegebenen Monat
+- Falls nichts verfügbar: Gib spezifischen Grund zurück
 
-ANTWORT-FORMAT (NUR JSON, keine zusätzlichen Texte):
+ANTWORT-FORMAT (NUR JSON):
 Falls verfügbar:
 {
   "total_price": 1890,
@@ -127,9 +157,11 @@ Falls verfügbar:
 Falls NICHT verfügbar:
 {
   "available": false,
-  "reason": "Genauer Grund (z.B. 'Monat ausgebucht', 'URL nicht erreichbar', 'Booking.com blockiert', etc.)"
+  "reason": "Genauer Grund (z.B. 'Monat ausgebucht', 'URL nicht erreichbar', 'Booking.com blockiert')"
 }
           `;
+
+          console.log(`[scrape-monthly-prices] URL type: ${hasSearchParams ? 'SEARCH URL (with params)' : 'LANDING PAGE (without params)'}`);
 
           console.log(`[scrape-monthly-prices] Sending query to Perplexity (attempt ${retryCount})...`);
           
