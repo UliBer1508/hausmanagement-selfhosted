@@ -91,51 +91,58 @@ serve(async (req) => {
         const period = monthToScrape;
         console.log(`[scrape-monthly-prices] Scraping ${property.property_name} for ${period.month}/${period.year}`);
 
-        // Perplexity mit flexiblem Check-in
+        // Perplexity mit flexiblem Check-in und verbessertem Prompt
         const priceQuery = `
-Suche nach dem Preis für diese Unterkunft auf ${property.platform || 'der Plattform'}:
-${property.property_url || property.property_name}
+Besuche diese Booking.com-Unterkunft:
+${property.property_url}
 
-ZEITRAUM: ${period.month_start} bis ${period.month_end} (${period.month}/${period.year})
-Aufenthaltsdauer: 7 Nächte (beliebiger Check-in im Monat)
-Gäste: ${property.max_guests || 2}
+AUFGABE: Finde den Preis für einen 7-Nächte-Aufenthalt im Zeitraum ${period.month_start} bis ${period.month_end}.
 
-WICHTIG: 
-- Suche nach einem verfügbaren 7-Nächte-Zeitraum IRGENDWANN im Monat
-- Check-in-Datum ist flexibel (kann jeder Tag im Monat sein)
-- Gib den GESAMTPREIS für 7 Nächte zurück
-- Falls nicht verfügbar, gib available: false zurück
+DETAILS:
+- Gäste: ${property.max_guests || 2} Erwachsene
+- Beliebiger Check-in-Tag im Monat (flexibel)
+- Check-out: 7 Tage nach Check-in
+- Suche nach dem günstigsten oder einem verfügbaren Zeitraum
 
-Antworte NUR mit diesem JSON-Format:
+ANTWORT-FORMAT (NUR JSON, keine zusätzlichen Texte):
 {
   "total_price": 1890,
   "check_in": "2025-10-18",
   "check_out": "2025-10-25",
-  "available": true
+  "available": true,
+  "currency": "EUR"
 }
 
-Falls nicht verfügbar: { "available": false }
+Falls NICHT verfügbar oder Preis nicht gefunden:
+{
+  "available": false,
+  "reason": "Kurze Begründung"
+}
         `;
 
-          const response = await fetch('https://api.perplexity.ai/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${perplexityKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'sonar',
-              messages: [
-                { 
-                  role: 'system', 
-                  content: 'Du extrahierst Preisdaten von Ferienhaus-Plattformen. Antworte NUR mit validem JSON.' 
-                },
-                { role: 'user', content: priceQuery }
-              ],
-              temperature: 0.1,
-              max_tokens: 500,
-            }),
-          });
+        console.log(`[scrape-monthly-prices] Sending query to Perplexity...`);
+        
+        const response = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${perplexityKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'llama-3.1-sonar-large-128k-online',
+            messages: [
+              { 
+                role: 'system', 
+                content: 'Du bist ein Preis-Extraktions-Assistent für Booking.com. Besuche die URL, finde verfügbare Preise und antworte AUSSCHLIESSLICH mit validem JSON. Keine zusätzlichen Erklärungen.' 
+              },
+              { role: 'user', content: priceQuery }
+            ],
+            temperature: 0.0,
+            max_tokens: 1000,
+            return_images: false,
+            return_related_questions: false,
+          }),
+        });
 
         if (!response.ok) {
           const errorBody = await response.text();
@@ -146,6 +153,8 @@ Falls nicht verfügbar: { "available": false }
 
         const data = await response.json();
         const content = data.choices[0].message.content;
+        
+        console.log(`[scrape-monthly-prices] Perplexity response for ${property.property_name}:`, content.substring(0, 500));
         
         // Parse JSON
         let priceData;
@@ -175,10 +184,17 @@ Falls nicht verfügbar: { "available": false }
         }
 
         // Prüfe ob verfügbar und Preis vorhanden
-        if (!priceData.available || !priceData.total_price) {
-          console.log(`[scrape-monthly-prices] No price available for ${property.property_name} in ${period.month}/${period.year}`);
-          propertyResults.errors.push('Not available');
-          throw new Error('Price not available');
+        if (!priceData.available) {
+          const reason = priceData.reason || 'Keine Verfügbarkeit';
+          console.log(`[scrape-monthly-prices] No price available for ${property.property_name} in ${period.month}/${period.year}: ${reason}`);
+          propertyResults.errors.push(`Not available: ${reason}`);
+          throw new Error(`Price not available: ${reason}`);
+        }
+        
+        if (!priceData.total_price) {
+          console.log(`[scrape-monthly-prices] Price missing in response for ${property.property_name}`);
+          propertyResults.errors.push('Price field missing');
+          throw new Error('Price field missing in response');
         }
 
         const totalPrice = parseFloat(priceData.total_price);
@@ -243,8 +259,8 @@ Falls nicht verfügbar: { "available": false }
         });
       }
 
-      // Rate limiting zwischen Properties
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Längeres Rate limiting zwischen Properties (5 Sekunden)
+      await new Promise(resolve => setTimeout(resolve, 5000));
     }
 
     console.log('[scrape-monthly-prices] Scraping complete');
