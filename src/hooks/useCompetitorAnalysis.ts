@@ -44,6 +44,21 @@ export interface WeeklyPricing {
   is_expanded?: boolean;
 }
 
+export interface MonthlyPricing {
+  id: string;
+  house_id?: string;
+  competitor_property_id?: string;
+  check_in_date: string;
+  check_out_date: string;
+  base_price_7nights?: number;
+  markup_percentage?: number;
+  final_price_7nights?: number;
+  currency: string;
+  source: string;
+  scraped_at?: string;
+  created_at?: string;
+}
+
 export interface CompetitorPriceHistoryEntry {
   captured_at: string;
   period_start: string;
@@ -94,24 +109,24 @@ export const useCompetitorProperties = (house_id: string) => {
   });
 };
 
-// Hook: Lade Preisvergleich für einen Zeitraum
+// Hook: Lade monatlichen Preisvergleich (15. des Monats)
 export const usePriceComparison = (
   house_id: string, 
   date_from: string, 
   date_to: string
 ) => {
   return useQuery({
-    queryKey: ['price-comparison-weekly', house_id, date_from, date_to],
+    queryKey: ['price-comparison-monthly', house_id, date_from, date_to],
     queryFn: async () => {
-      // Lade eigene 7-Nächte-Preise (OHNE expandierte Tagespreise)
+      // Lade eigene monatliche Preise
       const { data: ownPrices, error: ownError } = await supabase
-        .from('weekly_pricing' as any)
+        .from('monthly_pricing' as any)
         .select('*')
         .eq('house_id', house_id)
-        .gte('period_check_in', date_from)
-        .lte('period_check_in', date_to)
-        .eq('is_expanded', false)
-        .order('period_check_in') as any;
+        .is('competitor_property_id', null)
+        .gte('check_in_date', date_from)
+        .lte('check_in_date', date_to)
+        .order('check_in_date') as any;
 
       if (ownError) throw ownError;
 
@@ -124,51 +139,51 @@ export const usePriceComparison = (
 
       if (competitorError) throw competitorError;
 
-      // Lade Wettbewerber-Preise (7-Nächte-Perioden)
+      // Lade Wettbewerber-Preise
       const competitorIds = competitors?.map(c => c.id) || [];
       
-      let competitorPrices: WeeklyPricing[] = [];
+      let competitorPrices: MonthlyPricing[] = [];
       if (competitorIds.length > 0) {
         const { data: prices, error: pricesError } = await supabase
-          .from('weekly_pricing' as any)
+          .from('monthly_pricing' as any)
           .select('*')
           .in('competitor_property_id', competitorIds)
-          .gte('period_check_in', date_from)
-          .lte('period_check_in', date_to)
-          .eq('is_expanded', false)
-          .order('period_check_in') as any;
+          .is('house_id', null)
+          .gte('check_in_date', date_from)
+          .lte('check_in_date', date_to)
+          .order('check_in_date') as any;
 
         if (pricesError) throw pricesError;
-        competitorPrices = (prices || []) as WeeklyPricing[];
+        competitorPrices = (prices || []) as MonthlyPricing[];
       }
 
-      // Gruppiere nach Check-in-Datum (nicht mehr nach einzelnem Tag!)
+      // Gruppiere nach Check-in-Datum
       const periodMap: { [check_in: string]: any } = {};
 
       // Eigene Preise
       ownPrices?.forEach((price: any) => {
-        const checkIn = price.period_check_in || price.date;
+        const checkIn = price.check_in_date;
         if (!periodMap[checkIn]) {
           periodMap[checkIn] = {
             date: checkIn,
             check_in: checkIn,
-            check_out: price.period_check_out,
-            nights: price.period_nights || 7,
+            check_out: price.check_out_date,
+            nights: 7,
             competitor_prices: {}
           };
         }
-        periodMap[checkIn].own_price = price.period_total_price || price.price;
+        periodMap[checkIn].own_price = price.final_price_7nights || price.base_price_7nights;
       });
 
       // Wettbewerber-Preise
       competitorPrices.forEach((price: any) => {
-        const checkIn = price.period_check_in || price.date;
+        const checkIn = price.check_in_date;
         if (!periodMap[checkIn]) {
           periodMap[checkIn] = {
             date: checkIn,
             check_in: checkIn,
-            check_out: price.period_check_out,
-            nights: price.period_nights || 7,
+            check_out: price.check_out_date,
+            nights: 7,
             competitor_prices: {}
           };
         }
@@ -176,15 +191,15 @@ export const usePriceComparison = (
         const competitor = competitors?.find(c => c.id === price.competitor_property_id);
         if (competitor && price.competitor_property_id) {
           periodMap[checkIn].competitor_prices[price.competitor_property_id] = {
-            price: price.period_total_price || price.price,
+            price: price.base_price_7nights,
             property_name: competitor.property_name,
-            check_out: price.period_check_out,
-            nights: price.period_nights || 7
+            check_out: price.check_out_date,
+            nights: 7
           };
         }
       });
 
-      // Berechne Durchschnitte (pro Zeitraum, nicht pro Tag!)
+      // Berechne Durchschnitte
       const comparisonData: PriceComparisonData[] = Object.values(periodMap).map((data: any) => {
         const competitorPriceValues = Object.values(data.competitor_prices).map((cp: any) => cp.price);
         
