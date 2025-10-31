@@ -20,9 +20,12 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
 
   const handleMonthlyScrapNow = async () => {
     try {
+      const now = new Date();
+      const monthName = now.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+      
       toast({
         title: "Scraping gestartet",
-        description: "Hole Wochenpreise für alle 12 Monate (15. jedes Monats)...",
+        description: `Suche 7-Nächte-Preise für ${monthName} (flexibles Check-in)...`,
       });
 
       const { data, error } = await supabase.functions.invoke('scrape-competitor-prices', {
@@ -37,7 +40,7 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
       if (data?.success) {
         toast({
           title: "✅ Scraping erfolgreich",
-          description: `${data.total_months_scraped} Monate für ${data.successful_properties} Wettbewerber geholt`,
+          description: `${data.successful_properties || 0} von ${data.total_properties} Wettbewerbern erfolgreich`,
         });
       } else {
         throw new Error(data?.error || 'Scraping fehlgeschlagen');
@@ -66,7 +69,7 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
         <DialogHeader>
           <DialogTitle>Wettbewerber-Preise aktualisieren</DialogTitle>
           <DialogDescription>
-            Scrapt automatisch 7-Nächte-Preise für alle 12 Monate (jeweils Check-in am 15. des Monats)
+            Scrapt automatisch 7-Nächte-Preise für den aktuellen Monat. Check-in-Datum ist flexibel (beliebiger Tag im Monat).
           </DialogDescription>
         </DialogHeader>
 
@@ -75,10 +78,10 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
             <div>
               <h4 className="font-medium flex items-center gap-2">
                 <Zap className="w-4 h-4 text-yellow-500" />
-                Monatliches Scraping
+                Aktueller Monat (flexibel)
               </h4>
               <p className="text-sm text-muted-foreground mt-2">
-                Holt Wochenpreise (7 Nächte) für alle 12 Monate. Check-in immer am 15., Check-out am 22. jedes Monats.
+                Perplexity sucht nach verfügbaren 7-Nächte-Preisen irgendwann im aktuellen Monat. Check-in-Datum wird automatisch erkannt.
               </p>
             </div>
           </div>
@@ -96,7 +99,7 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
             ) : (
               <>
                 <Zap className="mr-2 h-4 w-4" />
-                Jetzt scrapen (alle 12 Monate)
+                Jetzt scrapen (flexibel)
               </>
             )}
           </Button>
