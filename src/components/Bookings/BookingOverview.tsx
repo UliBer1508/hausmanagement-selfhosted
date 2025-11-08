@@ -454,8 +454,11 @@ const BookingOverview = () => {
                     <SelectContent className="bg-background border shadow-md z-50">
                       <SelectItem value="all">Alle Quellen</SelectItem>
                       <SelectItem value="manual">Manuell</SelectItem>
-                      <SelectItem value="booking">Booking.com</SelectItem>
+                      <SelectItem value="booking.com">Booking.com</SelectItem>
                       <SelectItem value="airbnb">Airbnb</SelectItem>
+                      <SelectItem value="belvilla">Belvilla</SelectItem>
+                      <SelectItem value="vrbo">VRBO</SelectItem>
+                      <SelectItem value="direct">Direktbuchung</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

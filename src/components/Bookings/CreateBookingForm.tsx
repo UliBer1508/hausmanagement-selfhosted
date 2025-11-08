@@ -746,6 +746,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                     <SelectItem value="booking.com">Booking.com</SelectItem>
                     <SelectItem value="airbnb">Airbnb</SelectItem>
                     <SelectItem value="vrbo">VRBO</SelectItem>
+                    <SelectItem value="belvilla">Belvilla</SelectItem>
                     <SelectItem value="direct">Direktbuchung</SelectItem>
                     <SelectItem value="other">Sonstige</SelectItem>
                   </SelectContent>
