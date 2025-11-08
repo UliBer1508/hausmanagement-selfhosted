@@ -159,7 +159,7 @@ export const mockLinenOrders: LinenOrder[] = [
     delivery_date: '2024-09-25',
     items: [
       { id: '4', type: 'Bettwäsche', count: 3, status: 'in-progress' },
-      { id: '5', type: 'Handtücher', count: 6, status: 'completed' }
+      { id: '5', type: 'Handtücher', count: 6, status: 'in-progress' }
     ]
   }
 ];

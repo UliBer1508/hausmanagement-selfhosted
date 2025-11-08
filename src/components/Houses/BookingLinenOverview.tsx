@@ -21,7 +21,6 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     missingOrders,
     urgentOrders,
     activeOrders,
-    completedOrders,
     isLoading,
     createOrder,
     isCreatingOrder,
@@ -98,7 +97,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
 
       {/* Tabs */}
       <Tabs defaultValue="missing" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Übersicht</TabsTrigger>
           <TabsTrigger value="missing" className="relative">
             Fehlend
@@ -109,7 +108,6 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
             )}
           </TabsTrigger>
           <TabsTrigger value="active">Aktiv ({activeOrders.length})</TabsTrigger>
-          <TabsTrigger value="completed">Abgeschlossen ({completedOrders.length})</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -254,36 +252,6 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
                     Bestellung ID: {booking.linen_order.order_id}
                   </p>
                 </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-
-        {/* Completed Orders Tab */}
-        <TabsContent value="completed" className="space-y-4">
-          {completedOrders.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center text-muted-foreground">
-                Keine abgeschlossenen Bestellungen
-              </CardContent>
-            </Card>
-          ) : (
-            completedOrders.map((booking) => (
-              <Card key={booking.booking_id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{booking.guest_name}</CardTitle>
-                      <CardDescription>
-                        Check-in: {format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de })}
-                      </CardDescription>
-                    </div>
-                    <Badge variant="secondary">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      Geliefert
-                    </Badge>
-                  </div>
-                </CardHeader>
               </Card>
             ))
           )}

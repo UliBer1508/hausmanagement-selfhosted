@@ -139,7 +139,7 @@ const ServicePortal = () => {
   const renderLinenOrders = () => {
     const pendingOrders = mockLinenOrders.filter(order => order.status === 'pending');
     const inProgressOrders = mockLinenOrders.filter(order => order.status === 'in-progress');
-    const completedOrders = mockLinenOrders.filter(order => order.status === 'completed');
+    const completedOrders = mockLinenOrders.filter(order => order.status === 'delivered');
 
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -203,8 +203,8 @@ const ServicePortal = () => {
                     {order.items?.map((item) => (
                       <div key={item.id} className="flex items-center justify-between text-xs">
                         <span>{item.type}</span>
-                        <Badge variant={item.status === 'completed' ? 'default' : 'outline'} className="text-xs">
-                          {item.status === 'completed' ? '✓' : item.count}
+                        <Badge variant={item.status === 'in-progress' ? 'default' : 'outline'} className="text-xs">
+                          {item.status === 'in-progress' ? '✓' : item.count}
                         </Badge>
                       </div>
                     ))}

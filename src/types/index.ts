@@ -41,13 +41,13 @@ export interface LinenItem {
   id: string;
   type: string;
   count: number;
-  status: 'pending' | 'in-progress' | 'completed';
+  status: 'pending' | 'in-progress';
   icon?: string;
 }
 
 export interface LinenOrder {
   id: string;
-  status: 'pending' | 'in-progress' | 'completed' | 'delivered';
+  status: 'pending' | 'in-progress' | 'delivered' | 'cancelled';
   provider_id?: string;
   house_id?: string;
   booking_id?: string;

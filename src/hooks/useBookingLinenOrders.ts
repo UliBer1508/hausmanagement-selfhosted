@@ -201,9 +201,6 @@ export const useBookingLinenOrders = (houseId: string) => {
     b => b.linen_order.exists && 
     (b.linen_order.status === 'pending' || b.linen_order.status === 'in-progress')
   ) || [];
-  const completedOrders = orderStatus?.bookings.filter(
-    b => b.linen_order.exists && b.linen_order.status === 'delivered'
-  ) || [];
 
   return {
     config,
@@ -211,7 +208,6 @@ export const useBookingLinenOrders = (houseId: string) => {
     missingOrders,
     urgentOrders,
     activeOrders,
-    completedOrders,
     isLoading: configLoading || statusLoading,
     createOrder: createOrderMutation.mutate,
     isCreatingOrder: createOrderMutation.isPending,
