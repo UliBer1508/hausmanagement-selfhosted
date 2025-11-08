@@ -188,7 +188,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
                         bookings: {
                           guest_name: booking.guest_name,
                           check_in: booking.check_in,
-                          check_out: booking.check_in,
+                          check_out: booking.check_out,
                           number_of_guests: booking.number_of_guests
                         }
                       }}
