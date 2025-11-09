@@ -125,6 +125,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
           status,
           booking_amount,
           currency,
+          platform,
           notes,
           created_at,
           updated_at,
