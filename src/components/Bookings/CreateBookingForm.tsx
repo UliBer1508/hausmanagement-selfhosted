@@ -167,7 +167,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         booking_amount: initialData.booking_amount || undefined,
         currency: initialData.currency || 'EUR',
         status: initialData.status || 'confirmed',
-        platform: initialData.platform || '',
+        platform: initialData.platform || 'none',
         notes: initialData.notes || '',
       };
     }
@@ -178,7 +178,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       guest_email: '',
       guest_phone: '',
       nationality: '',
-      platform: '',
+      platform: 'none',
       notes: '',
     };
   };
@@ -370,7 +370,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         nationality: (data.nationality && data.nationality !== 'none' && data.nationality !== '') ? data.nationality : null,
         booking_amount: data.booking_amount || null,
         currency: data.currency || 'EUR',
-        platform: data.platform || null,
+        platform: (data.platform && data.platform !== 'none') ? data.platform : null,
         notes: data.notes || null,
         status: data.status,
         source: 'manual',
@@ -735,7 +735,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Plattform</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || ''}>
+                <Select onValueChange={field.onChange} value={field.value || 'none'}>
                   <FormControl>
                     <SelectTrigger>
                       <SelectValue placeholder="Plattform wählen" />
