@@ -1,25 +1,38 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { TrendingUp, Users, Calendar, Euro, MapPin, Clock } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { useHouses } from '@/hooks/useHouses';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 const GuestAnalytics = () => {
+  const [selectedHouseId, setSelectedHouseId] = useState<string>('all');
+  const { data: houses } = useHouses();
+
   // Fetch booking data for analytics
   const { data: analyticsData, isLoading } = useQuery({
-    queryKey: ['guest-analytics'],
+    queryKey: ['guest-analytics', selectedHouseId],
     queryFn: async () => {
-      const { data: bookings } = await supabase
+      let query = supabase
         .from('bookings')
         .select(`
           *,
           houses!inner(name)
         `)
         .not('guest_name', 'is', null);
+      
+      // Filter by house if selected
+      if (selectedHouseId !== 'all') {
+        query = query.eq('house_id', selectedHouseId);
+      }
+
+      const { data: bookings } = await query;
 
       if (!bookings) return null;
 
@@ -114,8 +127,34 @@ const GuestAnalytics = () => {
     );
   }
 
+  const selectedHouseName = selectedHouseId === 'all' 
+    ? 'Alle Häuser' 
+    : houses?.find(h => h.id === selectedHouseId)?.name || '';
+
   return (
     <div className="space-y-6">
+      {/* House Filter */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium">Haus filtern:</label>
+            <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
+              <SelectTrigger className="w-[280px]">
+                <SelectValue placeholder="Alle Häuser" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Häuser</SelectItem>
+                {houses?.map(house => (
+                  <SelectItem key={house.id} value={house.id}>
+                    {house.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -180,7 +219,7 @@ const GuestAnalytics = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Monatliche Buchungstrends
+              Monatliche Buchungstrends {selectedHouseId !== 'all' && `- ${selectedHouseName}`}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -206,7 +245,7 @@ const GuestAnalytics = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MapPin className="h-5 w-5" />
-              Top Herkunftsländer
+              Top Herkunftsländer {selectedHouseId !== 'all' && `- ${selectedHouseName}`}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -236,7 +275,7 @@ const GuestAnalytics = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Euro className="h-5 w-5" />
-              Umsatz-Entwicklung
+              Umsatz-Entwicklung {selectedHouseId !== 'all' && `- ${selectedHouseName}`}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -257,7 +296,7 @@ const GuestAnalytics = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Aufenthaltsdauer-Verteilung
+              Aufenthaltsdauer-Verteilung {selectedHouseId !== 'all' && `- ${selectedHouseName}`}
             </CardTitle>
           </CardHeader>
           <CardContent>
