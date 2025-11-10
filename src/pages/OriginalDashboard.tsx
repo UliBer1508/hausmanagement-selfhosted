@@ -37,7 +37,8 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
-  Building2
+  Building2,
+  FileBarChart
 } from 'lucide-react';
 import { format, isSameDay, parseISO, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -234,6 +235,38 @@ const OriginalDashboard = () => {
       title: "Alle Einstellungen gespeichert",
       description: "Alle Ihre Einstellungen wurden erfolgreich aktualisiert.",
     });
+  };
+
+  const handleSendUsageReport = async () => {
+    toast({
+      title: "Nutzungsbericht wird generiert...",
+      description: "Der Bericht wird in wenigen Sekunden per E-Mail versendet.",
+    });
+    
+    try {
+      const { error } = await supabase.functions.invoke('check-supabase-usage');
+      
+      if (error) {
+        console.error('Error sending usage report:', error);
+        toast({
+          title: "Fehler beim Generieren",
+          description: error.message || "Der Nutzungsbericht konnte nicht generiert werden.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Bericht versendet",
+          description: "Der Nutzungsbericht wurde erfolgreich per E-Mail versendet!",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error invoking usage report function:', error);
+      toast({
+        title: "Fehler",
+        description: "Ein unerwarteter Fehler ist aufgetreten.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Handler für Wäschebestellungs-Bearbeitung
@@ -1576,6 +1609,35 @@ const OriginalDashboard = () => {
                        Benachrichtigungen speichern
                      </Button>
                    </div>
+                 </CardContent>
+              </Card>
+
+              {/* Nutzungsberichte */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileBarChart className="w-5 h-5 text-primary" />
+                    Nutzungsberichte
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Wöchentlicher Supabase-Nutzungsbericht per E-Mail
+                    </p>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">Jeden Montag um 9:00 Uhr</span>
+                    </div>
+                  </div>
+
+                  <Button 
+                    className="w-full" 
+                    onClick={handleSendUsageReport}
+                  >
+                    <FileBarChart className="w-4 h-4 mr-2" />
+                    Bericht jetzt senden
+                  </Button>
                 </CardContent>
               </Card>
 
