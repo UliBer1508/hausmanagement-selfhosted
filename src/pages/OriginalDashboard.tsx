@@ -54,6 +54,7 @@ import GuestManagement from '@/components/Guests/GuestManagement';
 import LinenDashboard from '@/components/Houses/LinenDashboard';
 import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderManagementDialog';
 import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
+import { UsageReportDialog } from '@/components/Dashboard/UsageReportDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
@@ -113,6 +114,8 @@ const OriginalDashboard = () => {
   const [showLinenOrderDialog, setShowLinenOrderDialog] = useState(false);
   const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<any>(null);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [showUsageDialog, setShowUsageDialog] = useState(false);
+  const [usageData, setUsageData] = useState<any>(null);
   const [editingOrderData, setEditingOrderData] = useState<any>(null);
 
   // Settings save functions
@@ -237,26 +240,28 @@ const OriginalDashboard = () => {
     });
   };
 
-  const handleSendUsageReport = async () => {
+  const handleShowUsageReport = async () => {
     toast({
       title: "Nutzungsbericht wird generiert...",
-      description: "Der Bericht wird in wenigen Sekunden per E-Mail versendet.",
+      description: "Der Bericht wird analysiert...",
     });
     
     try {
-      const { error } = await supabase.functions.invoke('check-supabase-usage');
+      const { data, error } = await supabase.functions.invoke('check-supabase-usage');
       
       if (error) {
-        console.error('Error sending usage report:', error);
+        console.error('Error generating usage report:', error);
         toast({
           title: "Fehler beim Generieren",
           description: error.message || "Der Nutzungsbericht konnte nicht generiert werden.",
           variant: "destructive",
         });
       } else {
+        setUsageData(data);
+        setShowUsageDialog(true);
         toast({
-          title: "Bericht versendet",
-          description: "Der Nutzungsbericht wurde erfolgreich per E-Mail versendet!",
+          title: "Bericht erstellt",
+          description: "Der Nutzungsbericht wurde erfolgreich generiert!",
         });
       }
     } catch (error: any) {
@@ -1623,20 +1628,20 @@ const OriginalDashboard = () => {
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      Wöchentlicher Supabase-Nutzungsbericht per E-Mail
+                      Detaillierte Analyse der Supabase-Nutzung mit Empfehlungen
                     </p>
                     <div className="flex items-center gap-2 text-sm">
                       <Clock className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-muted-foreground">Jeden Montag um 9:00 Uhr</span>
+                      <span className="text-muted-foreground">Automatisch jeden Montag um 9:00 Uhr</span>
                     </div>
                   </div>
 
                   <Button 
                     className="w-full" 
-                    onClick={handleSendUsageReport}
+                    onClick={handleShowUsageReport}
                   >
                     <FileBarChart className="w-4 h-4 mr-2" />
-                    Bericht jetzt senden
+                    Bericht anzeigen
                   </Button>
                 </CardContent>
               </Card>
@@ -2203,6 +2208,12 @@ const OriginalDashboard = () => {
       <ProviderManagementDialog 
         open={isProviderDialogOpen}
         onOpenChange={setIsProviderDialogOpen}
+      />
+
+      <UsageReportDialog
+        open={showUsageDialog}
+        onOpenChange={setShowUsageDialog}
+        data={usageData}
       />
 
       {/* Wäschebestellungs-Dialog */}
