@@ -102,6 +102,22 @@ export function UsageReportDialog({ open, onOpenChange, data }: UsageReportDialo
     return 'bg-red-500';
   };
 
+  const ProgressWithThresholds = ({ value, label, maxLabel }: { value: number; label: string; maxLabel: string }) => (
+    <div className="space-y-2">
+      <div className="flex justify-between text-sm">
+        <span>{label}</span>
+        <span className="font-medium">{value.toFixed(1)}%</span>
+      </div>
+      <div className="relative">
+        <Progress value={value} className="h-2" />
+        {/* Threshold Markers */}
+        <div className="absolute top-0 left-[70%] w-0.5 h-2 bg-yellow-600 opacity-70" title="70% - Warnschwelle" />
+        <div className="absolute top-0 left-[85%] w-0.5 h-2 bg-red-600 opacity-70" title="85% - Kritische Schwelle" />
+      </div>
+      <div className="text-xs text-muted-foreground">{maxLabel}</div>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -119,6 +135,24 @@ export function UsageReportDialog({ open, onOpenChange, data }: UsageReportDialo
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Schwellenwerte Legende */}
+          <Alert>
+            <AlertDescription className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full" />
+                <span>&lt; 70%: Alles gut</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-yellow-500 rounded-full" />
+                <span>70-85%: Beobachten</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 bg-red-500 rounded-full" />
+                <span>&gt; 85%: Pro Plan empfohlen</span>
+              </div>
+            </AlertDescription>
+          </Alert>
+
           {/* Metriken Section */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Aktuelle Nutzung</h3>
@@ -132,16 +166,11 @@ export function UsageReportDialog({ open, onOpenChange, data }: UsageReportDialo
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>{metrics.database_size_mb.toFixed(2)} MB / 500 MB</span>
-                    <span className="font-medium">{analysis.metrics.dbPercent.toFixed(1)}%</span>
-                  </div>
-                  <Progress 
-                    value={analysis.metrics.dbPercent} 
-                    className="h-2"
-                  />
-                </div>
+                <ProgressWithThresholds
+                  value={analysis.metrics.dbPercent}
+                  label={`${metrics.database_size_mb.toFixed(2)} MB von 500 MB verwendet`}
+                  maxLabel="Free Plan Limit: 500 MB"
+                />
               </CardContent>
             </Card>
 
@@ -154,16 +183,11 @@ export function UsageReportDialog({ open, onOpenChange, data }: UsageReportDialo
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>{metrics.edge_function_calls_monthly.toLocaleString()} / 500.000 Calls</span>
-                    <span className="font-medium">{analysis.metrics.funcPercent.toFixed(1)}%</span>
-                  </div>
-                  <Progress 
-                    value={analysis.metrics.funcPercent} 
-                    className="h-2"
-                  />
-                </div>
+                <ProgressWithThresholds
+                  value={analysis.metrics.funcPercent}
+                  label={`${metrics.edge_function_calls_monthly.toLocaleString()} von 500.000 Calls verwendet`}
+                  maxLabel="Free Plan Limit: 500.000 Calls/Monat"
+                />
               </CardContent>
             </Card>
 
@@ -176,16 +200,11 @@ export function UsageReportDialog({ open, onOpenChange, data }: UsageReportDialo
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>{metrics.storage_size_mb.toFixed(2)} MB / 1024 MB</span>
-                    <span className="font-medium">{analysis.metrics.storagePercent.toFixed(1)}%</span>
-                  </div>
-                  <Progress 
-                    value={analysis.metrics.storagePercent} 
-                    className="h-2"
-                  />
-                </div>
+                <ProgressWithThresholds
+                  value={analysis.metrics.storagePercent}
+                  label={`${metrics.storage_size_mb.toFixed(2)} MB von 1.024 MB verwendet`}
+                  maxLabel="Free Plan Limit: 1 GB"
+                />
               </CardContent>
             </Card>
 
