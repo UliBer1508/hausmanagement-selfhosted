@@ -1,5 +1,8 @@
 project_id = "usblrulkcgucxtkhugck"
 
+[functions.check-supabase-usage]
+verify_jwt = false
+
 [functions.send-gmail]
 verify_jwt = false
 

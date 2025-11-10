@@ -3479,6 +3479,30 @@ export type Database = {
           },
         ]
       }
+      system_settings: {
+        Row: {
+          created_at: string | null
+          id: string
+          key: string
+          updated_at: string | null
+          value: Json
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          key: string
+          updated_at?: string | null
+          value: Json
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          key?: string
+          updated_at?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       trip_activities: {
         Row: {
           activity_date: string
@@ -3581,6 +3605,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      usage_reports: {
+        Row: {
+          created_at: string | null
+          database_size_mb: number | null
+          edge_function_calls_estimated: number | null
+          email_sent: boolean | null
+          email_sent_at: string | null
+          id: string
+          recommendation: string | null
+          report_date: string | null
+          storage_size_mb: number | null
+          total_rows: number | null
+          urgency: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          database_size_mb?: number | null
+          edge_function_calls_estimated?: number | null
+          email_sent?: boolean | null
+          email_sent_at?: string | null
+          id?: string
+          recommendation?: string | null
+          report_date?: string | null
+          storage_size_mb?: number | null
+          total_rows?: number | null
+          urgency?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          database_size_mb?: number | null
+          edge_function_calls_estimated?: number | null
+          email_sent?: boolean | null
+          email_sent_at?: string | null
+          id?: string
+          recommendation?: string | null
+          report_date?: string | null
+          storage_size_mb?: number | null
+          total_rows?: number | null
+          urgency?: string | null
+        }
+        Relationships: []
       }
       user_profiles: {
         Row: {

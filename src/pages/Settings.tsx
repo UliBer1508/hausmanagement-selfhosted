@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, Save } from 'lucide-react';
+import { Settings as SettingsIcon, User, Bell, Shield, Palette, Database, Save, Mail, BarChart } from 'lucide-react';
 import AppLayout from '@/components/Layout/AppLayout';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -322,6 +322,63 @@ const Settings = () => {
                   </div>
                   <Switch />
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Usage Reports */}
+          <Card className="task-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart className="w-5 h-5 text-primary" />
+                Nutzungsberichte
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm font-medium">Wöchentlicher Supabase-Bericht</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Empfänger: uli.berresheim@hotmail.de<br/>
+                  Zeitplan: Jeden Montag um 9:00 Uhr
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={async () => {
+                    const loadingToast = toast({
+                      title: 'Bericht wird generiert...',
+                      description: 'Bitte warten Sie einen Moment',
+                    });
+                    try {
+                      const { data, error } = await supabase.functions.invoke('check-supabase-usage', {
+                        body: { manual: true, trigger: 'ui_button' }
+                      });
+                      
+                      if (error) throw error;
+                      
+                      toast({
+                        title: '✅ Bericht versendet!',
+                        description: 'Der Nutzungsbericht wurde per E-Mail versendet.',
+                      });
+                    } catch (error: any) {
+                      toast({
+                        title: 'Fehler',
+                        description: 'Der Bericht konnte nicht versendet werden: ' + error.message,
+                        variant: 'destructive',
+                      });
+                    }
+                  }}
+                >
+                  <Mail className="w-4 h-4 mr-2" />
+                  Bericht jetzt senden
+                </Button>
+                
+                <p className="text-xs text-muted-foreground text-center">
+                  Testet den wöchentlichen Bericht manuell
+                </p>
               </div>
             </CardContent>
           </Card>
