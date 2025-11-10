@@ -217,30 +217,35 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // 1. Get database size
-    console.log('📊 Fetching database size...');
-    const { data: dbSize } = await supabase.rpc('pg_database_size', {
-      database_name: 'postgres'
-    }).single();
+    // 1. Get ACTUAL database size (entire database across all projects)
+    console.log('📊 Fetching actual database size...');
+    const { data: dbSizeData, error: dbError } = await supabase.rpc('get_database_size');
     
-    // Fallback: Query database size via SQL
-    const { data: dbSizeData } = await supabase
-      .from('bookings')
-      .select('*', { count: 'exact', head: true });
+    if (dbError) {
+      console.error('❌ Error fetching database size:', dbError);
+      throw new Error(`Failed to get database size: ${dbError.message}`);
+    }
     
-    // Estimate database size based on row counts (rough estimate)
-    const database_size_mb = 50; // Conservative estimate for development
+    const database_size_mb = dbSizeData || 50; // Fallback to conservative estimate
+    console.log(`📦 Database size: ${database_size_mb.toFixed(2)} MB`);
 
-    // 2. Get total row counts
-    console.log('📊 Counting database rows...');
-    const tables = ['bookings', 'service_tasks', 'houses', 'linen_orders', 'ai_optimization_results'];
-    let total_rows = 0;
+    // 2. Count ALL tables in public schema (all projects)
+    console.log('📊 Counting ALL database rows...');
+    const { data: tableData, error: tableError } = await supabase.rpc('get_all_table_rows');
     
-    for (const table of tables) {
-      const { count } = await supabase
-        .from(table)
-        .select('*', { count: 'exact', head: true });
-      total_rows += count || 0;
+    if (tableError) {
+      console.error('❌ Error counting tables:', tableError);
+      throw new Error(`Failed to count table rows: ${tableError.message}`);
+    }
+    
+    let total_rows = 0;
+    if (tableData && Array.isArray(tableData)) {
+      total_rows = tableData.reduce((sum: number, row: any) => sum + (row.row_count || 0), 0);
+      console.log(`📊 Found ${tableData.length} tables with ${total_rows} total rows`);
+      
+      // Log top 5 largest tables
+      const sortedTables = [...tableData].sort((a: any, b: any) => b.row_count - a.row_count).slice(0, 5);
+      console.log('📊 Top 5 tables:', sortedTables.map((t: any) => `${t.table_name}: ${t.row_count}`).join(', '));
     }
 
     // 3. Estimate Edge Function calls
@@ -261,18 +266,34 @@ serve(async (req) => {
     // Estimate monthly function calls (weekly * 4)
     const edge_function_calls_monthly = ((linenOrdersCount || 0) + (aiResultsCount || 0)) * 4;
 
-    // 4. Get storage size
-    console.log('📊 Calculating storage size...');
-    const { data: storageObjects } = await supabase
-      .storage
-      .from('house-images')
-      .list();
+    // 4. Get storage size from ALL buckets (all projects)
+    console.log('📊 Calculating storage size across ALL buckets...');
+    const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+    
+    if (bucketsError) {
+      console.error('❌ Error listing buckets:', bucketsError);
+    }
     
     let storage_size_mb = 0;
-    if (storageObjects) {
-      // This is a rough estimate - actual size would need metadata
-      storage_size_mb = storageObjects.length * 0.5; // Estimate 0.5 MB per image
+    if (buckets && buckets.length > 0) {
+      console.log(`📦 Found ${buckets.length} storage buckets`);
+      
+      for (const bucket of buckets) {
+        try {
+          const { data: objects } = await supabase.storage.from(bucket.name).list();
+          if (objects) {
+            // Estimate 0.5 MB per file (conservative)
+            const bucketSize = objects.length * 0.5;
+            storage_size_mb += bucketSize;
+            console.log(`📦 Bucket "${bucket.name}": ~${objects.length} objects (~${bucketSize.toFixed(2)} MB)`);
+          }
+        } catch (err) {
+          console.warn(`⚠️ Could not access bucket "${bucket.name}":`, err);
+        }
+      }
     }
+    
+    console.log(`📦 Total storage estimate: ${storage_size_mb.toFixed(2)} MB`);
 
     const metrics: UsageMetrics = {
       database_size_mb,

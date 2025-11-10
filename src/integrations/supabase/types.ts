@@ -3860,6 +3860,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_all_table_rows: {
+        Args: never
+        Returns: {
+          row_count: number
+          table_name: string
+        }[]
+      }
+      get_database_size: { Args: never; Returns: number }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
