@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -18,16 +19,17 @@ const GuestCommunication = () => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [customMessage, setCustomMessage] = useState('');
   const [selectedSegment, setSelectedSegment] = useState('all');
+  const [language, setLanguage] = useState<'de' | 'en'>('de');
   const { toast } = useToast();
   
-  // Use the email templates hook
+  // Use the email templates hook with language parameter
   const { 
     templates: emailTemplates, 
     isLoading: templatesLoading,
     createTemplate,
     updateTemplate,
     deleteTemplate 
-  } = useEmailTemplates();
+  } = useEmailTemplates(language);
 
   // Fetch guest segments for targeting
   const { data: segmentData } = useQuery({
@@ -241,8 +243,38 @@ const GuestCommunication = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">E-Mail Empfänger</CardTitle>
-              <Mail className="h-4 w-4 text-blue-500" />
+              <div>
+                <CardTitle className="text-sm font-medium">E-Mail versenden</CardTitle>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label className="text-sm text-muted-foreground">Vorlagensprache:</Label>
+                <div className="flex border rounded-md">
+                  <Button
+                    type="button"
+                    variant={language === 'de' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => {
+                      setLanguage('de');
+                      setSelectedTemplate('');
+                    }}
+                    className="rounded-r-none"
+                  >
+                    🇩🇪 DE
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={language === 'en' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => {
+                      setLanguage('en');
+                      setSelectedTemplate('');
+                    }}
+                    className="rounded-l-none"
+                  >
+                    🇬🇧 EN
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{getSegmentCount('all')}</div>
@@ -453,11 +485,35 @@ const GuestCommunication = () => {
       </TabsContent>
 
       <TabsContent value="manage">
-            <EmailTemplateEditor 
-              onCreateTemplate={createTemplate}
-              onUpdateTemplate={updateTemplate}
-              onDeleteTemplate={deleteTemplate}
-            />
+        <div className="mb-4 flex items-center gap-2">
+          <Label>Sprachfilter:</Label>
+          <div className="flex border rounded-md">
+            <Button
+              type="button"
+              variant={language === 'de' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setLanguage('de')}
+              className="rounded-r-none"
+            >
+              🇩🇪 Deutsch
+            </Button>
+            <Button
+              type="button"
+              variant={language === 'en' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setLanguage('en')}
+              className="rounded-l-none"
+            >
+              🇬🇧 English
+            </Button>
+          </div>
+        </div>
+        <EmailTemplateEditor 
+          language={language}
+          onCreateTemplate={createTemplate}
+          onUpdateTemplate={updateTemplate}
+          onDeleteTemplate={deleteTemplate}
+        />
       </TabsContent>
     </Tabs>
   );

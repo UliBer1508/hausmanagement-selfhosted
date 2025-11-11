@@ -8,22 +8,24 @@ export interface EmailTemplate {
   name: string;
   subject: string;
   content: string;
+  language: string;
   is_system: boolean;
   created_at?: string;
   updated_at?: string;
 }
 
-export const useEmailTemplates = () => {
+export const useEmailTemplates = (language: string = 'de') => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch all templates from database
+  // Fetch templates filtered by language
   const { data: templates = [], isLoading, error } = useQuery({
-    queryKey: ['email-templates'],
+    queryKey: ['email-templates', language],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('email_templates')
         .select('*')
+        .eq('language', language)
         .order('template_key');
 
       if (error) {

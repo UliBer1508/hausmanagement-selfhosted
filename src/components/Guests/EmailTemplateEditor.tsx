@@ -10,12 +10,13 @@ import { useEmailTemplates, EmailTemplate } from '@/hooks/useEmailTemplates';
 import { Trash2 } from 'lucide-react';
 
 interface EmailTemplateEditorProps {
+  language: string;
   onCreateTemplate: (template: Omit<EmailTemplate, 'id' | 'created_at' | 'updated_at'>) => void;
   onUpdateTemplate: (updates: Partial<EmailTemplate> & { id: string }) => void;
   onDeleteTemplate: (id: string) => void;
 }
 
-const EmailTemplateEditor = ({ onCreateTemplate, onUpdateTemplate, onDeleteTemplate }: EmailTemplateEditorProps) => {
+const EmailTemplateEditor = ({ language, onCreateTemplate, onUpdateTemplate, onDeleteTemplate }: EmailTemplateEditorProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
@@ -23,17 +24,21 @@ const EmailTemplateEditor = ({ onCreateTemplate, onUpdateTemplate, onDeleteTempl
     template_key: '',
     name: '',
     subject: '',
-    content: ''
+    content: '',
+    language: language,
+    is_system: false
   });
   const { toast } = useToast();
-  const { templatesArray, isLoading } = useEmailTemplates();
+  const { templatesArray, isLoading } = useEmailTemplates(language);
 
   const handleEdit = (template: EmailTemplate) => {
     setFormData({
       template_key: template.template_key,
       name: template.name,
       subject: template.subject,
-      content: template.content
+      content: template.content,
+      language: template.language,
+      is_system: template.is_system
     });
     setEditingTemplate(template);
     setIsEditing(true);
@@ -45,7 +50,9 @@ const EmailTemplateEditor = ({ onCreateTemplate, onUpdateTemplate, onDeleteTempl
       template_key: `custom_${Date.now()}`,
       name: '',
       subject: '',
-      content: ''
+      content: '',
+      language: language,
+      is_system: false
     });
     setIsCreating(true);
     setIsEditing(false);
@@ -68,6 +75,7 @@ const EmailTemplateEditor = ({ onCreateTemplate, onUpdateTemplate, onDeleteTempl
         name: formData.name,
         subject: formData.subject,
         content: formData.content,
+        language: formData.language,
         is_system: false
       });
     } else if (editingTemplate) {
@@ -90,7 +98,9 @@ const EmailTemplateEditor = ({ onCreateTemplate, onUpdateTemplate, onDeleteTempl
       template_key: '',
       name: '',
       subject: '',
-      content: ''
+      content: '',
+      language: language,
+      is_system: false
     });
   };
 
@@ -141,6 +151,18 @@ const EmailTemplateEditor = ({ onCreateTemplate, onUpdateTemplate, onDeleteTempl
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="new-language">Sprache</Label>
+                <select
+                  id="new-language"
+                  value={formData.language}
+                  onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="de">🇩🇪 Deutsch</option>
+                  <option value="en">🇬🇧 English</option>
+                </select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="new-content">Inhalt</Label>
                 <Textarea
                   id="new-content"
@@ -168,8 +190,13 @@ const EmailTemplateEditor = ({ onCreateTemplate, onUpdateTemplate, onDeleteTempl
             <Card key={template.id}>
               <CardHeader>
                 <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{template.name}</CardTitle>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-lg">{template.name}</CardTitle>
+                      <span className="text-lg" title={template.language === 'de' ? 'Deutsch' : 'English'}>
+                        {template.language === 'de' ? '🇩🇪' : '🇬🇧'}
+                      </span>
+                    </div>
                     <CardDescription>{template.subject}</CardDescription>
                   </div>
                   {!template.is_system && (
@@ -219,6 +246,19 @@ const EmailTemplateEditor = ({ onCreateTemplate, onUpdateTemplate, onDeleteTempl
                             value={formData.subject}
                             onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                           />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="edit-language">Sprache</Label>
+                          <select
+                            id="edit-language"
+                            value={formData.language}
+                            onChange={(e) => setFormData({ ...formData, language: e.target.value })}
+                            disabled={editingTemplate?.is_system}
+                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <option value="de">🇩🇪 Deutsch</option>
+                            <option value="en">🇬🇧 English</option>
+                          </select>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="edit-content">Inhalt</Label>

@@ -1463,6 +1463,7 @@ export type Database = {
           created_at: string | null
           id: string
           is_system: boolean | null
+          language: string
           name: string
           subject: string
           template_key: string
@@ -1473,6 +1474,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_system?: boolean | null
+          language?: string
           name: string
           subject: string
           template_key: string
@@ -1483,6 +1485,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_system?: boolean | null
+          language?: string
           name?: string
           subject?: string
           template_key?: string
