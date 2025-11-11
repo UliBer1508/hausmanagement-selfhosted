@@ -32,10 +32,11 @@ const GuestEmailDialog = ({ guest, open, onOpenChange }: GuestEmailDialogProps) 
   const [customSubject, setCustomSubject] = useState('');
   const [customMessage, setCustomMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [language, setLanguage] = useState<'de' | 'en'>('de');
   const { toast } = useToast();
   
   // Load email templates from database
-  const { templates: emailTemplates, isLoading: templatesLoading } = useEmailTemplates();
+  const { templates: emailTemplates, isLoading: templatesLoading } = useEmailTemplates(language);
 
   const handleTemplateChange = (templateKey: string) => {
     setSelectedTemplate(templateKey);
@@ -119,6 +120,28 @@ const GuestEmailDialog = ({ guest, open, onOpenChange }: GuestEmailDialogProps) 
           </DialogDescription>
         </DialogHeader>
 
+        <div className="flex items-center gap-2 mb-4 pt-4">
+          <Label>Vorlagensprache:</Label>
+          <div className="flex border rounded-md">
+            <Button
+              type="button"
+              variant={language === 'de' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setLanguage('de')}
+            >
+              🇩🇪 DE
+            </Button>
+            <Button
+              type="button"
+              variant={language === 'en' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setLanguage('en')}
+            >
+              🇬🇧 EN
+            </Button>
+          </div>
+        </div>
+
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="email-to">An</Label>
@@ -138,7 +161,7 @@ const GuestEmailDialog = ({ guest, open, onOpenChange }: GuestEmailDialogProps) 
               <SelectContent>
                 {Object.entries(emailTemplates).map(([key, template]) => (
                   <SelectItem key={key} value={key}>
-                    {template.name}
+                    {template.language === 'en' ? '🇬🇧' : '🇩🇪'} {template.name}
                   </SelectItem>
                 ))}
               </SelectContent>
