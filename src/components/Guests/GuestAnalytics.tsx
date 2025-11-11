@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { AppReviewsSection } from './AppReviewsSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import { TrendingUp, Users, Calendar, Euro, MapPin, Clock } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
@@ -308,11 +310,14 @@ const GuestAnalytics = () => {
                 <Tooltip />
                 <Bar dataKey="count" fill="#FFBB28" />
               </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </div>
+
+    {/* App Reviews Section */}
+    <AppReviewsSection selectedHouseId={selectedHouseId} />
+  </div>
   );
 };
 
