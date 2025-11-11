@@ -17,18 +17,22 @@ export type Database = {
       activities: {
         Row: {
           address: string | null
+          address_en: string | null
           advance_booking_hours: number | null
           age_restrictions: Json | null
           booking_required: boolean | null
           cancellation_policy: string | null
           category: string
+          category_en: string | null
           coordinates: Json | null
           created_at: string | null
           currency: string | null
           description: string | null
+          description_en: string | null
           difficulty_level: number | null
           duration_minutes: number | null
           enriched_data: Json | null
+          enriched_data_en: Json | null
           equipment_needed: string[] | null
           group_size_max: number | null
           group_size_min: number | null
@@ -37,7 +41,9 @@ export type Database = {
           is_active: boolean | null
           languages_available: string[] | null
           location: string
+          location_en: string | null
           name: string
+          name_en: string | null
           popularity_score: number | null
           price_max: number | null
           price_min: number | null
@@ -47,24 +53,29 @@ export type Database = {
           review_count: number | null
           season_availability: string[] | null
           subcategory: string | null
+          subcategory_en: string | null
           tags: string[] | null
           updated_at: string | null
           weather_dependent: boolean | null
         }
         Insert: {
           address?: string | null
+          address_en?: string | null
           advance_booking_hours?: number | null
           age_restrictions?: Json | null
           booking_required?: boolean | null
           cancellation_policy?: string | null
           category: string
+          category_en?: string | null
           coordinates?: Json | null
           created_at?: string | null
           currency?: string | null
           description?: string | null
+          description_en?: string | null
           difficulty_level?: number | null
           duration_minutes?: number | null
           enriched_data?: Json | null
+          enriched_data_en?: Json | null
           equipment_needed?: string[] | null
           group_size_max?: number | null
           group_size_min?: number | null
@@ -73,7 +84,9 @@ export type Database = {
           is_active?: boolean | null
           languages_available?: string[] | null
           location: string
+          location_en?: string | null
           name: string
+          name_en?: string | null
           popularity_score?: number | null
           price_max?: number | null
           price_min?: number | null
@@ -83,24 +96,29 @@ export type Database = {
           review_count?: number | null
           season_availability?: string[] | null
           subcategory?: string | null
+          subcategory_en?: string | null
           tags?: string[] | null
           updated_at?: string | null
           weather_dependent?: boolean | null
         }
         Update: {
           address?: string | null
+          address_en?: string | null
           advance_booking_hours?: number | null
           age_restrictions?: Json | null
           booking_required?: boolean | null
           cancellation_policy?: string | null
           category?: string
+          category_en?: string | null
           coordinates?: Json | null
           created_at?: string | null
           currency?: string | null
           description?: string | null
+          description_en?: string | null
           difficulty_level?: number | null
           duration_minutes?: number | null
           enriched_data?: Json | null
+          enriched_data_en?: Json | null
           equipment_needed?: string[] | null
           group_size_max?: number | null
           group_size_min?: number | null
@@ -109,7 +127,9 @@ export type Database = {
           is_active?: boolean | null
           languages_available?: string[] | null
           location?: string
+          location_en?: string | null
           name?: string
+          name_en?: string | null
           popularity_score?: number | null
           price_max?: number | null
           price_min?: number | null
@@ -119,6 +139,7 @@ export type Database = {
           review_count?: number | null
           season_availability?: string[] | null
           subcategory?: string | null
+          subcategory_en?: string | null
           tags?: string[] | null
           updated_at?: string | null
           weather_dependent?: boolean | null
@@ -456,6 +477,7 @@ export type Database = {
           created_at: string | null
           currency: string | null
           description: string | null
+          description_en: string | null
           difficulty_level: number | null
           duration_category: string | null
           duration_minutes: number | null
@@ -470,7 +492,9 @@ export type Database = {
           last_updated: string | null
           last_weather_update: string | null
           main_category: string | null
+          main_category_en: string | null
           name: string
+          name_en: string | null
           opening_hours: Json | null
           photos: string[] | null
           place_id: string | null
@@ -480,6 +504,7 @@ export type Database = {
           season: string | null
           seasonal_info: Json | null
           sub_category: string | null
+          sub_category_en: string | null
           target_audience: string[] | null
           travel_times: Json | null
           types: string[] | null
@@ -493,6 +518,7 @@ export type Database = {
           created_at?: string | null
           currency?: string | null
           description?: string | null
+          description_en?: string | null
           difficulty_level?: number | null
           duration_category?: string | null
           duration_minutes?: number | null
@@ -507,7 +533,9 @@ export type Database = {
           last_updated?: string | null
           last_weather_update?: string | null
           main_category?: string | null
+          main_category_en?: string | null
           name: string
+          name_en?: string | null
           opening_hours?: Json | null
           photos?: string[] | null
           place_id?: string | null
@@ -517,6 +545,7 @@ export type Database = {
           season?: string | null
           seasonal_info?: Json | null
           sub_category?: string | null
+          sub_category_en?: string | null
           target_audience?: string[] | null
           travel_times?: Json | null
           types?: string[] | null
@@ -530,6 +559,7 @@ export type Database = {
           created_at?: string | null
           currency?: string | null
           description?: string | null
+          description_en?: string | null
           difficulty_level?: number | null
           duration_category?: string | null
           duration_minutes?: number | null
@@ -544,7 +574,9 @@ export type Database = {
           last_updated?: string | null
           last_weather_update?: string | null
           main_category?: string | null
+          main_category_en?: string | null
           name?: string
+          name_en?: string | null
           opening_hours?: Json | null
           photos?: string[] | null
           place_id?: string | null
@@ -554,6 +586,7 @@ export type Database = {
           season?: string | null
           seasonal_info?: Json | null
           sub_category?: string | null
+          sub_category_en?: string | null
           target_audience?: string[] | null
           travel_times?: Json | null
           types?: string[] | null
@@ -598,6 +631,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      app_reviews: {
+        Row: {
+          booking_id: string
+          created_at: string | null
+          feedback_text: string | null
+          guest_email: string
+          guest_name: string | null
+          id: string
+          preferred_language: string | null
+          rating: number
+          submitted_from_screen: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string | null
+          feedback_text?: string | null
+          guest_email: string
+          guest_name?: string | null
+          id?: string
+          preferred_language?: string | null
+          rating: number
+          submitted_from_screen?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string | null
+          feedback_text?: string | null
+          guest_email?: string
+          guest_name?: string | null
+          id?: string
+          preferred_language?: string | null
+          rating?: number
+          submitted_from_screen?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       blocked_bookings: {
         Row: {
@@ -1454,6 +1534,7 @@ export type Database = {
           id: string
           preference_key: string
           preference_value: Json
+          preferred_language: string | null
           session_id: string
           updated_at: string
         }
@@ -1464,6 +1545,7 @@ export type Database = {
           id?: string
           preference_key: string
           preference_value: Json
+          preferred_language?: string | null
           session_id: string
           updated_at?: string
         }
@@ -1474,6 +1556,7 @@ export type Database = {
           id?: string
           preference_key?: string
           preference_value?: Json
+          preferred_language?: string | null
           session_id?: string
           updated_at?: string
         }
@@ -1571,6 +1654,7 @@ export type Database = {
           id: string
           scheduled_date: string
           scheduled_time: string | null
+          search_language: string | null
           session_id: string | null
           status: string | null
           updated_at: string | null
@@ -1586,6 +1670,7 @@ export type Database = {
           id?: string
           scheduled_date: string
           scheduled_time?: string | null
+          search_language?: string | null
           session_id?: string | null
           status?: string | null
           updated_at?: string | null
@@ -1601,6 +1686,7 @@ export type Database = {
           id?: string
           scheduled_date?: string
           scheduled_time?: string | null
+          search_language?: string | null
           session_id?: string | null
           status?: string | null
           updated_at?: string | null
@@ -2767,9 +2853,11 @@ export type Database = {
           is_enabled: boolean | null
           is_sub_question: boolean | null
           options: Json | null
+          options_en: Json | null
           parent_id: string | null
           question_description: string | null
           question_text: string | null
+          question_text_en: string | null
           required: boolean | null
           search_strategy: Json | null
           special_interests_mapping: Json | null
@@ -2790,9 +2878,11 @@ export type Database = {
           is_enabled?: boolean | null
           is_sub_question?: boolean | null
           options?: Json | null
+          options_en?: Json | null
           parent_id?: string | null
           question_description?: string | null
           question_text?: string | null
+          question_text_en?: string | null
           required?: boolean | null
           search_strategy?: Json | null
           special_interests_mapping?: Json | null
@@ -2813,9 +2903,11 @@ export type Database = {
           is_enabled?: boolean | null
           is_sub_question?: boolean | null
           options?: Json | null
+          options_en?: Json | null
           parent_id?: string | null
           question_description?: string | null
           question_text?: string | null
+          question_text_en?: string | null
           required?: boolean | null
           search_strategy?: Json | null
           special_interests_mapping?: Json | null
