@@ -59,6 +59,8 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
     notes: house?.tenant_info?.notes || ''
   });
 
+  const [isUnlimitedContract, setIsUnlimitedContract] = useState(!house?.tenant_info?.contract_end);
+
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [currentImage, setCurrentImage] = useState<string | null>(house?.image_url || null);
@@ -198,7 +200,11 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
 
       // 3. Nur tenant_info speichern wenn long_term
       if (formData.rental_type === 'long_term') {
-        updates.tenant_info = tenantInfo;
+        // Leerer contract_end String wird als null gespeichert
+        updates.tenant_info = {
+          ...tenantInfo,
+          contract_end: tenantInfo.contract_end || null
+        };
       }
 
       // 4. Update durchführen
@@ -666,13 +672,34 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
                     
                     <div className="space-y-2">
                       <Label htmlFor="contract_end">Vertragsende</Label>
-                      <Input
-                        id="contract_end"
-                        type="date"
-                        value={tenantInfo.contract_end}
-                        onChange={(e) => setTenantInfo({...tenantInfo, contract_end: e.target.value})}
-                        placeholder="Leer = unbefristet"
-                      />
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="unlimited_contract"
+                            checked={isUnlimitedContract}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setIsUnlimitedContract(checked);
+                              if (checked) {
+                                setTenantInfo({...tenantInfo, contract_end: ''});
+                              }
+                            }}
+                            className="h-4 w-4 rounded border-input"
+                          />
+                          <Label htmlFor="unlimited_contract" className="text-sm font-normal">
+                            Unbefristeter Vertrag
+                          </Label>
+                        </div>
+                        <Input
+                          id="contract_end"
+                          type="date"
+                          value={tenantInfo.contract_end}
+                          onChange={(e) => setTenantInfo({...tenantInfo, contract_end: e.target.value})}
+                          disabled={isUnlimitedContract}
+                          className={isUnlimitedContract ? 'bg-muted cursor-not-allowed' : ''}
+                        />
+                      </div>
                     </div>
                   </div>
 
