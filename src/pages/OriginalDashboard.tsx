@@ -476,19 +476,24 @@ const OriginalDashboard = () => {
   });
 
   // Fetch houses data for filters
-  const { data: housesData } = useQuery({
+  const { data: allHousesData } = useQuery({
     queryKey: ['dashboard-houses'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
-        .select('id, name')
+        .select('id, name, rental_type')
         .order('name', { ascending: true });
       
       if (error) throw error;
-      return data;
+      return data as any;
     },
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
+
+  // Nur touristische Häuser anzeigen
+  const housesData = useMemo(() => {
+    return allHousesData?.filter((h: any) => h.rental_type === 'tourist') || [];
+  }, [allHousesData]);
 
   // Filter bookings based on current filters
   const filteredBookings = useMemo(() => {
@@ -672,6 +677,7 @@ const OriginalDashboard = () => {
   const housesWithStatus = useMemo(() => {
     if (!housesData || !bookingsData) return [];
     
+    // Bereits gefiltert durch Query - nur touristische Häuser
     return housesData.map(house => {
       // Prüfe ob Haus aktuell belegt ist
       const now = new Date();
@@ -2065,7 +2071,7 @@ const OriginalDashboard = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center">
                 <span className="text-lg flex-shrink-0 mr-2">🏠</span>
-                <span className="truncate">Ferienhäuser (2)</span>
+                <span className="truncate">Ferienhäuser ({housesWithStatus.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">

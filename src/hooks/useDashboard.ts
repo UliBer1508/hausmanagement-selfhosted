@@ -17,9 +17,12 @@ export const useDashboardData = () => {
       if (bookingsResponse.error) throw bookingsResponse.error;
       if (tasksResponse.error) throw tasksResponse.error;
 
-      const houses = housesResponse.data || [];
+      const allHouses = housesResponse.data || [];
       const bookings = bookingsResponse.data || [];
       const tasks = tasksResponse.data || [];
+
+      // Nur touristische Häuser für Stats zählen
+      const houses = allHouses.filter((h: any) => h.rental_type === 'tourist');
 
       // Calculate stats
       const stats: DashboardStats = {
