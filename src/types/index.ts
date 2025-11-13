@@ -149,3 +149,19 @@ export interface DashboardStats {
   pendingTasks: number;
   totalRevenue: number;
 }
+
+export interface TenantPayment {
+  id: string;
+  house_id: string;
+  payment_date?: string;
+  due_date: string;
+  amount: number;
+  status: 'pending' | 'paid' | 'overdue' | 'cancelled';
+  payment_method?: 'bank_transfer' | 'cash' | 'direct_debit';
+  reference_number?: string;
+  notes?: string;
+  receipt_url?: string;
+  created_at?: string;
+  updated_at?: string;
+  houses?: House;
+}
