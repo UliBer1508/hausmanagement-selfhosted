@@ -29,7 +29,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     isCreatingOrder,
   } = useBookingLinenOrders(houseId);
 
-  if (isLoading || isLoadingAllMissing) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="animate-pulse text-muted-foreground">Lade Bestellübersicht...</div>
@@ -104,9 +104,9 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
           <TabsTrigger value="overview">Übersicht</TabsTrigger>
           <TabsTrigger value="missing" className="relative">
             Fehlend
-            {allMissingBookings.length > 0 && (
+            {(isLoadingAllMissing || allMissingBookings.length > 0) && (
               <Badge variant="destructive" className="ml-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
-                {allMissingBookings.length}
+                {isLoadingAllMissing ? "..." : allMissingBookings.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -156,7 +156,13 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
 
         {/* Missing Orders Tab */}
         <TabsContent value="missing" className="space-y-4">
-          {allMissingBookings.length === 0 ? (
+          {isLoadingAllMissing ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="animate-pulse text-muted-foreground">
+                Prüfe fehlende Bestellungen...
+              </div>
+            </div>
+          ) : allMissingBookings.length === 0 ? (
             <Alert>
               <CheckCircle2 className="h-4 w-4" />
               <AlertDescription>
