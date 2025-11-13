@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react";
 import LaundryOrderCard from "../Bookings/LaundryOrderCard";
+import { BookingWithoutOrderCard } from "./BookingWithoutOrderCard";
 
 interface BookingLinenOverviewProps {
   houseId: string;
@@ -21,12 +22,14 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     missingOrders,
     urgentOrders,
     activeOrders,
+    allMissingBookings,
     isLoading,
+    isLoadingAllMissing,
     createOrder,
     isCreatingOrder,
   } = useBookingLinenOrders(houseId);
 
-  if (isLoading) {
+  if (isLoading || isLoadingAllMissing) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="animate-pulse text-muted-foreground">Lade Bestellübersicht...</div>
@@ -71,7 +74,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
             <CardTitle className="text-sm font-medium">Fehlende Bestellungen</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{orderStatus.summary.orders_missing}</div>
+            <div className="text-2xl font-bold text-orange-600">{allMissingBookings.length}</div>
           </CardContent>
         </Card>
 
@@ -101,9 +104,9 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
           <TabsTrigger value="overview">Übersicht</TabsTrigger>
           <TabsTrigger value="missing" className="relative">
             Fehlend
-            {missingOrders.length > 0 && (
+            {allMissingBookings.length > 0 && (
               <Badge variant="destructive" className="ml-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
-                {missingOrders.length}
+                {allMissingBookings.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -153,7 +156,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
 
         {/* Missing Orders Tab */}
         <TabsContent value="missing" className="space-y-4">
-          {missingOrders.length === 0 ? (
+          {allMissingBookings.length === 0 ? (
             <Alert>
               <CheckCircle2 className="h-4 w-4" />
               <AlertDescription>
@@ -161,64 +164,25 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
               </AlertDescription>
             </Alert>
           ) : (
-            <div className="space-y-4">
-              {missingOrders.map((booking) => {
-                const daysUntilCheckIn = booking.days_until_checkin;
-
-                return (
-                  <div key={booking.booking_id} className="space-y-2">
-                    <LaundryOrderCard
-                      order={{
-                        id: `pending-${booking.booking_id}`,
-                        house_id: houseId,
-                        booking_id: booking.booking_id,
-                        status: 'pending',
-                        order_date: new Date().toISOString().split('T')[0],
-                        delivery_date: calculateDeliveryDate(booking.check_in),
-                        items: booking.required_items,
-                        total_items: Object.values(booking.required_items || {}).reduce(
-                          (sum, qty) => sum + (qty as number), 
-                          0
-                        ),
-                        notes: 'Automatische Bestellung basierend auf prädiktiver Analyse',
-                        houses: { 
-                          name: orderStatus?.house_name || '', 
-                          address: '' 
-                        },
-                        bookings: {
-                          guest_name: booking.guest_name,
-                          check_in: booking.check_in,
-                          check_out: booking.check_out,
-                          number_of_guests: booking.number_of_guests
-                        }
-                      }}
-                      colorVariant="purple"
-                      isPending={true}
-                      onEdit={undefined}
-                      onDelete={undefined}
-                    />
-                    
-                    <Button 
-                      className="w-full"
-                      onClick={() => createOrder(booking.booking_id)}
-                      disabled={isCreatingOrder}
-                    >
-                      <Package className="h-4 w-4 mr-2" />
-                      {isCreatingOrder ? 'Erstelle Bestellung...' : 'Bestellung jetzt erstellen'}
-                    </Button>
-                    
-                    {daysUntilCheckIn <= 7 && (
-                      <Alert variant="destructive" className="mt-2">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>DRINGEND:</strong> Check-in in {daysUntilCheckIn} Tagen!
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <>
+              <Alert>
+                <AlertDescription>
+                  Es werden <strong>alle {allMissingBookings.length} Buchungen</strong> ohne 
+                  Wäschebestellung angezeigt (Status: "offen").
+                </AlertDescription>
+              </Alert>
+              
+              <div className="space-y-3">
+                {allMissingBookings.map((booking) => (
+                  <BookingWithoutOrderCard
+                    key={booking.booking_id}
+                    booking={booking}
+                    onCreateOrder={createOrder}
+                    isCreating={isCreatingOrder}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </TabsContent>
 

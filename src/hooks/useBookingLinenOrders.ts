@@ -96,6 +96,60 @@ export const useBookingLinenOrders = (houseId: string) => {
     refetchInterval: 60000, // Refresh every minute
   });
 
+  // Query: ALLE Buchungen ohne Bestellung (nicht limitiert)
+  const { data: allMissingBookings, isLoading: allMissingLoading } = useQuery({
+    queryKey: ['all-missing-bookings', houseId],
+    queryFn: async () => {
+      // 1. Lade ALLE confirmed Buchungen ab heute
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('id, guest_name, check_in, check_out, number_of_guests, house_id')
+        .eq('house_id', houseId)
+        .eq('status', 'confirmed')
+        .gte('check_in', new Date().toISOString())
+        .order('check_in', { ascending: true });
+      
+      if (bookingsError) throw bookingsError;
+      
+      // 2. Lade alle linen_orders für dieses Haus (außer cancelled)
+      const { data: orders, error: ordersError } = await supabase
+        .from('linen_orders')
+        .select('booking_id, status')
+        .eq('house_id', houseId)
+        .neq('status', 'cancelled');
+      
+      if (ordersError) throw ordersError;
+      
+      // 3. Erstelle Set von booking_ids mit existierender Order
+      const bookingIdsWithOrders = new Set(orders?.map(o => o.booking_id) || []);
+      
+      // 4. Filtere Buchungen OHNE Order
+      const bookingsWithoutOrders = bookings?.filter(
+        b => !bookingIdsWithOrders.has(b.id)
+      ) || [];
+      
+      // 5. Berechne days_until_checkin und urgency
+      return bookingsWithoutOrders.map(booking => {
+        const checkInDate = new Date(booking.check_in);
+        const daysUntilCheckin = Math.ceil(
+          (checkInDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
+        
+        return {
+          booking_id: booking.id,
+          guest_name: booking.guest_name,
+          check_in: booking.check_in,
+          check_out: booking.check_out,
+          number_of_guests: booking.number_of_guests,
+          days_until_checkin: daysUntilCheckin,
+          urgency: daysUntilCheckin <= 7 ? 'urgent' as const : 'normal' as const,
+        };
+      });
+    },
+    enabled: !!houseId,
+    refetchInterval: 60000,
+  });
+
   // Save configuration
   const saveConfigMutation = useMutation({
     mutationFn: async (updates: Partial<BookingLinenConfig>) => {
@@ -152,7 +206,7 @@ export const useBookingLinenOrders = (houseId: string) => {
           booking_id: bookingId,
           items: orderData.order_items,
           total_items: orderData.total_items,
-          status: 'pending',
+          status: 'offen',
           order_source: 'booking_required',
           suggested_at: new Date().toISOString(),
           order_date: new Date().toISOString().split('T')[0],
@@ -171,6 +225,7 @@ export const useBookingLinenOrders = (houseId: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['booking-orders-status', houseId] });
       queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['all-missing-bookings', houseId] });
       refetch();
       toast({
         title: "Bestellung erstellt!",
@@ -208,7 +263,9 @@ export const useBookingLinenOrders = (houseId: string) => {
     missingOrders,
     urgentOrders,
     activeOrders,
+    allMissingBookings: allMissingBookings || [],
     isLoading: configLoading || statusLoading,
+    isLoadingAllMissing: allMissingLoading,
     createOrder: createOrderMutation.mutate,
     isCreatingOrder: createOrderMutation.isPending,
     saveConfig: saveConfigMutation.mutate,
