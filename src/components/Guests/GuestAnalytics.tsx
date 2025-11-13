@@ -15,7 +15,10 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
 
 const GuestAnalytics = () => {
   const [selectedHouseId, setSelectedHouseId] = useState<string>('all');
-  const { data: houses } = useHouses();
+  const { data: allHouses } = useHouses();
+  
+  // Filter houses to only show tourist rentals
+  const houses = allHouses?.filter(house => house.rental_type === 'tourist');
 
   // Fetch booking data for analytics
   const { data: analyticsData, isLoading } = useQuery({
@@ -25,8 +28,9 @@ const GuestAnalytics = () => {
         .from('bookings')
         .select(`
           *,
-          houses!inner(name)
+          houses!inner(name, rental_type)
         `)
+        .eq('houses.rental_type', 'tourist')
         .not('guest_name', 'is', null);
       
       // Filter by house if selected
