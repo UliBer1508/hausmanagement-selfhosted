@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertTriangle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,6 +46,19 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
     }
   });
 
+  const [tenantInfo, setTenantInfo] = useState({
+    tenant_name: house?.tenant_info?.tenant_name || '',
+    tenant_email: house?.tenant_info?.tenant_email || '',
+    tenant_phone: house?.tenant_info?.tenant_phone || '',
+    contract_start: house?.tenant_info?.contract_start || '',
+    contract_end: house?.tenant_info?.contract_end || '',
+    monthly_rent: house?.tenant_info?.monthly_rent || 0,
+    deposit_amount: house?.tenant_info?.deposit_amount || 0,
+    payment_day: house?.tenant_info?.payment_day || 1,
+    payment_method: house?.tenant_info?.payment_method || 'bank_transfer',
+    notes: house?.tenant_info?.notes || ''
+  });
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -59,19 +73,26 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
 
   const updateHouseMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      const updates: any = {
+        name: data.name,
+        address: data.address,
+        property_type: data.property_type,
+        rental_type: data.rental_type,
+        max_guests: data.max_guests,
+        bathrooms: data.bathrooms,
+        bedrooms: data.bedrooms,
+        living_area_sqm: data.living_area_sqm || null,
+        amenities: data.amenities,
+      };
+
+      // Nur tenant_info speichern wenn long_term
+      if (formData.rental_type === 'long_term') {
+        updates.tenant_info = tenantInfo;
+      }
+
       const { error } = await supabase
         .from('houses')
-        .update({
-          name: data.name,
-          address: data.address,
-          property_type: data.property_type,
-          rental_type: data.rental_type,
-          max_guests: data.max_guests,
-          bathrooms: data.bathrooms,
-          bedrooms: data.bedrooms,
-          living_area_sqm: data.living_area_sqm || null,
-          amenities: data.amenities,
-        })
+        .update(updates)
         .eq('id', house.id);
 
       if (error) throw error;
@@ -127,6 +148,22 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
           additional_toilet: false,
         }
       });
+
+      // Tenant Info laden
+      if (house.tenant_info) {
+        setTenantInfo({
+          tenant_name: house.tenant_info.tenant_name || '',
+          tenant_email: house.tenant_info.tenant_email || '',
+          tenant_phone: house.tenant_info.tenant_phone || '',
+          contract_start: house.tenant_info.contract_start || '',
+          contract_end: house.tenant_info.contract_end || '',
+          monthly_rent: house.tenant_info.monthly_rent || 0,
+          deposit_amount: house.tenant_info.deposit_amount || 0,
+          payment_day: house.tenant_info.payment_day || 1,
+          payment_method: house.tenant_info.payment_method || 'bank_transfer',
+          notes: house.tenant_info.notes || ''
+        });
+      }
     }
   }, [house]);
 
@@ -140,11 +177,23 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         </DialogHeader>
         
         <Tabs defaultValue="basic" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className={`grid w-full ${
+            formData.rental_type === 'long_term' 
+              ? 'grid-cols-4'
+              : 'grid-cols-6'
+          }`}>
             <TabsTrigger value="basic">Grunddaten</TabsTrigger>
-            <TabsTrigger value="linen">Wäsche-Inventar</TabsTrigger>
-            <TabsTrigger value="linen-management">Wäsche-Management</TabsTrigger>
-            <TabsTrigger value="ai-settings">KI-Einstellungen</TabsTrigger>
+            
+            {formData.rental_type === 'long_term' ? (
+              <TabsTrigger value="tenant">🏘️ Mietvertrag</TabsTrigger>
+            ) : (
+              <>
+                <TabsTrigger value="linen">Wäsche-Inventar</TabsTrigger>
+                <TabsTrigger value="linen-management">Wäsche-Management</TabsTrigger>
+                <TabsTrigger value="ai-settings">KI-Einstellungen</TabsTrigger>
+              </>
+            )}
+            
             <TabsTrigger value="fees">Nebenkosten</TabsTrigger>
             <TabsTrigger value="inventory">Inventar</TabsTrigger>
           </TabsList>
@@ -373,6 +422,163 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
               </div>
             </form>
           </TabsContent>
+          
+          {formData.rental_type === 'long_term' && (
+            <TabsContent value="tenant" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Mieter-Informationen</CardTitle>
+                  <CardDescription>
+                    Verwalten Sie die Daten Ihres Mieters für diese Festvermietung
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Persönliche Daten */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="tenant_name">Mieter Name</Label>
+                      <Input
+                        id="tenant_name"
+                        value={tenantInfo.tenant_name}
+                        onChange={(e) => setTenantInfo({...tenantInfo, tenant_name: e.target.value})}
+                        placeholder="Max Mustermann"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="tenant_email">Email</Label>
+                      <Input
+                        id="tenant_email"
+                        type="email"
+                        value={tenantInfo.tenant_email}
+                        onChange={(e) => setTenantInfo({...tenantInfo, tenant_email: e.target.value})}
+                        placeholder="max@example.com"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="tenant_phone">Telefon</Label>
+                      <Input
+                        id="tenant_phone"
+                        value={tenantInfo.tenant_phone}
+                        onChange={(e) => setTenantInfo({...tenantInfo, tenant_phone: e.target.value})}
+                        placeholder="+49 123 456789"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="monthly_rent">Monatliche Miete (€)</Label>
+                      <Input
+                        id="monthly_rent"
+                        type="number"
+                        value={tenantInfo.monthly_rent}
+                        onChange={(e) => setTenantInfo({...tenantInfo, monthly_rent: parseFloat(e.target.value) || 0})}
+                        placeholder="1200"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Vertragsdaten */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="contract_start">Vertragsbeginn</Label>
+                      <Input
+                        id="contract_start"
+                        type="date"
+                        value={tenantInfo.contract_start}
+                        onChange={(e) => setTenantInfo({...tenantInfo, contract_start: e.target.value})}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="contract_end">Vertragsende</Label>
+                      <Input
+                        id="contract_end"
+                        type="date"
+                        value={tenantInfo.contract_end}
+                        onChange={(e) => setTenantInfo({...tenantInfo, contract_end: e.target.value})}
+                        placeholder="Leer = unbefristet"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Finanzielle Details */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="deposit_amount">Kaution (€)</Label>
+                      <Input
+                        id="deposit_amount"
+                        type="number"
+                        value={tenantInfo.deposit_amount}
+                        onChange={(e) => setTenantInfo({...tenantInfo, deposit_amount: parseFloat(e.target.value) || 0})}
+                        placeholder="2400"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="payment_day">Zahlungstag im Monat</Label>
+                      <Input
+                        id="payment_day"
+                        type="number"
+                        min="1"
+                        max="31"
+                        value={tenantInfo.payment_day}
+                        onChange={(e) => setTenantInfo({...tenantInfo, payment_day: parseInt(e.target.value) || 1})}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="payment_method">Zahlungsmethode</Label>
+                    <Select
+                      value={tenantInfo.payment_method}
+                      onValueChange={(value) => setTenantInfo({...tenantInfo, payment_method: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="bank_transfer">Banküberweisung</SelectItem>
+                        <SelectItem value="direct_debit">Lastschrift</SelectItem>
+                        <SelectItem value="cash">Bar</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Notizen */}
+                  <div className="space-y-2">
+                    <Label htmlFor="tenant_notes">Notizen</Label>
+                    <Textarea
+                      id="tenant_notes"
+                      value={tenantInfo.notes}
+                      onChange={(e) => setTenantInfo({...tenantInfo, notes: e.target.value})}
+                      placeholder="Zusätzliche Informationen zum Mietverhältnis..."
+                      rows={4}
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => onOpenChange(false)}
+                    >
+                      Abbrechen
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={() => updateHouseMutation.mutate(formData)}
+                      disabled={updateHouseMutation.isPending}
+                    >
+                      {updateHouseMutation.isPending ? 'Speichern...' : 'Speichern'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          )}
           
           <TabsContent value="linen">
             <LinenInventory house={house} />
