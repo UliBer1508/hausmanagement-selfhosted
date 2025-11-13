@@ -51,6 +51,7 @@ import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
 import Houses from '@/pages/Houses';
 import CleaningManagement from '@/components/Cleaning/CleaningManagement';
 import GuestManagement from '@/components/Guests/GuestManagement';
+import TenantManagement from '@/components/Tenants/TenantManagement';
 import LinenDashboard from '@/components/Houses/LinenDashboard';
 import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderManagementDialog';
 import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
@@ -666,6 +667,7 @@ const OriginalDashboard = () => {
     { name: 'Kalender', emoji: '📅' },
     { name: 'Buchungen', emoji: '📅' },
     { name: 'Gäste', emoji: '👥' },
+    { name: 'Mieter', emoji: '🏘️' },
     { name: 'Häuser', emoji: '🏠' },
     { name: 'Reinigung', emoji: '✨' },
     { name: 'Provider', emoji: '🏢' },
@@ -1384,6 +1386,8 @@ const OriginalDashboard = () => {
         return <BookingOverviewFixed />;
       case 'Gäste':
         return <GuestManagement />;
+      case 'Mieter':
+        return <TenantManagement />;
       case 'Häuser':
         return <Houses />;
       case 'Reinigung':
