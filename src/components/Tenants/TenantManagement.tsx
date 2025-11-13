@@ -5,6 +5,7 @@ import { Download } from "lucide-react";
 import TenantOverview from "./TenantOverview";
 import TenantContracts from "./TenantContracts";
 import TenantPayments from "./TenantPayments";
+import TenantAnalytics from "./TenantAnalytics";
 import { useHouses } from "@/hooks/useHouses";
 import { toast } from "sonner";
 
@@ -59,10 +60,11 @@ const TenantManagement = () => {
 
       <Card className="p-6">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Übersicht</TabsTrigger>
             <TabsTrigger value="contracts">Verträge</TabsTrigger>
             <TabsTrigger value="payments">Zahlungen</TabsTrigger>
+            <TabsTrigger value="analytics">Analyse</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -75,6 +77,10 @@ const TenantManagement = () => {
 
           <TabsContent value="payments" className="space-y-6">
             <TenantPayments />
+          </TabsContent>
+
+          <TabsContent value="analytics" className="space-y-6">
+            <TenantAnalytics />
           </TabsContent>
         </Tabs>
       </Card>
