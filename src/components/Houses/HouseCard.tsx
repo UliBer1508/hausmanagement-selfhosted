@@ -145,25 +145,27 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
               )}
             </div>
 
-            {/* Linen Inventory */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-medium">Wäschebestand ({totalLinenItems} Teile)</h4>
+            {/* Linen Inventory - nur für touristische Vermietungen */}
+            {(house.rental_type === 'tourist' || !house.rental_type) && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">Wäschebestand ({totalLinenItems} Teile)</h4>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  {linenBreakdown.map((item) => (
+                    <div key={item.key} className="flex justify-between">
+                      <span className="text-muted-foreground">{item.label}:</span>
+                      <span className="font-medium">{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+                
+                {linenBreakdown.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Keine Wäsche definiert</p>
+                )}
               </div>
-              
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {linenBreakdown.map((item) => (
-                  <div key={item.key} className="flex justify-between">
-                    <span className="text-muted-foreground">{item.label}:</span>
-                    <span className="font-medium">{item.count}</span>
-                  </div>
-                ))}
-              </div>
-              
-              {linenBreakdown.length === 0 && (
-                <p className="text-sm text-muted-foreground">Keine Wäsche definiert</p>
-              )}
-            </div>
+            )}
 
             {/* Inventory Categories */}
             {Object.keys(inventoryCount.categories).length > 0 && (
