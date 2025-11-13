@@ -124,7 +124,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
             </CardHeader>
             <CardContent className="space-y-4">
               {orderStatus.bookings.map((booking) => (
-                <div key={booking.booking_id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={booking.booking_id} className="flex items-center justify-between p-4 border-2 border-green-500 rounded-lg">
                   <div className="space-y-1">
                     <div className="font-medium">{booking.guest_name}</div>
                     <div className="text-sm text-muted-foreground">
