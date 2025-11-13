@@ -95,6 +95,8 @@ export interface House {
   id: string;
   name: string;
   address: string;
+  property_type?: 'house' | 'apartment' | 'studio' | 'other';
+  rental_type?: 'tourist' | 'long_term';
   max_guests: number;
   bathrooms?: number;
   bedrooms?: number;

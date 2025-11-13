@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -26,6 +29,8 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
   const [formData, setFormData] = useState({
     name: house?.name || '',
     address: house?.address || '',
+    property_type: house?.property_type || 'house',
+    rental_type: house?.rental_type || 'tourist',
     max_guests: house?.max_guests || 6,
     bathrooms: house?.bathrooms || 1,
     bedrooms: house?.bedrooms || 3,
@@ -59,6 +64,8 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         .update({
           name: data.name,
           address: data.address,
+          property_type: data.property_type,
+          rental_type: data.rental_type,
           max_guests: data.max_guests,
           bathrooms: data.bathrooms,
           bedrooms: data.bedrooms,
@@ -105,6 +112,8 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
       setFormData({
         name: house.name || '',
         address: house.address || '',
+        property_type: house.property_type || 'house',
+        rental_type: house.rental_type || 'tourist',
         max_guests: house.max_guests || 6,
         bathrooms: house.bathrooms || 1,
         bedrooms: house.bedrooms || 3,
@@ -163,6 +172,50 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
                   required
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="property_type">Objekttyp *</Label>
+                <Select 
+                  value={formData.property_type}
+                  onValueChange={(value: any) => setFormData({ ...formData, property_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="house">🏠 Haus</SelectItem>
+                    <SelectItem value="apartment">🏢 Wohnung</SelectItem>
+                    <SelectItem value="studio">🛏️ Studio</SelectItem>
+                    <SelectItem value="other">🏗️ Sonstige</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="rental_type">Vermietungsart *</Label>
+                <Select 
+                  value={formData.rental_type}
+                  onValueChange={(value: any) => setFormData({ ...formData, rental_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tourist">🏖️ Touristische Vermietung</SelectItem>
+                    <SelectItem value="long_term">🏘️ Festvermietung</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {formData.rental_type !== house.rental_type && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Achtung: Das Ändern der Vermietungsart kann Auswirkungen auf 
+                    Buchungen, Wäschebestellungen und Reinigungsaufträge haben!
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

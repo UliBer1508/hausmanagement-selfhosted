@@ -81,6 +81,21 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
                 </div>
               </div>
               
+              {/* Property Type & Rental Type Badges */}
+              <div className="flex gap-2 mb-2">
+                <Badge variant="secondary">
+                  {house.property_type === 'house' && '🏠 Haus'}
+                  {house.property_type === 'apartment' && '🏢 Wohnung'}
+                  {house.property_type === 'studio' && '🛏️ Studio'}
+                  {house.property_type === 'other' && '🏗️ Sonstige'}
+                  {!house.property_type && '🏠 Haus'}
+                </Badge>
+                <Badge variant={house.rental_type === 'tourist' || !house.rental_type ? 'default' : 'outline'}>
+                  {house.rental_type === 'long_term' && '🏘️ Festvermietung'}
+                  {(house.rental_type === 'tourist' || !house.rental_type) && '🏖️ Touristisch'}
+                </Badge>
+              </div>
+              
               <div className="flex items-center text-sm text-muted-foreground mb-2">
                 <MapPin className="w-4 h-4 mr-1" />
                 {house.address}

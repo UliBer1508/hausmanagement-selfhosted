@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,6 +18,8 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
   const [formData, setFormData] = useState({
     name: '',
     address: '',
+    property_type: 'house' as const,
+    rental_type: 'tourist' as const,
     max_guests: 6,
     bathrooms: 1,
     bedrooms: 3,
@@ -41,6 +44,8 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
         .insert([{
           name: data.name,
           address: data.address,
+          property_type: data.property_type,
+          rental_type: data.rental_type,
           max_guests: data.max_guests,
           bathrooms: data.bathrooms,
           bedrooms: data.bedrooms,
@@ -68,8 +73,9 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
 
       if (error) throw error;
 
-      // Create default linen set definitions
-      const { error: linenDefError } = await supabase
+      // Create default linen set definitions nur für touristische Vermietung
+      if (data.rental_type === 'tourist') {
+        const { error: linenDefError } = await supabase
         .from('linen_set_definitions')
         .insert([{
           house_id: house.id,
@@ -85,7 +91,8 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
           pillow_cases_per_guest: 0
         }]);
 
-      if (linenDefError) throw linenDefError;
+        if (linenDefError) throw linenDefError;
+      }
 
       return house;
     },
@@ -99,6 +106,8 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
       setFormData({
         name: '',
         address: '',
+        property_type: 'house',
+        rental_type: 'tourist',
         max_guests: 6,
         bathrooms: 1,
         bedrooms: 3,
@@ -164,6 +173,54 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
               placeholder="Vollständige Adresse eingeben"
               required
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="property_type">Objekttyp *</Label>
+            <Select 
+              value={formData.property_type}
+              onValueChange={(value: any) => setFormData({ ...formData, property_type: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="house">🏠 Haus</SelectItem>
+                <SelectItem value="apartment">🏢 Wohnung</SelectItem>
+                <SelectItem value="studio">🛏️ Studio</SelectItem>
+                <SelectItem value="other">🏗️ Sonstige</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="rental_type">Vermietungsart *</Label>
+            <Select 
+              value={formData.rental_type}
+              onValueChange={(value: any) => setFormData({ ...formData, rental_type: value })}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tourist">
+                  <div>
+                    <div className="font-medium">🏖️ Touristische Vermietung</div>
+                    <div className="text-xs text-muted-foreground">
+                      Kurzzeitvermietung mit wechselnden Gästen
+                    </div>
+                  </div>
+                </SelectItem>
+                <SelectItem value="long_term">
+                  <div>
+                    <div className="font-medium">🏘️ Festvermietung</div>
+                    <div className="text-xs text-muted-foreground">
+                      Langzeitmiete mit festem Mieter
+                    </div>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
               <div className="grid grid-cols-2 gap-4">
