@@ -24,6 +24,7 @@ const Navigation = () => {
     { name: 'Häuser', href: '/houses', emoji: '🏠' },
     { name: 'Buchungen', href: '/bookings', emoji: '📅' },
     { name: 'Gäste', href: '/guests', emoji: '👥' },
+    { name: 'Mieter', href: '/tenants', emoji: '🏘️' },
     { name: 'Reinigung', href: '/cleaning', emoji: '✨' },
     { name: 'Wäsche', href: '/laundry', emoji: '💧', badge: totalUrgentOrders },
     { name: 'Provider', href: '/providers', emoji: '🏢' },
