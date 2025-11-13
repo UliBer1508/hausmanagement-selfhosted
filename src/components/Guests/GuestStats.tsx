@@ -5,12 +5,13 @@ import { Users, TrendingUp, RotateCcw, Calendar } from 'lucide-react';
 
 const GuestStats = () => {
   const { data: stats, isLoading } = useQuery({
-    queryKey: ['guest-stats'],
+    queryKey: ['guest-stats-tourist'],
     queryFn: async () => {
-      // Get overall statistics (exclude cancelled bookings)
+      // Get overall statistics (exclude cancelled bookings, only tourist rentals)
       const { data: overallStats } = await supabase
         .from('bookings')
-        .select('guest_name, booking_amount, check_in, check_out, status')
+        .select('guest_name, booking_amount, check_in, check_out, status, houses!inner(rental_type)')
+        .eq('houses.rental_type', 'tourist')
         .not('guest_name', 'is', null)
         .not('booking_amount', 'is', null)
         .neq('status', 'cancelled');
@@ -57,7 +58,8 @@ const GuestStats = () => {
       
       const { data: recentBookings } = await supabase
         .from('bookings')
-        .select('guest_name')
+        .select('guest_name, houses!inner(rental_type)')
+        .eq('houses.rental_type', 'tourist')
         .not('guest_name', 'is', null)
         .neq('status', 'cancelled')
         .gte('created_at', sixMonthsAgo.toISOString());
