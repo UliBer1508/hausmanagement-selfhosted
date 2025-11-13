@@ -14,10 +14,19 @@ interface AdditionalFeesTabProps {
 const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
   const { fees, isLoading, saveFees, isSaving } = usePricingConfig(houseId);
   
-  const [localFees, setLocalFees] = useState(fees);
+  const [localFees, setLocalFees] = useState({
+    service_fee_per_stay: 0,
+    tourist_tax_per_night: 2.50,
+    cleaning_fee_per_stay: 80,
+    electricity_fee_per_stay: 40,
+    linen_fee_per_stay: 30,
+    vat_percentage: 19
+  });
 
   useEffect(() => {
-    setLocalFees(fees);
+    if (fees) {
+      setLocalFees(fees);
+    }
   }, [fees]);
 
   const handleSave = () => {
