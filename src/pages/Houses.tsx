@@ -82,15 +82,15 @@ const Houses = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Ferienhäuser</h1>
-            <p className="text-muted-foreground mt-2">Verwalten Sie Ihre Ferienhaus-Objekte</p>
+            <h1 className="text-3xl font-bold text-foreground">Immobilien-Verwaltung</h1>
+            <p className="text-muted-foreground mt-2">Verwalten Sie Ihre Häuser, Wohnungen und Festvermietungen</p>
           </div>
           <Button 
             onClick={() => setIsCreateDialogOpen(true)}
             className="gap-2"
           >
             <Plus className="w-4 h-4" />
-            Ferienhaus hinzufügen
+            Objekt hinzufügen
           </Button>
         </div>
 
