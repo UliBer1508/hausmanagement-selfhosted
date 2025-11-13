@@ -8,8 +8,8 @@ export const useTenantPayments = (houseId?: string) => {
     queryKey: ['tenant-payments', houseId],
     queryFn: async () => {
       let query = supabase
-        .from('tenant_payments')
-        .select('*, houses(id, name, address)')
+        .from('tenant_payments' as any)
+        .select('*, houses(id, name, address, tenant_info)')
         .order('due_date', { ascending: false });
       
       if (houseId) {
@@ -19,7 +19,7 @@ export const useTenantPayments = (houseId?: string) => {
       const { data, error } = await query;
       
       if (error) throw error;
-      return data as TenantPayment[];
+      return data as any as TenantPayment[];
     },
   });
 };
@@ -30,19 +30,19 @@ export const useCreatePayment = () => {
   return useMutation({
     mutationFn: async (payment: Omit<TenantPayment, 'id' | 'created_at' | 'updated_at'>) => {
       const { data, error } = await supabase
-        .from('tenant_payments')
+        .from('tenant_payments' as any)
         .insert([payment])
         .select()
         .single();
       
       if (error) throw error;
-      return data;
+      return data as any as TenantPayment;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenant-payments'] });
       toast.success('Zahlung erfolgreich erfasst');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error('Fehler beim Erfassen der Zahlung: ' + error.message);
     }
   });
@@ -54,20 +54,20 @@ export const useUpdatePayment = () => {
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<TenantPayment> & { id: string }) => {
       const { data, error } = await supabase
-        .from('tenant_payments')
+        .from('tenant_payments' as any)
         .update(updates)
         .eq('id', id)
         .select()
         .single();
       
       if (error) throw error;
-      return data;
+      return data as any as TenantPayment;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenant-payments'] });
       toast.success('Zahlung aktualisiert');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error('Fehler beim Aktualisieren: ' + error.message);
     }
   });
@@ -79,7 +79,7 @@ export const useDeletePayment = () => {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('tenant_payments')
+        .from('tenant_payments' as any)
         .delete()
         .eq('id', id);
       
@@ -89,7 +89,7 @@ export const useDeletePayment = () => {
       queryClient.invalidateQueries({ queryKey: ['tenant-payments'] });
       toast.success('Zahlung gelöscht');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error('Fehler beim Löschen: ' + error.message);
     }
   });
@@ -115,8 +115,8 @@ export const useUploadReceipt = () => {
         .getPublicUrl(filePath);
 
       const { error: updateError } = await supabase
-        .from('tenant_payments')
-        .update({ receipt_url: publicUrl })
+        .from('tenant_payments' as any)
+        .update({ receipt_url: publicUrl } as any)
         .eq('id', paymentId);
 
       if (updateError) throw updateError;
@@ -127,7 +127,7 @@ export const useUploadReceipt = () => {
       queryClient.invalidateQueries({ queryKey: ['tenant-payments'] });
       toast.success('Beleg hochgeladen');
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error('Fehler beim Hochladen: ' + error.message);
     }
   });
