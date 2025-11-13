@@ -16,18 +16,22 @@ const GuestOverview = () => {
 
   // Fetch houses for filter
   const { data: houses } = useQuery({
-    queryKey: ['houses'],
-    queryFn: async () => {
-      const { data } = await supabase.from('houses').select('id, name');
+    queryKey: ['houses-tourist'] as const,
+    queryFn: async (): Promise<any> => {
+      const { data, error }: any = await supabase
+        .from('houses')
+        .select('id, name')
+        .eq('rental_type', 'tourist');
+      if (error) throw error;
       return data || [];
     },
   });
 
   // Fetch guest data with aggregated information
   const { data: guestData, isLoading } = useQuery({
-    queryKey: ['guest-overview', searchTerm, statusFilter, houseFilter, categoryFilter, sortBy],
-    queryFn: async () => {
-      let query = supabase
+    queryKey: ['guest-overview', searchTerm, statusFilter, houseFilter, categoryFilter, sortBy] as const,
+    queryFn: async (): Promise<any> => {
+      let query: any = supabase
         .from('bookings')
         .select(`
           id,
@@ -39,8 +43,9 @@ const GuestOverview = () => {
           check_out,
           status,
           nationality,
-          houses!inner(id, name, address)
+          houses!inner(id, name, address, rental_type)
         `)
+        .eq('houses.rental_type', 'tourist')
         .not('guest_name', 'is', null);
 
       if (searchTerm) {
