@@ -91,12 +91,27 @@ export interface BookingWithHouse extends Omit<Booking, 'house_id'> {
   };
 }
 
+export interface TenantInfo {
+  tenant_name?: string;
+  tenant_email?: string;
+  tenant_phone?: string;
+  contract_start?: string;
+  contract_end?: string;
+  monthly_rent?: number;
+  deposit_amount?: number;
+  payment_day?: number;
+  payment_method?: 'bank_transfer' | 'cash' | 'direct_debit';
+  notes?: string;
+  [key: string]: any;
+}
+
 export interface House {
   id: string;
   name: string;
   address: string;
   property_type?: 'house' | 'apartment' | 'studio' | 'other';
   rental_type?: 'tourist' | 'long_term';
+  tenant_info?: TenantInfo;
   max_guests: number;
   bathrooms?: number;
   bedrooms?: number;
