@@ -10,6 +10,7 @@ import { de } from "date-fns/locale";
 
 const TenantAnalytics = () => {
   const [selectedHouseId, setSelectedHouseId] = useState<string>("all");
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const { data: houses } = useHouses();
   const { data: allPayments } = useTenantPayments();
 
@@ -18,6 +19,19 @@ const TenantAnalytics = () => {
   const payments = selectedHouseId === "all" 
     ? allPayments 
     : allPayments?.filter(p => p.house_id === selectedHouseId);
+
+  // Verfügbare Jahre aus Zahlungsdaten ermitteln
+  const availableYears = useMemo(() => {
+    if (!allPayments || allPayments.length === 0) return [new Date().getFullYear()];
+    
+    const years = new Set<number>();
+    allPayments.forEach(p => {
+      const paymentYear = new Date(p.payment_date || p.due_date).getFullYear();
+      years.add(paymentYear);
+    });
+    
+    return Array.from(years).sort((a, b) => b - a);
+  }, [allPayments]);
 
   // Zahlungsübersicht-Statistiken
   const totalRevenue = payments?.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0) || 0;
@@ -30,24 +44,19 @@ const TenantAnalytics = () => {
   const totalPaid = payments?.filter(p => p.status === 'paid').length || 0;
   const paymentPunctuality = totalPaid > 0 ? Math.round((paidOnTime / totalPaid) * 100) : 0;
 
-  // Jahresgesamten für spezifische Jahre berechnen
-  const year2024Total = payments?.filter(p => {
+  // Jahresgesamt für ausgewähltes Jahr berechnen
+  const selectedYearTotal = payments?.filter(p => {
     const paymentYear = new Date(p.payment_date || p.due_date).getFullYear();
-    return paymentYear === 2024 && p.status === 'paid';
+    return paymentYear === selectedYear && p.status === 'paid';
   }).reduce((sum, p) => sum + p.amount, 0) || 0;
 
-  const year2025Total = payments?.filter(p => {
-    const paymentYear = new Date(p.payment_date || p.due_date).getFullYear();
-    return paymentYear === 2025 && p.status === 'paid';
-  }).reduce((sum, p) => sum + p.amount, 0) || 0;
-
-  // Monatliche Einnahmen (letzte 12 Monate)
+  // Monatliche Einnahmen für ausgewähltes Jahr
   const monthlyRevenueData = useMemo(() => {
     const data = [];
-    for (let i = 11; i >= 0; i--) {
-      const date = subMonths(new Date(), i);
-      const monthStart = startOfMonth(date);
-      const monthEnd = endOfMonth(date);
+    for (let month = 0; month < 12; month++) {
+      const monthDate = new Date(selectedYear, month, 1);
+      const monthStart = startOfMonth(monthDate);
+      const monthEnd = endOfMonth(monthDate);
       
       const revenue = payments?.filter(p => {
         const paymentDate = new Date(p.payment_date || p.due_date);
@@ -55,12 +64,12 @@ const TenantAnalytics = () => {
       }).reduce((sum, p) => sum + p.amount, 0) || 0;
       
       data.push({
-        month: format(date, 'MMM yy', { locale: de }),
+        month: format(monthDate, 'MMM', { locale: de }),
         revenue: revenue
       });
     }
     return data;
-  }, [payments]);
+  }, [payments, selectedYear]);
 
   // Zahlungsstatus-Verteilung
   const statusDistribution = useMemo(() => {
@@ -120,23 +129,36 @@ const TenantAnalytics = () => {
 
   return (
     <div className="space-y-6">
-      {/* Haus-Filter */}
-      <div className="flex justify-between items-center">
-        <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
-          <SelectTrigger className="w-64">
-            <SelectValue placeholder="Objekt wählen" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Objekte</SelectItem>
-            {longTermRentals.map(house => (
-              <SelectItem key={house.id} value={house.id}>{house.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex justify-between items-center flex-wrap gap-4">
+        <h2 className="text-3xl font-bold">Mieter-Analyse</h2>
+        <div className="flex gap-4 items-center flex-wrap">
+          <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
+            <SelectTrigger className="w-64">
+              <SelectValue placeholder="Objekt wählen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Alle Objekte</SelectItem>
+              {longTermRentals.map(house => (
+                <SelectItem key={house.id} value={house.id}>{house.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(Number(value))}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Jahr wählen" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableYears.map(year => (
+                <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Zahlungsübersicht-Statistiken */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -176,33 +198,24 @@ const TenantAnalytics = () => {
             <CheckCircle className="h-8 w-8 text-emerald-600" />
           </div>
         </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Gesamt 2024</p>
-              <p className="text-2xl font-bold">{year2024Total.toLocaleString('de-DE')} €</p>
-            </div>
-            <Calendar className="h-8 w-8 text-purple-600" />
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Gesamt 2025</p>
-              <p className="text-2xl font-bold">{year2025Total.toLocaleString('de-DE')} €</p>
-            </div>
-            <TrendingUp className="h-8 w-8 text-indigo-600" />
-          </div>
-        </Card>
       </div>
+
+      {/* Jahresübersicht */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-muted-foreground">Gesamt {selectedYear}</p>
+            <p className="text-2xl font-bold">{selectedYearTotal.toLocaleString('de-DE')} €</p>
+          </div>
+          <Calendar className="h-8 w-8 text-purple-600" />
+        </div>
+      </Card>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Monatliche Einnahmen */}
         <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Monatliche Mieteinnahmen</h3>
+          <h3 className="text-lg font-semibold mb-4">Monatliche Mieteinnahmen {selectedYear}</h3>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={monthlyRevenueData}>
               <CartesianGrid strokeDasharray="3 3" />
