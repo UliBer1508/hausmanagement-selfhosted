@@ -8,6 +8,7 @@ import PWAStatus from '@/components/PWA/PWAStatus';
 import { useHouses } from '@/hooks/useHouses';
 import { useMemo } from 'react';
 
+// Navigation component for Ferienhaus Manager
 const Navigation = () => {
   const location = useLocation();
   const { data: houses } = useHouses();
