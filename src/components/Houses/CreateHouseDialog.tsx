@@ -34,11 +34,88 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
     }
   });
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validierung
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Datei zu groß",
+        description: "Bitte wählen Sie ein Bild unter 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Ungültiges Format",
+        description: "Bitte wählen Sie eine Bilddatei.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setImageFile(file);
+    
+    // Preview erstellen
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
   const createHouseMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      let imageUrl = null;
+      let imageFilename = null;
+
+      // 1. Bild hochladen wenn vorhanden
+      if (imageFile) {
+        setIsUploading(true);
+        try {
+          const fileExt = imageFile.name.split('.').pop();
+          const fileName = `${crypto.randomUUID()}.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('house-images')
+            .upload(fileName, imageFile, {
+              cacheControl: '3600',
+              upsert: false
+            });
+
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw new Error('Bild konnte nicht hochgeladen werden');
+          }
+
+          // Public URL abrufen
+          const { data: urlData } = supabase.storage
+            .from('house-images')
+            .getPublicUrl(fileName);
+
+          imageUrl = urlData.publicUrl;
+          imageFilename = fileName;
+        } finally {
+          setIsUploading(false);
+        }
+      }
+
+      // 2. Haus erstellen mit Bild-URLs
       const { data: house, error } = await supabase
         .from('houses')
         .insert([{
@@ -51,6 +128,8 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
           bedrooms: data.bedrooms,
           living_area_sqm: data.living_area_sqm || null,
           amenities: data.amenities,
+          image_url: imageUrl,
+          image_filename: imageFilename,
           linen_stock: {
             bedding: 0,
             large_towels: 0,
@@ -121,6 +200,9 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
           additional_toilet: false,
         }
       });
+      setImageFile(null);
+      setImagePreview(null);
+      setIsUploading(false);
     },
     onError: (error) => {
       toast({
@@ -173,6 +255,45 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
               placeholder="Vollständige Adresse eingeben"
               required
             />
+          </div>
+
+          {/* Objektbild */}
+          <div className="space-y-2">
+            <Label htmlFor="image">Objektbild (optional)</Label>
+            <div className="space-y-4">
+              <Input
+                id="image"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                disabled={isUploading}
+              />
+              
+              {imagePreview && (
+                <div className="relative">
+                  <img
+                    src={imagePreview}
+                    alt="Vorschau"
+                    className="w-full h-48 object-cover rounded-lg border"
+                  />
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={handleRemoveImage}
+                  >
+                    Entfernen
+                  </Button>
+                </div>
+              )}
+
+              {isUploading && (
+                <p className="text-sm text-muted-foreground">
+                  Bild wird hochgeladen...
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="space-y-2">

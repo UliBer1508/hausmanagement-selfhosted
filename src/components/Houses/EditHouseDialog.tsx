@@ -59,8 +59,70 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
     notes: house?.tenant_info?.notes || ''
   });
 
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [currentImage, setCurrentImage] = useState<string | null>(house?.image_url || null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [deleteOldImage, setDeleteOldImage] = useState(false);
+
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validierung
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Datei zu groß",
+        description: "Bitte wählen Sie ein Bild unter 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Ungültiges Format",
+        description: "Bitte wählen Sie eine Bilddatei.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setImageFile(file);
+    
+    // Markiere altes Bild zum Löschen
+    if (house?.image_filename) {
+      setDeleteOldImage(true);
+    }
+    
+    // Preview erstellen
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setDeleteOldImage(false);
+  };
+
+  const handleRemoveCurrentImage = () => {
+    if (!house?.image_filename) return;
+    
+    setDeleteOldImage(true);
+    setCurrentImage(null);
+    
+    toast({
+      title: "Bild wird entfernt",
+      description: "Das Bild wird beim Speichern gelöscht.",
+    });
+  };
   
   // KI-Einstellungen Hook
   const {
@@ -85,11 +147,61 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         amenities: data.amenities,
       };
 
-      // Nur tenant_info speichern wenn long_term
+      // 1. Altes Bild löschen wenn markiert
+      if (deleteOldImage && house.image_filename) {
+        try {
+          const { error: deleteError } = await supabase.storage
+            .from('house-images')
+            .remove([house.image_filename]);
+
+          if (deleteError) {
+            console.error('Delete error:', deleteError);
+          }
+        } catch (error) {
+          console.error('Error deleting old image:', error);
+        }
+      }
+
+      // 2. Neues Bild hochladen wenn vorhanden
+      if (imageFile) {
+        setIsUploading(true);
+        try {
+          const fileExt = imageFile.name.split('.').pop();
+          const fileName = `${crypto.randomUUID()}.${fileExt}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from('house-images')
+            .upload(fileName, imageFile, {
+              cacheControl: '3600',
+              upsert: false
+            });
+
+          if (uploadError) {
+            setIsUploading(false);
+            throw new Error('Bild konnte nicht hochgeladen werden');
+          }
+
+          const { data: urlData } = supabase.storage
+            .from('house-images')
+            .getPublicUrl(fileName);
+
+          updates.image_url = urlData.publicUrl;
+          updates.image_filename = fileName;
+        } finally {
+          setIsUploading(false);
+        }
+      } else if (deleteOldImage) {
+        // Bild wurde entfernt, keine neue hochgeladen
+        updates.image_url = null;
+        updates.image_filename = null;
+      }
+
+      // 3. Nur tenant_info speichern wenn long_term
       if (formData.rental_type === 'long_term') {
         updates.tenant_info = tenantInfo;
       }
 
+      // 4. Update durchführen
       const { error } = await supabase
         .from('houses')
         .update(updates)
@@ -220,6 +332,66 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
                   placeholder="Vollständige Adresse eingeben"
                   required
                 />
+              </div>
+
+              {/* Objektbild */}
+              <div className="space-y-2">
+                <Label>Objektbild</Label>
+                <div className="space-y-4">
+                  {/* Aktuelles Bild anzeigen */}
+                  {currentImage && !imagePreview && (
+                    <div className="relative">
+                      <img
+                        src={currentImage}
+                        alt={formData.name}
+                        className="w-full h-48 object-cover rounded-lg border"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={handleRemoveCurrentImage}
+                      >
+                        Entfernen
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Neue Bild-Vorschau */}
+                  {imagePreview && (
+                    <div className="relative">
+                      <img
+                        src={imagePreview}
+                        alt="Neue Vorschau"
+                        className="w-full h-48 object-cover rounded-lg border border-primary"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute top-2 right-2"
+                        onClick={handleRemoveImage}
+                      >
+                        Abbrechen
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Upload-Button */}
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    disabled={isUploading}
+                  />
+                  
+                  {isUploading && (
+                    <p className="text-sm text-muted-foreground">
+                      Bild wird hochgeladen...
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">
