@@ -11,12 +11,19 @@ import { de } from "date-fns/locale";
 import { AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react";
 import LaundryOrderCard from "../Bookings/LaundryOrderCard";
 import { BookingWithoutOrderCard } from "./BookingWithoutOrderCard";
+import LinenOrderDialog from "./LinenOrderDialog";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BookingLinenOverviewProps {
   houseId: string;
 }
 
 export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => {
+  const [orderDialogOpen, setOrderDialogOpen] = useState(false);
+  const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<any>(null);
+
   const {
     orderStatus,
     missingOrders,
@@ -28,6 +35,73 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     createOrder,
     isCreatingOrder,
   } = useBookingLinenOrders(houseId);
+
+  // Lade linen_set_definitions für dieses Haus
+  const { data: linenSetDefinition } = useQuery({
+    queryKey: ['linen-set-definition', houseId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_set_definitions')
+        .select('*')
+        .eq('house_id', houseId)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!houseId,
+  });
+
+  const handleCreateOrder = (bookingId: string) => {
+    const booking = allMissingBookings.find(b => b.booking_id === bookingId);
+    if (booking) {
+      setSelectedBookingForOrder(booking);
+      setOrderDialogOpen(true);
+    }
+  };
+
+  const handleConfirmOrder = async (orderData: any) => {
+    await createOrder(selectedBookingForOrder.booking_id);
+    setOrderDialogOpen(false);
+    setSelectedBookingForOrder(null);
+  };
+
+  // Berechne Bestellitems basierend auf linen_set_definition
+  const calculateOrderItems = (booking: any) => {
+    if (!linenSetDefinition) return {};
+    
+    const guests = booking.number_of_guests || 0;
+    const items: Record<string, number> = {};
+    
+    // Per-Guest Items
+    if (linenSetDefinition.bedding_per_guest) {
+      items.bedding = guests * linenSetDefinition.bedding_per_guest;
+    }
+    if (linenSetDefinition.large_towels_per_guest) {
+      items.large_towels = guests * linenSetDefinition.large_towels_per_guest;
+    }
+    if (linenSetDefinition.small_towels_per_guest) {
+      items.small_towels = guests * linenSetDefinition.small_towels_per_guest;
+    }
+    if (linenSetDefinition.sauna_towels_per_guest) {
+      items.sauna_towels = guests * linenSetDefinition.sauna_towels_per_guest;
+    }
+    
+    // Per-Booking Items
+    if (linenSetDefinition.bath_mats_per_booking) {
+      items.bath_mats = linenSetDefinition.bath_mats_per_booking;
+    }
+    if (linenSetDefinition.sink_towels_per_booking) {
+      items.sink_towels = linenSetDefinition.sink_towels_per_booking;
+    }
+    if (linenSetDefinition.kitchen_towels_per_booking) {
+      items.kitchen_towels = linenSetDefinition.kitchen_towels_per_booking;
+    }
+    
+    return Object.fromEntries(
+      Object.entries(items).filter(([_, qty]) => qty > 0)
+    );
+  };
 
   if (isLoading) {
     return (
@@ -183,7 +257,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
                   <BookingWithoutOrderCard
                     key={booking.booking_id}
                     booking={booking}
-                    onCreateOrder={createOrder}
+                    onCreateOrder={handleCreateOrder}
                     isCreating={isCreatingOrder}
                   />
                 ))}
@@ -227,6 +301,22 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Bestellungs-Dialog */}
+      {selectedBookingForOrder && (
+        <LinenOrderDialog
+          open={orderDialogOpen}
+          onOpenChange={setOrderDialogOpen}
+          orderItems={calculateOrderItems(selectedBookingForOrder)}
+          houseName={orderStatus?.house_name || ''}
+          houseId={houseId}
+          selectedBooking={selectedBookingForOrder}
+          linenSetDefinition={linenSetDefinition}
+          onCreateOrder={handleConfirmOrder}
+          isCreating={isCreatingOrder}
+          mode="create"
+        />
+      )}
     </div>
   );
 };
