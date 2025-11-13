@@ -6,6 +6,13 @@ import GuestList from './GuestList';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+const fetchTouristHouses = async () => {
+  const db: any = supabase;
+  const result = await db.from('houses').select('id, name').eq('rental_type', 'tourist').order('name');
+  if (result.error) throw result.error;
+  return result.data || [];
+};
+
 const GuestOverview = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -13,23 +20,19 @@ const GuestOverview = () => {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState<'booking' | 'name'>('booking');
 
-  const housesQuery: any = useQuery({
-    queryKey: ['houses-tourist-dropdown'] as const,
-    queryFn: async () => {
-      const { data, error }: any = await supabase.from('houses').select('id, name').eq('rental_type', 'tourist').order('name');
-      if (error) throw error;
-      return data || [];
-    },
+  const { data: houses }: any = useQuery({
+    queryKey: ['houses-tourist-dropdown'],
+    queryFn: fetchTouristHouses,
   });
 
-  const guestDataQuery: any = useQuery({
-    queryKey: ['guests-tourist-list', searchTerm, statusFilter, houseFilter, categoryFilter, sortBy] as const,
+  const { data: guestData, isLoading }: any = useQuery({
+    queryKey: ['guests-tourist-list', searchTerm, statusFilter, houseFilter, categoryFilter, sortBy],
     queryFn: async () => {
-      let queryBuilder: any = supabase.from('bookings').select('id, guest_name, guest_email, guest_phone, booking_amount, check_in, check_out, status, nationality, houses!inner(id, name, address, rental_type)').eq('houses.rental_type', 'tourist').not('guest_name', 'is', null);
-      if (searchTerm) queryBuilder = queryBuilder.or(`guest_name.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%,guest_phone.ilike.%${searchTerm}%`);
-      if (statusFilter !== 'all') queryBuilder = queryBuilder.eq('status', statusFilter);
-      if (houseFilter !== 'all') queryBuilder = queryBuilder.eq('house_id', houseFilter);
-      const response = await queryBuilder.order('check_in', { ascending: false });
+      let query: any = supabase.from('bookings').select('id, guest_name, guest_email, guest_phone, booking_amount, check_in, check_out, status, nationality, houses!inner(id, name, address, rental_type)').eq('houses.rental_type', 'tourist').not('guest_name', 'is', null);
+      if (searchTerm) query = query.or(`guest_name.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%,guest_phone.ilike.%${searchTerm}%`);
+      if (statusFilter !== 'all') query = query.eq('status', statusFilter);
+      if (houseFilter !== 'all') query = query.eq('house_id', houseFilter);
+      const response = await query.order('check_in', { ascending: false });
       if (!response.data) return [];
       const guestMap = new Map();
       response.data.forEach((booking: any) => {
@@ -85,10 +88,10 @@ const GuestOverview = () => {
           <div className="relative"><span className="absolute left-3 top-3 text-lg">🔍</span><Input placeholder="Name, E-Mail oder Telefon..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" /></div>
           <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger><span className="mr-2">👥</span><SelectValue placeholder="Kategorie" /></SelectTrigger><SelectContent><SelectItem value="all">Alle Kategorien</SelectItem><SelectItem value="new">Neue Gäste</SelectItem><SelectItem value="returning">Stammgäste</SelectItem></SelectContent></Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><span className="mr-2">✓</span><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectItem value="all">Alle Status</SelectItem><SelectItem value="confirmed">Bestätigt</SelectItem><SelectItem value="cancelled">Storniert</SelectItem><SelectItem value="completed">Abgeschlossen</SelectItem></SelectContent></Select>
-          <Select value={houseFilter} onValueChange={setHouseFilter}><SelectTrigger><span className="mr-2">🏠</span><SelectValue placeholder="Haus" /></SelectTrigger><SelectContent><SelectItem value="all">Alle Häuser</SelectItem>{housesQuery.data?.map((house: any) => (<SelectItem key={house.id} value={house.id}>{house.name}</SelectItem>))}</SelectContent></Select>
-          <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'booking' | 'name')}><SelectTrigger><span className="mr-2">🔄</span><SelectValue placeholder="Sortierung" /></SelectTrigger><SelectContent><SelectItem value="booking">Nach Buchungsdatum</SelectItem><SelectItem value="name">Nach Name</SelectItem></SelectContent></Select>
+          <Select value={houseFilter} onValueChange={setHouseFilter}><SelectTrigger><span className="mr-2">🏠</span><SelectValue placeholder="Haus" /></SelectTrigger><SelectContent><SelectItem value="all">Alle Häuser</SelectItem>{houses?.map((h: any) => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}</SelectContent></Select>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}><SelectTrigger><span className="mr-2">🔄</span><SelectValue placeholder="Sortierung" /></SelectTrigger><SelectContent><SelectItem value="booking">Nach Buchungsdatum</SelectItem><SelectItem value="name">Nach Name</SelectItem></SelectContent></Select>
         </div>
-        <GuestList guests={guestDataQuery.data || []} isLoading={guestDataQuery.isLoading} />
+        <GuestList guests={guestData || []} isLoading={isLoading} />
       </div>
     </div>
   );
