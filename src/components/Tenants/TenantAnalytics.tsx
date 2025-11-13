@@ -30,6 +30,17 @@ const TenantAnalytics = () => {
   const totalPaid = payments?.filter(p => p.status === 'paid').length || 0;
   const paymentPunctuality = totalPaid > 0 ? Math.round((paidOnTime / totalPaid) * 100) : 0;
 
+  // Jahresgesamten für spezifische Jahre berechnen
+  const year2024Total = payments?.filter(p => {
+    const paymentYear = new Date(p.payment_date || p.due_date).getFullYear();
+    return paymentYear === 2024 && p.status === 'paid';
+  }).reduce((sum, p) => sum + p.amount, 0) || 0;
+
+  const year2025Total = payments?.filter(p => {
+    const paymentYear = new Date(p.payment_date || p.due_date).getFullYear();
+    return paymentYear === 2025 && p.status === 'paid';
+  }).reduce((sum, p) => sum + p.amount, 0) || 0;
+
   // Monatliche Einnahmen (letzte 12 Monate)
   const monthlyRevenueData = useMemo(() => {
     const data = [];
@@ -125,7 +136,7 @@ const TenantAnalytics = () => {
       </div>
 
       {/* Zahlungsübersicht-Statistiken */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -163,6 +174,26 @@ const TenantAnalytics = () => {
               <p className="text-2xl font-bold">{paymentPunctuality}%</p>
             </div>
             <CheckCircle className="h-8 w-8 text-emerald-600" />
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Gesamt 2024</p>
+              <p className="text-2xl font-bold">{year2024Total.toLocaleString('de-DE')} €</p>
+            </div>
+            <Calendar className="h-8 w-8 text-purple-600" />
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Gesamt 2025</p>
+              <p className="text-2xl font-bold">{year2025Total.toLocaleString('de-DE')} €</p>
+            </div>
+            <TrendingUp className="h-8 w-8 text-indigo-600" />
           </div>
         </Card>
       </div>
