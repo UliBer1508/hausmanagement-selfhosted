@@ -41,6 +41,30 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
     return items.filter(item => item.count > 0);
   };
 
+  // Format tenant info dates
+  const formatTenantDate = (dateString: string | null | undefined) => {
+    if (!dateString) return null;
+    try {
+      return new Date(dateString).toLocaleDateString('de-DE', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Get payment method label
+  const getPaymentMethodLabel = (method: string) => {
+    const labels: Record<string, string> = {
+      'bank_transfer': 'Überweisung',
+      'cash': 'Bar',
+      'direct_debit': 'Lastschrift'
+    };
+    return labels[method] || method;
+  };
+
   const totalLinenItems = getTotalLinenItems(house.linen_stock);
   const linenBreakdown = getLinenBreakdown(house.linen_stock);
 
@@ -164,6 +188,137 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
                 {linenBreakdown.length === 0 && (
                   <p className="text-sm text-muted-foreground">Keine Wäsche definiert</p>
                 )}
+              </div>
+            )}
+
+            {/* Tenant Info - nur für Festvermietungen */}
+            {house.rental_type === 'long_term' && house.tenant_info && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">Mietvertrag</h4>
+                </div>
+                
+                <div className="space-y-3 text-sm">
+                  {/* Mieter-Informationen */}
+                  <div>
+                    <h5 className="font-medium text-xs uppercase text-muted-foreground mb-1.5">Mieter</h5>
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Name:</span>
+                        <span className="font-medium">{house.tenant_info.tenant_name || 'Nicht angegeben'}</span>
+                      </div>
+                      {house.tenant_info.tenant_email && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Email:</span>
+                          <a 
+                            href={`mailto:${house.tenant_info.tenant_email}`}
+                            className="font-medium text-primary hover:underline"
+                          >
+                            {house.tenant_info.tenant_email}
+                          </a>
+                        </div>
+                      )}
+                      {house.tenant_info.tenant_phone && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Telefon:</span>
+                          <a 
+                            href={`tel:${house.tenant_info.tenant_phone}`}
+                            className="font-medium text-primary hover:underline"
+                          >
+                            {house.tenant_info.tenant_phone}
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Vertragsdaten */}
+                  {(house.tenant_info.contract_start || house.tenant_info.contract_end) && (
+                    <div>
+                      <h5 className="font-medium text-xs uppercase text-muted-foreground mb-1.5">Vertrag</h5>
+                      <div className="space-y-1">
+                        {house.tenant_info.contract_start && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Beginn:</span>
+                            <span className="font-medium">{formatTenantDate(house.tenant_info.contract_start)}</span>
+                          </div>
+                        )}
+                        {house.tenant_info.contract_end ? (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Ende:</span>
+                            <span className="font-medium">{formatTenantDate(house.tenant_info.contract_end)}</span>
+                          </div>
+                        ) : (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Laufzeit:</span>
+                            <Badge variant="secondary" className="text-xs">Unbefristet</Badge>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Finanzielle Details */}
+                  {(house.tenant_info.monthly_rent || house.tenant_info.deposit_amount) && (
+                    <div>
+                      <h5 className="font-medium text-xs uppercase text-muted-foreground mb-1.5">Finanzen</h5>
+                      <div className="space-y-1">
+                        {house.tenant_info.monthly_rent && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Miete:</span>
+                            <span className="font-medium">
+                              {new Intl.NumberFormat('de-DE', {
+                                style: 'currency',
+                                currency: 'EUR'
+                              }).format(house.tenant_info.monthly_rent)} / Monat
+                            </span>
+                          </div>
+                        )}
+                        {house.tenant_info.deposit_amount && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Kaution:</span>
+                            <span className="font-medium">
+                              {new Intl.NumberFormat('de-DE', {
+                                style: 'currency',
+                                currency: 'EUR'
+                              }).format(house.tenant_info.deposit_amount)}
+                            </span>
+                          </div>
+                        )}
+                        {house.tenant_info.payment_day && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Zahltag:</span>
+                            <span className="font-medium">{house.tenant_info.payment_day}. des Monats</span>
+                          </div>
+                        )}
+                        {house.tenant_info.payment_method && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Zahlungsart:</span>
+                            <span className="font-medium">{getPaymentMethodLabel(house.tenant_info.payment_method)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notizen */}
+                  {house.tenant_info.notes && (
+                    <div>
+                      <h5 className="font-medium text-xs uppercase text-muted-foreground mb-1.5">Notizen</h5>
+                      <p className="text-xs text-muted-foreground italic">{house.tenant_info.notes}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Fallback wenn keine tenant_info vorhanden */}
+            {house.rental_type === 'long_term' && !house.tenant_info && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium">Mietvertrag</h4>
+                </div>
+                <p className="text-sm text-muted-foreground">Keine Mietvertragsdaten hinterlegt</p>
               </div>
             )}
 
