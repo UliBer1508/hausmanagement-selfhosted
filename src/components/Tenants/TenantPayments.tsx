@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useHouses } from "@/hooks/useHouses";
-import { useTenantPayments } from "@/hooks/useTenantPayments";
+import { useTenantPayments, useDeletePayment, useUpdatePayment } from "@/hooks/useTenantPayments";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Mail, CheckCircle2, AlertCircle, Euro, TrendingUp, Paperclip } from "lucide-react";
+import { Plus, Mail, CheckCircle2, AlertCircle, Euro, TrendingUp, Paperclip, Trash2, Check } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import CreatePaymentDialog from "./CreatePaymentDialog";
@@ -20,6 +21,10 @@ const TenantPayments = () => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<TenantPayment | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [paymentToDelete, setPaymentToDelete] = useState<TenantPayment | null>(null);
+  const deletePayment = useDeletePayment();
+  const updatePayment = useUpdatePayment();
 
   const longTermRentals = houses?.filter(h => h.rental_type === 'long_term') || [];
 
@@ -40,6 +45,28 @@ const TenantPayments = () => {
     const body = `Sehr geehrte/r ${tenantInfo?.tenant_name},\n\nwir möchten Sie freundlich an die ausstehende Mietzahlung erinnern:\n\nObjekt: ${house?.name}\nBetrag: ${payment.amount.toLocaleString('de-DE')} €\nFällig am: ${format(new Date(payment.due_date), 'dd.MM.yyyy', { locale: de })}\n\nMit freundlichen Grüßen`;
     
     window.location.href = `mailto:${tenantInfo?.tenant_email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  };
+
+  const handleDeletePayment = (payment: TenantPayment) => {
+    setPaymentToDelete(payment);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (paymentToDelete) {
+      await deletePayment.mutateAsync(paymentToDelete.id);
+      setDeleteDialogOpen(false);
+      setPaymentToDelete(null);
+    }
+  };
+
+  const handleMarkAsPaid = async (payment: TenantPayment) => {
+    const today = new Date().toISOString().split('T')[0];
+    await updatePayment.mutateAsync({
+      id: payment.id,
+      status: 'paid',
+      payment_date: today
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -149,14 +176,39 @@ const TenantPayments = () => {
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
+                    {(payment.status === 'pending' || payment.status === 'overdue') && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleMarkAsPaid(payment)}
+                        className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                        title="Als bezahlt markieren"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                    )}
                     <Button variant="ghost" size="sm" onClick={() => { setSelectedPayment(payment); setIsEditDialogOpen(true); }}>
                       Bearbeiten
                     </Button>
                     {payment.status === 'overdue' && (
-                      <Button variant="ghost" size="sm" onClick={() => handleSendReminder(payment)}>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleSendReminder(payment)}
+                        title="Erinnerung senden"
+                      >
                         <Mail className="h-4 w-4" />
                       </Button>
                     )}
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleDeletePayment(payment)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      title="Löschen"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -169,6 +221,30 @@ const TenantPayments = () => {
       {selectedPayment && (
         <EditPaymentDialog payment={selectedPayment} open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen} />
       )}
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Zahlung wirklich löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Diese Aktion kann nicht rückgängig gemacht werden. Die Zahlung wird dauerhaft gelöscht.
+              {paymentToDelete && (
+                <div className="mt-4 p-4 bg-muted rounded-md">
+                  <p><strong>Objekt:</strong> {paymentToDelete.houses?.name}</p>
+                  <p><strong>Betrag:</strong> {paymentToDelete.amount.toLocaleString('de-DE')} €</p>
+                  <p><strong>Fällig am:</strong> {format(new Date(paymentToDelete.due_date), 'dd.MM.yyyy', { locale: de })}</p>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
