@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Edit, Euro, Calendar, CreditCard, FileText } from "lucide-react";
+import { Search, Edit, Euro, Calendar, CreditCard, FileText, Mail, Phone } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { House } from "@/types";
@@ -110,7 +110,7 @@ const TenantContracts = () => {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-lg font-semibold">{house.name}</h3>
-                  <p className="text-sm text-muted-foreground">{tenantInfo?.tenant_name}</p>
+                  <p className="text-sm text-muted-foreground">{house.address}</p>
                 </div>
                 <Badge variant={
                   status === 'active' ? 'default' : 
@@ -122,6 +122,35 @@ const TenantContracts = () => {
                    'Abgelaufen'}
                 </Badge>
               </div>
+
+              <div className="mb-3">
+                <p className="text-sm font-medium">Mieter</p>
+                <p className="text-sm text-muted-foreground">{tenantInfo?.tenant_name || '-'}</p>
+              </div>
+
+              {tenantInfo?.tenant_email && (
+                <div className="flex items-center gap-2 mb-3">
+                  <Mail className="h-4 w-4 text-muted-foreground" />
+                  <a 
+                    href={`mailto:${tenantInfo.tenant_email}`}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    {tenantInfo.tenant_email}
+                  </a>
+                </div>
+              )}
+
+              {tenantInfo?.tenant_phone && (
+                <div className="flex items-center gap-2 mb-4">
+                  <Phone className="h-4 w-4 text-muted-foreground" />
+                  <a 
+                    href={`tel:${tenantInfo.tenant_phone}`}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    {tenantInfo.tenant_phone}
+                  </a>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <div className="flex items-start gap-2">
@@ -175,14 +204,29 @@ const TenantContracts = () => {
                 </div>
               )}
 
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => handleEdit(house)}
-              >
-                <Edit className="h-4 w-4 mr-1" />
-                Details bearbeiten
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => handleEdit(house)}
+                >
+                  <Edit className="h-4 w-4 mr-1" />
+                  Details bearbeiten
+                </Button>
+                
+                {tenantInfo?.tenant_email && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => window.location.href = `mailto:${tenantInfo.tenant_email}`}
+                  >
+                    <Mail className="h-4 w-4 mr-1" />
+                    Email
+                  </Button>
+                )}
+              </div>
             </Card>
           );
         })}
