@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { useHouses } from "@/hooks/useHouses";
 import { toast } from "sonner";
 
 const TenantManagement = () => {
+  const [activeTab, setActiveTab] = useState("overview");
   const { data: houses } = useHouses();
   
   const longTermRentals = houses?.filter(h => 
@@ -59,7 +61,7 @@ const TenantManagement = () => {
       </div>
 
       <Card className="p-6">
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Übersicht</TabsTrigger>
             <TabsTrigger value="contracts">Verträge</TabsTrigger>
@@ -68,7 +70,7 @@ const TenantManagement = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            <TenantOverview />
+            <TenantOverview onNavigateToPayments={() => setActiveTab("payments")} />
           </TabsContent>
 
           <TabsContent value="contracts" className="space-y-6">
