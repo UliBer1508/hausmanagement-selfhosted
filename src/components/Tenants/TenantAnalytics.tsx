@@ -14,7 +14,11 @@ const TenantAnalytics = () => {
   const { data: houses } = useHouses();
   const { data: allPayments } = useTenantPayments();
 
-  const longTermRentals = houses?.filter(h => h.rental_type === 'long_term' && h.tenant_info) || [];
+  const longTermRentals = houses?.filter(h => 
+    h.rental_type === 'long_term' && 
+    h.tenant_info &&
+    (selectedHouseId === "all" || h.id === selectedHouseId)
+  ) || [];
   
   const payments = selectedHouseId === "all" 
     ? allPayments 
