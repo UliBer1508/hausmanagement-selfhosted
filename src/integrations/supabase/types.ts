@@ -1891,6 +1891,9 @@ export type Database = {
           own_rating_platform: string | null
           own_review_count: number | null
           pricing_config: Json | null
+          property_type: string | null
+          rental_type: string | null
+          tenant_info: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -1918,6 +1921,9 @@ export type Database = {
           own_rating_platform?: string | null
           own_review_count?: number | null
           pricing_config?: Json | null
+          property_type?: string | null
+          rental_type?: string | null
+          tenant_info?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -1945,6 +1951,9 @@ export type Database = {
           own_rating_platform?: string | null
           own_review_count?: number | null
           pricing_config?: Json | null
+          property_type?: string | null
+          rental_type?: string | null
+          tenant_info?: Json | null
           updated_at?: string | null
         }
         Relationships: []
@@ -3597,6 +3606,59 @@ export type Database = {
           value?: Json
         }
         Relationships: []
+      }
+      tenant_payments: {
+        Row: {
+          amount: number
+          created_at: string | null
+          due_date: string
+          house_id: string
+          id: string
+          notes: string | null
+          payment_date: string | null
+          payment_method: string | null
+          receipt_url: string | null
+          reference_number: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          due_date: string
+          house_id: string
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_method?: string | null
+          receipt_url?: string | null
+          reference_number?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          due_date?: string
+          house_id?: string
+          id?: string
+          notes?: string | null
+          payment_date?: string | null
+          payment_method?: string | null
+          receipt_url?: string | null
+          reference_number?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_payments_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trip_activities: {
         Row: {
