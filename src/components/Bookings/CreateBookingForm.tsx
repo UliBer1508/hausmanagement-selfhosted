@@ -206,6 +206,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       const { data, error } = await supabase
         .from('houses')
         .select('id, name, max_guests')
+        .eq('rental_type', 'tourist')
         .order('name');
       
       if (error) throw error;
