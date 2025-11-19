@@ -66,32 +66,79 @@ serve(async (req) => {
     console.log('✅ Linen rules loaded for house:', booking.houses.name);
 
     // 3. Calculate order items (WITHOUT safety buffer, ONLY for this booking)
-    const orderItems: any = {};
-    
-    if (rules.bedding_per_guest) {
-      orderItems.bedding = booking.number_of_guests * rules.bedding_per_guest;
-    }
-    if (rules.large_towels_per_guest) {
-      orderItems.large_towels = booking.number_of_guests * rules.large_towels_per_guest;
-    }
-    if (rules.small_towels_per_guest) {
-      orderItems.small_towels = booking.number_of_guests * rules.small_towels_per_guest;
-    }
-    if (rules.sauna_towels_per_guest) {
-      orderItems.sauna_towels = booking.number_of_guests * rules.sauna_towels_per_guest;
-    }
-    if (rules.sink_towels_per_booking) {
-      orderItems.sink_towels = rules.sink_towels_per_booking;
-    }
-    if (rules.bath_mats_per_booking) {
-      orderItems.bath_mats = rules.bath_mats_per_booking;
-    }
-    if (rules.kitchen_towels_per_booking) {
-      orderItems.kitchen_towels = rules.kitchen_towels_per_booking;
+    // Prefer the new flexible custom_categories config if available
+    const orderItems: Record<string, number> = {};
+
+    const customCategories = (rules as any).custom_categories as
+      | Record<string, any>
+      | null;
+    const numberOfGuests: number = booking.number_of_guests || 0;
+
+    if (customCategories && Object.keys(customCategories).length > 0) {
+      console.log('🧮 Using custom_categories for linen calculation');
+
+      let checkInDate: Date | null = null;
+      if (booking.check_in) {
+        checkInDate = new Date(booking.check_in);
+      }
+
+      const isWinter = (date: Date) => {
+        const month = date.getUTCMonth() + 1; // 1-12
+        // Simple season split: Nov–Mar = winter, Apr–Oct = summer
+        return month === 11 || month === 12 || month <= 3;
+      };
+
+      for (const [key, config] of Object.entries(customCategories)) {
+        if (!config || (config as any).active === false) continue;
+
+        // Seasonal availability check
+        if ((config as any).availability === 'seasonal' && checkInDate) {
+          const season = (config as any).season;
+          if (season === 'winter' && !isWinter(checkInDate)) continue;
+          if (season === 'summer' && isWinter(checkInDate)) continue;
+        }
+
+        const quantityConfig = Number((config as any).quantity ?? 0);
+        if (!quantityConfig) continue;
+
+        let qty = 0;
+        if ((config as any).calculation_type === 'per_guest') {
+          qty = numberOfGuests * quantityConfig;
+        } else if ((config as any).calculation_type === 'per_booking') {
+          qty = quantityConfig;
+        }
+
+        if (qty > 0) {
+          orderItems[key] = qty;
+        }
+      }
+    } else {
+      console.log('↩️ Falling back to legacy linen definition columns');
+      if ((rules as any).bedding_per_guest) {
+        orderItems.bedding = numberOfGuests * (rules as any).bedding_per_guest;
+      }
+      if ((rules as any).large_towels_per_guest) {
+        orderItems.large_towels = numberOfGuests * (rules as any).large_towels_per_guest;
+      }
+      if ((rules as any).small_towels_per_guest) {
+        orderItems.small_towels = numberOfGuests * (rules as any).small_towels_per_guest;
+      }
+      if ((rules as any).sauna_towels_per_guest) {
+        orderItems.sauna_towels = numberOfGuests * (rules as any).sauna_towels_per_guest;
+      }
+      if ((rules as any).sink_towels_per_booking) {
+        orderItems.sink_towels = (rules as any).sink_towels_per_booking;
+      }
+      if ((rules as any).bath_mats_per_booking) {
+        orderItems.bath_mats = (rules as any).bath_mats_per_booking;
+      }
+      if ((rules as any).kitchen_towels_per_booking) {
+        orderItems.kitchen_towels = (rules as any).kitchen_towels_per_booking;
+      }
     }
 
-    // Remove items with 0 quantity
-    Object.keys(orderItems).forEach(key => {
+    // Remove items with 0 quantity (safety)
+    Object.keys(orderItems).forEach((key) => {
       if (!orderItems[key] || orderItems[key] === 0) {
         delete orderItems[key];
       }
