@@ -56,3 +56,18 @@ export const formatCurrency = (amount: number, currency: string = 'EUR'): string
     currency,
   }).format(amount);
 };
+
+/**
+ * Translates linen order status to German
+ */
+export const translateLinenOrderStatus = (status: string): string => {
+  const translations: Record<string, string> = {
+    offen: 'Offen',
+    pending: 'Ausstehend',
+    assigned: 'Zugewiesen',
+    confirmed: 'Bestätigt',
+    delivered: 'Geliefert',
+    cancelled: 'Storniert',
+  };
+  return translations[status] || status;
+};
