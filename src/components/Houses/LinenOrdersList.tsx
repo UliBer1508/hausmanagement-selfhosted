@@ -49,11 +49,12 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
 
   // Fetch houses for filter
   const { data: houses } = useQuery({
-    queryKey: ['houses-filter'],
+    queryKey: ['houses-filter', 'tourist'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
         .select('id, name')
+        .eq('rental_type', 'tourist')
         .order('name');
       
       if (error) throw error;
