@@ -34,7 +34,7 @@ export const BookingWithoutOrderCard = ({
             <h3 className="font-semibold text-lg">{booking.guest_name}</h3>
             <p className="text-sm text-muted-foreground">
               Check-in: {format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de })}
-              {' '}({booking.days_until_checkin} Tage)
+              {' '}(in {booking.days_until_checkin} Tagen)
             </p>
             <p className="text-sm">{booking.number_of_guests} Gäste</p>
           </div>
