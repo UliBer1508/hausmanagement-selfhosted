@@ -2,14 +2,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { House } from "@/types";
 
-export const useHouses = () => {
+export const useHouses = (filters?: { rental_type?: string }) => {
   return useQuery({
-    queryKey: ['houses'],
+    queryKey: ['houses', filters],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('houses')
         .select('*')
         .order('created_at', { ascending: false });
+      
+      if (filters?.rental_type) {
+        query = query.eq('rental_type', filters.rental_type);
+      }
+      
+      const { data, error } = await query;
       
       if (error) throw error;
       return data as House[];
