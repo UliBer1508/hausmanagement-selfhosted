@@ -140,11 +140,35 @@ const LinenOrderDialog = ({
   const [exceptionReason, setExceptionReason] = useState<string>('general_cleaning');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
+  // Debug logging for generatedOrderData
+  useEffect(() => {
+    if (open) {
+      console.log('📋 LinenOrderDialog opened with:', {
+        generatedOrderData,
+        orderItems,
+        estimatedCost: generatedOrderData?.estimated_cost,
+        itemDetails: generatedOrderData?.item_details,
+        order_items: generatedOrderData?.order_items,
+      });
+    }
+  }, [open, generatedOrderData, orderItems]);
+
   // Update state when props change (e.g., when opening with AI-generated data)
   useEffect(() => {
     if (open && mode === 'create') {
-      // If a booking is selected and linen definitions are available, calculate booking-specific order
-      if (selectedBooking && linenSetDefinition) {
+      // PRIO 1: Use generatedOrderData if available (Edge Function result)
+      if (generatedOrderData?.order_items) {
+        console.log('✅ Using generatedOrderData.order_items:', generatedOrderData.order_items);
+        setEditableItems(generatedOrderData.order_items);
+        
+        // Set delivery date if available in generatedOrderData
+        if (generatedOrderData.booking?.check_in && !initialData?.deliveryDate) {
+          setDeliveryDate(subDays(new Date(generatedOrderData.booking.check_in), 1));
+        }
+      }
+      // PRIO 2: Calculate locally if booking + definition available
+      else if (selectedBooking && linenSetDefinition) {
+        console.log('⚙️ Calculating locally from booking + definition');
         const bookingSpecificItems = calculateBookingLinenOrder(selectedBooking, linenSetDefinition);
         setEditableItems(bookingSpecificItems);
         
@@ -152,8 +176,10 @@ const LinenOrderDialog = ({
         if (selectedBooking.check_in && !initialData?.deliveryDate) {
           setDeliveryDate(subDays(new Date(selectedBooking.check_in), 1));
         }
-      } else {
-        // Otherwise, use the passed orderItems
+      } 
+      // PRIO 3: Fallback to orderItems
+      else {
+        console.log('🔄 Using fallback orderItems:', orderItems);
         setEditableItems(orderItems);
       }
       
@@ -171,7 +197,7 @@ const LinenOrderDialog = ({
         setStatus(initialData.status);
       }
     }
-  }, [open, mode, selectedBooking, linenSetDefinition, initialData, orderItems]);
+  }, [open, mode, selectedBooking, linenSetDefinition, initialData, orderItems, generatedOrderData]);
 
   // Separater useEffect für Edit-Mode: Lade tatsächliche Order-Items
   useEffect(() => {
