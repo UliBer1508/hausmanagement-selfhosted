@@ -128,7 +128,7 @@ export const useOptimizedLinenManagement = () => {
 
   // Optimized query with batch fetching and memoization
   const { data: housesWithLinenData, isLoading } = useQuery({
-    queryKey: ['houses-linen-optimized'],
+    queryKey: ['houses-linen-optimized', 'tourist'],
     queryFn: async () => {
       // Single query to fetch all necessary data
       const { data: houses, error: housesError } = await supabase
