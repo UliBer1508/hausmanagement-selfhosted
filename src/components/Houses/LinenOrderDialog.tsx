@@ -11,11 +11,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, addDays, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { CalendarIcon, ShoppingCart, Mail, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { standardLinenOrderSchema, exceptionalLinenOrderSchema } from './schemas/LinenOrderSchema';
+import { translateItemType, formatCurrency } from '@/lib/linenOrderHelpers';
 
 interface LinenOrderDialogProps {
   open: boolean;
@@ -46,6 +48,7 @@ interface LinenOrderDialogProps {
     status?: 'pending' | 'in-progress' | 'completed' | 'delivered';
   };
   mode?: 'create' | 'edit';
+  generatedOrderData?: any;
 }
 
 // Helper function to calculate linen order for a specific booking
@@ -107,7 +110,8 @@ const LinenOrderDialog = ({
   isCreating = false,
   allowExceptionalOrder = false,
   initialData,
-  mode = 'create'
+  mode = 'create',
+  generatedOrderData
 }: LinenOrderDialogProps) => {
   const [internalSelectedBooking, setInternalSelectedBooking] = useState<any>(selectedBooking);
   const [deliveryDate, setDeliveryDate] = useState<Date>(() => {
@@ -207,6 +211,9 @@ const LinenOrderDialog = ({
     Object.values(editableItems).reduce((sum, count) => sum + count, 0),
     [editableItems]
   );
+
+  const estimatedCost = generatedOrderData?.estimated_cost || 0;
+  const itemDetails = generatedOrderData?.item_details || [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -497,6 +504,67 @@ const LinenOrderDialog = ({
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Kosten-Preview wenn verfügbar */}
+          {generatedOrderData && estimatedCost > 0 && (
+            <Card className="border-primary/50 bg-primary/5">
+              <CardContent className="pt-6">
+                <div className="text-center space-y-1">
+                  <p className="text-sm text-muted-foreground">Geschätzte Kosten</p>
+                  <p className="text-4xl font-bold text-primary">
+                    {formatCurrency(estimatedCost)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {totalItems} Artikel gesamt
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {estimatedCost > 500 && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Diese Bestellung ist ungewöhnlich hoch. Bitte prüfen Sie die Mengen sorgfältig.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Detaillierte Bestellübersicht mit Preisen */}
+          {generatedOrderData && itemDetails.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm">Bestellübersicht mit Preisen</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Artikel</TableHead>
+                      <TableHead className="text-right">Menge</TableHead>
+                      <TableHead className="text-right">Einzelpreis</TableHead>
+                      <TableHead className="text-right">Gesamt</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {itemDetails.map((item: any) => (
+                      <TableRow key={item.item}>
+                        <TableCell className="font-medium">{translateItemType(item.item)}</TableCell>
+                        <TableCell className="text-right">{item.quantity}x</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatCurrency(item.unit_price)}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {formatCurrency(item.total_price)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           )}
