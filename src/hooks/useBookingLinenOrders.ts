@@ -209,11 +209,11 @@ export const useBookingLinenOrders = (houseId: string) => {
           delivery_type: userOverrides.deliveryType || 'delivery',
           notes: userOverrides.notes || generatedData.note,
         })
-        .select()
+        .select('*, bookings(*), houses(*)')
         .single();
 
       if (error) throw error;
-      return data;
+      return { data };
     },
     onSuccess: () => {
       toast({
@@ -318,7 +318,7 @@ export const useBookingLinenOrders = (houseId: string) => {
     isLoading: configLoading || statusLoading,
     isLoadingAllMissing: allMissingLoading,
     createOrder: createOrderMutation.mutate,
-    createOrderFromData: createOrderFromDataMutation.mutate,
+    createOrderFromData: createOrderFromDataMutation.mutateAsync,
     isCreatingOrder: createOrderMutation.isPending || createOrderFromDataMutation.isPending,
     saveConfig: saveConfigMutation.mutate,
     isSavingConfig: saveConfigMutation.isPending,

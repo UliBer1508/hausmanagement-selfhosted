@@ -37,6 +37,7 @@ interface LinenOrderDialogProps {
     orderType?: 'standard' | 'exceptional';
     exceptionReason?: string;
     status?: 'pending' | 'in-progress' | 'completed' | 'delivered';
+    sendEmail?: boolean;
   }) => void;
   onSendEmail?: (orderId: string) => void;
   isCreating?: boolean;
@@ -283,6 +284,7 @@ const LinenOrderDialog = ({
           booking_id: internalSelectedBooking.id,
           orderType: 'standard',
           status: status,
+          sendEmail: sendToTeuni,
         });
       } else {
         const validatedData = exceptionalLinenOrderSchema.parse({
@@ -298,6 +300,7 @@ const LinenOrderDialog = ({
           exceptionReason,
           notes: notes.trim() || `Ausnahmebestellung: ${getExceptionReasonLabel(exceptionReason)}`,
           status: status,
+          sendEmail: sendToTeuni,
         });
       }
 
@@ -753,10 +756,10 @@ const LinenOrderDialog = ({
                 <div className="flex-1">
                   <Label htmlFor="sendToTeuni" className="flex items-center gap-2 cursor-pointer">
                     <Mail className="w-4 h-4" />
-                    An Teuni Portal senden
+                    Zusätzlich per E-Mail an Wäscherei senden
                   </Label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Bestellung automatisch per E-Mail an den Wäscheservice senden
+                    Nach dem Speichern automatisch den E-Mail-Dialog öffnen
                   </p>
                 </div>
               </div>
