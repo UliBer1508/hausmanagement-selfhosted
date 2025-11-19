@@ -183,7 +183,58 @@ export const useBookingLinenOrders = (houseId: string) => {
     },
   });
 
-  // Create order for booking
+  // Mutation to create order from generated data
+  const createOrderFromDataMutation = useMutation({
+    mutationFn: async ({ 
+      bookingId, 
+      generatedData, 
+      userOverrides 
+    }: {
+      bookingId: string;
+      generatedData: any;
+      userOverrides: any;
+    }) => {
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .insert({
+          house_id: generatedData.booking.house.id,
+          booking_id: bookingId,
+          items: generatedData.order_items,
+          total_items: generatedData.total_items,
+          status: 'offen',
+          order_source: 'booking_required',
+          suggested_at: new Date().toISOString(),
+          order_date: new Date().toISOString().split('T')[0],
+          delivery_date: userOverrides.deliveryDate || calculateDeliveryDate(generatedData.booking.check_in),
+          delivery_type: userOverrides.deliveryType || 'delivery',
+          notes: userOverrides.notes || generatedData.note,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Bestellung erstellt!",
+        description: "Die Wäschebestellung wurde erfolgreich angelegt.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['booking-linen-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['all-missing-bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['booking-orders-status'] });
+      refetch();
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Fehler beim Erstellen",
+        description: error.message || "Die Bestellung konnte nicht erstellt werden.",
+      });
+    }
+  });
+
+  // Create order for booking (legacy)
   const createOrderMutation = useMutation({
     mutationFn: async (bookingId: string) => {
       console.log(`[createOrder] Creating order for booking: ${bookingId}`);
@@ -267,7 +318,8 @@ export const useBookingLinenOrders = (houseId: string) => {
     isLoading: configLoading || statusLoading,
     isLoadingAllMissing: allMissingLoading,
     createOrder: createOrderMutation.mutate,
-    isCreatingOrder: createOrderMutation.isPending,
+    createOrderFromData: createOrderFromDataMutation.mutate,
+    isCreatingOrder: createOrderMutation.isPending || createOrderFromDataMutation.isPending,
     saveConfig: saveConfigMutation.mutate,
     isSavingConfig: saveConfigMutation.isPending,
     refetch,

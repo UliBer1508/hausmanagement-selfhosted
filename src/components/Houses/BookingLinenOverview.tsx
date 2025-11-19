@@ -11,10 +11,11 @@ import { de } from "date-fns/locale";
 import { AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react";
 import LaundryOrderCard from "../Bookings/LaundryOrderCard";
 import { BookingWithoutOrderCard } from "./BookingWithoutOrderCard";
-import LinenOrderDialog from "./LinenOrderDialog";
+import { BookingLinenPreviewDialog } from "./BookingLinenPreviewDialog";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 interface BookingLinenOverviewProps {
   houseId: string;
@@ -23,6 +24,7 @@ interface BookingLinenOverviewProps {
 export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => {
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
   const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<any>(null);
+  const [generatedOrderData, setGeneratedOrderData] = useState<any>(null);
 
   const {
     orderStatus,
@@ -32,7 +34,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     allMissingBookings,
     isLoading,
     isLoadingAllMissing,
-    createOrder,
+    createOrderFromData,
     isCreatingOrder,
   } = useBookingLinenOrders(houseId);
 
@@ -52,18 +54,47 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     enabled: !!houseId,
   });
 
-  const handleCreateOrder = (bookingId: string) => {
-    const booking = allMissingBookings.find(b => b.booking_id === bookingId);
-    if (booking) {
+  // Generate order preview mutation
+  const generatePreviewMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { data, error } = await supabase.functions.invoke(
+        'generate-booking-linen-order',
+        { body: { booking_id: bookingId } }
+      );
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data, bookingId) => {
+      const booking = allMissingBookings.find(b => b.booking_id === bookingId);
       setSelectedBookingForOrder(booking);
+      setGeneratedOrderData(data);
       setOrderDialogOpen(true);
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Berechnungsfehler",
+        description: error.message || "Fehler beim Berechnen der Bestellung",
+      });
     }
+  });
+
+  const handleCreateOrder = (bookingId: string) => {
+    generatePreviewMutation.mutate(bookingId);
   };
 
   const handleConfirmOrder = async (orderData: any) => {
-    await createOrder(selectedBookingForOrder.booking_id);
+    if (!selectedBookingForOrder || !generatedOrderData) return;
+
+    await createOrderFromData({
+      bookingId: selectedBookingForOrder.booking_id,
+      generatedData: generatedOrderData,
+      userOverrides: orderData
+    });
+
     setOrderDialogOpen(false);
     setSelectedBookingForOrder(null);
+    setGeneratedOrderData(null);
   };
 
   // Berechne Bestellitems basierend auf linen_set_definition
@@ -303,20 +334,20 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
       </Tabs>
 
       {/* Bestellungs-Dialog */}
-      {selectedBookingForOrder && (
-        <LinenOrderDialog
-          open={orderDialogOpen}
-          onOpenChange={setOrderDialogOpen}
-          orderItems={calculateOrderItems(selectedBookingForOrder)}
-          houseName={orderStatus?.house_name || ''}
-          houseId={houseId}
-          selectedBooking={selectedBookingForOrder}
-          linenSetDefinition={linenSetDefinition}
-          onCreateOrder={handleConfirmOrder}
-          isCreating={isCreatingOrder}
-          mode="create"
-        />
-      )}
+      <BookingLinenPreviewDialog
+        open={orderDialogOpen}
+        onOpenChange={(open) => {
+          setOrderDialogOpen(open);
+          if (!open) {
+            setGeneratedOrderData(null);
+            setSelectedBookingForOrder(null);
+          }
+        }}
+        onConfirm={handleConfirmOrder}
+        booking={selectedBookingForOrder}
+        generatedOrderData={generatedOrderData}
+        isGenerating={generatePreviewMutation.isPending}
+      />
     </div>
   );
 };
