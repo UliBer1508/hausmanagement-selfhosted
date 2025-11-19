@@ -38,7 +38,7 @@ export const translateLinenItem = (item: string): string => {
     sink_towels: 'WB-Handtücher',
     kitchen_towels: 'Küchenhandtücher',
     blankets: 'Decken',
-    pillow_cases: 'Kissenbezüge',
+    pillow_cases: 'Kopfkissen',
     table_linens: 'Tischwäsche',
   };
   return labels[item] || item;
