@@ -145,6 +145,7 @@ export const useOptimizedLinenManagement = () => {
             status
           )
         `)
+        .eq('rental_type', 'tourist')
         .order('name');
       
       if (housesError) throw housesError;

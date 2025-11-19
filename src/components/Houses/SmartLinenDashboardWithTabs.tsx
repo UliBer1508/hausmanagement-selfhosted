@@ -7,7 +7,7 @@ import { useBookingLinenOrders } from "@/hooks/useBookingLinenOrders";
 import { useMemo } from "react";
 
 export const SmartLinenDashboardWithTabs = () => {
-  const { data: houses } = useHouses();
+  const { data: houses } = useHouses({ rental_type: 'tourist' });
   const firstHouse = houses?.[0];
   
   // Calculate total urgent orders across all houses
