@@ -66,11 +66,8 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
     console.log('📋 Neue Preise:', localPrices);
     
     try {
-      // Update AI Settings mit neuen Preisen
-      updateAISettings({ prices: localPrices });
-      
-      // Speichere in Datenbank
-      const success = await saveAISettings(houseId);
+      // Speichere direkt mit den neuen Preisen als Parameter
+      const success = await saveAISettings(houseId, { prices: localPrices });
       
       if (success) {
         toast({
