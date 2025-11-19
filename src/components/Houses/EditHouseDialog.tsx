@@ -14,8 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import LinenInventory from './LinenInventory';
-import LinenSetRulesTable from './LinenSetRulesTable';
-import LinenPricesTab from './LinenPricesTab';
+import LinenManagement from './LinenManagement';
 import HouseInventory from './HouseInventory';
 import SmartLinenSettings from './SmartLinenSettings';
 import AdditionalFeesTab from './AdditionalFeesTab';
@@ -303,14 +302,15 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
           }`}>
             <TabsTrigger value="basic">Grunddaten</TabsTrigger>
             
-          {formData.rental_type === 'tourist' && (
-            <>
-              <TabsTrigger value="linen">Wäsche-Inventar</TabsTrigger>
-              <TabsTrigger value="linen-rules">Wäsche-Regeln</TabsTrigger>
-              <TabsTrigger value="linen-prices">Preise</TabsTrigger>
-              <TabsTrigger value="ai-settings">KI-Einstellungen</TabsTrigger>
-            </>
-          )}
+            {formData.rental_type === 'long_term' ? (
+              <TabsTrigger value="tenant">🏘️ Mietvertrag</TabsTrigger>
+            ) : (
+              <>
+                <TabsTrigger value="linen">Wäsche-Inventar</TabsTrigger>
+                <TabsTrigger value="linen-management">Wäsche-Management</TabsTrigger>
+                <TabsTrigger value="ai-settings">KI-Einstellungen</TabsTrigger>
+              </>
+            )}
             
             <TabsTrigger value="fees">Nebenkosten</TabsTrigger>
             <TabsTrigger value="inventory">Inventar</TabsTrigger>
@@ -783,12 +783,8 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
             <LinenInventory house={house} />
           </TabsContent>
           
-          <TabsContent value="linen-rules">
-            <LinenSetRulesTable house={house} />
-          </TabsContent>
-          
-          <TabsContent value="linen-prices">
-            <LinenPricesTab houseId={house.id} />
+          <TabsContent value="linen-management">
+            <LinenManagement house={house} />
           </TabsContent>
           
           <TabsContent value="ai-settings">

@@ -20,7 +20,14 @@ interface AISettings {
   max_storage_ratio: number;
   reorder_threshold: number;
   seasonal_factor: boolean;
-  prices: Record<string, number>;
+  prices: {
+    bedding: number;
+    large_towels: number;
+    small_towels: number;
+    bath_mats: number;
+    sink_towels: number;
+    sauna_towels: number;
+  };
 }
 
 interface SmartLinenSettingsProps {
@@ -74,7 +81,14 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
   // Sichere Default-Preise falls nicht vorhanden
   const safeSettings = {
     ...settings,
-    prices: settings.prices || {}
+    prices: settings.prices || {
+      bedding: 30,
+      large_towels: 18,
+      small_towels: 10,
+      bath_mats: 15,
+      sink_towels: 8,
+      sauna_towels: 20
+    }
   };
   
   const [localSettings, setLocalSettings] = useState<AISettings>(safeSettings);
@@ -86,7 +100,14 @@ const SmartLinenSettings: React.FC<SmartLinenSettingsProps> = ({
       max_storage_ratio: 1.5,
       reorder_threshold: 0.8,
       seasonal_factor: false,
-      prices: {}
+      prices: {
+        bedding: 30,
+        large_towels: 18,
+        small_towels: 10,
+        bath_mats: 15,
+        sink_towels: 8,
+        sauna_towels: 20
+      }
     };
     setLocalSettings(defaultSettings);
     onSettingsChange(defaultSettings);

@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,46 +23,41 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
     isSavingSettings 
   } = useLinenAI();
 
-  // Lade Wäschestück-Definitionen
-  const { data: linenDef } = useQuery({
-    queryKey: ['linen-definitions', houseId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('linen_set_definitions')
-        .select('custom_categories')
-        .eq('house_id', houseId)
-        .maybeSingle();
-      return data;
-    }
+  const [localPrices, setLocalPrices] = useState({
+    bedding: 30,
+    large_towels: 18,
+    small_towels: 10,
+    bath_mats: 15,
+    sink_towels: 8,
+    sauna_towels: 20
   });
-
-  const [localPrices, setLocalPrices] = useState<Record<string, number>>({});
 
   // Lade Einstellungen beim Mount
   useEffect(() => {
     loadAISettings(houseId);
   }, [houseId, loadAISettings]);
 
-  // Synchronisiere Preise mit custom_categories
+  // Update lokale Preise wenn AI Settings geladen werden
   useEffect(() => {
-    if (linenDef?.custom_categories) {
-      const pricesFromSettings = aiSettings.prices || {};
-      const syncedPrices: Record<string, number> = {};
-      
-      // Für jedes Item in custom_categories: Preis übernehmen oder 0 setzen
-      Object.keys(linenDef.custom_categories).forEach(key => {
-        syncedPrices[key] = pricesFromSettings[key] || 0;
-      });
-      
-      setLocalPrices(syncedPrices);
+    if (aiSettings.prices) {
+      setLocalPrices(aiSettings.prices);
     }
-  }, [linenDef, aiSettings.prices]);
+  }, [aiSettings.prices]);
 
-  const handlePriceChange = (itemKey: string, value: string) => {
+  const linenLabels = {
+    bedding: 'Bettwäsche',
+    large_towels: 'Große Handtücher',
+    small_towels: 'Kleine Handtücher',
+    bath_mats: 'Badematten',
+    sink_towels: 'WB-Handtücher',
+    sauna_towels: 'Saunatücher'
+  };
+
+  const handlePriceChange = (itemType: keyof typeof localPrices, value: string) => {
     const numValue = parseFloat(value) || 0;
     setLocalPrices(prev => ({
       ...prev,
-      [itemKey]: numValue
+      [itemType]: numValue
     }));
   };
 
@@ -73,18 +66,8 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
     console.log('📋 Neue Preise:', localPrices);
     
     try {
-      // Für alle Keys in custom_categories: Wenn Preis fehlt, setze 0
-      const allKeys = Object.keys(linenDef?.custom_categories || {});
-      const updatedPrices = { ...localPrices };
-      
-      allKeys.forEach(key => {
-        if (!(key in updatedPrices)) {
-          updatedPrices[key] = 0; // Default-Preis für neue Items
-        }
-      });
-      
       // Update AI Settings mit neuen Preisen
-      updateAISettings({ prices: updatedPrices });
+      updateAISettings({ prices: localPrices });
       
       // Speichere in Datenbank
       const success = await saveAISettings(houseId);
@@ -112,7 +95,7 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
   };
 
   const handleReset = () => {
-    const defaultPrices: Record<string, number> = {
+    const defaultPrices = {
       bedding: 30,
       large_towels: 18,
       small_towels: 10,
@@ -129,11 +112,20 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
   };
 
   // Beispielkalkulation
-  const exampleCalculation = () => {
-    const total = Object.entries(localPrices).reduce((sum, [key, price]) => {
-      return sum + price;
+  const exampleOrder = {
+    bedding: 10,
+    large_towels: 15,
+    small_towels: 8,
+    bath_mats: 5,
+    sink_towels: 6,
+    sauna_towels: 4
+  };
+
+  const calculateExampleCost = () => {
+    return Object.entries(exampleOrder).reduce((total, [itemType, quantity]) => {
+      const price = localPrices[itemType as keyof typeof localPrices] || 0;
+      return total + (price * quantity);
     }, 0);
-    return total;
   };
 
   return (
@@ -149,67 +141,69 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {Object.keys(localPrices).length === 0 && (
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                Bitte erstellen Sie zuerst Wäschestücke im Tab "Wäsche-Regeln", 
-                bevor Sie hier Preise festlegen können.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {Object.keys(localPrices).some(key => localPrices[key] === 0) && (
-            <Alert variant="destructive">
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Warnung:</strong> Einige Wäschestücke haben keinen Preis (0 EUR). 
-                Kostenberechnungen sind dadurch ungenau.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="space-y-2">
-            {Object.entries(linenDef?.custom_categories || {})
-              .sort(([, a], [, b]) => (a as any).category.localeCompare((b as any).category))
-              .map(([key, config]: [string, any]) => (
-                <div key={key} className="flex items-center gap-4 p-3 rounded-lg border bg-card">
-                  <div className="flex-1 flex items-center gap-2">
-                    <span className="text-lg">{config.icon}</span>
-                    <Label htmlFor={`price_${key}`} className="text-sm font-medium">
-                      {config.label}
+          {/* Preistabelle */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4">
+              {Object.entries(linenLabels).map(([itemType, label]) => (
+                <div key={itemType} className="flex items-center gap-4 p-3 rounded-lg border bg-card">
+                  <div className="flex-1">
+                    <Label htmlFor={`price_${itemType}`} className="text-sm font-medium">
+                      {label}
                     </Label>
-                    <span className="text-xs text-muted-foreground">
-                      ({config.category})
-                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Input
-                      id={`price_${key}`}
+                      id={`price_${itemType}`}
                       type="number"
                       min="0"
                       step="0.01"
-                      value={localPrices[key] || 0}
-                      onChange={(e) => handlePriceChange(key, e.target.value)}
+                      value={localPrices[itemType as keyof typeof localPrices]}
+                      onChange={(e) => handlePriceChange(itemType as keyof typeof localPrices, e.target.value)}
                       className="w-24 text-right"
                     />
                     <span className="text-sm text-muted-foreground min-w-[20px]">€</span>
                   </div>
                 </div>
-            ))}
+              ))}
+            </div>
           </div>
 
           <Separator />
 
-          <Alert>
-            <Calculator className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Gesamtpreis aller Artikel:</strong> {exampleCalculation().toFixed(2)} EUR
-            </AlertDescription>
-          </Alert>
+          {/* Beispielkalkulation */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Calculator className="w-4 h-4 text-muted-foreground" />
+              <Label className="text-base font-medium">Beispielkalkulation</Label>
+            </div>
+            <Card className="bg-muted/50">
+              <CardContent className="pt-6">
+                <div className="space-y-2 text-sm">
+                  {Object.entries(exampleOrder).map(([itemType, quantity]) => {
+                    const price = localPrices[itemType as keyof typeof localPrices];
+                    const lineTotal = price * quantity;
+                    return (
+                      <div key={itemType} className="flex justify-between items-center">
+                        <span className="text-muted-foreground">
+                          {quantity}x {linenLabels[itemType as keyof typeof linenLabels]} @ {price.toFixed(2)}€
+                        </span>
+                        <span className="font-medium">{lineTotal.toFixed(2)}€</span>
+                      </div>
+                    );
+                  })}
+                  <Separator className="my-3" />
+                  <div className="flex justify-between items-center text-base font-bold">
+                    <span>Gesamtkosten</span>
+                    <span className="text-primary">{calculateExampleCost().toFixed(2)}€</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           <Separator />
 
+          {/* Info Box */}
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription className="text-sm">
@@ -221,12 +215,21 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
 
           <Separator />
 
+          {/* Aktionen */}
           <div className="flex gap-2">
-            <Button onClick={handleSave} disabled={isSavingSettings} className="flex-1">
+            <Button 
+              onClick={handleSave} 
+              disabled={isSavingSettings}
+              className="flex-1"
+            >
               <Save className="w-4 h-4 mr-2" />
               {isSavingSettings ? 'Speichern...' : 'Preise speichern'}
             </Button>
-            <Button variant="outline" onClick={handleReset} disabled={isSavingSettings}>
+            <Button 
+              variant="outline" 
+              onClick={handleReset}
+              disabled={isSavingSettings}
+            >
               <RotateCcw className="w-4 h-4 mr-2" />
               Zurücksetzen
             </Button>

@@ -199,9 +199,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
     }
   }, [initialData, mode, form]);
 
-  // Fetch houses for dropdown (nur touristische Vermietungen)
+  // Fetch houses for dropdown
   const { data: houses, isLoading: housesLoading } = useQuery({
-    queryKey: ['houses-for-booking-tourist'],
+    queryKey: ['houses-for-booking'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
