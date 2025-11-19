@@ -86,8 +86,13 @@ export const useLinenAI = () => {
     }));
   }, []);
 
-  const saveAISettings = useCallback(async (houseId: string) => {
-    console.log('🔄 Saving AI settings for house:', houseId, aiSettings);
+  const saveAISettings = useCallback(async (houseId: string, settingsOverride?: Partial<AISettings>) => {
+    // Merge aktuelle Settings mit optionalen Overrides
+    const settingsToSave = settingsOverride 
+      ? { ...aiSettings, ...settingsOverride }
+      : aiSettings;
+    
+    console.log('🔄 Saving AI settings for house:', houseId, settingsToSave);
     setIsSavingSettings(true);
     
     try {
@@ -96,12 +101,12 @@ export const useLinenAI = () => {
         .from('ai_linen_settings')
         .upsert({
           house_id: houseId,
-          lookahead_bookings: aiSettings.lookahead_bookings,
-          safety_buffer: aiSettings.safety_buffer,
-          max_storage_ratio: aiSettings.max_storage_ratio,
-          reorder_threshold: aiSettings.reorder_threshold,
-          seasonal_factor: aiSettings.seasonal_factor,
-          prices: aiSettings.prices
+          lookahead_bookings: settingsToSave.lookahead_bookings,
+          safety_buffer: settingsToSave.safety_buffer,
+          max_storage_ratio: settingsToSave.max_storage_ratio,
+          reorder_threshold: settingsToSave.reorder_threshold,
+          seasonal_factor: settingsToSave.seasonal_factor,
+          prices: settingsToSave.prices
         }, {
           onConflict: 'house_id',
           ignoreDuplicates: false
@@ -115,6 +120,12 @@ export const useLinenAI = () => {
       }
 
       console.log('✅ AI settings saved successfully:', data);
+      
+      // Update lokalen State mit den gespeicherten Werten
+      if (settingsOverride) {
+        setAISettings(settingsToSave);
+      }
+      
       setIsSavingSettings(false);
       return true;
     } catch (error) {
