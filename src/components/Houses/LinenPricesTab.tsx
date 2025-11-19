@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Save, RotateCcw, Euro, Info, Calculator } from "lucide-react";
+import { Save, RotateCcw, Euro, Info, Calculator, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLinenAI } from '@/hooks/useLinenAI';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import type { LinenSetDefinition } from '@/types/linen';
 
 interface LinenPricesTabProps {
   houseId: string;
@@ -23,37 +26,62 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
     isSavingSettings 
   } = useLinenAI();
 
-  const [localPrices, setLocalPrices] = useState({
-    bedding: 30,
-    large_towels: 18,
-    small_towels: 10,
-    bath_mats: 15,
-    sink_towels: 8,
-    sauna_towels: 20
+  const [localPrices, setLocalPrices] = useState<Record<string, number>>({});
+
+  // Lade Linen Set Definitions für dieses Haus
+  const { data: linenDef, isLoading: isLoadingDef } = useQuery({
+    queryKey: ['linen-set-definitions', houseId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_set_definitions')
+        .select('*')
+        .eq('house_id', houseId)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
   });
+
+  // Extrahiere aktive Items aus custom_categories
+  const activeItems = useMemo(() => {
+    if (!linenDef?.custom_categories) return {};
+    
+    const items: Record<string, string> = {};
+    const categories = linenDef.custom_categories as Record<string, any>;
+    
+    Object.entries(categories).forEach(([key, config]) => {
+      if (config.active) {
+        items[key] = config.label;
+      }
+    });
+    return items;
+  }, [linenDef]);
 
   // Lade Einstellungen beim Mount
   useEffect(() => {
     loadAISettings(houseId);
   }, [houseId, loadAISettings]);
 
-  // Update lokale Preise wenn AI Settings geladen werden
+  // Update lokale Preise wenn AI Settings geladen werden ODER activeItems sich ändern
   useEffect(() => {
-    if (aiSettings.prices) {
-      setLocalPrices(aiSettings.prices);
-    }
-  }, [aiSettings.prices]);
+    const newPrices: Record<string, number> = {};
+    
+    // Für jedes aktive Item
+    Object.keys(activeItems).forEach(key => {
+      // Nutze existierenden Preis aus aiSettings oder setze 0
+      newPrices[key] = aiSettings.prices?.[key] ?? 0;
+    });
+    
+    setLocalPrices(newPrices);
+  }, [aiSettings.prices, activeItems]);
 
-  const linenLabels = {
-    bedding: 'Bettwäsche',
-    large_towels: 'Große Handtücher',
-    small_towels: 'Kleine Handtücher',
-    bath_mats: 'Badematten',
-    sink_towels: 'WB-Handtücher',
-    sauna_towels: 'Saunatücher'
-  };
+  // Prüfe ob Items mit 0 EUR existieren
+  const hasZeroPriceItems = useMemo(() => {
+    return Object.values(localPrices).some(price => price === 0);
+  }, [localPrices]);
 
-  const handlePriceChange = (itemType: keyof typeof localPrices, value: string) => {
+  const handlePriceChange = (itemType: string, value: string) => {
     const numValue = parseFloat(value) || 0;
     setLocalPrices(prev => ({
       ...prev,
@@ -67,7 +95,7 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
     
     try {
       // Speichere direkt mit den neuen Preisen als Parameter
-      const success = await saveAISettings(houseId, { prices: localPrices });
+      const success = await saveAISettings(houseId, { prices: localPrices as any });
       
       if (success) {
         toast({
@@ -92,38 +120,55 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
   };
 
   const handleReset = () => {
-    const defaultPrices = {
-      bedding: 30,
-      large_towels: 18,
-      small_towels: 10,
-      bath_mats: 15,
-      sink_towels: 8,
-      sauna_towels: 20
-    };
-    setLocalPrices(defaultPrices);
+    // Setze alle Preise auf 0
+    const resetPrices: Record<string, number> = {};
+    Object.keys(activeItems).forEach(key => {
+      resetPrices[key] = 0;
+    });
+    setLocalPrices(resetPrices);
     
     toast({
       title: "Preise zurückgesetzt",
-      description: "Die Preise wurden auf Standardwerte zurückgesetzt",
+      description: "Alle Preise wurden auf 0 EUR zurückgesetzt",
     });
   };
 
-  // Beispielkalkulation
-  const exampleOrder = {
-    bedding: 10,
-    large_towels: 15,
-    small_towels: 8,
-    bath_mats: 5,
-    sink_towels: 6,
-    sauna_towels: 4
-  };
+  // Beispielkalkulation mit den ersten 6 Items oder allen wenn weniger
+  const exampleOrder = useMemo(() => {
+    const order: Record<string, number> = {};
+    const itemKeys = Object.keys(activeItems).slice(0, 6);
+    itemKeys.forEach((key, index) => {
+      // Beispiel-Mengen: 10, 15, 8, 5, 6, 4
+      order[key] = [10, 15, 8, 5, 6, 4][index] || 5;
+    });
+    return order;
+  }, [activeItems]);
 
   const calculateExampleCost = () => {
     return Object.entries(exampleOrder).reduce((total, [itemType, quantity]) => {
-      const price = localPrices[itemType as keyof typeof localPrices] || 0;
+      const price = localPrices[itemType] || 0;
       return total + (price * quantity);
     }, 0);
   };
+
+  if (isLoadingDef) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="text-muted-foreground">Lade Wäsche-Regeln...</div>
+      </div>
+    );
+  }
+
+  if (Object.keys(activeItems).length === 0) {
+    return (
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          Keine aktiven Wäsche-Artikel gefunden. Bitte definieren Sie zuerst Artikel im "Wäsche-Regeln" Tab.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -138,10 +183,21 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Warnung bei 0 EUR Preisen */}
+          {hasZeroPriceItems && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Warnung:</strong> Einige Artikel haben einen Preis von 0 EUR. 
+                Bitte setzen Sie Preise für alle Artikel, damit die Kostenberechnung korrekt funktioniert.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Preistabelle */}
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4">
-              {Object.entries(linenLabels).map(([itemType, label]) => (
+              {Object.entries(activeItems).map(([itemType, label]) => (
                 <div key={itemType} className="flex items-center gap-4 p-3 rounded-lg border bg-card">
                   <div className="flex-1">
                     <Label htmlFor={`price_${itemType}`} className="text-sm font-medium">
@@ -155,7 +211,7 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
                       min="0"
                       step="0.01"
                       value={localPrices[itemType as keyof typeof localPrices]}
-                      onChange={(e) => handlePriceChange(itemType as keyof typeof localPrices, e.target.value)}
+                      onChange={(e) => handlePriceChange(itemType, e.target.value)}
                       className="w-24 text-right"
                     />
                     <span className="text-sm text-muted-foreground min-w-[20px]">€</span>
@@ -177,12 +233,13 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
               <CardContent className="pt-6">
                 <div className="space-y-2 text-sm">
                   {Object.entries(exampleOrder).map(([itemType, quantity]) => {
-                    const price = localPrices[itemType as keyof typeof localPrices];
+                    const price = localPrices[itemType] || 0;
                     const lineTotal = price * quantity;
+                    const label = activeItems[itemType] || itemType;
                     return (
                       <div key={itemType} className="flex justify-between items-center">
                         <span className="text-muted-foreground">
-                          {quantity}x {linenLabels[itemType as keyof typeof linenLabels]} @ {price.toFixed(2)}€
+                          {quantity}x {label} @ {price.toFixed(2)}€
                         </span>
                         <span className="font-medium">{lineTotal.toFixed(2)}€</span>
                       </div>
