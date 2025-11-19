@@ -43,19 +43,48 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
     },
   });
 
-  // Extrahiere aktive Items aus custom_categories
+  // Extrahiere aktive Items aus custom_categories ODER alten Spalten
   const activeItems = useMemo(() => {
-    if (!linenDef?.custom_categories) return {};
+    // Zuerst: Versuche custom_categories zu verwenden
+    if (linenDef?.custom_categories && Object.keys(linenDef.custom_categories).length > 0) {
+      const items: Record<string, string> = {};
+      const categories = linenDef.custom_categories as Record<string, any>;
+      
+      Object.entries(categories).forEach(([key, config]) => {
+        if (config.active) {
+          items[key] = config.label;
+        }
+      });
+      return items;
+    }
     
-    const items: Record<string, string> = {};
-    const categories = linenDef.custom_categories as Record<string, any>;
+    // Fallback: Verwende alte Spalten
+    if (linenDef) {
+      const items: Record<string, string> = {};
+      
+      // Mapping von alten Spalten zu Keys und Labels
+      const oldColumnMap = {
+        bedding_per_guest: { key: 'bedding', label: 'Bettwäsche' },
+        large_towels_per_guest: { key: 'large_towels', label: 'Große Handtücher' },
+        small_towels_per_guest: { key: 'small_towels', label: 'Kleine Handtücher' },
+        sauna_towels_per_guest: { key: 'sauna_towels', label: 'Saunatücher' },
+        bath_mats_per_booking: { key: 'bath_mats', label: 'Badematten' },
+        sink_towels_per_booking: { key: 'sink_towels', label: 'WB-Handtücher' },
+        kitchen_towels_per_booking: { key: 'kitchen_towels', label: 'Küchenhandtücher' }
+      };
+      
+      Object.entries(oldColumnMap).forEach(([oldKey, { key, label }]) => {
+        // Nur Items hinzufügen, wenn die alte Spalte existiert und nicht 0 ist
+        const value = linenDef[oldKey as keyof typeof linenDef];
+        if (typeof value === 'number' && value > 0) {
+          items[key] = label;
+        }
+      });
+      
+      return items;
+    }
     
-    Object.entries(categories).forEach(([key, config]) => {
-      if (config.active) {
-        items[key] = config.label;
-      }
-    });
-    return items;
+    return {};
   }, [linenDef]);
 
   // Lade Einstellungen beim Mount
