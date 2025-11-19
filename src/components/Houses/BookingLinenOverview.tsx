@@ -11,7 +11,7 @@ import { de } from "date-fns/locale";
 import { AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react";
 import LaundryOrderCard from "../Bookings/LaundryOrderCard";
 import { BookingWithoutOrderCard } from "./BookingWithoutOrderCard";
-import { BookingLinenPreviewDialog } from "./BookingLinenPreviewDialog";
+import LinenOrderDialog from "./LinenOrderDialog";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -334,20 +334,27 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
       </Tabs>
 
       {/* Bestellungs-Dialog */}
-      <BookingLinenPreviewDialog
-        open={orderDialogOpen}
-        onOpenChange={(open) => {
-          setOrderDialogOpen(open);
-          if (!open) {
-            setGeneratedOrderData(null);
-            setSelectedBookingForOrder(null);
-          }
-        }}
-        onConfirm={handleConfirmOrder}
-        booking={selectedBookingForOrder}
-        generatedOrderData={generatedOrderData}
-        isGenerating={generatePreviewMutation.isPending}
-      />
+      {selectedBookingForOrder && (
+        <LinenOrderDialog
+          open={orderDialogOpen}
+          onOpenChange={(open) => {
+            setOrderDialogOpen(open);
+            if (!open) {
+              setGeneratedOrderData(null);
+              setSelectedBookingForOrder(null);
+            }
+          }}
+          orderItems={generatedOrderData?.order_items || {}}
+          houseName={orderStatus?.house_name || ''}
+          houseId={houseId}
+          selectedBooking={selectedBookingForOrder}
+          linenSetDefinition={linenSetDefinition}
+          onCreateOrder={handleConfirmOrder}
+          isCreating={isCreatingOrder || generatePreviewMutation.isPending}
+          mode="create"
+          generatedOrderData={generatedOrderData}
+        />
+      )}
     </div>
   );
 };
