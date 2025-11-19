@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useBookingLinenOrders } from "@/hooks/useBookingLinenOrders";
-import { translateItemType, getUrgencyVariant, getUrgencyLabel, formatCurrency, calculateDeliveryDate } from "@/lib/linenOrderHelpers";
+import { translateItemType, getUrgencyVariant, getUrgencyLabel, formatCurrency, calculateDeliveryDate, translateLinenOrderStatus } from "@/lib/linenOrderHelpers";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react";
@@ -283,7 +283,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
                     {booking.linen_order.exists ? (
                       <>
                         <CheckCircle2 className="h-5 w-5 text-green-600" />
-                        <Badge variant="secondary">{booking.linen_order.status}</Badge>
+                        <Badge variant="secondary">{translateLinenOrderStatus(booking.linen_order.status)}</Badge>
                       </>
                     ) : (
                       <>
@@ -359,7 +359,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
                     </div>
                     <Badge variant="default">
                       <Clock className="h-3 w-3 mr-1" />
-                      {booking.linen_order.status}
+                      {translateLinenOrderStatus(booking.linen_order.status)}
                     </Badge>
                   </div>
                 </CardHeader>
