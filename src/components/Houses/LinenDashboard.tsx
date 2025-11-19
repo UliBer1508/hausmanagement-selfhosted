@@ -52,9 +52,9 @@ const LinenDashboard = () => {
   }, [location.state]);
   const { createOptimizedOrderMutation } = useOptimizedLinenManagement();
 
-  // Fetch all houses with linen data
+  // Fetch all tourist houses with linen data
   const { data: houses, isLoading } = useQuery({
-    queryKey: ['houses-linen-overview'],
+    queryKey: ['houses-linen-overview', 'tourist'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
@@ -62,6 +62,7 @@ const LinenDashboard = () => {
           *,
           linen_set_definitions (*)
         `)
+        .eq('rental_type', 'tourist')
         .order('name');
       
       if (error) throw error;
