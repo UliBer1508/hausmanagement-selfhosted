@@ -69,7 +69,16 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     },
     onSuccess: (data, bookingId) => {
       const booking = allMissingBookings.find(b => b.booking_id === bookingId);
-      setSelectedBookingForOrder(booking);
+      
+      // Konvertiere booking_id zu id für Kompatibilität mit LinenOrderDialog
+      if (booking) {
+        const bookingForDialog = {
+          ...booking,
+          id: booking.booking_id,
+        };
+        setSelectedBookingForOrder(bookingForDialog);
+      }
+      
       setGeneratedOrderData(data);
       setOrderDialogOpen(true);
     },
