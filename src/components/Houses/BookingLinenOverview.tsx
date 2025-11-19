@@ -12,6 +12,7 @@ import { AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react";
 import LaundryOrderCard from "../Bookings/LaundryOrderCard";
 import { BookingWithoutOrderCard } from "./BookingWithoutOrderCard";
 import LinenOrderDialog from "./LinenOrderDialog";
+import LinenOrderEmailDialog from "./LinenOrderEmailDialog";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +26,8 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
   const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<any>(null);
   const [generatedOrderData, setGeneratedOrderData] = useState<any>(null);
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [createdOrderForEmail, setCreatedOrderForEmail] = useState<any>(null);
 
   const {
     orderStatus,
@@ -86,7 +89,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
   const handleConfirmOrder = async (orderData: any) => {
     if (!selectedBookingForOrder || !generatedOrderData) return;
 
-    await createOrderFromData({
+    const result = await createOrderFromData({
       bookingId: selectedBookingForOrder.booking_id,
       generatedData: generatedOrderData,
       userOverrides: orderData
@@ -95,6 +98,35 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     setOrderDialogOpen(false);
     setSelectedBookingForOrder(null);
     setGeneratedOrderData(null);
+
+    // Wenn E-Mail gewünscht, Dialog öffnen
+    if (orderData.sendEmail && result?.data) {
+      setCreatedOrderForEmail(result.data);
+      setEmailDialogOpen(true);
+    }
+  };
+
+  const handleSendEmail = async (emailData: any) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-gmail', {
+        body: emailData
+      });
+      
+      if (error) throw error;
+      
+      toast({
+        title: "E-Mail versendet",
+        description: "Die Bestellung wurde erfolgreich per E-Mail versendet.",
+      });
+      setEmailDialogOpen(false);
+      setCreatedOrderForEmail(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Fehler beim Versenden",
+        description: error.message || "Die E-Mail konnte nicht versendet werden.",
+      });
+    }
   };
 
   // Berechne Bestellitems basierend auf linen_set_definition
@@ -353,6 +385,18 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
           isCreating={isCreatingOrder || generatePreviewMutation.isPending}
           mode="create"
           generatedOrderData={generatedOrderData}
+        />
+      )}
+
+      {/* E-Mail-Dialog */}
+      {createdOrderForEmail && (
+        <LinenOrderEmailDialog
+          open={emailDialogOpen}
+          onOpenChange={setEmailDialogOpen}
+          order={createdOrderForEmail}
+          houseName={createdOrderForEmail.houses?.name || ''}
+          onSendEmail={handleSendEmail}
+          isLoading={false}
         />
       )}
     </div>
