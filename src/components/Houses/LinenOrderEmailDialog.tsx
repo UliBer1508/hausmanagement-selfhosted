@@ -48,7 +48,7 @@ const LinenOrderEmailDialog = ({
     sink_towels: 'WB-Handtücher',
     kitchen_towels: 'Küchentücher',
     blankets: 'Decken',
-    pillow_cases: 'Kissenbezüge',
+    pillow_cases: 'Kopfkissen',
   };
 
   // Generate order details text
