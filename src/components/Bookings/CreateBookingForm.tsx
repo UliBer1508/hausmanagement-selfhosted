@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Form,
   FormControl,
@@ -133,6 +134,7 @@ interface CreateBookingFormProps {
 
 const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }: CreateBookingFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isHistoricalBooking, setIsHistoricalBooking] = useState(false);
 
   // Helper function to set standard time on date
   const setTimeOnDate = (date: Date, hours: number, minutes: number = 0): Date => {
@@ -561,6 +563,21 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
           />
         </div>
 
+        {/* Historische Buchung Checkbox */}
+        <div className="flex items-center space-x-2 p-4 bg-muted/50 rounded-lg">
+          <Checkbox
+            id="historical-booking"
+            checked={isHistoricalBooking}
+            onCheckedChange={(checked) => setIsHistoricalBooking(checked === true)}
+          />
+          <label
+            htmlFor="historical-booking"
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            Historische Buchung (erlaubt vergangene Daten)
+          </label>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Check-in Datum */}
           <FormField
@@ -593,7 +610,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                       mode="single"
                       selected={field.value}
                       onSelect={(date) => date && field.onChange(setTimeOnDate(date, 15))}
-                      disabled={(date) => date < new Date()}
+                      disabled={isHistoricalBooking ? false : (date) => date < new Date()}
                       initialFocus
                       locale={de}
                       className="pointer-events-auto"
@@ -638,6 +655,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                       onSelect={(date) => date && field.onChange(setTimeOnDate(date, 10))}
                       disabled={(date) => {
                         const checkIn = form.getValues('check_in');
+                        if (isHistoricalBooking) {
+                          return checkIn && date <= checkIn;
+                        }
                         return date < new Date() || (checkIn && date <= checkIn);
                       }}
                       initialFocus
