@@ -36,6 +36,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
     bathrooms: house?.bathrooms || 1,
     bedrooms: house?.bedrooms || 3,
     living_area_sqm: house?.living_area_sqm || 0,
+    default_cleaning_hours: house?.default_cleaning_hours || 3,
     amenities: house?.amenities || {
       sauna: false,
       terrace: false,
@@ -146,6 +147,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         bathrooms: data.bathrooms,
         bedrooms: data.bedrooms,
         living_area_sqm: data.living_area_sqm || null,
+        default_cleaning_hours: data.default_cleaning_hours || 3,
         amenities: data.amenities,
       };
 
@@ -257,6 +259,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         bathrooms: house.bathrooms || 1,
         bedrooms: house.bedrooms || 3,
         living_area_sqm: house.living_area_sqm || 0,
+        default_cleaning_hours: house.default_cleaning_hours || 3,
         amenities: house.amenities || {
           sauna: false,
           terrace: false,
@@ -494,6 +497,23 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
                     onChange={(e) => setFormData({ ...formData, living_area_sqm: parseInt(e.target.value) || 0 })}
                     placeholder="z.B. 130"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="default_cleaning_hours">Standard-Reinigungszeit (Stunden)</Label>
+                  <Input
+                    id="default_cleaning_hours"
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="24"
+                    value={formData.default_cleaning_hours || ''}
+                    onChange={(e) => setFormData({ ...formData, default_cleaning_hours: parseFloat(e.target.value) || 3 })}
+                    placeholder="z.B. 3"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Standardzeit für Reinigungsaufträge dieses Objekts
+                  </p>
                 </div>
               </div>
 
