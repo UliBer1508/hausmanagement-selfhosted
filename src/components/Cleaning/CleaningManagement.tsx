@@ -81,6 +81,7 @@ const CleaningManagement = () => {
           houses!inner(id, name, address),
           service_tasks(id, service_type, status)
         `)
+        .eq('houses.rental_type', 'tourist')
         .neq('status', 'completed') // Exclude completed bookings
         .gte('check_out', new Date().toISOString()); // Only future or current bookings
 
@@ -166,6 +167,7 @@ const CleaningManagement = () => {
           cleaning_assignments(id, cleaning_staff(id, name))
         `)
         .eq('service_type', 'cleaning')
+        .eq('houses.rental_type', 'tourist')
         .order('scheduled_date', { ascending: false }); // Sort by date, newest first
 
       if (taskHouseFilter !== 'all') {
@@ -232,9 +234,13 @@ const CleaningManagement = () => {
 
   // Fetch houses for filters
   const { data: houses } = useQuery({
-    queryKey: ['houses'],
+    queryKey: ['houses-cleaning-filter', 'tourist'],
     queryFn: async () => {
-      const { data } = await supabase.from('houses').select('id, name');
+      const { data } = await supabase
+        .from('houses')
+        .select('id, name')
+        .eq('rental_type', 'tourist')
+        .order('name');
       return data || [];
     },
   });
