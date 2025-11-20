@@ -112,6 +112,19 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
     },
   });
 
+  // Watch for house selection to get selectedHouseId early
+  const selectedHouseId = form.watch('house_id');
+
+  // Auto-load default cleaning hours when house is selected
+  useEffect(() => {
+    if (selectedHouseId && houses) {
+      const selectedHouse = houses.find(h => h.id === selectedHouseId);
+      if (selectedHouse?.default_cleaning_hours) {
+        form.setValue('cleaning_hours', selectedHouse.default_cleaning_hours);
+      }
+    }
+  }, [selectedHouseId, houses, form]);
+
   // Fetch cleaning service providers with hourly rate
   const { data: providers } = useQuery({
     queryKey: ['cleaning-providers'],
@@ -142,7 +155,6 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
   });
 
   // Fetch bookings for selected house
-  const selectedHouseId = form.watch('house_id');
   const selectedBookingId = form.watch('booking_id');
   const { data: bookings } = useQuery({
     queryKey: ['house-bookings', selectedHouseId],
