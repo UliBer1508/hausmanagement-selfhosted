@@ -105,9 +105,12 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
 
   // Fetch houses for dropdown
   const { data: houses } = useQuery({
-    queryKey: ['houses'],
+    queryKey: ['houses-for-cleaning-tourist'],
     queryFn: async () => {
-      const { data } = await supabase.from('houses').select('id, name, address, default_cleaning_hours');
+      const { data } = await supabase
+        .from('houses')
+        .select('id, name, address, default_cleaning_hours')
+        .eq('rental_type', 'tourist');
       return data || [];
     },
   });
