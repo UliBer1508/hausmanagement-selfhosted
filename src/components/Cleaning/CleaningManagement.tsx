@@ -473,10 +473,7 @@ const CleaningManagement = () => {
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <CardTitle>Reinigungsaufträge</CardTitle>
           <div className="w-full sm:w-auto">
-            <CreateCleaningTaskDialog onTaskCreated={() => {
-              // Refresh cleaning tasks when new task is created
-              window.location.reload();
-            }} />
+            <CreateCleaningTaskDialog />
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -653,8 +650,7 @@ const CleaningManagement = () => {
             if (!open) setEditTaskId(null);
           }}
           onTaskUpdated={() => {
-            // Refresh cleaning tasks when task is updated or deleted
-            window.location.reload();
+            // Data is automatically refreshed via query invalidation in the dialog
           }}
         />
       )}
@@ -668,8 +664,7 @@ const CleaningManagement = () => {
           onTaskCreated={() => {
             setShowCreateDialog(false);
             setSelectedBookingForCreation(null);
-            // Refresh the data
-            window.location.reload();
+            // Data is automatically refreshed via query invalidation in the dialog
           }}
         />
       )}
