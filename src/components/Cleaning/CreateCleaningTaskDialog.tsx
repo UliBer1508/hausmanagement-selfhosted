@@ -183,9 +183,9 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
 
   // Auto-suggest cleaning date based on booking
   const suggestCleaningDate = (booking: any) => {
-    const checkOut = new Date(booking.check_out);
-    // Suggest cleaning on checkout day
-    return checkOut.toISOString().split('T')[0];
+    const checkIn = new Date(booking.check_in);
+    // Suggest cleaning on check-in day
+    return checkIn.toISOString().split('T')[0];
   };
 
   // Calculate cleaning cost
