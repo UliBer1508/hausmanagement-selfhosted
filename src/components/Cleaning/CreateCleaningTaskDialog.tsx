@@ -35,11 +35,12 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, CalendarIcon, User } from 'lucide-react';
 
 const createTaskSchema = z.object({
   house_id: z.string().min(1, 'Haus auswählen'),
-  booking_id: z.string().min(1, 'Buchung auswählen'),
+  booking_id: z.string().optional(),
   provider_id: z.string().min(1, 'Provider auswählen'),
   assigned_staff_id: z.string().optional(),
   scheduled_date: z.string().min(1, 'Datum erforderlich'),
@@ -60,6 +61,7 @@ interface CreateCleaningTaskDialogProps {
 const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenChange, preselectedBooking }: CreateCleaningTaskDialogProps) => {
   const [internalOpen, setInternalOpen] = useState(false);
   const [step, setStep] = useState<'house' | 'booking' | 'details'>('house');
+  const [withoutBooking, setWithoutBooking] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -97,6 +99,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
     setOpen(newOpen);
     if (!newOpen) {
       setStep(preselectedBooking ? 'details' : 'house');
+      setWithoutBooking(false);
       form.reset();
     } else if (preselectedBooking) {
       setStep('details');
@@ -200,7 +203,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
     mutationFn: async (data: CreateTaskForm) => {
       const taskData = {
         house_id: data.house_id,
-        booking_id: data.booking_id,
+        ...(data.booking_id && { booking_id: data.booking_id }),
         provider_id: data.provider_id,
         service_type: 'cleaning' as const,
         scheduled_date: data.scheduled_date,
@@ -377,87 +380,146 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
               </Button>
             </div>
             
-            <div className="grid gap-3">
-              {bookings && bookings.length > 0 ? (
-                bookings.map((booking) => (
-                  <Card
-                    key={booking.id}
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => handleBookingSelection(booking.id)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <User className="w-4 h-4" />
-                            <h4 className="font-semibold">{booking.guest_name}</h4>
-                            <span className="text-sm text-muted-foreground">({booking.number_of_guests} Gäste)</span>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span className="text-green-600">
-                              📅 {new Date(booking.check_in).toLocaleDateString('de-DE')}
-                            </span>
-                            <span>→</span>
-                            <span className="text-red-600">
-                              📅 {new Date(booking.check_out).toLocaleDateString('de-DE')}
-                            </span>
-                          </div>
-                          {booking.booking_amount && (
-                            <div className="text-sm text-muted-foreground">
-                              💰 {booking.booking_amount} {booking.currency || 'EUR'}
-                            </div>
-                          )}
-                        </div>
-                        <Button variant="ghost" size="sm">
-                          Auswählen →
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  Keine aktuellen Buchungen für dieses Haus gefunden.
-                </div>
-              )}
+            {/* Checkbox für "Ohne Buchung" */}
+            <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <Checkbox 
+                id="without-booking" 
+                checked={withoutBooking}
+                onCheckedChange={(checked) => {
+                  setWithoutBooking(checked as boolean);
+                  if (checked) {
+                    form.setValue('booking_id', '');
+                  }
+                }}
+              />
+              <div className="flex-1">
+                <label 
+                  htmlFor="without-booking" 
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Ohne Buchung (z.B. Grundreinigung, Fensterputzen)
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Für Reinigungen ohne spezifische Gästebuchung
+                </p>
+              </div>
             </div>
+            
+            {/* Buchungsliste - nur wenn NICHT "ohne Buchung" */}
+            {!withoutBooking && (
+              <div className="grid gap-3">
+                {bookings && bookings.length > 0 ? (
+                  bookings.map((booking) => (
+                    <Card
+                      key={booking.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleBookingSelection(booking.id)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <User className="w-4 h-4" />
+                              <h4 className="font-semibold">{booking.guest_name}</h4>
+                              <span className="text-sm text-muted-foreground">({booking.number_of_guests} Gäste)</span>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span className="text-green-600">
+                                📅 {new Date(booking.check_in).toLocaleDateString('de-DE')}
+                              </span>
+                              <span>→</span>
+                              <span className="text-red-600">
+                                📅 {new Date(booking.check_out).toLocaleDateString('de-DE')}
+                              </span>
+                            </div>
+                            {booking.booking_amount && (
+                              <div className="text-sm text-muted-foreground">
+                                💰 {booking.booking_amount} {booking.currency || 'EUR'}
+                              </div>
+                            )}
+                          </div>
+                          <Button variant="ghost" size="sm">
+                            Auswählen →
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Keine aktuellen Buchungen für dieses Haus gefunden.
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Button wenn "ohne Buchung" aktiv */}
+            {withoutBooking && (
+              <Button 
+                className="w-full" 
+                onClick={() => {
+                  form.setValue('booking_id', '');
+                  setStep('details');
+                }}
+              >
+                Weiter zu Details →
+              </Button>
+            )}
           </div>
         )}
 
         {/* Step 3: Cleaning Details */}
-        {step === 'details' && displayBooking && (
+        {step === 'details' && (
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               
-              {/* Booking Summary */}
-              <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold">Buchungsübersicht</h4>
-                  {!preselectedBooking && (
-                    <Button variant="outline" size="sm" onClick={handleBackToBookings}>
-                      ← Buchung ändern
-                    </Button>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div className="space-y-2">
-                    <div><strong>Haus:</strong> {houses?.find(h => h.id === form.watch('house_id'))?.name}</div>
-                    <div><strong>Gast:</strong> {displayBooking.guest_name}</div>
-                    <div><strong>Gäste:</strong> {displayBooking.number_of_guests}</div>
-                    {displayBooking.guest_email && (
-                      <div><strong>E-Mail:</strong> {displayBooking.guest_email}</div>
+              {/* Buchungsübersicht - NUR wenn Buchung vorhanden */}
+              {displayBooking && !withoutBooking && (
+                <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold">Buchungsübersicht</h4>
+                    {!preselectedBooking && (
+                      <Button variant="outline" size="sm" onClick={handleBackToBookings}>
+                        ← Buchung ändern
+                      </Button>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <div><strong>Check-in:</strong> {new Date(displayBooking.check_in).toLocaleDateString('de-DE')}</div>
-                    <div><strong>Check-out:</strong> {new Date(displayBooking.check_out).toLocaleDateString('de-DE')}</div>
-                    {displayBooking.booking_amount && (
-                      <div><strong>Betrag:</strong> {displayBooking.booking_amount} {displayBooking.currency || 'EUR'}</div>
-                    )}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-2">
+                      <div><strong>Haus:</strong> {houses?.find(h => h.id === form.watch('house_id'))?.name}</div>
+                      <div><strong>Gast:</strong> {displayBooking.guest_name}</div>
+                      <div><strong>Gäste:</strong> {displayBooking.number_of_guests}</div>
+                      {displayBooking.guest_email && (
+                        <div><strong>E-Mail:</strong> {displayBooking.guest_email}</div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <div><strong>Check-in:</strong> {new Date(displayBooking.check_in).toLocaleDateString('de-DE')}</div>
+                      <div><strong>Check-out:</strong> {new Date(displayBooking.check_out).toLocaleDateString('de-DE')}</div>
+                      {displayBooking.booking_amount && (
+                        <div><strong>Betrag:</strong> {displayBooking.booking_amount} {displayBooking.currency || 'EUR'}</div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+              
+              {/* Hinweis bei "ohne Buchung" */}
+              {withoutBooking && (
+                <div className="border rounded-lg p-4 bg-blue-50 border-blue-200">
+                  <div className="flex items-center gap-2">
+                    <div className="text-2xl">🧹</div>
+                    <div>
+                      <p className="font-medium text-blue-900">Reinigung ohne Buchung</p>
+                      <p className="text-sm text-blue-700">
+                        {houses?.find(h => h.id === form.watch('house_id'))?.name} - 
+                        Grundreinigung, Fensterputzen oder Wartung
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Cleaning Details Form */}
               <div className="space-y-4">
