@@ -23,7 +23,7 @@ const AutoCleaningSettingsCard = () => {
     if (settings) {
       setLocalProviderId(settings.default_provider_id || '');
       setLocalScheduleTiming(settings.schedule_timing);
-      setLocalTime(settings.default_time);
+      setLocalTime(settings.default_time.substring(0, 5)); // Trim seconds (10:00:00 -> 10:00)
       setLocalIsEnabled(settings.is_enabled);
       setHasChanges(false);
     }
