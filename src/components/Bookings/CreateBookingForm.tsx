@@ -217,6 +217,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       nationality: '',
       platform: 'none',
       notes: '',
+      auto_create_cleaning: true,
     };
   };
 
