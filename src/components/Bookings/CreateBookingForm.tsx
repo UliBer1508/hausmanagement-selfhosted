@@ -72,6 +72,7 @@ const bookingSchema = z.object({
   cancellation_date: z.string().optional(),
   cancellation_reason: z.string().optional(),
   cancelled_by: z.string().optional(),
+  auto_create_cleaning: z.boolean().default(true),
 }).refine((data) => data.check_out > data.check_in, {
   message: 'Check-out muss nach Check-in liegen',
   path: ['check_out'],
@@ -153,6 +154,40 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
   const createBooking = useCreateBooking();
   const updateBooking = useUpdateBooking();
   const updateServiceTask = useUpdateServiceTask();
+
+  // Mutation to create cleaning task automatically
+  const createCleaningTaskMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { data, error } = await supabase.functions.invoke(
+        'create-cleaning-task-for-booking',
+        { body: { booking_id: bookingId } }
+      );
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.success && data.task_created) {
+        toast({
+          title: "Reinigungsauftrag erstellt",
+          description: `Reinigung für ${data.scheduled_date} um ${data.scheduled_time} Uhr automatisch angelegt.`,
+        });
+      } else if (data.message) {
+        toast({
+          title: "Info",
+          description: data.message,
+          variant: "default",
+        });
+      }
+    },
+    onError: (error) => {
+      console.error('Error creating cleaning task:', error);
+      toast({
+        title: "Fehler bei Reinigungserstellung",
+        description: "Der Reinigungsauftrag konnte nicht automatisch erstellt werden. Sie können ihn manuell im Reinigungsmodul anlegen.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Set default values based on mode and initial data
   const getDefaultValues = () => {
@@ -397,13 +432,19 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       } else {
         console.log('Creating new booking');
         // Create new booking
-        await createBooking.mutateAsync(bookingData);
+        const bookingResult = await createBooking.mutateAsync(bookingData);
 
         console.log('Booking created successfully');
         toast({
           title: 'Buchung erstellt',
           description: 'Die Buchung wurde erfolgreich erstellt.',
         });
+
+        // Auto-create cleaning task if checkbox is enabled
+        if (data.auto_create_cleaning && bookingResult?.id) {
+          console.log('🧹 Auto-creating cleaning task for booking:', bookingResult.id);
+          createCleaningTaskMutation.mutate(bookingResult.id);
+        }
       }
 
       onSuccess();
@@ -748,35 +789,58 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Platform */}
-          <FormField
-            control={form.control}
-            name="platform"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Plattform</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value || 'none'}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Plattform wählen" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent className="bg-background border shadow-lg z-50">
-                    <SelectItem value="none">Keine Angabe</SelectItem>
-                    <SelectItem value="booking.com">Booking.com</SelectItem>
-                    <SelectItem value="airbnb">Airbnb</SelectItem>
-                    <SelectItem value="vrbo">VRBO</SelectItem>
-                    <SelectItem value="belvilla">Belvilla</SelectItem>
-                    <SelectItem value="direct">Direktbuchung</SelectItem>
-                    <SelectItem value="other">Sonstige</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Platform */}
+            <FormField
+              control={form.control}
+              name="platform"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Plattform</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value || 'none'}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Plattform wählen" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      <SelectItem value="none">Keine Angabe</SelectItem>
+                      <SelectItem value="booking.com">Booking.com</SelectItem>
+                      <SelectItem value="airbnb">Airbnb</SelectItem>
+                      <SelectItem value="vrbo">VRBO</SelectItem>
+                      <SelectItem value="belvilla">Belvilla</SelectItem>
+                      <SelectItem value="direct">Direktbuchung</SelectItem>
+                      <SelectItem value="other">Sonstige</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Auto-create cleaning task checkbox - only in create mode */}
+            {mode === 'create' && (
+              <FormField
+                control={form.control}
+                name="auto_create_cleaning"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col justify-end h-full">
+                    <div className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 bg-muted/30 h-[42px]">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormLabel className="font-normal text-sm cursor-pointer">
+                        Reinigungsauftrag automatisch erstellen
+                      </FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
             )}
-          />
-        </div>
+          </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Buchungsbetrag */}

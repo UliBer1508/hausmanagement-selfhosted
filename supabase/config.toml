@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.generate-tenant-payments]
 verify_jwt = false
+
+[functions.create-cleaning-task-for-booking]
+verify_jwt = false
