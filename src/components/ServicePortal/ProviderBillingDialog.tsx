@@ -21,32 +21,8 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
     queryFn: async () => {
       if (!provider?.id) return [];
       
-      // 1. Staff-IDs vom Provider laden (je nach Service-Typ)
-      const staffTable = provider.service_type === 'cleaning' ? 'cleaning_staff' : 'laundry_staff';
-      const { data: staff, error: staffError } = await supabase
-        .from(staffTable as any)
-        .select('id')
-        .eq('service_provider_id', provider.id);
-      
-      if (staffError || !staff?.length) return [];
-      
-      const staffIds = staff.map((s: any) => s.id);
-      
-      // 2. Assignments laden
-      const assignmentTable = provider.service_type === 'cleaning' ? 'cleaning_assignments' : 'laundry_orders';
-      const assignmentIdField = provider.service_type === 'cleaning' ? 'cleaning_staff_id' : 'laundry_staff_id';
-      
-      const { data: assignments, error: assignError } = await supabase
-        .from(assignmentTable as any)
-        .select('service_task_id')
-        .in(assignmentIdField, staffIds);
-      
-      if (assignError || !assignments?.length) return [];
-      
-      const taskIds = assignments.map((a: any) => a.service_task_id);
-      
-      // 3. Tasks mit Details laden - NUR abgeschlossene!
-      const { data: tasks, error: tasksError } = await supabase
+      // Direkte Abfrage über provider_id - nur abgeschlossene Aufträge
+      const { data: tasks, error } = await supabase
         .from('service_tasks')
         .select(`
           id,
@@ -58,11 +34,14 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
           houses:house_id (name),
           bookings:booking_id (guest_name)
         `)
-        .in('id', taskIds)
+        .eq('provider_id', provider.id)
         .eq('status', 'completed')
         .order('scheduled_date', { ascending: false });
       
-      if (tasksError) return [];
+      if (error) {
+        console.error('Provider billing query error:', error);
+        return [];
+      }
       return tasks || [];
     },
     enabled: !!provider?.id && open
