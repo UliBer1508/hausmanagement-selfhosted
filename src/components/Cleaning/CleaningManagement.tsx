@@ -29,7 +29,7 @@ const CleaningManagement = () => {
   const [taskServiceType, setTaskServiceType] = useState('cleaning');
   const [taskHouseFilter, setTaskHouseFilter] = useState('all');
   const [taskTimeFilter, setTaskTimeFilter] = useState('3months');
-  const [taskStatusFilter, setTaskStatusFilter] = useState('scheduled');
+  const [taskStatusFilter, setTaskStatusFilter] = useState('all');
   const [editTaskId, setEditTaskId] = useState<string | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -547,6 +547,7 @@ const CleaningManagement = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Alle Status</SelectItem>
+                  <SelectItem value="draft">Entwurf</SelectItem>
                   <SelectItem value="scheduled">Geplant</SelectItem>
                   <SelectItem value="in_progress">In Bearbeitung</SelectItem>
                   <SelectItem value="completed">Abgeschlossen</SelectItem>
