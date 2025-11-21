@@ -1012,6 +1012,41 @@ export type Database = {
           },
         ]
       }
+      cleaning_automation_settings: {
+        Row: {
+          created_at: string | null
+          default_provider_id: string | null
+          default_time: string | null
+          id: string
+          schedule_timing: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_provider_id?: string | null
+          default_time?: string | null
+          id?: string
+          schedule_timing?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_provider_id?: string | null
+          default_time?: string | null
+          id?: string
+          schedule_timing?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cleaning_automation_settings_default_provider_id_fkey"
+            columns: ["default_provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cleaning_confirmations: {
         Row: {
           cleaning_assignment_id: string | null
