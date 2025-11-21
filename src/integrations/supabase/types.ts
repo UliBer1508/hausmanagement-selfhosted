@@ -914,6 +914,126 @@ export type Database = {
           },
         ]
       }
+      boris_card_config: {
+        Row: {
+          config: Json
+          created_at: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          config?: Json
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          config?: Json
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      boris_cleaning_staff: {
+        Row: {
+          address: string | null
+          availability_days: string[]
+          completed_assignments: number
+          created_at: string
+          email: string
+          hourly_rate: number | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+          quality_rating: number
+          total_assignments: number
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          availability_days?: string[]
+          completed_assignments?: number
+          created_at?: string
+          email: string
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+          quality_rating?: number
+          total_assignments?: number
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          availability_days?: string[]
+          completed_assignments?: number
+          created_at?: string
+          email?: string
+          hourly_rate?: number | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          quality_rating?: number
+          total_assignments?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      boris_notification_preferences: {
+        Row: {
+          created_at: string
+          email_address: string | null
+          email_notifications: boolean
+          id: string
+          notify_new_tasks: boolean
+          notify_status_updates: boolean
+          notify_task_changes: boolean
+          notify_urgent_tasks: boolean
+          push_notifications: boolean
+          sound_notifications: boolean
+          toast_notifications: boolean
+          updated_at: string
+          user_name: string
+        }
+        Insert: {
+          created_at?: string
+          email_address?: string | null
+          email_notifications?: boolean
+          id?: string
+          notify_new_tasks?: boolean
+          notify_status_updates?: boolean
+          notify_task_changes?: boolean
+          notify_urgent_tasks?: boolean
+          push_notifications?: boolean
+          sound_notifications?: boolean
+          toast_notifications?: boolean
+          updated_at?: string
+          user_name?: string
+        }
+        Update: {
+          created_at?: string
+          email_address?: string | null
+          email_notifications?: boolean
+          id?: string
+          notify_new_tasks?: boolean
+          notify_status_updates?: boolean
+          notify_task_changes?: boolean
+          notify_urgent_tasks?: boolean
+          push_notifications?: boolean
+          sound_notifications?: boolean
+          toast_notifications?: boolean
+          updated_at?: string
+          user_name?: string
+        }
+        Relationships: []
+      }
       buffer_settings: {
         Row: {
           created_at: string
