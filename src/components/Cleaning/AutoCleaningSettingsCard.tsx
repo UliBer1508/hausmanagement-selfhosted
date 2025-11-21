@@ -13,7 +13,7 @@ const AutoCleaningSettingsCard = () => {
   const { settings, isLoading, updateSettings, isUpdating } = useCleaningAutomationSettings();
   
   const [localProviderId, setLocalProviderId] = useState<string>('');
-  const [localScheduleTiming, setLocalScheduleTiming] = useState<'day_before' | 'on_checkin' | 'day_after'>('on_checkin');
+  const [localScheduleTiming, setLocalScheduleTiming] = useState<'on_checkin' | 'on_checkout'>('on_checkin');
   const [localTime, setLocalTime] = useState<string>('10:00');
   const [localIsEnabled, setLocalIsEnabled] = useState<boolean>(true);
   const [hasChanges, setHasChanges] = useState(false);
@@ -148,7 +148,7 @@ const AutoCleaningSettingsCard = () => {
             <Label htmlFor="schedule-timing">Zeitpunkt der Reinigung</Label>
             <Select
               value={localScheduleTiming}
-              onValueChange={(value: 'day_before' | 'on_checkin' | 'day_after') => {
+              onValueChange={(value: 'on_checkin' | 'on_checkout') => {
                 setLocalScheduleTiming(value);
                 handleChange();
               }}
@@ -158,9 +158,8 @@ const AutoCleaningSettingsCard = () => {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="bg-background z-50">
-                <SelectItem value="day_before">Tag vor Check-in</SelectItem>
                 <SelectItem value="on_checkin">Am Check-in-Tag</SelectItem>
-                <SelectItem value="day_after">Tag nach Check-out</SelectItem>
+                <SelectItem value="on_checkout">Am Check-out-Tag</SelectItem>
               </SelectContent>
             </Select>
           </div>

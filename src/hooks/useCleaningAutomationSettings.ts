@@ -5,7 +5,7 @@ import { toast } from "@/hooks/use-toast";
 export interface CleaningAutomationSettings {
   id: string;
   default_provider_id: string | null;
-  schedule_timing: 'day_before' | 'on_checkin' | 'day_after';
+  schedule_timing: 'on_checkin' | 'on_checkout';
   default_time: string;
   is_enabled: boolean;
   created_at: string;
