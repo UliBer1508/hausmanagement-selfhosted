@@ -158,14 +158,20 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
   // Mutation to create cleaning task automatically
   const createCleaningTaskMutation = useMutation({
     mutationFn: async (bookingId: string) => {
+      console.log('🚀 EDGE FUNCTION WIRD AUFGERUFEN mit booking_id:', bookingId);
       const { data, error } = await supabase.functions.invoke(
         'create-cleaning-task-for-booking',
         { body: { booking_id: bookingId } }
       );
-      if (error) throw error;
+      console.log('📥 EDGE FUNCTION ANTWORT:', { data, error });
+      if (error) {
+        console.error('❌ EDGE FUNCTION FEHLER:', error);
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {
+      console.log('✅ EDGE FUNCTION ERFOLGREICH:', data);
       if (data.success && data.task_created) {
         toast({
           title: "📝 Reinigungsauftrag als Entwurf erstellt",
@@ -181,6 +187,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       }
     },
     onError: (error) => {
+      console.error('❌ MUTATION FEHLER:', error);
       console.error('Error creating cleaning task:', error);
       toast({
         title: "Fehler bei Reinigungserstellung",
@@ -450,9 +457,24 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         });
 
         // Auto-create cleaning task if checkbox is enabled AND not historical booking
+        console.log('🔍 DEBUG - Reinigungsauftrag-Check:', {
+          'auto_create_cleaning': data.auto_create_cleaning,
+          'booking_id': bookingResult?.id,
+          'isHistoricalBooking': isHistoricalBooking,
+          'willCreate': !!(data.auto_create_cleaning && bookingResult?.id && !isHistoricalBooking)
+        });
+
         if (data.auto_create_cleaning && bookingResult?.id && !isHistoricalBooking) {
+          console.log('✅ Alle Bedingungen erfüllt! Erstelle Reinigungsauftrag...');
           console.log('🧹 Auto-creating cleaning task for booking:', bookingResult.id);
           await createCleaningTaskMutation.mutateAsync(bookingResult.id);
+        } else {
+          console.log('❌ Reinigungsauftrag wird NICHT erstellt. Grund:', 
+            !data.auto_create_cleaning ? '❌ Checkbox nicht aktiviert (auto_create_cleaning = false)' :
+            !bookingResult?.id ? '❌ Keine booking_id vorhanden' :
+            isHistoricalBooking ? '❌ Historische Buchung (isHistoricalBooking = true)' : 
+            '❌ Unbekannter Grund - alle Bedingungen sollten erfüllt sein!'
+          );
         }
       }
 
@@ -841,7 +863,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                       <FormControl>
                         <Checkbox
                           checked={field.value}
-                          onCheckedChange={field.onChange}
+                          onCheckedChange={(checked) => {
+                            console.log('🔧 Checkbox "Reinigungsauftrag erstellen" geändert auf:', checked);
+                            field.onChange(checked);
+                          }}
                           disabled={isHistoricalBooking}
                         />
                       </FormControl>
