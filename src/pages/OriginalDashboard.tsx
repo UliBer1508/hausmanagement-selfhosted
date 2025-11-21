@@ -2114,9 +2114,7 @@ const OriginalDashboard = () => {
                         <span className="text-muted-foreground"> · {booking.guest}</span>
                       </span>
                     </div>
-                    <span className={`text-xs whitespace-nowrap ${
-                      booking.isActive ? 'text-orange-600 font-medium' : 'text-muted-foreground'
-                    }`}>
+                    <span className="text-xs whitespace-nowrap text-primary-green font-bold">
                       {booking.date}
                     </span>
                   </div>
