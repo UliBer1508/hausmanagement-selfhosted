@@ -7,6 +7,7 @@ export interface CleaningAutomationSettings {
   default_provider_id: string | null;
   schedule_timing: 'day_before' | 'on_checkin' | 'day_after';
   default_time: string;
+  is_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
