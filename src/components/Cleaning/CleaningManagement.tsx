@@ -12,6 +12,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
 import EditCleaningTaskDialog from './EditCleaningTaskDialog';
+import AutoCleaningSettingsCard from './AutoCleaningSettingsCard';
 
 const CleaningManagement = () => {
   const location = useLocation();
@@ -467,6 +468,9 @@ const CleaningManagement = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Automatisierung */}
+      <AutoCleaningSettingsCard />
 
       {/* Reinigungsaufträge */}
       <Card>
