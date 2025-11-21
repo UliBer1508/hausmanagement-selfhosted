@@ -93,6 +93,23 @@ export const useDeleteBooking = () => {
   
   return useMutation({
     mutationFn: async (id: string) => {
+      // First, delete related service tasks (cleaning tasks)
+      const { error: serviceTasksError } = await supabase
+        .from('service_tasks')
+        .delete()
+        .eq('booking_id', id);
+      
+      if (serviceTasksError) throw serviceTasksError;
+
+      // Second, delete related linen orders
+      const { error: linenOrdersError } = await supabase
+        .from('linen_orders')
+        .delete()
+        .eq('booking_id', id);
+      
+      if (linenOrdersError) throw linenOrdersError;
+
+      // Finally, delete the booking itself
       const { error } = await supabase
         .from('bookings')
         .delete()
@@ -102,7 +119,11 @@ export const useDeleteBooking = () => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
       await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['service-tasks'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       await queryClient.refetchQueries({ queryKey: ['connected-bookings'] });
     },
   });

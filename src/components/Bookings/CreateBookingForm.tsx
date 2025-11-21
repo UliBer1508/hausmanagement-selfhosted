@@ -8,7 +8,7 @@ import { CalendarIcon, Loader2, ShoppingCart } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useCreateBooking, useUpdateBooking } from '@/hooks/useBookings';
+import { useCreateBooking, useUpdateBooking, useDeleteBooking } from '@/hooks/useBookings';
 import { useUpdateServiceTask } from '@/hooks/useServiceTasks';
 import { Booking, BookingWithHouse } from '@/types';
 
@@ -136,6 +136,8 @@ interface CreateBookingFormProps {
 const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }: CreateBookingFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isHistoricalBooking, setIsHistoricalBooking] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [relatedItems, setRelatedItems] = useState<{ cleaningTasks: any[]; linenOrders: any[] }>({ cleaningTasks: [], linenOrders: [] });
 
   // Helper function to set standard time on date
   const setTimeOnDate = (date: Date, hours: number, minutes: number = 0): Date => {
@@ -154,6 +156,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
   const createBooking = useCreateBooking();
   const updateBooking = useUpdateBooking();
   const updateServiceTask = useUpdateServiceTask();
+  const deleteBooking = useDeleteBooking();
 
   // Mutation to create cleaning task automatically
   const createCleaningTaskMutation = useMutation({
@@ -579,6 +582,62 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
     }
   };
 
+  const handleCheckAndDeleteBooking = async () => {
+    if (!initialData?.id) return;
+
+    try {
+      // Check for related cleaning tasks
+      const { data: cleaningTasks, error: cleaningError } = await supabase
+        .from('service_tasks')
+        .select('*')
+        .eq('booking_id', initialData.id);
+      
+      if (cleaningError) throw cleaningError;
+
+      // Check for related linen orders
+      const { data: linenOrders, error: linenError } = await supabase
+        .from('linen_orders')
+        .select('*')
+        .eq('booking_id', initialData.id);
+      
+      if (linenError) throw linenError;
+
+      setRelatedItems({ 
+        cleaningTasks: cleaningTasks || [], 
+        linenOrders: linenOrders || [] 
+      });
+      setShowDeleteDialog(true);
+    } catch (error: any) {
+      toast({
+        title: "Fehler",
+        description: error.message || "Fehler beim Prüfen der verknüpften Daten",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!initialData?.id) return;
+
+    try {
+      await deleteBooking.mutateAsync(initialData.id);
+      
+      toast({
+        title: "Buchung gelöscht",
+        description: `Buchung und ${relatedItems.cleaningTasks.length} Reinigungsauftrag/äge und ${relatedItems.linenOrders.length} Wäschebestellung/en wurden gelöscht.`,
+      });
+
+      setShowDeleteDialog(false);
+      onSuccess();
+    } catch (error: any) {
+      toast({
+        title: "Fehler beim Löschen",
+        description: error.message || "Die Buchung konnte nicht gelöscht werden",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -988,6 +1047,16 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
               mode === 'edit' ? 'Buchung aktualisieren' : 'Buchung erstellen'
             )}
           </Button>
+          {mode === 'edit' && (
+            <Button 
+              type="button" 
+              variant="destructive" 
+              onClick={handleCheckAndDeleteBooking}
+              disabled={isSubmitting}
+            >
+              Löschen
+            </Button>
+          )}
           {onCancel && (
             <Button type="button" variant="outline" onClick={onCancel}>
               Abbrechen
@@ -1038,6 +1107,53 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
             </Button>
             <AlertDialogAction onClick={handleCancelCleaningTasks}>
               Ja, stornieren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog für Buchungslöschung */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Buchung wirklich löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="space-y-3">
+                <p className="font-medium">
+                  Diese Aktion löscht unwiderruflich die Buchung von {initialData?.guest_name}
+                </p>
+                
+                {(relatedItems.cleaningTasks.length > 0 || relatedItems.linenOrders.length > 0) && (
+                  <div className="mt-3 p-3 bg-destructive/10 rounded-md">
+                    <p className="font-medium text-destructive mb-2">
+                      Folgende verknüpfte Daten werden ebenfalls gelöscht:
+                    </p>
+                    <ul className="text-sm space-y-1">
+                      {relatedItems.cleaningTasks.length > 0 && (
+                        <li>• {relatedItems.cleaningTasks.length} Reinigungsauftrag/äge</li>
+                      )}
+                      {relatedItems.linenOrders.length > 0 && (
+                        <li>• {relatedItems.linenOrders.length} Wäschebestellung/en</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+                
+                <p className="text-sm text-muted-foreground mt-3">
+                  Diese Aktion kann nicht rückgängig gemacht werden.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDeleteDialog(false)}>
+              Abbrechen
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleConfirmDelete}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Endgültig löschen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
