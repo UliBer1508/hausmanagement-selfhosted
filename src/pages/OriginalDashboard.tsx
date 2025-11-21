@@ -491,6 +491,35 @@ const OriginalDashboard = () => {
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
+  // Fetch providers with portal access
+  const { data: portalProviders } = useQuery({
+    queryKey: ['portal-providers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('service_providers')
+        .select('*')
+        .eq('has_portal', true)
+        .eq('is_active', true)
+        .order('name');
+      
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  // Helper function for service type icons
+  const getServiceIcon = (serviceType: string) => {
+    switch(serviceType) {
+      case 'cleaning':
+        return { icon: Sparkles, color: 'text-blue-500' };
+      case 'laundry':
+        return { icon: Shirt, color: 'text-purple-500' };
+      default:
+        return { icon: Building2, color: 'text-gray-500' };
+    }
+  };
+
   // Nur touristische Häuser anzeigen
   const housesData = useMemo(() => {
     return allHousesData?.filter((h: any) => h.rental_type === 'tourist') || [];
@@ -1414,47 +1443,43 @@ const OriginalDashboard = () => {
             
             {/* Provider Links */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Amela Webapp */}
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="text-center">
-                  <CardTitle className="flex items-center justify-center gap-2">
-                    <Sparkles className="w-5 h-5 text-blue-500" />
-                    Amela Cleaning Portal
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-center space-y-4">
-                  <p className="text-sm text-gray-600">
-                    Reinigungsaufträge verwalten und bearbeiten
-                  </p>
-                  <Button 
-                    className="w-full" 
-                    onClick={() => window.open('https://amela-clean-hub.lovable.app/', '_blank')}
-                  >
-                    Portal öffnen
-                  </Button>
-                </CardContent>
-              </Card>
+              {portalProviders?.length === 0 && (
+                <p className="text-center text-muted-foreground col-span-full">
+                  Keine Provider mit Portal-Zugang konfiguriert.
+                </p>
+              )}
               
-              {/* Teuni Webapp */}
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader className="text-center">
-                  <CardTitle className="flex items-center justify-center gap-2">
-                    <Shirt className="w-5 h-5 text-purple-500" />
-                    Teuni Laundry Portal
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-center space-y-4">
-                  <p className="text-sm text-gray-600">
-                    Wäscheaufträge verwalten und bearbeiten
-                  </p>
-                  <Button 
-                    className="w-full" 
-                    onClick={() => window.open('https://fresh-spin-portal.lovable.app/', '_blank')}
-                  >
-                    Portal öffnen
-                  </Button>
-                </CardContent>
-              </Card>
+              {portalProviders?.map((provider) => {
+                const { icon: Icon, color } = getServiceIcon(provider.service_type);
+                const displayName = provider.service_type === 'cleaning' 
+                  ? `${provider.name} Cleaning Portal` 
+                  : `${provider.name} Laundry Portal`;
+                const description = provider.service_type === 'cleaning'
+                  ? 'Reinigungsaufträge verwalten und bearbeiten'
+                  : 'Wäscheaufträge verwalten und bearbeiten';
+
+                return (
+                  <Card key={provider.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader className="text-center">
+                      <CardTitle className="flex items-center justify-center gap-2">
+                        <Icon className={`w-5 h-5 ${color}`} />
+                        {displayName}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-center space-y-4">
+                      <p className="text-sm text-gray-600">
+                        {description}
+                      </p>
+                      <Button 
+                        className="w-full" 
+                        onClick={() => window.open(provider.portal_token, '_blank')}
+                      >
+                        Portal öffnen
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
         );
