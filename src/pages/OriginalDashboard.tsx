@@ -2085,7 +2085,7 @@ const OriginalDashboard = () => {
                     <span className="text-sm flex-shrink-0">{house.icon}</span>
                     <span className="text-sm font-medium truncate">{house.name}</span>
                   </div>
-                  <span className={`text-xs whitespace-nowrap ${
+                  <span className={`text-sm font-bold whitespace-nowrap ${
                     house.status === 'Belegt' ? 'text-orange-600' : 'text-green-600'
                   }`}>
                     {house.status === 'Belegt' ? '🔴' : '🟢'}{house.status}
@@ -2109,12 +2109,12 @@ const OriginalDashboard = () => {
                   <div key={index} className="flex items-center justify-between min-w-0">
                     <div className="flex items-center space-x-2 min-w-0 flex-1">
                       <span className="text-sm flex-shrink-0">{booking.icon}</span>
-                      <span className="text-xs truncate">
+                      <span className="text-sm truncate">
                         <span className="font-medium">{booking.house}</span>
                         <span className="text-muted-foreground"> · {booking.guest}</span>
                       </span>
                     </div>
-                    <span className="text-xs whitespace-nowrap text-green-600 font-bold">
+                    <span className="text-sm whitespace-nowrap text-green-600 font-bold">
                       {booking.date}
                     </span>
                   </div>
@@ -2136,7 +2136,7 @@ const OriginalDashboard = () => {
             <CardContent className="space-y-2">
               {cleaningTasks.map((task, index) => (
                 <div key={index} className="flex items-center justify-between min-w-0">
-                  <span className="text-sm truncate flex-1">
+                  <span className="text-sm font-medium truncate flex-1">
                     {task.icon}{task.house} • {task.guest} • {task.date} • {task.count}🧹
                   </span>
                   <span className="text-lg flex-shrink-0">⏰</span>
@@ -2161,7 +2161,7 @@ const OriginalDashboard = () => {
                 </div>
               ) : (
                 laundryOrderStatus.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between min-w-0 gap-2">
+                <div key={item.id} className="flex items-center justify-between min-w-0 gap-2">
                     <span className="text-sm truncate flex-1">
                       <span className="mr-1.5">{item.icon}</span>
                       <span className="font-medium">{item.house}</span>
@@ -2169,7 +2169,7 @@ const OriginalDashboard = () => {
                     </span>
                     <div className={`flex items-center gap-1.5 flex-shrink-0 ${item.statusColor}`}>
                       <span className="text-base">{item.statusIcon}</span>
-                      <span className="text-sm font-medium">{item.statusText}</span>
+                      <span className="text-sm font-bold">{item.statusText}</span>
                     </div>
                   </div>
                 ))
