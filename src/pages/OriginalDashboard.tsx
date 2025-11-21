@@ -2114,7 +2114,7 @@ const OriginalDashboard = () => {
                         <span className="text-muted-foreground"> · {booking.guest}</span>
                       </span>
                     </div>
-                    <span className="text-xs whitespace-nowrap text-primary-green font-bold">
+                    <span className="text-xs whitespace-nowrap text-green-600 font-bold">
                       {booking.date}
                     </span>
                   </div>
