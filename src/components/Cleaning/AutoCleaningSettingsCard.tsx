@@ -61,14 +61,11 @@ const AutoCleaningSettingsCard = () => {
   if (isLoading) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-2 lg:space-y-0 pb-4">
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
             Automatisierung
           </CardTitle>
-          <CardDescription>
-            Globale Einstellungen für automatische Reinigungsaufträge
-          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
@@ -81,31 +78,24 @@ const AutoCleaningSettingsCard = () => {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-2 lg:space-y-0 pb-4">
         <CardTitle className="flex items-center gap-2">
           <Settings className="h-5 w-5" />
           Automatisierung
         </CardTitle>
-        <CardDescription>
-          Globale Einstellungen für automatische Reinigungsaufträge
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Zeile 1: Switch + Save Button */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Switch 
-              checked={localIsEnabled}
-              onCheckedChange={(checked) => {
-                setLocalIsEnabled(checked);
-                handleChange();
-              }}
-              disabled={isLoading}
-            />
-            <Label className="text-sm font-medium cursor-pointer">
-              Automatisierung aktivieren
-            </Label>
-          </div>
+        
+        <div className="flex items-center gap-3">
+          <Switch 
+            checked={localIsEnabled}
+            onCheckedChange={(checked) => {
+              setLocalIsEnabled(checked);
+              handleChange();
+            }}
+            disabled={isLoading}
+          />
+          <Label className="text-sm font-medium cursor-pointer">
+            Automatisierung aktivieren
+          </Label>
           <Button 
             onClick={handleSave} 
             disabled={!hasChanges || isUpdating}
@@ -125,8 +115,9 @@ const AutoCleaningSettingsCard = () => {
             )}
           </Button>
         </div>
-
-        {/* Zeile 2: 3 Felder */}
+      </CardHeader>
+      
+      <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Standard Provider */}
           <div className="space-y-2">
