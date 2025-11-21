@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { Loader2, Save, Settings } from 'lucide-react';
 import { useCleaningAutomationSettings } from '@/hooks/useCleaningAutomationSettings';
 import { useQuery } from '@tanstack/react-query';
@@ -14,6 +15,7 @@ const AutoCleaningSettingsCard = () => {
   const [localProviderId, setLocalProviderId] = useState<string>('');
   const [localScheduleTiming, setLocalScheduleTiming] = useState<'day_before' | 'on_checkin' | 'day_after'>('on_checkin');
   const [localTime, setLocalTime] = useState<string>('10:00');
+  const [localIsEnabled, setLocalIsEnabled] = useState<boolean>(true);
   const [hasChanges, setHasChanges] = useState(false);
 
   // Load settings into local state when available
@@ -22,6 +24,7 @@ const AutoCleaningSettingsCard = () => {
       setLocalProviderId(settings.default_provider_id || '');
       setLocalScheduleTiming(settings.schedule_timing);
       setLocalTime(settings.default_time);
+      setLocalIsEnabled(settings.is_enabled);
       setHasChanges(false);
     }
   }, [settings]);
@@ -46,25 +49,13 @@ const AutoCleaningSettingsCard = () => {
       default_provider_id: localProviderId || null,
       schedule_timing: localScheduleTiming,
       default_time: localTime,
+      is_enabled: localIsEnabled,
     });
     setHasChanges(false);
   };
 
   const handleChange = () => {
     setHasChanges(true);
-  };
-
-  const getScheduleTimingLabel = (timing: string) => {
-    switch (timing) {
-      case 'day_before':
-        return 'Tag vor Check-in';
-      case 'on_checkin':
-        return 'Am Check-in-Tag';
-      case 'day_after':
-        return 'Tag nach Check-out';
-      default:
-        return timing;
-    }
   };
 
   if (isLoading) {
@@ -99,7 +90,43 @@ const AutoCleaningSettingsCard = () => {
           Globale Einstellungen für automatische Reinigungsaufträge
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
+        {/* Zeile 1: Switch + Save Button */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Switch 
+              checked={localIsEnabled}
+              onCheckedChange={(checked) => {
+                setLocalIsEnabled(checked);
+                handleChange();
+              }}
+              disabled={isLoading}
+            />
+            <Label className="text-sm font-medium cursor-pointer">
+              Automatisierung aktivieren
+            </Label>
+          </div>
+          <Button 
+            onClick={handleSave} 
+            disabled={!hasChanges || isUpdating}
+            size="sm"
+            className="gap-2"
+          >
+            {isUpdating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Speichere...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Einstellungen speichern
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Zeile 2: 3 Felder */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Standard Provider */}
           <div className="space-y-2">
@@ -110,6 +137,7 @@ const AutoCleaningSettingsCard = () => {
                 setLocalProviderId(value);
                 handleChange();
               }}
+              disabled={!localIsEnabled}
             >
               <SelectTrigger id="default-provider" className="bg-background">
                 <SelectValue placeholder="Dienstleister auswählen" />
@@ -133,6 +161,7 @@ const AutoCleaningSettingsCard = () => {
                 setLocalScheduleTiming(value);
                 handleChange();
               }}
+              disabled={!localIsEnabled}
             >
               <SelectTrigger id="schedule-timing" className="bg-background">
                 <SelectValue />
@@ -154,6 +183,7 @@ const AutoCleaningSettingsCard = () => {
                 setLocalTime(value);
                 handleChange();
               }}
+              disabled={!localIsEnabled}
             >
               <SelectTrigger id="default-time" className="bg-background">
                 <SelectValue />
@@ -169,37 +199,6 @@ const AutoCleaningSettingsCard = () => {
               </SelectContent>
             </Select>
           </div>
-        </div>
-
-        {/* Save Button */}
-        <div className="flex justify-end">
-          <Button
-            onClick={handleSave}
-            disabled={!hasChanges || isUpdating}
-            className="gap-2"
-          >
-            {isUpdating ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Speichere...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4" />
-                Einstellungen speichern
-              </>
-            )}
-          </Button>
-        </div>
-
-        {/* Info about dynamic calculation */}
-        <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
-          <p className="font-medium mb-1">Hinweis:</p>
-          <p>
-            Die Reinigungsstunden und -kosten werden automatisch basierend auf den 
-            <span className="font-medium"> Standard-Reinigungsstunden</span> des gebuchten Hauses und dem 
-            <span className="font-medium"> Stundensatz</span> des ausgewählten Dienstleisters berechnet.
-          </p>
         </div>
       </CardContent>
     </Card>

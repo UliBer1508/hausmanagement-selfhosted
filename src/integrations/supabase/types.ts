@@ -1018,6 +1018,7 @@ export type Database = {
           default_provider_id: string | null
           default_time: string | null
           id: string
+          is_enabled: boolean
           schedule_timing: string | null
           updated_at: string | null
         }
@@ -1026,6 +1027,7 @@ export type Database = {
           default_provider_id?: string | null
           default_time?: string | null
           id?: string
+          is_enabled?: boolean
           schedule_timing?: string | null
           updated_at?: string | null
         }
@@ -1034,6 +1036,7 @@ export type Database = {
           default_provider_id?: string | null
           default_time?: string | null
           id?: string
+          is_enabled?: boolean
           schedule_timing?: string | null
           updated_at?: string | null
         }
