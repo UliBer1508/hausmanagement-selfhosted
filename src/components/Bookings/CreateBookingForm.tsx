@@ -238,6 +238,13 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
     }
   }, [initialData, mode, form]);
 
+  // Auto-disable cleaning task creation for historical bookings
+  useEffect(() => {
+    if (isHistoricalBooking && form.getValues('auto_create_cleaning')) {
+      form.setValue('auto_create_cleaning', false);
+    }
+  }, [isHistoricalBooking, form]);
+
   // Fetch houses for dropdown
   const { data: houses, isLoading: housesLoading } = useQuery({
     queryKey: ['houses-for-booking'],
@@ -442,10 +449,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
           description: 'Die Buchung wurde erfolgreich erstellt.',
         });
 
-        // Auto-create cleaning task if checkbox is enabled
-        if (data.auto_create_cleaning && bookingResult?.id) {
+        // Auto-create cleaning task if checkbox is enabled AND not historical booking
+        if (data.auto_create_cleaning && bookingResult?.id && !isHistoricalBooking) {
           console.log('🧹 Auto-creating cleaning task for booking:', bookingResult.id);
-          createCleaningTaskMutation.mutate(bookingResult.id);
+          await createCleaningTaskMutation.mutateAsync(bookingResult.id);
         }
       }
 
@@ -827,15 +834,27 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                 name="auto_create_cleaning"
                 render={({ field }) => (
                   <FormItem className="flex flex-col justify-end h-full">
-                    <div className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 bg-muted/30 h-[42px]">
+                    <div className={cn(
+                      "flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 h-[42px]",
+                      isHistoricalBooking ? "bg-muted/10 opacity-50" : "bg-muted/30"
+                    )}>
                       <FormControl>
                         <Checkbox
                           checked={field.value}
                           onCheckedChange={field.onChange}
+                          disabled={isHistoricalBooking}
                         />
                       </FormControl>
-                      <FormLabel className="font-normal text-sm cursor-pointer">
+                      <FormLabel className={cn(
+                        "font-normal text-sm",
+                        isHistoricalBooking ? "cursor-not-allowed" : "cursor-pointer"
+                      )}>
                         Reinigungsauftrag automatisch erstellen
+                        {isHistoricalBooking && (
+                          <span className="text-xs text-muted-foreground ml-2">
+                            (nicht für historische Buchungen)
+                          </span>
+                        )}
                       </FormLabel>
                     </div>
                   </FormItem>
