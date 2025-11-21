@@ -13,7 +13,7 @@ export interface Provider {
 
 export interface ServiceTask {
   id: string;
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'delayed';
+  status: 'draft' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'delayed';
   scheduled_time?: string;
   scheduled_date: string;
   provider_id?: string;

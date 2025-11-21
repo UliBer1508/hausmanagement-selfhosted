@@ -64,7 +64,7 @@ const editTaskSchema = z.object({
   scheduled_time: z.string().optional(),
   cleaning_hours: z.number().min(0.5, 'Mindestens 0,5 Stunden').max(24, 'Maximal 24 Stunden'),
   payment_status: z.enum(['paid', 'unpaid', 'pending']),
-  status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
+  status: z.enum(['draft', 'scheduled', 'in_progress', 'completed', 'cancelled', 'delayed']),
   notes: z.string().optional(),
 });
 
@@ -333,6 +333,8 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
 
   const getStatusBadge = (status: string) => {
     switch(status) {
+      case 'draft':
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/20 dark:text-yellow-400">📝 Entwurf</Badge>;
       case 'scheduled':
         return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900/20 dark:text-green-400">Geplant</Badge>;
       case 'in_progress':
@@ -633,6 +635,12 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent className="bg-background z-50">
+                              <SelectItem 
+                                value="draft"
+                                className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400 focus:bg-yellow-200 dark:focus:bg-yellow-900/30"
+                              >
+                                📝 Entwurf
+                              </SelectItem>
                               <SelectItem 
                                 value="scheduled"
                                 className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 focus:bg-green-200 dark:focus:bg-green-900/30"
