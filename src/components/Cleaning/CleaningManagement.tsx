@@ -260,6 +260,8 @@ const CleaningManagement = () => {
 
   const getStatusBadge = (status: string) => {
     switch(status) {
+      case 'draft':
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-900/20 dark:text-yellow-400">📝 Entwurf</Badge>;
       case 'scheduled':
         return <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900/20 dark:text-green-400">Geplant</Badge>;
       case 'in_progress':

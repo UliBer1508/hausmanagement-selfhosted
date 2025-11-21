@@ -168,8 +168,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
     onSuccess: (data) => {
       if (data.success && data.task_created) {
         toast({
-          title: "Reinigungsauftrag erstellt",
-          description: `Reinigung für ${data.scheduled_date} um ${data.scheduled_time} Uhr automatisch angelegt.`,
+          title: "📝 Reinigungsauftrag als Entwurf erstellt",
+          description: `Bitte im Reinigung-Tab prüfen. Geplant: ${data.scheduled_date} um ${data.scheduled_time} Uhr`,
+          duration: 5000,
         });
       } else if (data.message) {
         toast({

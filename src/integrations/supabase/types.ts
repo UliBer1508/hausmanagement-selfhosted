@@ -4108,6 +4108,7 @@ export type Database = {
         | "completed"
         | "delayed"
         | "cancelled"
+        | "draft"
       user_role: "admin" | "cleaning_provider" | "laundry_provider"
     }
     CompositeTypes: {
@@ -4245,6 +4246,7 @@ export const Constants = {
         "completed",
         "delayed",
         "cancelled",
+        "draft",
       ],
       user_role: ["admin", "cleaning_provider", "laundry_provider"],
     },

@@ -133,8 +133,8 @@ serve(async (req) => {
         estimated_hours: defaultHours,
         estimated_cost: estimatedCost,
         provider_id: settings.default_provider_id,
-        status: 'scheduled',
-        notes: `Automatisch erstellt für Buchung von ${booking.guest_name}`,
+        status: 'draft',
+        notes: `Automatisch erstellt für Buchung von ${booking.guest_name} - Bitte prüfen`,
       })
       .select()
       .single();
