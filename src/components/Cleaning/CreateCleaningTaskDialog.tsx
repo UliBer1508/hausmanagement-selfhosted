@@ -170,7 +170,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
         .from('bookings')
         .select('id, guest_name, guest_email, guest_phone, check_in, check_out, number_of_guests, booking_amount, currency')
         .eq('house_id', selectedHouseId)
-        .neq('status', 'completed')
+        .not('status', 'in', '(completed,cancelled)')
         .gte('check_out', new Date().toISOString())
         .order('check_in', { ascending: true });
       return data || [];
