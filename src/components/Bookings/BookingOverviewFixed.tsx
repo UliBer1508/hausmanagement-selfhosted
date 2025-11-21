@@ -3,6 +3,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Select,
   SelectContent,
@@ -24,12 +35,13 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Plus, Search, Edit, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO, isAfter, isBefore, startOfDay, endOfDay, addMonths, startOfYear, endOfYear } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { useDeleteBooking } from '@/hooks/useBookings';
 import CreateBookingDialog from './CreateBookingDialog';
 import EditBookingDialog from './EditBookingDialog';
 
@@ -105,6 +117,54 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const [selectedBookingForEdit, setSelectedBookingForEdit] = useState<any | null>(null);
+  const [bookingToDelete, setBookingToDelete] = useState<any | null>(null);
+  const [relatedItems, setRelatedItems] = useState<{ cleanings: number; orders: number }>({ cleanings: 0, orders: 0 });
+  
+  const { toast } = useToast();
+  const deleteBookingMutation = useDeleteBooking();
+
+  // Handler für Lösch-Button
+  const handleDeleteClick = async (booking: any) => {
+    // Zähle verknüpfte Items
+    const { data: cleanings } = await supabase
+      .from('service_tasks')
+      .select('id')
+      .eq('booking_id', booking.id);
+    
+    const { data: orders } = await supabase
+      .from('linen_orders')
+      .select('id')
+      .eq('booking_id', booking.id);
+    
+    setRelatedItems({
+      cleanings: cleanings?.length || 0,
+      orders: orders?.length || 0
+    });
+    setBookingToDelete(booking);
+  };
+
+  // Handler für Lösch-Bestätigung
+  const handleConfirmDelete = () => {
+    if (!bookingToDelete) return;
+    
+    deleteBookingMutation.mutate(bookingToDelete.id, {
+      onSuccess: () => {
+        toast({
+          title: "Buchung gelöscht",
+          description: `Buchung von ${bookingToDelete.guest_name} wurde erfolgreich gelöscht.`,
+        });
+        setBookingToDelete(null);
+        window.location.reload();
+      },
+      onError: (error) => {
+        toast({
+          title: "Fehler beim Löschen",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
+    });
+  };
 
   // Fetch bookings with house information
   const { data: bookingsData, isLoading, error } = useQuery({
@@ -598,18 +658,28 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
                     </div>
                   </TableCell>
                   <TableCell>
-                    <EditBookingDialog 
-                      booking={booking}
-                      onBookingUpdated={() => {
-                        console.log('Booking updated, invalidating cache');
-                        window.location.reload();
-                      }}
-                      trigger={
-                        <Button variant="ghost" size="sm">
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                      }
-                    />
+                    <div className="flex items-center gap-1">
+                      <EditBookingDialog 
+                        booking={booking}
+                        onBookingUpdated={() => {
+                          console.log('Booking updated, invalidating cache');
+                          window.location.reload();
+                        }}
+                        trigger={
+                          <Button variant="ghost" size="sm">
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        }
+                      />
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDeleteClick(booking)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -647,6 +717,44 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
           />
         </div>
       )}
+
+      {/* Lösch-Bestätigungsdialog */}
+      <AlertDialog open={!!bookingToDelete} onOpenChange={(open) => !open && setBookingToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Buchung wirklich löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Diese Aktion kann nicht rückgängig gemacht werden. Die Buchung von{' '}
+              <strong>{bookingToDelete?.guest_name}</strong> wird unwiderruflich gelöscht.
+              
+              {(relatedItems.cleanings > 0 || relatedItems.orders > 0) && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                  <p className="font-medium text-yellow-800">
+                    Folgende verknüpfte Einträge werden ebenfalls gelöscht:
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm text-yellow-700">
+                    {relatedItems.cleanings > 0 && (
+                      <li>• {relatedItems.cleanings} Reinigungsauftrag{relatedItems.cleanings > 1 ? 'äge' : ''}</li>
+                    )}
+                    {relatedItems.orders > 0 && (
+                      <li>• {relatedItems.orders} Wäschebestellung{relatedItems.orders > 1 ? 'en' : ''}</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Ja, löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
