@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search } from 'lucide-react';
 import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
+import { useToast } from '@/hooks/use-toast';
 
 interface LinenOrdersListProps {
   onEditOrder?: (order: any) => void;
@@ -17,6 +18,8 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [houseFilter, setHouseFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Fetch linen orders with related data
   const { data: linenOrders, isLoading } = useQuery({
@@ -60,6 +63,31 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
       if (error) throw error;
       return data || [];
     },
+  });
+
+  // Confirm order mutation (offen → pending)
+  const confirmOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await supabase
+        .from('linen_orders')
+        .update({ status: 'pending' })
+        .eq('id', orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['linen-orders-list'] });
+      toast({
+        title: "✅ Bestellung bestätigt",
+        description: "Status wurde auf 'Ausstehend' gesetzt."
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "❌ Fehler",
+        description: `Bestellung konnte nicht bestätigt werden: ${error.message}`,
+        variant: "destructive"
+      });
+    }
   });
 
   // Filter orders
@@ -200,6 +228,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
               colorVariant="purple"
               onEdit={onEditOrder}
               onDelete={onDeleteOrder}
+              onConfirm={(order) => confirmOrderMutation.mutate(order.id)}
             />
           ))}
         </div>
