@@ -48,7 +48,7 @@ import BookingOverviewFixed from '@/components/Bookings/BookingOverviewFixed';
 import BookingCard from '@/components/Bookings/BookingCard';
 import ServiceTaskCard from '@/components/Bookings/ServiceTaskCard';
 import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
-import Houses from '@/pages/Houses';
+import HouseManagement from '@/components/Houses/HouseManagement';
 import CleaningManagement from '@/components/Cleaning/CleaningManagement';
 import GuestManagement from '@/components/Guests/GuestManagement';
 import TenantManagement from '@/components/Tenants/TenantManagement';
@@ -1418,7 +1418,7 @@ const OriginalDashboard = () => {
       case 'Mieter':
         return <TenantManagement />;
       case 'Häuser':
-        return <Houses />;
+        return <HouseManagement />;
       case 'Reinigung':
         return <CleaningManagement />;
       case 'Provider':
