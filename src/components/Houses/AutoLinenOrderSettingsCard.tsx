@@ -27,7 +27,7 @@ const AutoLinenOrderSettingsCard = () => {
       setLocalLookaheadBookings(settings.lookahead_bookings);
       setLocalDeliveryAdvanceDays(settings.delivery_advance_days);
       setLocalMinAdvanceDays(settings.min_advance_days);
-      setLocalProviderId(settings.default_provider_id || '');
+      setLocalProviderId(settings.default_provider_id || 'none');
       setHasChanges(false);
     }
   }, [settings]);
@@ -54,7 +54,7 @@ const AutoLinenOrderSettingsCard = () => {
       lookahead_bookings: localLookaheadBookings,
       delivery_advance_days: localDeliveryAdvanceDays,
       min_advance_days: localMinAdvanceDays,
-      default_provider_id: localProviderId || null,
+      default_provider_id: localProviderId === 'none' ? null : localProviderId,
     });
     setHasChanges(false);
   };
@@ -202,7 +202,7 @@ const AutoLinenOrderSettingsCard = () => {
                 <SelectValue placeholder="Optional" />
               </SelectTrigger>
               <SelectContent className="bg-background z-50">
-                <SelectItem value="">Keine Auswahl</SelectItem>
+                <SelectItem value="none">Keine Auswahl</SelectItem>
                 {providers?.map((provider) => (
                   <SelectItem key={provider.id} value={provider.id}>
                     {provider.name}
