@@ -1,7 +1,7 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Edit, Package, Trash2 } from 'lucide-react';
+import { Edit, Package, Trash2, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface LaundryOrderCardProps {
@@ -10,9 +10,10 @@ interface LaundryOrderCardProps {
   isPending?: boolean;
   onEdit?: (order: any) => Promise<void> | void;
   onDelete?: (order: any) => Promise<void> | void;
+  onConfirm?: (order: any) => Promise<void> | void;
 }
 
-const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete }: LaundryOrderCardProps) => {
+const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm }: LaundryOrderCardProps) => {
   const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
@@ -202,8 +203,27 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
 
 
         {/* Action Buttons - Top Right */}
-        {!isPending && (onEdit || onDelete) && (
+        {!isPending && (onEdit || onDelete || (onConfirm && order.status === 'offen')) && (
           <div className="absolute top-2 right-2 flex gap-1 z-10">
+            {/* Confirm Button - nur bei Status 'offen' */}
+            {onConfirm && order.status === 'offen' && (
+              <Button
+                size="sm"
+                className="h-8 px-3 bg-green-600 hover:bg-green-700 text-white"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await onConfirm(order);
+                  } catch (error) {
+                    console.error('Error in onConfirm:', error);
+                  }
+                }}
+              >
+                <CheckCircle className="w-4 h-4 mr-1" />
+                Bestätigen
+              </Button>
+            )}
+
             {/* Edit Button */}
             {onEdit && (
               <Button
