@@ -874,6 +874,12 @@ const OriginalDashboard = () => {
             statusIcon = '🚚';
             statusColor = 'text-orange-600';
             break;
+          case 'offen':
+            orderStatus = 'open';
+            statusText = 'Zu bestätigen';
+            statusIcon = '📝';
+            statusColor = 'text-amber-600';
+            break;
           default:
             orderStatus = 'unknown';
             statusText = linenOrder.status;
@@ -895,6 +901,11 @@ const OriginalDashboard = () => {
       };
     });
   }, [bookingsData, housesData, linenOrders]);
+
+  // Prüfe ob es offene Bestellungen gibt (global)
+  const hasOpenOrders = useMemo(() => {
+    return linenOrders?.some(order => order.status === 'offen') || false;
+  }, [linenOrders]);
 
   // Echte Daten aus useOptimizedLinenManagement verwenden
   const laundryNeeds = useMemo(() => {
@@ -2176,6 +2187,11 @@ const OriginalDashboard = () => {
               <CardTitle className="text-sm font-medium flex items-center">
                 <span className="flex-shrink-0">🧺</span>
                 <span className="truncate ml-2">Wäschebedarf</span>
+                {hasOpenOrders && (
+                  <span className="animate-pulse text-amber-600 text-lg ml-auto flex-shrink-0">
+                    🔔
+                  </span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
