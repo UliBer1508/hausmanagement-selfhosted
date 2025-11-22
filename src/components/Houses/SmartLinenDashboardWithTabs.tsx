@@ -2,6 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { BookingLinenOverview } from "./BookingLinenOverview";
 import SmartLinenDashboard from "./SmartLinenDashboard";
+import AutoLinenOrderSettingsCard from "./AutoLinenOrderSettingsCard";
 import { useHouses } from "@/hooks/useHouses";
 import { useBookingLinenOrders } from "@/hooks/useBookingLinenOrders";
 import { useMemo } from "react";
@@ -35,6 +36,8 @@ export const SmartLinenDashboardWithTabs = () => {
         </TabsList>
 
         <TabsContent value="smart-analyse" className="space-y-6">
+          <AutoLinenOrderSettingsCard />
+          
           {firstHouse ? (
             <BookingLinenOverview houseId={firstHouse.id} />
           ) : (

@@ -2397,6 +2397,47 @@ export type Database = {
           },
         ]
       }
+      linen_automation_settings: {
+        Row: {
+          created_at: string | null
+          default_provider_id: string | null
+          delivery_advance_days: number
+          id: string
+          is_enabled: boolean
+          lookahead_bookings: number
+          min_advance_days: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_provider_id?: string | null
+          delivery_advance_days?: number
+          id?: string
+          is_enabled?: boolean
+          lookahead_bookings?: number
+          min_advance_days?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_provider_id?: string | null
+          delivery_advance_days?: number
+          id?: string
+          is_enabled?: boolean
+          lookahead_bookings?: number
+          min_advance_days?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "linen_automation_settings_default_provider_id_fkey"
+            columns: ["default_provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       linen_orders: {
         Row: {
           assigned_staff_id: string | null
