@@ -137,6 +137,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Status</SelectItem>
+                <SelectItem value="offen">📝 Offen</SelectItem>
                 <SelectItem value="pending">⏳ Ausstehend</SelectItem>
                 <SelectItem value="in_progress">🔄 In Bearbeitung</SelectItem>
                 <SelectItem value="completed">✅ Abgeschlossen</SelectItem>

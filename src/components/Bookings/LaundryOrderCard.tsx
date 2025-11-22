@@ -31,6 +31,8 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
       return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">⏳ Ausstehend</Badge>;
     }
     switch (status) {
+      case 'offen':
+        return <Badge className="bg-amber-100 text-amber-800 border-amber-300">📝 Offen</Badge>;
       case 'pending':
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">⏳ Ausstehend</Badge>;
       case 'assigned':

@@ -1,5 +1,11 @@
 project_id = "usblrulkcgucxtkhugck"
 
+[functions.auto-create-linen-orders]
+verify_jwt = false
+
+[functions.auto-create-linen-orders.cron]
+schedule = "0 6 * * *"
+
 [functions.check-supabase-usage]
 verify_jwt = false
 
