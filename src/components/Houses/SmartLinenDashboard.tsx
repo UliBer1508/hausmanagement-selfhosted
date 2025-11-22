@@ -339,8 +339,8 @@ const SmartLinenDashboard = () => {
                   onClick={() => setSelectedHouse(houseOverview.house)}
                 >
                   <Package className="w-3 h-3 md:w-4 md:h-4 md:mr-1" />
-                  <span className="hidden xs:inline ml-1">Inventar verwalten</span>
-                  <span className="xs:hidden">Inventar</span>
+                  <span className="hidden xs:inline ml-1">Wäsche verwalten</span>
+                  <span className="xs:hidden">Wäsche</span>
                 </Button>
                 {houseOverview.criticalCount > 0 && (
                   <Button

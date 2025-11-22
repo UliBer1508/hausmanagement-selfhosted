@@ -719,14 +719,14 @@ const LinenDashboard = () => {
 
               {/* Action Buttons */}
               <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                <Button
+              <Button
                   variant="outline"
                   size="sm"
                   className="flex-1"
                   onClick={() => setSelectedHouse(houseStatus.house)}
                 >
                   <span className="mr-1">📈</span>
-                  Inventar verwalten
+                  Wäsche verwalten
                 </Button>
                 {houseStatus.status === 'critical' && (
                   <Button
