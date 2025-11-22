@@ -24,7 +24,6 @@ import LinenOrderDialog from './LinenOrderDialog';
 import LinenSetRulesTab from './LinenSetRulesTab';
 import { LinenOrderAnalytics } from './LinenOrderAnalytics';
 import LinenPricesTab from './LinenPricesTab';
-import SmartLinenSettings from './SmartLinenSettings';
 import { BookingLinenOverview } from './BookingLinenOverview';
 
 interface LinenInventoryDialogProps {
@@ -233,14 +232,10 @@ const LinenInventoryDialog = ({ house, open, onOpenChange }: LinenInventoryDialo
             ) : (
               <div className="space-y-6">
                 <Tabs defaultValue="smart-analysis" className="w-full">
-                  <TabsList className="grid w-full grid-cols-5 h-auto">
+                  <TabsList className="grid w-full grid-cols-4 h-auto">
                     <TabsTrigger value="smart-analysis" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
-                      <span className="hidden sm:inline">Smart-Analyse</span>
-                      <span className="sm:hidden">Analyse</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="predictions" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
-                      <span className="hidden xs:inline">Konfiguration</span>
-                      <span className="xs:hidden">Config</span>
+                      <span className="hidden sm:inline">Übersicht</span>
+                      <span className="sm:hidden">Übersicht</span>
                     </TabsTrigger>
                     <TabsTrigger value="wäscheset-regeln" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
                       Regeln
@@ -255,28 +250,9 @@ const LinenInventoryDialog = ({ house, open, onOpenChange }: LinenInventoryDialo
                   </TabsList>
 
         <TabsContent value="smart-analysis" className="space-y-6">
+          {/* Buchungsbasierte Wäscheübersicht (Zero-Stock) */}
           <BookingLinenOverview houseId={house.id} />
         </TabsContent>
-
-                  <TabsContent value="predictions" className="space-y-6">
-                    <SmartLinenSettings
-                      houseId={house.id}
-                      settings={aiSettings}
-                      onSettingsChange={updateAISettings}
-                      onSave={async () => {
-                        const success = await saveAISettings(house.id);
-                        if (success) {
-                          toast({
-                            title: "✅ Einstellungen gespeichert",
-                            description: "Die Buchungskonfiguration wurde aktualisiert",
-                          });
-                        }
-                        return success;
-                      }}
-                      onLoad={loadAISettings}
-                      isSaving={false}
-                    />
-                  </TabsContent>
 
                   <TabsContent value="wäscheset-regeln">
                     <LinenSetRulesTab house={house} />
