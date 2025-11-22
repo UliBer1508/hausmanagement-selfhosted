@@ -14,6 +14,7 @@ import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement
 import LinenInventoryDialog from './LinenInventoryDialog';
 import LinenOrderDialog from './LinenOrderDialog';
 import LinenOrdersList from './LinenOrdersList';
+import AutoLinenOrderSettingsCard from './AutoLinenOrderSettingsCard';
 
 interface HouseLinenStatus {
   house: any;
@@ -592,6 +593,9 @@ const LinenDashboard = () => {
           </p>
         </div>
       )}
+
+      {/* Wäschebestellungs-Automatisierung */}
+      <AutoLinenOrderSettingsCard />
 
       {/* Linen Orders with Bookings Section */}
       <div className="mt-8">
