@@ -1,0 +1,247 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    console.log('🤖 [auto-create-linen-orders] Starting daily run...');
+
+    // 1. Load automation settings
+    const { data: settings, error: settingsError } = await supabase
+      .from('linen_automation_settings')
+      .select('*')
+      .single();
+
+    if (settingsError) {
+      console.error('❌ Failed to load settings:', settingsError);
+      throw settingsError;
+    }
+
+    if (!settings?.is_enabled) {
+      console.log('⏸️ Automation disabled, skipping.');
+      return new Response(JSON.stringify({ 
+        success: true, 
+        message: 'Automation disabled',
+        timestamp: new Date().toISOString()
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
+    console.log(`✅ Automation enabled. Settings:`, {
+      lookahead_bookings: settings.lookahead_bookings,
+      min_advance_days: settings.min_advance_days,
+      delivery_advance_days: settings.delivery_advance_days,
+    });
+
+    // 2. Load all tourist houses
+    const { data: houses, error: housesError } = await supabase
+      .from('houses')
+      .select('id, name')
+      .eq('rental_type', 'tourist');
+
+    if (housesError) {
+      console.error('❌ Failed to load houses:', housesError);
+      throw housesError;
+    }
+
+    console.log(`📍 Found ${houses?.length || 0} tourist houses`);
+
+    let totalCreated = 0;
+    let totalSkipped = 0;
+    const details = [];
+
+    // 3. Process each house
+    for (const house of houses || []) {
+      console.log(`\n🏠 Processing house: ${house.name}`);
+
+      // Load next X bookings
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('id, guest_name, check_in, number_of_guests')
+        .eq('house_id', house.id)
+        .eq('status', 'confirmed')
+        .gte('check_in', new Date().toISOString())
+        .order('check_in', { ascending: true })
+        .limit(settings.lookahead_bookings);
+
+      if (bookingsError) {
+        console.error(`❌ Failed to load bookings for ${house.name}:`, bookingsError);
+        continue;
+      }
+
+      console.log(`  📅 Found ${bookings?.length || 0} upcoming bookings`);
+
+      for (const booking of bookings || []) {
+        console.log(`\n  📋 Checking booking: ${booking.guest_name} (${booking.id.substring(0, 8)}...)`);
+
+        // Check if order already exists (excluding cancelled)
+        const { data: existingOrders, error: ordersError } = await supabase
+          .from('linen_orders')
+          .select('id, status')
+          .eq('booking_id', booking.id)
+          .neq('status', 'cancelled');
+
+        if (ordersError) {
+          console.error(`  ❌ Failed to check existing orders:`, ordersError);
+          continue;
+        }
+
+        if (existingOrders && existingOrders.length > 0) {
+          console.log(`  ⏭️ Skip: Order already exists (status: ${existingOrders[0].status})`);
+          totalSkipped++;
+          details.push({
+            booking_id: booking.id,
+            guest: booking.guest_name,
+            house: house.name,
+            action: 'skipped',
+            reason: 'order_exists',
+            existing_status: existingOrders[0].status
+          });
+          continue;
+        }
+
+        // Calculate days until check-in
+        const checkInDate = new Date(booking.check_in);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const daysUntil = Math.ceil(
+          (checkInDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        console.log(`  📆 Days until check-in: ${daysUntil}`);
+
+        if (daysUntil < settings.min_advance_days) {
+          console.log(`  ⏭️ Skip: Too close to check-in (${daysUntil} < ${settings.min_advance_days} days)`);
+          totalSkipped++;
+          details.push({
+            booking_id: booking.id,
+            guest: booking.guest_name,
+            house: house.name,
+            action: 'skipped',
+            reason: 'too_close',
+            days_until: daysUntil,
+            min_required: settings.min_advance_days
+          });
+          continue;
+        }
+
+        // Generate order items via Edge Function
+        console.log(`  🔄 Generating order items...`);
+        const { data: orderData, error: genError } = await supabase.functions.invoke(
+          'generate-booking-linen-order',
+          { body: { booking_id: booking.id } }
+        );
+
+        if (genError || !orderData) {
+          console.error(`  ❌ Failed to generate order:`, genError);
+          totalSkipped++;
+          details.push({
+            booking_id: booking.id,
+            guest: booking.guest_name,
+            house: house.name,
+            action: 'skipped',
+            reason: 'generation_failed',
+            error: genError?.message
+          });
+          continue;
+        }
+
+        console.log(`  ✅ Generated ${orderData.total_items} items`);
+
+        // Calculate delivery date
+        const deliveryDate = new Date(checkInDate);
+        deliveryDate.setDate(deliveryDate.getDate() - settings.delivery_advance_days);
+        const deliveryDateStr = deliveryDate.toISOString().split('T')[0];
+
+        console.log(`  📦 Delivery date: ${deliveryDateStr}`);
+
+        // Create linen_order with status "offen"
+        const { error: insertError } = await supabase
+          .from('linen_orders')
+          .insert({
+            house_id: house.id,
+            booking_id: booking.id,
+            items: orderData.order_items,
+            total_items: orderData.total_items,
+            status: 'offen',
+            order_source: 'auto_booking_lookahead',
+            suggested_at: new Date().toISOString(),
+            order_date: new Date().toISOString().split('T')[0],
+            delivery_date: deliveryDateStr,
+            delivery_type: 'delivery',
+            notes: `Automatisch erstellt für ${booking.guest_name} (${booking.number_of_guests} Gäste) - Check-in: ${checkInDate.toLocaleDateString('de-DE')}`,
+          });
+
+        if (insertError) {
+          console.error(`  ❌ Failed to insert order:`, insertError);
+          totalSkipped++;
+          details.push({
+            booking_id: booking.id,
+            guest: booking.guest_name,
+            house: house.name,
+            action: 'skipped',
+            reason: 'insert_failed',
+            error: insertError.message
+          });
+        } else {
+          totalCreated++;
+          details.push({
+            booking_id: booking.id,
+            guest: booking.guest_name,
+            house: house.name,
+            check_in: checkInDate.toISOString().split('T')[0],
+            action: 'created',
+            delivery_date: deliveryDateStr,
+            items_count: orderData.total_items
+          });
+          console.log(`  ✅ Created order with status "offen"`);
+        }
+      }
+    }
+
+    const result = {
+      success: true,
+      timestamp: new Date().toISOString(),
+      settings: {
+        lookahead_bookings: settings.lookahead_bookings,
+        min_advance_days: settings.min_advance_days,
+        delivery_advance_days: settings.delivery_advance_days,
+      },
+      summary: {
+        houses_processed: houses?.length || 0,
+        orders_created: totalCreated,
+        bookings_skipped: totalSkipped,
+      },
+      details,
+    };
+
+    console.log('\n✅ [auto-create-linen-orders] Completed:', result.summary);
+
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ [auto-create-linen-orders] Fatal error:', error);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: error.message,
+      timestamp: new Date().toISOString()
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+});
