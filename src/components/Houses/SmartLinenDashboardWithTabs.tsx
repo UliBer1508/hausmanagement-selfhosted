@@ -36,8 +36,6 @@ export const SmartLinenDashboardWithTabs = () => {
         </TabsList>
 
         <TabsContent value="smart-analyse" className="space-y-6">
-          <AutoLinenOrderSettingsCard />
-          
           {firstHouse ? (
             <BookingLinenOverview houseId={firstHouse.id} />
           ) : (
