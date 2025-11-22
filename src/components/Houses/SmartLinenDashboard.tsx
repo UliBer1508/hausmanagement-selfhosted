@@ -30,6 +30,8 @@ import { de } from 'date-fns/locale';
 import { useOptimizedLinenManagement, HouseLinenOverview, LinenDemandAnalysis } from '@/hooks/useOptimizedLinenManagement';
 import LinenInventoryDialog from './LinenInventoryDialog';
 import { useToast } from '@/hooks/use-toast';
+import AutoLinenOrderSettingsCard from './AutoLinenOrderSettingsCard';
+import LinenOrdersList from './LinenOrdersList';
 
 const SmartLinenDashboard = () => {
   const [selectedHouse, setSelectedHouse] = useState<any>(null);
@@ -361,6 +363,22 @@ const SmartLinenDashboard = () => {
           </Card>
         ))}
       </div>
+
+      {/* Wäschebestellungs-Automatisierung */}
+      <AutoLinenOrderSettingsCard />
+
+      {/* Wäschebestellungen Liste */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingCart className="w-5 h-5" />
+            Wäschebestellungen
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <LinenOrdersList />
+        </CardContent>
+      </Card>
 
       {/* Empty State */}
       {housesWithLinenData?.length === 0 && (
