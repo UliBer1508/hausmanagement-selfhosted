@@ -6,11 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Clock, Package } from 'lucide-react';
+import { AlertTriangle, Clock, Package, CheckCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
+import { cn } from '@/lib/utils';
 import LinenInventoryDialog from './LinenInventoryDialog';
 import LinenOrderDialog from './LinenOrderDialog';
 import LinenOrdersList from './LinenOrdersList';
@@ -24,6 +25,10 @@ interface HouseLinenStatus {
   bookingsWithoutOrder: number;
   urgentBookingsWithoutOrder: number;
   soonBookingsWithoutOrder: number;
+  openOrders: number;
+  urgentOpenOrders: number;
+  soonOpenOrders: number;
+  openOrdersList: any[];
   status: 'good' | 'warning' | 'critical';
 }
 
@@ -86,6 +91,41 @@ const LinenDashboard = () => {
     },
   });
 
+  // Fetch all open orders (status 'offen') with urgency calculation
+  const { data: openOrders } = useQuery({
+    queryKey: ['linen-orders-open', 'tourist'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .select(`
+          *,
+          houses!inner(id, name, rental_type),
+          bookings(guest_name, check_in)
+        `)
+        .eq('houses.rental_type', 'tourist')
+        .eq('status', 'offen')
+        .order('delivery_date', { ascending: true });
+      
+      if (error) throw error;
+      
+      // Add urgency calculation based on delivery_date
+      const today = new Date();
+      return data.map(order => {
+        const daysUntilDelivery = Math.ceil(
+          (new Date(order.delivery_date).getTime() - today.getTime()) 
+          / (1000 * 60 * 60 * 24)
+        );
+        
+        return {
+          ...order,
+          daysUntilDelivery,
+          isUrgent: daysUntilDelivery <= 7,
+          isSoon: daysUntilDelivery > 7 && daysUntilDelivery <= 14
+        };
+      });
+    }
+  });
+
   // Calculate linen status for each house
   const houseStatuses: HouseLinenStatus[] = houses?.map(house => {
     const linenStock = house.linen_stock || {};
@@ -108,12 +148,17 @@ const LinenDashboard = () => {
       return daysUntil > 7 && daysUntil <= 14;
     });
 
+    // Offene Bestellungen für dieses Haus
+    const houseOpenOrders = openOrders?.filter(o => o.house_id === house.id) || [];
+    const urgentOrders = houseOpenOrders.filter(o => o.isUrgent);
+    const soonOrders = houseOpenOrders.filter(o => o.isSoon);
+
     // Status bestimmen
     let status: HouseLinenStatus['status'] = 'good';
-    if (urgentBookings.length > 0) {
-      status = 'critical';  // Mindestens 1 Buchung innerhalb 7 Tage ohne Bestellung
-    } else if (bookingsWithoutOrder.length > 0) {
-      status = 'warning';   // Buchungen ohne Bestellung vorhanden
+    if (urgentBookings.length > 0 || urgentOrders.length > 0) {
+      status = 'critical';
+    } else if (bookingsWithoutOrder.length > 0 || houseOpenOrders.length > 0) {
+      status = 'warning';
     }
 
     // Nächste Buchung OHNE Bestellung finden
@@ -131,17 +176,55 @@ const LinenDashboard = () => {
       bookingsWithoutOrder: bookingsWithoutOrder.length,
       urgentBookingsWithoutOrder: urgentBookings.length,
       soonBookingsWithoutOrder: soonBookings.length,
+      openOrders: houseOpenOrders.length,
+      urgentOpenOrders: urgentOrders.length,
+      soonOpenOrders: soonOrders.length,
+      openOrdersList: houseOpenOrders.slice(0, 2),
       status
     };
   }) || [];
 
   const overallStatus = {
     totalHouses: houseStatuses.length,
+    totalOpenOrders: openOrders?.length || 0,
+    urgentOpenOrders: openOrders?.filter(o => o.isUrgent).length || 0,
+    soonOpenOrders: openOrders?.filter(o => o.isSoon).length || 0,
+    totalBookingsWithoutOrder: houseStatuses.reduce((sum, h) => sum + h.bookingsWithoutOrder, 0),
+    totalUrgentBookings: houseStatuses.reduce((sum, h) => sum + h.urgentBookingsWithoutOrder, 0),
     criticalHouses: houseStatuses.filter(h => h.status === 'critical').length,
     warningHouses: houseStatuses.filter(h => h.status === 'warning').length,
     goodHouses: houseStatuses.filter(h => h.status === 'good').length,
-    totalBookingsWithoutOrder: houseStatuses.reduce((sum, h) => sum + h.bookingsWithoutOrder, 0),
-    totalUrgentBookings: houseStatuses.reduce((sum, h) => sum + h.urgentBookingsWithoutOrder, 0),
+  };
+
+  // Confirm order mutation (offen → pending)
+  const confirmOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const { error } = await supabase
+        .from('linen_orders')
+        .update({ status: 'pending' })
+        .eq('id', orderId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['linen-orders-open'] });
+      queryClient.invalidateQueries({ queryKey: ['houses-linen-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['linen-orders-list'] });
+      toast({
+        title: "✅ Bestellung bestätigt",
+        description: "Status wurde auf 'Ausstehend' gesetzt."
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "❌ Fehler",
+        description: `Bestellung konnte nicht bestätigt werden: ${error.message}`,
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleConfirmOrder = (orderId: string) => {
+    confirmOrderMutation.mutate(orderId);
   };
 
   // Countdown in Tagen berechnen
@@ -424,10 +507,15 @@ const LinenDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">✅</span>
+              <span className="text-2xl">📝</span>
               <div>
-                <div className="text-2xl font-bold text-green-600">{overallStatus.goodHouses}</div>
-                <div className="text-sm text-muted-foreground">Gut versorgt</div>
+                <div className="text-2xl font-bold text-amber-600">{overallStatus.totalOpenOrders}</div>
+                <div className="text-sm text-muted-foreground">Offene Bestellungen</div>
+                {overallStatus.urgentOpenOrders > 0 && (
+                  <div className="text-xs font-bold text-red-600 mt-1">
+                    ({overallStatus.urgentOpenOrders} dringend)
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -436,10 +524,10 @@ const LinenDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">⚠️</span>
+              <span className="text-2xl">📦</span>
               <div>
-                <div className="text-2xl font-bold text-yellow-600">{overallStatus.warningHouses}</div>
-                <div className="text-sm text-muted-foreground">Niedrige Bestände</div>
+                <div className="text-2xl font-bold text-yellow-600">{overallStatus.totalBookingsWithoutOrder}</div>
+                <div className="text-sm text-muted-foreground">Buchungen ohne Best.</div>
               </div>
             </div>
           </CardContent>
@@ -448,10 +536,11 @@ const LinenDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">⚠️</span>
+              <span className="text-2xl">🔴</span>
               <div>
-                <div className="text-2xl font-bold text-red-600">{overallStatus.criticalHouses}</div>
-                <div className="text-sm text-muted-foreground">Kritische Bestände</div>
+                <div className="text-2xl font-bold text-red-600">{overallStatus.totalUrgentBookings}</div>
+                <div className="text-sm text-muted-foreground">Davon dringend</div>
+                <div className="text-xs text-muted-foreground mt-1">(≤7 Tage)</div>
               </div>
             </div>
           </CardContent>
@@ -459,15 +548,24 @@ const LinenDashboard = () => {
       </div>
 
       {/* Critical Alert */}
-      {overallStatus.criticalHouses > 0 && (
+      {(overallStatus.urgentOpenOrders > 0 || overallStatus.totalUrgentBookings > 0) && (
         <Alert variant="destructive">
           <AlertTriangle className="h-5 w-5" />
           <AlertDescription>
-            <strong>{overallStatus.criticalHouses} Häuser</strong> haben dringende Buchungen ohne Wäschebestellung. 
-            Insgesamt <strong>{overallStatus.totalBookingsWithoutOrder} Buchungen</strong> benötigen eine Bestellung.
+            <strong>DRINGEND:</strong>
+            {overallStatus.urgentOpenOrders > 0 && (
+              <span className="block mt-1">
+                • <strong>{overallStatus.urgentOpenOrders} offene Bestellungen</strong> müssen bestätigt werden (Lieferung ≤7 Tage)
+              </span>
+            )}
             {overallStatus.totalUrgentBookings > 0 && (
-              <span className="block mt-1 font-bold">
-                ⚠️ Davon {overallStatus.totalUrgentBookings} mit Check-in in den nächsten 7 Tagen!
+              <span className="block mt-1">
+                • <strong>{overallStatus.totalUrgentBookings} Buchungen</strong> benötigen eine neue Bestellung (Check-in ≤7 Tagen)
+              </span>
+            )}
+            {overallStatus.totalBookingsWithoutOrder > overallStatus.totalUrgentBookings && (
+              <span className="block mt-1 text-sm">
+                Insgesamt {overallStatus.totalBookingsWithoutOrder} Buchungen ohne Bestellung.
               </span>
             )}
           </AlertDescription>
@@ -514,6 +612,69 @@ const LinenDashboard = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Offene Bestellungen (zu bestätigen) */}
+              {houseStatus.openOrders > 0 && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200">
+                  <div className="font-medium text-sm mb-2 flex items-center justify-between">
+                    <span>📝 Offene Bestellungen (zu bestätigen)</span>
+                    <div className="flex gap-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {houseStatus.openOrders} offen
+                      </Badge>
+                      {houseStatus.urgentOpenOrders > 0 && (
+                        <Badge variant="destructive" className="text-xs">
+                          {houseStatus.urgentOpenOrders} dringend
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Top 2 dringendste Bestellungen */}
+                  <div className="space-y-2">
+                    {houseStatus.openOrdersList.map((order: any) => (
+                      <div 
+                        key={order.id}
+                        className={cn(
+                          "p-2 rounded border text-sm",
+                          order.isUrgent && "border-red-300 bg-red-50 dark:bg-red-950/20",
+                          order.isSoon && "border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20",
+                          !order.isUrgent && !order.isSoon && "border-gray-300 bg-gray-50 dark:bg-gray-950/20"
+                        )}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium">
+                            📦 {order.bookings?.guest_name || 'Ohne Buchung'}
+                          </span>
+                          {order.isUrgent && (
+                            <Badge variant="destructive" className="text-xs">DRINGEND</Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mb-2">
+                          Lieferung: {format(new Date(order.delivery_date), 'dd.MM.yyyy', { locale: de })} 
+                          {' '}(in {order.daysUntilDelivery} Tagen)
+                        </div>
+                        <Button 
+                          size="sm" 
+                          className="w-full h-7 bg-green-600 hover:bg-green-700"
+                          onClick={() => handleConfirmOrder(order.id)}
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Bestätigen
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {houseStatus.openOrders > 2 && (
+                    <div className="text-center mt-2">
+                      <span className="text-xs text-muted-foreground">
+                        + {houseStatus.openOrders - 2} weitere (siehe Bestellungsliste unten)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Issues Summary */}
               {houseStatus.bookingsWithoutOrder > 0 && (
