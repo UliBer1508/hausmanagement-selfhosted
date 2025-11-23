@@ -8,35 +8,23 @@ export const useMorningSummary = () => {
   const todayStart = `${today}T00:00:00`;
   const todayEnd = `${today}T23:59:59`;
 
-  // Check-ins heute
-  const { data: checkIns, isLoading: loadingCheckIns } = useQuery({
-    queryKey: ['morning-check-ins', today],
+  // Nächste 7 Tage berechnen
+  const nextWeekEnd = new Date();
+  nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
+  const nextWeekEndStr = format(nextWeekEnd, 'yyyy-MM-dd') + 'T23:59:59';
+
+  // Kommende Buchungen (nächste 7 Tage)
+  const { data: upcomingBookings, isLoading: loadingBookings } = useQuery({
+    queryKey: ['morning-upcoming-bookings', today],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
         .select('*, houses(name)')
         .gte('check_in', todayStart)
-        .lte('check_in', todayEnd)
-        .neq('status', 'cancelled')
-        .order('check_in');
-      
-      if (error) throw error;
-      return data || [];
-    },
-    staleTime: 1000 * 60 * 30, // 30 Minuten Cache
-  });
-
-  // Check-outs heute
-  const { data: checkOuts, isLoading: loadingCheckOuts } = useQuery({
-    queryKey: ['morning-check-outs', today],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*, houses(name)')
-        .gte('check_out', todayStart)
-        .lte('check_out', todayEnd)
-        .neq('status', 'cancelled')
-        .order('check_out');
+        .lte('check_in', nextWeekEndStr)
+        .eq('status', 'confirmed')
+        .order('check_in')
+        .limit(10);
       
       if (error) throw error;
       return data || [];
@@ -44,7 +32,7 @@ export const useMorningSummary = () => {
     staleTime: 1000 * 60 * 30,
   });
 
-  // Reinigungen heute
+  // Geplante Reinigungen (heute + nächste 7 Tage)
   const { data: cleanings, isLoading: loadingCleanings } = useQuery({
     queryKey: ['morning-cleanings', today],
     queryFn: async () => {
@@ -52,8 +40,10 @@ export const useMorningSummary = () => {
         .from('service_tasks')
         .select('*, houses(name), bookings(guest_name)')
         .eq('service_type', 'cleaning')
-        .eq('scheduled_date', today)
-        .in('status', ['scheduled', 'in_progress'])
+        .gte('scheduled_date', today)
+        .lte('scheduled_date', format(nextWeekEnd, 'yyyy-MM-dd'))
+        .in('status', ['scheduled', 'draft'])
+        .order('scheduled_date')
         .order('scheduled_time');
       
       if (error) throw error;
@@ -62,14 +52,14 @@ export const useMorningSummary = () => {
     staleTime: 1000 * 60 * 30,
   });
 
-  // Wäschebestellungen (ausstehend, in_bearbeitung, unterwegs)
+  // Offene Wäschebestellungen + kommende Lieferungen
   const { data: linenOrders, isLoading: loadingLinen } = useQuery({
     queryKey: ['morning-linen-orders'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('linen_orders')
-        .select('*, houses(name)')
-        .in('status', ['ausstehend', 'in_bearbeitung', 'unterwegs'])
+        .select('*, houses(name), bookings(guest_name, check_in)')
+        .in('status', ['offen', 'pending', 'assigned'])
         .order('delivery_date');
       
       if (error) throw error;
@@ -78,115 +68,96 @@ export const useMorningSummary = () => {
     staleTime: 1000 * 60 * 30,
   });
 
-  // Häuser mit kritischen Beständen (< 5 Stück)
-  const { data: houses, isLoading: loadingHouses } = useQuery({
-    queryKey: ['morning-critical-houses'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('houses')
-        .select('id, name, linen_stock');
-      
-      if (error) throw error;
-      return data || [];
-    },
-    staleTime: 1000 * 60 * 30,
-  });
-
-  // Kritische Häuser filtern und übersetzen
-  const criticalHouses = houses?.filter(h => {
-    const stock = h.linen_stock || {};
-    return Object.values(stock).some((count: any) => count < 5);
-  }).map(h => ({
-    id: h.id,
-    name: h.name,
-    critical_items: Object.entries(h.linen_stock || {})
-      .filter(([_, count]) => (count as number) < 5)
-      .map(([item, count]) => ({ 
-        item: translateLinenItem(item),
-        count 
-      }))
-  }));
-
-  // Wäsche-Lieferungen heute
-  const todayDeliveries = linenOrders?.filter(o => o.delivery_date === today) || [];
-
   // Prüfen ob Daten vorhanden sind
   const hasAnyData = 
-    (checkIns && checkIns.length > 0) ||
-    (checkOuts && checkOuts.length > 0) ||
+    (upcomingBookings && upcomingBookings.length > 0) ||
     (cleanings && cleanings.length > 0) ||
-    (todayDeliveries && todayDeliveries.length > 0) ||
-    (criticalHouses && criticalHouses.length > 0);
+    (linenOrders && linenOrders.length > 0);
 
   // Formatierte Nachricht erstellen
   const formatSummaryMessage = (): string => {
-    if (!checkIns || !checkOuts || !cleanings || !linenOrders || !houses) {
+    if (!upcomingBookings || !cleanings || !linenOrders) {
       return '';
     }
 
-    let message = '🏠 **Guten Morgen! Dein Überblick für heute**\n\n';
+    let message = '🏠 **Guten Morgen! Deine anstehenden Aufgaben**\n\n';
     message += `📅 ${format(new Date(), 'EEEE, dd. MMMM yyyy', { locale: de })}\n\n`;
     
-    // Check-ins
-    if (checkIns.length > 0) {
-      message += `📥 **Check-ins heute (${checkIns.length})**\n`;
-      checkIns.forEach(b => {
-        const time = format(new Date(b.check_in), 'HH:mm');
-        const houseName = b.houses?.name || 'Unbekanntes Haus';
-        message += `• ${time} Uhr - ${b.guest_name} (${houseName}, ${b.number_of_guests} Gäste)\n`;
-      });
-      message += '\n';
-    }
-    
-    // Check-outs
-    if (checkOuts.length > 0) {
-      message += `📤 **Check-outs heute (${checkOuts.length})**\n`;
-      checkOuts.forEach(b => {
-        const time = format(new Date(b.check_out), 'HH:mm');
-        const houseName = b.houses?.name || 'Unbekanntes Haus';
-        message += `• ${time} Uhr - ${b.guest_name} (${houseName})\n`;
-      });
-      message += '\n';
-    }
-    
-    // Reinigungen
-    if (cleanings.length > 0) {
-      message += `🧹 **Reinigungen heute (${cleanings.length})**\n`;
-      cleanings.forEach(c => {
-        const time = c.scheduled_time || 'Zeit nicht festgelegt';
-        const houseName = c.houses?.name || 'Unbekanntes Haus';
-        const guestName = c.bookings?.guest_name || 'Keine Buchung';
-        message += `• ${time} - ${houseName} (${guestName})\n`;
-      });
-      message += '\n';
-    }
-    
-    // Wäsche-Lieferungen heute
-    if (todayDeliveries.length > 0) {
-      message += `🧺 **Wäsche-Lieferungen heute (${todayDeliveries.length})**\n`;
-      todayDeliveries.forEach(o => {
+    // OFFENE WÄSCHEBESTELLUNGEN (höchste Priorität)
+    const openOrders = linenOrders.filter(o => o.status === 'offen');
+    if (openOrders.length > 0) {
+      message += `🔔 **${openOrders.length} Wäschebestellung(en) zu bestätigen**\n`;
+      openOrders.forEach(o => {
         const houseName = o.houses?.name || 'Unbekanntes Haus';
-        message += `• ${houseName} - ${o.total_items} Teile (${o.status})\n`;
+        const guestName = o.bookings?.guest_name || 'Kein Gast';
+        const deliveryDate = o.delivery_date ? format(new Date(o.delivery_date), 'dd.MM.yyyy') : 'Kein Datum';
+        message += `• ${houseName} für ${guestName} (Lieferung: ${deliveryDate})\n`;
       });
       message += '\n';
     }
     
-    // Kritische Bestände
-    if (criticalHouses && criticalHouses.length > 0) {
-      message += `⚠️ **Kritische Wäsche-Bestände**\n`;
-      criticalHouses.forEach(h => {
-        const items = h.critical_items.map(i => `${i.item}: ${i.count}`).join(', ');
-        message += `• ${h.name}: ${items}\n`;
+    // KOMMENDE BUCHUNGEN (nächste 7 Tage)
+    if (upcomingBookings.length > 0) {
+      message += `📥 **Kommende Buchungen (${upcomingBookings.length})**\n`;
+      upcomingBookings.forEach(b => {
+        const checkInDate = format(new Date(b.check_in), 'dd.MM.yyyy');
+        const checkInTime = format(new Date(b.check_in), 'HH:mm');
+        const houseName = b.houses?.name || 'Unbekanntes Haus';
+        const daysUntil = Math.ceil((new Date(b.check_in).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+        const daysText = daysUntil === 0 ? 'Heute' : daysUntil === 1 ? 'Morgen' : `in ${daysUntil} Tagen`;
+        message += `• ${checkInDate} ${checkInTime} - ${b.guest_name} (${houseName}) - ${daysText}\n`;
       });
       message += '\n';
     }
     
-    // Leerer Zustand
+    // GEPLANTE REINIGUNGEN (heute + nächste 7 Tage)
+    if (cleanings.length > 0) {
+      const todayCleanings = cleanings.filter(c => c.scheduled_date === today);
+      const futureCleanings = cleanings.filter(c => c.scheduled_date > today);
+      
+      if (todayCleanings.length > 0) {
+        message += `🧹 **Reinigungen heute (${todayCleanings.length})**\n`;
+        todayCleanings.forEach(c => {
+          const time = c.scheduled_time || 'Zeit nicht festgelegt';
+          const houseName = c.houses?.name || 'Unbekanntes Haus';
+          const statusEmoji = c.status === 'draft' ? '📝' : '✅';
+          message += `${statusEmoji} ${time} - ${houseName}\n`;
+        });
+        message += '\n';
+      }
+      
+      if (futureCleanings.length > 0) {
+        message += `🧹 **Kommende Reinigungen (${futureCleanings.length})**\n`;
+        futureCleanings.slice(0, 5).forEach(c => {
+          const date = format(new Date(c.scheduled_date), 'dd.MM.yyyy');
+          const time = c.scheduled_time || 'Zeit nicht festgelegt';
+          const houseName = c.houses?.name || 'Unbekanntes Haus';
+          const statusEmoji = c.status === 'draft' ? '📝' : '✅';
+          message += `${statusEmoji} ${date} ${time} - ${houseName}\n`;
+        });
+        message += '\n';
+      }
+    }
+    
+    // BESTÄTIGTE LIEFERUNGEN (pending, assigned)
+    const confirmedDeliveries = linenOrders.filter(o => o.status !== 'offen');
+    if (confirmedDeliveries.length > 0) {
+      message += `🧺 **Bestätigte Wäsche-Lieferungen (${confirmedDeliveries.length})**\n`;
+      confirmedDeliveries.slice(0, 5).forEach(o => {
+        const houseName = o.houses?.name || 'Unbekanntes Haus';
+        const deliveryDate = o.delivery_date ? format(new Date(o.delivery_date), 'dd.MM.yyyy') : 'Kein Datum';
+        const statusText = o.status === 'pending' ? 'Ausstehend' : o.status === 'assigned' ? 'Zugewiesen' : 'Bestätigt';
+        message += `• ${houseName} - ${deliveryDate} (${statusText})\n`;
+      });
+      message += '\n';
+    }
+    
+    // LEERER ZUSTAND
     if (!hasAnyData) {
-      message += '🎉 **Alles ruhig heute!**\nKeine dringenden Aufgaben.\n\n';
+      message += '🎉 **Alles ruhig!**\nKeine anstehenden Aufgaben in den nächsten Tagen.\n\n';
     }
     
-    message += '💡 Stelle mir gerne Fragen zu deinen Buchungen, Reinigungen oder Häusern!';
+    message += '💡 Stelle mir gerne Fragen zu deinen Buchungen, Reinigungen oder Wäschebestellungen!';
     
     return message;
   };
@@ -203,7 +174,7 @@ export const useMorningSummary = () => {
     localStorage.setItem('chat-summary-shown', today);
   };
 
-  const isLoading = loadingCheckIns || loadingCheckOuts || loadingCleanings || loadingLinen || loadingHouses;
+  const isLoading = loadingBookings || loadingCleanings || loadingLinen;
 
   return {
     summaryMessage,
