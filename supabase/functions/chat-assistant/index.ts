@@ -170,6 +170,19 @@ Kritische Häuser:
 • [Haus 1]: [kritische Items]
 • [Haus 2]: [kritische Items]"
 
+**Offene Bestellungen:**
+"🔔 Ich habe [X] offene Bestellung(en) gefunden, die noch bestätigt werden müssen:
+
+• Haus: [house_name]
+• Gast: [guest_name] (falls vorhanden)
+• Lieferdatum: [delivery_date]
+• Bestelldatum: [order_date]
+• Menge: [Anzahl Items]
+• Status: Offen 📝
+
+💡 HINWEIS:
+Diese Bestellungen wurden automatisch erstellt und müssen noch bestätigt werden, bevor sie an die Wäscherei gesendet werden."
+
 **Dashboard:**
 "Übersicht:
 🏠 Häuser: [Anzahl]
@@ -247,7 +260,9 @@ TOOLS - KRITISCHE REGELN:
 5. Bei "haus" / "chalet" → search_houses
 6. Bei "gast" / "gäste" → search_guests
 7. Bei "wäsche" / "linen" → get_linen_overview
-8. Bei "statistik" / "übersicht" → get_dashboard_stats
+8. Bei "müssen wir wäsche bestellen" / "offene bestellungen" / "zu bestätigen" → search_linen_orders mit status="offen"
+9. Bei "wäschebestellungen prüfen" / "bestellstatus" → search_linen_orders ohne Status-Filter
+10. Bei "statistik" / "übersicht" → get_dashboard_stats
 9. Bei "kalender" / "termine" → get_calendar_events
 10. Bei UUID → entsprechendes get_*_details Tool
 
@@ -554,7 +569,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
             properties: {
               guest_name: { type: "string", description: "Name des Gastes (sucht in verknüpften Buchungen)" },
               house_id: { type: "string", description: "UUID des Hauses" },
-              status: { type: "string", enum: ["pending", "confirmed", "in_progress", "completed", "cancelled"], description: "Status" },
+              status: { type: "string", enum: ["offen", "pending", "assigned", "confirmed", "delivered", "cancelled"], description: "Status der Bestellung" },
               date_from: { type: "string", description: "Von-Datum für Lieferdatum (ISO 8601)" },
               date_to: { type: "string", description: "Bis-Datum für Lieferdatum (ISO 8601)" },
               updated_from: { type: "string", description: "Von-Datum für Änderungsdatum (ISO 8601, UTC)" },
