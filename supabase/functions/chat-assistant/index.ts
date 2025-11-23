@@ -35,6 +35,19 @@ serve(async (req) => {
     // System prompt - CRITICAL: Force tool usage
     const systemPrompt = `Du bist ein Datenbank-Assistent für eine Ferienhaus-Verwaltungssoftware.
 
+🏠 WICHTIG - OBJEKTTYPEN:
+- Es gibt ZWEI Arten von Objekten: "Touristische Vermietungen" (rental_type = 'tourist') und "Festvermietungen" (rental_type = 'long_term')
+- **Touristische Objekte**: Kurzzeitmiete mit wechselnden Gästen → Buchungen, Reinigung, Wäsche, Umsatz
+- **Festvermietungen**: Langzeitmiete mit festem Mieter → Mietvertrag, monatliche Zahlungen
+
+ALLE Tools (außer Mieter-Management) berücksichtigen NUR touristische Vermietungen!
+Bei Fragen zu "Häusern", "Buchungen", "Reinigung", "Wäsche" oder "Umsatz" werden automatisch nur touristische Objekte einbezogen.
+
+Für Festvermietungen verwende AUSSCHLIESSLICH diese Tools:
+- search_tenant_payments
+- get_tenant_info
+- get_tenant_analytics
+
 ⛔ KRITISCHE REGEL ⛔
 Du MUSST für JEDE Anfrage ein Tool verwenden! 
 Du darfst NIEMALS direkt antworten ohne Tool-Call!
@@ -1081,7 +1094,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       let query = supabase
         .from('houses')
-        .select('*');
+        .select('*')
+        .eq('rental_type', 'tourist');
 
       if (search_term) {
         query = query.or(`name.ilike.%${search_term}%,address.ilike.%${search_term}%`);
@@ -1094,7 +1108,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         return { success: false, error: error.message };
       }
 
-      console.log(`Found ${data.length} houses`);
+      console.log(`Found ${data.length} houses (tourist rentals only)`);
       return { success: true, houses: data, count: data.length };
     }
 
@@ -1227,9 +1241,9 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       console.log('Executing get_dashboard_stats');
       
       const [housesRes, bookingsRes, tasksRes] = await Promise.all([
-        supabase.from('houses').select('*'),
-        supabase.from('bookings').select('*'),
-        supabase.from('service_tasks').select('*')
+        supabase.from('houses').select('*').eq('rental_type', 'tourist'),
+        supabase.from('bookings').select('*, houses!inner(rental_type)').eq('houses.rental_type', 'tourist'),
+        supabase.from('service_tasks').select('*, houses!inner(rental_type)').eq('houses.rental_type', 'tourist')
       ]);
 
       const stats = {
@@ -1239,7 +1253,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         totalRevenue: bookingsRes.data?.reduce((sum: number, b: any) => sum + (b.booking_amount || 0), 0) || 0
       };
 
-      console.log('Dashboard stats:', stats);
+      console.log('Dashboard stats (tourist rentals only):', stats);
       return { success: true, stats };
     }
 
@@ -1312,6 +1326,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       const { data: houses, error } = await supabase
         .from('houses')
         .select('id, name, address, linen_stock, linen_in_use, linen_dirty')
+        .eq('rental_type', 'tourist')
         .order('name', { ascending: true });
 
       if (error) {
@@ -1816,7 +1831,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       let query = supabase
         .from('bookings')
-        .select('booking_amount, check_in, check_out, houses(name), status')
+        .select('booking_amount, check_in, check_out, houses!inner(name, rental_type), status')
+        .eq('houses.rental_type', 'tourist')
         .neq('status', 'cancelled')
         .not('booking_amount', 'is', null)
         .gte('check_in', params.date_from)
@@ -1930,7 +1946,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       const { data: bookings, error } = await supabase
         .from('bookings')
-        .select('guest_email, guest_name, nationality, check_in, check_out, number_of_guests')
+        .select('guest_email, guest_name, nationality, check_in, check_out, number_of_guests, houses!inner(rental_type)')
+        .eq('houses.rental_type', 'tourist')
         .neq('status', 'cancelled')
         .gte('check_in', params.date_from)
         .lte('check_out', params.date_to)
