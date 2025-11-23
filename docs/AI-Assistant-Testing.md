@@ -333,6 +333,27 @@ Dieses Dokument dient zur systematischen Testung der 18 bestehenden Tools des AI
   - **Ergebnis:** ✅ / ❌
   - **Anmerkungen:** _______________________
 
+### **Objekttypen-Trennung**
+- [ ] "Wieviele Häuser haben wir?"
+  - **Erwartung:** Nur touristische Vermietungen (nicht Festvermietungen)
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Zeig mir den Wäschebestand aller Häuser"
+  - **Erwartung:** Nur touristische Objekte mit Wäscheverwaltung
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Wie hoch ist unser Umsatz im Januar 2025?"
+  - **Erwartung:** Nur Umsatz aus touristischen Buchungen (keine Mietzahlungen)
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Wer sind unsere Mieter?"
+  - **Erwartung:** Tool get_tenant_info oder search_tenant_payments wird verwendet
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
 ---
 
 ## 📊 Feedback-Template (Pro Testfrage)
