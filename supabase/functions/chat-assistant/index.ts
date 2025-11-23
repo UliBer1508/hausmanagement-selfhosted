@@ -63,6 +63,16 @@ WORKFLOW (ZWINGEND!):
 - "aktuell eingecheckt" / "wer ist gerade da" / "heute belegt" → search_bookings mit date_from=heute, date_to=heute (nutzt Overlap-Detection!)
 - "kommende buchungen" / "nächste woche" / "ab morgen" → search_bookings mit date_from=ab_datum
 - "vergangene buchungen" / "letzte woche" / "bis gestern" → search_bookings mit date_to=bis_datum
+- "umsatz" / "revenue" / "einnahmen" → get_revenue_stats
+- "auslastung" / "occupancy" / "belegung" → get_occupancy_stats
+- "gast statistik" / "stammkunden" / "gäste analyse" → get_guest_statistics
+- "mietzahlungen" / "miete" / "tenant payment" → search_tenant_payments
+- "mieter info" / "mieter von [Haus]" → get_tenant_info
+- "mieter statistik" / "mieteinnahmen" → get_tenant_analytics
+- "bestellung erstellen" / "wäsche bestellen" → create_linen_order (mit Bestätigung!)
+- "bestellung bestätigen" / "status ändern" → update_linen_order_status (mit Bestätigung!)
+- "reinigung ändern" / "reinigung verschieben" → update_cleaning_task (mit Bestätigung!)
+- "personal zuweisen" / "reinigungskraft zuweisen" → assign_cleaning_staff (mit Bestätigung!)
 
 BEISPIELE:
 ❌ FALSCH: "ABSOLUTE REGEL: Du darfst nicht..."
@@ -208,6 +218,107 @@ Details:
 • Kontakt: [contact_email], [contact_phone]
 • Portal-Zugang: [has_portal ? Ja ✅ : Nein ❌]
 • Notizen: [notes]"
+
+**Umsatz-Statistiken (PHASE 1):**
+"💰 Umsatz-Statistik ([period]):
+
+📊 GESAMT:
+• Gesamtumsatz: [total_revenue] EUR
+• Anzahl Buchungen: [booking_count]
+• Durchschnittsumsatz: [average_revenue] EUR
+
+🏠 PRO HAUS:
+• [Haus 1]: [total] EUR ([bookings] Buchungen)
+• [Haus 2]: [total] EUR ([bookings] Buchungen)
+
+📅 PRO MONAT:
+• [Monat 1]: [total] EUR ([bookings] Buchungen)
+• [Monat 2]: [total] EUR ([bookings] Buchungen)"
+
+**Auslastungs-Statistiken (PHASE 1):**
+"📈 Auslastungs-Statistik ([period]):
+
+🏠 [Hausname]:
+• Gesamttage: [total_days]
+• Belegte Tage: [occupied_days]
+• Leerstand: [vacant_days] Tage
+• Auslastung: [occupancy_rate]%
+• Buchungen: [booking_count]"
+
+**Gäste-Statistiken (PHASE 1):**
+"👥 Gäste-Statistik ([period]):
+
+📊 ÜBERSICHT:
+• Gesamt Gäste: [total_guests]
+• Neue Gäste: [new_guests]
+• Stammkunden: [returning_guests]
+• Rückkehrrate: [return_rate]%
+• Buchungen: [total_bookings]
+• Ø Aufenthaltsdauer: [avg_stay_duration] Nächte
+
+🌍 NACH NATIONALITÄT:
+• [Land 1]: [Anzahl] Gäste
+• [Land 2]: [Anzahl] Gäste"
+
+**Mietzahlungen (PHASE 2):**
+"💳 Mietzahlungen:
+
+• Haus: [house_name]
+• Mieter: [tenant_name]
+• Fällig am: [due_date]
+• Betrag: [amount] EUR
+• Status: [status mit Icon: paid=✅, pending=⏳, overdue=⚠️, cancelled=❌]
+• Zahlungsmethode: [payment_method]"
+
+**Mieter-Info (PHASE 2):**
+"🏘️ Mieter-Informationen für [Hausname]:
+
+👤 MIETER:
+• Name: [tenant_name]
+• Email: [tenant_email]
+• Telefon: [tenant_phone]
+
+📝 VERTRAG:
+• Beginn: [contract_start]
+• Ende: [contract_end oder 'Unbefristet']
+• Monatliche Miete: [monthly_rent] EUR
+• Kaution: [deposit_amount] EUR
+• Zahlungstag: [payment_day]. des Monats
+• Zahlungsmethode: [payment_method]"
+
+**Mieter-Statistiken (PHASE 2):**
+"📊 Mieter-Statistik ([period]):
+
+💰 ÜBERSICHT:
+• Mieteinnahmen: [total_revenue] EUR
+• Ausstehend: [pending_amount] EUR
+• Überfällig: [overdue_amount] EUR
+• Zahlungen: [payment_count]
+
+🏠 PRO HAUS:
+• [Haus 1]: [total] EUR (paid: [paid], pending: [pending], overdue: [overdue])"
+
+**Bestellung erstellt (PHASE 3):**
+"✅ Wäschebestellung erfolgreich erstellt!
+
+📦 DETAILS:
+• Haus: [house_name]
+• Lieferdatum: [delivery_date]
+• Status: Offen 📝
+• Items: [Anzahl verschiedene Items]
+
+💡 HINWEIS:
+Die Bestellung muss noch bestätigt werden, bevor sie an die Wäscherei gesendet wird."
+
+**Status geändert (PHASE 3):**
+"✅ Status erfolgreich geändert!
+
+🔄 ÄNDERUNG:
+• Typ: [Bestellung/Reinigung]
+• Alter Status: [old_status]
+• Neuer Status: [new_status]
+
+💡 Die Änderung wurde in der Datenbank gespeichert."
 
 **Reinigungspersonal:**
 "Ich habe [Anzahl] Reinigungskräfte gefunden:
@@ -664,6 +775,183 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               name: { type: "string", description: "Name der Reinigungskraft" },
               is_active: { type: "boolean", description: "Nur aktives Personal?" }
             }
+          }
+        }
+      },
+      // PHASE 1: Finanz-Statistiken
+      {
+        type: "function",
+        function: {
+          name: "get_revenue_stats",
+          description: "Zeigt Umsatz-Statistiken für einen Zeitraum (Gesamt, pro Haus, pro Monat)",
+          parameters: {
+            type: "object",
+            properties: {
+              date_from: { type: "string", description: "Von-Datum (ISO 8601)" },
+              date_to: { type: "string", description: "Bis-Datum (ISO 8601)" },
+              house_id: { type: "string", description: "Optional: Nur für ein spezifisches Haus" }
+            },
+            required: ["date_from", "date_to"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_occupancy_stats",
+          description: "Zeigt Auslastungsstatistiken für Häuser (Belegungstage, Leerstand, Auslastung in %)",
+          parameters: {
+            type: "object",
+            properties: {
+              date_from: { type: "string", description: "Von-Datum (ISO 8601)" },
+              date_to: { type: "string", description: "Bis-Datum (ISO 8601)" },
+              house_id: { type: "string", description: "Optional: Nur für ein spezifisches Haus" }
+            },
+            required: ["date_from", "date_to"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_guest_statistics",
+          description: "Zeigt Gäste-Analysen (Stammkunden, neue Gäste, Nationalitäten, durchschnittliche Aufenthaltsdauer)",
+          parameters: {
+            type: "object",
+            properties: {
+              date_from: { type: "string", description: "Von-Datum (ISO 8601)" },
+              date_to: { type: "string", description: "Bis-Datum (ISO 8601)" }
+            },
+            required: ["date_from", "date_to"]
+          }
+        }
+      },
+      // PHASE 2: Mieter-Management
+      {
+        type: "function",
+        function: {
+          name: "search_tenant_payments",
+          description: "Sucht Mietzahlungen nach Haus, Status oder Zeitraum",
+          parameters: {
+            type: "object",
+            properties: {
+              house_id: { type: "string", description: "UUID des Hauses" },
+              status: { 
+                type: "string", 
+                enum: ["pending", "paid", "overdue", "cancelled"],
+                description: "Zahlungsstatus" 
+              },
+              date_from: { type: "string", description: "Von-Datum für Fälligkeit (ISO 8601)" },
+              date_to: { type: "string", description: "Bis-Datum für Fälligkeit (ISO 8601)" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_tenant_info",
+          description: "Zeigt Mieterinformationen für ein spezifisches Haus (aus tenant_info JSONB-Feld)",
+          parameters: {
+            type: "object",
+            properties: {
+              house_id: { type: "string", description: "UUID des Hauses" }
+            },
+            required: ["house_id"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_tenant_analytics",
+          description: "Zeigt Mieter-Statistiken (Gesamteinnahmen, ausstehende Beträge, Vertragsstatus)",
+          parameters: {
+            type: "object",
+            properties: {
+              date_from: { type: "string", description: "Von-Datum (ISO 8601)" },
+              date_to: { type: "string", description: "Bis-Datum (ISO 8601)" }
+            },
+            required: ["date_from", "date_to"]
+          }
+        }
+      },
+      // PHASE 3: Schreibzugriffe (MIT BESTÄTIGUNG!)
+      {
+        type: "function",
+        function: {
+          name: "create_linen_order",
+          description: "Erstellt eine neue Wäschebestellung. WICHTIG: Frage immer nach Bestätigung!",
+          parameters: {
+            type: "object",
+            properties: {
+              house_id: { type: "string", description: "UUID des Hauses" },
+              booking_id: { type: "string", description: "Optional: UUID der Buchung" },
+              delivery_date: { type: "string", description: "Geplantes Lieferdatum (ISO 8601)" },
+              items: { 
+                type: "object", 
+                description: "Wäsche-Items als Key-Value (z.B. {bedding: 5, large_towels: 3})" 
+              },
+              notes: { type: "string", description: "Notizen zur Bestellung" }
+            },
+            required: ["house_id", "delivery_date", "items"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "update_linen_order_status",
+          description: "Ändert den Status einer Wäschebestellung. WICHTIG: Frage immer nach Bestätigung!",
+          parameters: {
+            type: "object",
+            properties: {
+              order_id: { type: "string", description: "UUID der Bestellung" },
+              new_status: { 
+                type: "string", 
+                enum: ["pending", "assigned", "confirmed", "delivered", "cancelled"],
+                description: "Neuer Status" 
+              }
+            },
+            required: ["order_id", "new_status"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "update_cleaning_task",
+          description: "Ändert Details eines Reinigungsauftrags. WICHTIG: Frage immer nach Bestätigung!",
+          parameters: {
+            type: "object",
+            properties: {
+              task_id: { type: "string", description: "UUID des Tasks" },
+              scheduled_date: { type: "string", description: "Neues Datum (ISO 8601)" },
+              scheduled_time: { type: "string", description: "Neue Uhrzeit (HH:MM)" },
+              status: { 
+                type: "string", 
+                enum: ["scheduled", "in_progress", "completed", "cancelled", "delayed", "draft"],
+                description: "Neuer Status" 
+              },
+              notes: { type: "string", description: "Aktualisierte Notizen" }
+            },
+            required: ["task_id"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "assign_cleaning_staff",
+          description: "Weist Reinigungspersonal einem Auftrag zu. WICHTIG: Frage immer nach Bestätigung!",
+          parameters: {
+            type: "object",
+            properties: {
+              task_id: { type: "string", description: "UUID des Reinigungsauftrags" },
+              staff_id: { type: "string", description: "UUID der Reinigungskraft (aus cleaning_staff Tabelle)" },
+              provider_id: { type: "string", description: "Optional: UUID des Service-Providers" }
+            },
+            required: ["task_id", "staff_id"]
           }
         }
       }
@@ -1522,6 +1810,399 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       return { success: true, staff: enrichedData, count: enrichedData.length };
     }
 
+    // PHASE 1: Finanz-Statistiken Execute-Funktionen
+    async function executeGetRevenueStats(params: any) {
+      console.log('Executing get_revenue_stats with params:', params);
+      
+      let query = supabase
+        .from('bookings')
+        .select('booking_amount, check_in, check_out, houses(name), status')
+        .neq('status', 'cancelled')
+        .not('booking_amount', 'is', null)
+        .gte('check_in', params.date_from)
+        .lte('check_out', params.date_to);
+
+      if (params.house_id) {
+        query = query.eq('house_id', params.house_id);
+      }
+
+      const { data, error } = await query.order('check_in', { ascending: true });
+
+      if (error) {
+        console.error('Error getting revenue stats:', error);
+        return { success: false, error: error.message };
+      }
+
+      const totalRevenue = data.reduce((sum, b) => sum + (b.booking_amount || 0), 0);
+      const bookingCount = data.length;
+      const averageRevenue = bookingCount > 0 ? totalRevenue / bookingCount : 0;
+
+      // Gruppiere nach Haus
+      const revenueByHouse: Record<string, { total: number, bookings: number }> = {};
+      data.forEach(b => {
+        const houseName = b.houses?.name || 'Unbekannt';
+        if (!revenueByHouse[houseName]) {
+          revenueByHouse[houseName] = { total: 0, bookings: 0 };
+        }
+        revenueByHouse[houseName].total += b.booking_amount || 0;
+        revenueByHouse[houseName].bookings++;
+      });
+
+      // Gruppiere nach Monat
+      const revenueByMonth: Record<string, { total: number, bookings: number }> = {};
+      data.forEach(b => {
+        const month = b.check_in.substring(0, 7); // YYYY-MM
+        if (!revenueByMonth[month]) {
+          revenueByMonth[month] = { total: 0, bookings: 0 };
+        }
+        revenueByMonth[month].total += b.booking_amount || 0;
+        revenueByMonth[month].bookings++;
+      });
+
+      return {
+        success: true,
+        summary: {
+          total_revenue: totalRevenue,
+          booking_count: bookingCount,
+          average_revenue: Math.round(averageRevenue),
+          period: `${params.date_from} bis ${params.date_to}`
+        },
+        by_house: revenueByHouse,
+        by_month: revenueByMonth
+      };
+    }
+
+    async function executeGetOccupancyStats(params: any) {
+      console.log('Executing get_occupancy_stats with params:', params);
+      
+      const startDate = new Date(params.date_from);
+      const endDate = new Date(params.date_to);
+      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      let housesQuery = supabase.from('houses').select('id, name').eq('rental_type', 'tourist');
+      if (params.house_id) {
+        housesQuery = housesQuery.eq('id', params.house_id);
+      }
+
+      const { data: houses, error: housesError } = await housesQuery;
+      if (housesError) {
+        return { success: false, error: housesError.message };
+      }
+
+      const stats: Record<string, any> = {};
+
+      for (const house of houses || []) {
+        const { data: bookings } = await supabase
+          .from('bookings')
+          .select('check_in, check_out, status')
+          .eq('house_id', house.id)
+          .neq('status', 'cancelled')
+          .or(`check_in.lte.${params.date_to},check_out.gte.${params.date_from}`);
+
+        let occupiedDays = 0;
+        bookings?.forEach(b => {
+          const checkIn = new Date(Math.max(new Date(b.check_in).getTime(), startDate.getTime()));
+          const checkOut = new Date(Math.min(new Date(b.check_out).getTime(), endDate.getTime()));
+          const days = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+          occupiedDays += Math.max(0, days);
+        });
+
+        const occupancyRate = totalDays > 0 ? Math.round((occupiedDays / totalDays) * 100) : 0;
+        
+        stats[house.name] = {
+          total_days: totalDays,
+          occupied_days: occupiedDays,
+          vacant_days: totalDays - occupiedDays,
+          occupancy_rate: occupancyRate,
+          booking_count: bookings?.length || 0
+        };
+      }
+
+      return {
+        success: true,
+        period: `${params.date_from} bis ${params.date_to}`,
+        houses: stats
+      };
+    }
+
+    async function executeGetGuestStatistics(params: any) {
+      console.log('Executing get_guest_statistics with params:', params);
+      
+      const { data: bookings, error } = await supabase
+        .from('bookings')
+        .select('guest_email, guest_name, nationality, check_in, check_out, number_of_guests')
+        .neq('status', 'cancelled')
+        .gte('check_in', params.date_from)
+        .lte('check_out', params.date_to)
+        .order('check_in', { ascending: true });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      const guestMap: Record<string, { bookings: number, total_nights: number, total_guests: number, first_booking: string, last_booking: string }> = {};
+      const nationalityStats: Record<string, number> = {};
+      
+      bookings?.forEach(b => {
+        const email = b.guest_email || 'unknown';
+        if (!guestMap[email]) {
+          guestMap[email] = {
+            bookings: 0,
+            total_nights: 0,
+            total_guests: 0,
+            first_booking: b.check_in,
+            last_booking: b.check_in
+          };
+        }
+        
+        const nights = Math.ceil((new Date(b.check_out).getTime() - new Date(b.check_in).getTime()) / (1000 * 60 * 60 * 24));
+        guestMap[email].bookings++;
+        guestMap[email].total_nights += nights;
+        guestMap[email].total_guests += b.number_of_guests || 0;
+        guestMap[email].last_booking = b.check_in;
+
+        const nationality = b.nationality || 'Unbekannt';
+        nationalityStats[nationality] = (nationalityStats[nationality] || 0) + 1;
+      });
+
+      const totalGuests = Object.keys(guestMap).length;
+      const returningGuests = Object.values(guestMap).filter(g => g.bookings > 1).length;
+      const newGuests = totalGuests - returningGuests;
+      const totalNights = bookings?.reduce((sum, b) => {
+        const nights = Math.ceil((new Date(b.check_out).getTime() - new Date(b.check_in).getTime()) / (1000 * 60 * 60 * 24));
+        return sum + nights;
+      }, 0) || 0;
+      const avgStayDuration = bookings && bookings.length > 0 ? Math.round(totalNights / bookings.length) : 0;
+
+      return {
+        success: true,
+        period: `${params.date_from} bis ${params.date_to}`,
+        summary: {
+          total_guests: totalGuests,
+          new_guests: newGuests,
+          returning_guests: returningGuests,
+          return_rate: totalGuests > 0 ? Math.round((returningGuests / totalGuests) * 100) : 0,
+          total_bookings: bookings?.length || 0,
+          avg_stay_duration: avgStayDuration
+        },
+        by_nationality: nationalityStats
+      };
+    }
+
+    // PHASE 2: Mieter-Management Execute-Funktionen
+    async function executeSearchTenantPayments(params: any) {
+      console.log('Executing search_tenant_payments with params:', params);
+      
+      let query = supabase
+        .from('tenant_payments')
+        .select('*, houses(name, address, tenant_info)');
+
+      if (params.house_id) query = query.eq('house_id', params.house_id);
+      if (params.status) query = query.eq('status', params.status);
+      if (params.date_from) query = query.gte('due_date', params.date_from);
+      if (params.date_to) query = query.lte('due_date', params.date_to);
+
+      const { data, error } = await query.order('due_date', { ascending: false });
+
+      if (error) {
+        console.error('Error searching tenant payments:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { success: true, payments: data || [], count: data?.length || 0 };
+    }
+
+    async function executeGetTenantInfo(house_id: string) {
+      console.log('Executing get_tenant_info for:', house_id);
+      
+      const { data, error } = await supabase
+        .from('houses')
+        .select('id, name, address, rental_type, property_type, tenant_info')
+        .eq('id', house_id)
+        .single();
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (!data.tenant_info) {
+        return { 
+          success: true, 
+          house: data, 
+          tenant_info: null,
+          message: 'Keine Mietvertragsdaten für dieses Haus hinterlegt' 
+        };
+      }
+
+      return {
+        success: true,
+        house: {
+          id: data.id,
+          name: data.name,
+          address: data.address,
+          rental_type: data.rental_type,
+          property_type: data.property_type
+        },
+        tenant_info: data.tenant_info
+      };
+    }
+
+    async function executeGetTenantAnalytics(params: any) {
+      console.log('Executing get_tenant_analytics with params:', params);
+      
+      const { data: payments, error } = await supabase
+        .from('tenant_payments')
+        .select('*, houses(name, tenant_info)')
+        .gte('due_date', params.date_from)
+        .lte('due_date', params.date_to);
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      const totalRevenue = payments?.filter(p => p.status === 'paid').reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+      const pendingAmount = payments?.filter(p => p.status === 'pending').reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+      const overdueAmount = payments?.filter(p => p.status === 'overdue').reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+
+      // Gruppiere nach Haus
+      const byHouse: Record<string, any> = {};
+      payments?.forEach(p => {
+        const houseName = p.houses?.name || 'Unbekannt';
+        if (!byHouse[houseName]) {
+          byHouse[houseName] = {
+            paid: 0,
+            pending: 0,
+            overdue: 0,
+            total: 0
+          };
+        }
+        const amount = p.amount || 0;
+        byHouse[houseName][p.status] += amount;
+        byHouse[houseName].total += amount;
+      });
+
+      return {
+        success: true,
+        period: `${params.date_from} bis ${params.date_to}`,
+        summary: {
+          total_revenue: totalRevenue,
+          pending_amount: pendingAmount,
+          overdue_amount: overdueAmount,
+          payment_count: payments?.length || 0
+        },
+        by_house: byHouse
+      };
+    }
+
+    // PHASE 3: Schreibzugriffe Execute-Funktionen
+    async function executeCreateLinenOrder(params: any) {
+      console.log('Executing create_linen_order with params:', params);
+      
+      const orderData: any = {
+        house_id: params.house_id,
+        delivery_date: params.delivery_date,
+        order_items: params.items,
+        status: 'offen',
+        order_source: 'manual',
+        order_date: new Date().toISOString()
+      };
+
+      if (params.booking_id) orderData.booking_id = params.booking_id;
+      if (params.notes) orderData.notes = params.notes;
+
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .insert([orderData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating linen order:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { 
+        success: true, 
+        order: data, 
+        message: 'Wäschebestellung erfolgreich erstellt' 
+      };
+    }
+
+    async function executeUpdateLinenOrderStatus(order_id: string, new_status: string) {
+      console.log('Executing update_linen_order_status:', { order_id, new_status });
+      
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .update({ status: new_status })
+        .eq('id', order_id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating linen order status:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { 
+        success: true, 
+        order: data, 
+        message: `Status erfolgreich auf '${new_status}' geändert` 
+      };
+    }
+
+    async function executeUpdateCleaningTask(task_id: string, params: any) {
+      console.log('Executing update_cleaning_task:', { task_id, params });
+      
+      const updateData: any = {};
+      if (params.scheduled_date) updateData.scheduled_date = params.scheduled_date;
+      if (params.scheduled_time) updateData.scheduled_time = params.scheduled_time;
+      if (params.status) updateData.status = params.status;
+      if (params.notes) updateData.notes = params.notes;
+
+      const { data, error } = await supabase
+        .from('service_tasks')
+        .update(updateData)
+        .eq('id', task_id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating cleaning task:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { 
+        success: true, 
+        task: data, 
+        message: 'Reinigungsauftrag erfolgreich aktualisiert' 
+      };
+    }
+
+    async function executeAssignCleaningStaff(task_id: string, staff_id: string, provider_id?: string) {
+      console.log('Executing assign_cleaning_staff:', { task_id, staff_id, provider_id });
+      
+      const updateData: any = { assigned_staff_id: staff_id };
+      if (provider_id) updateData.provider_id = provider_id;
+
+      const { data, error } = await supabase
+        .from('service_tasks')
+        .update(updateData)
+        .eq('id', task_id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error assigning cleaning staff:', error);
+        return { success: false, error: error.message };
+      }
+
+      return { 
+        success: true, 
+        task: data, 
+        message: 'Reinigungspersonal erfolgreich zugewiesen' 
+      };
+    }
+
     // Tool router
     async function executeTool(toolName: string, args: any) {
       try {
@@ -1562,6 +2243,29 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
             return await executeGetHouseBookingsSummary(args.house_id, args.timeframe);
           case 'search_cleaning_staff':
             return await executeSearchCleaningStaff(args);
+          // PHASE 1: Finanz-Statistiken
+          case 'get_revenue_stats':
+            return await executeGetRevenueStats(args);
+          case 'get_occupancy_stats':
+            return await executeGetOccupancyStats(args);
+          case 'get_guest_statistics':
+            return await executeGetGuestStatistics(args);
+          // PHASE 2: Mieter-Management
+          case 'search_tenant_payments':
+            return await executeSearchTenantPayments(args);
+          case 'get_tenant_info':
+            return await executeGetTenantInfo(args.house_id);
+          case 'get_tenant_analytics':
+            return await executeGetTenantAnalytics(args);
+          // PHASE 3: Schreibzugriffe
+          case 'create_linen_order':
+            return await executeCreateLinenOrder(args);
+          case 'update_linen_order_status':
+            return await executeUpdateLinenOrderStatus(args.order_id, args.new_status);
+          case 'update_cleaning_task':
+            return await executeUpdateCleaningTask(args.task_id, args);
+          case 'assign_cleaning_staff':
+            return await executeAssignCleaningStaff(args.task_id, args.staff_id, args.provider_id);
           default:
             throw new Error(`Unknown tool: ${toolName}`);
         }

@@ -6,7 +6,7 @@ Dieses Dokument dient zur systematischen Testung der 18 bestehenden Tools des AI
 
 ---
 
-## 🛠️ Tool-Inventar (18 Tools)
+## 🛠️ Tool-Inventar (28 Tools)
 
 ### **Buchungen (3 Tools)**
 - [ ] `search_bookings` - Buchungen nach Gast, Status, Haus, Datum suchen
@@ -39,6 +39,22 @@ Dieses Dokument dient zur systematischen Testung der 18 bestehenden Tools des AI
 - [ ] `search_service_providers` - Provider nach Service-Typ suchen
 - [ ] `get_provider_details` - Provider-Details mit Statistiken
 - [ ] `get_provider_cleanings` - Reinigungsaufträge eines Providers
+
+### **🆕 PHASE 1: Finanz-Statistiken (3 Tools)**
+- [ ] `get_revenue_stats` - Umsatzanalysen (Gesamt, pro Haus, pro Monat)
+- [ ] `get_occupancy_stats` - Auslastungsstatistiken (Belegung, Leerstand)
+- [ ] `get_guest_statistics` - Gäste-Analysen (Stammkunden, neue Gäste, Nationalitäten)
+
+### **🆕 PHASE 2: Mieter-Management (3 Tools)**
+- [ ] `search_tenant_payments` - Mietzahlungen nach Status/Zeitraum suchen
+- [ ] `get_tenant_info` - Mieterinformationen für ein Haus
+- [ ] `get_tenant_analytics` - Mieter-Statistiken (Einnahmen, ausstehende Beträge)
+
+### **🆕 PHASE 3: Schreibzugriffe (4 Tools)**
+- [ ] `create_linen_order` - Neue Wäschebestellung erstellen (MIT BESTÄTIGUNG!)
+- [ ] `update_linen_order_status` - Bestellstatus ändern (MIT BESTÄTIGUNG!)
+- [ ] `update_cleaning_task` - Reinigungsauftrag bearbeiten (MIT BESTÄTIGUNG!)
+- [ ] `assign_cleaning_staff` - Personal zuweisen (MIT BESTÄTIGUNG!)
 
 ---
 
@@ -138,6 +154,50 @@ Dieses Dokument dient zur systematischen Testung der 18 bestehenden Tools des AI
 
 ### **⚡ PRIORITÄT 2: Wöchentlich genutzt (WICHTIG)**
 
+#### **🆕 PHASE 1: Finanz-Statistiken**
+- [ ] "Wie viel Umsatz im Oktober?"
+  - **Erwartung:** Gesamt, pro Haus, pro Monat
+  - **Tool:** `get_revenue_stats`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Wie ist die Auslastung von Wald Chalet?"
+  - **Erwartung:** Belegungstage, Leerstand, Auslastung in %
+  - **Tool:** `get_occupancy_stats`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Welche Gäste sind Stammkunden?"
+  - **Erwartung:** Gäste mit mehr als 1 Buchung
+  - **Tool:** `get_guest_statistics`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Zeige Gäste-Analyse für dieses Jahr"
+  - **Erwartung:** Neue vs. Stammkunden, Nationalitäten, Ø Aufenthalt
+  - **Tool:** `get_guest_statistics`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+#### **🆕 PHASE 2: Mieter-Management**
+- [ ] "Welche Mietzahlungen sind überfällig?"
+  - **Erwartung:** Liste mit status='overdue'
+  - **Tool:** `search_tenant_payments`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Zeige mir den Mieter von Wald Chalet"
+  - **Erwartung:** tenant_info mit Vertragsdaten
+  - **Tool:** `get_tenant_info`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Wie viel Mieteinnahmen diesen Monat?"
+  - **Erwartung:** Gesamt, ausstehend, überfällig
+  - **Tool:** `get_tenant_analytics`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
 #### **Gäste-Suche**
 - [ ] "Zeige alle Buchungen von Michael Scheffer"
   - **Erwartung:** Historie dieses Gastes
@@ -192,6 +252,31 @@ Dieses Dokument dient zur systematischen Testung der 18 bestehenden Tools des AI
 ---
 
 ### **🔹 PRIORITÄT 3: Selten genutzt (OPTIONAL)**
+
+#### **🆕 PHASE 3: Schreibzugriffe (MIT BESTÄTIGUNG!)**
+- [ ] "Erstelle Wäschebestellung für Wald Chalet am 15.10.2025"
+  - **Erwartung:** Bestätigungs-Dialog + Bestellung erstellt
+  - **Tool:** `create_linen_order`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Bestätige offene Bestellung [ID]"
+  - **Erwartung:** Status von 'offen' auf 'pending' ändern
+  - **Tool:** `update_linen_order_status`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Verschiebe Reinigung auf morgen"
+  - **Erwartung:** scheduled_date ändern + Bestätigung
+  - **Tool:** `update_cleaning_task`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
+
+- [ ] "Weise Reinigung Amela zu"
+  - **Erwartung:** Personal zuweisen + Bestätigung
+  - **Tool:** `assign_cleaning_staff`
+  - **Ergebnis:** ✅ / ❌
+  - **Anmerkungen:** _______________________
 
 #### **Status-Updates**
 - [ ] "Ändere Buchung [ID] auf storniert"
