@@ -32,8 +32,29 @@ serve(async (req) => {
 
     console.log('Chat request received:', { messageCount: messages.length, context });
 
+    // Aktuelles Datum für zeitbasierte Anfragen
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const currentDateTime = now.toISOString(); // Full ISO timestamp
+    const berlinTime = new Intl.DateTimeFormat('de-DE', {
+      timeZone: 'Europe/Berlin',
+      dateStyle: 'full',
+      timeStyle: 'short'
+    }).format(now);
+
     // System prompt - CRITICAL: Force tool usage
     const systemPrompt = `Du bist ein Datenbank-Assistent für eine Ferienhaus-Verwaltungssoftware.
+
+📅 AKTUELLES DATUM:
+Heute ist: ${berlinTime}
+ISO-Datum: ${currentDate}
+
+Nutze dieses Datum für alle zeitbasierten Anfragen:
+- "heute" → ${currentDate}
+- "morgen" → berechne +1 Tag von ${currentDate}
+- "nächste Woche" → berechne +7 Tage von ${currentDate}
+- "letzte Woche" → berechne -7 Tage von ${currentDate}
+- Relative Begriffe wie "nächste Buchung", "kommende Events" beziehen sich auf Daten >= ${currentDate}
 
 🏠 WICHTIG - OBJEKTTYPEN:
 - Es gibt ZWEI Arten von Objekten: "Touristische Vermietungen" (rental_type = 'tourist') und "Festvermietungen" (rental_type = 'long_term')
@@ -73,6 +94,9 @@ WORKFLOW (ZWINGEND!):
 - "dienstleister" / "anbieter" / "service provider" → search_service_providers
 - "reinigungskraft" / "putzkraft" / "personal" / "wer ist [Name]" → search_cleaning_staff
 - "was ist los in [Haus]?" / "wer kommt als nächstes?" / "ist [Haus] belegt?" → get_house_bookings_summary
+- "nächste buchung" / "kommende buchung" → search_bookings mit date_from=${currentDate}, sortiert nach check_in ASC, limit 1
+- "heute eingecheckt" / "wer ist da" → search_bookings mit check_in=${currentDate}
+- "wer checkt heute aus" → search_bookings mit check_out=${currentDate}
 - "aktuell eingecheckt" / "wer ist gerade da" / "heute belegt" → search_bookings mit date_from=heute, date_to=heute (nutzt Overlap-Detection!)
 - "kommende buchungen" / "nächste woche" / "ab morgen" → search_bookings mit date_from=ab_datum
 - "vergangene buchungen" / "letzte woche" / "bis gestern" → search_bookings mit date_to=bis_datum
