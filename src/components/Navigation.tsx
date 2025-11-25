@@ -2,46 +2,16 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Home, MessageCircle } from 'lucide-react';
+import { Home } from 'lucide-react';
 import ConnectionStatus from '@/components/PWA/ConnectionStatus';
 import PWAStatus from '@/components/PWA/PWAStatus';
 import { useHouses } from '@/hooks/useHouses';
 import { useMemo } from 'react';
-import { useChatContext } from '@/contexts/ChatContext';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 
 // Navigation component for Ferienhaus Manager
 const Navigation = () => {
   const location = useLocation();
   const { data: houses } = useHouses();
-  const { setIsOpen } = useChatContext();
-  
-  // Fetch unread message counts
-  const { data: unreadCounts } = useQuery({
-    queryKey: ['provider-unread-counts'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('provider_messages')
-        .select('provider_id')
-        .eq('sender_type', 'provider')
-        .eq('is_read', false);
-
-      if (error) throw error;
-
-      const counts: Record<string, number> = {};
-      data?.forEach((msg) => {
-        counts[msg.provider_id] = (counts[msg.provider_id] || 0) + 1;
-      });
-
-      return counts;
-    },
-  });
-
-  const totalUnreadCount = useMemo(() => {
-    if (!unreadCounts) return 0;
-    return Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
-  }, [unreadCounts]);
   
   // Calculate total urgent orders across all houses
   const totalUrgentOrders = useMemo(() => {
@@ -125,25 +95,6 @@ const Navigation = () => {
             <div className="flex-1 min-w-0">
               <h2 className="font-bold text-sm text-gradient truncate">Ferienhaus Manager</h2>
             </div>
-            
-            {/* Chat Button - Mobile only */}
-            <Button 
-              onClick={() => setIsOpen(true)}
-              size="icon"
-              variant="ghost"
-              className="relative h-8 w-8 shrink-0"
-            >
-              <MessageCircle className="h-5 w-5" />
-              {totalUnreadCount > 0 && (
-                <Badge 
-                  variant="destructive" 
-                  className="absolute -top-1 -right-1 h-4 w-4 rounded-full p-0 flex items-center justify-center text-[8px]"
-                >
-                  {totalUnreadCount}
-                </Badge>
-              )}
-            </Button>
-            
             <div className="flex items-center gap-1">
               <ConnectionStatus />
               <PWAStatus />
