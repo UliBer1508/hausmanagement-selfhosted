@@ -3326,6 +3326,61 @@ export type Database = {
           },
         ]
       }
+      provider_messages: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_read: boolean | null
+          message: string
+          provider_id: string
+          related_linen_order_id: string | null
+          related_task_id: string | null
+          sender_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          provider_id: string
+          related_linen_order_id?: string | null
+          related_task_id?: string | null
+          sender_type: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          provider_id?: string
+          related_linen_order_id?: string | null
+          related_task_id?: string | null
+          sender_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "provider_messages_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_messages_related_linen_order_id_fkey"
+            columns: ["related_linen_order_id"]
+            isOneToOne: false
+            referencedRelation: "linen_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "provider_messages_related_task_id_fkey"
+            columns: ["related_task_id"]
+            isOneToOne: false
+            referencedRelation: "service_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provider_tokens: {
         Row: {
           created_at: string | null
