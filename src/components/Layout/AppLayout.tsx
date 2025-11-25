@@ -14,9 +14,6 @@ const AppLayout = ({ children }: AppLayoutProps) => {
 
   return (
     <div className="layout-container">
-      {/* Navigation */}
-      <Navigation />
-      
       {/* Simplified Layout - No Sidebar */}
       <main className="content-main min-h-screen">
         {children}

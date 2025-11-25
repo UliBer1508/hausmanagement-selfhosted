@@ -2,23 +2,16 @@ import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Home, MessageCircle } from 'lucide-react';
+import { Home } from 'lucide-react';
 import ConnectionStatus from '@/components/PWA/ConnectionStatus';
 import PWAStatus from '@/components/PWA/PWAStatus';
 import { useHouses } from '@/hooks/useHouses';
-import { useChatContext } from '@/contexts/ChatContext';
-import { useProviderMessages } from '@/hooks/useProviderMessages';
 import { useMemo } from 'react';
 
 // Navigation component for Ferienhaus Manager
 const Navigation = () => {
   const location = useLocation();
   const { data: houses } = useHouses();
-  const { toggleChat } = useChatContext();
-  const { unreadCounts } = useProviderMessages(null);
-  
-  // Calculate total unread messages
-  const totalUnread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
   
   // Calculate total urgent orders across all houses
   const totalUrgentOrders = useMemo(() => {
@@ -52,25 +45,10 @@ const Navigation = () => {
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-lg flex items-center justify-center">
               <Home className="w-5 h-5 text-primary-foreground" />
             </div>
-            <div className="flex-1">
+            <div>
               <h2 className="font-bold text-lg text-gradient">Ferienhaus</h2>
               <p className="text-sm text-muted-foreground">Manager</p>
             </div>
-            <Button
-              onClick={toggleChat}
-              size="icon"
-              variant="outline"
-              className="relative h-10 w-10 rounded-full"
-            >
-              <MessageCircle className="h-5 w-5" />
-              {totalUnread > 0 && (
-                <Badge 
-                  className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-destructive text-destructive-foreground animate-pulse text-xs"
-                >
-                  {totalUnread}
-                </Badge>
-              )}
-            </Button>
           </div>
           <div className="flex items-center gap-2">
             <ConnectionStatus />
@@ -117,21 +95,6 @@ const Navigation = () => {
             <div className="flex-1 min-w-0">
               <h2 className="font-bold text-sm text-gradient truncate">Ferienhaus Manager</h2>
             </div>
-            <Button
-              onClick={toggleChat}
-              size="icon"
-              variant="outline"
-              className="relative h-8 w-8 rounded-full"
-            >
-              <MessageCircle className="h-4 w-4" />
-              {totalUnread > 0 && (
-                <Badge 
-                  className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center p-0 bg-destructive text-destructive-foreground animate-pulse text-[8px]"
-                >
-                  {totalUnread}
-                </Badge>
-              )}
-            </Button>
             <div className="flex items-center gap-1">
               <ConnectionStatus />
               <PWAStatus />
