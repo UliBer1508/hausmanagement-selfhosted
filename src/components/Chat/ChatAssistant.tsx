@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, GripVertical, Bot, MessagesSquare } from 'lucide-react';
+import { X, GripVertical, Bot, MessagesSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,12 +12,13 @@ import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import { useLocation } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useChatContext } from '@/contexts/ChatContext';
 import Draggable from 'react-draggable';
 
 type ChatMode = 'ai' | 'messaging';
 
 const ChatAssistant = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const { isOpen, setIsOpen } = useChatContext();
   const [chatMode, setChatMode] = useState<ChatMode>('ai');
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const location = useLocation();
@@ -123,27 +124,7 @@ const ChatAssistant = () => {
 
   return (
     <>
-      {/* Floating Action Button */}
-      {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-50">
-          <Button
-            onClick={() => setIsOpen(true)}
-            size="icon"
-            className="relative h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-transform"
-          >
-            <MessageCircle className="h-6 w-6" />
-            {totalUnread > 0 && (
-              <Badge 
-                className="absolute -top-1 -right-1 h-6 w-6 flex items-center justify-center p-0 bg-destructive text-destructive-foreground animate-pulse"
-              >
-                {totalUnread}
-              </Badge>
-            )}
-          </Button>
-        </div>
-      )}
-
-      {/* Draggable Chat Window */}
+      {/* Chat Window */}
       {isOpen && (
         <>
           {/* Backdrop */}

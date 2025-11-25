@@ -7,6 +7,7 @@ import AppStatusBar from "@/components/PWA/AppStatusBar";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import ChatAssistant from "./components/Chat/ChatAssistant";
+import { ChatProvider } from "./contexts/ChatContext";
 
 const queryClient = new QueryClient();
 
@@ -15,24 +16,26 @@ const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AppStatusBar />
-        <BrowserRouter 
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true
-          }}
-        >
-          <div className="pt-12">
-            <Routes>
-              <Route path="/" element={<Index />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </div>
-          <ChatAssistant />
-        </BrowserRouter>
+        <ChatProvider>
+          <Toaster />
+          <Sonner />
+          <AppStatusBar />
+          <BrowserRouter 
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true
+            }}
+          >
+            <div className="pt-12">
+              <Routes>
+                <Route path="/" element={<Index />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </div>
+            <ChatAssistant />
+          </BrowserRouter>
+        </ChatProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
