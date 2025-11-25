@@ -224,7 +224,7 @@ const ChatAssistant = () => {
                     <SelectTrigger>
                       <SelectValue placeholder="Provider auswählen" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[150]">
                       {providers.map((provider) => (
                         <SelectItem key={provider.id} value={provider.id}>
                           <div className="flex items-center justify-between w-full">
