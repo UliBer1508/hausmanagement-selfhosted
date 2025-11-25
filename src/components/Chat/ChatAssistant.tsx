@@ -21,7 +21,8 @@ const ChatAssistant = () => {
   const [chatMode, setChatMode] = useState<ChatMode>('ai');
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const location = useLocation();
-  const isMobile = useIsMobile();
+  const isMobileRaw = useIsMobile();
+  const isMobile = isMobileRaw === undefined ? false : isMobileRaw;
   const scrollRef = useRef<HTMLDivElement>(null);
   const { messages, setMessages, isStreaming, error, sendMessage, clearMessages } = useChat();
   const { summaryMessage, isLoading: summaryLoading, shouldShow, markAsShown } = useMorningSummary();
@@ -155,11 +156,21 @@ const ChatAssistant = () => {
               setIsOpen(false);
             }
           }}
+          onTouchEnd={(e) => {
+            if (e.target === e.currentTarget) {
+              e.preventDefault();
+              setIsOpen(false);
+            }
+          }}
         />
           
           {/* Chat Window - Full Screen on Mobile, Draggable on Desktop */}
           {isMobile ? (
-            <div className="fixed inset-0 h-[100dvh] pointer-events-auto bg-background flex flex-col z-[100]">
+            <div 
+              className="fixed inset-0 h-[100dvh] pointer-events-auto bg-background flex flex-col z-[100] touch-manipulation"
+              onClick={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+            >
               {/* Header */}
               <div className="p-4 pt-[calc(1rem+env(safe-area-inset-top))] border-b bg-card flex flex-col gap-3">
                 <div className="flex items-center justify-between">
@@ -187,13 +198,19 @@ const ChatAssistant = () => {
                         Löschen
                       </Button>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setIsOpen(false)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsOpen(false)}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsOpen(false);
+              }}
+              className="touch-manipulation"
+            >
+              <X className="h-4 w-4" />
+            </Button>
                   </div>
                 </div>
                 
@@ -203,7 +220,11 @@ const ChatAssistant = () => {
                     variant={chatMode === 'ai' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setChatMode('ai')}
-                    className="flex-1"
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      setChatMode('ai');
+                    }}
+                    className="flex-1 touch-manipulation"
                   >
                     <Bot className="h-4 w-4 mr-2" />
                     KI
@@ -212,7 +233,11 @@ const ChatAssistant = () => {
                     variant={chatMode === 'messaging' ? 'default' : 'outline'}
                     size="sm"
                     onClick={() => setChatMode('messaging')}
-                    className="flex-1 relative"
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      setChatMode('messaging');
+                    }}
+                    className="flex-1 relative touch-manipulation"
                   >
                     <MessagesSquare className="h-4 w-4 mr-2" />
                     Messaging
