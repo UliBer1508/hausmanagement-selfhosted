@@ -4108,6 +4108,75 @@ export type Database = {
         }
         Relationships: []
       }
+      user_view_settings: {
+        Row: {
+          created_at: string
+          id: string
+          show_accommodation_address: boolean
+          show_accommodation_name: boolean
+          show_assigned_staff: boolean
+          show_booking_status: boolean
+          show_button_on_mobile: boolean
+          show_check_in_date: boolean
+          show_check_out_date: boolean
+          show_delivery_date: boolean
+          show_delivery_time: boolean
+          show_delivery_type: boolean
+          show_guest_count: boolean
+          show_guest_name: boolean
+          show_linen_orders: boolean
+          show_order_items: boolean
+          show_order_notes: boolean
+          show_order_status: boolean
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          show_accommodation_address?: boolean
+          show_accommodation_name?: boolean
+          show_assigned_staff?: boolean
+          show_booking_status?: boolean
+          show_button_on_mobile?: boolean
+          show_check_in_date?: boolean
+          show_check_out_date?: boolean
+          show_delivery_date?: boolean
+          show_delivery_time?: boolean
+          show_delivery_type?: boolean
+          show_guest_count?: boolean
+          show_guest_name?: boolean
+          show_linen_orders?: boolean
+          show_order_items?: boolean
+          show_order_notes?: boolean
+          show_order_status?: boolean
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          show_accommodation_address?: boolean
+          show_accommodation_name?: boolean
+          show_assigned_staff?: boolean
+          show_booking_status?: boolean
+          show_button_on_mobile?: boolean
+          show_check_in_date?: boolean
+          show_check_out_date?: boolean
+          show_delivery_date?: boolean
+          show_delivery_time?: boolean
+          show_delivery_type?: boolean
+          show_guest_count?: boolean
+          show_guest_name?: boolean
+          show_linen_orders?: boolean
+          show_order_items?: boolean
+          show_order_notes?: boolean
+          show_order_status?: boolean
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       vacation_trips: {
         Row: {
           budget: number | null
