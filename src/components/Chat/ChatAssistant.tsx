@@ -13,11 +13,12 @@ import ChatInput from './ChatInput';
 import { useLocation } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
 import Draggable from 'react-draggable';
+import { useChatContext } from '@/contexts/ChatContext';
 
 type ChatMode = 'ai' | 'messaging';
 
 const ChatAssistant = () => {
-  const [isOpen, setIsOpen] = useState(false);
+  const { isOpen, setIsOpen } = useChatContext();
   const [chatMode, setChatMode] = useState<ChatMode>('ai');
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const location = useLocation();
@@ -123,9 +124,9 @@ const ChatAssistant = () => {
 
   return (
     <>
-      {/* Floating Action Button */}
+      {/* Floating Action Button - Desktop only */}
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-50">
+        <div className="hidden md:block fixed bottom-6 right-6 z-50">
           <Button
             onClick={() => setIsOpen(true)}
             size="icon"
