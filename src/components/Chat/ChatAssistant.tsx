@@ -135,10 +135,15 @@ const ChatAssistant = () => {
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 z-[90]"
-            onClick={() => setIsOpen(false)}
-          />
+        <div
+          className="fixed inset-0 bg-black/50 z-[90]"
+          onClick={(e) => {
+            // Nur schließen wenn direkt auf Backdrop geklickt wurde
+            if (e.target === e.currentTarget) {
+              setIsOpen(false);
+            }
+          }}
+        />
           
           {/* Draggable Window */}
           <div className="fixed inset-0 pointer-events-none z-[100]">
@@ -224,7 +229,7 @@ const ChatAssistant = () => {
                     <SelectTrigger>
                       <SelectValue placeholder="Provider auswählen" />
                     </SelectTrigger>
-                    <SelectContent className="z-[150]">
+                    <SelectContent className="z-[200]">
                       {providers.map((provider) => (
                         <SelectItem key={provider.id} value={provider.id}>
                           <div className="flex items-center justify-between w-full">
