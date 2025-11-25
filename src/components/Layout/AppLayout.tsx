@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import Navigation from '@/components/Navigation';
 import InstallPrompt from '@/components/PWA/InstallPrompt';
 import UpdatePrompt from '@/components/PWA/UpdatePrompt';
+import ChatAssistant from '@/components/Chat/ChatAssistant';
 import { useProviderMessageNotifications } from '@/hooks/useProviderMessageNotifications';
 import { ChatProvider } from '@/contexts/ChatContext';
 
@@ -24,6 +25,9 @@ const AppLayout = ({ children }: AppLayoutProps) => {
         {/* PWA Components */}
         <InstallPrompt />
         <UpdatePrompt />
+        
+        {/* Chat Assistant */}
+        <ChatAssistant />
       </div>
     </ChatProvider>
   );
