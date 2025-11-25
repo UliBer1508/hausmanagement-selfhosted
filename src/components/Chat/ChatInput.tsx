@@ -6,9 +6,10 @@ import { Textarea } from '@/components/ui/textarea';
 interface ChatInputProps {
   onSendMessage: (content: string) => void;
   disabled?: boolean;
+  onFocus?: () => void;
 }
 
-const ChatInput = ({ onSendMessage, disabled }: ChatInputProps) => {
+const ChatInput = ({ onSendMessage, disabled, onFocus }: ChatInputProps) => {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -48,6 +49,7 @@ const ChatInput = ({ onSendMessage, disabled }: ChatInputProps) => {
         value={input}
         onChange={handleInput}
         onKeyDown={handleKeyDown}
+        onFocus={onFocus}
         placeholder="Schreibe eine Nachricht... (Enter zum Senden, Shift+Enter für neue Zeile)"
         disabled={disabled}
         className="min-h-[44px] max-h-[150px] resize-none"
