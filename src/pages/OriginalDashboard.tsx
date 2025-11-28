@@ -935,8 +935,8 @@ const OriginalDashboard = () => {
   // Helper-Funktion: Haus-spezifische Farbe für "Belegt"-Status
   const getHouseOccupiedColor = (houseName: string): string => {
     const houseColors: Record<string, string> = {
-      'Venedigersiedlung Chalet': 'bg-orange-200 text-orange-900',
-      'Wald Chalet': 'bg-yellow-100 text-yellow-800',
+      'Venedigersiedlung Chalet': 'bg-orange-500 text-white',
+      'Wald Chalet': 'bg-cyan-200 text-cyan-800',
     };
     
     // Fallback auf orange wenn Haus nicht in der Liste
@@ -1389,11 +1389,11 @@ const OriginalDashboard = () => {
                   <span className="text-sm text-foreground">Check-out</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-orange-200 rounded-md border border-orange-300"></div>
+                  <div className="w-4 h-4 bg-orange-500 rounded-md border border-orange-600"></div>
                   <span className="text-sm text-foreground">Venedigersiedlung Belegt</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-yellow-100 rounded-md border border-yellow-300"></div>
+                  <div className="w-4 h-4 bg-cyan-200 rounded-md border border-cyan-300"></div>
                   <span className="text-sm text-foreground">Wald Chalet Belegt</span>
                 </div>
                 <div className="flex items-center space-x-3">
