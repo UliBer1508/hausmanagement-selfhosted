@@ -1062,7 +1062,7 @@ const OriginalDashboard = () => {
             type: 'cleaning',
             title: `🧹 Reinigung: ${houseName}`,
             task: task,
-            color: 'bg-blue-200 text-blue-800'
+            color: 'bg-blue-500 text-white'
           });
         }
       }
@@ -1085,7 +1085,7 @@ const OriginalDashboard = () => {
             type: 'laundry',
             title: `🧺 Wäsche: ${houseName}`,
             order: order,
-            color: 'bg-purple-200 text-purple-800'
+            color: 'bg-purple-500 text-white'
           });
         }
       }
@@ -1443,11 +1443,11 @@ const OriginalDashboard = () => {
                   <span className="text-sm text-foreground">Wald Chalet Belegt</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-blue-200 rounded-md border border-blue-300"></div>
+                  <div className="w-4 h-4 bg-blue-500 rounded-md"></div>
                   <span className="text-sm text-foreground">Reinigung</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-purple-200 rounded-md border border-purple-300"></div>
+                  <div className="w-4 h-4 bg-purple-500 rounded-md"></div>
                   <span className="text-sm text-foreground">Wäsche</span>
                 </div>
                 <div className="flex items-center space-x-3 pt-2 border-t">
