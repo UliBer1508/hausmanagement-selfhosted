@@ -1044,6 +1044,52 @@ const OriginalDashboard = () => {
         });
       }
     });
+
+    // Reinigungsaufträge anzeigen
+    const allServiceTasks = serviceTasks || [];
+    allServiceTasks.forEach(task => {
+      // Nur Cleaning-Tasks anzeigen (keine stornierten)
+      if (task.service_type !== 'cleaning' || task.status === 'cancelled') return;
+      
+      if (task.scheduled_date) {
+        const taskDate = parseISO(task.scheduled_date);
+        if (isSameDay(date, taskDate)) {
+          // Finde das zugehörige Haus
+          const house = housesData?.find(h => h.id === task.house_id);
+          const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
+          
+          events.push({
+            type: 'cleaning',
+            title: `🧹 Reinigung: ${houseName}`,
+            task: task,
+            color: 'bg-blue-200 text-blue-800'
+          });
+        }
+      }
+    });
+
+    // Wäschelieferungen anzeigen
+    const allLinenOrders = linenOrders || [];
+    allLinenOrders.forEach(order => {
+      // Keine stornierten Bestellungen
+      if (order.status === 'cancelled') return;
+      
+      if (order.delivery_date) {
+        const deliveryDate = parseISO(order.delivery_date);
+        if (isSameDay(date, deliveryDate)) {
+          // Finde das zugehörige Haus
+          const house = housesData?.find(h => h.id === order.house_id);
+          const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
+          
+          events.push({
+            type: 'laundry',
+            title: `🧺 Wäsche: ${houseName}`,
+            order: order,
+            color: 'bg-purple-200 text-purple-800'
+          });
+        }
+      }
+    });
     
     return events;
   };
@@ -1397,11 +1443,11 @@ const OriginalDashboard = () => {
                   <span className="text-sm text-foreground">Wald Chalet Belegt</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-blue-500 rounded-md"></div>
+                  <div className="w-4 h-4 bg-blue-200 rounded-md border border-blue-300"></div>
                   <span className="text-sm text-foreground">Reinigung</span>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-purple-500 rounded-md"></div>
+                  <div className="w-4 h-4 bg-purple-200 rounded-md border border-purple-300"></div>
                   <span className="text-sm text-foreground">Wäsche</span>
                 </div>
                 <div className="flex items-center space-x-3 pt-2 border-t">
