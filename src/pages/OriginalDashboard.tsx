@@ -1165,7 +1165,7 @@ const OriginalDashboard = () => {
                         <div
                           key={index}
                           className={`text-[10px] sm:text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded-md ${event.color} ${event.isFreeDayEvent ? `border-2 ${event.borderColor}` : ''} truncate font-medium cursor-pointer hover:opacity-80`}
-                          title={`${event.title} - ${event.booking.house}`}
+                          title={`${event.title}${event.booking?.house ? ` - ${event.booking.house}` : ''}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedEvent(event);
@@ -1239,7 +1239,7 @@ const OriginalDashboard = () => {
                             key={index}
                             className={`text-[7px] sm:text-xs px-0.5 sm:px-2 py-0.5 rounded-sm sm:rounded-md ${event.color} ${event.isFreeDayEvent ? `border-2 ${event.borderColor}` : ''} w-full font-medium cursor-pointer hover:opacity-80 leading-tight overflow-hidden`}
                             style={{ wordBreak: 'break-word' }}
-                            title={`${event.title} - ${event.booking.house}`}
+                            title={`${event.title}${event.booking?.house ? ` - ${event.booking.house}` : ''}`}
                             onClick={() => setSelectedEvent(event)}
                           >
                             {event.isFreeDayEvent ? (
