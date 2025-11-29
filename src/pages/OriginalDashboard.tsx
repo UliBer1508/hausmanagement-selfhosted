@@ -988,9 +988,64 @@ const OriginalDashboard = () => {
           color: 'bg-red-500 text-white'
         });
       }
+    });
+
+    // Reinigungsaufträge anzeigen (HOHE PRIORITÄT)
+    const allServiceTasks = serviceTasks || [];
+    allServiceTasks.forEach(task => {
+      // Nur Cleaning-Tasks anzeigen (keine stornierten)
+      if (task.service_type !== 'cleaning' || task.status === 'cancelled') return;
       
-      // Belegt-Zeitraum (zwischen Check-in und Check-out)
+      if (task.scheduled_date) {
+        const taskDate = parseISO(task.scheduled_date);
+        if (isSameDay(date, taskDate)) {
+          // Finde das zugehörige Haus
+          const house = housesData?.find(h => h.id === task.house_id);
+          const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
+          
+          events.push({
+            type: 'cleaning',
+            title: `🧹 Reinigung: ${houseName}`,
+            task: task,
+            color: 'bg-blue-500 text-white'
+          });
+        }
+      }
+    });
+
+    // Wäschelieferungen anzeigen (HOHE PRIORITÄT)
+    const allLinenOrders = linenOrders || [];
+    allLinenOrders.forEach(order => {
+      // Keine stornierten Bestellungen
+      if (order.status === 'cancelled') return;
+      
+      if (order.delivery_date) {
+        const deliveryDate = parseISO(order.delivery_date);
+        if (isSameDay(date, deliveryDate)) {
+          // Finde das zugehörige Haus
+          const house = housesData?.find(h => h.id === order.house_id);
+          const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
+          
+          events.push({
+            type: 'laundry',
+            title: `🧺 Wäsche: ${houseName}`,
+            order: order,
+            color: 'bg-purple-500 text-white'
+          });
+        }
+      }
+    });
+    
+    // Belegt-Zeitraum (zwischen Check-in und Check-out)
+    realBookings.forEach(booking => {
+      if (booking.status === 'cancelled') return;
+      
+      const checkIn = parseISO(booking.check_in);
+      const checkOut = parseISO(booking.check_out);
+      const guestDisplayName = booking.guest_name.split(' ')[0];
+      const houseDisplayName = booking.houses?.name || 'Unbekanntes Haus';
       const currentDate = new Date(date);
+      
       if (currentDate > checkIn && currentDate < checkOut) {
         events.push({
           type: 'occupied',
@@ -1007,7 +1062,7 @@ const OriginalDashboard = () => {
       }
     });
     
-    // NEU: Freie Tage für jedes Haus erkennen
+    // NEU: Freie Tage für jedes Haus erkennen (NIEDRIGE PRIORITÄT)
     const allHouses = housesData || [];
     
     allHouses.forEach(house => {
@@ -1042,52 +1097,6 @@ const OriginalDashboard = () => {
           borderColor: 'border-green-500',
           isFreeDayEvent: true
         });
-      }
-    });
-
-    // Reinigungsaufträge anzeigen
-    const allServiceTasks = serviceTasks || [];
-    allServiceTasks.forEach(task => {
-      // Nur Cleaning-Tasks anzeigen (keine stornierten)
-      if (task.service_type !== 'cleaning' || task.status === 'cancelled') return;
-      
-      if (task.scheduled_date) {
-        const taskDate = parseISO(task.scheduled_date);
-        if (isSameDay(date, taskDate)) {
-          // Finde das zugehörige Haus
-          const house = housesData?.find(h => h.id === task.house_id);
-          const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
-          
-          events.push({
-            type: 'cleaning',
-            title: `🧹 Reinigung: ${houseName}`,
-            task: task,
-            color: 'bg-blue-500 text-white'
-          });
-        }
-      }
-    });
-
-    // Wäschelieferungen anzeigen
-    const allLinenOrders = linenOrders || [];
-    allLinenOrders.forEach(order => {
-      // Keine stornierten Bestellungen
-      if (order.status === 'cancelled') return;
-      
-      if (order.delivery_date) {
-        const deliveryDate = parseISO(order.delivery_date);
-        if (isSameDay(date, deliveryDate)) {
-          // Finde das zugehörige Haus
-          const house = housesData?.find(h => h.id === order.house_id);
-          const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
-          
-          events.push({
-            type: 'laundry',
-            title: `🧺 Wäsche: ${houseName}`,
-            order: order,
-            color: 'bg-purple-500 text-white'
-          });
-        }
       }
     });
     
