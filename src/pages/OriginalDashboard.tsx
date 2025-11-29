@@ -914,10 +914,10 @@ const OriginalDashboard = () => {
     return linenData
       .filter(house => house.status === 'critical' || house.status === 'warning')
       .map(house => ({
-        name: house.house.name,
+        name: house.house?.name || 'Unbekannt',
         status: house.status === 'critical' ? 'Kritisch' : 
                 house.status === 'warning' ? 'Niedrig' : 'Gut',
-        icon: getHouseIcon(house.house.name),
+        icon: getHouseIcon(house.house?.name || 'Unbekannt'),
         criticalCount: house.criticalCount,
         lowCount: house.lowCount,
         nextBooking: house.nextBookingDate,
