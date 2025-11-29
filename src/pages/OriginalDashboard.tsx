@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Home, 
@@ -1259,9 +1260,31 @@ const OriginalDashboard = () => {
                           </div>
                         ))}
                         {events.length > 2 && (
-                          <div className="text-[7px] sm:text-xs text-muted-foreground font-medium">
-                            +{events.length - 2}
-                          </div>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <div className="text-[7px] sm:text-xs text-muted-foreground font-medium cursor-pointer hover:text-foreground hover:underline">
+                                +{events.length - 2} mehr
+                              </div>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-64 p-2" align="start">
+                              <div className="text-xs font-semibold mb-2 text-muted-foreground">
+                                Alle Events am {format(date, 'd. MMMM', { locale: de })}
+                              </div>
+                              <div className="space-y-1 max-h-48 overflow-y-auto">
+                                {events.map((event, index) => (
+                                  <div
+                                    key={index}
+                                    className={`text-xs px-2 py-1.5 rounded ${event.color} cursor-pointer hover:opacity-80 font-medium`}
+                                    onClick={() => {
+                                      setSelectedEvent(event);
+                                    }}
+                                  >
+                                    {event.title}
+                                  </div>
+                                ))}
+                              </div>
+                            </PopoverContent>
+                          </Popover>
                         )}
                       </div>
                     </div>
