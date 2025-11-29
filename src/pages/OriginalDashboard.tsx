@@ -1370,35 +1370,69 @@ const OriginalDashboard = () => {
                       <div className="space-y-3">
                         <h4 className="font-semibold text-foreground">Buchungsdetails</h4>
                         <div className="space-y-2 text-sm">
-                          <div><span className="font-medium">Gast:</span> {selectedEvent.booking.guest}</div>
-                          <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
-                          <div><span className="font-medium">Zeitraum:</span> {selectedEvent.booking.dates}</div>
-                          <div><span className="font-medium">Gäste:</span> {selectedEvent.booking.guests}</div>
-                          <div><span className="font-medium">Status:</span> {selectedEvent.booking.status}</div>
-                          <div><span className="font-medium">Check-in:</span> {format(parseISO(selectedEvent.booking.checkIn), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
-                          <div><span className="font-medium">Check-out:</span> {format(parseISO(selectedEvent.booking.checkOut), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
+                          {selectedEvent.booking?.guest && (
+                            <div><span className="font-medium">Gast:</span> {selectedEvent.booking.guest}</div>
+                          )}
+                          {selectedEvent.booking?.house && (
+                            <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
+                          )}
+                          {selectedEvent.booking?.dates && (
+                            <div><span className="font-medium">Zeitraum:</span> {selectedEvent.booking.dates}</div>
+                          )}
+                          {selectedEvent.booking?.guests && (
+                            <div><span className="font-medium">Gäste:</span> {selectedEvent.booking.guests}</div>
+                          )}
+                          {selectedEvent.booking?.status && (
+                            <div><span className="font-medium">Status:</span> {selectedEvent.booking.status}</div>
+                          )}
+                          {selectedEvent.booking?.checkIn && (
+                            <div><span className="font-medium">Check-in:</span> {format(parseISO(selectedEvent.booking.checkIn), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
+                          )}
+                          {selectedEvent.booking?.checkOut && (
+                            <div><span className="font-medium">Check-out:</span> {format(parseISO(selectedEvent.booking.checkOut), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
+                          )}
                         </div>
                       </div>
                     ) : selectedEvent.type === 'cleaning' ? (
                       <div className="space-y-3">
                         <h4 className="font-semibold text-foreground">Reinigungsdetails</h4>
                         <div className="space-y-2 text-sm">
-                          <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
-                          <div><span className="font-medium">Datum:</span> {format(parseISO(selectedEvent.cleaning.date), 'dd.MM.yyyy', { locale: de })}</div>
-                          <div><span className="font-medium">Anbieter:</span> {selectedEvent.cleaning.provider}</div>
-                          <div><span className="font-medium">Status:</span> {selectedEvent.cleaning.status}</div>
-                          <div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>
+                          {selectedEvent.booking?.house && (
+                            <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
+                          )}
+                          {selectedEvent.cleaning?.date && (
+                            <div><span className="font-medium">Datum:</span> {format(parseISO(selectedEvent.cleaning.date), 'dd.MM.yyyy', { locale: de })}</div>
+                          )}
+                          {selectedEvent.cleaning?.provider && (
+                            <div><span className="font-medium">Anbieter:</span> {selectedEvent.cleaning.provider}</div>
+                          )}
+                          {selectedEvent.cleaning?.status && (
+                            <div><span className="font-medium">Status:</span> {selectedEvent.cleaning.status}</div>
+                          )}
+                          {selectedEvent.booking?.guest && (
+                            <div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>
+                          )}
                         </div>
                       </div>
                     ) : selectedEvent.type === 'laundry' ? (
                       <div className="space-y-3">
                         <h4 className="font-semibold text-foreground">Wäschedetails</h4>
                         <div className="space-y-2 text-sm">
-                          <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
-                          <div><span className="font-medium">Status:</span> {selectedEvent.laundry.status}</div>
-                          <div><span className="font-medium">Anbieter:</span> {selectedEvent.laundry.provider}</div>
-                          <div><span className="font-medium">Artikel:</span> {selectedEvent.laundry.items.join(', ')}</div>
-                          <div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>
+                          {selectedEvent.booking?.house && (
+                            <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
+                          )}
+                          {selectedEvent.laundry?.status && (
+                            <div><span className="font-medium">Status:</span> {selectedEvent.laundry.status}</div>
+                          )}
+                          {selectedEvent.laundry?.provider && (
+                            <div><span className="font-medium">Anbieter:</span> {selectedEvent.laundry.provider}</div>
+                          )}
+                          {selectedEvent.laundry?.items && (
+                            <div><span className="font-medium">Artikel:</span> {selectedEvent.laundry.items.join(', ')}</div>
+                          )}
+                          {selectedEvent.booking?.guest && (
+                            <div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>
+                          )}
                         </div>
                       </div>
                     ) : null}
@@ -1414,12 +1448,21 @@ const OriginalDashboard = () => {
                         <div className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${event.color} mb-2`}>
                           {event.title}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {event.booking.house}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {event.booking.guest}
-                        </p>
+                        {event.booking?.house && (
+                          <p className="text-sm text-muted-foreground">
+                            {event.booking.house}
+                          </p>
+                        )}
+                        {event.booking?.guest && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {event.booking.guest}
+                          </p>
+                        )}
+                        {event.houseName && !event.booking && (
+                          <p className="text-sm text-muted-foreground">
+                            {event.houseName}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
