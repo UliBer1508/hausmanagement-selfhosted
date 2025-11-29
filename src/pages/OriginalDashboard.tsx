@@ -970,7 +970,7 @@ const OriginalDashboard = () => {
             checkIn: booking.check_in,
             checkOut: booking.check_out
           },
-          color: 'bg-green-100 text-green-800'
+          color: 'bg-green-500 text-white'
         });
       }
       
@@ -985,7 +985,7 @@ const OriginalDashboard = () => {
             checkIn: booking.check_in,
             checkOut: booking.check_out
           },
-          color: 'bg-red-100 text-red-800'
+          color: 'bg-red-500 text-white'
         });
       }
       
