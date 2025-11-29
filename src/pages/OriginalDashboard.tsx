@@ -1019,7 +1019,7 @@ const OriginalDashboard = () => {
     const allLinenOrders = linenOrders || [];
     allLinenOrders.forEach(order => {
       // Keine stornierten Bestellungen
-      if (order.status === 'cancelled') return;
+      if (order.status === 'cancelled' || order.status === 'delivered') return;
       
       if (order.delivery_date) {
         const deliveryDate = parseISO(order.delivery_date);
