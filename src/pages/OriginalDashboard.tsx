@@ -628,12 +628,13 @@ const OriginalDashboard = () => {
 
   // Fetch linen orders (corrected from laundry_orders)
   const { data: linenOrders } = useQuery({
-    queryKey: ['dashboard-linen-orders'],
+    queryKey: ['dashboard-linen-orders', 'tourist'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('linen_orders')
         .select(`
           *,
+          houses!inner(id, name, rental_type),
           service_providers:provider_id (
             id,
             name,
@@ -643,7 +644,8 @@ const OriginalDashboard = () => {
             id,
             guest_name
           )
-        `);
+        `)
+        .eq('houses.rental_type', 'tourist');
       
       if (error) throw error;
       return data || [];
