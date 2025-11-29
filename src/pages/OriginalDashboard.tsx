@@ -1262,7 +1262,10 @@ const OriginalDashboard = () => {
                         {events.length > 2 && (
                           <Popover>
                             <PopoverTrigger asChild>
-                              <div className="text-[7px] sm:text-xs text-muted-foreground font-medium cursor-pointer hover:text-foreground hover:underline">
+                              <div 
+                                className="text-[7px] sm:text-xs text-muted-foreground font-medium cursor-pointer hover:text-foreground hover:underline"
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                 +{events.length - 2} mehr
                               </div>
                             </PopoverTrigger>
@@ -1275,7 +1278,8 @@ const OriginalDashboard = () => {
                                   <div
                                     key={index}
                                     className={`text-xs px-2 py-1.5 rounded ${event.color} cursor-pointer hover:opacity-80 font-medium`}
-                                    onClick={() => {
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       setSelectedEvent(event);
                                     }}
                                   >
