@@ -78,6 +78,7 @@ const OriginalDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [openPopoverDate, setOpenPopoverDate] = useState<string | null>(null);
   
   // Filter states for overview
   const [searchTerm, setSearchTerm] = useState('');
@@ -1260,16 +1261,29 @@ const OriginalDashboard = () => {
                           </div>
                         ))}
                         {events.length > 2 && (
-                          <Popover>
+                          <Popover 
+                            open={openPopoverDate === format(date, 'yyyy-MM-dd')} 
+                            onOpenChange={(isOpen) => {
+                              setOpenPopoverDate(isOpen ? format(date, 'yyyy-MM-dd') : null);
+                            }}
+                          >
                             <PopoverTrigger asChild>
                               <div 
                                 className="text-[7px] sm:text-xs text-muted-foreground font-medium cursor-pointer hover:text-foreground hover:underline"
-                                onClick={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  setOpenPopoverDate(format(date, 'yyyy-MM-dd'));
+                                }}
                               >
                                 +{events.length - 2} mehr
                               </div>
                             </PopoverTrigger>
-                            <PopoverContent className="w-64 p-2" align="start">
+                            <PopoverContent 
+                              className="w-64 p-2" 
+                              align="start"
+                              onOpenAutoFocus={(e) => e.preventDefault()}
+                            >
                               <div className="text-xs font-semibold mb-2 text-muted-foreground">
                                 Alle Events am {format(date, 'd. MMMM', { locale: de })}
                               </div>
@@ -1280,7 +1294,9 @@ const OriginalDashboard = () => {
                                     className={`text-xs px-2 py-1.5 rounded ${event.color} cursor-pointer hover:opacity-80 font-medium`}
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      e.preventDefault();
                                       setSelectedEvent(event);
+                                      setOpenPopoverDate(null);
                                     }}
                                   >
                                     {event.title}
