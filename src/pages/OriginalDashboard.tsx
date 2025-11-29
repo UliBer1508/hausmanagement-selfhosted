@@ -447,7 +447,7 @@ const OriginalDashboard = () => {
 
   // Fetch service tasks with provider information - optimized
   const { data: serviceTasks, isLoading: tasksLoading } = useQuery({
-    queryKey: ['dashboard-service-tasks', activeTab],
+    queryKey: ['dashboard-service-tasks'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('service_tasks')
@@ -647,7 +647,7 @@ const OriginalDashboard = () => {
       return data || [];
     },
     staleTime: 5 * 60 * 1000,
-    enabled: activeTab === 'Übersicht' || activeTab === 'Wäsche',
+    enabled: activeTab === 'Übersicht' || activeTab === 'Wäsche' || activeTab === 'Kalender',
   });
 
   // Optimized data processing with useMemo
