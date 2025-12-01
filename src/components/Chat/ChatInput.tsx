@@ -50,7 +50,7 @@ const ChatInput = ({ onSendMessage, disabled, onFocus }: ChatInputProps) => {
         onChange={handleInput}
         onKeyDown={handleKeyDown}
         onFocus={onFocus}
-        placeholder="Schreibe eine Nachricht... (Enter zum Senden, Shift+Enter für neue Zeile)"
+        placeholder="Nachricht eingeben... (Enter = senden)"
         disabled={disabled}
         className="min-h-[44px] max-h-[150px] resize-none"
         rows={1}
@@ -59,7 +59,7 @@ const ChatInput = ({ onSendMessage, disabled, onFocus }: ChatInputProps) => {
         onClick={handleSend}
         disabled={!input.trim() || disabled}
         size="icon"
-        className="shrink-0 h-[44px] w-[44px]"
+        className="shrink-0 h-[44px] w-[44px] hidden md:flex"
       >
         <Send className="h-4 w-4" />
       </Button>
