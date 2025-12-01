@@ -1,16 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { AppReviewsSection } from './AppReviewsSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
-import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle } from 'lucide-react';
+import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle, Settings } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth, addMonths, differenceInDays, max, min, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { de } from 'date-fns/locale';
 import { useHouses } from '@/hooks/useHouses';
+import { MLSettingsDialog, type MLSettings, DEFAULT_ML_SETTINGS, loadMLSettings } from './MLSettingsDialog';
+import { checkHolidayPeriod, type HolidayMatch } from '@/lib/holidayCalendar';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -128,14 +131,20 @@ const getRecommendation = (urgency: 'high' | 'medium' | 'low', days: number): st
   return '✅ Planbar. Normale Preisgestaltung, Verfügbarkeit prüfen.';
 };
 
-// ML: Calculate booking probability based on lead time + seasonality
+// ML: Calculate booking probability based on lead time + seasonality + holidays + settings
 const calculateBookingProbability = (
   startDate: Date, 
   days: number, 
-  historicalBookings: any[]
+  historicalBookings: any[],
+  settings: MLSettings,
+  holidayMatch: HolidayMatch
 ): number => {
+  // Nicht vermietbar unter Mindestaufenthalt
+  if (days < settings.minRentableNights) return 0;
+  
   const daysUntilStart = differenceInDays(startDate, new Date());
   const month = startDate.getMonth();
+  const dayOfWeek = startDate.getDay();
   
   // Base probability by lead time (closer = less likely)
   let probability = 80;
@@ -150,17 +159,31 @@ const calculateBookingProbability = (
   if (isHighSeason) probability += 20;
   else if (!isMidSeason) probability -= 15; // Low season
   
-  // Duration factor: Short gaps harder to fill
-  if (days < 3) probability -= 25;
-  else if (days >= 7) probability += 10;
+  // Feiertags-Boost
+  if (settings.holidaysEnabled && holidayMatch.isHoliday) {
+    probability += 25 * holidayMatch.maxBoost;
+  }
+  
+  // Wochentag-Faktor: Bevorzugter Check-in Tag
+  if (dayOfWeek === settings.preferredCheckInDay) probability += 15;
+  else if (dayOfWeek === (settings.preferredCheckInDay - 1 + 7) % 7 || 
+           dayOfWeek === (settings.preferredCheckInDay + 1) % 7) {
+    probability += 5; // Nachbartage auch ok
+  }
+  
+  // Optimale Dauer: 7 Tage = +10%
+  if (days >= 7 && days <= 10) probability += 10;
+  else if (days >= settings.minRentableNights && days < 7) probability -= 10;
   
   return Math.min(95, Math.max(5, probability));
 };
 
-// ML: Calculate suggested price based on historical monthly average
+// ML: Calculate suggested price based on historical monthly average + holidays + settings
 const calculateSuggestedPrice = (
   startDate: Date,
-  historicalBookings: any[]
+  historicalBookings: any[],
+  settings: MLSettings,
+  holidayMatch: HolidayMatch
 ): { min: number; max: number } => {
   const month = startDate.getMonth();
   
@@ -176,11 +199,16 @@ const calculateSuggestedPrice = (
   
   // Season multiplier
   const isHighSeason = [11, 0, 1].includes(month);
-  const multiplier = isHighSeason ? 1.15 : 0.9;
+  const baseMultiplier = isHighSeason ? settings.highSeasonBoost : settings.lowSeasonDiscount;
   
-  const basePrice = avgAmount * multiplier;
+  // Feiertags-Multiplikator anwenden
+  const finalMultiplier = settings.holidaysEnabled && holidayMatch.isHoliday 
+    ? Math.max(baseMultiplier, holidayMatch.maxBoost)
+    : baseMultiplier;
+  
+  const basePrice = avgAmount * finalMultiplier;
   return {
-    min: Math.round(basePrice * 0.85),
+    min: Math.round(basePrice * 0.9),
     max: Math.round(basePrice * 1.1)
   };
 };
@@ -247,28 +275,35 @@ const getTargetNationalities = (
     .map(([nat]) => nat);
 };
 
-// Enhanced findVacancies with ML data
+// Enhanced findVacancies with ML data + settings + holidays
 const findVacanciesWithML = (
   bookings: any[], 
   allHistoricalBookings: any[],
   startDate: Date, 
-  endDate: Date
+  endDate: Date,
+  settings: MLSettings
 ): VacancyML[] => {
   const basicVacancies = findVacancies(bookings, startDate, endDate);
   
   return basicVacancies.map(vacancy => {
     const vacancyStart = parseISO(vacancy.start);
+    const vacancyEnd = parseISO(vacancy.end);
     const month = vacancyStart.getMonth();
     const isHighSeason = [11, 0, 1].includes(month);
     const isMidSeason = [2, 3, 9, 10].includes(month);
+    
+    // Prüfe Feiertags-Überlappung
+    const holidayMatch = settings.holidaysEnabled 
+      ? checkHolidayPeriod(vacancyStart, vacancyEnd, settings.relevantCountries)
+      : { isHoliday: false, holidays: [], maxBoost: 1.0, targetCountries: [] };
     
     const bestChannelResult = getBestChannel(vacancyStart, allHistoricalBookings);
     
     return {
       ...vacancy,
       ml: {
-        bookingProbability: calculateBookingProbability(vacancyStart, vacancy.days, allHistoricalBookings),
-        suggestedPrice: calculateSuggestedPrice(vacancyStart, allHistoricalBookings),
+        bookingProbability: calculateBookingProbability(vacancyStart, vacancy.days, allHistoricalBookings, settings, holidayMatch),
+        suggestedPrice: calculateSuggestedPrice(vacancyStart, allHistoricalBookings, settings, holidayMatch),
         bestChannel: bestChannelResult.channel,
         bestChannelReason: bestChannelResult.reason,
         targetNationalities: getTargetNationalities(vacancyStart, allHistoricalBookings),
@@ -302,7 +337,15 @@ const CustomOccupancyTooltip = ({ active, payload }: any) => {
 
 const GuestAnalytics = () => {
   const [selectedHouseId, setSelectedHouseId] = useState<string>('all');
+  const [mlSettings, setMLSettings] = useState<MLSettings>(DEFAULT_ML_SETTINGS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { data: allHouses } = useHouses();
+
+  // Load settings from localStorage on mount
+  useEffect(() => {
+    const loaded = loadMLSettings();
+    setMLSettings(loaded);
+  }, []);
   
   // Filter houses to only show tourist rentals
   const houses = allHouses?.filter(house => house.rental_type === 'tourist');
@@ -446,7 +489,7 @@ const GuestAnalytics = () => {
         }
         
         // Find vacancies with ML analysis (free periods)
-        const vacancies = findVacanciesWithML(houseBookings, bookings, today, sixMonthsLater);
+        const vacancies = findVacanciesWithML(houseBookings, bookings, today, sixMonthsLater, mlSettings);
         
         perHouseOccupancy.push({
           houseId: house.id,
@@ -498,6 +541,13 @@ const GuestAnalytics = () => {
 
   return (
     <div className="space-y-6">
+      <MLSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        settings={mlSettings}
+        onSettingsChange={setMLSettings}
+      />
+      
       {/* House Filter */}
       <Card>
         <CardContent className="pt-6">
@@ -681,10 +731,20 @@ const GuestAnalytics = () => {
 
     {/* Per-House Occupancy Analysis */}
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold flex items-center gap-2">
-        <TrendingUp className="h-6 w-6" />
-        Auslastungs-Analyse pro Haus (nächste 6 Monate)
-      </h2>
+      <div className="flex items-center justify-between">
+        <div className="space-y-1.5">
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <TrendingUp className="h-6 w-6" />
+            Auslastungs-Analyse pro Haus (nächste {mlSettings.analysisPeriodMonths} Monate)
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Belegte und freie Zeiträume mit KI-basierter Verkaufswahrscheinlichkeit
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}>
+          <Settings className="h-5 w-5 text-muted-foreground" />
+        </Button>
+      </div>
       
       {analyticsData.perHouseOccupancy.map((house) => (
         <Card key={house.houseId}>
