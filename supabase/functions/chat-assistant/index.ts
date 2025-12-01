@@ -88,7 +88,19 @@ WORKFLOW (ZWINGEND!):
 - "wäschestatus" / "linen status" → get_linen_overview
 - "wieviel wäsche" / "wäsche für [Hausname]" → ERST search_houses, DANN get_house_linen_status
 - Bei get_house_linen_status: Priorisiere KI-Daten (confidence >= 60%, <7 Tage alt), sonst Fallback-Berechnung
-- "lücken" / "freie zeiträume" / "vacancies" / "frei" / "noch verfügbar" → get_vacancies
+  - "lücken" / "freie zeiträume" / "vacancies" / "frei" / "noch verfügbar" / "wann ist frei" / "freie Termine" → get_vacancies
+    ⚠️ WICHTIG - ZEITANGABEN UMWANDELN:
+    • "nächster Monat" / "1 Monat" / "im nächsten Monat" → months_ahead: 1
+    • "nächste 2 Monate" / "2 Monate" → months_ahead: 2
+    • "nächste 3 Monate" / "3 Monate" / "Quartal" → months_ahead: 3
+    • "nächstes halbes Jahr" / "6 Monate" → months_ahead: 6 (default)
+    • "nächstes Jahr" / "12 Monate" → months_ahead: 12
+    • Keine Zeitangabe → months_ahead: 6 (default)
+    📝 BEISPIELE:
+    • "Zeige Lücken für nächsten Monat" → get_vacancies({ months_ahead: 1 })
+    • "Welche Lücken gibt es in den nächsten 3 Monaten?" → get_vacancies({ months_ahead: 3 })
+    • "Lücken fürs Wald Chalet im nächsten Monat" → get_vacancies({ house_id: "...", months_ahead: 1 })
+    • "Wo ist im Quartal noch Platz?" → get_vacancies({ months_ahead: 3 })
 - "analysiere lücke" / "ki analyse" / "lücke analysieren" / "buchungswahrscheinlichkeit" → analyze_vacancy_with_ai
 - "übersicht" / "dashboard" / "statistik" → get_dashboard_stats
 - "kalender" / "termine" / "events" → get_calendar_events
