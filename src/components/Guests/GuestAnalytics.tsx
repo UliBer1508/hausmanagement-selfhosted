@@ -10,6 +10,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle, Settings, ChevronRight, Loader2 } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth, addMonths, differenceInDays, max, min, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { de } from 'date-fns/locale';
 import { useHouses } from '@/hooks/useHouses';
@@ -579,6 +580,15 @@ const GuestAnalytics = () => {
       default: return 'bg-gray-500';
     }
   };
+
+  const getUrgencyVariant = (urgency: string): "default" | "destructive" | "secondary" | "outline" => {
+    switch (urgency.toLowerCase()) {
+      case 'kritisch': return 'destructive';
+      case 'hoch': return 'destructive';
+      case 'mittel': return 'secondary';
+      default: return 'outline';
+    }
+  };
   
   // Filter houses to only show tourist rentals
   const houses = allHouses?.filter(house => house.rental_type === 'tourist');
@@ -1083,83 +1093,163 @@ const GuestAnalytics = () => {
                           </div>
                         </div>
 
-                        {/* ML Analysis Box */}
-                        <div className="bg-background/60 border rounded-lg p-3 space-y-3">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                              ML-Analyse
-                            </span>
-                          </div>
+                        {/* KI-Analyse Button */}
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleAnalyzeVacancy(vacancy, house.houseId)}
+                            disabled={analyzingVacancyId === `${vacancy.start}_${vacancy.end}`}
+                            className="text-xs"
+                          >
+                            {analyzingVacancyId === `${vacancy.start}_${vacancy.end}` ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Analysiere...
+                              </>
+                            ) : aiAnalyses[`${vacancy.start}_${vacancy.end}`] ? (
+                              '🔄 Neu analysieren'
+                            ) : (
+                              '🤖 KI-Analyse starten'
+                            )}
+                          </Button>
+                        </div>
 
-                          {/* Booking Probability */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="flex items-center gap-2">
-                                📊 Buchungswahrscheinlichkeit:
+                        {/* Conditional Display: KI-Analyse or ML Analysis Box */}
+                        {aiAnalyses[`${vacancy.start}_${vacancy.end}`] ? (
+                          /* KI-ANALYSE ERGEBNISSE */
+                          <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 border border-purple-200 dark:border-purple-800 rounded-lg p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-semibold flex items-center gap-2">
+                                🤖 KI-Analyse
                               </span>
-                              <span className="font-bold">{vacancy.ml.bookingProbability}%</span>
+                              <Badge variant={getUrgencyVariant(aiAnalyses[`${vacancy.start}_${vacancy.end}`].urgency)}>
+                                {aiAnalyses[`${vacancy.start}_${vacancy.end}`].urgency.toUpperCase()}
+                              </Badge>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                                <div 
-                                  className={`h-full rounded-full transition-all ${
-                                    vacancy.ml.bookingProbability >= 70 ? 'bg-green-500' :
-                                    vacancy.ml.bookingProbability >= 40 ? 'bg-yellow-500' : 'bg-red-500'
-                                  }`}
-                                  style={{ width: `${vacancy.ml.bookingProbability}%` }}
-                                />
+                            
+                            {/* KI-Wahrscheinlichkeit mit Progress Bar */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span>📊 Buchungswahrscheinlichkeit:</span>
+                                <span className="font-bold">{aiAnalyses[`${vacancy.start}_${vacancy.end}`].bookingProbability}%</span>
                               </div>
+                              <Progress value={aiAnalyses[`${vacancy.start}_${vacancy.end}`].bookingProbability} className="h-2" />
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              → {vacancy.ml.seasonType === 'high' ? 'Hochsaison' : vacancy.ml.seasonType === 'mid' ? 'Übergangssaison' : 'Nebensaison'} + {differenceInDays(parseISO(vacancy.start), new Date())} Tage Vorlauf
-                            </p>
-                          </div>
-
-                          {/* Price Recommendation */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="flex items-center gap-2">
-                                💰 Preisempfehlung:
-                              </span>
-                              <span className="font-bold">
-                                €{vacancy.ml.suggestedPrice.min.toLocaleString()} - €{vacancy.ml.suggestedPrice.max.toLocaleString()} /Woche
+                            
+                            {/* KI-Preisempfehlung */}
+                            <div className="text-sm">
+                              <span>💰 KI-Preisempfehlung:</span>
+                              <span className="font-bold ml-2">
+                                €{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMin} - €{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMax} /Woche
                               </span>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              → Basierend auf {format(parseISO(vacancy.start), 'MMMM', { locale: de })}-Durchschnitt
-                            </p>
-                          </div>
-
-                          {/* Best Channel */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="flex items-center gap-2">
-                                📱 Bester Kanal:
-                              </span>
-                              <span className="font-bold">{vacancy.ml.bestChannel}</span>
+                            
+                            {/* KI-Begründung */}
+                            <div className="text-sm bg-white/50 dark:bg-black/20 p-3 rounded">
+                              <div className="font-medium mb-1">💭 Begründung:</div>
+                              <p className="text-muted-foreground">{aiAnalyses[`${vacancy.start}_${vacancy.end}`].reasoning}</p>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                              → {vacancy.ml.bestChannelReason}
-                            </p>
+                            
+                            {/* KI-Maßnahmen-Liste */}
+                            <div className="space-y-2">
+                              <div className="font-medium text-sm">📋 Empfohlene Maßnahmen:</div>
+                              {aiAnalyses[`${vacancy.start}_${vacancy.end}`].actions.map((action: any, i: number) => (
+                                <div key={i} className="flex items-start gap-2 text-sm">
+                                  <Badge variant="outline" className="shrink-0">
+                                    Prio {action.priority}
+                                  </Badge>
+                                  <div>
+                                    <div className="font-medium">{action.action}</div>
+                                    <div className="text-xs text-muted-foreground">{action.reason}</div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {/* Deadline-Warnung */}
+                            <div className="text-sm text-amber-600 font-medium">
+                              ⏰ Deadline: {aiAnalyses[`${vacancy.start}_${vacancy.end}`].deadline}
+                            </div>
                           </div>
-
-                          {/* Target Nationalities */}
-                          {vacancy.ml.targetNationalities.length > 0 && (
+                        ) : (
+                          /* REGELBASIERTE ML-ANALYSE */
+                          <div className="bg-background/60 border rounded-lg p-3 space-y-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                ML-Analyse
+                              </span>
+                            </div>
+                            {/* Booking Probability */}
                             <div className="space-y-1">
                               <div className="flex items-center justify-between text-sm">
                                 <span className="flex items-center gap-2">
-                                  🎯 Zielgruppe:
+                                  📊 Buchungswahrscheinlichkeit:
+                                </span>
+                                <span className="font-bold">{vacancy.ml.bookingProbability}%</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full rounded-full transition-all ${
+                                      vacancy.ml.bookingProbability >= 70 ? 'bg-green-500' :
+                                      vacancy.ml.bookingProbability >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                    }`}
+                                    style={{ width: `${vacancy.ml.bookingProbability}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                → {vacancy.ml.seasonType === 'high' ? 'Hochsaison' : vacancy.ml.seasonType === 'mid' ? 'Übergangssaison' : 'Nebensaison'} + {differenceInDays(parseISO(vacancy.start), new Date())} Tage Vorlauf
+                              </p>
+                            </div>
+
+                            {/* Price Recommendation */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="flex items-center gap-2">
+                                  💰 Preisempfehlung:
                                 </span>
                                 <span className="font-bold">
-                                  {vacancy.ml.targetNationalities.join(', ')}
+                                  €{vacancy.ml.suggestedPrice.min.toLocaleString()} - €{vacancy.ml.suggestedPrice.max.toLocaleString()} /Woche
                                 </span>
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                → Diese Nationalitäten buchen im {format(parseISO(vacancy.start), 'MMMM', { locale: de })}
+                                → Basierend auf {format(parseISO(vacancy.start), 'MMMM', { locale: de })}-Durchschnitt
                               </p>
                             </div>
-                          )}
-                        </div>
+
+                            {/* Best Channel */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="flex items-center gap-2">
+                                  📱 Bester Kanal:
+                                </span>
+                                <span className="font-bold">{vacancy.ml.bestChannel}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                → {vacancy.ml.bestChannelReason}
+                              </p>
+                            </div>
+
+                            {/* Target Nationalities */}
+                            {vacancy.ml.targetNationalities.length > 0 && (
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-sm">
+                                  <span className="flex items-center gap-2">
+                                    🎯 Zielgruppe:
+                                  </span>
+                                  <span className="font-bold">
+                                    {vacancy.ml.targetNationalities.join(', ')}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  → Diese Nationalitäten buchen im {format(parseISO(vacancy.start), 'MMMM', { locale: de })}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {/* Historical Reference & Recommendation */}
                         {(vacancy.historical.matchingBooking || vacancy.historical.monthStats) && (
