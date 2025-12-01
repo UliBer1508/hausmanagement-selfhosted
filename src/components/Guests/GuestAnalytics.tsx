@@ -6,12 +6,116 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppReviewsSection } from './AppReviewsSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
-import { TrendingUp, Users, Calendar, Euro, MapPin, Clock } from 'lucide-react';
-import { format, subMonths, startOfMonth, endOfMonth, addMonths, differenceInDays, max, min } from 'date-fns';
+import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle } from 'lucide-react';
+import { format, subMonths, startOfMonth, endOfMonth, addMonths, differenceInDays, max, min, parseISO } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
 import { de } from 'date-fns/locale';
 import { useHouses } from '@/hooks/useHouses';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+
+// Types
+interface Vacancy {
+  start: string;
+  end: string;
+  days: number;
+  urgency: 'high' | 'medium' | 'low';
+  recommendation: string;
+}
+
+interface HouseOccupancy {
+  houseId: string;
+  houseName: string;
+  monthlyOccupancy: Array<{
+    month: string;
+    occupancyRate: number;
+    occupiedDays: number;
+    freeDays: number;
+    daysInMonth: number;
+    bookings: number;
+  }>;
+  vacancies: Vacancy[];
+  totalOccupancyRate: number;
+}
+
+// Find free periods (vacancies) between bookings
+const findVacancies = (bookings: any[], startDate: Date, endDate: Date): Vacancy[] => {
+  const sortedBookings = bookings
+    .filter(b => b.status !== 'cancelled')
+    .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime());
+
+  const vacancies: Vacancy[] = [];
+  let currentDate = startDate;
+
+  sortedBookings.forEach((booking, index) => {
+    const bookingStart = new Date(booking.check_in);
+    
+    // If there's a gap before this booking
+    if (currentDate < bookingStart) {
+      const gapDays = differenceInDays(bookingStart, currentDate);
+      if (gapDays >= 1) { // Only report gaps of 1+ days
+        const urgency = assessUrgency(currentDate, gapDays);
+        vacancies.push({
+          start: format(currentDate, 'yyyy-MM-dd'),
+          end: format(bookingStart, 'yyyy-MM-dd'),
+          days: gapDays,
+          urgency,
+          recommendation: getRecommendation(urgency, gapDays)
+        });
+      }
+    }
+    
+    // Move currentDate to the end of this booking
+    currentDate = max([currentDate, new Date(booking.check_out)]);
+  });
+
+  // Check for gap at the end
+  if (currentDate < endDate) {
+    const gapDays = differenceInDays(endDate, currentDate);
+    if (gapDays >= 1) {
+      const urgency = assessUrgency(currentDate, gapDays);
+      vacancies.push({
+        start: format(currentDate, 'yyyy-MM-dd'),
+        end: format(endDate, 'yyyy-MM-dd'),
+        days: gapDays,
+        urgency,
+        recommendation: getRecommendation(urgency, gapDays)
+      });
+    }
+  }
+
+  return vacancies;
+};
+
+// Assess urgency based on timing and duration
+const assessUrgency = (startDate: Date, days: number): 'high' | 'medium' | 'low' => {
+  const daysUntilStart = differenceInDays(startDate, new Date());
+  const month = startDate.getMonth();
+  const isHighSeason = month === 11 || month === 0 || month === 1; // Dec, Jan, Feb
+
+  // Critical: Gap in high season OR gap starting within 30 days
+  if ((isHighSeason && days >= 3) || (daysUntilStart <= 30 && days >= 3)) {
+    return 'high';
+  }
+  
+  // Medium: Gap starting within 60 days
+  if (daysUntilStart <= 60 && days >= 3) {
+    return 'medium';
+  }
+  
+  return 'low';
+};
+
+// Get recommendation based on urgency
+const getRecommendation = (urgency: 'high' | 'medium' | 'low', days: number): string => {
+  if (urgency === 'high') {
+    return '🔥 Kritisch! Sofort auf Buchungsportalen aktivieren. Hochsaison-Preise verwenden.';
+  }
+  if (urgency === 'medium') {
+    return '⚠️ Zeitnah handeln. Verfügbarkeit aktualisieren und ggf. Preis anpassen.';
+  }
+  return '✅ Planbar. Normale Preisgestaltung, Verfügbarkeit prüfen.';
+};
 
 // Custom Tooltip for Occupancy Forecast
 const CustomOccupancyTooltip = ({ active, payload }: any) => {
@@ -121,52 +225,83 @@ const GuestAnalytics = () => {
       const durationData = Object.entries(durationGroups)
         .map(([range, count]) => ({ range, count }));
 
-      // Occupancy Forecast (next 6 months)
-      const occupancyForecast = [];
+      // Per-House Occupancy Forecast (next 6 months)
       const today = new Date();
+      const sixMonthsLater = addMonths(today, 6);
       
-      for (let i = 0; i < 6; i++) {
-        const month = addMonths(today, i);
-        const monthStart = startOfMonth(month);
-        const monthEnd = endOfMonth(month);
-        const daysInMonth = differenceInDays(monthEnd, monthStart) + 1;
+      const perHouseOccupancy: HouseOccupancy[] = [];
+      
+      // Get unique houses from bookings or use filtered house if selected
+      const relevantHouses = selectedHouseId === 'all' 
+        ? Array.from(new Set(bookings.map(b => b.house_id)))
+            .map(houseId => ({
+              id: houseId,
+              name: bookings.find(b => b.house_id === houseId)?.houses?.name || 'Unbekannt'
+            }))
+        : [{ id: selectedHouseId, name: houses?.find(h => h.id === selectedHouseId)?.name || 'Unbekannt' }];
+      
+      relevantHouses.forEach(house => {
+        const houseBookings = bookings.filter(b => b.house_id === house.id);
         
-        // Find all bookings overlapping with this month
-        const monthBookings = bookings.filter(b => {
-          if (b.status === 'cancelled') return false;
-          const checkIn = new Date(b.check_in);
-          const checkOut = new Date(b.check_out);
-          return checkIn <= monthEnd && checkOut >= monthStart;
+        // Calculate monthly occupancy
+        const monthlyOccupancy = [];
+        let totalOccupiedDays = 0;
+        let totalDaysInPeriod = 0;
+        
+        for (let i = 0; i < 6; i++) {
+          const month = addMonths(today, i);
+          const monthStart = startOfMonth(month);
+          const monthEnd = endOfMonth(month);
+          const daysInMonth = differenceInDays(monthEnd, monthStart) + 1;
+          totalDaysInPeriod += daysInMonth;
+          
+          const monthBookings = houseBookings.filter(b => {
+            if (b.status === 'cancelled') return false;
+            const checkIn = new Date(b.check_in);
+            const checkOut = new Date(b.check_out);
+            return checkIn <= monthEnd && checkOut >= monthStart;
+          });
+          
+          let occupiedDays = 0;
+          monthBookings.forEach(booking => {
+            const bookingStart = max([new Date(booking.check_in), monthStart]);
+            const bookingEnd = min([new Date(booking.check_out), monthEnd]);
+            const days = differenceInDays(bookingEnd, bookingStart);
+            occupiedDays += Math.max(0, days);
+          });
+          
+          totalOccupiedDays += occupiedDays;
+          const freeDays = daysInMonth - occupiedDays;
+          const occupancyRate = Math.round((occupiedDays / daysInMonth) * 100);
+          
+          monthlyOccupancy.push({
+            month: format(month, 'MMM yyyy', { locale: de }),
+            occupancyRate,
+            occupiedDays,
+            freeDays,
+            daysInMonth,
+            bookings: monthBookings.length
+          });
+        }
+        
+        // Find vacancies (free periods)
+        const vacancies = findVacancies(houseBookings, today, sixMonthsLater);
+        
+        perHouseOccupancy.push({
+          houseId: house.id,
+          houseName: house.name,
+          monthlyOccupancy,
+          vacancies,
+          totalOccupancyRate: Math.round((totalOccupiedDays / totalDaysInPeriod) * 100)
         });
-        
-        // Calculate occupied days (overlapping days in the month)
-        let occupiedDays = 0;
-        monthBookings.forEach(booking => {
-          const bookingStart = max([new Date(booking.check_in), monthStart]);
-          const bookingEnd = min([new Date(booking.check_out), monthEnd]);
-          const days = differenceInDays(bookingEnd, bookingStart);
-          occupiedDays += Math.max(0, days);
-        });
-        
-        const freeDays = daysInMonth - occupiedDays;
-        const occupancyRate = Math.round((occupiedDays / daysInMonth) * 100);
-        
-        occupancyForecast.push({
-          month: format(month, 'MMM yyyy', { locale: de }),
-          occupancyRate,
-          occupiedDays,
-          freeDays,
-          daysInMonth,
-          bookings: monthBookings.length
-        });
-      }
+      });
 
       return {
         monthlyData,
         nationalityData,
         avgStayDuration: Math.round(avgStayDuration * 10) / 10,
         durationData,
-        occupancyForecast,
+        perHouseOccupancy,
         totalRevenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
         totalBookings: bookings.length,
         totalGuests: bookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0)
@@ -309,44 +444,6 @@ const GuestAnalytics = () => {
           </CardContent>
         </Card>
 
-        {/* Occupancy Forecast */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Auslastungs-Vorschau (nächste 6 Monate)
-            </CardTitle>
-            <CardDescription>
-              Grün = belegt, Rot = freie Tage (Lücken)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={analyticsData.occupancyForecast}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis label={{ value: 'Tage', angle: -90, position: 'insideLeft' }} />
-                <Tooltip content={<CustomOccupancyTooltip />} />
-                <Area 
-                  type="monotone" 
-                  dataKey="occupiedDays" 
-                  stackId="1"
-                  stroke="hsl(142 76% 36%)" 
-                  fill="hsl(142 76% 36%)"
-                  name="Belegte Tage"
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="freeDays" 
-                  stackId="1"
-                  stroke="hsl(0 84% 60%)" 
-                  fill="hsl(0 84% 60%)"
-                  name="Freie Tage"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
 
         {/* Nationality Distribution */}
         <Card>
@@ -419,6 +516,120 @@ const GuestAnalytics = () => {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+    </div>
+
+    {/* Per-House Occupancy Analysis */}
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold flex items-center gap-2">
+        <TrendingUp className="h-6 w-6" />
+        Auslastungs-Analyse pro Haus (nächste 6 Monate)
+      </h2>
+      
+      {analyticsData.perHouseOccupancy.map((house) => (
+        <Card key={house.houseId}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                🏠 {house.houseName}
+              </CardTitle>
+              <Badge variant="outline" className="text-base">
+                {house.totalOccupancyRate}% Auslastung
+              </Badge>
+            </div>
+            <CardDescription>
+              Belegte vs. freie Tage mit konkreten Lücken
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Area Chart */}
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={house.monthlyOccupancy}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis label={{ value: 'Tage', angle: -90, position: 'insideLeft' }} />
+                <Tooltip content={<CustomOccupancyTooltip />} />
+                <Area 
+                  type="monotone" 
+                  dataKey="occupiedDays" 
+                  stackId="1"
+                  stroke="hsl(142 76% 36%)" 
+                  fill="hsl(142 76% 36%)"
+                  name="Belegte Tage"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="freeDays" 
+                  stackId="1"
+                  stroke="hsl(0 84% 60%)" 
+                  fill="hsl(0 84% 60%)"
+                  name="Freie Tage"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+
+            {/* Legend */}
+            <div className="flex items-center justify-center gap-6 pt-4 border-t">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(142 76% 36%)' }} />
+                <span className="text-sm font-medium">Belegt</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(0 84% 60%)' }} />
+                <span className="text-sm font-medium">Frei (Lücken)</span>
+              </div>
+            </div>
+
+            {/* Vacancies List */}
+            {house.vacancies.length > 0 ? (
+              <div className="space-y-3 pt-4 border-t">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Freie Zeiträume ({house.vacancies.length})
+                </h4>
+                <div className="space-y-2">
+                  {house.vacancies.map((vacancy, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-3 rounded-lg border ${
+                        vacancy.urgency === 'high'
+                          ? 'border-red-500 bg-red-50 dark:bg-red-950/20'
+                          : vacancy.urgency === 'medium'
+                          ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20'
+                          : 'border-gray-200 bg-gray-50 dark:bg-gray-800/20'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium">
+                              {format(parseISO(vacancy.start), 'dd.MM.yyyy', { locale: de })} - {format(parseISO(vacancy.end), 'dd.MM.yyyy', { locale: de })}
+                            </span>
+                            <Badge
+                              variant={vacancy.urgency === 'high' ? 'destructive' : 'outline'}
+                              className="text-xs"
+                            >
+                              {vacancy.days} {vacancy.days === 1 ? 'Tag' : 'Tage'}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {vacancy.recommendation}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-6 border-t">
+                <p className="text-sm text-muted-foreground">
+                  ✅ Keine größeren Lücken erkannt - durchgehend gut gebucht!
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
     </div>
 
     {/* App Reviews Section */}
