@@ -268,7 +268,9 @@ Details:
 📊 BUCHUNGSWAHRSCHEINLICHKEIT: [X]%
 [████░░░░░░] [Hoch/Mittel/Niedrig]
 
-💰 PREISEMPFEHLUNG: €[min] - €[max] /Woche
+💰 PREISEMPFEHLUNG: 
+   • Pro Nacht: €[min] - €[max]
+   • Pro Woche (7 Nächte): €[min*7] - €[max*7]
 
 🎯 DRINGLICHKEIT: [HOCH/MITTEL/NIEDRIG]
 ⏰ DEADLINE: Bis spätestens [deadline]
@@ -2912,7 +2914,9 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
           const a = result.analysis;
           resultsText += `\n\n🤖 KI-ANALYSE:\n`;
           resultsText += `📊 Buchungswahrscheinlichkeit: ${a.bookingProbability}%\n`;
-          resultsText += `💰 Preisempfehlung: €${a.suggestedPriceMin} - €${a.suggestedPriceMax} /Woche\n`;
+          resultsText += `💰 Preisempfehlung:\n`;
+          resultsText += `   • Pro Nacht: €${a.suggestedPriceMin} - €${a.suggestedPriceMax}\n`;
+          resultsText += `   • Pro Woche (7 Nächte): €${a.suggestedPriceMin * 7} - €${a.suggestedPriceMax * 7}\n`;
           resultsText += `🎯 Dringlichkeit: ${a.urgency.toUpperCase()}\n`;
           resultsText += `⏰ Deadline: ${new Date(a.deadline).toLocaleDateString('de-DE')}\n\n`;
           resultsText += `💭 BEGRÜNDUNG:\n${a.reasoning}\n\n`;

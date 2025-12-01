@@ -1139,10 +1139,15 @@ const GuestAnalytics = () => {
                             
                             {/* KI-Preisempfehlung */}
                             <div className="text-sm">
-                              <span>💰 KI-Preisempfehlung:</span>
-                              <span className="font-bold ml-2">
-                                €{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMin} - €{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMax} /Woche
-                              </span>
+                              <div className="flex items-start gap-1">
+                                <span>💰 KI-Preisempfehlung:</span>
+                                <div className="font-bold">
+                                  <div>€{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMin} - €{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMax} /Nacht</div>
+                                  <div className="text-xs text-muted-foreground font-normal">
+                                    (€{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMin * 7} - €{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMax * 7} /Woche)
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                             
                             {/* KI-Begründung */}
@@ -1210,9 +1215,12 @@ const GuestAnalytics = () => {
                                 <span className="flex items-center gap-2">
                                   💰 Preisempfehlung:
                                 </span>
-                                <span className="font-bold">
-                                  €{vacancy.ml.suggestedPrice.min.toLocaleString()} - €{vacancy.ml.suggestedPrice.max.toLocaleString()} /Woche
-                                </span>
+                                <div className="font-bold text-right">
+                                  <div>€{vacancy.ml.suggestedPrice.min.toLocaleString()} - €{vacancy.ml.suggestedPrice.max.toLocaleString()} /Nacht</div>
+                                  <div className="text-xs text-muted-foreground font-normal">
+                                    (€{(vacancy.ml.suggestedPrice.min * 7).toLocaleString()} - €{(vacancy.ml.suggestedPrice.max * 7).toLocaleString()} /Woche)
+                                  </div>
+                                </div>
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 → Basierend auf {format(parseISO(vacancy.start), 'MMMM', { locale: de })}-Durchschnitt
