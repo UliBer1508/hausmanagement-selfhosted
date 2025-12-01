@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Globe, TrendingUp, DollarSign, Target } from 'lucide-react';
+import { Calendar, Globe, TrendingUp, Info } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export interface MLSettings {
   // Grundeinstellungen
@@ -18,15 +19,9 @@ export interface MLSettings {
   holidaysEnabled: boolean;
   relevantCountries: string[];
   
-  // Preis-Boost-Faktoren
-  highSeasonBoost: number;
-  schoolHolidayBoost: number;
-  publicHolidayBoost: number;
-  lowSeasonDiscount: number;
-  
-  // Wahrscheinlichkeits-Schwellen
-  criticalProbabilityThreshold: number;
-  goodProbabilityThreshold: number;
+  // Analyse-Prioritäten
+  showHistoricalReference: boolean;
+  prioritizeShortGaps: boolean;
 }
 
 export const DEFAULT_ML_SETTINGS: MLSettings = {
@@ -35,12 +30,8 @@ export const DEFAULT_ML_SETTINGS: MLSettings = {
   preferredCheckInDay: 6, // Samstag
   holidaysEnabled: true,
   relevantCountries: ['DE', 'NL', 'BE', 'AT'],
-  highSeasonBoost: 1.5,
-  schoolHolidayBoost: 1.4,
-  publicHolidayBoost: 1.2,
-  lowSeasonDiscount: 0.85,
-  criticalProbabilityThreshold: 40,
-  goodProbabilityThreshold: 70,
+  showHistoricalReference: true,
+  prioritizeShortGaps: true,
 };
 
 const STORAGE_KEY = 'ml-settings-v1';
@@ -202,115 +193,13 @@ export const MLSettingsDialog = ({ open, onOpenChange, settings, onSettingsChang
             )}
           </div>
 
-          {/* Preis-Boost-Faktoren */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <DollarSign className="h-4 w-4" />
-              Preis-Boost-Faktoren
-            </div>
-
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label>Hochsaison (Dez-Feb)</Label>
-                  <span className="text-sm text-muted-foreground">
-                    +{Math.round((localSettings.highSeasonBoost - 1) * 100)}%
-                  </span>
-                </div>
-                <Slider
-                  value={[localSettings.highSeasonBoost]}
-                  onValueChange={([value]) => setLocalSettings(prev => ({ ...prev, highSeasonBoost: value }))}
-                  min={1.0}
-                  max={2.0}
-                  step={0.05}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label>Schulferien</Label>
-                  <span className="text-sm text-muted-foreground">
-                    +{Math.round((localSettings.schoolHolidayBoost - 1) * 100)}%
-                  </span>
-                </div>
-                <Slider
-                  value={[localSettings.schoolHolidayBoost]}
-                  onValueChange={([value]) => setLocalSettings(prev => ({ ...prev, schoolHolidayBoost: value }))}
-                  min={1.0}
-                  max={2.0}
-                  step={0.05}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label>Feiertage</Label>
-                  <span className="text-sm text-muted-foreground">
-                    +{Math.round((localSettings.publicHolidayBoost - 1) * 100)}%
-                  </span>
-                </div>
-                <Slider
-                  value={[localSettings.publicHolidayBoost]}
-                  onValueChange={([value]) => setLocalSettings(prev => ({ ...prev, publicHolidayBoost: value }))}
-                  min={1.0}
-                  max={1.5}
-                  step={0.05}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label>Nebensaison-Rabatt</Label>
-                  <span className="text-sm text-muted-foreground">
-                    {Math.round((localSettings.lowSeasonDiscount - 1) * 100)}%
-                  </span>
-                </div>
-                <Slider
-                  value={[localSettings.lowSeasonDiscount]}
-                  onValueChange={([value]) => setLocalSettings(prev => ({ ...prev, lowSeasonDiscount: value }))}
-                  min={0.7}
-                  max={1.0}
-                  step={0.05}
-                  className="w-full"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Wahrscheinlichkeits-Schwellen */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Target className="h-4 w-4" />
-              Wahrscheinlichkeits-Schwellen
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="critical">Kritisch unter (%) - Rot anzeigen</Label>
-              <Input
-                id="critical"
-                type="number"
-                min="0"
-                max="100"
-                value={localSettings.criticalProbabilityThreshold}
-                onChange={(e) => setLocalSettings(prev => ({ ...prev, criticalProbabilityThreshold: parseInt(e.target.value) }))}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="good">Gut ab (%) - Grün anzeigen</Label>
-              <Input
-                id="good"
-                type="number"
-                min="0"
-                max="100"
-                value={localSettings.goodProbabilityThreshold}
-                onChange={(e) => setLocalSettings(prev => ({ ...prev, goodProbabilityThreshold: parseInt(e.target.value) }))}
-              />
-            </div>
-          </div>
+          {/* Info Alert - Datenbasierte Analyse */}
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Datenbasierte Analyse:</strong> Alle Preisempfehlungen basieren jetzt auf deinen historischen Buchungsdaten - den tatsächlich realisierten Preisen in jedem Monat. Theoretische Boost-Faktoren wurden entfernt.
+            </AlertDescription>
+          </Alert>
         </div>
 
         <div className="flex gap-2 pt-4 border-t">

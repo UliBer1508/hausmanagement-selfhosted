@@ -18,12 +18,43 @@ import { checkHolidayPeriod, type HolidayMatch } from '@/lib/holidayCalendar';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 // Types
+interface AdditionalFees {
+  cleaning_fee_per_stay: number;
+  electricity_fee_per_stay: number;
+  linen_fee_per_stay: number;
+  service_fee_per_stay: number;
+  tourist_tax_per_night: number;
+  vat_percentage: number;
+}
+
 interface Vacancy {
   start: string;
   end: string;
   days: number;
   urgency: 'high' | 'medium' | 'low';
   recommendation: string;
+}
+
+interface HistoricalReference {
+  matchingBooking: {
+    guestName: string;
+    pricePerNight: number;
+    platform: string;
+    nationality: string;
+    leadDays: number;
+    nights: number;
+    totalAmount: number;
+    additionalCosts: number;
+  } | null;
+  monthStats: {
+    avgPricePerNight: number;
+    minPricePerNight: number;
+    maxPricePerNight: number;
+    avgLeadDays: number;
+    topPlatforms: string[];
+    topNationalities: string[];
+    bookingsCount: number;
+  } | null;
 }
 
 interface VacancyML extends Vacancy {
@@ -35,6 +66,7 @@ interface VacancyML extends Vacancy {
     targetNationalities: string[];
     seasonType: 'high' | 'mid' | 'low';
   };
+  historical: HistoricalReference;
 }
 
 interface HouseOccupancy {
@@ -51,6 +83,146 @@ interface HouseOccupancy {
   vacancies: VacancyML[];
   totalOccupancyRate: number;
 }
+
+// Calculate real price per night (subtract ancillary costs)
+const calculateRealPricePerNight = (
+  bookingAmount: number,
+  nights: number,
+  guests: number,
+  additionalFees: AdditionalFees
+): { realPricePerNight: number; totalAdditionalCosts: number; breakdown: { fixedCosts: number; variableCosts: number } } => {
+  const fixedCosts = 
+    (additionalFees.cleaning_fee_per_stay || 0) +
+    (additionalFees.electricity_fee_per_stay || 0) +
+    (additionalFees.linen_fee_per_stay || 0) +
+    (additionalFees.service_fee_per_stay || 0);
+  
+  const variableCosts = (additionalFees.tourist_tax_per_night || 0) * nights * guests;
+  const totalAdditionalCosts = fixedCosts + variableCosts;
+  
+  // Real overnight price = (total - ancillary costs) / nights
+  const realPricePerNight = Math.max(0, (bookingAmount - totalAdditionalCosts) / nights);
+  
+  return {
+    realPricePerNight: Math.round(realPricePerNight * 100) / 100,
+    totalAdditionalCosts,
+    breakdown: { fixedCosts, variableCosts }
+  };
+};
+
+// Find matching historical booking from same month, house, similar duration
+const findMatchingHistoricalBooking = (
+  vacancy: Vacancy,
+  allBookings: any[],
+  houseId: string
+): HistoricalReference['matchingBooking'] => {
+  const vacancyStart = parseISO(vacancy.start);
+  const vacancyMonth = vacancyStart.getMonth();
+  
+  // Find bookings in same month, same house, similar duration
+  const matchingBookings = allBookings.filter(b => {
+    if (b.house_id !== houseId || b.status === 'cancelled') return false;
+    if (!b.booking_amount || b.booking_amount <= 0) return false;
+    if (!b.houses?.additional_fees) return false;
+    
+    const bMonth = new Date(b.check_in).getMonth();
+    const bNights = differenceInDays(new Date(b.check_out), new Date(b.check_in));
+    return bMonth === vacancyMonth && Math.abs(bNights - vacancy.days) <= 3;
+  });
+  
+  if (matchingBookings.length === 0) return null;
+  
+  // Best reference: similar duration + highest real price/night
+  const sortedBookings = matchingBookings.map(b => {
+    const nights = differenceInDays(new Date(b.check_out), new Date(b.check_in));
+    const { realPricePerNight, totalAdditionalCosts } = calculateRealPricePerNight(
+      b.booking_amount,
+      nights,
+      b.number_of_guests,
+      b.houses.additional_fees
+    );
+    const leadDays = differenceInDays(new Date(b.check_in), new Date(b.created_at));
+    
+    return {
+      guestName: b.guest_name,
+      pricePerNight: realPricePerNight,
+      platform: b.platform || 'Direktbuchung',
+      nationality: b.nationality || 'N/A',
+      leadDays,
+      nights,
+      totalAmount: b.booking_amount,
+      additionalCosts: totalAdditionalCosts
+    };
+  }).sort((a, b) => b.pricePerNight - a.pricePerNight);
+  
+  return sortedBookings[0];
+};
+
+// Get monthly statistics from real historical data
+const getMonthlyStats = (
+  month: number,
+  allBookings: any[],
+  houseId: string
+): HistoricalReference['monthStats'] => {
+  const monthBookings = allBookings.filter(b => {
+    if (b.house_id !== houseId || b.status === 'cancelled') return false;
+    if (!b.booking_amount || b.booking_amount <= 0) return false;
+    if (!b.houses?.additional_fees) return false;
+    return new Date(b.check_in).getMonth() === month;
+  });
+  
+  if (monthBookings.length === 0) return null;
+  
+  // Calculate REAL prices/night (without ancillary costs)
+  const pricesPerNight = monthBookings.map(b => {
+    const nights = differenceInDays(new Date(b.check_out), new Date(b.check_in));
+    return calculateRealPricePerNight(
+      b.booking_amount,
+      nights,
+      b.number_of_guests,
+      b.houses.additional_fees
+    ).realPricePerNight;
+  });
+  
+  // Lead times
+  const leadTimes = monthBookings.map(b => 
+    differenceInDays(new Date(b.check_in), new Date(b.created_at))
+  );
+  
+  // Platform distribution
+  const platforms = monthBookings.reduce((acc, b) => {
+    const p = b.platform || 'Direktbuchung';
+    acc[p] = (acc[p] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const topPlatforms = Object.entries(platforms)
+    .sort((a, b) => (b[1] as number) - (a[1] as number))
+    .slice(0, 3)
+    .map(([p, c]) => `${p} (${c}x)`);
+  
+  // Nationality distribution
+  const nationalities = monthBookings.reduce((acc, b) => {
+    const n = b.nationality || 'N/A';
+    acc[n] = (acc[n] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const topNationalities = Object.entries(nationalities)
+    .sort((a, b) => (b[1] as number) - (a[1] as number))
+    .slice(0, 3)
+    .map(([n]) => n);
+  
+  return {
+    avgPricePerNight: Math.round(pricesPerNight.reduce((a, b) => a + b, 0) / pricesPerNight.length),
+    minPricePerNight: Math.round(Math.min(...pricesPerNight)),
+    maxPricePerNight: Math.round(Math.max(...pricesPerNight)),
+    avgLeadDays: Math.round(leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length),
+    topPlatforms,
+    topNationalities,
+    bookingsCount: monthBookings.length
+  };
+};
 
 // Find free periods (vacancies) between bookings
 const findVacancies = (bookings: any[], startDate: Date, endDate: Date): Vacancy[] => {
@@ -178,7 +350,7 @@ const calculateBookingProbability = (
   return Math.min(95, Math.max(5, probability));
 };
 
-// ML: Calculate suggested price based on historical monthly average + holidays + settings
+// ML: Calculate suggested price based on REAL historical monthly average (without ancillary costs)
 const calculateSuggestedPrice = (
   startDate: Date,
   historicalBookings: any[],
@@ -187,26 +359,33 @@ const calculateSuggestedPrice = (
 ): { min: number; max: number } => {
   const month = startDate.getMonth();
   
-  // Calculate historical monthly average
+  // Calculate historical monthly average from REAL prices (not total booking amounts)
   const sameMonthBookings = historicalBookings.filter(b => {
     const bMonth = new Date(b.check_in).getMonth();
-    return bMonth === month && b.booking_amount > 0 && b.status !== 'cancelled';
+    return bMonth === month && b.booking_amount > 0 && b.status !== 'cancelled' && b.houses?.additional_fees;
   });
   
-  const avgAmount = sameMonthBookings.length > 0
-    ? sameMonthBookings.reduce((sum, b) => sum + b.booking_amount, 0) / sameMonthBookings.length
-    : 2500; // Fallback
+  if (sameMonthBookings.length === 0) {
+    // Fallback: Use overall average if no data for this month
+    return { min: 400, max: 600 };
+  }
   
-  // Season multiplier
-  const isHighSeason = [11, 0, 1].includes(month);
-  const baseMultiplier = isHighSeason ? settings.highSeasonBoost : settings.lowSeasonDiscount;
+  const realPrices = sameMonthBookings.map(b => {
+    const nights = differenceInDays(new Date(b.check_out), new Date(b.check_in));
+    return calculateRealPricePerNight(
+      b.booking_amount,
+      nights,
+      b.number_of_guests,
+      b.houses.additional_fees
+    ).realPricePerNight;
+  });
   
-  // Feiertags-Multiplikator anwenden
-  const finalMultiplier = settings.holidaysEnabled && holidayMatch.isHoliday 
-    ? Math.max(baseMultiplier, holidayMatch.maxBoost)
-    : baseMultiplier;
+  const avgRealPrice = realPrices.reduce((sum, p) => sum + p, 0) / realPrices.length;
   
-  const basePrice = avgAmount * finalMultiplier;
+  // Add holiday boost if applicable (but based on real data, not theoretical multiplier)
+  const holidayBoost = settings.holidaysEnabled && holidayMatch.isHoliday ? 1.15 : 1.0;
+  const basePrice = avgRealPrice * holidayBoost;
+  
   return {
     min: Math.round(basePrice * 0.9),
     max: Math.round(basePrice * 1.1)
@@ -275,13 +454,14 @@ const getTargetNationalities = (
     .map(([nat]) => nat);
 };
 
-// Enhanced findVacancies with ML data + settings + holidays
+// Enhanced findVacancies with ML data + settings + holidays + historical references
 const findVacanciesWithML = (
   bookings: any[], 
   allHistoricalBookings: any[],
   startDate: Date, 
   endDate: Date,
-  settings: MLSettings
+  settings: MLSettings,
+  houseId: string
 ): VacancyML[] => {
   const basicVacancies = findVacancies(bookings, startDate, endDate);
   
@@ -299,6 +479,12 @@ const findVacanciesWithML = (
     
     const bestChannelResult = getBestChannel(vacancyStart, allHistoricalBookings);
     
+    // Get historical references
+    const matchingBooking = settings.showHistoricalReference 
+      ? findMatchingHistoricalBooking(vacancy, allHistoricalBookings, houseId)
+      : null;
+    const monthStats = getMonthlyStats(month, allHistoricalBookings, houseId);
+    
     return {
       ...vacancy,
       ml: {
@@ -308,6 +494,10 @@ const findVacanciesWithML = (
         bestChannelReason: bestChannelResult.reason,
         targetNationalities: getTargetNationalities(vacancyStart, allHistoricalBookings),
         seasonType: isHighSeason ? 'high' : isMidSeason ? 'mid' : 'low'
+      },
+      historical: {
+        matchingBooking,
+        monthStats
       }
     };
   });
@@ -358,7 +548,7 @@ const GuestAnalytics = () => {
         .from('bookings')
         .select(`
           *,
-          houses!inner(name, rental_type)
+          houses!inner(name, rental_type, additional_fees)
         `)
         .eq('houses.rental_type', 'tourist')
         .not('guest_name', 'is', null);
@@ -489,7 +679,7 @@ const GuestAnalytics = () => {
         }
         
         // Find vacancies with ML analysis (free periods)
-        const vacancies = findVacanciesWithML(houseBookings, bookings, today, sixMonthsLater, mlSettings);
+        const vacancies = findVacanciesWithML(houseBookings, bookings, today, sixMonthsLater, mlSettings, house.id);
         
         perHouseOccupancy.push({
           houseId: house.id,
@@ -927,6 +1117,108 @@ const GuestAnalytics = () => {
                             </div>
                           )}
                         </div>
+
+                        {/* Historical Reference Box */}
+                        {(vacancy.historical.matchingBooking || vacancy.historical.monthStats) && (
+                          <div className="bg-background/60 border rounded-lg p-3 space-y-3">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                📊 Historische Referenz
+                              </span>
+                            </div>
+
+                            {/* Matching Booking */}
+                            {vacancy.historical.matchingBooking && (
+                              <div className="space-y-2 p-3 bg-background rounded border border-border/50">
+                                <div className="font-medium text-sm mb-2">
+                                  Vergleichbare Buchung: {vacancy.historical.matchingBooking.guestName} ({vacancy.historical.matchingBooking.nights} Nächte)
+                                </div>
+                                
+                                <div className="text-xs space-y-1">
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Gesamtpreis:</span>
+                                    <span className="font-bold">€{vacancy.historical.matchingBooking.totalAmount.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">- Nebenkosten:</span>
+                                    <span>€{vacancy.historical.matchingBooking.additionalCosts.toLocaleString()}</span>
+                                  </div>
+                                  <div className="h-px bg-border my-1" />
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">= Reiner Ü-Preis:</span>
+                                    <span className="font-bold text-green-600">
+                                      €{(vacancy.historical.matchingBooking.totalAmount - vacancy.historical.matchingBooking.additionalCosts).toLocaleString()} 
+                                      → €{Math.round(vacancy.historical.matchingBooking.pricePerNight)}/Nacht
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
+                                  Vorlauf: {vacancy.historical.matchingBooking.leadDays} Tage | 
+                                  Plattform: {vacancy.historical.matchingBooking.platform} | 
+                                  Nationalität: {vacancy.historical.matchingBooking.nationality}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Monthly Stats */}
+                            {vacancy.historical.monthStats && (
+                              <div className="space-y-2">
+                                <div className="font-medium text-sm">
+                                  {format(parseISO(vacancy.start), 'MMMM', { locale: de })}-Statistik ({vacancy.historical.monthStats.bookingsCount} Buchungen)
+                                </div>
+                                
+                                <div className="text-xs space-y-1">
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Ø Preis/Nacht:</span>
+                                    <span className="font-bold">€{vacancy.historical.monthStats.avgPricePerNight}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Min - Max:</span>
+                                    <span>€{vacancy.historical.monthStats.minPricePerNight} - €{vacancy.historical.monthStats.maxPricePerNight}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-muted-foreground">Ø Vorlauf:</span>
+                                    <span>{vacancy.historical.monthStats.avgLeadDays} Tage</span>
+                                  </div>
+                                  {vacancy.historical.monthStats.topPlatforms.length > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Top-Plattformen:</span>
+                                      <span>{vacancy.historical.monthStats.topPlatforms.join(', ')}</span>
+                                    </div>
+                                  )}
+                                  {vacancy.historical.monthStats.topNationalities.length > 0 && (
+                                    <div className="flex justify-between">
+                                      <span className="text-muted-foreground">Zielgruppe:</span>
+                                      <span>{vacancy.historical.monthStats.topNationalities.join(', ')}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Action Recommendation */}
+                                {vacancy.historical.matchingBooking && vacancy.historical.monthStats && (
+                                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-950/30 rounded border border-blue-200 dark:border-blue-800">
+                                    <div className="font-medium text-sm text-blue-900 dark:text-blue-100 mb-1">
+                                      💡 Empfehlung für diese Lücke:
+                                    </div>
+                                    <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                                      <div>
+                                        • Übernachtungspreis: ~€{Math.round(vacancy.historical.monthStats.avgPricePerNight)}/Nacht × {vacancy.days} = €{Math.round(vacancy.historical.monthStats.avgPricePerNight * vacancy.days).toLocaleString()}
+                                      </div>
+                                      {differenceInDays(parseISO(vacancy.start), new Date()) < vacancy.historical.monthStats.avgLeadDays && (
+                                        <div className="text-amber-700 dark:text-amber-400 font-medium">
+                                          ⚠️ Nur noch {differenceInDays(parseISO(vacancy.start), new Date())} Tage Vorlauf!
+                                          (Vergleichbare Buchungen kamen Ø {vacancy.historical.monthStats.avgLeadDays} Tage vorher)
+                                          → Evtl. Preis auf €{Math.round(vacancy.historical.monthStats.avgPricePerNight * 0.9)}/Nacht reduzieren
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
