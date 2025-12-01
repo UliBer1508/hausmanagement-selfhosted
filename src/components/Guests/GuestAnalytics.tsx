@@ -1143,7 +1143,7 @@ const GuestAnalytics = () => {
                                 <span>💰 KI-Preisempfehlung:</span>
                                 <div className="font-bold">
                                   <div>€{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMin} - €{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMax} /Nacht</div>
-                                  <div className="text-xs text-muted-foreground font-normal">
+                                  <div className="text-xs text-muted-foreground font-semibold">
                                     (€{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMin * 7} - €{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMax * 7} /Woche)
                                   </div>
                                 </div>
@@ -1217,7 +1217,7 @@ const GuestAnalytics = () => {
                                 </span>
                                 <div className="font-bold text-right">
                                   <div>€{vacancy.ml.suggestedPrice.min.toLocaleString()} - €{vacancy.ml.suggestedPrice.max.toLocaleString()} /Nacht</div>
-                                  <div className="text-xs text-muted-foreground font-normal">
+                                  <div className="text-xs text-muted-foreground font-semibold">
                                     (€{(vacancy.ml.suggestedPrice.min * 7).toLocaleString()} - €{(vacancy.ml.suggestedPrice.max * 7).toLocaleString()} /Woche)
                                   </div>
                                 </div>
