@@ -88,6 +88,8 @@ WORKFLOW (ZWINGEND!):
 - "wäschestatus" / "linen status" → get_linen_overview
 - "wieviel wäsche" / "wäsche für [Hausname]" → ERST search_houses, DANN get_house_linen_status
 - Bei get_house_linen_status: Priorisiere KI-Daten (confidence >= 60%, <7 Tage alt), sonst Fallback-Berechnung
+- "lücken" / "freie zeiträume" / "vacancies" / "frei" / "noch verfügbar" → get_vacancies
+- "analysiere lücke" / "ki analyse" / "lücke analysieren" / "buchungswahrscheinlichkeit" → analyze_vacancy_with_ai
 - "übersicht" / "dashboard" / "statistik" → get_dashboard_stats
 - "kalender" / "termine" / "events" → get_calendar_events
 - UUID erwähnt → get_*_details Tools
@@ -245,6 +247,44 @@ Diese Bestellungen wurden automatisch erstellt und müssen noch bestätigt werde
 
 Details:
 • [Datum] [Zeit]: [Event-Typ] - [Details]"
+
+**Lücken (Freie Zeiträume):**
+"🔍 Lücken-Übersicht für [Hausname / Alle Häuser]:
+
+📅 LÜCKE 1 ([Hausname]):
+• Zeitraum: [start] - [end] ([X] Tage)
+• Dringlichkeit: [🔴 HOCH / 🟡 MITTEL / 🟢 NIEDRIG]
+• Saison: [🔥 Hochsaison / 📅 Übergangssaison / 🌿 Nebensaison]
+• Status: In [X] Tagen - [Sofort handeln! / Zeitnah planen / Planbar]
+
+📅 LÜCKE 2 ([Hausname]):
+...
+
+💡 Tipp: Sage 'Analysiere Lücke 1' für detaillierte KI-Empfehlungen mit Preisvorschlag und Maßnahmenplan."
+
+**KI-Lücken-Analyse:**
+"🤖 KI-ANALYSE für [Hausname] ([start] - [end], [X] Tage):
+
+📊 BUCHUNGSWAHRSCHEINLICHKEIT: [X]%
+[████░░░░░░] [Hoch/Mittel/Niedrig]
+
+💰 PREISEMPFEHLUNG: €[min] - €[max] /Woche
+
+🎯 DRINGLICHKEIT: [HOCH/MITTEL/NIEDRIG]
+⏰ DEADLINE: Bis spätestens [deadline]
+
+💭 BEGRÜNDUNG:
+[AI reasoning text with seasonal patterns, lead time, nationality trends]
+
+📋 EMPFOHLENE MAßNAHMEN:
+1️⃣ [Prio 1] [action]
+   → [reason]
+
+2️⃣ [Prio 2] [action]
+   → [reason]
+
+3️⃣ [Prio 3] [action]
+   → [reason]"
 
 **Dienstleister:**
 "Ich habe [Anzahl] Dienstleister gefunden:
@@ -989,6 +1029,38 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               provider_id: { type: "string", description: "Optional: UUID des Service-Providers" }
             },
             required: ["task_id", "staff_id"]
+          }
+        }
+      },
+      // PHASE 4: Vacancy Analysis (Lücken-Analyse)
+      {
+        type: "function",
+        function: {
+          name: "get_vacancies",
+          description: "Zeigt alle freien Zeiträume (Lücken) zwischen Buchungen für touristische Objekte. Berechnet Dringlichkeit basierend auf Saison und Vorlaufzeit.",
+          parameters: {
+            type: "object",
+            properties: {
+              house_id: { type: "string", description: "Optional: Nur Lücken für ein spezifisches Haus (UUID)" },
+              min_days: { type: "number", description: "Optional: Minimum Tage für relevante Lücke (default: 3)" },
+              months_ahead: { type: "number", description: "Optional: Wie viele Monate in die Zukunft schauen (default: 6)" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "analyze_vacancy_with_ai",
+          description: "Führt tiefgehende KI-Analyse für eine spezifische Lücke durch. Gibt Buchungswahrscheinlichkeit, Preisempfehlung, priorisierte Maßnahmen und Dringlichkeit zurück.",
+          parameters: {
+            type: "object",
+            properties: {
+              house_id: { type: "string", description: "UUID des Hauses" },
+              vacancy_start: { type: "string", description: "Startdatum der Lücke (ISO 8601, YYYY-MM-DD)" },
+              vacancy_end: { type: "string", description: "Enddatum der Lücke (ISO 8601, YYYY-MM-DD)" }
+            },
+            required: ["house_id", "vacancy_start", "vacancy_end"]
           }
         }
       }
@@ -2244,6 +2316,190 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       };
     }
 
+    // PHASE 4: Vacancy Analysis
+    async function executeGetVacancies(params: any) {
+      console.log('Executing get_vacancies with params:', params);
+      
+      const minDays = params.min_days || 3;
+      const monthsAhead = params.months_ahead || 6;
+      const today = new Date();
+      const endDate = new Date(today.getTime() + (monthsAhead * 30 * 24 * 60 * 60 * 1000));
+
+      // Helper: Calculate days between dates
+      const daysBetween = (start: Date, end: Date) => 
+        Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Helper: Assess urgency
+      const assessUrgency = (startDate: Date, days: number): 'high' | 'medium' | 'low' => {
+        const daysUntilStart = daysBetween(today, startDate);
+        const month = startDate.getMonth();
+        const isHighSeason = month === 11 || month === 0 || month === 1; // Dec, Jan, Feb
+        
+        if ((isHighSeason && days >= 3) || (daysUntilStart <= 30 && days >= 3)) return 'high';
+        if (daysUntilStart <= 60 && days >= 3) return 'medium';
+        return 'low';
+      };
+
+      // Helper: Get season name
+      const getSeasonName = (date: Date): string => {
+        const month = date.getMonth();
+        if ([11, 0, 1].includes(month)) return '🔥 Hochsaison';
+        if ([2, 3, 9, 10].includes(month)) return '📅 Übergangssaison';
+        return '🌿 Nebensaison';
+      };
+
+      // Fetch tourist houses
+      let housesQuery = supabase
+        .from('houses')
+        .select('id, name, address')
+        .eq('rental_type', 'tourist');
+      
+      if (params.house_id) {
+        housesQuery = housesQuery.eq('id', params.house_id);
+      }
+
+      const { data: houses, error: housesError } = await housesQuery;
+      if (housesError) {
+        console.error('Error fetching houses:', housesError);
+        return { success: false, error: housesError.message };
+      }
+
+      if (!houses || houses.length === 0) {
+        return { 
+          success: true, 
+          vacancies: [], 
+          message: 'Keine touristischen Häuser gefunden' 
+        };
+      }
+
+      const allVacancies: any[] = [];
+
+      // Process each house
+      for (const house of houses) {
+        // Fetch confirmed bookings for this house
+        const { data: bookings, error: bookingsError } = await supabase
+          .from('bookings')
+          .select('check_in, check_out, status')
+          .eq('house_id', house.id)
+          .eq('status', 'confirmed')
+          .gte('check_out', today.toISOString().split('T')[0])
+          .lte('check_in', endDate.toISOString().split('T')[0])
+          .order('check_in', { ascending: true });
+
+        if (bookingsError) {
+          console.error(`Error fetching bookings for house ${house.id}:`, bookingsError);
+          continue;
+        }
+
+        // Find vacancies
+        const sortedBookings = (bookings || [])
+          .filter(b => b.status !== 'cancelled')
+          .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime());
+
+        let currentDate = today;
+
+        sortedBookings.forEach((booking, index) => {
+          const bookingStart = new Date(booking.check_in);
+          
+          if (currentDate < bookingStart) {
+            const gapDays = daysBetween(currentDate, bookingStart);
+            if (gapDays >= minDays) {
+              const urgency = assessUrgency(currentDate, gapDays);
+              const daysUntilStart = daysBetween(today, currentDate);
+              
+              allVacancies.push({
+                house_id: house.id,
+                house_name: house.name,
+                start: currentDate.toISOString().split('T')[0],
+                end: bookingStart.toISOString().split('T')[0],
+                days: gapDays,
+                urgency,
+                season: getSeasonName(currentDate),
+                days_until_start: daysUntilStart
+              });
+            }
+          }
+          
+          currentDate = new Date(Math.max(currentDate.getTime(), new Date(booking.check_out).getTime()));
+        });
+
+        // Check gap at the end
+        if (currentDate < endDate) {
+          const gapDays = daysBetween(currentDate, endDate);
+          if (gapDays >= minDays) {
+            const urgency = assessUrgency(currentDate, gapDays);
+            const daysUntilStart = daysBetween(today, currentDate);
+            
+            allVacancies.push({
+              house_id: house.id,
+              house_name: house.name,
+              start: currentDate.toISOString().split('T')[0],
+              end: endDate.toISOString().split('T')[0],
+              days: gapDays,
+              urgency,
+              season: getSeasonName(currentDate),
+              days_until_start: daysUntilStart
+            });
+          }
+        }
+      }
+
+      // Sort by urgency and days_until_start
+      allVacancies.sort((a, b) => {
+        const urgencyOrder = { high: 0, medium: 1, low: 2 };
+        if (urgencyOrder[a.urgency] !== urgencyOrder[b.urgency]) {
+          return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+        }
+        return a.days_until_start - b.days_until_start;
+      });
+
+      console.log(`Found ${allVacancies.length} vacancies`);
+      return { 
+        success: true, 
+        vacancies: allVacancies, 
+        count: allVacancies.length 
+      };
+    }
+
+    async function executeAnalyzeVacancyWithAI(house_id: string, vacancy_start: string, vacancy_end: string) {
+      console.log('Executing analyze_vacancy_with_ai:', { house_id, vacancy_start, vacancy_end });
+      
+      // Calculate days
+      const start = new Date(vacancy_start);
+      const end = new Date(vacancy_end);
+      const days = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Call the analyze-vacancy edge function
+      const { data, error } = await supabase.functions.invoke('analyze-vacancy', {
+        body: {
+          vacancy: {
+            start: vacancy_start,
+            end: vacancy_end,
+            days
+          },
+          houseId: house_id
+        }
+      });
+
+      if (error) {
+        console.error('Error calling analyze-vacancy:', error);
+        return { success: false, error: error.message };
+      }
+
+      if (!data?.success) {
+        return { 
+          success: false, 
+          error: data?.error || 'AI-Analyse fehlgeschlagen' 
+        };
+      }
+
+      return { 
+        success: true, 
+        analysis: data.analysis,
+        message: 'KI-Analyse erfolgreich abgeschlossen'
+      };
+    }
+
     // Tool router
     async function executeTool(toolName: string, args: any) {
       try {
@@ -2307,6 +2563,11 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
             return await executeUpdateCleaningTask(args.task_id, args);
           case 'assign_cleaning_staff':
             return await executeAssignCleaningStaff(args.task_id, args.staff_id, args.provider_id);
+          // PHASE 4: Vacancy Analysis
+          case 'get_vacancies':
+            return await executeGetVacancies(args);
+          case 'analyze_vacancy_with_ai':
+            return await executeAnalyzeVacancyWithAI(args.house_id, args.vacancy_start, args.vacancy_end);
           default:
             throw new Error(`Unknown tool: ${toolName}`);
         }
@@ -2620,6 +2881,45 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               type: e.type === 'booking' ? 'booking' : e.type === 'cleaning' ? 'cleaning_task' : 'laundry_order',
               label: `${e.title}`
             });
+          });
+        }
+
+        // NEW: Vacancies formatting
+        if (result.vacancies && Array.isArray(result.vacancies)) {
+          resultsText += `\n\nGefundene Lücken (${result.count}):\n`;
+          result.vacancies.forEach((v: any, i: number) => {
+            const urgencyEmoji = v.urgency === 'high' ? '🔴' : v.urgency === 'medium' ? '🟡' : '🟢';
+            resultsText += `\nLücke ${i + 1} (${v.house_name}):\n`;
+            resultsText += `- Zeitraum: ${new Date(v.start).toLocaleDateString('de-DE')} - ${new Date(v.end).toLocaleDateString('de-DE')} (${v.days} Tage)\n`;
+            resultsText += `- Dringlichkeit: ${urgencyEmoji} ${v.urgency.toUpperCase()}\n`;
+            resultsText += `- Saison: ${v.season}\n`;
+            resultsText += `- Status: In ${v.days_until_start} Tagen\n`;
+            
+            entityLinks.push({
+              id: v.house_id,
+              type: 'house',
+              label: `${v.house_name} - Lücke ${i + 1}`
+            });
+          });
+          
+          if (result.vacancies.length > 0) {
+            resultsText += `\n💡 Tipp: Sage "Analysiere Lücke 1 vom [Hausname]" für detaillierte KI-Empfehlungen\n`;
+          }
+        }
+
+        // NEW: AI Vacancy Analysis formatting
+        if (result.analysis) {
+          const a = result.analysis;
+          resultsText += `\n\n🤖 KI-ANALYSE:\n`;
+          resultsText += `📊 Buchungswahrscheinlichkeit: ${a.bookingProbability}%\n`;
+          resultsText += `💰 Preisempfehlung: €${a.suggestedPriceMin} - €${a.suggestedPriceMax} /Woche\n`;
+          resultsText += `🎯 Dringlichkeit: ${a.urgency.toUpperCase()}\n`;
+          resultsText += `⏰ Deadline: ${new Date(a.deadline).toLocaleDateString('de-DE')}\n\n`;
+          resultsText += `💭 BEGRÜNDUNG:\n${a.reasoning}\n\n`;
+          resultsText += `📋 EMPFOHLENE MAßNAHMEN:\n`;
+          a.actions.forEach((act: any, i: number) => {
+            resultsText += `${i + 1}️⃣ [Prio ${act.priority}] ${act.action}\n`;
+            resultsText += `   → ${act.reason}\n\n`;
           });
         }
 
