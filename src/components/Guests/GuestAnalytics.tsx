@@ -7,9 +7,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { AppReviewsSection } from './AppReviewsSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
-import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle, Settings } from 'lucide-react';
+import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle, Settings, ChevronRight } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth, addMonths, differenceInDays, max, min, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { de } from 'date-fns/locale';
 import { useHouses } from '@/hooks/useHouses';
 import { MLSettingsDialog, type MLSettings, DEFAULT_ML_SETTINGS, loadMLSettings } from './MLSettingsDialog';
@@ -1118,103 +1119,111 @@ const GuestAnalytics = () => {
                           )}
                         </div>
 
-                        {/* Historical Reference Box */}
+                        {/* Historical Reference & Recommendation */}
                         {(vacancy.historical.matchingBooking || vacancy.historical.monthStats) && (
-                          <div className="bg-background/60 border rounded-lg p-3 space-y-3">
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                📊 Historische Referenz
-                              </span>
-                            </div>
-
-                            {/* Matching Booking */}
-                            {vacancy.historical.matchingBooking && (
-                              <div className="space-y-2 p-3 bg-background rounded border border-border/50">
-                                <div className="font-medium text-sm mb-2">
-                                  Vergleichbare Buchung: {vacancy.historical.matchingBooking.guestName} ({vacancy.historical.matchingBooking.nights} Nächte)
-                                </div>
-                                
-                                <div className="text-xs space-y-1">
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Gesamtpreis:</span>
-                                    <span className="font-bold">€{vacancy.historical.matchingBooking.totalAmount.toLocaleString()}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">- Nebenkosten:</span>
-                                    <span>€{vacancy.historical.matchingBooking.additionalCosts.toLocaleString()}</span>
-                                  </div>
-                                  <div className="h-px bg-border my-1" />
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">= Reiner Ü-Preis:</span>
-                                    <span className="font-bold text-green-600">
-                                      €{(vacancy.historical.matchingBooking.totalAmount - vacancy.historical.matchingBooking.additionalCosts).toLocaleString()} 
-                                      → €{Math.round(vacancy.historical.matchingBooking.pricePerNight)}/Nacht
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
-                                  Vorlauf: {vacancy.historical.matchingBooking.leadDays} Tage | 
-                                  Plattform: {vacancy.historical.matchingBooking.platform} | 
-                                  Nationalität: {vacancy.historical.matchingBooking.nationality}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Monthly Stats */}
-                            {vacancy.historical.monthStats && (
-                              <div className="space-y-2">
-                                <div className="font-medium text-sm">
-                                  {format(parseISO(vacancy.start), 'MMMM', { locale: de })}-Statistik ({vacancy.historical.monthStats.bookingsCount} Buchungen)
-                                </div>
-                                
-                                <div className="text-xs space-y-1">
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Ø Preis/Nacht:</span>
-                                    <span className="font-bold">€{vacancy.historical.monthStats.avgPricePerNight}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Min - Max:</span>
-                                    <span>€{vacancy.historical.monthStats.minPricePerNight} - €{vacancy.historical.monthStats.maxPricePerNight}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-muted-foreground">Ø Vorlauf:</span>
-                                    <span>{vacancy.historical.monthStats.avgLeadDays} Tage</span>
-                                  </div>
-                                  {vacancy.historical.monthStats.topPlatforms.length > 0 && (
-                                    <div className="flex justify-between">
-                                      <span className="text-muted-foreground">Top-Plattformen:</span>
-                                      <span>{vacancy.historical.monthStats.topPlatforms.join(', ')}</span>
-                                    </div>
-                                  )}
-                                  {vacancy.historical.monthStats.topNationalities.length > 0 && (
-                                    <div className="flex justify-between">
-                                      <span className="text-muted-foreground">Zielgruppe:</span>
-                                      <span>{vacancy.historical.monthStats.topNationalities.join(', ')}</span>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Action Recommendation */}
-                                {vacancy.historical.matchingBooking && vacancy.historical.monthStats && (
-                                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-950/30 rounded border border-blue-200 dark:border-blue-800">
-                                    <div className="font-medium text-sm text-blue-900 dark:text-blue-100 mb-1">
-                                      💡 Empfehlung für diese Lücke:
-                                    </div>
-                                    <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
-                                      <div>
-                                        • Übernachtungspreis: ~€{Math.round(vacancy.historical.monthStats.avgPricePerNight)}/Nacht × {vacancy.days} = €{Math.round(vacancy.historical.monthStats.avgPricePerNight * vacancy.days).toLocaleString()}
+                          <div className="space-y-3">
+                            {/* Collapsible Historical Reference Section */}
+                            <Collapsible defaultOpen={false}>
+                              <CollapsibleTrigger className="flex items-center gap-2 w-full text-left hover:bg-muted/50 p-2 rounded transition-colors group">
+                                <ChevronRight className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-90" />
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                  📊 Historische Referenz
+                                </span>
+                              </CollapsibleTrigger>
+                              
+                              <CollapsibleContent className="mt-2">
+                                <div className="bg-background/60 border rounded-lg p-3 space-y-3">
+                                  {/* Matching Historical Booking */}
+                                  {vacancy.historical.matchingBooking && (
+                                    <div className="space-y-2 p-3 bg-background rounded border border-border/50">
+                                      <div className="font-medium text-sm mb-2">
+                                        Vergleichbare Buchung: {vacancy.historical.matchingBooking.guestName} ({vacancy.historical.matchingBooking.nights} Nächte)
                                       </div>
-                                      {differenceInDays(parseISO(vacancy.start), new Date()) < vacancy.historical.monthStats.avgLeadDays && (
-                                        <div className="text-amber-700 dark:text-amber-400 font-medium">
-                                          ⚠️ Nur noch {differenceInDays(parseISO(vacancy.start), new Date())} Tage Vorlauf!
-                                          (Vergleichbare Buchungen kamen Ø {vacancy.historical.monthStats.avgLeadDays} Tage vorher)
-                                          → Evtl. Preis auf €{Math.round(vacancy.historical.monthStats.avgPricePerNight * 0.9)}/Nacht reduzieren
+                                      
+                                      <div className="text-xs space-y-1">
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">Gesamtpreis:</span>
+                                          <span className="font-bold">€{vacancy.historical.matchingBooking.totalAmount.toLocaleString()}</span>
                                         </div>
-                                      )}
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">- Nebenkosten:</span>
+                                          <span>€{vacancy.historical.matchingBooking.additionalCosts.toLocaleString()}</span>
+                                        </div>
+                                        <div className="h-px bg-border my-1" />
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">= Reiner Ü-Preis:</span>
+                                          <span className="font-bold text-green-600">
+                                            €{(vacancy.historical.matchingBooking.totalAmount - vacancy.historical.matchingBooking.additionalCosts).toLocaleString()} 
+                                            → €{Math.round(vacancy.historical.matchingBooking.pricePerNight)}/Nacht
+                                          </span>
+                                        </div>
+                                      </div>
+
+                                      <div className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
+                                        Vorlauf: {vacancy.historical.matchingBooking.leadDays} Tage | 
+                                        Plattform: {vacancy.historical.matchingBooking.platform} | 
+                                        Nationalität: {vacancy.historical.matchingBooking.nationality}
+                                      </div>
                                     </div>
+                                  )}
+
+                                  {/* Monthly Stats */}
+                                  {vacancy.historical.monthStats && (
+                                    <div className="space-y-2">
+                                      <div className="font-medium text-sm">
+                                        {format(parseISO(vacancy.start), 'MMMM', { locale: de })}-Statistik ({vacancy.historical.monthStats.bookingsCount} Buchungen)
+                                      </div>
+                                      
+                                      <div className="text-xs space-y-1">
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">Ø Preis/Nacht:</span>
+                                          <span className="font-bold">€{vacancy.historical.monthStats.avgPricePerNight}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">Min - Max:</span>
+                                          <span>€{vacancy.historical.monthStats.minPricePerNight} - €{vacancy.historical.monthStats.maxPricePerNight}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-muted-foreground">Ø Vorlauf:</span>
+                                          <span>{vacancy.historical.monthStats.avgLeadDays} Tage</span>
+                                        </div>
+                                        {vacancy.historical.monthStats.topPlatforms.length > 0 && (
+                                          <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Top-Plattformen:</span>
+                                            <span>{vacancy.historical.monthStats.topPlatforms.join(', ')}</span>
+                                          </div>
+                                        )}
+                                        {vacancy.historical.monthStats.topNationalities.length > 0 && (
+                                          <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Zielgruppe:</span>
+                                            <span>{vacancy.historical.monthStats.topNationalities.join(', ')}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+
+                            {/* Recommendation - Always visible, outside of collapsible */}
+                            {vacancy.historical.matchingBooking && vacancy.historical.monthStats && (
+                              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                                <div className="font-medium text-sm text-blue-900 dark:text-blue-100 mb-2">
+                                  💡 Empfehlung für diese Lücke:
+                                </div>
+                                <div className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
+                                  <div>
+                                    • Übernachtungspreis: ~€{Math.round(vacancy.historical.monthStats.avgPricePerNight)}/Nacht × {vacancy.days} = €{Math.round(vacancy.historical.monthStats.avgPricePerNight * vacancy.days).toLocaleString()}
                                   </div>
-                                )}
+                                  {differenceInDays(parseISO(vacancy.start), new Date()) < vacancy.historical.monthStats.avgLeadDays && (
+                                    <div className="text-amber-700 dark:text-amber-400 font-medium mt-2">
+                                      ⚠️ Nur noch {differenceInDays(parseISO(vacancy.start), new Date())} Tage Vorlauf!
+                                      (Vergleichbare Buchungen kamen Ø {vacancy.historical.monthStats.avgLeadDays} Tage vorher)
+                                      → Evtl. Preis auf €{Math.round(vacancy.historical.monthStats.avgPricePerNight * 0.9)}/Nacht reduzieren
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>
