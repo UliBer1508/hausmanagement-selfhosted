@@ -466,7 +466,12 @@ const findVacanciesWithML = (
 ): VacancyML[] => {
   const basicVacancies = findVacancies(bookings, startDate, endDate);
   
-  return basicVacancies.map(vacancy => {
+  // Filtere Lücken aus, die kürzer als die Mindestaufenthaltsdauer sind
+  const rentableVacancies = basicVacancies.filter(
+    vacancy => vacancy.days >= settings.minRentableNights
+  );
+  
+  return rentableVacancies.map(vacancy => {
     const vacancyStart = parseISO(vacancy.start);
     const vacancyEnd = parseISO(vacancy.end);
     const month = vacancyStart.getMonth();
