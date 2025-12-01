@@ -7,12 +7,13 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { AppReviewsSection } from './AppReviewsSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
-import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle, Settings, ChevronRight } from 'lucide-react';
+import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle, Settings, ChevronRight, Loader2 } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth, addMonths, differenceInDays, max, min, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { de } from 'date-fns/locale';
 import { useHouses } from '@/hooks/useHouses';
+import { useVacancyAI } from '@/hooks/useVacancyAI';
 import { MLSettingsDialog, type MLSettings, DEFAULT_ML_SETTINGS, loadMLSettings } from './MLSettingsDialog';
 import { checkHolidayPeriod, type HolidayMatch } from '@/lib/holidayCalendar';
 
@@ -535,13 +536,49 @@ const GuestAnalytics = () => {
   const [selectedHouseId, setSelectedHouseId] = useState<string>('all');
   const [mlSettings, setMLSettings] = useState<MLSettings>(DEFAULT_ML_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [analyzingVacancyId, setAnalyzingVacancyId] = useState<string | null>(null);
+  const [aiAnalyses, setAiAnalyses] = useState<Record<string, any>>({});
+  
   const { data: allHouses } = useHouses();
+  const { analyzeVacancy, isAnalyzing } = useVacancyAI();
 
   // Load settings from localStorage on mount
   useEffect(() => {
     const loaded = loadMLSettings();
     setMLSettings(loaded);
   }, []);
+  
+  // Handle AI analysis for a vacancy
+  const handleAnalyzeVacancy = (vacancy: any, houseId: string) => {
+    const vacancyId = `${vacancy.start}_${vacancy.end}`;
+    setAnalyzingVacancyId(vacancyId);
+    
+    analyzeVacancy(
+      { vacancy, houseId },
+      {
+        onSuccess: (analysis) => {
+          setAiAnalyses(prev => ({
+            ...prev,
+            [vacancyId]: analysis,
+          }));
+          setAnalyzingVacancyId(null);
+        },
+        onError: () => {
+          setAnalyzingVacancyId(null);
+        },
+      }
+    );
+  };
+
+  const getUrgencyColor = (urgency: string) => {
+    switch (urgency) {
+      case 'kritisch': return 'bg-red-500';
+      case 'hoch': return 'bg-orange-500';
+      case 'mittel': return 'bg-yellow-500';
+      case 'niedrig': return 'bg-green-500';
+      default: return 'bg-gray-500';
+    }
+  };
   
   // Filter houses to only show tourist rentals
   const houses = allHouses?.filter(house => house.rental_type === 'tourist');

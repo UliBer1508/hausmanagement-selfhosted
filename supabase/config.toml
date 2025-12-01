@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.create-cleaning-task-for-booking]
 verify_jwt = false
+
+[functions.analyze-vacancy]
+verify_jwt = false
