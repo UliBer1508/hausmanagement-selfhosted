@@ -257,24 +257,46 @@ const findVacanciesWithML = (
   const basicVacancies = findVacancies(bookings, startDate, endDate);
   
   return basicVacancies.map(vacancy => {
-    const vacancyStart = parseISO(vacancy.start);
-    const month = vacancyStart.getMonth();
-    const isHighSeason = [11, 0, 1].includes(month);
-    const isMidSeason = [2, 3, 9, 10].includes(month);
-    
-    const bestChannelResult = getBestChannel(vacancyStart, allHistoricalBookings);
-    
-    return {
-      ...vacancy,
-      ml: {
-        bookingProbability: calculateBookingProbability(vacancyStart, vacancy.days, allHistoricalBookings),
-        suggestedPrice: calculateSuggestedPrice(vacancyStart, allHistoricalBookings),
-        bestChannel: bestChannelResult.channel,
-        bestChannelReason: bestChannelResult.reason,
-        targetNationalities: getTargetNationalities(vacancyStart, allHistoricalBookings),
-        seasonType: isHighSeason ? 'high' : isMidSeason ? 'mid' : 'low'
-      }
-    };
+    try {
+      const vacancyStart = parseISO(vacancy.start);
+      const month = vacancyStart.getMonth();
+      const isHighSeason = [11, 0, 1].includes(month);
+      const isMidSeason = [2, 3, 9, 10].includes(month);
+      const seasonType = isHighSeason ? 'high' : isMidSeason ? 'mid' : 'low';
+      
+      const bestChannelResult = getBestChannel(vacancyStart, allHistoricalBookings);
+      
+      return {
+        ...vacancy,
+        ml: {
+          bookingProbability: calculateBookingProbability(vacancyStart, vacancy.days, allHistoricalBookings),
+          suggestedPrice: calculateSuggestedPrice(vacancyStart, allHistoricalBookings),
+          bestChannel: bestChannelResult.channel,
+          bestChannelReason: bestChannelResult.reason,
+          targetNationalities: getTargetNationalities(vacancyStart, allHistoricalBookings),
+          seasonType
+        }
+      };
+    } catch (error) {
+      console.error('Error calculating ML data for vacancy:', error);
+      // Fallback: return vacancy with default ML values
+      const vacancyStart = parseISO(vacancy.start);
+      const month = vacancyStart.getMonth();
+      const isHighSeason = [11, 0, 1].includes(month);
+      const isMidSeason = [2, 3, 9, 10].includes(month);
+      
+      return {
+        ...vacancy,
+        ml: {
+          bookingProbability: 50,
+          suggestedPrice: { min: 2000, max: 3000 },
+          bestChannel: 'Booking.com',
+          bestChannelReason: 'Standard-Empfehlung',
+          targetNationalities: [],
+          seasonType: isHighSeason ? 'high' : isMidSeason ? 'mid' : 'low'
+        }
+      };
+    }
   });
 };
 
@@ -775,13 +797,13 @@ const GuestAnalytics = () => {
                               </Badge>
                               <Badge
                                 variant={
-                                  vacancy.ml.seasonType === 'high' ? 'default' : 
-                                  vacancy.ml.seasonType === 'mid' ? 'secondary' : 'outline'
+                                  vacancy.ml?.seasonType === 'high' ? 'default' : 
+                                  vacancy.ml?.seasonType === 'mid' ? 'secondary' : 'outline'
                                 }
                                 className="text-xs"
                               >
-                                {vacancy.ml.seasonType === 'high' ? '🔥 Hochsaison' :
-                                 vacancy.ml.seasonType === 'mid' ? '📅 Übergangssaison' : '🌿 Nebensaison'}
+                                {vacancy.ml?.seasonType === 'high' ? '🔥 Hochsaison' :
+                                 vacancy.ml?.seasonType === 'mid' ? '📅 Übergangssaison' : '🌿 Nebensaison'}
                               </Badge>
                             </div>
                             <p className="text-sm text-muted-foreground">
@@ -791,6 +813,7 @@ const GuestAnalytics = () => {
                         </div>
 
                         {/* ML Analysis Box */}
+                        {vacancy.ml && (
                         <div className="bg-background/60 border rounded-lg p-3 space-y-3">
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -867,6 +890,7 @@ const GuestAnalytics = () => {
                             </div>
                           )}
                         </div>
+                        )}
                       </div>
                     </div>
                   ))}
