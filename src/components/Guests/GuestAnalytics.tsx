@@ -5,13 +5,35 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppReviewsSection } from './AppReviewsSection';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 import { TrendingUp, Users, Calendar, Euro, MapPin, Clock } from 'lucide-react';
-import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
+import { format, subMonths, startOfMonth, endOfMonth, addMonths, differenceInDays, max, min } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useHouses } from '@/hooks/useHouses';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+
+// Custom Tooltip for Occupancy Forecast
+const CustomOccupancyTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="font-bold mb-2">{data.month}</p>
+        <p className="text-green-600 text-sm">
+          ✅ Belegt: {data.occupiedDays} Tage ({data.occupancyRate}%)
+        </p>
+        <p className="text-red-600 text-sm">
+          ⚠️ Frei: {data.freeDays} Tage
+        </p>
+        <p className="text-muted-foreground text-sm mt-1">
+          {data.bookings} Buchung{data.bookings !== 1 ? 'en' : ''}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
 
 const GuestAnalytics = () => {
   const [selectedHouseId, setSelectedHouseId] = useState<string>('all');
@@ -99,11 +121,52 @@ const GuestAnalytics = () => {
       const durationData = Object.entries(durationGroups)
         .map(([range, count]) => ({ range, count }));
 
+      // Occupancy Forecast (next 6 months)
+      const occupancyForecast = [];
+      const today = new Date();
+      
+      for (let i = 0; i < 6; i++) {
+        const month = addMonths(today, i);
+        const monthStart = startOfMonth(month);
+        const monthEnd = endOfMonth(month);
+        const daysInMonth = differenceInDays(monthEnd, monthStart) + 1;
+        
+        // Find all bookings overlapping with this month
+        const monthBookings = bookings.filter(b => {
+          if (b.status === 'cancelled') return false;
+          const checkIn = new Date(b.check_in);
+          const checkOut = new Date(b.check_out);
+          return checkIn <= monthEnd && checkOut >= monthStart;
+        });
+        
+        // Calculate occupied days (overlapping days in the month)
+        let occupiedDays = 0;
+        monthBookings.forEach(booking => {
+          const bookingStart = max([new Date(booking.check_in), monthStart]);
+          const bookingEnd = min([new Date(booking.check_out), monthEnd]);
+          const days = differenceInDays(bookingEnd, bookingStart);
+          occupiedDays += Math.max(0, days);
+        });
+        
+        const freeDays = daysInMonth - occupiedDays;
+        const occupancyRate = Math.round((occupiedDays / daysInMonth) * 100);
+        
+        occupancyForecast.push({
+          month: format(month, 'MMM yyyy', { locale: de }),
+          occupancyRate,
+          occupiedDays,
+          freeDays,
+          daysInMonth,
+          bookings: monthBookings.length
+        });
+      }
+
       return {
         monthlyData,
         nationalityData,
         avgStayDuration: Math.round(avgStayDuration * 10) / 10,
         durationData,
+        occupancyForecast,
         totalRevenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
         totalBookings: bookings.length,
         totalGuests: bookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0)
@@ -242,6 +305,45 @@ const GuestAnalytics = () => {
                   name="Buchungen"
                 />
               </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Occupancy Forecast */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Auslastungs-Vorschau (nächste 6 Monate)
+            </CardTitle>
+            <CardDescription>
+              Grün = belegt, Rot = freie Tage (Lücken)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={analyticsData.occupancyForecast}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis label={{ value: 'Tage', angle: -90, position: 'insideLeft' }} />
+                <Tooltip content={<CustomOccupancyTooltip />} />
+                <Area 
+                  type="monotone" 
+                  dataKey="occupiedDays" 
+                  stackId="1"
+                  stroke="hsl(142 76% 36%)" 
+                  fill="hsl(142 76% 36%)"
+                  name="Belegte Tage"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="freeDays" 
+                  stackId="1"
+                  stroke="hsl(0 84% 60%)" 
+                  fill="hsl(0 84% 60%)"
+                  name="Freie Tage"
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
