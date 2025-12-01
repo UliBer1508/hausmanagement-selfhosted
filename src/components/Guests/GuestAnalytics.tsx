@@ -6,15 +6,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { AppReviewsSection } from './AppReviewsSection';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
-import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle, Settings } from 'lucide-react';
+import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth, addMonths, differenceInDays, max, min, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { de } from 'date-fns/locale';
 import { useHouses } from '@/hooks/useHouses';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -30,9 +26,6 @@ interface Vacancy {
 interface VacancyML extends Vacancy {
   ml: {
     bookingProbability: number;
-    isBookable: boolean;
-    reasons: string[];
-    notBookableReason?: string;
     suggestedPrice: { min: number; max: number };
     bestChannel: string;
     bestChannelReason: string;
@@ -56,416 +49,606 @@ interface HouseOccupancy {
   totalOccupancyRate: number;
 }
 
-const GuestAnalytics = () => {
-  const [selectedHouseId, setSelectedHouseId] = useState<string>("");
-  const [showMlSettings, setShowMlSettings] = useState(false);
-  const [mlConfig, setMlConfig] = useState({
-    minRentalDays: 4,
-    idealRentalDays: 7,
-    lastMinuteDays: 7,
-    shortGapPenalty: 25,
-    longGapBonus: 10,
-    highSeasonMonths: [11, 0, 1],
-    midSeasonMonths: [2, 3, 9, 10],
-    highSeasonBonus: 20,
-    lowSeasonPenalty: 15,
+// Find free periods (vacancies) between bookings
+const findVacancies = (bookings: any[], startDate: Date, endDate: Date): Vacancy[] => {
+  const sortedBookings = bookings
+    .filter(b => b.status !== 'cancelled')
+    .sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime());
+
+  const vacancies: Vacancy[] = [];
+  let currentDate = startDate;
+
+  sortedBookings.forEach((booking, index) => {
+    const bookingStart = new Date(booking.check_in);
+    
+    // If there's a gap before this booking
+    if (currentDate < bookingStart) {
+      const gapDays = differenceInDays(bookingStart, currentDate);
+      if (gapDays >= 1) { // Only report gaps of 1+ days
+        const urgency = assessUrgency(currentDate, gapDays);
+        vacancies.push({
+          start: format(currentDate, 'yyyy-MM-dd'),
+          end: format(bookingStart, 'yyyy-MM-dd'),
+          days: gapDays,
+          urgency,
+          recommendation: getRecommendation(urgency, gapDays)
+        });
+      }
+    }
+    
+    // Move currentDate to the end of this booking
+    currentDate = max([currentDate, new Date(booking.check_out)]);
   });
 
-  const { data: houses } = useHouses();
+  // Check for gap at the end
+  if (currentDate < endDate) {
+    const gapDays = differenceInDays(endDate, currentDate);
+    if (gapDays >= 1) {
+      const urgency = assessUrgency(currentDate, gapDays);
+      vacancies.push({
+        start: format(currentDate, 'yyyy-MM-dd'),
+        end: format(endDate, 'yyyy-MM-dd'),
+        days: gapDays,
+        urgency,
+        recommendation: getRecommendation(urgency, gapDays)
+      });
+    }
+  }
 
-  const { data: bookings, isLoading: bookingsLoading } = useQuery({
-    queryKey: ['bookings'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .order('check_in', { ascending: false });
+  return vacancies;
+};
+
+// Assess urgency based on timing and duration
+const assessUrgency = (startDate: Date, days: number): 'high' | 'medium' | 'low' => {
+  const daysUntilStart = differenceInDays(startDate, new Date());
+  const month = startDate.getMonth();
+  const isHighSeason = month === 11 || month === 0 || month === 1; // Dec, Jan, Feb
+
+  // Critical: Gap in high season OR gap starting within 30 days
+  if ((isHighSeason && days >= 3) || (daysUntilStart <= 30 && days >= 3)) {
+    return 'high';
+  }
+  
+  // Medium: Gap starting within 60 days
+  if (daysUntilStart <= 60 && days >= 3) {
+    return 'medium';
+  }
+  
+  return 'low';
+};
+
+// Get recommendation based on urgency
+const getRecommendation = (urgency: 'high' | 'medium' | 'low', days: number): string => {
+  if (urgency === 'high') {
+    return '🔥 Kritisch! Sofort auf Buchungsportalen aktivieren. Hochsaison-Preise verwenden.';
+  }
+  if (urgency === 'medium') {
+    return '⚠️ Zeitnah handeln. Verfügbarkeit aktualisieren und ggf. Preis anpassen.';
+  }
+  return '✅ Planbar. Normale Preisgestaltung, Verfügbarkeit prüfen.';
+};
+
+// ML: Calculate booking probability based on lead time + seasonality
+const calculateBookingProbability = (
+  startDate: Date, 
+  days: number, 
+  historicalBookings: any[]
+): number => {
+  const daysUntilStart = differenceInDays(startDate, new Date());
+  const month = startDate.getMonth();
+  
+  // Base probability by lead time (closer = less likely)
+  let probability = 80;
+  if (daysUntilStart < 7) probability = 20;
+  else if (daysUntilStart < 14) probability = 35;
+  else if (daysUntilStart < 30) probability = 55;
+  else if (daysUntilStart < 60) probability = 70;
+  
+  // Season factor: High season = +20%, Low season = -15%
+  const isHighSeason = [11, 0, 1].includes(month); // Dec, Jan, Feb
+  const isMidSeason = [2, 3, 9, 10].includes(month); // Mar, Apr, Oct, Nov
+  if (isHighSeason) probability += 20;
+  else if (!isMidSeason) probability -= 15; // Low season
+  
+  // Duration factor: Short gaps harder to fill
+  if (days < 3) probability -= 25;
+  else if (days >= 7) probability += 10;
+  
+  return Math.min(95, Math.max(5, probability));
+};
+
+// ML: Calculate suggested price based on historical monthly average
+const calculateSuggestedPrice = (
+  startDate: Date,
+  historicalBookings: any[]
+): { min: number; max: number } => {
+  const month = startDate.getMonth();
+  
+  // Calculate historical monthly average
+  const sameMonthBookings = historicalBookings.filter(b => {
+    const bMonth = new Date(b.check_in).getMonth();
+    return bMonth === month && b.booking_amount > 0 && b.status !== 'cancelled';
+  });
+  
+  const avgAmount = sameMonthBookings.length > 0
+    ? sameMonthBookings.reduce((sum, b) => sum + b.booking_amount, 0) / sameMonthBookings.length
+    : 2500; // Fallback
+  
+  // Season multiplier
+  const isHighSeason = [11, 0, 1].includes(month);
+  const multiplier = isHighSeason ? 1.15 : 0.9;
+  
+  const basePrice = avgAmount * multiplier;
+  return {
+    min: Math.round(basePrice * 0.85),
+    max: Math.round(basePrice * 1.1)
+  };
+};
+
+// ML: Get best channel based on season and platform performance
+const getBestChannel = (
+  startDate: Date,
+  historicalBookings: any[]
+): { channel: string; reason: string } => {
+  const month = startDate.getMonth();
+  const isHighSeason = [11, 0, 1].includes(month);
+  
+  // Analyze which channel performs better in same month
+  const monthBookings = historicalBookings.filter(b => {
+    const bMonth = new Date(b.check_in).getMonth();
+    return bMonth === month && b.status !== 'cancelled';
+  });
+  
+  const byPlatform = monthBookings.reduce((acc, b) => {
+    const p = b.platform || 'Direktbuchung';
+    if (!acc[p]) acc[p] = { count: 0, revenue: 0 };
+    acc[p].count++;
+    acc[p].revenue += b.booking_amount || 0;
+    return acc;
+  }, {} as Record<string, { count: number; revenue: number }>);
+  
+  // High season: Priority on revenue (Booking.com)
+  // Low season: Priority on volume (Belvilla)
+  if (isHighSeason) {
+    return { 
+      channel: 'Booking.com', 
+      reason: 'Höhere Durchschnittspreise in Hochsaison (Ø €3.200+)' 
+    };
+  }
+  return { 
+    channel: 'Belvilla + Airbnb', 
+    reason: 'Mehr Volumen in Nebensaison, breitere Reichweite' 
+  };
+};
+
+// ML: Get target nationalities for the specific month
+const getTargetNationalities = (
+  startDate: Date,
+  historicalBookings: any[]
+): string[] => {
+  const month = startDate.getMonth();
+  
+  // Analyze which nationalities book in same month
+  const monthBookings = historicalBookings.filter(b => {
+    const bMonth = new Date(b.check_in).getMonth();
+    return bMonth === month && b.nationality && b.status !== 'cancelled';
+  });
+  
+  const byNationality = monthBookings.reduce((acc, b) => {
+    const n = b.nationality;
+    acc[n] = (acc[n] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  // Top 3 nationalities
+  return Object.entries(byNationality)
+    .sort((a, b) => (b[1] as number) - (a[1] as number))
+    .slice(0, 3)
+    .map(([nat]) => nat);
+};
+
+// Enhanced findVacancies with ML data
+const findVacanciesWithML = (
+  bookings: any[], 
+  allHistoricalBookings: any[],
+  startDate: Date, 
+  endDate: Date
+): VacancyML[] => {
+  const basicVacancies = findVacancies(bookings, startDate, endDate);
+  
+  return basicVacancies.map(vacancy => {
+    try {
+      const vacancyStart = parseISO(vacancy.start);
+      const month = vacancyStart.getMonth();
+      const isHighSeason = [11, 0, 1].includes(month);
+      const isMidSeason = [2, 3, 9, 10].includes(month);
+      const seasonType = isHighSeason ? 'high' : isMidSeason ? 'mid' : 'low';
       
-      if (error) throw error;
-      return data;
+      const bestChannelResult = getBestChannel(vacancyStart, allHistoricalBookings);
+      
+      return {
+        ...vacancy,
+        ml: {
+          bookingProbability: calculateBookingProbability(vacancyStart, vacancy.days, allHistoricalBookings),
+          suggestedPrice: calculateSuggestedPrice(vacancyStart, allHistoricalBookings),
+          bestChannel: bestChannelResult.channel,
+          bestChannelReason: bestChannelResult.reason,
+          targetNationalities: getTargetNationalities(vacancyStart, allHistoricalBookings),
+          seasonType
+        }
+      };
+    } catch (error) {
+      console.error('Error calculating ML data for vacancy:', error);
+      // Fallback: return vacancy with default ML values
+      const vacancyStart = parseISO(vacancy.start);
+      const month = vacancyStart.getMonth();
+      const isHighSeason = [11, 0, 1].includes(month);
+      const isMidSeason = [2, 3, 9, 10].includes(month);
+      
+      return {
+        ...vacancy,
+        ml: {
+          bookingProbability: 50,
+          suggestedPrice: { min: 2000, max: 3000 },
+          bestChannel: 'Booking.com',
+          bestChannelReason: 'Standard-Empfehlung',
+          targetNationalities: [],
+          seasonType: isHighSeason ? 'high' : isMidSeason ? 'mid' : 'low'
+        }
+      };
+    }
+  });
+};
+
+// Custom Tooltip for Occupancy Forecast
+const CustomOccupancyTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="font-bold mb-2">{data.month}</p>
+        <p className="text-green-600 text-sm">
+          ✅ Belegt: {data.occupiedDays} Tage ({data.occupancyRate}%)
+        </p>
+        <p className="text-red-600 text-sm">
+          ⚠️ Frei: {data.freeDays} Tage
+        </p>
+        <p className="text-muted-foreground text-sm mt-1">
+          {data.bookings} Buchung{data.bookings !== 1 ? 'en' : ''}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const GuestAnalytics = () => {
+  const [selectedHouseId, setSelectedHouseId] = useState<string>('all');
+  const { data: allHouses } = useHouses();
+  
+  // Filter houses to only show tourist rentals
+  const houses = allHouses?.filter(house => house.rental_type === 'tourist');
+
+  // Fetch booking data for analytics
+  const { data: analyticsData, isLoading } = useQuery({
+    queryKey: ['guest-analytics', selectedHouseId],
+    queryFn: async () => {
+      let query = supabase
+        .from('bookings')
+        .select(`
+          *,
+          houses!inner(name, rental_type)
+        `)
+        .eq('houses.rental_type', 'tourist')
+        .not('guest_name', 'is', null);
+      
+      // Filter by house if selected
+      if (selectedHouseId !== 'all') {
+        query = query.eq('house_id', selectedHouseId);
+      }
+
+      const { data: bookings } = await query;
+
+      if (!bookings) return null;
+
+      // Monthly booking trends (last 12 months)
+      const monthlyData = [];
+      for (let i = 11; i >= 0; i--) {
+        const month = subMonths(new Date(), i);
+        const monthStart = startOfMonth(month);
+        const monthEnd = endOfMonth(month);
+        
+        const monthBookings = bookings.filter(b => {
+          const checkIn = new Date(b.check_in);
+          return checkIn >= monthStart && checkIn <= monthEnd;
+        });
+
+        monthlyData.push({
+          month: format(month, 'MMM yyyy', { locale: de }),
+          bookings: monthBookings.length,
+          revenue: monthBookings.reduce((sum, b) => sum + (b.booking_amount || 0), 0),
+          guests: monthBookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0)
+        });
+      }
+
+      // Nationality distribution
+      const nationalityCount = bookings.reduce((acc, booking) => {
+        const nationality = booking.nationality || 'Unbekannt';
+        acc[nationality] = (acc[nationality] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const nationalityData = Object.entries(nationalityCount)
+        .map(([country, count]) => ({ country, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 6);
+
+      // Average stay duration
+      const stayDurations = bookings
+        .filter(b => b.check_in && b.check_out)
+        .map(b => {
+          const checkIn = new Date(b.check_in);
+          const checkOut = new Date(b.check_out);
+          const daysDifference = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+          return Math.max(0, daysDifference - 1); // Nächte = Tage - 1
+        });
+
+      const avgStayDuration = stayDurations.length > 0 
+        ? stayDurations.reduce((sum, days) => sum + days, 0) / stayDurations.length
+        : 0;
+
+      // Duration distribution
+      const durationGroups = {
+        '1-2 Nächte': stayDurations.filter(d => d >= 1 && d <= 2).length,
+        '3-5 Nächte': stayDurations.filter(d => d >= 3 && d <= 5).length,
+        '6-7 Nächte': stayDurations.filter(d => d >= 6 && d <= 7).length,
+        '8+ Nächte': stayDurations.filter(d => d >= 8).length,
+      };
+
+      const durationData = Object.entries(durationGroups)
+        .map(([range, count]) => ({ range, count }));
+
+      // Per-House Occupancy Forecast (next 6 months)
+      const today = new Date();
+      const sixMonthsLater = addMonths(today, 6);
+      
+      const perHouseOccupancy: HouseOccupancy[] = [];
+      
+      // Get unique houses from bookings or use filtered house if selected
+      const relevantHouses = selectedHouseId === 'all' 
+        ? Array.from(new Set(bookings.map(b => b.house_id)))
+            .map(houseId => ({
+              id: houseId,
+              name: bookings.find(b => b.house_id === houseId)?.houses?.name || 'Unbekannt'
+            }))
+        : [{ id: selectedHouseId, name: houses?.find(h => h.id === selectedHouseId)?.name || 'Unbekannt' }];
+      
+      relevantHouses.forEach(house => {
+        const houseBookings = bookings.filter(b => b.house_id === house.id);
+        
+        // Calculate monthly occupancy
+        const monthlyOccupancy = [];
+        let totalOccupiedDays = 0;
+        let totalDaysInPeriod = 0;
+        
+        for (let i = 0; i < 6; i++) {
+          const month = addMonths(today, i);
+          const monthStart = startOfMonth(month);
+          const monthEnd = endOfMonth(month);
+          const daysInMonth = differenceInDays(monthEnd, monthStart) + 1;
+          totalDaysInPeriod += daysInMonth;
+          
+          const monthBookings = houseBookings.filter(b => {
+            if (b.status === 'cancelled') return false;
+            const checkIn = new Date(b.check_in);
+            const checkOut = new Date(b.check_out);
+            return checkIn <= monthEnd && checkOut >= monthStart;
+          });
+          
+          let occupiedDays = 0;
+          monthBookings.forEach(booking => {
+            const bookingStart = max([new Date(booking.check_in), monthStart]);
+            const bookingEnd = min([new Date(booking.check_out), monthEnd]);
+            const days = differenceInDays(bookingEnd, bookingStart);
+            occupiedDays += Math.max(0, days);
+          });
+          
+          totalOccupiedDays += occupiedDays;
+          const freeDays = daysInMonth - occupiedDays;
+          const occupancyRate = Math.round((occupiedDays / daysInMonth) * 100);
+          
+          monthlyOccupancy.push({
+            month: format(month, 'MMM yyyy', { locale: de }),
+            occupancyRate,
+            occupiedDays,
+            freeDays,
+            daysInMonth,
+            bookings: monthBookings.length
+          });
+        }
+        
+        // Find vacancies with ML analysis (free periods)
+        const vacancies = findVacanciesWithML(houseBookings, bookings, today, sixMonthsLater);
+        
+        perHouseOccupancy.push({
+          houseId: house.id,
+          houseName: house.name,
+          monthlyOccupancy,
+          vacancies,
+          totalOccupancyRate: Math.round((totalOccupiedDays / totalDaysInPeriod) * 100)
+        });
+      });
+
+      return {
+        monthlyData,
+        nationalityData,
+        avgStayDuration: Math.round(avgStayDuration * 10) / 10,
+        durationData,
+        perHouseOccupancy,
+        totalRevenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
+        totalBookings: bookings.length,
+        totalGuests: bookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0)
+      };
     },
   });
 
-  // Guests data is derived from bookings table (nationality field)
-  const guestsLoading = false;
-
-  const calculateBookingProbability = (
-    daysUntilStart: number,
-    gapDays: number,
-    month: number,
-    config: typeof mlConfig
-  ): { probability: number; isBookable: boolean; reasons: string[] } => {
-    const reasons: string[] = [];
-    let isBookable = true;
-    
-    // Check if gap is bookable
-    if (gapDays < config.minRentalDays) {
-      isBookable = false;
-      reasons.push(`Lücke zu kurz (${gapDays} Tage, min. ${config.minRentalDays})`);
-      return { probability: 0, isBookable, reasons };
-    }
-
-    let probability = 50;
-
-    // Season adjustment
-    if (config.highSeasonMonths.includes(month)) {
-      probability += config.highSeasonBonus;
-      reasons.push(`Hochsaison (+${config.highSeasonBonus}%)`);
-    } else if (config.midSeasonMonths.includes(month)) {
-      reasons.push('Mittelsaison (neutral)');
-    } else {
-      probability -= config.lowSeasonPenalty;
-      reasons.push(`Nebensaison (-${config.lowSeasonPenalty}%)`);
-    }
-
-    // Gap length adjustment
-    if (gapDays < config.idealRentalDays) {
-      probability -= config.shortGapPenalty;
-      reasons.push(`Kurze Lücke (-${config.shortGapPenalty}%)`);
-    } else if (gapDays >= config.idealRentalDays * 2) {
-      probability += config.longGapBonus;
-      reasons.push(`Lange Lücke (+${config.longGapBonus}%)`);
-    }
-
-    // Time until start adjustment
-    if (daysUntilStart <= config.lastMinuteDays) {
-      probability -= 20;
-      reasons.push('Last-Minute (-20%)');
-    } else if (daysUntilStart > 90) {
-      probability += 15;
-      reasons.push('Frühbucher (+15%)');
-    }
-
-    return { 
-      probability: Math.max(0, Math.min(100, probability)),
-      isBookable,
-      reasons
-    };
-  };
-
-  const findVacanciesWithML = (houseBookings: any[]): VacancyML[] => {
-    if (!houseBookings || houseBookings.length === 0) return [];
-
-    const sortedBookings = [...houseBookings].sort((a, b) => 
-      new Date(a.check_in).getTime() - new Date(b.check_in).getTime()
-    );
-
-    const vacancies: VacancyML[] = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (let i = 0; i < sortedBookings.length - 1; i++) {
-      const currentCheckOut = new Date(sortedBookings[i].check_out);
-      const nextCheckIn = new Date(sortedBookings[i + 1].check_in);
-      
-      const gapDays = differenceInDays(nextCheckIn, currentCheckOut);
-      
-      if (gapDays > 0 && currentCheckOut >= today) {
-        const daysUntilStart = differenceInDays(currentCheckOut, today);
-        const month = currentCheckOut.getMonth();
-        
-        const mlResult = calculateBookingProbability(daysUntilStart, gapDays, month, mlConfig);
-        
-        let urgency: 'high' | 'medium' | 'low' = 'low';
-        if (daysUntilStart <= 7) urgency = 'high';
-        else if (daysUntilStart <= 30) urgency = 'medium';
-
-        let seasonType: 'high' | 'mid' | 'low' = 'low';
-        if (mlConfig.highSeasonMonths.includes(month)) seasonType = 'high';
-        else if (mlConfig.midSeasonMonths.includes(month)) seasonType = 'mid';
-
-        vacancies.push({
-          start: format(currentCheckOut, 'yyyy-MM-dd'),
-          end: format(nextCheckIn, 'yyyy-MM-dd'),
-          days: gapDays,
-          urgency,
-          recommendation: mlResult.isBookable 
-            ? `${Math.round(mlResult.probability)}% Buchungswahrscheinlichkeit`
-            : mlResult.reasons[0] || 'Nicht buchbar',
-          ml: {
-            bookingProbability: mlResult.probability,
-            isBookable: mlResult.isBookable,
-            reasons: mlResult.reasons,
-            notBookableReason: !mlResult.isBookable ? mlResult.reasons[0] : undefined,
-            suggestedPrice: {
-              min: seasonType === 'high' ? 150 : seasonType === 'mid' ? 120 : 100,
-              max: seasonType === 'high' ? 250 : seasonType === 'mid' ? 180 : 140,
-            },
-            bestChannel: mlResult.probability > 70 ? 'Booking.com' : 'Airbnb',
-            bestChannelReason: mlResult.probability > 70 
-              ? 'Hohe Nachfrage, Booking.com bevorzugt'
-              : 'Flexible Buchungen über Airbnb empfohlen',
-            targetNationalities: seasonType === 'high' 
-              ? ['Deutschland', 'Niederlande', 'Belgien']
-              : ['Deutschland', 'Polen', 'Tschechien'],
-            seasonType,
-          },
-        });
-      }
-    }
-
-    return vacancies;
-  };
-
-  const calculateHouseOccupancy = (): HouseOccupancy[] => {
-    if (!bookings || !houses) return [];
-
-    const last12Months = Array.from({ length: 12 }, (_, i) => {
-      const date = subMonths(new Date(), i);
-      return {
-        start: startOfMonth(date),
-        end: endOfMonth(date),
-        label: format(date, 'MMM yyyy', { locale: de }),
-      };
-    }).reverse();
-
-    return houses.map(house => {
-      const houseBookings = bookings.filter(b => b.house_id === house.id);
-      
-      const monthlyOccupancy = last12Months.map(month => {
-        const monthBookings = houseBookings.filter(booking => {
-          const checkIn = new Date(booking.check_in);
-          const checkOut = new Date(booking.check_out);
-          return (checkIn <= month.end && checkOut >= month.start);
-        });
-
-        const daysInMonth = differenceInDays(month.end, month.start) + 1;
-        let occupiedDays = 0;
-
-        monthBookings.forEach(booking => {
-          const checkIn = max([new Date(booking.check_in), month.start]);
-          const checkOut = min([new Date(booking.check_out), month.end]);
-          occupiedDays += differenceInDays(checkOut, checkIn) + 1;
-        });
-
-        return {
-          month: month.label,
-          occupancyRate: Math.round((occupiedDays / daysInMonth) * 100),
-          occupiedDays,
-          freeDays: daysInMonth - occupiedDays,
-          daysInMonth,
-          bookings: monthBookings.length,
-        };
-      });
-
-      const totalDays = monthlyOccupancy.reduce((sum, m) => sum + m.daysInMonth, 0);
-      const totalOccupied = monthlyOccupancy.reduce((sum, m) => sum + m.occupiedDays, 0);
-      const totalOccupancyRate = Math.round((totalOccupied / totalDays) * 100);
-
-      const vacancies = findVacanciesWithML(houseBookings);
-
-      return {
-        houseId: house.id,
-        houseName: house.name,
-        monthlyOccupancy,
-        vacancies,
-        totalOccupancyRate,
-      };
-    });
-  };
-
-  const houseOccupancyData = calculateHouseOccupancy();
-  const selectedHouseData = selectedHouseId 
-    ? houseOccupancyData.find(h => h.houseId === selectedHouseId)
-    : houseOccupancyData[0];
-
-  const getMonthlyStats = () => {
-    if (!bookings) return [];
-
-    const last6Months = Array.from({ length: 6 }, (_, i) => {
-      const date = subMonths(new Date(), i);
-      return {
-        start: startOfMonth(date),
-        end: endOfMonth(date),
-        label: format(date, 'MMM yyyy', { locale: de }),
-      };
-    }).reverse();
-
-    return last6Months.map(month => {
-      const monthBookings = bookings.filter(booking => {
-        const checkIn = new Date(booking.check_in);
-        return checkIn >= month.start && checkIn <= month.end;
-      });
-
-      const revenue = monthBookings.reduce((sum, b) => sum + (b.booking_amount || 0), 0);
-      const avgStay = monthBookings.length > 0
-        ? monthBookings.reduce((sum, b) => {
-            const checkIn = new Date(b.check_in);
-            const checkOut = new Date(b.check_out);
-            return sum + differenceInDays(checkOut, checkIn);
-          }, 0) / monthBookings.length
-        : 0;
-
-      return {
-        month: month.label,
-        bookings: monthBookings.length,
-        revenue: Math.round(revenue),
-        avgStay: Math.round(avgStay * 10) / 10,
-      };
-    });
-  };
-
-  const getNationalityStats = () => {
-    if (!bookings) return [];
-
-    const nationalityCounts = bookings.reduce((acc, booking) => {
-      if (booking.nationality) {
-        acc[booking.nationality] = (acc[booking.nationality] || 0) + 1;
-      }
-      return acc;
-    }, {} as Record<string, number>);
-
-    return Object.entries(nationalityCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 6);
-  };
-
-  const getBookingSourceStats = () => {
-    if (!bookings) return [];
-
-    const sourceCounts = bookings.reduce((acc, booking) => {
-      const source = booking.platform || 'Unbekannt';
-      acc[source] = (acc[source] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    return Object.entries(sourceCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  };
-
-  const monthlyStats = getMonthlyStats();
-  const nationalityStats = getNationalityStats();
-  const bookingSourceStats = getBookingSourceStats();
-
-  const totalBookings = bookings?.length || 0;
-  const totalGuests = new Set(bookings?.map(b => b.guest_email).filter(Boolean)).size || 0;
-  const totalRevenue = bookings?.reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0;
-  const avgBookingValue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
-
-  if (bookingsLoading || guestsLoading) {
+  if (isLoading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-64 w-full" />
-        <Skeleton className="h-64 w-full" />
+        <div className="text-center py-12">
+          <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-between mb-4 animate-pulse" />
+          <div className="h-6 bg-muted rounded w-48 mx-auto mb-2 animate-pulse" />
+          <div className="h-4 bg-muted rounded w-64 mx-auto animate-pulse" />
+        </div>
       </div>
     );
   }
 
+  if (!analyticsData) {
+    return (
+      <div className="text-center py-12">
+        <TrendingUp className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold mb-2">Keine Daten verfügbar</h3>
+        <p className="text-muted-foreground">Keine Buchungsdaten für Analysen gefunden.</p>
+      </div>
+    );
+  }
+
+  const selectedHouseName = selectedHouseId === 'all' 
+    ? 'Alle Häuser' 
+    : houses?.find(h => h.id === selectedHouseId)?.name || '';
+
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gesamt Buchungen</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalBookings}</div>
-            <p className="text-xs text-muted-foreground">
-              Letzte 12 Monate
-            </p>
-          </CardContent>
-        </Card>
+      {/* House Filter */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-4">
+            <label className="text-sm font-medium">Haus filtern:</label>
+            <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
+              <SelectTrigger className="w-[280px]">
+                <SelectValue placeholder="Alle Häuser" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Häuser</SelectItem>
+                {houses?.map(house => (
+                  <SelectItem key={house.id} value={house.id}>
+                    {house.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gesamt Gäste</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalGuests}</div>
-            <p className="text-xs text-muted-foreground">
-              Registrierte Gäste
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gesamt Umsatz</CardTitle>
+            <CardTitle className="text-sm font-medium">Gesamtumsatz</CardTitle>
             <Euro className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">€{totalRevenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">€{analyticsData.totalRevenue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              Letzte 12 Monate
+              Aus {analyticsData.totalBookings} Buchungen
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ø Buchungswert</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Durchschnittliche Aufenthaltsdauer</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">€{Math.round(avgBookingValue)}</div>
+            <div className="text-2xl font-bold">{analyticsData.avgStayDuration} Nächte</div>
             <p className="text-xs text-muted-foreground">
               Pro Buchung
             </p>
           </CardContent>
         </Card>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle>Buchungen & Umsatz</CardTitle>
-            <CardDescription>Letzte 6 Monate</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Gesamtgäste</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={monthlyStats}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <Tooltip />
-                <Area
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="bookings"
-                  stroke="#8884d8"
-                  fill="#8884d8"
-                  fillOpacity={0.6}
-                  name="Buchungen"
-                />
-                <Area
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="revenue"
-                  stroke="#82ca9d"
-                  fill="#82ca9d"
-                  fillOpacity={0.6}
-                  name="Umsatz (€)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <div className="text-2xl font-bold">{analyticsData.totalGuests}</div>
+            <p className="text-xs text-muted-foreground">
+              Personen empfangen
+            </p>
           </CardContent>
         </Card>
 
         <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Avg. pro Buchung</CardTitle>
+            <Euro className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              €{Math.round(analyticsData.totalRevenue / analyticsData.totalBookings)}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Durchschnittlicher Umsatz
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Monthly Trends */}
+        <Card>
           <CardHeader>
-            <CardTitle>Buchungsquellen</CardTitle>
-            <CardDescription>Verteilung nach Plattform</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Monatliche Buchungstrends {selectedHouseId !== 'all' && `- ${selectedHouseName}`}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={analyticsData.monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="bookings" 
+                  stroke="#8884d8" 
+                  name="Buchungen"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+
+        {/* Nationality Distribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Top Herkunftsländer {selectedHouseId !== 'all' && `- ${selectedHouseName}`}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={bookingSourceStats}
+                  data={analyticsData.nationalityData}
                   cx="50%"
                   cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                   outerRadius={80}
                   fill="#8884d8"
-                  dataKey="value"
+                  dataKey="count"
+                  label={({ country, count }) => `${country}: ${count}`}
                 >
-                  {bookingSourceStats.map((entry, index) => (
+                  {analyticsData.nationalityData.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -474,227 +657,260 @@ const GuestAnalytics = () => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+        {/* Revenue Trends */}
         <Card>
           <CardHeader>
-            <CardTitle>Gäste nach Nationalität</CardTitle>
-            <CardDescription>Top 6 Herkunftsländer</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Euro className="h-5 w-5" />
+              Umsatz-Entwicklung {selectedHouseId !== 'all' && `- ${selectedHouseName}`}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={nationalityStats}>
+              <BarChart data={analyticsData.monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
+                <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#8884d8" name="Buchungen" />
+                <Tooltip formatter={(value) => [`€${value}`, 'Umsatz']} />
+                <Bar dataKey="revenue" fill="#00C49F" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
+        {/* Stay Duration Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle>Durchschnittliche Aufenthaltsdauer</CardTitle>
-            <CardDescription>Letzte 6 Monate</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Aufenthaltsdauer-Verteilung {selectedHouseId !== 'all' && `- ${selectedHouseName}`}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={monthlyStats}>
+              <BarChart data={analyticsData.durationData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
+                <XAxis dataKey="range" />
                 <YAxis />
                 <Tooltip />
-                <Line
-                  type="monotone"
-                  dataKey="avgStay"
-                  stroke="#8884d8"
-                  strokeWidth={2}
-                  name="Ø Tage"
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              Auslastungs-Analyse pro Haus
-              <Popover open={showMlSettings} onOpenChange={setShowMlSettings}>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-6 w-6">
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80">
-                  <div className="space-y-4">
-                    <h4 className="font-medium">ML-Einstellungen</h4>
-                    <div className="space-y-2">
-                      <Label htmlFor="minRentalDays">Min. Mietdauer (Tage)</Label>
-                      <Input
-                        id="minRentalDays"
-                        type="number"
-                        value={mlConfig.minRentalDays}
-                        onChange={(e) => setMlConfig({ ...mlConfig, minRentalDays: parseInt(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="idealRentalDays">Ideale Mietdauer (Tage)</Label>
-                      <Input
-                        id="idealRentalDays"
-                        type="number"
-                        value={mlConfig.idealRentalDays}
-                        onChange={(e) => setMlConfig({ ...mlConfig, idealRentalDays: parseInt(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="shortGapPenalty">Kurze Lücke Malus (%)</Label>
-                      <Input
-                        id="shortGapPenalty"
-                        type="number"
-                        value={mlConfig.shortGapPenalty}
-                        onChange={(e) => setMlConfig({ ...mlConfig, shortGapPenalty: parseInt(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="longGapBonus">Lange Lücke Bonus (%)</Label>
-                      <Input
-                        id="longGapBonus"
-                        type="number"
-                        value={mlConfig.longGapBonus}
-                        onChange={(e) => setMlConfig({ ...mlConfig, longGapBonus: parseInt(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="highSeasonBonus">Hochsaison Bonus (%)</Label>
-                      <Input
-                        id="highSeasonBonus"
-                        type="number"
-                        value={mlConfig.highSeasonBonus}
-                        onChange={(e) => setMlConfig({ ...mlConfig, highSeasonBonus: parseInt(e.target.value) })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="lowSeasonPenalty">Nebensaison Malus (%)</Label>
-                      <Input
-                        id="lowSeasonPenalty"
-                        type="number"
-                        value={mlConfig.lowSeasonPenalty}
-                        onChange={(e) => setMlConfig({ ...mlConfig, lowSeasonPenalty: parseInt(e.target.value) })}
-                      />
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </CardTitle>
-            <CardDescription>Letzte 12 Monate mit ML-Prognosen</CardDescription>
-          </div>
-          {houses && houses.length > 1 && (
-            <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="Haus auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                {houses.map(house => (
-                  <SelectItem key={house.id} value={house.id}>
-                    {house.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </CardHeader>
-        <CardContent>
-          {selectedHouseData && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">{selectedHouseData.houseName}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Durchschnittliche Auslastung: {selectedHouseData.totalOccupancyRate}%
-                  </p>
-                </div>
-                <Badge variant={selectedHouseData.totalOccupancyRate >= 70 ? "default" : "secondary"}>
-                  {selectedHouseData.totalOccupancyRate >= 70 ? "Gut ausgelastet" : "Verbesserungspotenzial"}
-                </Badge>
-              </div>
-
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={selectedHouseData.monthlyOccupancy}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="occupancyRate" fill="#8884d8" name="Auslastung (%)" />
-                </BarChart>
-              </ResponsiveContainer>
-
-              {selectedHouseData.vacancies.length > 0 && (
-                <div className="space-y-4">
-                  <h4 className="font-semibold flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    Freie Zeiträume mit ML-Analyse
-                  </h4>
-                  <div className="space-y-2">
-                    {selectedHouseData.vacancies.map((vacancy, index) => (
-                      <div
-                        key={index}
-                        className={`p-4 border rounded-lg ${
-                          !vacancy.ml.isBookable ? 'bg-gray-100 opacity-60' : ''
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className={!vacancy.ml.isBookable ? 'line-through text-gray-500' : 'font-medium'}>
-                                {format(parseISO(vacancy.start), 'dd.MM.yyyy', { locale: de })} - {format(parseISO(vacancy.end), 'dd.MM.yyyy', { locale: de })}
-                              </span>
-                              <Badge variant={
-                                !vacancy.ml.isBookable ? "secondary" :
-                                vacancy.urgency === 'high' ? "destructive" : 
-                                vacancy.urgency === 'medium' ? "default" : 
-                                "secondary"
-                              }>
-                                {!vacancy.ml.isBookable ? 'Nicht buchbar' : `${vacancy.days} Tage`}
-                              </Badge>
-                              {vacancy.ml.isBookable && (
-                                <Badge variant="outline">
-                                  {Math.round(vacancy.ml.bookingProbability)}% Wahrscheinlichkeit
-                                </Badge>
-                              )}
-                            </div>
-                            {!vacancy.ml.isBookable ? (
-                              <p className="text-sm text-gray-500">{vacancy.ml.notBookableReason}</p>
-                            ) : (
-                              <>
-                                <p className="text-sm text-muted-foreground">{vacancy.recommendation}</p>
-                                <div className="text-xs space-y-1 mt-2">
-                                  <p><strong>Gründe:</strong> {vacancy.ml.reasons.join(', ')}</p>
-                                  <p><strong>Empfohlener Preis:</strong> €{vacancy.ml.suggestedPrice.min} - €{vacancy.ml.suggestedPrice.max}</p>
-                                  <p><strong>Bester Kanal:</strong> {vacancy.ml.bestChannel} ({vacancy.ml.bestChannelReason})</p>
-                                  <p><strong>Zielgruppe:</strong> {vacancy.ml.targetNationalities.join(', ')}</p>
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+                <Bar dataKey="count" fill="#FFBB28" />
+              </BarChart>
+          </ResponsiveContainer>
         </CardContent>
       </Card>
-
-      <AppReviewsSection selectedHouseId={selectedHouseId} />
     </div>
+
+    {/* Per-House Occupancy Analysis */}
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold flex items-center gap-2">
+        <TrendingUp className="h-6 w-6" />
+        Auslastungs-Analyse pro Haus (nächste 6 Monate)
+      </h2>
+      
+      {analyticsData.perHouseOccupancy.map((house) => (
+        <Card key={house.houseId}>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                🏠 {house.houseName}
+              </CardTitle>
+              <Badge variant="outline" className="text-base">
+                {house.totalOccupancyRate}% Auslastung
+              </Badge>
+            </div>
+            <CardDescription>
+              Belegte vs. freie Tage mit konkreten Lücken
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Area Chart */}
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={house.monthlyOccupancy}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis label={{ value: 'Tage', angle: -90, position: 'insideLeft' }} />
+                <Tooltip content={<CustomOccupancyTooltip />} />
+                <Area 
+                  type="monotone" 
+                  dataKey="occupiedDays" 
+                  stackId="1"
+                  stroke="hsl(142 76% 36%)" 
+                  fill="hsl(142 76% 36%)"
+                  name="Belegte Tage"
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="freeDays" 
+                  stackId="1"
+                  stroke="hsl(0 84% 60%)" 
+                  fill="hsl(0 84% 60%)"
+                  name="Freie Tage"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+
+            {/* Legend */}
+            <div className="flex items-center justify-center gap-6 pt-4 border-t">
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(142 76% 36%)' }} />
+                <span className="text-sm font-medium">Belegt</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(0 84% 60%)' }} />
+                <span className="text-sm font-medium">Frei (Lücken)</span>
+              </div>
+            </div>
+
+            {/* Vacancies List */}
+            {house.vacancies.length > 0 ? (
+              <div className="space-y-3 pt-4 border-t">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4" />
+                  Freie Zeiträume ({house.vacancies.length})
+                </h4>
+                <div className="space-y-2">
+                  {house.vacancies.map((vacancy, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-4 rounded-lg border ${
+                        vacancy.urgency === 'high'
+                          ? 'border-red-500 bg-red-50 dark:bg-red-950/20'
+                          : vacancy.urgency === 'medium'
+                          ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20'
+                          : 'border-gray-200 bg-gray-50 dark:bg-gray-800/20'
+                      }`}
+                    >
+                      <div className="space-y-4">
+                        {/* Header */}
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium">
+                                {format(parseISO(vacancy.start), 'dd.MM.yyyy', { locale: de })} - {format(parseISO(vacancy.end), 'dd.MM.yyyy', { locale: de })}
+                              </span>
+                              <Badge
+                                variant={vacancy.urgency === 'high' ? 'destructive' : 'outline'}
+                                className="text-xs"
+                              >
+                                {vacancy.days} {vacancy.days === 1 ? 'Tag' : 'Tage'}
+                              </Badge>
+                              <Badge
+                                variant={
+                                  vacancy.ml?.seasonType === 'high' ? 'default' : 
+                                  vacancy.ml?.seasonType === 'mid' ? 'secondary' : 'outline'
+                                }
+                                className="text-xs"
+                              >
+                                {vacancy.ml?.seasonType === 'high' ? '🔥 Hochsaison' :
+                                 vacancy.ml?.seasonType === 'mid' ? '📅 Übergangssaison' : '🌿 Nebensaison'}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {vacancy.recommendation}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* ML Analysis Box */}
+                        {vacancy.ml && (
+                        <div className="bg-background/60 border rounded-lg p-3 space-y-3">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                              ML-Analyse
+                            </span>
+                          </div>
+
+                          {/* Booking Probability */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="flex items-center gap-2">
+                                📊 Buchungswahrscheinlichkeit:
+                              </span>
+                              <span className="font-bold">{vacancy.ml.bookingProbability}%</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full rounded-full transition-all ${
+                                    vacancy.ml.bookingProbability >= 70 ? 'bg-green-500' :
+                                    vacancy.ml.bookingProbability >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${vacancy.ml.bookingProbability}%` }}
+                                />
+                              </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              → {vacancy.ml.seasonType === 'high' ? 'Hochsaison' : vacancy.ml.seasonType === 'mid' ? 'Übergangssaison' : 'Nebensaison'} + {differenceInDays(parseISO(vacancy.start), new Date())} Tage Vorlauf
+                            </p>
+                          </div>
+
+                          {/* Price Recommendation */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="flex items-center gap-2">
+                                💰 Preisempfehlung:
+                              </span>
+                              <span className="font-bold">
+                                €{vacancy.ml.suggestedPrice.min.toLocaleString()} - €{vacancy.ml.suggestedPrice.max.toLocaleString()} /Woche
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              → Basierend auf {format(parseISO(vacancy.start), 'MMMM', { locale: de })}-Durchschnitt
+                            </p>
+                          </div>
+
+                          {/* Best Channel */}
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="flex items-center gap-2">
+                                📱 Bester Kanal:
+                              </span>
+                              <span className="font-bold">{vacancy.ml.bestChannel}</span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              → {vacancy.ml.bestChannelReason}
+                            </p>
+                          </div>
+
+                          {/* Target Nationalities */}
+                          {vacancy.ml.targetNationalities.length > 0 && (
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="flex items-center gap-2">
+                                  🎯 Zielgruppe:
+                                </span>
+                                <span className="font-bold">
+                                  {vacancy.ml.targetNationalities.join(', ')}
+                                </span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                → Diese Nationalitäten buchen im {format(parseISO(vacancy.start), 'MMMM', { locale: de })}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-6 border-t">
+                <p className="text-sm text-muted-foreground">
+                  ✅ Keine größeren Lücken erkannt - durchgehend gut gebucht!
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+
+    {/* App Reviews Section */}
+    <AppReviewsSection selectedHouseId={selectedHouseId} />
+  </div>
   );
 };
 
