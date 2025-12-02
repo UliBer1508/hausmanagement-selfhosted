@@ -41,7 +41,7 @@ import {
   Building2,
   FileBarChart
 } from 'lucide-react';
-import { format, isSameDay, parseISO, addDays } from 'date-fns';
+import { format, isSameDay, parseISO, addDays, addMonths, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 import steinbockLogo from '@/assets/steinbock-logo.png';
 import CreateBookingDialog from '@/components/Bookings/CreateBookingDialog';
@@ -1334,7 +1334,7 @@ const OriginalDashboard = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedDate(addDays(selectedDate, calendarView === 'week' ? -7 : -30))}
+                onClick={() => setSelectedDate(calendarView === 'week' ? addDays(selectedDate, -7) : subMonths(selectedDate, 1))}
               >
                 <ChevronLeft className="w-4 h-4" />
               </Button>
@@ -1348,7 +1348,7 @@ const OriginalDashboard = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setSelectedDate(addDays(selectedDate, calendarView === 'week' ? 7 : 30))}
+                onClick={() => setSelectedDate(calendarView === 'week' ? addDays(selectedDate, 7) : addMonths(selectedDate, 1))}
               >
                 <ChevronRight className="w-4 h-4" />
               </Button>
