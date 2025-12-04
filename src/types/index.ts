@@ -67,6 +67,7 @@ export interface Booking {
   number_of_guests: number;
   house_id: string;
   status?: 'confirmed' | 'checked_in' | 'completed' | 'cancelled';
+  payment_status?: 'pending' | 'paid' | 'partial' | null;
   booking_amount?: number;
   currency?: string;
   external_booking_id?: string;
@@ -82,8 +83,9 @@ export interface Booking {
 }
 
 // Extended booking with joined house data (for overview queries)
-export interface BookingWithHouse extends Omit<Booking, 'house_id'> {
+export interface BookingWithHouse extends Omit<Booking, 'house_id' | 'payment_status'> {
   house_id?: string;
+  payment_status?: string | null;
   houses?: {
     id: string;
     name: string;

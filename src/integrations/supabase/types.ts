@@ -902,6 +902,7 @@ export type Database = {
           nationality: string | null
           notes: string | null
           number_of_guests: number
+          payment_status: string | null
           platform: string | null
           source: string | null
           status: Database["public"]["Enums"]["booking_status"] | null
@@ -927,6 +928,7 @@ export type Database = {
           nationality?: string | null
           notes?: string | null
           number_of_guests: number
+          payment_status?: string | null
           platform?: string | null
           source?: string | null
           status?: Database["public"]["Enums"]["booking_status"] | null
@@ -952,6 +954,7 @@ export type Database = {
           nationality?: string | null
           notes?: string | null
           number_of_guests?: number
+          payment_status?: string | null
           platform?: string | null
           source?: string | null
           status?: Database["public"]["Enums"]["booking_status"] | null
