@@ -191,7 +191,8 @@ const BookingOverview = () => {
     total: bookingsData?.length || 0,
     confirmed: bookingsData?.filter(b => b.status === 'confirmed').length || 0,
     completed: bookingsData?.filter(b => b.status === 'completed').length || 0,
-    totalRevenue: bookingsData?.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
+    totalRevenue: bookingsData?.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0,
+    paidRevenue: bookingsData?.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
   };
 
   // Debug logging
@@ -269,6 +270,7 @@ const BookingOverview = () => {
         confirmed={allBookingsStats.confirmed}
         completed={allBookingsStats.completed}
         totalRevenue={allBookingsStats.totalRevenue}
+        paidRevenue={allBookingsStats.paidRevenue}
         timeFilter="all"
       />
 

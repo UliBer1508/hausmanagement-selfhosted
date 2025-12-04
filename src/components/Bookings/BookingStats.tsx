@@ -9,10 +9,11 @@ interface BookingStatsProps {
   confirmed: number;
   completed: number;
   totalRevenue: number;
+  paidRevenue: number;
   timeFilter: string;
 }
 
-const BookingStats = ({ total, confirmed, completed, totalRevenue, timeFilter }: BookingStatsProps) => {
+const BookingStats = ({ total, confirmed, completed, totalRevenue, paidRevenue, timeFilter }: BookingStatsProps) => {
   const queryClient = useQueryClient();
   
   const handleRefresh = () => {
@@ -70,6 +71,8 @@ const BookingStats = ({ total, confirmed, completed, totalRevenue, timeFilter }:
       icon: Euro,
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
+      paidRevenue: paidRevenue,
+      openRevenue: totalRevenue - paidRevenue,
     }
   ];
 
@@ -97,8 +100,9 @@ const BookingStats = ({ total, confirmed, completed, totalRevenue, timeFilter }:
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {stats.map((stat, index) => {
+      {stats.map((stat, index) => {
           const Icon = stat.icon;
+          const isRevenueCard = stat.title === 'Gesamtumsatz';
           return (
             <Card key={index} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6">
@@ -110,6 +114,16 @@ const BookingStats = ({ total, confirmed, completed, totalRevenue, timeFilter }:
                     <p className="text-2xl font-bold text-foreground">
                       {stat.value}
                     </p>
+                    {isRevenueCard && 'paidRevenue' in stat && (
+                      <div className="mt-2 space-y-1 text-sm">
+                        <p className="text-green-600">
+                          ✅ Gezahlt: {(stat.paidRevenue as number).toLocaleString('de-DE')} EUR
+                        </p>
+                        <p className="text-orange-600">
+                          ⚠️ Offen: {(stat.openRevenue as number).toLocaleString('de-DE')} EUR
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div className={`p-3 rounded-full ${stat.bgColor}`}>
                     <Icon className={`w-5 h-5 ${stat.color}`} />
