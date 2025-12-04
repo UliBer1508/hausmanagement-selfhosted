@@ -539,6 +539,7 @@ const GuestAnalytics = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [analyzingVacancyId, setAnalyzingVacancyId] = useState<string | null>(null);
   const [aiAnalyses, setAiAnalyses] = useState<Record<string, any>>({});
+  const [openHouses, setOpenHouses] = useState<Record<string, boolean>>({});
   
   const { data: allHouses } = useHouses();
   const { analyzeVacancy, isAnalyzing } = useVacancyAI();
@@ -990,21 +991,30 @@ const GuestAnalytics = () => {
       </div>
       
       {analyticsData.perHouseOccupancy.map((house) => (
-        <Card key={house.houseId}>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                🏠 {house.houseName}
-              </CardTitle>
-              <Badge variant="outline" className="text-base">
-                {house.totalOccupancyRate}% Auslastung
-              </Badge>
-            </div>
-            <CardDescription>
-              Belegte vs. freie Tage mit konkreten Lücken
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+        <Collapsible 
+          key={house.houseId}
+          open={openHouses[house.houseId] ?? true}
+          onOpenChange={() => setOpenHouses(prev => ({ ...prev, [house.houseId]: !(prev[house.houseId] ?? true) }))}
+        >
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <ChevronRight className={`h-5 w-5 transition-transform duration-200 ${(openHouses[house.houseId] ?? true) ? 'rotate-90' : ''}`} />
+                    🏠 {house.houseName}
+                  </CardTitle>
+                  <Badge variant="outline" className="text-base">
+                    {house.totalOccupancyRate}% Auslastung
+                  </Badge>
+                </div>
+                <CardDescription>
+                  {house.vacancies.length} freie Zeiträume • Klicken zum {(openHouses[house.houseId] ?? true) ? 'Einklappen' : 'Ausklappen'}
+                </CardDescription>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="space-y-6">
             {/* Area Chart */}
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={house.monthlyOccupancy}>
@@ -1380,8 +1390,10 @@ const GuestAnalytics = () => {
                 </p>
               </div>
             )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       ))}
     </div>
 
