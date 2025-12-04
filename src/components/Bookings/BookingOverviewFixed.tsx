@@ -183,6 +183,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
           number_of_guests,
           house_id,
           status,
+          payment_status,
           booking_amount,
           currency,
           platform,
@@ -357,6 +358,18 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
         return <Badge className="bg-red-100 text-red-800 border-red-300">Storniert</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getPaymentStatusBadge = (paymentStatus: string | null | undefined) => {
+    switch (paymentStatus) {
+      case 'paid':
+        return <Badge className="bg-green-100 text-green-800 border-green-300">💰 Bezahlt</Badge>;
+      case 'partial':
+        return <Badge className="bg-orange-100 text-orange-800 border-orange-300">⚠️ Teilweise</Badge>;
+      case 'pending':
+      default:
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">💤 Ausstehend</Badge>;
     }
   };
 
@@ -612,7 +625,8 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
                 <TableHead>Check-out</TableHead>
                 <TableHead>Gäste</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Buchungsbetrag</TableHead>
+                <TableHead>Zahlung</TableHead>
+                <TableHead>Betrag</TableHead>
                 <TableHead>Services</TableHead>
                 <TableHead>Aktionen</TableHead>
               </TableRow>
@@ -647,8 +661,11 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
                     {getStatusBadge(booking.status)}
                   </TableCell>
                   <TableCell>
+                    {getPaymentStatusBadge(booking.payment_status)}
+                  </TableCell>
+                  <TableCell>
                     {booking.booking_amount ? 
-                      `${booking.booking_amount} ${booking.currency || 'EUR'}` : 
+                      `${booking.booking_amount.toLocaleString('de-DE')} ${booking.currency || 'EUR'}` : 
                       '-'
                     }
                   </TableCell>

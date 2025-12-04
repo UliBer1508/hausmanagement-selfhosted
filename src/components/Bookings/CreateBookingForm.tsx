@@ -67,6 +67,7 @@ const bookingSchema = z.object({
   booking_amount: z.number().optional(),
   currency: z.string().default('EUR'),
   status: z.enum(['confirmed', 'checked_in', 'completed', 'cancelled']).default('confirmed'),
+  payment_status: z.enum(['pending', 'paid', 'partial']).default('pending'),
   platform: z.string().optional(),
   notes: z.string().optional(),
   cancellation_date: z.string().optional(),
@@ -201,8 +202,12 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
   });
 
   // Set default values based on mode and initial data
-  const getDefaultValues = () => {
+  const getDefaultValues = (): Partial<BookingFormData> => {
     if (mode === 'edit' && initialData) {
+      const paymentStatus = initialData.payment_status;
+      const validPaymentStatus: 'pending' | 'paid' | 'partial' = 
+        (paymentStatus === 'paid' || paymentStatus === 'partial') ? paymentStatus : 'pending';
+      
       return {
         house_id: initialData.houses?.id || initialData.house_id,
         number_of_guests: initialData.number_of_guests,
@@ -215,6 +220,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         booking_amount: initialData.booking_amount || undefined,
         currency: initialData.currency || 'EUR',
         status: initialData.status || 'confirmed',
+        payment_status: validPaymentStatus,
         platform: initialData.platform || 'none',
         notes: initialData.notes || '',
       };
@@ -222,7 +228,8 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
     return {
       number_of_guests: 1,
       currency: 'EUR',
-      status: 'confirmed' as const,
+      status: 'confirmed',
+      payment_status: 'pending',
       guest_email: '',
       guest_phone: '',
       nationality: '',
@@ -430,6 +437,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         platform: (data.platform && data.platform !== 'none') ? data.platform : null,
         notes: data.notes || null,
         status: data.status,
+        payment_status: data.payment_status,
         source: 'manual',
       };
 
@@ -947,7 +955,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
             )}
           </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Buchungsbetrag */}
           <FormField
             control={form.control}
@@ -989,13 +997,37 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
             )}
           />
 
+          {/* Zahlungsstatus */}
+          <FormField
+            control={form.control}
+            name="payment_status"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Zahlungsstatus</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Status wählen" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent className="bg-background border shadow-lg z-50">
+                    <SelectItem value="pending">💤 Ausstehend</SelectItem>
+                    <SelectItem value="paid">✅ Bezahlt</SelectItem>
+                    <SelectItem value="partial">⚠️ Teilweise bezahlt</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
           {/* Status */}
           <FormField
             control={form.control}
             name="status"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Status</FormLabel>
+                <FormLabel>Buchungsstatus</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger>
