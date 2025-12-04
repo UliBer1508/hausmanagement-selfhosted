@@ -751,6 +751,7 @@ const GuestAnalytics = () => {
         durationData,
         perHouseOccupancy,
         totalRevenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
+        paidRevenue: bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
         totalBookings: bookings.length,
         totalGuests: bookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0)
       };
@@ -824,7 +825,7 @@ const GuestAnalytics = () => {
           <CardContent>
             <div className="text-2xl font-bold">€{analyticsData.totalRevenue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
-              Aus {analyticsData.totalBookings} Buchungen
+              Aus {analyticsData.totalBookings} Buchungen • davon <span className="text-green-600 font-medium">€{analyticsData.paidRevenue.toLocaleString()}</span> gezahlt
             </p>
           </CardContent>
         </Card>
