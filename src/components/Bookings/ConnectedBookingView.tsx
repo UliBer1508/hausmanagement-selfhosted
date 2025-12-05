@@ -170,13 +170,14 @@ const ConnectedBookingView = () => {
     },
   });
 
-  // Fetch houses for filter
+  // Fetch houses for filter (only tourist rentals)
   const { data: houses } = useQuery({
-    queryKey: ['houses-filter'],
+    queryKey: ['houses-filter', 'tourist'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
         .select('id, name')
+        .eq('rental_type', 'tourist')
         .order('name');
       
       if (error) throw error;

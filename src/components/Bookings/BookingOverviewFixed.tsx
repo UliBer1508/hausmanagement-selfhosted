@@ -202,13 +202,14 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
     },
   });
 
-  // Fetch houses for filter dropdown
+  // Fetch houses for filter dropdown (only tourist rentals)
   const { data: houses } = useQuery({
-    queryKey: ['houses-list'],
+    queryKey: ['houses-list', 'tourist'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
         .select('id, name')
+        .eq('rental_type', 'tourist')
         .order('name');
       
       if (error) throw error;
