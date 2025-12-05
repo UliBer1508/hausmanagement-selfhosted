@@ -883,6 +883,7 @@ export type Database = {
       }
       bookings: {
         Row: {
+          app_identified_at: string | null
           booking_amount: number | null
           cancellation_date: string | null
           cancellation_reason: string | null
@@ -909,6 +910,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          app_identified_at?: string | null
           booking_amount?: number | null
           cancellation_date?: string | null
           cancellation_reason?: string | null
@@ -935,6 +937,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          app_identified_at?: string | null
           booking_amount?: number | null
           cancellation_date?: string | null
           cancellation_reason?: string | null
