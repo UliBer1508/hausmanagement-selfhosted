@@ -1,4 +1,4 @@
-import { LinenItemConfig, LinenSetDefinition, OLD_COLUMN_MAPPING } from '@/types/linen';
+import { LinenItemConfig, LinenSetDefinition, OLD_COLUMN_MAPPING, ItemColor } from '@/types/linen';
 
 /**
  * Migrates old fixed columns to new custom_categories JSONB structure
@@ -8,7 +8,26 @@ export const migrateOldToNewStructure = (linenDef: any): Record<string, LinenIte
 
   // Check if custom_categories already exists and has data
   if (linenDef.custom_categories && Object.keys(linenDef.custom_categories).length > 0) {
-    return linenDef.custom_categories;
+    // Nachträgliche Initialisierung fehlender Farbwerte für bestehende Artikel
+    const updatedCategories: Record<string, LinenItemConfig> = {};
+    
+    Object.entries(linenDef.custom_categories).forEach(([key, item]: [string, any]) => {
+      // Für Badbereich, Wellness UND Schlafbereich: Standard-Farbe setzen wenn nicht vorhanden
+      const needsColor = item.category === 'Badbereich' || 
+                         item.category === 'Wellness' || 
+                         item.category === 'Schlafbereich';
+      
+      if (needsColor && item.color === undefined) {
+        updatedCategories[key] = {
+          ...item,
+          color: 'white' as ItemColor
+        };
+      } else {
+        updatedCategories[key] = item;
+      }
+    });
+    
+    return updatedCategories;
   }
 
   // Migrate from old columns
