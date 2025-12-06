@@ -177,9 +177,6 @@ const LinenOrderDialog = ({
     selectedBooking ? 'standard' : 'exceptional'
   );
   const [exceptionReason, setExceptionReason] = useState<string>('general_cleaning');
-  const [selectedColor, setSelectedColor] = useState<LinenColor>(
-    initialData?.linenColor || defaultLinenColor || 'white_striped'
-  );
   const [itemColors, setItemColors] = useState<Record<string, ItemColor | LinenColor>>({});
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
@@ -355,7 +352,7 @@ const LinenOrderDialog = ({
           orderType: 'standard',
           status: status,
           sendEmail: sendToTeuni,
-          linenColor: selectedColor,
+          linenColor: 'white_striped',
           itemColors: itemColors,
         });
       } else {
@@ -373,7 +370,7 @@ const LinenOrderDialog = ({
           notes: notes.trim() || `Ausnahmebestellung: ${getExceptionReasonLabel(exceptionReason)}`,
           status: status,
           sendEmail: sendToTeuni,
-          linenColor: selectedColor,
+          linenColor: 'white_striped',
           itemColors: itemColors,
         });
       }
@@ -506,30 +503,6 @@ const LinenOrderDialog = ({
             </div>
           )}
 
-          {/* Linen Color Selection */}
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                🎨 Wäschefarbe
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RadioGroup 
-                value={selectedColor} 
-                onValueChange={(v) => setSelectedColor(v as LinenColor)}
-                className="flex flex-wrap gap-4"
-              >
-                {LINEN_COLORS.map((color) => (
-                  <div key={color.key} className="flex items-center space-x-2">
-                    <RadioGroupItem value={color.key} id={`color-${color.key}`} />
-                    <Label htmlFor={`color-${color.key}`} className="cursor-pointer">
-                      {color.icon} {color.label}
-                    </Label>
-                  </div>
-                ))}
-              </RadioGroup>
-            </CardContent>
-          </Card>
 
 
           {availableBookings.length > 0 && orderType === 'standard' && (
