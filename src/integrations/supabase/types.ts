@@ -2464,7 +2464,6 @@ export type Database = {
           created_at: string | null
           default_provider_id: string | null
           delivery_advance_days: number
-          delivery_timing: string | null
           id: string
           is_enabled: boolean
           lookahead_bookings: number
@@ -2475,7 +2474,6 @@ export type Database = {
           created_at?: string | null
           default_provider_id?: string | null
           delivery_advance_days?: number
-          delivery_timing?: string | null
           id?: string
           is_enabled?: boolean
           lookahead_bookings?: number
@@ -2486,7 +2484,6 @@ export type Database = {
           created_at?: string | null
           default_provider_id?: string | null
           delivery_advance_days?: number
-          delivery_timing?: string | null
           id?: string
           is_enabled?: boolean
           lookahead_bookings?: number

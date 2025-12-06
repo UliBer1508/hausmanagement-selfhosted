@@ -9,7 +9,6 @@ export interface LinenAutomationSettings {
   delivery_advance_days: number;
   min_advance_days: number;
   default_provider_id: string | null;
-  delivery_timing: 'day_before_cleaning' | 'day_of_cleaning' | 'relative_to_checkin';
   created_at: string;
   updated_at: string;
 }
