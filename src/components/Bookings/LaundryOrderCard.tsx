@@ -5,6 +5,19 @@ import { Edit, Package, Trash2, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 
+// Feste Anzeige-Reihenfolge der Wäscheartikel
+const ITEM_DISPLAY_ORDER = [
+  'bedding',        // 1. Bettwäsche
+  'pillow_cases',   // 2. Kissenbezüge
+  'small_towels',   // 3. Handtücher
+  'large_towels',   // 4. Badetücher
+  'sauna_towels',   // 5. Saunatücher
+  'bath_mats',      // 6. Badematten
+  'sink_towels',    // 7. WB-Handtücher
+  'kitchen_towels', // 8. Geschirrtücher
+  'blankets',       // 9. Decken
+];
+
 // Schlafbereich-Artikel: LINEN_COLORS (grau gestreift, weiß gestreift, bunt)
 const ITEMS_WITH_LINEN_COLOR = ['bedding', 'pillow_cases', 'blankets'];
 
@@ -204,6 +217,11 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                     {/* Handle linen order items (JSON object format) */}
                     {order.items && Object.entries(order.items)
                       .filter(([_, count]: [string, any]) => count > 0)
+                      .sort(([a], [b]) => {
+                        const indexA = ITEM_DISPLAY_ORDER.indexOf(a);
+                        const indexB = ITEM_DISPLAY_ORDER.indexOf(b);
+                        return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+                      })
                       .map(([itemType, count]: [string, any]) => {
                         const itemVariants = order.item_variants as Record<string, string> | null;
                         const itemColor = itemVariants?.[itemType];
