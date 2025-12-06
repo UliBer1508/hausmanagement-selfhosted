@@ -183,7 +183,7 @@ export const useOptimizedLinenManagement = () => {
         { key: 'pillow_cases', label: 'Kissenbezüge', category: 'bedroom' as const, perGuestKey: 'pillow_cases_per_guest', perBookingKey: null },
         
         // Bathroom category
-        { key: 'large_towels', label: 'Handtücher groß', category: 'bathroom' as const, perGuestKey: 'large_towels_per_guest', perBookingKey: null },
+        { key: 'large_towels', label: 'Badetücher', category: 'bathroom' as const, perGuestKey: 'large_towels_per_guest', perBookingKey: null },
         { key: 'small_towels', label: 'Handtücher klein', category: 'bathroom' as const, perGuestKey: 'small_towels_per_guest', perBookingKey: null },
         { key: 'sauna_towels', label: 'Saunatücher', category: 'bathroom' as const, perGuestKey: 'sauna_towels_per_guest', perBookingKey: null },
         { key: 'bath_mats', label: 'Badematten', category: 'bathroom' as const, perGuestKey: null, perBookingKey: 'bath_mats_per_booking' },

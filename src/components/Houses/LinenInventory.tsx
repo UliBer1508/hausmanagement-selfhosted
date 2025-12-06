@@ -98,7 +98,7 @@ const LinenInventory = ({ house }: LinenInventoryProps) => {
 
   const linenItems = [
     { key: 'bedding', label: 'Bettwäsche', icon: '🛏️' },
-    { key: 'large_towels', label: 'Handtücher groß', icon: '🏊‍♂️' },
+    { key: 'large_towels', label: 'Badetücher', icon: '🏊‍♂️' },
     { key: 'small_towels', label: 'Handtücher klein', icon: '🚿' },
     { key: 'sauna_towels', label: 'Saunatücher', icon: '🧖‍♀️' },
     { key: 'bath_mats', label: 'Badematten', icon: '🛁' },
@@ -110,7 +110,7 @@ const LinenInventory = ({ house }: LinenInventoryProps) => {
 
   const requirementItems = [
     { key: 'bedding_per_guest', label: 'Bettwäsche pro Gast' },
-    { key: 'large_towels_per_guest', label: 'Handtücher groß pro Gast' },
+    { key: 'large_towels_per_guest', label: 'Badetücher pro Gast' },
     { key: 'small_towels_per_guest', label: 'Handtücher klein pro Gast' },
     { key: 'sauna_towels_per_guest', label: 'Saunatücher pro Gast' },
     { key: 'bath_mats_per_booking', label: 'Badematten pro Buchung' },

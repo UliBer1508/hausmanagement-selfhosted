@@ -105,7 +105,7 @@ const LinenManagement = ({ house }: LinenManagementProps) => {
 
     const linenTypes = [
       { key: 'bedding', label: 'Bettwäsche', perGuestKey: 'bedding_per_guest', perBookingKey: null },
-      { key: 'large_towels', label: 'Handtücher groß', perGuestKey: 'large_towels_per_guest', perBookingKey: null },
+      { key: 'large_towels', label: 'Badetücher', perGuestKey: 'large_towels_per_guest', perBookingKey: null },
       { key: 'small_towels', label: 'Handtücher klein', perGuestKey: 'small_towels_per_guest', perBookingKey: null },
       { key: 'sauna_towels', label: 'Saunatücher', perGuestKey: 'sauna_towels_per_guest', perBookingKey: null },
       { key: 'bath_mats', label: 'Badematten', perGuestKey: null, perBookingKey: 'bath_mats_per_booking' },
