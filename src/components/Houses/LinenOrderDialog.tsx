@@ -83,6 +83,7 @@ interface LinenOrderDialogProps {
     notes?: string;
     status?: 'pending' | 'in-progress' | 'completed' | 'delivered';
     linenColor?: LinenColor;
+    item_variants?: Record<string, ItemColor | LinenColor>;
   };
   mode?: 'create' | 'edit';
   generatedOrderData?: any;
@@ -239,16 +240,29 @@ const LinenOrderDialog = ({
     }
   }, [open, mode, selectedBooking, linenSetDefinition, initialData, orderItems, generatedOrderData]);
 
-  // Initialisiere Artikelfarben aus linenSetDefinition.custom_categories
+  // Initialisiere Artikelfarben - PRIO 1: aus initialData (Edit-Mode), PRIO 2: aus linenSetDefinition
   useEffect(() => {
-    if (open && linenSetDefinition?.custom_categories) {
+    if (open) {
       const colors: Record<string, ItemColor | LinenColor> = {};
-      Object.entries(linenSetDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
-        if (config?.color && ITEMS_WITH_COLOR_SELECTION.includes(key)) {
-          colors[key] = config.color;
-        }
-      });
-      // Fallback nach Kategorie: Schlafbereich → white_striped, Badbereich/Wellness → white
+      
+      // PRIO 1: Im Edit-Mode gespeicherte Farben aus initialData.item_variants laden
+      if (mode === 'edit' && initialData?.item_variants) {
+        Object.entries(initialData.item_variants).forEach(([key, color]) => {
+          if (ITEMS_WITH_COLOR_SELECTION.includes(key)) {
+            colors[key] = color as ItemColor | LinenColor;
+          }
+        });
+      }
+      // PRIO 2: Nur im Create-Mode aus linenSetDefinition laden
+      else if (linenSetDefinition?.custom_categories) {
+        Object.entries(linenSetDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
+          if (config?.color && ITEMS_WITH_COLOR_SELECTION.includes(key)) {
+            colors[key] = config.color;
+          }
+        });
+      }
+      
+      // Fallbacks für alle fehlenden Farben setzen
       ITEMS_WITH_LINEN_COLOR.forEach(key => {
         if (!colors[key]) colors[key] = 'white_striped';
       });
@@ -257,7 +271,7 @@ const LinenOrderDialog = ({
       });
       setItemColors(colors);
     }
-  }, [open, linenSetDefinition]);
+  }, [open, mode, linenSetDefinition, initialData]);
 
   // Separater useEffect für Edit-Mode: Lade tatsächliche Order-Items und Buchung
   useEffect(() => {
