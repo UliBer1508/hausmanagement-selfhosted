@@ -90,6 +90,35 @@ interface LinenOrderDialogProps {
   defaultLinenColor?: LinenColor;
 }
 
+// Helper: Lädt alle aktiven Wäsche-Artikel aus der Definition für Ausnahmebestellungen
+const getLinenSetFromDefinition = (linenDef: any): Record<string, number> => {
+  const items: Record<string, number> = {};
+  
+  // Neue JSONB-Struktur: custom_categories
+  if (linenDef?.custom_categories) {
+    Object.entries(linenDef.custom_categories).forEach(([key, config]: [string, any]) => {
+      if (config?.active !== false && config?.quantity > 0) {
+        items[key] = 1; // Basismenge 1 für jeden aktiven Artikel
+      }
+    });
+  }
+  
+  // Fallback: Alte Spalten (für Abwärtskompatibilität)
+  if (Object.keys(items).length === 0) {
+    if (linenDef?.bedding_per_guest > 0) items.bedding = 1;
+    if (linenDef?.large_towels_per_guest > 0) items.large_towels = 1;
+    if (linenDef?.small_towels_per_guest > 0) items.small_towels = 1;
+    if (linenDef?.sauna_towels_per_guest > 0) items.sauna_towels = 1;
+    if (linenDef?.pillow_cases_per_guest > 0) items.pillow_cases = 1;
+    if (linenDef?.blankets_per_guest > 0) items.blankets = 1;
+    if (linenDef?.bath_mats_per_booking > 0) items.bath_mats = 1;
+    if (linenDef?.sink_towels_per_booking > 0) items.sink_towels = 1;
+    if (linenDef?.kitchen_towels_per_booking > 0) items.kitchen_towels = 1;
+  }
+  
+  return items;
+};
+
 // Helper function to calculate linen order for a specific booking
 const calculateBookingLinenOrder = (
   booking: any,
@@ -218,6 +247,12 @@ const LinenOrderDialog = ({
           setDeliveryDate(subDays(new Date(selectedBooking.check_in), 1));
         }
       } 
+      // PRIO 2.5: Für Ausnahmebestellungen - Wäsche-Set aus Definition laden
+      else if (!selectedBooking && linenSetDefinition && orderType === 'exceptional') {
+        console.log('📦 Loading linen set for exceptional order from definition');
+        const linenSetItems = getLinenSetFromDefinition(linenSetDefinition);
+        setEditableItems(linenSetItems);
+      }
       // PRIO 3: Fallback to orderItems
       else {
         console.log('🔄 Using fallback orderItems:', orderItems);
@@ -238,7 +273,7 @@ const LinenOrderDialog = ({
         setStatus(initialData.status);
       }
     }
-  }, [open, mode, selectedBooking, linenSetDefinition, initialData, orderItems, generatedOrderData]);
+  }, [open, mode, selectedBooking, linenSetDefinition, initialData, orderItems, generatedOrderData, orderType]);
 
   // Initialisiere Artikelfarben - PRIO 1: aus initialData (Edit-Mode), PRIO 2: aus linenSetDefinition
   useEffect(() => {
