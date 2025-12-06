@@ -505,7 +505,7 @@ const LinenOrderDialog = ({
 
 
 
-          {availableBookings.length > 0 && orderType === 'standard' && (
+          {mode === 'create' && availableBookings.length > 0 && orderType === 'standard' && (
             <div className="space-y-2">
               <Label>Buchung auswählen</Label>
                <Select 
@@ -550,12 +550,17 @@ const LinenOrderDialog = ({
           )}
 
           {/* Booking Information */}
-          {internalSelectedBooking && orderType === 'standard' && (
+          {internalSelectedBooking && (mode === 'edit' || orderType === 'standard') && (
             <Card className="bg-laundry-bg border-laundry-border">
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
                   <CalendarIcon className="w-4 h-4 text-blue-600" />
                   Verknüpfte Buchung
+                  {mode === 'edit' && (
+                    <Badge variant="secondary" className="ml-2 text-xs">
+                      Festgelegt
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
