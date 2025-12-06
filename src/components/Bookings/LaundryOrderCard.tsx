@@ -176,7 +176,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                       <span>
                          {itemType === 'kitchen_towels' ? 'Küchentücher' : 
                          itemType === 'bedding' ? 'Bettwäsche' :
-                         itemType === 'large_towels' ? 'Große Handtücher' :
+                         itemType === 'large_towels' ? 'Badetücher' :
                          itemType === 'small_towels' ? 'Kleine Handtücher' :
                          itemType === 'bath_mats' ? 'Badematten' :
                          itemType === 'sauna_towels' ? 'Saunatücher' :

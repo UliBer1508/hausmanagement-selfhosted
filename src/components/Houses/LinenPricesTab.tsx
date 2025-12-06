@@ -65,7 +65,7 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
       // Mapping von alten Spalten zu Keys und Labels
       const oldColumnMap = {
         bedding_per_guest: { key: 'bedding', label: 'Bettwäsche' },
-        large_towels_per_guest: { key: 'large_towels', label: 'Große Handtücher' },
+        large_towels_per_guest: { key: 'large_towels', label: 'Badetücher' },
         small_towels_per_guest: { key: 'small_towels', label: 'Kleine Handtücher' },
         sauna_towels_per_guest: { key: 'sauna_towels', label: 'Saunatücher' },
         bath_mats_per_booking: { key: 'bath_mats', label: 'Badematten' },

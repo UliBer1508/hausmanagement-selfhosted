@@ -18,7 +18,7 @@ export const calculateDeliveryDate = (checkInDate: string): string => {
 export const translateItemType = (key: string): string => {
   const translations: Record<string, string> = {
     bedding: 'Bettwäsche',
-    large_towels: 'Große Handtücher',
+    large_towels: 'Badetücher',
     small_towels: 'Kleine Handtücher',
     sauna_towels: 'Saunahandtücher',
     sink_towels: 'WB-Handtücher',
