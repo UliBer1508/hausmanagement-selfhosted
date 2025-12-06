@@ -21,18 +21,19 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Fetch linen orders with related data
+  // Fetch linen orders with related data (only tourist rentals)
   const { data: linenOrders, isLoading } = useQuery({
-    queryKey: ['linen-orders-list'],
+    queryKey: ['linen-orders-list', 'tourist'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('linen_orders')
         .select(`
           *,
-          houses (
+          houses!inner (
             id,
             name,
-            address
+            address,
+            rental_type
           ),
           bookings (
             id,
@@ -43,6 +44,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
             number_of_guests
           )
         `)
+        .eq('houses.rental_type', 'tourist')
         .order('delivery_date', { ascending: true, nullsFirst: false });
 
       if (error) throw error;
