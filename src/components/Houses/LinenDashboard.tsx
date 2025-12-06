@@ -800,10 +800,12 @@ const LinenDashboard = () => {
           houseId={orderHouse.id}
           selectedBooking={selectedBooking}
           availableBookings={
-            upcomingBookings?.filter(
-              b => b.house_id === orderHouse.id && 
-                   (!b.linen_orders || b.linen_orders.length === 0)
-            ) || []
+            editMode && selectedBooking
+              ? [selectedBooking]
+              : upcomingBookings?.filter(
+                  b => b.house_id === orderHouse.id && 
+                       (!b.linen_orders || b.linen_orders.length === 0)
+                ) || []
           }
           linenSetDefinition={orderHouse.linen_set_definitions?.[0]}
           onCreateOrder={editMode ? handleOrderUpdate : handleOrderCreation}
