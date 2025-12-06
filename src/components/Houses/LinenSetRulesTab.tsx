@@ -3,8 +3,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -33,6 +35,8 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
   const queryClient = useQueryClient();
   const [items, setItems] = useState<Record<string, LinenItemConfig>>({});
   const [originalItems, setOriginalItems] = useState<Record<string, LinenItemConfig>>({});
+  const [selectedColor, setSelectedColor] = useState<string>(house?.default_linen_color || 'white_striped');
+  const [originalColor, setOriginalColor] = useState<string>(house?.default_linen_color || 'white_striped');
   const [hasChanges, setHasChanges] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
@@ -64,11 +68,12 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     }
   }, [linenDef, hasMigrated]);
 
-  // Check for changes
+  // Check for changes (items + color)
   useEffect(() => {
-    const changed = JSON.stringify(items) !== JSON.stringify(originalItems);
-    setHasChanges(changed);
-  }, [items, originalItems]);
+    const itemsChanged = JSON.stringify(items) !== JSON.stringify(originalItems);
+    const colorChanged = selectedColor !== originalColor;
+    setHasChanges(itemsChanged || colorChanged);
+  }, [items, originalItems, selectedColor, originalColor]);
 
   // Group items by category
   const groupedItems = useMemo(() => groupByCategory(items), [items]);
@@ -99,6 +104,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: async () => {
+      // 1. Save linen rules to linen_set_definitions
       const updateData = {
         house_id: house.id,
         custom_categories: items as any,
@@ -133,14 +139,23 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
           .insert(updateData);
         if (error) throw error;
       }
+
+      // 2. Save default_linen_color to houses table
+      const { error: houseError } = await supabase
+        .from('houses')
+        .update({ default_linen_color: selectedColor })
+        .eq('id', house.id);
+      if (houseError) throw houseError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['linen-definitions'] });
+      queryClient.invalidateQueries({ queryKey: ['houses'] });
       setOriginalItems(JSON.parse(JSON.stringify(items)));
+      setOriginalColor(selectedColor);
       setHasChanges(false);
       toast({
         title: "✅ Gespeichert",
-        description: "Wäscheset-Regeln wurden aktualisiert",
+        description: "Wäscheset-Regeln und Standardfarbe wurden aktualisiert",
       });
     },
     onError: (error) => {
@@ -155,6 +170,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
 
   const handleReset = () => {
     setItems(JSON.parse(JSON.stringify(originalItems)));
+    setSelectedColor(originalColor);
     setHasChanges(false);
   };
 
@@ -205,6 +221,35 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Standard-Wäschefarbe Auswahl */}
+          <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">🎨</span>
+              <Label className="text-base font-semibold">Standard-Wäschefarbe</Label>
+            </div>
+            <p className="text-sm text-muted-foreground mb-3">
+              Diese Farbe wird bei neuen Wäschebestellungen automatisch vorausgewählt.
+            </p>
+            <RadioGroup
+              value={selectedColor}
+              onValueChange={setSelectedColor}
+              className="flex flex-wrap gap-6"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="grey_striped" id="grey_striped" />
+                <Label htmlFor="grey_striped" className="cursor-pointer">🔲 Grau gestreift</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="white_striped" id="white_striped" />
+                <Label htmlFor="white_striped" className="cursor-pointer">⬜ Weiß gestreift</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="colorful" id="colorful" />
+                <Label htmlFor="colorful" className="cursor-pointer">🌈 Bunt</Label>
+              </div>
+            </RadioGroup>
+          </div>
+
           <Alert className="mb-4">
             <Info className="h-4 w-4" />
             <AlertDescription>
