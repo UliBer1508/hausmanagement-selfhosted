@@ -208,6 +208,7 @@ export const useBookingLinenOrders = (houseId: string) => {
           delivery_date: userOverrides.deliveryDate || calculateDeliveryDate(generatedData.booking.check_in),
           delivery_type: userOverrides.deliveryType || 'delivery',
           notes: userOverrides.notes || generatedData.note,
+          linen_color: userOverrides.linenColor || 'white_striped',
         })
         .select('*, bookings(*), houses(*)')
         .single();

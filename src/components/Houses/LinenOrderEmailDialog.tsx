@@ -46,9 +46,15 @@ const LinenOrderEmailDialog = ({
     sauna_towels: 'Saunatücher',
     bath_mats: 'Badematten',
     sink_towels: 'WB-Handtücher',
-    kitchen_towels: 'Küchentücher',
+    kitchen_towels: 'Geschirrtücher',
     blankets: 'Decken',
     pillow_cases: 'Kopfkissen',
+  };
+
+  const linenColorLabels: Record<string, string> = {
+    grey_striped: 'Grau gestreift',
+    white_striped: 'Weiß gestreift',
+    colorful: 'Bunt',
   };
 
   // Generate order details text
@@ -64,10 +70,14 @@ const LinenOrderEmailDialog = ({
       `${format(new Date(order.delivery_date), 'dd.MM.yyyy', { locale: de })}${order.delivery_time ? ` um ${order.delivery_time.slice(0, 5)} Uhr` : ''}` : 
       'Nicht angegeben';
 
+    const colorText = order.linen_color ? linenColorLabels[order.linen_color] || order.linen_color : 'Weiß gestreift';
+
     return `
 🏠 OBJEKT: ${houseName}
 📋 BESTELLNUMMER: #${order.id.slice(-8)}
 📅 ERSTELLT AM: ${format(new Date(order.created_at), 'dd.MM.yyyy HH:mm', { locale: de })}
+
+🎨 WÄSCHEFARBE: ${colorText}
 
 📦 BESTELLTE ARTIKEL:
 ${itemsList}

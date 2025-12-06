@@ -25,6 +25,7 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
     bedrooms: 3,
     living_area_sqm: 0,
     default_cleaning_hours: 3,
+    default_linen_color: 'white_striped',
     amenities: {
       sauna: false,
       terrace: false,
@@ -129,6 +130,7 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
           bedrooms: data.bedrooms,
           living_area_sqm: data.living_area_sqm || null,
           default_cleaning_hours: data.default_cleaning_hours || 3,
+          default_linen_color: data.default_linen_color || 'white_striped',
           amenities: data.amenities,
           image_url: imageUrl,
           image_filename: imageFilename,
@@ -194,6 +196,7 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
         bedrooms: 3,
         living_area_sqm: 0,
         default_cleaning_hours: 3,
+        default_linen_color: 'white_striped',
         amenities: {
           sauna: false,
           terrace: false,

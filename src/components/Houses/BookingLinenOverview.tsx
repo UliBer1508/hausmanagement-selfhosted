@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { LinenColor } from "@/types/linen";
 
 interface BookingLinenOverviewProps {
   houseId: string;
@@ -50,6 +51,22 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
         .select('*')
         .eq('house_id', houseId)
         .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!houseId,
+  });
+
+  // Lade house für default_linen_color
+  const { data: houseData } = useQuery({
+    queryKey: ['house-linen-color', houseId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('houses')
+        .select('default_linen_color')
+        .eq('id', houseId)
+        .single();
       
       if (error) throw error;
       return data;
@@ -394,6 +411,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
           isCreating={isCreatingOrder || generatePreviewMutation.isPending}
           mode="create"
           generatedOrderData={generatedOrderData}
+          defaultLinenColor={(houseData?.default_linen_color as LinenColor) || 'white_striped'}
         />
       )}
 
