@@ -1,4 +1,4 @@
-import { LinenItemConfig, LinenSetDefinition, OLD_COLUMN_MAPPING, ItemColor } from '@/types/linen';
+import { LinenItemConfig, LinenSetDefinition, OLD_COLUMN_MAPPING, ItemColor, LinenColor } from '@/types/linen';
 
 /**
  * Migrates old fixed columns to new custom_categories JSONB structure
@@ -18,9 +18,15 @@ export const migrateOldToNewStructure = (linenDef: any): Record<string, LinenIte
                          item.category === 'Schlafbereich';
       
       if (needsColor && item.color === undefined) {
+        // Schlafbereich: Default ist 'white_striped' (LinenColor)
+        // Badbereich/Wellness: Default ist 'white' (ItemColor)
+        const defaultColor = item.category === 'Schlafbereich' 
+          ? 'white_striped' as LinenColor 
+          : 'white' as ItemColor;
+        
         updatedCategories[key] = {
           ...item,
-          color: 'white' as ItemColor
+          color: defaultColor
         };
       } else {
         updatedCategories[key] = item;
