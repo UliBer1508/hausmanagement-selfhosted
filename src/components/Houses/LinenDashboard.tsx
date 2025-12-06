@@ -386,6 +386,7 @@ const LinenDashboard = () => {
           booking_id: orderData.booking_id,
           linen_color: orderData.linenColor,
           item_variants: orderData.itemColors,
+          status: orderData.status,
         })
         .eq('id', orderId)
         .select()

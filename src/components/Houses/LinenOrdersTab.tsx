@@ -126,6 +126,7 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
           total_items: Object.values(orderData.orderItems as Record<string, number>).reduce((sum, count) => sum + count, 0),
           linen_color: orderData.linenColor,
           item_variants: orderData.itemColors,
+          status: orderData.status,
         })
         .eq('id', orderId)
         .select()
@@ -709,10 +710,19 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
         <LinenOrderDialog
           open={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
+          mode="edit"
           orderItems={editingOrder.items || {}}
           houseName={house.name}
           houseId={house.id}
           selectedBooking={editingOrder.bookings}
+          initialData={{
+            deliveryDate: editingOrder.delivery_date,
+            deliveryType: editingOrder.delivery_type,
+            notes: editingOrder.notes,
+            status: editingOrder.status,
+            linenColor: editingOrder.linen_color,
+            item_variants: editingOrder.item_variants,
+          }}
           onCreateOrder={(orderData) => {
             updateOrderMutation.mutate({ 
               orderId: editingOrder.id, 
