@@ -352,7 +352,7 @@ const LinenOrderDialog = ({
           orderType: 'standard',
           status: status,
           sendEmail: sendToTeuni,
-          linenColor: 'white_striped',
+          linenColor: null,
           itemColors: itemColors,
         });
       } else {
@@ -370,7 +370,7 @@ const LinenOrderDialog = ({
           notes: notes.trim() || `Ausnahmebestellung: ${getExceptionReasonLabel(exceptionReason)}`,
           status: status,
           sendEmail: sendToTeuni,
-          linenColor: 'white_striped',
+          linenColor: null,
           itemColors: itemColors,
         });
       }
