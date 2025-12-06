@@ -27,7 +27,7 @@ export const migrateOldToNewStructure = (linenDef: any): Record<string, LinenIte
       availability: 'year_round',
       season: null,
       active: true,
-      color: meta.category === 'Badbereich' ? 'white' : undefined // Default für Badbereich
+      color: (meta.category === 'Badbereich' || meta.category === 'Wellness') ? 'white' : undefined // Default für Badbereich und Wellness
     };
   });
 

@@ -46,7 +46,7 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
       availability,
       season: availability === 'seasonal' ? season : null,
       active: true,
-      color: category === 'Badbereich' ? itemColor : undefined
+      color: (category === 'Badbereich' || category === 'Wellness') ? itemColor : undefined
     };
 
     onSave(newItem);
@@ -183,7 +183,7 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
             </div>
           )}
 
-          {category === 'Badbereich' && (
+          {(category === 'Badbereich' || category === 'Wellness') && (
             <div className="grid gap-2">
               <Label>Artikelfarbe</Label>
               <Select value={itemColor} onValueChange={(v) => setItemColor(v as ItemColor)}>

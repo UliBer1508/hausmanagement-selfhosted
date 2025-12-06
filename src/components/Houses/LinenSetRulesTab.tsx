@@ -273,7 +273,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                         <TableHead className="w-[100px]">Anzahl</TableHead>
                         <TableHead className="w-[150px]">Berechnung</TableHead>
                         <TableHead className="w-[150px]">Verfügbarkeit</TableHead>
-                        {category === 'Badbereich' && (
+                        {(category === 'Badbereich' || category === 'Wellness') && (
                           <TableHead className="w-[100px]">Farbe</TableHead>
                         )}
                         <TableHead className="w-[100px]">Winter</TableHead>
@@ -333,7 +333,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          {category === 'Badbereich' && (
+                          {(category === 'Badbereich' || category === 'Wellness') && (
                             <TableCell>
                               <Select
                                 value={item.color || 'white'}
