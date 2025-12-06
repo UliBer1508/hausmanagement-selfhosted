@@ -194,7 +194,7 @@ const translateLinenItem = (item: string): string => {
     sauna_towels: 'Saunatücher',
     bath_mats: 'Badematten',
     sink_towels: 'WB-Handtücher',
-    kitchen_towels: 'Küchenhandtücher',
+    kitchen_towels: 'Geschirrtücher',
     blankets: 'Decken',
     pillow_cases: 'Kissenbezüge',
     table_linens: 'Tischwäsche',

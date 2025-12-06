@@ -45,6 +45,6 @@ export const OLD_COLUMN_MAPPING: Record<string, { label: string; category: Linen
   sauna_towels_per_guest: { label: 'Saunatücher', category: 'Wellness', icon: '🧖' },
   bath_mats_per_booking: { label: 'Badvorleger', category: 'Badbereich', icon: '🛁' },
   sink_towels_per_booking: { label: 'WB-Handtücher', category: 'Badbereich', icon: '🚿' },
-  kitchen_towels_per_booking: { label: 'Küchentücher', category: 'Küchenbereich', icon: '🍴' },
+  kitchen_towels_per_booking: { label: 'Geschirrtücher', category: 'Küchenbereich', icon: '🍴' },
   table_linens_per_booking: { label: 'Tischwäsche', category: 'Küchenbereich', icon: '🍽️' }
 };

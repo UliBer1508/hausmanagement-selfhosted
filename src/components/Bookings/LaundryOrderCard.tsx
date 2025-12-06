@@ -174,7 +174,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                     .map(([itemType, count]: [string, any]) => (
                     <div key={itemType} className="flex justify-between gap-2 text-sm">
                       <span>
-                         {itemType === 'kitchen_towels' ? 'Küchentücher' : 
+                         {itemType === 'kitchen_towels' ? 'Geschirrtücher' : 
                          itemType === 'bedding' ? 'Bettwäsche' :
                          itemType === 'large_towels' ? 'Badetücher' :
                          itemType === 'small_towels' ? 'Handtücher' :

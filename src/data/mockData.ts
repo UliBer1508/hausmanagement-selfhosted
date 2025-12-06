@@ -146,7 +146,7 @@ export const mockLinenOrders: LinenOrder[] = [
     items: [
       { id: '1', type: 'Bettwäsche', count: 4, status: 'pending' },
       { id: '2', type: 'Handtücher', count: 8, status: 'pending' },
-      { id: '3', type: 'Küchentücher', count: 6, status: 'pending' }
+      { id: '3', type: 'Geschirrtücher', count: 6, status: 'pending' }
     ]
   },
   {
