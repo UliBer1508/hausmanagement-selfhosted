@@ -22,6 +22,7 @@ import { LinenColor, LINEN_COLORS, getLinenColorLabel, ItemColor, ITEM_COLORS } 
 
 // Artikel die eine Farbauswahl (weiß/grau) haben
 const ITEMS_WITH_COLOR_SELECTION = [
+  'bedding',         // Bettwäsche (Schlafbereich)
   'large_towels',    // Badetücher (Badbereich)
   'small_towels',    // Handtücher (Badbereich)
   'bath_mats',       // Badvorleger (Badbereich)
