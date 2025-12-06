@@ -784,8 +784,8 @@ const LinenDashboard = () => {
             }}
             className="bg-primary hover:bg-primary/90"
           >
-            <Plus className="w-4 h-4 mr-2" />
-            Neu erstellen
+                <Plus className="w-4 h-4 mr-2" />
+                Neue Wäschebestellung
           </Button>
         </div>
         <LinenOrdersList onEditOrder={handleEditOrder} onDeleteOrder={handleDeleteOrder} />
