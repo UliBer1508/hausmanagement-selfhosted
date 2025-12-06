@@ -519,27 +519,6 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
                   </p>
                 </div>
 
-                {formData.rental_type === 'tourist' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="default_linen_color">Standard-Wäschefarbe</Label>
-                    <Select 
-                      value={formData.default_linen_color || 'white_striped'}
-                      onValueChange={(value) => setFormData({ ...formData, default_linen_color: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="grey_striped">🔲 Grau gestreift</SelectItem>
-                        <SelectItem value="white_striped">⬜ Weiß gestreift</SelectItem>
-                        <SelectItem value="colorful">🌈 Bunt</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-sm text-muted-foreground">
-                      Diese Farbe wird bei neuen Wäschebestellungen automatisch vorausgewählt.
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div className="space-y-3">
