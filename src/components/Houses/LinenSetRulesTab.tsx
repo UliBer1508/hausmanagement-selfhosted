@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Save, RotateCcw, Plus, Trash2, Info } from 'lucide-react';
-import { LinenItemConfig, ItemColor, ITEM_COLORS } from '@/types/linen';
+import { LinenItemConfig, ItemColor, LinenColor, ITEM_COLORS, LINEN_COLORS } from '@/types/linen';
 import { migrateOldToNewStructure, groupByCategory } from '@/lib/linenMigration';
 import { LinenItemDialog } from './LinenItemDialog';
 import {
@@ -336,18 +336,25 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                           {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich') && (
                             <TableCell>
                               <Select
-                                value={item.color || 'white'}
-                                onValueChange={(v) => updateItem(item.key, { color: v as ItemColor })}
+                                value={item.color || (category === 'Schlafbereich' ? 'white_striped' : 'white')}
+                                onValueChange={(v) => updateItem(item.key, { color: v as ItemColor | LinenColor })}
                               >
-                                <SelectTrigger className="w-24">
+                                <SelectTrigger className="w-28">
                                   <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {ITEM_COLORS.map(c => (
-                                    <SelectItem key={c.key} value={c.key}>
-                                      {c.icon} {c.label}
-                                    </SelectItem>
-                                  ))}
+                                  {category === 'Schlafbereich' 
+                                    ? LINEN_COLORS.map(c => (
+                                        <SelectItem key={c.key} value={c.key}>
+                                          {c.icon} {c.label}
+                                        </SelectItem>
+                                      ))
+                                    : ITEM_COLORS.map(c => (
+                                        <SelectItem key={c.key} value={c.key}>
+                                          {c.icon} {c.label}
+                                        </SelectItem>
+                                      ))
+                                  }
                                 </SelectContent>
                               </Select>
                             </TableCell>

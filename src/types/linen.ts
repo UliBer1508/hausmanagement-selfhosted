@@ -39,7 +39,7 @@ export interface LinenItemConfig {
   availability: 'year_round' | 'seasonal';
   season?: 'winter' | 'summer' | null;
   active: boolean;
-  color?: ItemColor; // Artikelfarbe (nur für Badbereich relevant)
+  color?: ItemColor | LinenColor; // Artikelfarbe (ItemColor für Badbereich/Wellness, LinenColor für Schlafbereich)
 }
 
 export interface LinenSetDefinition {
