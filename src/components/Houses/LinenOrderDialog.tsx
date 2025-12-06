@@ -19,6 +19,8 @@ import { cn } from '@/lib/utils';
 import { standardLinenOrderSchema, exceptionalLinenOrderSchema } from './schemas/LinenOrderSchema';
 import { translateItemType, formatCurrency } from '@/lib/linenOrderHelpers';
 import { LinenColor, LINEN_COLORS, getLinenColorLabel, ItemColor, ITEM_COLORS } from '@/types/linen';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 // Schlafbereich-Artikel: LINEN_COLORS (grau gestreift, weiß gestreift, bunt)
 const ITEMS_WITH_LINEN_COLOR = ['bedding', 'pillow_cases', 'blankets'];
@@ -236,6 +238,24 @@ const LinenOrderDialog = ({
   generatedOrderData,
   defaultLinenColor = 'white_striped'
 }: LinenOrderDialogProps) => {
+  // Lade linenSetDefinition aus DB falls nicht als Prop übergeben
+  const { data: fetchedLinenDefinition } = useQuery({
+    queryKey: ['linen-set-definition', houseId],
+    queryFn: async () => {
+      if (!houseId) return null;
+      const { data, error } = await supabase
+        .from('linen_set_definitions')
+        .select('*')
+        .eq('house_id', houseId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!houseId && !linenSetDefinition,
+  });
+
+  // Verwende entweder den Prop oder die geladenen Daten
+  const effectiveLinenDefinition = linenSetDefinition || fetchedLinenDefinition;
   const [internalSelectedBooking, setInternalSelectedBooking] = useState<any>(selectedBooking);
   const [deliveryDate, setDeliveryDate] = useState<Date>(() => {
     if (initialData?.deliveryDate) {
@@ -360,16 +380,16 @@ const LinenOrderDialog = ({
       });
       setItemColors(colors);
     }
-  }, [open, mode, linenSetDefinition, initialData]);
+  }, [open, mode, effectiveLinenDefinition, initialData]);
 
   // Dynamische Kategorien und Labels aus Definition aufbauen
   const dynamicCategories = useMemo(() => {
-    return buildCategoriesFromDefinition(linenSetDefinition);
-  }, [linenSetDefinition]);
+    return buildCategoriesFromDefinition(effectiveLinenDefinition);
+  }, [effectiveLinenDefinition]);
   
   const dynamicLabels = useMemo(() => {
-    return buildLabelsFromDefinition(linenSetDefinition);
-  }, [linenSetDefinition]);
+    return buildLabelsFromDefinition(effectiveLinenDefinition);
+  }, [effectiveLinenDefinition]);
 
   // Separater useEffect für Edit-Mode: Lade tatsächliche Order-Items und Buchung
   useEffect(() => {
@@ -383,8 +403,8 @@ const LinenOrderDialog = ({
       if (orderItems) {
         // Alle verfügbaren Artikel aus der Definition mit Wert 0 initialisieren
         const allAvailableItems: Record<string, number> = {};
-        if (linenSetDefinition?.custom_categories) {
-          Object.entries(linenSetDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
+        if (effectiveLinenDefinition?.custom_categories) {
+          Object.entries(effectiveLinenDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
             if (config?.active !== false) {
               allAvailableItems[key] = 0;
             }
@@ -409,7 +429,7 @@ const LinenOrderDialog = ({
         setEditableItems(mergedItems);
       }
     }
-  }, [open, mode, orderItems, selectedBooking, linenSetDefinition]);
+  }, [open, mode, orderItems, selectedBooking, effectiveLinenDefinition]);
 
   const totalItems = useMemo(() => 
     Object.values(editableItems).reduce((sum, count) => sum + count, 0),
