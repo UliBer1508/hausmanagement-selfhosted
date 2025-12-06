@@ -1,4 +1,4 @@
-// Wäschefarben-Typen
+// Wäschefarben-Typen (für gesamte Bestellung)
 export type LinenColor = 'grey_striped' | 'white_striped' | 'colorful';
 
 export const LINEN_COLORS: { key: LinenColor; label: string; icon: string }[] = [
@@ -6,6 +6,19 @@ export const LINEN_COLORS: { key: LinenColor; label: string; icon: string }[] = 
   { key: 'white_striped', label: 'Weiß gestreift', icon: '⬜' },
   { key: 'colorful', label: 'Bunt', icon: '🌈' }
 ];
+
+// Artikel-Farben (für einzelne Items wie Handtücher)
+export type ItemColor = 'white' | 'grey';
+
+export const ITEM_COLORS: { key: ItemColor; label: string; icon: string }[] = [
+  { key: 'white', label: 'Weiß', icon: '⬜' },
+  { key: 'grey', label: 'Grau', icon: '🔲' }
+];
+
+export const getItemColorLabel = (color: ItemColor | string | undefined): string => {
+  const found = ITEM_COLORS.find(c => c.key === color);
+  return found ? `${found.icon} ${found.label}` : '⬜ Weiß';
+};
 
 export const getLinenColorLabel = (color: LinenColor | string): string => {
   const found = LINEN_COLORS.find(c => c.key === color);
@@ -26,6 +39,7 @@ export interface LinenItemConfig {
   availability: 'year_round' | 'seasonal';
   season?: 'winter' | 'summer' | null;
   active: boolean;
+  color?: ItemColor; // Artikelfarbe (nur für Badbereich relevant)
 }
 
 export interface LinenSetDefinition {
