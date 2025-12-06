@@ -18,6 +18,7 @@ const AutoLinenOrderSettingsCard = () => {
   const [localDeliveryAdvanceDays, setLocalDeliveryAdvanceDays] = useState<number>(14);
   const [localMinAdvanceDays, setLocalMinAdvanceDays] = useState<number>(7);
   const [localProviderId, setLocalProviderId] = useState<string>('');
+  const [localDeliveryTiming, setLocalDeliveryTiming] = useState<'day_before_cleaning' | 'day_of_cleaning' | 'relative_to_checkin'>('relative_to_checkin');
   const [hasChanges, setHasChanges] = useState(false);
 
   // Load settings into local state when available
@@ -28,6 +29,7 @@ const AutoLinenOrderSettingsCard = () => {
       setLocalDeliveryAdvanceDays(settings.delivery_advance_days);
       setLocalMinAdvanceDays(settings.min_advance_days);
       setLocalProviderId(settings.default_provider_id || 'none');
+      setLocalDeliveryTiming(settings.delivery_timing || 'relative_to_checkin');
       setHasChanges(false);
     }
   }, [settings]);
@@ -55,6 +57,7 @@ const AutoLinenOrderSettingsCard = () => {
       delivery_advance_days: localDeliveryAdvanceDays,
       min_advance_days: localMinAdvanceDays,
       default_provider_id: localProviderId === 'none' ? null : localProviderId,
+      delivery_timing: localDeliveryTiming,
     });
     setHasChanges(false);
   };
@@ -123,7 +126,7 @@ const AutoLinenOrderSettingsCard = () => {
       </CardHeader>
       
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {/* Anzahl Buchungen */}
           <div className="space-y-2">
             <Label htmlFor="lookahead-bookings">Buchungen im Voraus</Label>
@@ -145,26 +148,53 @@ const AutoLinenOrderSettingsCard = () => {
             </p>
           </div>
 
-          {/* Vorlaufzeit Lieferung */}
+          {/* Lieferzeitpunkt */}
           <div className="space-y-2">
-            <Label htmlFor="delivery-advance">Vorlaufzeit Lieferung (Tage)</Label>
-            <Input
-              id="delivery-advance"
-              type="number"
-              min={1}
-              max={30}
-              value={localDeliveryAdvanceDays}
-              onChange={(e) => {
-                setLocalDeliveryAdvanceDays(parseInt(e.target.value) || 14);
+            <Label htmlFor="delivery-timing">Lieferzeitpunkt</Label>
+            <Select
+              value={localDeliveryTiming}
+              onValueChange={(value: 'day_before_cleaning' | 'day_of_cleaning' | 'relative_to_checkin') => {
+                setLocalDeliveryTiming(value);
                 handleChange();
               }}
               disabled={!localIsEnabled}
-              className="bg-background"
-            />
+            >
+              <SelectTrigger id="delivery-timing" className="bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-background z-50">
+                <SelectItem value="day_before_cleaning">📦 Tag vor Reinigung</SelectItem>
+                <SelectItem value="day_of_cleaning">📦 Am Reinigungstag</SelectItem>
+                <SelectItem value="relative_to_checkin">📅 Freie Auswahl</SelectItem>
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
-              Lieferung X Tage vor Check-in
+              Wann soll geliefert werden?
             </p>
           </div>
+
+          {/* Vorlaufzeit Lieferung - nur bei Freie Auswahl */}
+          {localDeliveryTiming === 'relative_to_checkin' && (
+            <div className="space-y-2">
+              <Label htmlFor="delivery-advance">Vorlaufzeit (Tage)</Label>
+              <Input
+                id="delivery-advance"
+                type="number"
+                min={1}
+                max={30}
+                value={localDeliveryAdvanceDays}
+                onChange={(e) => {
+                  setLocalDeliveryAdvanceDays(parseInt(e.target.value) || 14);
+                  handleChange();
+                }}
+                disabled={!localIsEnabled}
+                className="bg-background"
+              />
+              <p className="text-xs text-muted-foreground">
+                Lieferung X Tage vor Check-in
+              </p>
+            </div>
+          )}
 
           {/* Minimaler Vorlauf */}
           <div className="space-y-2">
@@ -223,7 +253,15 @@ const AutoLinenOrderSettingsCard = () => {
             Täglich um 6:00 Uhr prüft das System die nächsten <strong>{localLookaheadBookings} Buchungen</strong> pro Haus. 
             Wenn keine Wäschebestellung existiert und der Check-in mindestens <strong>{localMinAdvanceDays} Tage</strong> entfernt ist, 
             wird automatisch eine Bestellung mit Status "offen" erstellt. 
-            Der Liefertermin wird auf <strong>{localDeliveryAdvanceDays} Tage vor Check-in</strong> gesetzt.
+            {localDeliveryTiming === 'day_before_cleaning' && (
+              <> Der Liefertermin wird auf <strong>1 Tag vor der Reinigung</strong> gesetzt.</>
+            )}
+            {localDeliveryTiming === 'day_of_cleaning' && (
+              <> Der Liefertermin wird auf <strong>den Reinigungstag</strong> gesetzt.</>
+            )}
+            {localDeliveryTiming === 'relative_to_checkin' && (
+              <> Der Liefertermin wird auf <strong>{localDeliveryAdvanceDays} Tage vor Check-in</strong> gesetzt.</>
+            )}
           </p>
         </div>
       </CardContent>
