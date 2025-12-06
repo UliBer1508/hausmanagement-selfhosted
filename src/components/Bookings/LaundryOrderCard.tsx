@@ -18,17 +18,25 @@ const ITEM_DISPLAY_ORDER = [
   'blankets',       // 9. Decken
 ];
 
-// Schlafbereich-Artikel: LINEN_COLORS (grau gestreift, weiß gestreift, bunt)
-const ITEMS_WITH_LINEN_COLOR = ['bedding', 'pillow_cases', 'blankets'];
+// Kategorie-zu-Farbtyp-Mapping für dynamische Artikel
+const SCHLAFBEREICH_DEFAULT_ITEMS = ['bedding', 'pillow_cases', 'blankets', 'spannbetttuch'];
+const BADBEREICH_WELLNESS_DEFAULT_ITEMS = ['large_towels', 'small_towels', 'bath_mats', 'sink_towels', 'sauna_towels'];
 
-// Badbereich/Wellness-Artikel: ITEM_COLORS (weiß, grau)
-const ITEMS_WITH_ITEM_COLOR = [
-  'large_towels',    // Badetücher
-  'small_towels',    // Handtücher
-  'bath_mats',       // Badvorleger
-  'sink_towels',     // WB-Handtücher
-  'sauna_towels'     // Saunatücher
-];
+// Prüft ob Artikel Schlafbereich-Farben hat (inkl. custom items)
+const hasLinenColor = (itemType: string): boolean => {
+  // Bekannte Schlafbereich-Artikel
+  if (SCHLAFBEREICH_DEFAULT_ITEMS.includes(itemType)) return true;
+  // Custom items mit "bett", "laken", "decke" im Namen
+  const lowerType = itemType.toLowerCase();
+  return lowerType.includes('bett') || lowerType.includes('laken') || lowerType.includes('decke') || lowerType.includes('kissen');
+};
+
+// Prüft ob Artikel Bad/Wellness-Farben hat
+const hasItemColor = (itemType: string): boolean => {
+  if (BADBEREICH_WELLNESS_DEFAULT_ITEMS.includes(itemType)) return true;
+  const lowerType = itemType.toLowerCase();
+  return lowerType.includes('handtuch') || lowerType.includes('towel') || lowerType.includes('matte') || lowerType.includes('sauna');
+};
 
 interface LaundryOrderCardProps {
   order: any;
@@ -225,8 +233,8 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                       .map(([itemType, count]: [string, any]) => {
                         const itemVariants = order.item_variants as Record<string, string> | null;
                         const itemColor = itemVariants?.[itemType];
-                        const hasLinenColor = ITEMS_WITH_LINEN_COLOR.includes(itemType);
-                        const hasItemColor = ITEMS_WITH_ITEM_COLOR.includes(itemType);
+                        const itemHasLinenColor = hasLinenColor(itemType);
+                        const itemHasItemColor = hasItemColor(itemType);
                         
                         const translateItemType = (type: string) => {
                           const translations: Record<string, string> = {
@@ -247,9 +255,9 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                           <tr key={itemType}>
                             <td className="py-0.5">{translateItemType(itemType)}</td>
                             <td className="text-center py-0.5">
-                              {hasLinenColor
+                              {itemHasLinenColor
                                 ? (itemColor ? getLinenColorLabel(itemColor as LinenColor) : '⬜ Weiß gestreift')
-                                : hasItemColor
+                                : itemHasItemColor
                                   ? (itemColor ? getItemColorLabel(itemColor as ItemColor) : '⬜ Weiß')
                                   : <span className="text-muted-foreground">-</span>
                               }
