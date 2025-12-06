@@ -9,25 +9,28 @@ import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/
 const ITEM_DISPLAY_ORDER = [
   'bedding',        // 1. Bettwäsche
   'pillow_cases',   // 2. Kissenbezüge
-  'small_towels',   // 3. Handtücher
-  'large_towels',   // 4. Badetücher
-  'sauna_towels',   // 5. Saunatücher
-  'bath_mats',      // 6. Badematten
-  'sink_towels',    // 7. WB-Handtücher
-  'kitchen_towels', // 8. Geschirrtücher
-  'blankets',       // 9. Decken
+  'spannbetttuch',  // 3. Spannbetttuch
+  'small_towels',   // 4. Handtücher
+  'large_towels',   // 5. Badetücher
+  'sauna_towels',   // 6. Saunatücher
+  'bath_mats',      // 7. Badematten
+  'sink_towels',    // 8. WB-Handtücher
+  'kitchen_towels', // 9. Geschirrtücher
+  'blankets',       // 10. Decken
 ];
 
 // Kategorie-zu-Farbtyp-Mapping für dynamische Artikel
-const SCHLAFBEREICH_DEFAULT_ITEMS = ['bedding', 'pillow_cases', 'blankets', 'spannbetttuch'];
-const BADBEREICH_WELLNESS_DEFAULT_ITEMS = ['large_towels', 'small_towels', 'bath_mats', 'sink_towels', 'sauna_towels'];
+// Spannbetttuch gehört NICHT zu Schlafbereich (hat nur Weiß/Grau, nicht gestreift)
+const SCHLAFBEREICH_DEFAULT_ITEMS = ['bedding', 'pillow_cases', 'blankets'];
+const BADBEREICH_WELLNESS_DEFAULT_ITEMS = ['large_towels', 'small_towels', 'bath_mats', 'sink_towels', 'sauna_towels', 'spannbetttuch'];
 
 // Prüft ob Artikel Schlafbereich-Farben hat (inkl. custom items)
 const hasLinenColor = (itemType: string): boolean => {
   // Bekannte Schlafbereich-Artikel
   if (SCHLAFBEREICH_DEFAULT_ITEMS.includes(itemType)) return true;
-  // Custom items mit "bett", "laken", "decke" im Namen
+  // Custom items mit "bett", "laken", "decke" im Namen - ABER NICHT spannbetttuch
   const lowerType = itemType.toLowerCase();
+  if (lowerType === 'spannbetttuch') return false;
   return lowerType.includes('bett') || lowerType.includes('laken') || lowerType.includes('decke') || lowerType.includes('kissen');
 };
 
