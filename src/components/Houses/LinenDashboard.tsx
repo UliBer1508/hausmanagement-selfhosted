@@ -380,6 +380,8 @@ const LinenDashboard = () => {
           delivery_date: orderData.deliveryDate,
           delivery_type: orderData.deliveryType,
           booking_id: orderData.booking_id,
+          linen_color: orderData.linenColor,
+          item_variants: orderData.itemColors,
         })
         .eq('id', orderId)
         .select()
