@@ -63,7 +63,12 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     if (linenDef && !hasMigrated) {
       const migratedItems = migrateOldToNewStructure(linenDef);
       setItems(migratedItems);
-      setOriginalItems(JSON.parse(JSON.stringify(migratedItems)));
+      
+      // WICHTIG: Original auf echte DB-Werte setzen (nicht migrierte Werte!)
+      // So wird hasChanges = true wenn Migration color-Felder hinzugefügt hat
+      const dbItems = linenDef.custom_categories || {};
+      setOriginalItems(JSON.parse(JSON.stringify(dbItems)));
+      
       setHasMigrated(true);
     }
   }, [linenDef, hasMigrated]);
