@@ -58,20 +58,39 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     enabled: !!house?.id,
   });
 
-  // Migrate old structure to new on first load
+  // Migrate old structure to new on first load + auto-save missing colors
   useEffect(() => {
     if (linenDef && !hasMigrated) {
       const migratedItems = migrateOldToNewStructure(linenDef);
       setItems(migratedItems);
       
-      // WICHTIG: Original auf echte DB-Werte setzen (nicht migrierte Werte!)
-      // So wird hasChanges = true wenn Migration color-Felder hinzugefügt hat
       const dbItems = linenDef.custom_categories || {};
       setOriginalItems(JSON.parse(JSON.stringify(dbItems)));
-      
       setHasMigrated(true);
+      
+      // Prüfen ob Migration neue color-Felder hinzugefügt hat
+      const hasNewColorFields = Object.entries(migratedItems).some(([key, item]) => {
+        const dbItem = dbItems[key];
+        return item.color !== undefined && (!dbItem || dbItem.color === undefined);
+      });
+      
+      // Wenn neue Farben hinzugefügt wurden, automatisch speichern
+      if (hasNewColorFields && Object.keys(dbItems).length > 0) {
+        console.log('Migration: Speichere fehlende color-Felder automatisch...');
+        supabase
+          .from('linen_set_definitions')
+          .update({ custom_categories: JSON.parse(JSON.stringify(migratedItems)) })
+          .eq('house_id', house.id)
+          .then(({ error }) => {
+            if (!error) {
+              console.log('Migration: color-Felder erfolgreich gespeichert');
+              setOriginalItems(JSON.parse(JSON.stringify(migratedItems)));
+              queryClient.invalidateQueries({ queryKey: ['linen-definitions', house.id] });
+            }
+          });
+      }
     }
-  }, [linenDef, hasMigrated]);
+  }, [linenDef, hasMigrated, house?.id, queryClient]);
 
   // Check for changes (items + color)
   useEffect(() => {
