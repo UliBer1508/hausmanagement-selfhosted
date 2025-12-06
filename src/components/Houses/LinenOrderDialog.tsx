@@ -22,14 +22,23 @@ import { LinenColor, LINEN_COLORS, getLinenColorLabel, ItemColor, ITEM_COLORS } 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+// Dynamisch prüfen ob Artikel Farbauswahl braucht basierend auf Kategorie
+const getItemCategory = (itemType: string, linenDef: any): string | null => {
+  const customCat = linenDef?.custom_categories?.[itemType];
+  return customCat?.category || null;
+};
+
 // Schlafbereich-Artikel: LINEN_COLORS (grau gestreift, weiß gestreift, bunt)
-const ITEMS_WITH_LINEN_COLOR = ['bedding', 'pillow_cases', 'blankets'];
+const hasLinenColorByCategory = (itemType: string, linenDef: any): boolean => {
+  const category = getItemCategory(itemType, linenDef);
+  return category === 'Schlafbereich';
+};
 
 // Badbereich/Wellness-Artikel: ITEM_COLORS (weiß, grau)
-const ITEMS_WITH_ITEM_COLOR = ['large_towels', 'small_towels', 'bath_mats', 'sink_towels', 'sauna_towels'];
-
-// Alle Artikel mit Farbauswahl
-const ITEMS_WITH_COLOR_SELECTION = [...ITEMS_WITH_LINEN_COLOR, ...ITEMS_WITH_ITEM_COLOR];
+const hasItemColorByCategory = (itemType: string, linenDef: any): boolean => {
+  const category = getItemCategory(itemType, linenDef);
+  return category === 'Badbereich' || category === 'Wellness';
+};
 
 // Fallback Kategorien-Definition (wenn keine custom_categories vorhanden)
 const DEFAULT_LINEN_CATEGORIES = {
@@ -357,27 +366,30 @@ const LinenOrderDialog = ({
       // PRIO 1: Im Edit-Mode gespeicherte Farben aus initialData.item_variants laden
       if (mode === 'edit' && initialData?.item_variants) {
         Object.entries(initialData.item_variants).forEach(([key, color]) => {
-          if (ITEMS_WITH_COLOR_SELECTION.includes(key)) {
-            colors[key] = color as ItemColor | LinenColor;
-          }
+          colors[key] = color as ItemColor | LinenColor;
         });
       }
-      // PRIO 2: Nur im Create-Mode aus linenSetDefinition laden
-      else if (linenSetDefinition?.custom_categories) {
-        Object.entries(linenSetDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
-          if (config?.color && ITEMS_WITH_COLOR_SELECTION.includes(key)) {
+      // PRIO 2: Nur im Create-Mode aus effectiveLinenDefinition laden
+      else if (effectiveLinenDefinition?.custom_categories) {
+        Object.entries(effectiveLinenDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
+          if (config?.color) {
             colors[key] = config.color;
           }
         });
       }
       
-      // Fallbacks für alle fehlenden Farben setzen
-      ITEMS_WITH_LINEN_COLOR.forEach(key => {
-        if (!colors[key]) colors[key] = 'white_striped';
-      });
-      ITEMS_WITH_ITEM_COLOR.forEach(key => {
-        if (!colors[key]) colors[key] = 'white';
-      });
+      // Fallbacks dynamisch basierend auf Kategorie setzen
+      if (effectiveLinenDefinition?.custom_categories) {
+        Object.entries(effectiveLinenDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
+          if (!colors[key] && config?.active !== false) {
+            if (config.category === 'Schlafbereich') {
+              colors[key] = 'white_striped';
+            } else if (config.category === 'Badbereich' || config.category === 'Wellness') {
+              colors[key] = 'white';
+            }
+          }
+        });
+      }
       setItemColors(colors);
     }
   }, [open, mode, effectiveLinenDefinition, initialData]);
@@ -820,8 +832,8 @@ const LinenOrderDialog = ({
                             </div>
                             
                             <div className="flex items-center gap-2">
-                              {/* Farbauswahl für Schlafbereich: LINEN_COLORS */}
-                              {ITEMS_WITH_LINEN_COLOR.includes(itemType) && isActive && (
+                            {/* Farbauswahl für Schlafbereich: LINEN_COLORS */}
+                              {hasLinenColorByCategory(itemType, effectiveLinenDefinition) && isActive && (
                                 <Select
                                   value={itemColors[itemType] || 'white_striped'}
                                   onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as LinenColor }))}
@@ -839,7 +851,7 @@ const LinenOrderDialog = ({
                                 </Select>
                               )}
                               {/* Farbauswahl für Badbereich/Wellness: ITEM_COLORS */}
-                              {ITEMS_WITH_ITEM_COLOR.includes(itemType) && isActive && (
+                              {hasItemColorByCategory(itemType, effectiveLinenDefinition) && isActive && (
                                 <Select
                                   value={itemColors[itemType] || 'white'}
                                   onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as ItemColor }))}
