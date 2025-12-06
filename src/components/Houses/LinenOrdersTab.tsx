@@ -123,7 +123,9 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
           notes: orderData.notes,
           delivery_date: orderData.deliveryDate,
           delivery_type: orderData.deliveryType || 'delivery',
-          total_items: Object.values(orderData.orderItems as Record<string, number>).reduce((sum, count) => sum + count, 0)
+          total_items: Object.values(orderData.orderItems as Record<string, number>).reduce((sum, count) => sum + count, 0),
+          linen_color: orderData.linenColor,
+          item_variants: orderData.itemColors,
         })
         .eq('id', orderId)
         .select()
