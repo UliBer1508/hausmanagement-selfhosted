@@ -29,8 +29,8 @@ const ITEMS_WITH_ITEM_COLOR = ['large_towels', 'small_towels', 'bath_mats', 'sin
 // Alle Artikel mit Farbauswahl
 const ITEMS_WITH_COLOR_SELECTION = [...ITEMS_WITH_LINEN_COLOR, ...ITEMS_WITH_ITEM_COLOR];
 
-// Kategorien-Definition
-const LINEN_CATEGORIES = {
+// Fallback Kategorien-Definition (wenn keine custom_categories vorhanden)
+const DEFAULT_LINEN_CATEGORIES = {
   sleeping: {
     label: '🛏️ Schlafbereich',
     items: ['bedding', 'pillow_cases', 'blankets']
@@ -49,8 +49,62 @@ const LINEN_CATEGORIES = {
   }
 };
 
-// Alle Standard-Artikel
-const ALL_STANDARD_ITEMS = Object.values(LINEN_CATEGORIES).flatMap(cat => cat.items);
+// Fallback Labels
+const DEFAULT_LINEN_LABELS: Record<string, string> = {
+  bedding: 'Bettwäsche',
+  large_towels: 'Badetücher',
+  small_towels: 'Handtücher',
+  sauna_towels: 'Saunatücher',
+  bath_mats: 'Badematten',
+  sink_towels: 'WB-Handtücher',
+  kitchen_towels: 'Geschirrtücher',
+  blankets: 'Decken',
+  pillow_cases: 'Kissenbezüge',
+};
+
+// Dynamisch Kategorien aus custom_categories laden
+const buildCategoriesFromDefinition = (linenDef: any) => {
+  const categories: Record<string, { label: string; items: string[] }> = {
+    sleeping: { label: '🛏️ Schlafbereich', items: [] },
+    bathroom: { label: '🛁 Badbereich', items: [] },
+    wellness: { label: '🧖 Wellness', items: [] },
+    kitchen: { label: '🍴 Küche', items: [] },
+  };
+  
+  if (linenDef?.custom_categories) {
+    Object.entries(linenDef.custom_categories).forEach(([key, config]: [string, any]) => {
+      if (config?.active !== false) {
+        const category = config.category || 'Schlafbereich';
+        if (category === 'Schlafbereich') categories.sleeping.items.push(key);
+        else if (category === 'Badbereich') categories.bathroom.items.push(key);
+        else if (category === 'Wellness') categories.wellness.items.push(key);
+        else if (category === 'Küchenbereich') categories.kitchen.items.push(key);
+      }
+    });
+  }
+  
+  // Fallback wenn keine custom_categories: Standard-Items verwenden
+  if (Object.values(categories).every(cat => cat.items.length === 0)) {
+    return DEFAULT_LINEN_CATEGORIES;
+  }
+  
+  return categories;
+};
+
+// Dynamisch Labels aus custom_categories laden
+const buildLabelsFromDefinition = (linenDef: any): Record<string, string> => {
+  const labels: Record<string, string> = { ...DEFAULT_LINEN_LABELS };
+  
+  if (linenDef?.custom_categories) {
+    Object.entries(linenDef.custom_categories).forEach(([key, config]: [string, any]) => {
+      if (config?.label) {
+        labels[key] = config.label;
+      }
+    });
+  }
+  
+  return labels;
+};
 
 interface LinenOrderDialogProps {
   open: boolean;
@@ -308,6 +362,15 @@ const LinenOrderDialog = ({
     }
   }, [open, mode, linenSetDefinition, initialData]);
 
+  // Dynamische Kategorien und Labels aus Definition aufbauen
+  const dynamicCategories = useMemo(() => {
+    return buildCategoriesFromDefinition(linenSetDefinition);
+  }, [linenSetDefinition]);
+  
+  const dynamicLabels = useMemo(() => {
+    return buildLabelsFromDefinition(linenSetDefinition);
+  }, [linenSetDefinition]);
+
   // Separater useEffect für Edit-Mode: Lade tatsächliche Order-Items und Buchung
   useEffect(() => {
     if (open && mode === 'edit') {
@@ -318,37 +381,29 @@ const LinenOrderDialog = ({
       setOrderType(selectedBooking ? 'standard' : 'exceptional');
       
       if (orderItems) {
-        // Alle verfügbaren Kategorien mit Wert 0 initialisieren
-        const allCategories: Record<string, number> = {
-          bedding: 0,
-          large_towels: 0,
-          small_towels: 0,
-          sauna_towels: 0,
-          bath_mats: 0,
-          sink_towels: 0,
-          kitchen_towels: 0,
-          blankets: 0,
-          pillow_cases: 0,
-        };
+        // Alle verfügbaren Artikel aus der Definition mit Wert 0 initialisieren
+        const allAvailableItems: Record<string, number> = {};
+        if (linenSetDefinition?.custom_categories) {
+          Object.entries(linenSetDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
+            if (config?.active !== false) {
+              allAvailableItems[key] = 0;
+            }
+          });
+        } else {
+          // Fallback: Standard-Artikel
+          Object.values(DEFAULT_LINEN_CATEGORIES).forEach(cat => {
+            cat.items.forEach(item => {
+              allAvailableItems[item] = 0;
+            });
+          });
+        }
         
         // Bestehende Werte überschreiben
-        const mergedItems = { ...allCategories, ...orderItems };
+        const mergedItems = { ...allAvailableItems, ...orderItems };
         setEditableItems(mergedItems);
       }
     }
-  }, [open, mode, orderItems, selectedBooking]);
-
-  const linenLabels: Record<string, string> = {
-    bedding: 'Bettwäsche',
-    large_towels: 'Badetücher',
-    small_towels: 'Handtücher',
-    sauna_towels: 'Saunatücher',
-    bath_mats: 'Badematten',
-    sink_towels: 'WB-Handtücher',
-    kitchen_towels: 'Geschirrtücher',
-    blankets: 'Decken',
-    pillow_cases: 'Kissenbezüge',
-  };
+  }, [open, mode, orderItems, selectedBooking, linenSetDefinition]);
 
   const totalItems = useMemo(() => 
     Object.values(editableItems).reduce((sum, count) => sum + count, 0),
@@ -702,7 +757,10 @@ const LinenOrderDialog = ({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {Object.entries(LINEN_CATEGORIES).map(([catKey, category]) => {
+              {Object.entries(dynamicCategories).map(([catKey, category]) => {
+                // Kategorien ohne Artikel überspringen
+                if (category.items.length === 0) return null;
+                
                 // Im Create-Mode: nur Kategorien mit Artikeln > 0 anzeigen
                 // Im Edit-Mode: alle Kategorien anzeigen
                 const categoryItems = category.items.filter(itemType => 
@@ -731,7 +789,7 @@ const LinenOrderDialog = ({
                           >
                             <div className="flex-1 min-w-0">
                               <div className={cn("font-medium text-sm", !isActive && "text-muted-foreground")}>
-                                {linenLabels[itemType] || itemType}
+                                {dynamicLabels[itemType] || itemType}
                               </div>
                             </div>
                             
