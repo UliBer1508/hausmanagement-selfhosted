@@ -189,7 +189,7 @@ export const useMorningSummary = () => {
 const translateLinenItem = (item: string): string => {
   const labels: Record<string, string> = {
     bedding: 'Bettwäsche',
-    large_towels: 'Große Handtücher',
+    large_towels: 'Badetücher',
     small_towels: 'Kleine Handtücher',
     sauna_towels: 'Saunatücher',
     bath_mats: 'Badematten',

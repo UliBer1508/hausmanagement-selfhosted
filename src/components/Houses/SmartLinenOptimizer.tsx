@@ -66,7 +66,7 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
 
   const linenLabels: Record<keyof LinenItem, string> = {
     bedding: 'Bettwäsche',
-    large_towels: 'Große Handtücher',
+    large_towels: 'Badetücher',
     small_towels: 'Kleine Handtücher',
     bath_mats: 'Badematten',
     sink_towels: 'WB-Handtücher',
