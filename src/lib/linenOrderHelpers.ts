@@ -25,6 +25,7 @@ export const translateItemType = (key: string): string => {
     bath_mats: 'Badvorleger',
     kitchen_towels: 'Geschirrtücher',
     pillow_cases: 'Kopfkissen',
+    spannbetttuch: 'Spannbetttuch',
   };
   return translations[key] || key;
 };
