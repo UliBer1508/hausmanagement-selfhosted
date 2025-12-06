@@ -49,6 +49,7 @@ interface LinenOrderDialogProps {
     status?: 'pending' | 'in-progress' | 'completed' | 'delivered';
     sendEmail?: boolean;
     linenColor?: LinenColor;
+    itemColors?: Record<string, ItemColor>;
   }) => void;
   onSendEmail?: (orderId: string) => void;
   isCreating?: boolean;
@@ -323,6 +324,7 @@ const LinenOrderDialog = ({
           status: status,
           sendEmail: sendToTeuni,
           linenColor: selectedColor,
+          itemColors: itemColors,
         });
       } else {
         const validatedData = exceptionalLinenOrderSchema.parse({
@@ -340,6 +342,7 @@ const LinenOrderDialog = ({
           status: status,
           sendEmail: sendToTeuni,
           linenColor: selectedColor,
+          itemColors: itemColors,
         });
       }
 

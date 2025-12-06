@@ -209,6 +209,7 @@ export const useBookingLinenOrders = (houseId: string) => {
           delivery_type: userOverrides.deliveryType || 'delivery',
           notes: userOverrides.notes || generatedData.note,
           linen_color: userOverrides.linenColor || 'white_striped',
+          item_variants: userOverrides.itemColors || null,
         })
         .select('*, bookings(*), houses(*)')
         .single();
