@@ -103,7 +103,7 @@ const LinenInventory = ({ house }: LinenInventoryProps) => {
     { key: 'sauna_towels', label: 'Saunatücher', icon: '🧖‍♀️' },
     { key: 'bath_mats', label: 'Badematten', icon: '🛁' },
     { key: 'sink_towels', label: 'WB-Handtücher', icon: '🚰' },
-    { key: 'kitchen_towels', label: 'Küchentücher', icon: '🍽️' },
+    { key: 'kitchen_towels', label: 'Geschirrtücher', icon: '🍽️' },
     { key: 'blankets', label: 'Decken', icon: '🛋️' },
     { key: 'pillow_cases', label: 'Kissenbezüge', icon: '😴' },
   ];
@@ -115,7 +115,7 @@ const LinenInventory = ({ house }: LinenInventoryProps) => {
     { key: 'sauna_towels_per_guest', label: 'Saunatücher pro Gast' },
     { key: 'bath_mats_per_booking', label: 'Badematten pro Buchung' },
     { key: 'sink_towels_per_booking', label: 'WB-Handtücher pro Buchung' },
-    { key: 'kitchen_towels_per_booking', label: 'Küchentücher pro Buchung' },
+    { key: 'kitchen_towels_per_booking', label: 'Geschirrtücher pro Buchung' },
     { key: 'blankets_per_guest', label: 'Decken pro Gast' },
     { key: 'pillow_cases_per_guest', label: 'Kissenbezüge pro Gast' },
   ];

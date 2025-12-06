@@ -70,7 +70,7 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
         sauna_towels_per_guest: { key: 'sauna_towels', label: 'Saunatücher' },
         bath_mats_per_booking: { key: 'bath_mats', label: 'Badematten' },
         sink_towels_per_booking: { key: 'sink_towels', label: 'WB-Handtücher' },
-        kitchen_towels_per_booking: { key: 'kitchen_towels', label: 'Küchenhandtücher' }
+        kitchen_towels_per_booking: { key: 'kitchen_towels', label: 'Geschirrtücher' }
       };
       
       Object.entries(oldColumnMap).forEach(([oldKey, { key, label }]) => {

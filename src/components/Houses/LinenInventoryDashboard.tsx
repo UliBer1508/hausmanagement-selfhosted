@@ -196,7 +196,7 @@ const LinenInventoryDashboard = ({ house }: LinenInventoryDashboardProps) => {
       { key: 'pillow_cases', label: 'Kissenbezüge', perGuestKey: 'pillow_cases_per_guest' as const, perBookingKey: null },
       { key: 'sauna_towels', label: 'Saunatücher', perGuestKey: 'sauna_towels_per_guest' as const, perBookingKey: null },
       { key: 'small_towels', label: 'Handtücher klein', perGuestKey: 'small_towels_per_guest' as const, perBookingKey: null },
-      { key: 'kitchen_towels', label: 'Küchentücher', perGuestKey: null, perBookingKey: 'kitchen_towels_per_booking' as const },
+      { key: 'kitchen_towels', label: 'Geschirrtücher', perGuestKey: null, perBookingKey: 'kitchen_towels_per_booking' as const },
     ];
 
     const bookingsToConsider = selectedBookings.length > 0 
