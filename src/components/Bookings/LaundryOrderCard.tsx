@@ -3,7 +3,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Edit, Package, Trash2, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getLinenColorLabel, LinenColor } from '@/types/linen';
+import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
+
+// Artikel die eine Farbauswahl (weiß/grau) haben
+const ITEMS_WITH_COLOR_SELECTION = [
+  'large_towels',    // Badetücher
+  'small_towels',    // Handtücher
+  'bath_mats',       // Badvorleger
+  'sink_towels',     // WB-Handtücher
+  'sauna_towels'     // Saunatücher
+];
 
 interface LaundryOrderCardProps {
   order: any;
@@ -164,42 +173,69 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
               </div>
             )}
 
-            {/* Items List - alle Artikel untereinander */}
+            {/* Items Table - Artikel mit Farbe und Anzahl */}
             {((order.laundry_order_items && order.laundry_order_items.length > 0) || order.items) && (
               <div className="space-y-1">
                 <p className="text-xs text-muted-foreground font-medium">Artikel ({getTotalItems()} gesamt):</p>
-                <div className="space-y-1">
-                  {/* Handle laundry_order_items (array format) */}
-                  {order.laundry_order_items && order.laundry_order_items
-                    .filter((item: any) => item.quantity > 0)
-                    .map((item: any) => (
-                    <div key={item.id} className="flex justify-between gap-2 text-sm">
-                      <span>{item.item_name}</span>
-                      <span className="text-muted-foreground flex-shrink-0">{item.quantity}x</span>
-                    </div>
-                  ))}
-                  
-                  {/* Handle linen order items (JSON object format) */}
-                  {order.items && Object.entries(order.items)
-                    .filter(([_, count]: [string, any]) => count > 0)
-                    .map(([itemType, count]: [string, any]) => (
-                    <div key={itemType} className="flex justify-between gap-2 text-sm">
-                      <span>
-                         {itemType === 'kitchen_towels' ? 'Geschirrtücher' : 
-                         itemType === 'bedding' ? 'Bettwäsche' :
-                         itemType === 'large_towels' ? 'Badetücher' :
-                         itemType === 'small_towels' ? 'Handtücher' :
-                         itemType === 'bath_mats' ? 'Badematten' :
-                         itemType === 'sauna_towels' ? 'Saunatücher' :
-                         itemType === 'sink_towels' ? 'WB-Handtücher' :
-                         itemType === 'blankets' ? 'Decken' :
-                         itemType === 'pillow_cases' ? 'Kissenbezüge' :
-                         itemType}
-                      </span>
-                      <span className="text-muted-foreground flex-shrink-0">{count}x</span>
-                    </div>
-                  ))}
-                </div>
+                
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-muted-foreground border-b">
+                      <th className="text-left font-medium pb-1">Artikel</th>
+                      <th className="text-center font-medium pb-1">Farbe</th>
+                      <th className="text-right font-medium pb-1">Anz.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Handle laundry_order_items (array format) */}
+                    {order.laundry_order_items && order.laundry_order_items
+                      .filter((item: any) => item.quantity > 0)
+                      .map((item: any) => (
+                      <tr key={item.id}>
+                        <td className="py-0.5">{item.item_name}</td>
+                        <td className="text-center py-0.5 text-muted-foreground">-</td>
+                        <td className="text-right text-muted-foreground py-0.5">{item.quantity}x</td>
+                      </tr>
+                    ))}
+                    
+                    {/* Handle linen order items (JSON object format) */}
+                    {order.items && Object.entries(order.items)
+                      .filter(([_, count]: [string, any]) => count > 0)
+                      .map(([itemType, count]: [string, any]) => {
+                        const itemVariants = order.item_variants as Record<string, ItemColor> | null;
+                        const itemColor = itemVariants?.[itemType];
+                        const hasColorSelection = ITEMS_WITH_COLOR_SELECTION.includes(itemType);
+                        
+                        const translateItemType = (type: string) => {
+                          const translations: Record<string, string> = {
+                            'kitchen_towels': 'Geschirrtücher',
+                            'bedding': 'Bettwäsche',
+                            'large_towels': 'Badetücher',
+                            'small_towels': 'Handtücher',
+                            'bath_mats': 'Badematten',
+                            'sauna_towels': 'Saunatücher',
+                            'sink_towels': 'WB-Handtücher',
+                            'blankets': 'Decken',
+                            'pillow_cases': 'Kissenbezüge'
+                          };
+                          return translations[type] || type;
+                        };
+                        
+                        return (
+                          <tr key={itemType}>
+                            <td className="py-0.5">{translateItemType(itemType)}</td>
+                            <td className="text-center py-0.5">
+                              {hasColorSelection 
+                                ? (itemColor ? getItemColorLabel(itemColor) : '⬜ Weiß')
+                                : <span className="text-muted-foreground">-</span>
+                              }
+                            </td>
+                            <td className="text-right text-muted-foreground py-0.5">{count}x</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
             )}
 
