@@ -177,7 +177,7 @@ const LinenOrderDialog = ({
   const [orderType, setOrderType] = useState<'standard' | 'exceptional'>(
     selectedBooking ? 'standard' : 'exceptional'
   );
-  const [exceptionReason, setExceptionReason] = useState<string>('general_cleaning');
+  
   const [itemColors, setItemColors] = useState<Record<string, ItemColor | LinenColor>>({});
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
@@ -373,15 +373,12 @@ const LinenOrderDialog = ({
         const validatedData = exceptionalLinenOrderSchema.parse({
           ...baseOrderData,
           orderType: 'exceptional',
-          exceptionReason,
-          notes: notes.trim() || `Ausnahmebestellung: ${getExceptionReasonLabel(exceptionReason)}`,
         });
         
         onCreateOrder({
           ...baseOrderData,
           orderType: 'exceptional',
-          exceptionReason,
-          notes: notes.trim() || `Ausnahmebestellung: ${getExceptionReasonLabel(exceptionReason)}`,
+          notes: notes.trim(),
           status: status,
           sendEmail: sendToTeuni,
           linenColor: null,
@@ -396,7 +393,6 @@ const LinenOrderDialog = ({
       setStatus('pending');
       setEditableItems(orderItems);
       setOrderType(selectedBooking ? 'standard' : 'exceptional');
-      setExceptionReason('general_cleaning');
       onOpenChange(false);
     } catch (error: any) {
       if (error.errors) {
@@ -412,16 +408,6 @@ const LinenOrderDialog = ({
       ...prev,
       [itemType]: Math.max(0, quantity)
     }));
-  };
-
-  const getExceptionReasonLabel = (reason: string) => {
-    const labels = {
-      general_cleaning: 'Generalreinigung',
-      inventory_restock: 'Inventar-Auffüllung',
-      emergency_order: 'Notbestellung',
-      maintenance: 'Wartung/Instandhaltung'
-    };
-    return labels[reason as keyof typeof labels] || reason;
   };
 
   return (
@@ -499,23 +485,6 @@ const LinenOrderDialog = ({
             </Card>
           )}
 
-          {/* Exception Reason Selection */}
-          {orderType === 'exceptional' && (
-            <div className="space-y-2">
-              <Label>Grund für Ausnahmebestellung</Label>
-              <Select value={exceptionReason} onValueChange={setExceptionReason}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Grund auswählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="general_cleaning">🧹 Generalreinigung</SelectItem>
-                  <SelectItem value="inventory_restock">📦 Inventar-Auffüllung</SelectItem>
-                  <SelectItem value="emergency_order">🚨 Notbestellung</SelectItem>
-                  <SelectItem value="maintenance">🔧 Wartung/Instandhaltung</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
 
 
 
