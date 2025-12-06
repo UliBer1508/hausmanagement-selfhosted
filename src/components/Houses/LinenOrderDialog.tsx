@@ -18,7 +18,16 @@ import { CalendarIcon, ShoppingCart, Mail, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { standardLinenOrderSchema, exceptionalLinenOrderSchema } from './schemas/LinenOrderSchema';
 import { translateItemType, formatCurrency } from '@/lib/linenOrderHelpers';
-import { LinenColor, LINEN_COLORS, getLinenColorLabel } from '@/types/linen';
+import { LinenColor, LINEN_COLORS, getLinenColorLabel, ItemColor, ITEM_COLORS } from '@/types/linen';
+
+// Artikel die eine Farbauswahl (weiß/grau) haben
+const ITEMS_WITH_COLOR_SELECTION = [
+  'large_towels',    // Badetücher (Badbereich)
+  'small_towels',    // Handtücher (Badbereich)
+  'bath_mats',       // Badvorleger (Badbereich)
+  'sink_towels',     // WB-Handtücher (Badbereich)
+  'sauna_towels'     // Saunatücher (Wellness)
+];
 
 interface LinenOrderDialogProps {
   open: boolean;
@@ -147,6 +156,7 @@ const LinenOrderDialog = ({
   const [selectedColor, setSelectedColor] = useState<LinenColor>(
     initialData?.linenColor || defaultLinenColor || 'white_striped'
   );
+  const [itemColors, setItemColors] = useState<Record<string, ItemColor>>({});
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Debug logging for generatedOrderData
@@ -207,6 +217,25 @@ const LinenOrderDialog = ({
       }
     }
   }, [open, mode, selectedBooking, linenSetDefinition, initialData, orderItems, generatedOrderData]);
+
+  // Initialisiere Artikelfarben aus linenSetDefinition.custom_categories
+  useEffect(() => {
+    if (open && linenSetDefinition?.custom_categories) {
+      const colors: Record<string, ItemColor> = {};
+      Object.entries(linenSetDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
+        if (config?.color && ITEMS_WITH_COLOR_SELECTION.includes(key)) {
+          colors[key] = config.color as ItemColor;
+        }
+      });
+      // Fallback für Items ohne Farbe: Weiß
+      ITEMS_WITH_COLOR_SELECTION.forEach(key => {
+        if (!colors[key]) {
+          colors[key] = 'white';
+        }
+      });
+      setItemColors(colors);
+    }
+  }, [open, linenSetDefinition]);
 
   // Separater useEffect für Edit-Mode: Lade tatsächliche Order-Items
   useEffect(() => {
@@ -652,6 +681,24 @@ const LinenOrderDialog = ({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* Farbauswahl für Handtücher, Badvorleger, Saunatücher */}
+                    {ITEMS_WITH_COLOR_SELECTION.includes(itemType) && (
+                      <Select
+                        value={itemColors[itemType] || 'white'}
+                        onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as ItemColor }))}
+                      >
+                        <SelectTrigger className="w-28">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ITEM_COLORS.map((color) => (
+                            <SelectItem key={color.key} value={color.key}>
+                              {color.icon} {color.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                     <Input
                       type="number"
                       min="0"
