@@ -262,27 +262,35 @@ const LinenOrderDialog = ({
     }
   }, [open, linenSetDefinition]);
 
-  // Separater useEffect für Edit-Mode: Lade tatsächliche Order-Items
+  // Separater useEffect für Edit-Mode: Lade tatsächliche Order-Items und Buchung
   useEffect(() => {
-    if (open && mode === 'edit' && orderItems) {
-      // Alle verfügbaren Kategorien mit Wert 0 initialisieren
-      const allCategories: Record<string, number> = {
-        bedding: 0,
-        large_towels: 0,
-        small_towels: 0,
-        sauna_towels: 0,
-        bath_mats: 0,
-        sink_towels: 0,
-        kitchen_towels: 0,
-        blankets: 0,
-        pillow_cases: 0,
-      };
+    if (open && mode === 'edit') {
+      // Setze die Buchung aus den Props
+      setInternalSelectedBooking(selectedBooking);
       
-      // Bestehende Werte überschreiben
-      const mergedItems = { ...allCategories, ...orderItems };
-      setEditableItems(mergedItems);
+      // Setze orderType basierend auf Buchung
+      setOrderType(selectedBooking ? 'standard' : 'exceptional');
+      
+      if (orderItems) {
+        // Alle verfügbaren Kategorien mit Wert 0 initialisieren
+        const allCategories: Record<string, number> = {
+          bedding: 0,
+          large_towels: 0,
+          small_towels: 0,
+          sauna_towels: 0,
+          bath_mats: 0,
+          sink_towels: 0,
+          kitchen_towels: 0,
+          blankets: 0,
+          pillow_cases: 0,
+        };
+        
+        // Bestehende Werte überschreiben
+        const mergedItems = { ...allCategories, ...orderItems };
+        setEditableItems(mergedItems);
+      }
     }
-  }, [open, mode, orderItems]);
+  }, [open, mode, orderItems, selectedBooking]);
 
   const linenLabels: Record<string, string> = {
     bedding: 'Bettwäsche',
