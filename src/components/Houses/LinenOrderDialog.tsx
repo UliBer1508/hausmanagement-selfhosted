@@ -399,7 +399,13 @@ const LinenOrderDialog = ({
         }
         
         // Bestehende Werte überschreiben
-        const mergedItems = { ...allAvailableItems, ...orderItems };
+        // Nur Werte aus orderItems übernehmen, die auch in allAvailableItems existieren
+        const mergedItems = { ...allAvailableItems };
+        Object.entries(orderItems).forEach(([key, value]) => {
+          if (key in allAvailableItems) {
+            mergedItems[key] = value as number;
+          }
+        });
         setEditableItems(mergedItems);
       }
     }
