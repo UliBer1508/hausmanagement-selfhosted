@@ -5,9 +5,11 @@ import { Edit, Package, Trash2, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 
-// Artikel die eine Farbauswahl (weiß/grau) haben
-const ITEMS_WITH_COLOR_SELECTION = [
-  'bedding',         // Bettwäsche
+// Schlafbereich-Artikel: LINEN_COLORS (grau gestreift, weiß gestreift, bunt)
+const ITEMS_WITH_LINEN_COLOR = ['bedding', 'pillow_cases', 'blankets'];
+
+// Badbereich/Wellness-Artikel: ITEM_COLORS (weiß, grau)
+const ITEMS_WITH_ITEM_COLOR = [
   'large_towels',    // Badetücher
   'small_towels',    // Handtücher
   'bath_mats',       // Badvorleger
@@ -203,9 +205,10 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                     {order.items && Object.entries(order.items)
                       .filter(([_, count]: [string, any]) => count > 0)
                       .map(([itemType, count]: [string, any]) => {
-                        const itemVariants = order.item_variants as Record<string, ItemColor> | null;
+                        const itemVariants = order.item_variants as Record<string, string> | null;
                         const itemColor = itemVariants?.[itemType];
-                        const hasColorSelection = ITEMS_WITH_COLOR_SELECTION.includes(itemType);
+                        const hasLinenColor = ITEMS_WITH_LINEN_COLOR.includes(itemType);
+                        const hasItemColor = ITEMS_WITH_ITEM_COLOR.includes(itemType);
                         
                         const translateItemType = (type: string) => {
                           const translations: Record<string, string> = {
@@ -226,9 +229,11 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                           <tr key={itemType}>
                             <td className="py-0.5">{translateItemType(itemType)}</td>
                             <td className="text-center py-0.5">
-                              {hasColorSelection 
-                                ? (itemColor ? getItemColorLabel(itemColor) : '⬜ Weiß')
-                                : <span className="text-muted-foreground">-</span>
+                              {hasLinenColor
+                                ? (itemColor ? getLinenColorLabel(itemColor as LinenColor) : '⬜ Weiß gestreift')
+                                : hasItemColor
+                                  ? (itemColor ? getItemColorLabel(itemColor as ItemColor) : '⬜ Weiß')
+                                  : <span className="text-muted-foreground">-</span>
                               }
                             </td>
                             <td className="text-right text-muted-foreground py-0.5">{count}x</td>
