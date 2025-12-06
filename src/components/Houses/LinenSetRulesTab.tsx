@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Save, RotateCcw, Plus, Trash2, Info } from 'lucide-react';
-import { LinenItemConfig } from '@/types/linen';
+import { LinenItemConfig, ItemColor, ITEM_COLORS } from '@/types/linen';
 import { migrateOldToNewStructure, groupByCategory } from '@/lib/linenMigration';
 import { LinenItemDialog } from './LinenItemDialog';
 import {
@@ -273,6 +273,9 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                         <TableHead className="w-[100px]">Anzahl</TableHead>
                         <TableHead className="w-[150px]">Berechnung</TableHead>
                         <TableHead className="w-[150px]">Verfügbarkeit</TableHead>
+                        {category === 'Badbereich' && (
+                          <TableHead className="w-[100px]">Farbe</TableHead>
+                        )}
                         <TableHead className="w-[100px]">Winter</TableHead>
                         <TableHead className="w-[100px]">Sommer</TableHead>
                         <TableHead className="w-[80px]">Aktionen</TableHead>
@@ -330,6 +333,25 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                               </SelectContent>
                             </Select>
                           </TableCell>
+                          {category === 'Badbereich' && (
+                            <TableCell>
+                              <Select
+                                value={item.color || 'white'}
+                                onValueChange={(v) => updateItem(item.key, { color: v as ItemColor })}
+                              >
+                                <SelectTrigger className="w-24">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ITEM_COLORS.map(c => (
+                                    <SelectItem key={c.key} value={c.key}>
+                                      {c.icon} {c.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          )}
                           <TableCell>
                             {item.availability === 'seasonal' && (
                               <Checkbox

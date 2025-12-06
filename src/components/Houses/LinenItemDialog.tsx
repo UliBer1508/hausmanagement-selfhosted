@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LinenItemConfig, LINEN_CATEGORIES } from '@/types/linen';
+import { LinenItemConfig, LINEN_CATEGORIES, ItemColor, ITEM_COLORS } from '@/types/linen';
 import { generateKeyFromLabel, validateLinenKey } from '@/lib/linenMigration';
 
 interface LinenItemDialogProps {
@@ -29,6 +29,7 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
   const [calculationType, setCalculationType] = useState<'per_guest' | 'per_booking'>('per_guest');
   const [availability, setAvailability] = useState<'year_round' | 'seasonal'>('year_round');
   const [season, setSeason] = useState<'winter' | 'summer' | null>(null);
+  const [itemColor, setItemColor] = useState<ItemColor>('white');
 
   const handleSave = () => {
     if (!label.trim()) return;
@@ -44,7 +45,8 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
       calculation_type: calculationType,
       availability,
       season: availability === 'seasonal' ? season : null,
-      active: true
+      active: true,
+      color: category === 'Badbereich' ? itemColor : undefined
     };
 
     onSave(newItem);
@@ -60,6 +62,7 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
     setCalculationType('per_guest');
     setAvailability('year_round');
     setSeason(null);
+    setItemColor('white');
   };
 
   return (
@@ -175,6 +178,24 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
                 <SelectContent>
                   <SelectItem value="winter">Winter (Okt-Apr)</SelectItem>
                   <SelectItem value="summer">Sommer (Mai-Sep)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {category === 'Badbereich' && (
+            <div className="grid gap-2">
+              <Label>Artikelfarbe</Label>
+              <Select value={itemColor} onValueChange={(v) => setItemColor(v as ItemColor)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ITEM_COLORS.map(c => (
+                    <SelectItem key={c.key} value={c.key}>
+                      {c.icon} {c.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

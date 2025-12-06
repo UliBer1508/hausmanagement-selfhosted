@@ -26,7 +26,8 @@ export const migrateOldToNewStructure = (linenDef: any): Record<string, LinenIte
       calculation_type: calculationType,
       availability: 'year_round',
       season: null,
-      active: true
+      active: true,
+      color: meta.category === 'Badbereich' ? 'white' : undefined // Default für Badbereich
     };
   });
 
