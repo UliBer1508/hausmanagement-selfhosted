@@ -6,7 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Clock, Package, CheckCircle } from 'lucide-react';
+import { AlertTriangle, Clock, Package, CheckCircle, Plus } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +45,7 @@ const LinenDashboard = () => {
   const [highlightedOrderId, setHighlightedOrderId] = useState<string | null>(null);
   const [editingOrder, setEditingOrder] = useState<any>(null);
   const [editMode, setEditMode] = useState(false);
+  const [showNewOrderDialog, setShowNewOrderDialog] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -762,14 +766,60 @@ const LinenDashboard = () => {
 
       {/* Linen Orders with Bookings Section */}
       <div className="mt-8">
-        <div className="mb-4">
-          <h2 className="text-2xl font-bold tracking-tight">Wäschebestellungen</h2>
-          <p className="text-muted-foreground">
-            Übersicht aller Wäschebestellungen mit Buchungsinformationen
-          </p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Wäschebestellungen</h2>
+            <p className="text-muted-foreground">
+              Übersicht aller Wäschebestellungen mit Buchungsinformationen
+            </p>
+          </div>
+          <Button 
+            onClick={() => {
+              setEditMode(false);
+              setEditingOrder(null);
+              setSelectedBooking(null);
+              setCalculatedOrderItems({});
+              setShowNewOrderDialog(true);
+            }}
+            className="bg-primary hover:bg-primary/90"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Neu erstellen
+          </Button>
         </div>
         <LinenOrdersList onEditOrder={handleEditOrder} onDeleteOrder={handleDeleteOrder} />
       </div>
+
+      {/* House Selection Dialog for New Order */}
+      <Dialog open={showNewOrderDialog} onOpenChange={setShowNewOrderDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Neue Wäschebestellung</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Label>Für welches Haus?</Label>
+            <Select onValueChange={(houseId) => {
+              const house = houses?.find(h => h.id === houseId);
+              if (house) {
+                setOrderHouse(house);
+                setShowOrderDialog(true);
+                setShowNewOrderDialog(false);
+              }
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="Haus auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                {houses?.map((house) => (
+                  <SelectItem key={house.id} value={house.id}>
+                    {house.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* House Detail Dialog */}
       {selectedHouse && (
