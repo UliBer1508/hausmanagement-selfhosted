@@ -20,15 +20,14 @@ import { standardLinenOrderSchema, exceptionalLinenOrderSchema } from './schemas
 import { translateItemType, formatCurrency } from '@/lib/linenOrderHelpers';
 import { LinenColor, LINEN_COLORS, getLinenColorLabel, ItemColor, ITEM_COLORS } from '@/types/linen';
 
-// Artikel die eine Farbauswahl (weiß/grau) haben
-const ITEMS_WITH_COLOR_SELECTION = [
-  'bedding',         // Bettwäsche (Schlafbereich)
-  'large_towels',    // Badetücher (Badbereich)
-  'small_towels',    // Handtücher (Badbereich)
-  'bath_mats',       // Badvorleger (Badbereich)
-  'sink_towels',     // WB-Handtücher (Badbereich)
-  'sauna_towels'     // Saunatücher (Wellness)
-];
+// Schlafbereich-Artikel: LINEN_COLORS (grau gestreift, weiß gestreift, bunt)
+const ITEMS_WITH_LINEN_COLOR = ['bedding', 'pillow_cases', 'blankets'];
+
+// Badbereich/Wellness-Artikel: ITEM_COLORS (weiß, grau)
+const ITEMS_WITH_ITEM_COLOR = ['large_towels', 'small_towels', 'bath_mats', 'sink_towels', 'sauna_towels'];
+
+// Alle Artikel mit Farbauswahl
+const ITEMS_WITH_COLOR_SELECTION = [...ITEMS_WITH_LINEN_COLOR, ...ITEMS_WITH_ITEM_COLOR];
 
 interface LinenOrderDialogProps {
   open: boolean;
@@ -50,7 +49,7 @@ interface LinenOrderDialogProps {
     status?: 'pending' | 'in-progress' | 'completed' | 'delivered';
     sendEmail?: boolean;
     linenColor?: LinenColor;
-    itemColors?: Record<string, ItemColor>;
+    itemColors?: Record<string, ItemColor | LinenColor>;
   }) => void;
   onSendEmail?: (orderId: string) => void;
   isCreating?: boolean;
@@ -158,7 +157,7 @@ const LinenOrderDialog = ({
   const [selectedColor, setSelectedColor] = useState<LinenColor>(
     initialData?.linenColor || defaultLinenColor || 'white_striped'
   );
-  const [itemColors, setItemColors] = useState<Record<string, ItemColor>>({});
+  const [itemColors, setItemColors] = useState<Record<string, ItemColor | LinenColor>>({});
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Debug logging for generatedOrderData
@@ -223,17 +222,18 @@ const LinenOrderDialog = ({
   // Initialisiere Artikelfarben aus linenSetDefinition.custom_categories
   useEffect(() => {
     if (open && linenSetDefinition?.custom_categories) {
-      const colors: Record<string, ItemColor> = {};
+      const colors: Record<string, ItemColor | LinenColor> = {};
       Object.entries(linenSetDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
         if (config?.color && ITEMS_WITH_COLOR_SELECTION.includes(key)) {
-          colors[key] = config.color as ItemColor;
+          colors[key] = config.color;
         }
       });
-      // Fallback für Items ohne Farbe: Weiß
-      ITEMS_WITH_COLOR_SELECTION.forEach(key => {
-        if (!colors[key]) {
-          colors[key] = 'white';
-        }
+      // Fallback nach Kategorie: Schlafbereich → white_striped, Badbereich/Wellness → white
+      ITEMS_WITH_LINEN_COLOR.forEach(key => {
+        if (!colors[key]) colors[key] = 'white_striped';
+      });
+      ITEMS_WITH_ITEM_COLOR.forEach(key => {
+        if (!colors[key]) colors[key] = 'white';
       });
       setItemColors(colors);
     }
@@ -685,8 +685,26 @@ const LinenOrderDialog = ({
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {/* Farbauswahl für Handtücher, Badvorleger, Saunatücher */}
-                    {ITEMS_WITH_COLOR_SELECTION.includes(itemType) && (
+                    {/* Farbauswahl für Schlafbereich: LINEN_COLORS */}
+                    {ITEMS_WITH_LINEN_COLOR.includes(itemType) && (
+                      <Select
+                        value={itemColors[itemType] || 'white_striped'}
+                        onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as LinenColor }))}
+                      >
+                        <SelectTrigger className="w-36">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LINEN_COLORS.map((color) => (
+                            <SelectItem key={color.key} value={color.key}>
+                              {color.icon} {color.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {/* Farbauswahl für Badbereich/Wellness: ITEM_COLORS */}
+                    {ITEMS_WITH_ITEM_COLOR.includes(itemType) && (
                       <Select
                         value={itemColors[itemType] || 'white'}
                         onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as ItemColor }))}
