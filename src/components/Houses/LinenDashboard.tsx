@@ -802,6 +802,39 @@ const LinenDashboard = () => {
               const house = houses?.find(h => h.id === houseId);
               if (house) {
                 setOrderHouse(house);
+                
+                // Wäscheset-Regeln des Hauses laden und als Default-Items setzen
+                const linenDef = house.linen_set_definitions?.[0];
+                if (linenDef) {
+                  const defaultItems: Record<string, number> = {};
+                  
+                  // Per-Guest Items (1 Gast als Basis)
+                  if (linenDef.bedding_per_guest) defaultItems.bedding = linenDef.bedding_per_guest;
+                  if (linenDef.large_towels_per_guest) defaultItems.large_towels = linenDef.large_towels_per_guest;
+                  if (linenDef.small_towels_per_guest) defaultItems.small_towels = linenDef.small_towels_per_guest;
+                  if (linenDef.sauna_towels_per_guest) defaultItems.sauna_towels = linenDef.sauna_towels_per_guest;
+                  if (linenDef.pillow_cases_per_guest) defaultItems.pillow_cases = linenDef.pillow_cases_per_guest;
+                  if (linenDef.blankets_per_guest) defaultItems.blankets = linenDef.blankets_per_guest;
+                  
+                  // Per-Booking Items
+                  if (linenDef.bath_mats_per_booking) defaultItems.bath_mats = linenDef.bath_mats_per_booking;
+                  if (linenDef.sink_towels_per_booking) defaultItems.sink_towels = linenDef.sink_towels_per_booking;
+                  if (linenDef.kitchen_towels_per_booking) defaultItems.kitchen_towels = linenDef.kitchen_towels_per_booking;
+                  
+                  setCalculatedOrderItems(defaultItems);
+                } else {
+                  // Fallback: Alle Kategorien mit 0 initialisieren
+                  setCalculatedOrderItems({
+                    bedding: 0,
+                    large_towels: 0,
+                    small_towels: 0,
+                    sauna_towels: 0,
+                    bath_mats: 0,
+                    sink_towels: 0,
+                    kitchen_towels: 0,
+                  });
+                }
+                
                 setShowOrderDialog(true);
                 setShowNewOrderDialog(false);
               }
