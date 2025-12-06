@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { format, addDays, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { CalendarIcon, ShoppingCart, Mail, AlertTriangle } from 'lucide-react';
+import { CalendarIcon, ShoppingCart, Mail, AlertTriangle, Plus, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { standardLinenOrderSchema, exceptionalLinenOrderSchema } from './schemas/LinenOrderSchema';
 import { translateItemType, formatCurrency } from '@/lib/linenOrderHelpers';
@@ -28,6 +28,29 @@ const ITEMS_WITH_ITEM_COLOR = ['large_towels', 'small_towels', 'bath_mats', 'sin
 
 // Alle Artikel mit Farbauswahl
 const ITEMS_WITH_COLOR_SELECTION = [...ITEMS_WITH_LINEN_COLOR, ...ITEMS_WITH_ITEM_COLOR];
+
+// Kategorien-Definition
+const LINEN_CATEGORIES = {
+  sleeping: {
+    label: '🛏️ Schlafbereich',
+    items: ['bedding', 'pillow_cases', 'blankets']
+  },
+  bathroom: {
+    label: '🛁 Badbereich',
+    items: ['large_towels', 'small_towels', 'bath_mats', 'sink_towels']
+  },
+  wellness: {
+    label: '🧖 Wellness',
+    items: ['sauna_towels']
+  },
+  kitchen: {
+    label: '🍴 Küche',
+    items: ['kitchen_towels']
+  }
+};
+
+// Alle Standard-Artikel
+const ALL_STANDARD_ITEMS = Object.values(LINEN_CATEGORIES).flatMap(cat => cat.items);
 
 interface LinenOrderDialogProps {
   open: boolean;
@@ -666,78 +689,123 @@ const LinenOrderDialog = ({
             </Card>
           )}
 
-          {/* Order Items */}
+          {/* Order Items - Kategorisiert */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Bestellpositionen</CardTitle>
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span>Bestellpositionen</span>
+                <Badge variant="secondary">{totalItems} Teile</Badge>
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {Object.entries(editableItems)
-                .filter(([_, quantity]) => quantity > 0)
-                .map(([itemType, quantity]) => (
-                <div key={itemType} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex-1">
-                    <div className="font-medium">{linenLabels[itemType] || itemType}</div>
-                    {quantity > 0 && (
-                      <Badge variant="outline" className="mt-1">
-                        {quantity} Stück
-                      </Badge>
-                    )}
+            <CardContent className="space-y-4">
+              {Object.entries(LINEN_CATEGORIES).map(([catKey, category]) => {
+                // Im Create-Mode: nur Kategorien mit Artikeln > 0 anzeigen
+                // Im Edit-Mode: alle Kategorien anzeigen
+                const categoryItems = category.items.filter(itemType => 
+                  mode === 'edit' || (editableItems[itemType] && editableItems[itemType] > 0)
+                );
+                
+                if (categoryItems.length === 0 && mode === 'create') return null;
+                
+                const itemsToShow = mode === 'edit' ? category.items : categoryItems;
+                
+                return (
+                  <div key={catKey} className="space-y-2">
+                    <div className="text-sm font-medium text-muted-foreground">{category.label}</div>
+                    <div className="space-y-2">
+                      {itemsToShow.map(itemType => {
+                        const quantity = editableItems[itemType] || 0;
+                        const isActive = quantity > 0;
+                        
+                        return (
+                          <div 
+                            key={itemType} 
+                            className={cn(
+                              "flex items-center justify-between p-2 border rounded-lg transition-colors",
+                              isActive ? "border-primary/50 bg-primary/5" : "border-border/50 bg-muted/30"
+                            )}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className={cn("font-medium text-sm", !isActive && "text-muted-foreground")}>
+                                {linenLabels[itemType] || itemType}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                              {/* Farbauswahl für Schlafbereich: LINEN_COLORS */}
+                              {ITEMS_WITH_LINEN_COLOR.includes(itemType) && isActive && (
+                                <Select
+                                  value={itemColors[itemType] || 'white_striped'}
+                                  onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as LinenColor }))}
+                                >
+                                  <SelectTrigger className="w-32 h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {LINEN_COLORS.map((color) => (
+                                      <SelectItem key={color.key} value={color.key}>
+                                        {color.icon} {color.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              {/* Farbauswahl für Badbereich/Wellness: ITEM_COLORS */}
+                              {ITEMS_WITH_ITEM_COLOR.includes(itemType) && isActive && (
+                                <Select
+                                  value={itemColors[itemType] || 'white'}
+                                  onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as ItemColor }))}
+                                >
+                                  <SelectTrigger className="w-24 h-8 text-xs">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {ITEM_COLORS.map((color) => (
+                                      <SelectItem key={color.key} value={color.key}>
+                                        {color.icon} {color.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
+                              
+                              {/* Increment/Decrement Buttons */}
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => updateItemQuantity(itemType, quantity - 1)}
+                                  disabled={quantity <= 0}
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={quantity}
+                                  onChange={(e) => updateItemQuantity(itemType, parseInt(e.target.value) || 0)}
+                                  className="w-14 h-8 text-center text-sm"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => updateItemQuantity(itemType, quantity + 1)}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {/* Farbauswahl für Schlafbereich: LINEN_COLORS */}
-                    {ITEMS_WITH_LINEN_COLOR.includes(itemType) && (
-                      <Select
-                        value={itemColors[itemType] || 'white_striped'}
-                        onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as LinenColor }))}
-                      >
-                        <SelectTrigger className="w-36">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LINEN_COLORS.map((color) => (
-                            <SelectItem key={color.key} value={color.key}>
-                              {color.icon} {color.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    {/* Farbauswahl für Badbereich/Wellness: ITEM_COLORS */}
-                    {ITEMS_WITH_ITEM_COLOR.includes(itemType) && (
-                      <Select
-                        value={itemColors[itemType] || 'white'}
-                        onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as ItemColor }))}
-                      >
-                        <SelectTrigger className="w-28">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ITEM_COLORS.map((color) => (
-                            <SelectItem key={color.key} value={color.key}>
-                              {color.icon} {color.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-                    <Input
-                      type="number"
-                      min="0"
-                      value={quantity}
-                      onChange={(e) => updateItemQuantity(itemType, parseInt(e.target.value) || 0)}
-                      className="w-20"
-                    />
-                  </div>
-                </div>
-              ))}
-              
-              <div className="pt-3 border-t">
-                <div className="flex items-center justify-between text-sm font-medium">
-                  <span>Gesamt:</span>
-                  <Badge variant="secondary">{totalItems} Teile</Badge>
-                </div>
-              </div>
+                );
+              })}
             </CardContent>
           </Card>
 
