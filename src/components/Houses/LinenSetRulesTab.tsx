@@ -35,8 +35,6 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
   const queryClient = useQueryClient();
   const [items, setItems] = useState<Record<string, LinenItemConfig>>({});
   const [originalItems, setOriginalItems] = useState<Record<string, LinenItemConfig>>({});
-  const [selectedColor, setSelectedColor] = useState<string>(house?.default_linen_color || 'white_striped');
-  const [originalColor, setOriginalColor] = useState<string>(house?.default_linen_color || 'white_striped');
   const [hasChanges, setHasChanges] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
@@ -92,12 +90,11 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     }
   }, [linenDef, hasMigrated, house?.id, queryClient]);
 
-  // Check for changes (items + color)
+  // Check for changes
   useEffect(() => {
     const itemsChanged = JSON.stringify(items) !== JSON.stringify(originalItems);
-    const colorChanged = selectedColor !== originalColor;
-    setHasChanges(itemsChanged || colorChanged);
-  }, [items, originalItems, selectedColor, originalColor]);
+    setHasChanges(itemsChanged);
+  }, [items, originalItems]);
 
   // Group items by category
   const groupedItems = useMemo(() => groupByCategory(items), [items]);
@@ -164,22 +161,14 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
         if (error) throw error;
       }
 
-      // 2. Save default_linen_color to houses table
-      const { error: houseError } = await supabase
-        .from('houses')
-        .update({ default_linen_color: selectedColor })
-        .eq('id', house.id);
-      if (houseError) throw houseError;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['linen-definitions'] });
-      queryClient.invalidateQueries({ queryKey: ['houses'] });
       setOriginalItems(JSON.parse(JSON.stringify(items)));
-      setOriginalColor(selectedColor);
       setHasChanges(false);
       toast({
         title: "✅ Gespeichert",
-        description: "Wäscheset-Regeln und Standardfarbe wurden aktualisiert",
+        description: "Wäscheset-Regeln wurden aktualisiert",
       });
     },
     onError: (error) => {
@@ -194,7 +183,6 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
 
   const handleReset = () => {
     setItems(JSON.parse(JSON.stringify(originalItems)));
-    setSelectedColor(originalColor);
     setHasChanges(false);
   };
 
@@ -245,35 +233,6 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
           </div>
         </CardHeader>
         <CardContent>
-          {/* Standard-Wäschefarbe Auswahl */}
-          <div className="mb-6 p-4 border rounded-lg bg-muted/30">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-lg">🎨</span>
-              <Label className="text-base font-semibold">Standard-Wäschefarbe</Label>
-            </div>
-            <p className="text-sm text-muted-foreground mb-3">
-              Diese Farbe wird bei neuen Wäschebestellungen automatisch vorausgewählt.
-            </p>
-            <RadioGroup
-              value={selectedColor}
-              onValueChange={setSelectedColor}
-              className="flex flex-wrap gap-6"
-            >
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="grey_striped" id="grey_striped" />
-                <Label htmlFor="grey_striped" className="cursor-pointer">🔲 Grau gestreift</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="white_striped" id="white_striped" />
-                <Label htmlFor="white_striped" className="cursor-pointer">⬜ Weiß gestreift</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="colorful" id="colorful" />
-                <Label htmlFor="colorful" className="cursor-pointer">🌈 Bunt</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
           <Alert className="mb-4">
             <Info className="h-4 w-4" />
             <AlertDescription>
