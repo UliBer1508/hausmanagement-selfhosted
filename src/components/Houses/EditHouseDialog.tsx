@@ -37,6 +37,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
     bedrooms: house?.bedrooms || 3,
     living_area_sqm: house?.living_area_sqm || 0,
     default_cleaning_hours: house?.default_cleaning_hours || 3,
+    default_linen_color: house?.default_linen_color || 'white_striped',
     amenities: house?.amenities || {
       sauna: false,
       terrace: false,
@@ -148,6 +149,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         bedrooms: data.bedrooms,
         living_area_sqm: data.living_area_sqm || null,
         default_cleaning_hours: data.default_cleaning_hours || 3,
+        default_linen_color: data.default_linen_color || 'white_striped',
         amenities: data.amenities,
       };
 
@@ -260,6 +262,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         bedrooms: house.bedrooms || 3,
         living_area_sqm: house.living_area_sqm || 0,
         default_cleaning_hours: house.default_cleaning_hours || 3,
+        default_linen_color: house.default_linen_color || 'white_striped',
         amenities: house.amenities || {
           sauna: false,
           terrace: false,
@@ -515,6 +518,28 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
                     Standardzeit für Reinigungsaufträge dieses Objekts
                   </p>
                 </div>
+
+                {formData.rental_type === 'tourist' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="default_linen_color">Standard-Wäschefarbe</Label>
+                    <Select 
+                      value={formData.default_linen_color || 'white_striped'}
+                      onValueChange={(value) => setFormData({ ...formData, default_linen_color: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="grey_striped">🔲 Grau gestreift</SelectItem>
+                        <SelectItem value="white_striped">⬜ Weiß gestreift</SelectItem>
+                        <SelectItem value="colorful">🌈 Bunt</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-muted-foreground">
+                      Diese Farbe wird bei neuen Wäschebestellungen automatisch vorausgewählt.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-3">

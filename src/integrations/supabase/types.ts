@@ -2091,6 +2091,7 @@ export type Database = {
           bedrooms: number | null
           created_at: string | null
           default_cleaning_hours: number | null
+          default_linen_color: string | null
           ical_url: string | null
           id: string
           image_filename: string | null
@@ -2121,6 +2122,7 @@ export type Database = {
           bedrooms?: number | null
           created_at?: string | null
           default_cleaning_hours?: number | null
+          default_linen_color?: string | null
           ical_url?: string | null
           id?: string
           image_filename?: string | null
@@ -2151,6 +2153,7 @@ export type Database = {
           bedrooms?: number | null
           created_at?: string | null
           default_cleaning_hours?: number | null
+          default_linen_color?: string | null
           ical_url?: string | null
           id?: string
           image_filename?: string | null
@@ -2510,6 +2513,7 @@ export type Database = {
           id: string
           item_variants: Json | null
           items: Json
+          linen_color: string | null
           notes: string | null
           order_date: string
           order_source: string | null
@@ -2531,6 +2535,7 @@ export type Database = {
           id?: string
           item_variants?: Json | null
           items: Json
+          linen_color?: string | null
           notes?: string | null
           order_date?: string
           order_source?: string | null
@@ -2552,6 +2557,7 @@ export type Database = {
           id?: string
           item_variants?: Json | null
           items?: Json
+          linen_color?: string | null
           notes?: string | null
           order_date?: string
           order_source?: string | null

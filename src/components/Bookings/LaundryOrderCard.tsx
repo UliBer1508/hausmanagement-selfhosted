@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Edit, Package, Trash2, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getLinenColorLabel, LinenColor } from '@/types/linen';
 
 interface LaundryOrderCardProps {
   order: any;
@@ -139,6 +140,16 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                 <span className="text-base">🚚</span>
                 <span>
                   <span className="text-muted-foreground">Lieferung:</span> {new Date(order.delivery_date).toLocaleDateString('de-DE')}
+                </span>
+              </div>
+            )}
+
+            {/* Linen Color */}
+            {order.linen_color && (
+              <div className="flex items-start gap-2 text-sm">
+                <span className="text-base">🎨</span>
+                <span>
+                  <span className="text-muted-foreground">Farbe:</span> {getLinenColorLabel(order.linen_color as LinenColor)}
                 </span>
               </div>
             )}

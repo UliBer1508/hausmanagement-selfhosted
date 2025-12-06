@@ -160,6 +160,7 @@ export const useLinenManagement = (houseId: string) => {
       orderItems: Record<string, number>;
       notes?: string;
       deliveryDate?: string;
+      linenColor?: string;
     }) => {
       const totalItems = Object.values(orderData.orderItems).reduce((sum, count) => sum + count, 0);
       
@@ -173,7 +174,8 @@ export const useLinenManagement = (houseId: string) => {
           status: 'pending',
           order_date: format(new Date(), 'yyyy-MM-dd'),
           delivery_date: orderData.deliveryDate || format(addDays(new Date(), 2), 'yyyy-MM-dd'),
-          notes: orderData.notes || 'Automatische Bestellung basierend auf Bedarfsanalyse'
+          notes: orderData.notes || 'Automatische Bestellung basierend auf Bedarfsanalyse',
+          linen_color: orderData.linenColor || 'white_striped',
         })
         .select()
         .single();

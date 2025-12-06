@@ -1,3 +1,21 @@
+// Wäschefarben-Typen
+export type LinenColor = 'grey_striped' | 'white_striped' | 'colorful';
+
+export const LINEN_COLORS: { key: LinenColor; label: string; icon: string }[] = [
+  { key: 'grey_striped', label: 'Grau gestreift', icon: '🔲' },
+  { key: 'white_striped', label: 'Weiß gestreift', icon: '⬜' },
+  { key: 'colorful', label: 'Bunt', icon: '🌈' }
+];
+
+export const getLinenColorLabel = (color: LinenColor | string): string => {
+  const found = LINEN_COLORS.find(c => c.key === color);
+  return found ? `${found.icon} ${found.label}` : color;
+};
+
+export const getLinenColorIcon = (color: LinenColor | string): string => {
+  return LINEN_COLORS.find(c => c.key === color)?.icon || '⬜';
+};
+
 export interface LinenItemConfig {
   key: string;
   label: string;
