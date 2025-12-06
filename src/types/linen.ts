@@ -41,7 +41,7 @@ export const OLD_COLUMN_MAPPING: Record<string, { label: string; category: Linen
   blankets_per_guest: { label: 'Decken', category: 'Schlafbereich', icon: '🛌' },
   pillow_cases_per_guest: { label: 'Kissenbezüge', category: 'Schlafbereich', icon: '🛏️' },
   large_towels_per_guest: { label: 'Badetücher', category: 'Badbereich', icon: '🧺' },
-  small_towels_per_guest: { label: 'Handtücher klein', category: 'Badbereich', icon: '🧺' },
+  small_towels_per_guest: { label: 'Handtücher', category: 'Badbereich', icon: '🧺' },
   sauna_towels_per_guest: { label: 'Saunatücher', category: 'Wellness', icon: '🧖' },
   bath_mats_per_booking: { label: 'Badvorleger', category: 'Badbereich', icon: '🛁' },
   sink_towels_per_booking: { label: 'WB-Handtücher', category: 'Badbereich', icon: '🚿' },

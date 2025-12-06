@@ -32,7 +32,7 @@ export const translateLinenItem = (item: string): string => {
   const labels: Record<string, string> = {
     bedding: 'Bettwäsche',
     large_towels: 'Badetücher',
-    small_towels: 'Kleine Handtücher',
+    small_towels: 'Handtücher',
     sauna_towels: 'Saunatücher',
     bath_mats: 'Badematten',
     sink_towels: 'WB-Handtücher',

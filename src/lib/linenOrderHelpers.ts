@@ -19,7 +19,7 @@ export const translateItemType = (key: string): string => {
   const translations: Record<string, string> = {
     bedding: 'Bettwäsche',
     large_towels: 'Badetücher',
-    small_towels: 'Kleine Handtücher',
+    small_towels: 'Handtücher',
     sauna_towels: 'Saunahandtücher',
     sink_towels: 'WB-Handtücher',
     bath_mats: 'Badvorleger',
