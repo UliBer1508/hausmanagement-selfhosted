@@ -42,7 +42,7 @@ const LinenOrderEmailDialog = ({
   const linenLabels: Record<string, string> = {
     bedding: 'Bettwäsche',
     large_towels: 'Badetücher',
-    small_towels: 'Handtücher klein',
+    small_towels: 'Handtücher',
     sauna_towels: 'Saunatücher',
     bath_mats: 'Badematten',
     sink_towels: 'WB-Handtücher',

@@ -32,7 +32,7 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
     const items = [
       { key: 'bedding', label: 'Bettwäsche', count: linenStock.bedding || 0 },
       { key: 'large_towels', label: 'Badetücher', count: linenStock.large_towels || 0 },
-      { key: 'small_towels', label: 'Handtücher klein', count: linenStock.small_towels || 0 },
+      { key: 'small_towels', label: 'Handtücher', count: linenStock.small_towels || 0 },
       { key: 'sauna_towels', label: 'Saunatücher', count: linenStock.sauna_towels || 0 },
       { key: 'bath_mats', label: 'Badematten', count: linenStock.bath_mats || 0 },
       { key: 'sink_towels', label: 'WB-Handtücher', count: linenStock.sink_towels || 0 },
