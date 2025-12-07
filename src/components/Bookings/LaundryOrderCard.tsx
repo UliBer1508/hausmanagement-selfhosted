@@ -121,67 +121,67 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
       isPending && "border-dashed opacity-90"
     )}>
       <CardContent className="p-3 relative pb-10">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
           {/* Left Column: House Info & Booking */}
-          <div className="space-y-1.5 md:space-y-2">
+          <div className="space-y-1.5 lg:space-y-2">
             {/* Header with House Name */}
             <div className="flex items-start gap-2">
-              <span className="text-sm md:text-base">📦</span>
+              <span className="text-sm lg:text-base">📦</span>
               <h4 className="font-medium text-sm">{houseName}</h4>
             </div>
 
             {/* House Address */}
             {houseAddress && (
-              <div className="flex items-start gap-2 text-xs md:text-sm">
-                <span className="text-sm md:text-base">📍</span>
+              <div className="flex items-start gap-2 text-xs lg:text-sm">
+                <span className="text-sm lg:text-base">📍</span>
                 <span className="text-muted-foreground truncate">{houseAddress}</span>
               </div>
             )}
 
             {/* Guest Name */}
             {guestName && (
-              <div className="flex items-start gap-2 text-xs md:text-sm">
-                <span className="text-sm md:text-base">👤</span>
+              <div className="flex items-start gap-2 text-xs lg:text-sm">
+                <span className="text-sm lg:text-base">👤</span>
                 <span className="truncate">{guestName}</span>
               </div>
             )}
 
             {/* Booking Dates */}
             {checkIn && checkOut && (
-              <div className="flex items-start gap-2 text-xs md:text-sm">
-                <span className="text-sm md:text-base">📅</span>
+              <div className="flex items-start gap-2 text-xs lg:text-sm">
+                <span className="text-sm lg:text-base">📅</span>
                 <span>{checkIn} - {checkOut}</span>
               </div>
             )}
 
             {/* Guest Count */}
             {numberOfGuests && (
-              <div className="flex items-start gap-2 text-xs md:text-sm">
-                <span className="text-sm md:text-base">👥</span>
+              <div className="flex items-start gap-2 text-xs lg:text-sm">
+                <span className="text-sm lg:text-base">👥</span>
                 <span>{numberOfGuests} {numberOfGuests === 1 ? 'Gast' : 'Gäste'}</span>
               </div>
             )}
 
             {/* Delivery Date */}
             {order.delivery_date && (
-              <div className="flex items-start gap-2 text-xs md:text-sm">
-                <span className="text-sm md:text-base">🚚</span>
+              <div className="flex items-start gap-2 text-xs lg:text-sm">
+                <span className="text-sm lg:text-base">🚚</span>
                 <span>{new Date(order.delivery_date).toLocaleDateString('de-DE')}</span>
               </div>
             )}
 
             {/* Linen Color */}
             {order.linen_color && (
-              <div className="flex items-start gap-2 text-xs md:text-sm">
-                <span className="text-sm md:text-base">🎨</span>
+              <div className="flex items-start gap-2 text-xs lg:text-sm">
+                <span className="text-sm lg:text-base">🎨</span>
                 <span>{getLinenColorLabel(order.linen_color as LinenColor)}</span>
               </div>
             )}
 
             {/* Pickup Date - only if exists */}
             {order.pickup_date && (
-              <div className="flex items-start gap-2 text-xs md:text-sm">
-                <span className="text-sm md:text-base">📤</span>
+              <div className="flex items-start gap-2 text-xs lg:text-sm">
+                <span className="text-sm lg:text-base">📤</span>
                 <span>{new Date(order.pickup_date).toLocaleDateString('de-DE')}</span>
               </div>
             )}
@@ -195,7 +195,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                 <p className="text-xs text-muted-foreground font-medium">Artikel ({getTotalItems()}):</p>
                 
                 {/* Desktop: Table View */}
-                <table className="w-full text-sm hidden md:table">
+                <table className="w-full text-sm hidden lg:table">
                   <thead>
                     <tr className="text-xs text-muted-foreground border-b">
                       <th className="text-left font-medium pb-1">Artikel</th>
@@ -246,7 +246,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                 </table>
 
                 {/* Mobile: Compact List View */}
-                <div className="md:hidden space-y-0.5">
+                <div className="lg:hidden space-y-0.5">
                   {order.laundry_order_items && order.laundry_order_items
                     .filter((item: any) => item.quantity > 0)
                     .map((item: any) => (
