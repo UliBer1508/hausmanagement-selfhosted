@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Edit, Package, Trash2, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
+import { translateItemType } from '@/lib/linenOrderHelpers';
 
 // Feste Anzeige-Reihenfolge der Wäscheartikel
 const ITEM_DISPLAY_ORDER = [
@@ -239,20 +240,6 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                         const itemHasLinenColor = hasLinenColor(itemType);
                         const itemHasItemColor = hasItemColor(itemType);
                         
-                        const translateItemType = (type: string) => {
-                          const translations: Record<string, string> = {
-                            'kitchen_towels': 'Geschirrtücher',
-                            'bedding': 'Bettwäsche',
-                            'large_towels': 'Badetücher',
-                            'small_towels': 'Handtücher',
-                            'bath_mats': 'Badematten',
-                            'sauna_towels': 'Saunatücher',
-                            'sink_towels': 'WB-Handtücher',
-                            'blankets': 'Decken',
-                            'pillow_cases': 'Kissenbezüge'
-                          };
-                          return translations[type] || type;
-                        };
                         
                         return (
                           <tr key={itemType}>
