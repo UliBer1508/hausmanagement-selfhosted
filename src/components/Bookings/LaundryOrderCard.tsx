@@ -121,92 +121,81 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
       isPending && "border-dashed opacity-90"
     )}>
       <CardContent className="p-3 relative pb-10">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
           {/* Left Column: House Info & Booking */}
-          <div className="space-y-2">
+          <div className="space-y-1.5 md:space-y-2">
             {/* Header with House Name */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-base">📦</span>
-                <h4 className="font-medium text-sm">Wäschebestellung - {houseName}</h4>
-              </div>
+            <div className="flex items-start gap-2">
+              <span className="text-sm md:text-base">📦</span>
+              <h4 className="font-medium text-sm">{houseName}</h4>
             </div>
 
             {/* House Address */}
             {houseAddress && (
-              <div className="flex items-start gap-2 text-sm">
-                <span className="text-base">📍</span>
-                <span className="text-muted-foreground">{houseAddress}</span>
+              <div className="flex items-start gap-2 text-xs md:text-sm">
+                <span className="text-sm md:text-base">📍</span>
+                <span className="text-muted-foreground truncate">{houseAddress}</span>
               </div>
             )}
 
-            {/* Guest Name - über Buchung */}
+            {/* Guest Name */}
             {guestName && (
-              <div className="flex items-start gap-2 text-sm">
-                <span className="text-base">👤</span>
-                <span>
-                  <span className="text-muted-foreground">Gast:</span> {guestName}
-                </span>
+              <div className="flex items-start gap-2 text-xs md:text-sm">
+                <span className="text-sm md:text-base">👤</span>
+                <span className="truncate">{guestName}</span>
               </div>
             )}
 
-            {/* Booking Information - direkt unter Gastname */}
-            {(checkIn || checkOut || numberOfGuests) && (
-              <div className="space-y-1">
-                {checkIn && checkOut && (
-                  <div className="flex items-start gap-2 text-sm">
-                    <span className="text-base">📅</span>
-                    <span>
-                      <span className="text-muted-foreground">Buchung:</span> {checkIn} - {checkOut}
-                    </span>
-                  </div>
-                )}
-
-                {numberOfGuests && (
-                  <div className="flex items-start gap-2 text-sm">
-                    <span className="text-base">👤</span>
-                    <span>{numberOfGuests} {numberOfGuests === 1 ? 'Gast' : 'Gäste'}</span>
-                  </div>
-                )}
+            {/* Booking Dates */}
+            {checkIn && checkOut && (
+              <div className="flex items-start gap-2 text-xs md:text-sm">
+                <span className="text-sm md:text-base">📅</span>
+                <span>{checkIn} - {checkOut}</span>
               </div>
             )}
 
-            {/* Delivery Date - unter Gästeanzahl */}
+            {/* Guest Count */}
+            {numberOfGuests && (
+              <div className="flex items-start gap-2 text-xs md:text-sm">
+                <span className="text-sm md:text-base">👥</span>
+                <span>{numberOfGuests} {numberOfGuests === 1 ? 'Gast' : 'Gäste'}</span>
+              </div>
+            )}
+
+            {/* Delivery Date */}
             {order.delivery_date && (
-              <div className="flex items-start gap-2 text-sm">
-                <span className="text-base">🚚</span>
-                <span>
-                  <span className="text-muted-foreground">Lieferung:</span> {new Date(order.delivery_date).toLocaleDateString('de-DE')}
-                </span>
+              <div className="flex items-start gap-2 text-xs md:text-sm">
+                <span className="text-sm md:text-base">🚚</span>
+                <span>{new Date(order.delivery_date).toLocaleDateString('de-DE')}</span>
               </div>
             )}
 
             {/* Linen Color */}
             {order.linen_color && (
-              <div className="flex items-start gap-2 text-sm">
-                <span className="text-base">🎨</span>
-                <span>
-                  <span className="text-muted-foreground">Farbe:</span> {getLinenColorLabel(order.linen_color as LinenColor)}
-                </span>
+              <div className="flex items-start gap-2 text-xs md:text-sm">
+                <span className="text-sm md:text-base">🎨</span>
+                <span>{getLinenColorLabel(order.linen_color as LinenColor)}</span>
+              </div>
+            )}
+
+            {/* Pickup Date - only if exists */}
+            {order.pickup_date && (
+              <div className="flex items-start gap-2 text-xs md:text-sm">
+                <span className="text-sm md:text-base">📤</span>
+                <span>{new Date(order.pickup_date).toLocaleDateString('de-DE')}</span>
               </div>
             )}
           </div>
 
-          {/* Right Column: All Items */}
-          <div className="space-y-2 text-sm">
-            {order.pickup_date && (
-              <div>
-                <span className="text-muted-foreground">Abholung: </span>
-                <span>{new Date(order.pickup_date).toLocaleDateString('de-DE')}</span>
-              </div>
-            )}
-
-            {/* Items Table - Artikel mit Farbe und Anzahl */}
+          {/* Right Column: Items & Notes */}
+          <div className="space-y-2">
+            {/* Items List */}
             {((order.laundry_order_items && order.laundry_order_items.length > 0) || order.items) && (
               <div className="space-y-1">
-                <p className="text-xs text-muted-foreground font-medium">Artikel ({getTotalItems()} gesamt):</p>
+                <p className="text-xs text-muted-foreground font-medium">Artikel ({getTotalItems()}):</p>
                 
-                <table className="w-full text-sm">
+                {/* Desktop: Table View */}
+                <table className="w-full text-sm hidden md:table">
                   <thead>
                     <tr className="text-xs text-muted-foreground border-b">
                       <th className="text-left font-medium pb-1">Artikel</th>
@@ -215,7 +204,6 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                     </tr>
                   </thead>
                   <tbody>
-                    {/* Handle laundry_order_items (array format) */}
                     {order.laundry_order_items && order.laundry_order_items
                       .filter((item: any) => item.quantity > 0)
                       .map((item: any) => (
@@ -226,7 +214,6 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                       </tr>
                     ))}
                     
-                    {/* Handle linen order items (JSON object format) */}
                     {order.items && Object.entries(order.items)
                       .filter(([_, count]: [string, any]) => count > 0)
                       .sort(([a], [b]) => {
@@ -239,7 +226,6 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                         const itemColor = itemVariants?.[itemType];
                         const itemHasLinenColor = hasLinenColor(itemType);
                         const itemHasItemColor = hasItemColor(itemType);
-                        
                         
                         return (
                           <tr key={itemType}>
@@ -258,13 +244,58 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                       })}
                   </tbody>
                 </table>
+
+                {/* Mobile: Compact List View */}
+                <div className="md:hidden space-y-0.5">
+                  {order.laundry_order_items && order.laundry_order_items
+                    .filter((item: any) => item.quantity > 0)
+                    .map((item: any) => (
+                    <div key={item.id} className="flex justify-between text-xs">
+                      <span className="truncate">{item.item_name}</span>
+                      <span className="text-muted-foreground ml-2 shrink-0">{item.quantity}x</span>
+                    </div>
+                  ))}
+                  
+                  {order.items && Object.entries(order.items)
+                    .filter(([_, count]: [string, any]) => count > 0)
+                    .sort(([a], [b]) => {
+                      const indexA = ITEM_DISPLAY_ORDER.indexOf(a);
+                      const indexB = ITEM_DISPLAY_ORDER.indexOf(b);
+                      return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+                    })
+                    .map(([itemType, count]: [string, any]) => {
+                      const itemVariants = order.item_variants as Record<string, string> | null;
+                      const itemColor = itemVariants?.[itemType];
+                      const itemHasLinenColor = hasLinenColor(itemType);
+                      const itemHasItemColor = hasItemColor(itemType);
+                      
+                      // Get short color label for mobile
+                      let colorLabel = '';
+                      if (itemHasLinenColor) {
+                        colorLabel = itemColor ? getLinenColorLabel(itemColor as LinenColor).replace('gestreift', 'gestr.') : 'Weiß gestr.';
+                      } else if (itemHasItemColor) {
+                        colorLabel = itemColor ? getItemColorLabel(itemColor as ItemColor) : 'Weiß';
+                      }
+                      
+                      return (
+                        <div key={itemType} className="flex justify-between text-xs">
+                          <span className="truncate">
+                            {translateItemType(itemType)}
+                            {colorLabel && <span className="text-muted-foreground"> ({colorLabel})</span>}
+                          </span>
+                          <span className="text-muted-foreground ml-2 shrink-0">{count}x</span>
+                        </div>
+                      );
+                    })}
+                </div>
               </div>
             )}
 
+            {/* Notes */}
             {order.notes && (
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Notizen:</p>
-                <p className="text-xs">{order.notes}</p>
+                <p className="text-xs text-muted-foreground">Notizen:</p>
+                <p className="text-xs line-clamp-2">{order.notes}</p>
               </div>
             )}
           </div>
