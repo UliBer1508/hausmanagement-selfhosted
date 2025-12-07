@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LinenOrderDialog from './LinenOrderDialog';
 import LinenOrderEmailDialog from './LinenOrderEmailDialog';
+import { translateItemType } from '@/lib/linenOrderHelpers';
 import { 
   ShoppingCart, 
   Package, 
@@ -307,18 +308,6 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
     enabled: !!house?.id,
   });
 
-  const linenLabels: Record<string, string> = {
-    bedding: 'Bettwäsche',
-    large_towels: 'Badetücher',
-    small_towels: 'Handtücher',
-    sauna_towels: 'Saunatücher',
-    bath_mats: 'Badematten',
-    sink_towels: 'WB-Handtücher',
-    kitchen_towels: 'Geschirrtücher',
-    blankets: 'Decken',
-    pillow_cases: 'Kissenbezüge',
-    table_linens: 'Tischwäsche'
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -454,7 +443,7 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
             {Object.entries(order.items || {}).map(([itemType, quantity]) => (
               <div key={itemType} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
-                <span>{linenLabels[itemType] || itemType}</span>
+                <span>{translateItemType(itemType)}</span>
                 <Badge variant="secondary">{quantity as number}</Badge>
               </div>
             ))}

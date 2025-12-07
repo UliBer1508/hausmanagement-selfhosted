@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { translateItemType } from '@/lib/linenOrderHelpers';
 
 interface LinenItem {
   bedding: number;
@@ -64,14 +65,6 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
   const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
 
-  const linenLabels: Record<keyof LinenItem, string> = {
-    bedding: 'Bettwäsche',
-    large_towels: 'Badetücher',
-    small_towels: 'Handtücher',
-    bath_mats: 'Badematten',
-    sink_towels: 'WB-Handtücher',
-    sauna_towels: 'Saunatücher'
-  };
 
   const runOptimization = async () => {
     setIsOptimizing(true);
@@ -235,7 +228,7 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
                     return (
                       <div key={itemType} className="flex items-center justify-between p-2 md:p-3 border rounded-lg">
                         <span className="text-xs md:text-sm font-medium truncate">
-                          {linenLabels[itemType as keyof LinenItem] || itemType}
+                          {translateItemType(itemType)}
                         </span>
                         <Badge variant="secondary" className="text-xs shrink-0 ml-2">
                           {orderQty}
