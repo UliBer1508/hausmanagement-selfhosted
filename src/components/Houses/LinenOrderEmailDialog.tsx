@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Mail, Send, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { translateItemType } from '@/lib/linenOrderHelpers';
 
 interface LinenOrderEmailDialogProps {
   open: boolean;
@@ -39,17 +40,6 @@ const LinenOrderEmailDialog = ({
     `Neue Wäschebestellung #${order?.id?.slice(-8)} - ${houseName}`
   );
 
-  const linenLabels: Record<string, string> = {
-    bedding: 'Bettwäsche',
-    large_towels: 'Badetücher',
-    small_towels: 'Handtücher',
-    sauna_towels: 'Saunatücher',
-    bath_mats: 'Badematten',
-    sink_towels: 'WB-Handtücher',
-    kitchen_towels: 'Geschirrtücher',
-    blankets: 'Decken',
-    pillow_cases: 'Kopfkissen',
-  };
 
   const linenColorLabels: Record<string, string> = {
     grey_striped: 'Grau gestreift',
@@ -62,7 +52,7 @@ const LinenOrderEmailDialog = ({
     if (!order) return '';
 
     const itemsList = Object.entries(order.items || {})
-      .map(([itemType, quantity]) => `- ${linenLabels[itemType] || itemType}: ${quantity} Stück`)
+      .map(([itemType, quantity]) => `- ${translateItemType(itemType)}: ${quantity} Stück`)
       .join('\n');
 
     const deliveryTypeText = order.delivery_type === 'pickup' ? 'Abholung' : 'Lieferung';
