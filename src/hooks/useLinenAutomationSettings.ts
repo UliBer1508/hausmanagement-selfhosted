@@ -9,6 +9,9 @@ export interface LinenAutomationSettings {
   delivery_advance_days: number;
   min_advance_days: number;
   default_provider_id: string | null;
+  external_sync_enabled: boolean;
+  external_api_url: string;
+  external_kundennummer: string;
   created_at: string;
   updated_at: string;
 }

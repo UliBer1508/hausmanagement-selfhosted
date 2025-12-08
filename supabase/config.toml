@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.analyze-vacancy]
 verify_jwt = false
+
+[functions.sync-linen-order-external]
+verify_jwt = false

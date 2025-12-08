@@ -1710,6 +1710,33 @@ export type Database = {
         }
         Relationships: []
       }
+      external_article_mapping: {
+        Row: {
+          created_at: string | null
+          external_artikelnummer: string
+          id: string
+          internal_item_key: string
+          is_active: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          external_artikelnummer: string
+          id?: string
+          internal_item_key: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          external_artikelnummer?: string
+          id?: string
+          internal_item_key?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       guest_behavior_patterns: {
         Row: {
           avg_linen_usage: Json
@@ -2092,6 +2119,7 @@ export type Database = {
           created_at: string | null
           default_cleaning_hours: number | null
           default_linen_color: string | null
+          external_objektnummer: string | null
           ical_url: string | null
           id: string
           image_filename: string | null
@@ -2123,6 +2151,7 @@ export type Database = {
           created_at?: string | null
           default_cleaning_hours?: number | null
           default_linen_color?: string | null
+          external_objektnummer?: string | null
           ical_url?: string | null
           id?: string
           image_filename?: string | null
@@ -2154,6 +2183,7 @@ export type Database = {
           created_at?: string | null
           default_cleaning_hours?: number | null
           default_linen_color?: string | null
+          external_objektnummer?: string | null
           ical_url?: string | null
           id?: string
           image_filename?: string | null
@@ -2465,6 +2495,9 @@ export type Database = {
           default_provider_id: string | null
           delivery_advance_days: number
           delivery_timing: string | null
+          external_api_url: string | null
+          external_kundennummer: string | null
+          external_sync_enabled: boolean | null
           id: string
           is_enabled: boolean
           lookahead_bookings: number
@@ -2476,6 +2509,9 @@ export type Database = {
           default_provider_id?: string | null
           delivery_advance_days?: number
           delivery_timing?: string | null
+          external_api_url?: string | null
+          external_kundennummer?: string | null
+          external_sync_enabled?: boolean | null
           id?: string
           is_enabled?: boolean
           lookahead_bookings?: number
@@ -2487,6 +2523,9 @@ export type Database = {
           default_provider_id?: string | null
           delivery_advance_days?: number
           delivery_timing?: string | null
+          external_api_url?: string | null
+          external_kundennummer?: string | null
+          external_sync_enabled?: boolean | null
           id?: string
           is_enabled?: boolean
           lookahead_bookings?: number
@@ -2512,6 +2551,8 @@ export type Database = {
           delivery_time: string | null
           delivery_type: string
           email_sent_at: string | null
+          external_bestellnummer: string | null
+          external_synced_at: string | null
           house_id: string | null
           id: string
           item_variants: Json | null
@@ -2534,6 +2575,8 @@ export type Database = {
           delivery_time?: string | null
           delivery_type?: string
           email_sent_at?: string | null
+          external_bestellnummer?: string | null
+          external_synced_at?: string | null
           house_id?: string | null
           id?: string
           item_variants?: Json | null
@@ -2556,6 +2599,8 @@ export type Database = {
           delivery_time?: string | null
           delivery_type?: string
           email_sent_at?: string | null
+          external_bestellnummer?: string | null
+          external_synced_at?: string | null
           house_id?: string | null
           id?: string
           item_variants?: Json | null

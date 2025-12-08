@@ -1,7 +1,8 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Edit, Package, Trash2, CheckCircle } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Edit, Package, Trash2, CheckCircle, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 import { translateItemType } from '@/lib/linenOrderHelpers';
@@ -367,7 +368,28 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
         )}
 
         {/* Status Badge - Bottom Right */}
-        <div className="absolute bottom-2 right-2">
+        <div className="absolute bottom-2 right-2 flex items-center gap-2">
+          {/* External Sync Badge */}
+          {order.external_bestellnummer && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 gap-1">
+                    <Link2 className="h-3 w-3" />
+                    Sync
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Externe Bestellnummer: {order.external_bestellnummer}</p>
+                  {order.external_synced_at && (
+                    <p className="text-xs text-muted-foreground">
+                      Synchronisiert am {new Date(order.external_synced_at).toLocaleString('de-DE')}
+                    </p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           {getStatusBadge(order.status, isPending)}
         </div>
       </CardContent>
