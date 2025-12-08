@@ -40,6 +40,7 @@ export interface LinenItemConfig {
   season?: 'winter' | 'summer' | null;
   active: boolean;
   color?: ItemColor | LinenColor; // Artikelfarbe (ItemColor für Badbereich/Wellness, LinenColor für Schlafbereich)
+  external_artikelnummer?: Record<string, string>; // Farb-basiertes Mapping: { "grey_striped": "WA001", "white_striped": "WA005" }
 }
 
 export interface LinenSetDefinition {

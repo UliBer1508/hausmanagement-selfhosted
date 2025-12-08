@@ -237,7 +237,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
             <Info className="h-4 w-4" />
             <AlertDescription>
               Die Tabelle ist immer editierbar. Änderungen werden mit <strong>Speichern</strong> übernommen.
-              Bei "saisonal" werden Winter (Okt-Apr) und Sommer (Mai-Sep) berücksichtigt.
+              <strong>Ext. Artikelnr.</strong>: Für farbbasierte Artikel mehrere Nummern mit "/" trennen (z.B. WA001/WA005 für grau/weiß gestreift).
             </AlertDescription>
           </Alert>
 
@@ -248,20 +248,21 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                   <span>{categoryIcons[category as keyof typeof categoryIcons]}</span>
                   {category}
                 </h3>
-                <div className="border rounded-lg overflow-hidden">
+                <div className="border rounded-lg overflow-hidden overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[200px]">Wäsche</TableHead>
-                        <TableHead className="w-[100px]">Anzahl</TableHead>
-                        <TableHead className="w-[150px]">Berechnung</TableHead>
-                        <TableHead className="w-[150px]">Verfügbarkeit</TableHead>
+                        <TableHead className="w-[180px]">Wäsche</TableHead>
+                        <TableHead className="w-[80px]">Anzahl</TableHead>
+                        <TableHead className="w-[120px]">Berechnung</TableHead>
+                        <TableHead className="w-[120px]">Verfügbarkeit</TableHead>
                         {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich') && (
                           <TableHead className="w-[100px]">Farbe</TableHead>
                         )}
-                        <TableHead className="w-[100px]">Winter</TableHead>
-                        <TableHead className="w-[100px]">Sommer</TableHead>
-                        <TableHead className="w-[80px]">Aktionen</TableHead>
+                        <TableHead className="w-[80px]">Winter</TableHead>
+                        <TableHead className="w-[80px]">Sommer</TableHead>
+                        <TableHead className="w-[200px]">Ext. Artikelnr.</TableHead>
+                        <TableHead className="w-[60px]">Aktionen</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -359,6 +360,49 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                                 onCheckedChange={(checked) => 
                                   updateItem(item.key, { season: checked ? 'summer' : 'winter' })
                                 }
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {/* Externe Artikelnummer - für farbbasierte Items */}
+                            {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich') ? (
+                              <Input
+                                placeholder={category === 'Schlafbereich' ? 'WA001/WA005' : 'WA008'}
+                                value={(() => {
+                                  const extMap = item.external_artikelnummer || {};
+                                  // Zeige kompaktes Format: WA001/WA005
+                                  const values = Object.values(extMap).filter(Boolean);
+                                  return values.join('/');
+                                })()}
+                                onChange={(e) => {
+                                  // Parse: WA001 oder WA001/WA005 für mehrere Farben
+                                  const input = e.target.value.trim();
+                                  const parts = input.split('/').map(p => p.trim()).filter(Boolean);
+                                  
+                                  // Für Schlafbereich: erste = grey_striped, zweite = white_striped
+                                  // Für Badbereich/Wellness: erste = white, zweite = grey
+                                  let newMap: Record<string, string> = {};
+                                  if (category === 'Schlafbereich') {
+                                    if (parts[0]) newMap['grey_striped'] = parts[0];
+                                    if (parts[1]) newMap['white_striped'] = parts[1];
+                                  } else {
+                                    if (parts[0]) newMap['white'] = parts[0];
+                                    if (parts[1]) newMap['grey'] = parts[1];
+                                  }
+                                  updateItem(item.key, { external_artikelnummer: newMap });
+                                }}
+                                className="w-28 text-xs"
+                              />
+                            ) : (
+                              <Input
+                                placeholder="WA011"
+                                value={item.external_artikelnummer?.['default'] || ''}
+                                onChange={(e) => {
+                                  updateItem(item.key, { 
+                                    external_artikelnummer: { 'default': e.target.value.trim() } 
+                                  });
+                                }}
+                                className="w-20 text-xs"
                               />
                             )}
                           </TableCell>
