@@ -38,6 +38,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
     living_area_sqm: house?.living_area_sqm || 0,
     default_cleaning_hours: house?.default_cleaning_hours || 3,
     default_linen_color: house?.default_linen_color || 'white_striped',
+    external_objektnummer: house?.external_objektnummer || '',
     amenities: house?.amenities || {
       sauna: false,
       terrace: false,
@@ -150,6 +151,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         living_area_sqm: data.living_area_sqm || null,
         default_cleaning_hours: data.default_cleaning_hours || 3,
         default_linen_color: data.default_linen_color || 'white_striped',
+        external_objektnummer: data.external_objektnummer || null,
         amenities: data.amenities,
       };
 
@@ -263,6 +265,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
         living_area_sqm: house.living_area_sqm || 0,
         default_cleaning_hours: house.default_cleaning_hours || 3,
         default_linen_color: house.default_linen_color || 'white_striped',
+        external_objektnummer: house.external_objektnummer || '',
         amenities: house.amenities || {
           sauna: false,
           terrace: false,
@@ -518,6 +521,21 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
                     Standardzeit für Reinigungsaufträge dieses Objekts
                   </p>
                 </div>
+
+                {formData.rental_type === 'tourist' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="external_objektnummer">Externe Objektnummer (Wäscheportal)</Label>
+                    <Input
+                      id="external_objektnummer"
+                      value={formData.external_objektnummer || ''}
+                      onChange={(e) => setFormData({ ...formData, external_objektnummer: e.target.value })}
+                      placeholder="z.B. O550634"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Objektnummer im externen Wäscheportal für automatische Synchronisation
+                    </p>
+                  </div>
+                )}
 
               </div>
 
