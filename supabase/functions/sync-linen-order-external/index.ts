@@ -100,38 +100,71 @@ serve(async (req) => {
       );
     }
 
-    // 3. Load article mappings
-    const { data: mappings, error: mappingsError } = await supabase
-      .from('external_article_mapping')
-      .select('*')
-      .eq('is_active', true);
+    // 3. Load linen set definitions (contains external_artikelnummer mapping)
+    const { data: linenDef, error: linenDefError } = await supabase
+      .from('linen_set_definitions')
+      .select('custom_categories')
+      .eq('house_id', order.house_id)
+      .single();
 
-    if (mappingsError) {
-      console.error('[sync-linen-order-external] Error loading mappings:', mappingsError);
-      return new Response(
-        JSON.stringify({ error: 'Failed to load article mappings', details: mappingsError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (linenDefError) {
+      console.warn('[sync-linen-order-external] Could not load linen definitions:', linenDefError.message);
     }
 
-    // Create mapping lookup
-    const mappingLookup = new Map<string, string>();
-    for (const m of mappings || []) {
-      mappingLookup.set(m.internal_item_key, m.external_artikelnummer);
-    }
+    const customCategories = (linenDef?.custom_categories || {}) as Record<string, any>;
 
-    // 4. Map order items to external format
+    // 4. Map order items to external format using external_artikelnummer from custom_categories
     const orderItems = order.items as Record<string, number> || {};
+    const itemVariants = (order.item_variants || {}) as Record<string, { color?: string }>;
+    const globalLinenColor = order.linen_color || 'white_striped';
+    
     const unmappedItems: string[] = [];
     const positionen: { artikelnummer: string; menge: number; notizen?: string }[] = [];
 
     for (const [itemKey, quantity] of Object.entries(orderItems)) {
       if (quantity <= 0) continue;
 
-      const externalArtikelnummer = mappingLookup.get(itemKey);
+      const itemConfig = customCategories[itemKey];
+      const externalMapping = itemConfig?.external_artikelnummer as Record<string, string> | undefined;
+      
+      if (!externalMapping || Object.keys(externalMapping).length === 0) {
+        unmappedItems.push(itemKey);
+        console.warn(`[sync-linen-order-external] No external mapping for: ${itemKey}`);
+        continue;
+      }
+
+      // Determine color: use item-specific color from item_variants, or global linen_color, or item default
+      let itemColor = itemVariants[itemKey]?.color;
+      if (!itemColor) {
+        // For Schlafbereich items, use global linen_color; for others, use 'white' or 'default'
+        const category = itemConfig?.category;
+        if (category === 'Schlafbereich') {
+          itemColor = globalLinenColor;
+        } else if (category === 'Badbereich' || category === 'Wellness') {
+          itemColor = 'white'; // Default for bath/wellness items
+        } else {
+          itemColor = 'default';
+        }
+      }
+
+      // Look up external artikelnummer for this color
+      let externalArtikelnummer = externalMapping[itemColor];
+      
+      // Fallback: try 'default' if specific color not found
+      if (!externalArtikelnummer && externalMapping['default']) {
+        externalArtikelnummer = externalMapping['default'];
+      }
+      
+      // Fallback: use first available mapping
+      if (!externalArtikelnummer) {
+        const firstKey = Object.keys(externalMapping)[0];
+        externalArtikelnummer = externalMapping[firstKey];
+        console.log(`[sync-linen-order-external] Using fallback mapping for ${itemKey}: ${firstKey} -> ${externalArtikelnummer}`);
+      }
+
       if (!externalArtikelnummer) {
         unmappedItems.push(itemKey);
-        console.warn(`[sync-linen-order-external] Unmapped item: ${itemKey}`);
+        console.warn(`[sync-linen-order-external] No matching color mapping for: ${itemKey} (color: ${itemColor})`);
         continue;
       }
 
@@ -139,6 +172,8 @@ serve(async (req) => {
         artikelnummer: externalArtikelnummer,
         menge: quantity as number
       });
+
+      console.log(`[sync-linen-order-external] Mapped: ${itemKey} (${itemColor}) -> ${externalArtikelnummer} x ${quantity}`);
     }
 
     if (positionen.length === 0) {
