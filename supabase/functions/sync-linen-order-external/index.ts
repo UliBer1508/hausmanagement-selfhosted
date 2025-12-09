@@ -7,6 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// External Supabase (Wäsche Oberpinzgau Portal)
+const EXTERNAL_SUPABASE_URL = 'https://pkpnowevagxmhyqlawng.supabase.co';
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -23,11 +26,21 @@ serve(async (req) => {
       );
     }
 
+    // Internal Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const externalApiKey = Deno.env.get('EXTERNAL_LAUNDRY_API_KEY');
-
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // External Supabase client (direct table access)
+    const externalAnonKey = Deno.env.get('EXTERNAL_LAUNDRY_ANON_KEY');
+    if (!externalAnonKey) {
+      console.error('[sync-linen-order-external] EXTERNAL_LAUNDRY_ANON_KEY not configured');
+      return new Response(
+        JSON.stringify({ error: 'External Supabase key not configured' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const externalSupabase = createClient(EXTERNAL_SUPABASE_URL, externalAnonKey);
 
     console.log(`[sync-linen-order-external] Starting sync for order: ${linen_order_id}`);
 
@@ -50,14 +63,6 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ success: false, message: 'External sync is disabled' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!externalApiKey) {
-      console.error('[sync-linen-order-external] EXTERNAL_LAUNDRY_API_KEY not configured');
-      return new Response(
-        JSON.stringify({ error: 'External API key not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -187,68 +192,162 @@ serve(async (req) => {
       );
     }
 
-    // 5. Build external API payload
-    const payload = {
+    // 5. First, let's query the external database to understand the table structure
+    console.log('[sync-linen-order-external] Querying external database structure...');
+    
+    // Try to get table structure by querying with limit 0 or check what tables exist
+    const { data: externalOrders, error: externalQueryError } = await externalSupabase
+      .from('orders')
+      .select('*')
+      .limit(1);
+
+    if (externalQueryError) {
+      console.log('[sync-linen-order-external] "orders" table query error:', externalQueryError.message);
+      
+      // Try alternative table names
+      const { data: bestellungen, error: bestellungenError } = await externalSupabase
+        .from('bestellungen')
+        .select('*')
+        .limit(1);
+      
+      if (bestellungenError) {
+        console.log('[sync-linen-order-external] "bestellungen" table query error:', bestellungenError.message);
+        
+        // Try linen_orders
+        const { data: linenOrders, error: linenOrdersError } = await externalSupabase
+          .from('linen_orders')
+          .select('*')
+          .limit(1);
+        
+        if (linenOrdersError) {
+          console.error('[sync-linen-order-external] Cannot find orders table. Tried: orders, bestellungen, linen_orders');
+          return new Response(
+            JSON.stringify({ 
+              error: 'Cannot access external orders table',
+              details: {
+                orders_error: externalQueryError.message,
+                bestellungen_error: bestellungenError.message,
+                linen_orders_error: linenOrdersError.message
+              }
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          console.log('[sync-linen-order-external] Found "linen_orders" table:', linenOrders);
+        }
+      } else {
+        console.log('[sync-linen-order-external] Found "bestellungen" table:', bestellungen);
+      }
+    } else {
+      console.log('[sync-linen-order-external] Found "orders" table. Sample:', externalOrders);
+    }
+
+    // 6. Build order data for external insert
+    const externalOrderData = {
       kundennummer: settings.external_kundennummer || 'K470214',
       objektnummer: house.external_objektnummer,
-      gastname: booking?.guest_name || undefined,
-      check_in: booking?.check_in ? booking.check_in.split('T')[0] : undefined,
-      check_out: booking?.check_out ? booking.check_out.split('T')[0] : undefined,
-      anzahl_personen: booking?.number_of_guests || undefined,
-      lieferdatum: order.delivery_date || undefined,
-      lieferzeit: order.delivery_time || undefined,
-      notizen: order.notes || undefined,
-      positionen
+      gastname: booking?.guest_name || null,
+      check_in: booking?.check_in ? booking.check_in.split('T')[0] : null,
+      check_out: booking?.check_out ? booking.check_out.split('T')[0] : null,
+      anzahl_personen: booking?.number_of_guests || null,
+      lieferdatum: order.delivery_date || null,
+      lieferzeit: order.delivery_time || null,
+      notizen: order.notes || null,
+      positionen: positionen,
+      status: 'pending',
+      created_at: new Date().toISOString()
     };
 
-    console.log('[sync-linen-order-external] Sending to external API:', JSON.stringify(payload, null, 2));
+    console.log('[sync-linen-order-external] Inserting into external database:', JSON.stringify(externalOrderData, null, 2));
 
-    // 6. Send to external API
-    const externalApiUrl = settings.external_api_url || 'https://pkpnowevagxmhyqlawng.supabase.co/functions/v1/external-order-import';
-    
-    const externalResponse = await fetch(externalApiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${externalApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
+    // 7. Insert into external database - try different table names
+    let insertResult: any = null;
+    let insertError: any = null;
+    let tableName = '';
 
-    const externalResult = await externalResponse.json();
-    console.log('[sync-linen-order-external] External API response:', externalResponse.status, JSON.stringify(externalResult));
+    // Try 'orders' first
+    const { data: ordersInsert, error: ordersInsertError } = await externalSupabase
+      .from('orders')
+      .insert(externalOrderData)
+      .select()
+      .single();
 
-    if (!externalResponse.ok) {
+    if (!ordersInsertError) {
+      insertResult = ordersInsert;
+      tableName = 'orders';
+    } else {
+      console.log('[sync-linen-order-external] Insert into "orders" failed:', ordersInsertError.message);
+      
+      // Try 'bestellungen'
+      const { data: bestellungenInsert, error: bestellungenInsertError } = await externalSupabase
+        .from('bestellungen')
+        .insert(externalOrderData)
+        .select()
+        .single();
+
+      if (!bestellungenInsertError) {
+        insertResult = bestellungenInsert;
+        tableName = 'bestellungen';
+      } else {
+        console.log('[sync-linen-order-external] Insert into "bestellungen" failed:', bestellungenInsertError.message);
+        
+        // Try 'linen_orders'
+        const { data: linenOrdersInsert, error: linenOrdersInsertError } = await externalSupabase
+          .from('linen_orders')
+          .insert(externalOrderData)
+          .select()
+          .single();
+
+        if (!linenOrdersInsertError) {
+          insertResult = linenOrdersInsert;
+          tableName = 'linen_orders';
+        } else {
+          insertError = {
+            orders: ordersInsertError.message,
+            bestellungen: bestellungenInsertError.message,
+            linen_orders: linenOrdersInsertError.message
+          };
+        }
+      }
+    }
+
+    if (!insertResult) {
+      console.error('[sync-linen-order-external] Failed to insert into any table:', insertError);
       return new Response(
         JSON.stringify({ 
-          error: 'External API request failed',
-          status: externalResponse.status,
-          details: externalResult
+          error: 'Failed to insert order into external database',
+          details: insertError
         }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 7. Update linen order with external tracking
+    console.log(`[sync-linen-order-external] Successfully inserted into "${tableName}":`, insertResult);
+
+    // Extract bestellnummer from result (might be id or bestellnummer field)
+    const externalBestellnummer = insertResult.bestellnummer || insertResult.id || `EXT-${Date.now()}`;
+
+    // 8. Update local linen order with external tracking
     const { error: updateError } = await supabase
       .from('linen_orders')
       .update({
-        external_bestellnummer: externalResult.data?.bestellnummer || externalResult.bestellnummer,
+        external_bestellnummer: String(externalBestellnummer),
         external_synced_at: new Date().toISOString()
       })
       .eq('id', linen_order_id);
 
     if (updateError) {
-      console.error('[sync-linen-order-external] Error updating order:', updateError);
+      console.error('[sync-linen-order-external] Error updating local order:', updateError);
       // Don't fail - the external order was created successfully
     }
 
-    console.log(`[sync-linen-order-external] Successfully synced order. External Bestellnummer: ${externalResult.data?.bestellnummer || externalResult.bestellnummer}`);
+    console.log(`[sync-linen-order-external] Successfully synced order. External ID: ${externalBestellnummer}, Table: ${tableName}`);
 
     return new Response(
       JSON.stringify({ 
         success: true,
-        external_bestellnummer: externalResult.data?.bestellnummer || externalResult.bestellnummer,
+        external_bestellnummer: externalBestellnummer,
+        table_used: tableName,
         unmapped_items: unmappedItems.length > 0 ? unmappedItems : undefined
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
