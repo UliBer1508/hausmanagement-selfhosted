@@ -118,34 +118,42 @@ export const useExternalSync = () => {
 
       // 8. Bestellpositionen vorbereiten
       const orderItems = order.items as Record<string, number> || {};
+      const itemVariants = order.item_variants as Record<string, string> | null;
       const positionen: Array<{
         artikel_id: string;
         menge: number;
-        farbe?: string;
       }> = [];
 
       for (const [itemKey, quantity] of Object.entries(orderItems)) {
         if (quantity <= 0) continue;
         
-        const externalArtikelnummer = mappingDict[itemKey];
+        // Farbe aus item_variants holen für farb-basiertes Mapping
+        const color = itemVariants?.[itemKey];
+        
+        // Mapping-Key mit Farbe konstruieren (z.B. "large_towels_white")
+        const mappingKeyWithColor = color ? `${itemKey}_${color}` : null;
+        
+        // Erst mit Farbe suchen, dann Fallback ohne Farbe
+        const externalArtikelnummer = 
+          (mappingKeyWithColor && mappingDict[mappingKeyWithColor]) || 
+          mappingDict[itemKey];
+        
         if (!externalArtikelnummer) {
-          console.warn(`Kein Mapping für Artikel: ${itemKey}`);
+          console.warn(`Kein Mapping für Artikel: ${mappingKeyWithColor || itemKey}`);
           continue;
         }
 
         // Artikel-ID aus externer DB holen
-      const { data: artikelData } = await externalLaundryClient
-        .from('waescheartikel')
+        const { data: artikelData } = await externalLaundryClient
+          .from('waescheartikel')
           .select('id')
           .eq('artikelnummer', externalArtikelnummer)
           .single();
 
         if (artikelData) {
-          const itemVariants = order.item_variants as Record<string, string> | null;
           positionen.push({
             artikel_id: artikelData.id,
             menge: quantity,
-            farbe: itemVariants?.[itemKey] || undefined,
           });
         }
       }
