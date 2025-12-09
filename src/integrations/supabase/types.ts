@@ -2302,6 +2302,90 @@ export type Database = {
           },
         ]
       }
+      laundry_invoices: {
+        Row: {
+          bearbeitungsgebuehr: number | null
+          bezahlt_am: string | null
+          bruttobetrag: number
+          created_at: string | null
+          external_bestellung_id: string | null
+          external_kunde_id: string | null
+          external_rechnung_id: string
+          external_updated_at: string | null
+          faelligkeitsdatum: string | null
+          id: string
+          kunde_kundennummer: string | null
+          kunde_name: string | null
+          kunde_ort: string | null
+          kunde_plz: string | null
+          kunde_strasse: string | null
+          mwst_betrag: number | null
+          mwst_satz: number | null
+          nettobetrag: number | null
+          notes: string | null
+          positionen: Json | null
+          rechnungsdatum: string
+          rechnungsnummer: string
+          status: string | null
+          synced_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          bearbeitungsgebuehr?: number | null
+          bezahlt_am?: string | null
+          bruttobetrag: number
+          created_at?: string | null
+          external_bestellung_id?: string | null
+          external_kunde_id?: string | null
+          external_rechnung_id: string
+          external_updated_at?: string | null
+          faelligkeitsdatum?: string | null
+          id?: string
+          kunde_kundennummer?: string | null
+          kunde_name?: string | null
+          kunde_ort?: string | null
+          kunde_plz?: string | null
+          kunde_strasse?: string | null
+          mwst_betrag?: number | null
+          mwst_satz?: number | null
+          nettobetrag?: number | null
+          notes?: string | null
+          positionen?: Json | null
+          rechnungsdatum: string
+          rechnungsnummer: string
+          status?: string | null
+          synced_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          bearbeitungsgebuehr?: number | null
+          bezahlt_am?: string | null
+          bruttobetrag?: number
+          created_at?: string | null
+          external_bestellung_id?: string | null
+          external_kunde_id?: string | null
+          external_rechnung_id?: string
+          external_updated_at?: string | null
+          faelligkeitsdatum?: string | null
+          id?: string
+          kunde_kundennummer?: string | null
+          kunde_name?: string | null
+          kunde_ort?: string | null
+          kunde_plz?: string | null
+          kunde_strasse?: string | null
+          mwst_betrag?: number | null
+          mwst_satz?: number | null
+          nettobetrag?: number | null
+          notes?: string | null
+          positionen?: Json | null
+          rechnungsdatum?: string
+          rechnungsnummer?: string
+          status?: string | null
+          synced_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       laundry_order_items: {
         Row: {
           color: string | null
