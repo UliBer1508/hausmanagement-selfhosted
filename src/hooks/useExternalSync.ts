@@ -166,7 +166,7 @@ export const useExternalSync = () => {
           gastname: order.bookings?.guest_name || 'Unbekannt',
           check_in: order.bookings?.check_in || null,
           check_out: order.bookings?.check_out || null,
-          anzahl_gaeste: order.bookings?.number_of_guests || null,
+          anzahl_personen: order.bookings?.number_of_guests || null,
         })
         .select('id, bestellnummer')
         .single();
