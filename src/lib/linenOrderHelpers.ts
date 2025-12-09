@@ -3,6 +3,36 @@
  */
 
 /**
+ * Extracts dynamic labels from linen_set_definitions.custom_categories
+ */
+export const getLabelsFromLinenDef = (linenDef: any): Record<string, string> => {
+  const labels: Record<string, string> = {};
+  if (linenDef?.custom_categories) {
+    Object.entries(linenDef.custom_categories).forEach(([key, config]: [string, any]) => {
+      if (config?.label) {
+        labels[key] = config.label;
+      }
+    });
+  }
+  return labels;
+};
+
+/**
+ * Extracts dynamic categories from linen_set_definitions.custom_categories
+ */
+export const getCategoriesFromLinenDef = (linenDef: any): Record<string, string> => {
+  const categories: Record<string, string> = {};
+  if (linenDef?.custom_categories) {
+    Object.entries(linenDef.custom_categories).forEach(([key, config]: [string, any]) => {
+      if (config?.category) {
+        categories[key] = config.category;
+      }
+    });
+  }
+  return categories;
+};
+
+/**
  * Calculates delivery date (3 days before check-in)
  */
 export const calculateDeliveryDate = (checkInDate: string): string => {
@@ -14,8 +44,18 @@ export const calculateDeliveryDate = (checkInDate: string): string => {
 
 /**
  * Translates linen item type keys to German
+ * Optionally accepts dynamic labels from custom_categories
  */
-export const translateItemType = (key: string): string => {
+export const translateItemType = (
+  key: string, 
+  customLabels?: Record<string, string>
+): string => {
+  // If dynamic labels provided, use them first
+  if (customLabels && customLabels[key]) {
+    return customLabels[key];
+  }
+  
+  // Fallback to hard-coded translations
   const translations: Record<string, string> = {
     bedding: 'Bettwäsche',
     large_towels: 'Badetücher',

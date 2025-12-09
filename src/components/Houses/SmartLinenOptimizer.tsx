@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { translateItemType } from '@/lib/linenOrderHelpers';
+import { translateItemType, getLabelsFromLinenDef } from '@/lib/linenOrderHelpers';
 
 interface LinenItem {
   bedding: number;
@@ -50,6 +50,7 @@ interface SmartLinenOptimizerProps {
   houseId: string;
   houseName: string;
   aiSettings: any;
+  linenSetDefinition?: any;
   onOptimizationStart?: () => void;
   onGenerateOrder?: (optimization: OptimizationResult) => void;
 }
@@ -58,12 +59,16 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
   houseId,
   houseName,
   aiSettings,
+  linenSetDefinition,
   onOptimizationStart,
   onGenerateOrder
 }) => {
   const { toast } = useToast();
   const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
+
+  // Extract dynamic labels
+  const customLabels = getLabelsFromLinenDef(linenSetDefinition);
 
 
   const runOptimization = async () => {
@@ -225,17 +230,17 @@ const SmartLinenOptimizer: React.FC<SmartLinenOptimizerProps> = ({
                   {Object.entries(optimization.order_suggestion.items).map(([itemType, itemData]) => {
                     const orderQty = typeof itemData === 'object' ? itemData.order_quantity : itemData;
                     if (orderQty === 0) return null;
-                    return (
-                      <div key={itemType} className="flex items-center justify-between p-2 md:p-3 border rounded-lg">
-                        <span className="text-xs md:text-sm font-medium truncate">
-                          {translateItemType(itemType)}
-                        </span>
-                        <Badge variant="secondary" className="text-xs shrink-0 ml-2">
-                          {orderQty}
-                        </Badge>
-                      </div>
-                    );
-                  })}
+                      return (
+                        <div key={itemType} className="flex items-center justify-between p-2 md:p-3 border rounded-lg">
+                          <span className="text-xs md:text-sm font-medium truncate">
+                            {translateItemType(itemType, customLabels)}
+                          </span>
+                          <Badge variant="secondary" className="text-xs shrink-0 ml-2">
+                            {orderQty}
+                          </Badge>
+                        </div>
+                      );
+                    })}
                 </div>
               </CardContent>
             </Card>

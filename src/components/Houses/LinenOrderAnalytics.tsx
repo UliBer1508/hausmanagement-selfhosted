@@ -16,7 +16,7 @@ import {
 import { format, addDays, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
-import { formatCurrency, translateItemType } from '@/lib/linenOrderHelpers';
+import { formatCurrency, translateItemType, getLabelsFromLinenDef } from '@/lib/linenOrderHelpers';
 
 interface LinenOrderAnalyticsProps {
   house: any;
@@ -126,6 +126,9 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
     }
   });
 
+  // Extract dynamic labels from linen definitions
+  const customLabels = getLabelsFromLinenDef(linenDefinitions);
+
   // Kostenberechnungen
   const costsData = useMemo(() => {
     if (!ordersWithBookings || !prices) return null;
@@ -162,7 +165,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
       ? monthlyCosts.reduce((sum, m) => sum + m.cost, 0) / monthlyCosts.length
       : 0;
 
-    // Kosten nach Artikel-Typ
+    // Kosten nach Artikel-Typ - use dynamic labels
     const costByItemType = Object.entries(
       ordersWithBookings.reduce((acc, order) => {
         if (order.items && typeof order.items === 'object') {
@@ -176,7 +179,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
     )
       .map(([itemType, totalCost]) => ({
         itemType,
-        label: translateItemType(itemType),
+        label: translateItemType(itemType, customLabels),
         totalCost: Math.round(totalCost)
       }))
       .sort((a, b) => b.totalCost - a.totalCost);
@@ -192,9 +195,9 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
       costByItemType,
       mostExpensiveItem
     };
-  }, [ordersWithBookings, prices]);
+  }, [ordersWithBookings, prices, customLabels]);
 
-  // Verbrauchsdaten
+  // Verbrauchsdaten - use dynamic labels
   const consumptionData = useMemo(() => {
     if (!ordersWithBookings || !linenDefinitions) return null;
 
@@ -214,7 +217,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
     )
       .map(([itemType, data]) => ({
         itemType,
-        label: translateItemType(itemType),
+        label: translateItemType(itemType, customLabels),
         ...data
       }))
       .sort((a, b) => b.totalQuantity - a.totalQuantity)
@@ -238,7 +241,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
     )
       .map(([itemType, totalQuantity]) => ({
         itemType,
-        label: translateItemType(itemType),
+        label: translateItemType(itemType, customLabels),
         avgPerGuest: totalGuestsFromBookings > 0 
           ? totalQuantity / totalGuestsFromBookings 
           : 0
@@ -251,7 +254,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
       totalBookings: ordersWithBookings.filter(o => o.bookings).length,
       totalGuests: totalGuestsFromBookings
     };
-  }, [ordersWithBookings, linenDefinitions, prices]);
+  }, [ordersWithBookings, linenDefinitions, prices, customLabels]);
 
   // Prognose-Daten
   const forecastData = useMemo(() => {
@@ -281,7 +284,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
     )
       .map(([itemType, quantity]) => ({
         itemType,
-        label: translateItemType(itemType),
+        label: translateItemType(itemType, customLabels),
         quantity
       }))
       .sort((a, b) => b.quantity - a.quantity);
@@ -301,7 +304,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
       estimatedCost,
       calculateBookingDemand
     };
-  }, [upcomingBookings, linenDefinitions, prices]);
+  }, [upcomingBookings, linenDefinitions, prices, customLabels]);
 
   if (ordersLoading) {
     return (
