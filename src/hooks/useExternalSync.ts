@@ -129,8 +129,8 @@ export const useExternalSync = () => {
         }
 
         // Artikel-ID aus externer DB holen
-        const { data: artikelData } = await externalLaundryClient
-          .from('waesche_artikel')
+      const { data: artikelData } = await externalLaundryClient
+        .from('waescheartikel')
           .select('id')
           .eq('artikelnummer', externalArtikelnummer)
           .single();
