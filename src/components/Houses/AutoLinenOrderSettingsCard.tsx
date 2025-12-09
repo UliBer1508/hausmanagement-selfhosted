@@ -253,6 +253,15 @@ const AutoLinenOrderSettingsCard = () => {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowMappingDialog(true)}
+                  className="gap-2"
+                >
+                  <Link2 className="h-4 w-4" />
+                  Artikel-Mapping ({mappingCount})
+                </Button>
                 <Switch 
                   checked={localExternalSyncEnabled}
                   onCheckedChange={(checked) => {
@@ -276,21 +285,6 @@ const AutoLinenOrderSettingsCard = () => {
                     </AlertDescription>
                   </Alert>
                 )}
-
-                <div className="flex items-center gap-3">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setShowMappingDialog(true)}
-                    className="gap-2"
-                  >
-                    <Link2 className="h-4 w-4" />
-                    Artikel-Mapping bearbeiten
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    {mappingCount} Artikel zugeordnet
-                  </span>
-                </div>
 
                 <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-md border border-amber-200 dark:border-amber-800">
                   <p className="text-sm text-amber-800 dark:text-amber-200">
