@@ -21,7 +21,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { syncOrder, isSyncing, isEnabled: externalSyncEnabled } = useExternalSync();
+  const { syncOrder, resetSync, isSyncing, isEnabled: externalSyncEnabled } = useExternalSync();
 
   // Fetch linen orders with related data (only tourist rentals)
   const { data: linenOrders, isLoading } = useQuery({
@@ -236,6 +236,12 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
               onSync={async (order) => {
                 const result = await syncOrder(order.id);
                 if (result.success) {
+                  queryClient.invalidateQueries({ queryKey: ['linen-orders-list'] });
+                }
+              }}
+              onResetSync={async (order) => {
+                const success = await resetSync(order.id);
+                if (success) {
                   queryClient.invalidateQueries({ queryKey: ['linen-orders-list'] });
                 }
               }}

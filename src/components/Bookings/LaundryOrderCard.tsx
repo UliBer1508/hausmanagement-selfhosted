@@ -2,7 +2,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Edit, Package, Trash2, CheckCircle, Link2 } from 'lucide-react';
+import { Edit, Package, Trash2, CheckCircle, Link2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 import { translateItemType } from '@/lib/linenOrderHelpers';
@@ -51,11 +51,12 @@ interface LaundryOrderCardProps {
   onDelete?: (order: any) => Promise<void> | void;
   onConfirm?: (order: any) => Promise<void> | void;
   onSync?: (order: any) => Promise<void> | void;
+  onResetSync?: (order: any) => Promise<void> | void;
   isSyncing?: boolean;
   externalSyncEnabled?: boolean;
 }
 
-const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, isSyncing = false, externalSyncEnabled = false }: LaundryOrderCardProps) => {
+const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false }: LaundryOrderCardProps) => {
   const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
@@ -330,6 +331,31 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
               </Button>
             )}
 
+            {/* Reset Sync Button - nur wenn bereits synchronisiert */}
+            {onResetSync && order.external_bestellnummer && externalSyncEnabled && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-100"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await onResetSync(order);
+                        } catch (error) {
+                          console.error('Error in onResetSync:', error);
+                        }
+                      }}
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Sync zurücksetzen (Test)</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             {/* Confirm Button - nur bei Status 'offen' */}
             {onConfirm && order.status === 'offen' && (
               <Button
