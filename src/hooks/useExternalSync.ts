@@ -160,8 +160,13 @@ export const useExternalSync = () => {
           objekt_id: objektData.id,
           lieferdatum: order.delivery_date,
           status: 'offen',
-          notizen: order.notes || `Buchung: ${order.bookings?.guest_name || 'Unbekannt'}`,
+          notizen: order.notes || undefined,
           waesche_farbe: order.linen_color || 'white_striped',
+          // Buchungsdaten
+          gastname: order.bookings?.guest_name || 'Unbekannt',
+          check_in: order.bookings?.check_in || null,
+          check_out: order.bookings?.check_out || null,
+          anzahl_gaeste: order.bookings?.number_of_guests || null,
         })
         .select('id, bestellnummer')
         .single();
