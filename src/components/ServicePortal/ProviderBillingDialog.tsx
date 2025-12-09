@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
+import { LaundryInvoicesList } from './LaundryInvoicesList';
 
 interface ProviderBillingDialogProps {
   provider: any;
@@ -92,149 +94,38 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
   const pendingAmount = groupedData.find(g => g.label.includes('Ausstehend'))?.sum || 0;
   const pendingCount = groupedData.find(g => g.label.includes('Ausstehend'))?.count || 0;
 
+  // Check if this is Teuni (laundry service) - show invoices tab
+  const isLaundryProvider = provider?.service_type === 'laundry';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>📊 Abrechnung - {provider?.name}</DialogTitle>
           <DialogDescription>
-            Alle Reinigungsaufträge mit Bezahlstatus
+            {isLaundryProvider 
+              ? 'Rechnungen und Aufträge verwalten'
+              : 'Alle Reinigungsaufträge mit Bezahlstatus'}
           </DialogDescription>
         </DialogHeader>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-muted-foreground">Lade Abrechnungsdaten...</div>
-          </div>
+        {isLaundryProvider ? (
+          <Tabs defaultValue="invoices" className="flex-1 flex flex-col overflow-hidden">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="invoices">📄 Rechnungen</TabsTrigger>
+              <TabsTrigger value="tasks">🧹 Aufträge</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="invoices" className="flex-1 overflow-auto mt-4">
+              <LaundryInvoicesList />
+            </TabsContent>
+            
+            <TabsContent value="tasks" className="flex-1 overflow-auto mt-4">
+              {renderTasksContent()}
+            </TabsContent>
+          </Tabs>
         ) : (
-          <>
-            {/* Summary Cards */}
-            <div className="grid grid-cols-4 gap-4 mb-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">Gesamt</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{totalAmount.toFixed(2)} EUR</div>
-                  <p className="text-xs text-muted-foreground">{totalCount} Aufträge</p>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-green-200 bg-green-50">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-green-700">✅ Bezahlt</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-700">{paidAmount.toFixed(2)} EUR</div>
-                  <p className="text-xs text-muted-foreground">{paidCount} Aufträge</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-red-200 bg-red-50">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-red-700">💳 Offen</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-red-700">{unpaidAmount.toFixed(2)} EUR</div>
-                  <p className="text-xs text-muted-foreground">{unpaidCount} Aufträge</p>
-                </CardContent>
-              </Card>
-
-              <Card className="border-orange-200 bg-orange-50">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-orange-700">⏳ Ausstehend</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-orange-700">{pendingAmount.toFixed(2)} EUR</div>
-                  <p className="text-xs text-muted-foreground">{pendingCount} Aufträge</p>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Excel-ähnliche Tabelle */}
-            <ScrollArea className="flex-1 border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Datum</TableHead>
-                    <TableHead>Haus</TableHead>
-                    <TableHead>Gast</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Stunden</TableHead>
-                    <TableHead className="text-right">Kosten</TableHead>
-                    <TableHead>Bezahlung</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {groupedData.map((group, groupIndex) => (
-                    <React.Fragment key={groupIndex}>
-                      {/* Gruppen-Header */}
-                      <TableRow className="bg-muted/50 font-semibold hover:bg-muted/50">
-                        <TableCell colSpan={7}>
-                          {group.label} ({group.count} Aufträge)
-                        </TableCell>
-                      </TableRow>
-                      
-                      {/* Daten-Zeilen */}
-                      {group.tasks.map((task: any) => (
-                        <TableRow key={task.id}>
-                          <TableCell>{format(new Date(task.scheduled_date), 'dd.MM.yyyy')}</TableCell>
-                          <TableCell>{task.houses?.name || '-'}</TableCell>
-                          <TableCell>{task.bookings?.guest_name || '-'}</TableCell>
-                          <TableCell>
-                            <Badge variant={
-                              task.status === 'completed' ? 'default' :
-                              task.status === 'scheduled' ? 'secondary' :
-                              task.status === 'cancelled' ? 'destructive' : 'outline'
-                            }>
-                              {task.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">{task.cleaning_hours || '-'}</TableCell>
-                          <TableCell className="text-right font-semibold">
-                            {task.cleaning_cost ? `${Number(task.cleaning_cost).toFixed(2)} EUR` : '-'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={
-                              task.payment_status === 'paid' ? 'default' :
-                              task.payment_status === 'unpaid' ? 'destructive' : 'secondary'
-                            }>
-                              {task.payment_status === 'paid' ? '✅ Bezahlt' :
-                               task.payment_status === 'unpaid' ? '💳 Offen' : '⏳ Ausstehend'}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      
-                      {/* Summen-Zeile pro Gruppe */}
-                      <TableRow className={`${group.bgColor} font-bold hover:${group.bgColor}`}>
-                        <TableCell colSpan={5} className="text-right">
-                          Summe {group.label}:
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {group.sum.toFixed(2)} EUR
-                        </TableCell>
-                        <TableCell></TableCell>
-                      </TableRow>
-                    </React.Fragment>
-                  ))}
-                  
-                  {/* Gesamt-Summe */}
-                  {groupedData.length > 0 && (
-                    <TableRow className="bg-primary/10 font-bold text-lg hover:bg-primary/10">
-                      <TableCell colSpan={5} className="text-right">
-                        GESAMTSUMME:
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {totalAmount.toFixed(2)} EUR
-                      </TableCell>
-                      <TableCell></TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </>
+          renderTasksContent()
         )}
 
         <DialogFooter>
@@ -245,4 +136,145 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
       </DialogContent>
     </Dialog>
   );
+
+  function renderTasksContent() {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-muted-foreground">Lade Abrechnungsdaten...</div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        {/* Summary Cards */}
+        <div className="grid grid-cols-4 gap-4 mb-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">Gesamt</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalAmount.toFixed(2)} EUR</div>
+              <p className="text-xs text-muted-foreground">{totalCount} Aufträge</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-green-200 bg-green-50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-green-700">✅ Bezahlt</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-700">{paidAmount.toFixed(2)} EUR</div>
+              <p className="text-xs text-muted-foreground">{paidCount} Aufträge</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-red-200 bg-red-50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-red-700">💳 Offen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-700">{unpaidAmount.toFixed(2)} EUR</div>
+              <p className="text-xs text-muted-foreground">{unpaidCount} Aufträge</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-orange-200 bg-orange-50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-orange-700">⏳ Ausstehend</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-700">{pendingAmount.toFixed(2)} EUR</div>
+              <p className="text-xs text-muted-foreground">{pendingCount} Aufträge</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Excel-ähnliche Tabelle */}
+        <ScrollArea className="flex-1 border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Datum</TableHead>
+                <TableHead>Haus</TableHead>
+                <TableHead>Gast</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Stunden</TableHead>
+                <TableHead className="text-right">Kosten</TableHead>
+                <TableHead>Bezahlung</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {groupedData.map((group, groupIndex) => (
+                <React.Fragment key={groupIndex}>
+                  {/* Gruppen-Header */}
+                  <TableRow className="bg-muted/50 font-semibold hover:bg-muted/50">
+                    <TableCell colSpan={7}>
+                      {group.label} ({group.count} Aufträge)
+                    </TableCell>
+                  </TableRow>
+                  
+                  {/* Daten-Zeilen */}
+                  {group.tasks.map((task: any) => (
+                    <TableRow key={task.id}>
+                      <TableCell>{format(new Date(task.scheduled_date), 'dd.MM.yyyy')}</TableCell>
+                      <TableCell>{task.houses?.name || '-'}</TableCell>
+                      <TableCell>{task.bookings?.guest_name || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant={
+                          task.status === 'completed' ? 'default' :
+                          task.status === 'scheduled' ? 'secondary' :
+                          task.status === 'cancelled' ? 'destructive' : 'outline'
+                        }>
+                          {task.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">{task.cleaning_hours || '-'}</TableCell>
+                      <TableCell className="text-right font-semibold">
+                        {task.cleaning_cost ? `${Number(task.cleaning_cost).toFixed(2)} EUR` : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={
+                          task.payment_status === 'paid' ? 'default' :
+                          task.payment_status === 'unpaid' ? 'destructive' : 'secondary'
+                        }>
+                          {task.payment_status === 'paid' ? '✅ Bezahlt' :
+                           task.payment_status === 'unpaid' ? '💳 Offen' : '⏳ Ausstehend'}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  
+                  {/* Summen-Zeile pro Gruppe */}
+                  <TableRow className={`${group.bgColor} font-bold hover:${group.bgColor}`}>
+                    <TableCell colSpan={5} className="text-right">
+                      Summe {group.label}:
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {group.sum.toFixed(2)} EUR
+                    </TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+                </React.Fragment>
+              ))}
+              
+              {/* Gesamt-Summe */}
+              {groupedData.length > 0 && (
+                <TableRow className="bg-primary/10 font-bold text-lg hover:bg-primary/10">
+                  <TableCell colSpan={5} className="text-right">
+                    GESAMTSUMME:
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {totalAmount.toFixed(2)} EUR
+                  </TableCell>
+                  <TableCell></TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </ScrollArea>
+      </>
+    );
+  }
 }
