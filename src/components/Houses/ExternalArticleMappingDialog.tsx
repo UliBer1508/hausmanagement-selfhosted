@@ -65,27 +65,86 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
     staleTime: 0, // Immer neu laden
   });
 
-  // Build internal article options - OHNE Farbvarianten
-  // Die Farbe ist bereits im externen Artikel definiert (z.B. WA001 = "Bettücher grau gestreift")
-  const internalArticleOptions: { value: string; label: string; category?: string }[] = (() => {
-    const options: { value: string; label: string; category?: string }[] = [];
-    
+  // Mapping: Externer Artikelname → Interner Key
+  const externalNameToInternalKey: Record<string, string> = {
+    'bettücher': 'bedding',
+    'betttücher': 'bedding',
+    'kopfkissen': 'pillow_cases',
+    'spannbetttücher': 'spannbetttuch',
+    'badetücher': 'large_towels',
+    'handtücher': 'small_towels',
+    'badvorleger': 'bath_mats',
+    'saunatücher': 'sauna_towels',
+    'geschirrtuch': 'kitchen_towels',
+  };
+
+  // Normalisiere Farbe zu Key (z.B. "grau gestreift" → "grey_striped")
+  const normalizeColorToKey = (farbe: string | null): string => {
+    if (!farbe) return 'white';
+    const lower = farbe.toLowerCase();
+    if (lower.includes('grau') && lower.includes('gestreift')) return 'grey_striped';
+    if (lower.includes('weiß') && lower.includes('gestreift')) return 'white_striped';
+    if (lower.includes('grau')) return 'grey';
+    if (lower.includes('weiß')) return 'white';
+    if (lower.includes('bunt')) return 'colorful';
+    return 'white';
+  };
+
+  // Hole internes Label aus custom_categories oder Fallback
+  const getInternalLabel = (key: string): string => {
     if (linenDefs?.custom_categories) {
       const customCats = linenDefs.custom_categories as Record<string, any>;
-      
-      // Einfach alle Artikel aus custom_categories - KEINE Farbvarianten
-      Object.entries(customCats).forEach(([key, config]) => {
-        if (config && typeof config === 'object') {
-          options.push({
-            value: key, // Nur der Artikel-Key, z.B. "bedding"
-            label: config.label || translateItemType(key),
-            category: config.category,
-          });
+      if (customCats[key]?.label) return customCats[key].label;
+    }
+    return translateItemType(key);
+  };
+
+  // Hole Kategorie aus custom_categories
+  const getInternalCategory = (key: string): string | undefined => {
+    if (linenDefs?.custom_categories) {
+      const customCats = linenDefs.custom_categories as Record<string, any>;
+      if (customCats[key]?.category) return customCats[key].category;
+    }
+    return undefined;
+  };
+
+  // Build internal article options MIT Farbvarianten aus externem Katalog
+  const internalArticleOptions: { value: string; label: string; category?: string; color?: string }[] = (() => {
+    const options: { value: string; label: string; category?: string; color?: string }[] = [];
+    const seen = new Set<string>();
+    
+    if (externalArticles && externalArticles.length > 0) {
+      externalArticles.forEach((ext) => {
+        const nameLower = ext.name?.toLowerCase() || '';
+        
+        // Finde internen Key basierend auf externem Namen
+        let internalKey: string | undefined;
+        for (const [extName, intKey] of Object.entries(externalNameToInternalKey)) {
+          if (nameLower.includes(extName)) {
+            internalKey = intKey;
+            break;
+          }
+        }
+        
+        if (internalKey && ext.farbe) {
+          const colorKey = normalizeColorToKey(ext.farbe);
+          const value = `${internalKey}__${colorKey}`;
+          
+          // Verhindere Duplikate
+          if (!seen.has(value)) {
+            seen.add(value);
+            options.push({
+              value,
+              label: `${getInternalLabel(internalKey)} (${ext.farbe})`,
+              category: getInternalCategory(internalKey),
+              color: ext.farbe,
+            });
+          }
         }
       });
     }
     
-    // Fallback wenn keine custom_categories existieren
+    // Fallback: Einfache Artikel ohne Farben falls keine externen Artikel
     if (options.length === 0) {
       const standardItems: Record<string, { label: string; category: string }> = {
         'bedding': { label: 'Bettwäsche', category: 'Schlafbereich' },
@@ -229,8 +288,8 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
             {/* Info */}
             <Alert className="border-blue-300 bg-blue-50 dark:bg-blue-950/30">
               <AlertDescription className="text-blue-800 dark:text-blue-200 text-sm">
-                Die Farbe ist bereits im externen Artikel definiert (z.B. "WA001 - Bettücher grau gestreift"). 
-                Wähle den passenden internen Artikeltyp ohne Farbvariante.
+                Ordne jeden externen Artikel dem passenden internen Artikeltyp mit Farbe zu. 
+                Die verfügbaren Farbvarianten werden aus dem externen Katalog geladen.
               </AlertDescription>
             </Alert>
 
