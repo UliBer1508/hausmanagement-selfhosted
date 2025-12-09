@@ -166,7 +166,6 @@ export const useExternalSync = () => {
           lieferdatum: order.delivery_date,
           status: 'neu',
           notizen: order.notes || undefined,
-          waesche_farbe: order.linen_color || 'white_striped',
           // Buchungsdaten
           gastname: order.bookings?.guest_name || 'Unbekannt',
           check_in: order.bookings?.check_in || null,
