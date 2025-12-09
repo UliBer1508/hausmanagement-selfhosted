@@ -228,8 +228,43 @@ export const useExternalSync = () => {
     }
   };
 
+  const resetSync = async (linenOrderId: string): Promise<boolean> => {
+    try {
+      const { error } = await supabase
+        .from('linen_orders')
+        .update({
+          external_bestellnummer: null,
+          external_synced_at: null,
+        })
+        .eq('id', linenOrderId);
+
+      if (error) {
+        toast({
+          variant: "destructive",
+          title: "Fehler beim Zurücksetzen",
+          description: error.message,
+        });
+        return false;
+      }
+
+      toast({
+        title: "✅ Sync zurückgesetzt",
+        description: "Die Bestellung kann erneut synchronisiert werden.",
+      });
+      return true;
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Fehler",
+        description: error.message,
+      });
+      return false;
+    }
+  };
+
   return {
     syncOrder,
+    resetSync,
     isSyncing,
     isEnabled: syncSettings?.external_sync_enabled ?? false,
   };
