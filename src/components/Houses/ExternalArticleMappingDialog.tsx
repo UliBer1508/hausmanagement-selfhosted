@@ -22,13 +22,13 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
   const queryClient = useQueryClient();
   const { mappings, isLoading: isMappingsLoading, saveMappings, isSaving } = useExternalArticleMapping();
   
-  // State: external_artikelnummer → internal_item_key
+  // State: external_artikelnummer → internal_item_key (ohne Farbvarianten)
   const [localMappings, setLocalMappings] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Load linen definitions for internal article options
-  const { data: linenDefs, isLoading: isDefsLoading } = useQuery({
-    queryKey: ['linen-set-definitions-all'],
+  // Load linen definitions for internal article options - dynamisch aus DB
+  const { data: linenDefs, isLoading: isDefsLoading, refetch: refetchDefs } = useQuery({
+    queryKey: ['linen-set-definitions-for-mapping'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('linen_set_definitions')
@@ -39,9 +39,11 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
       if (error) throw error;
       return data;
     },
+    enabled: open,
+    staleTime: 0, // Immer neu laden
   });
 
-  // Load external articles from external Supabase
+  // Load external articles from external Supabase - dynamisch
   const { 
     data: externalArticles, 
     isLoading: isLoadingExternal, 
@@ -60,53 +62,31 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
       return data as ExternalWaescheArtikel[];
     },
     enabled: open,
-    staleTime: 0,
+    staleTime: 0, // Immer neu laden
   });
 
-  // Helper: Farblabels für Anzeige
-  const getColorLabel = (colorKey: string): string => {
-    const colorLabels: Record<string, string> = {
-      'grey_striped': 'Grau gestreift',
-      'white_striped': 'Weiß gestreift',
-      'colorful': 'Bunt',
-      'white': 'Weiß',
-      'grey': 'Grau'
-    };
-    return colorLabels[colorKey] || colorKey;
-  };
-
-  // Build internal article options with color variants from external_artikelnummer
+  // Build internal article options - OHNE Farbvarianten
+  // Die Farbe ist bereits im externen Artikel definiert (z.B. WA001 = "Bettücher grau gestreift")
   const internalArticleOptions: { value: string; label: string; category?: string }[] = (() => {
     const options: { value: string; label: string; category?: string }[] = [];
     
     if (linenDefs?.custom_categories) {
       const customCats = linenDefs.custom_categories as Record<string, any>;
+      
+      // Einfach alle Artikel aus custom_categories - KEINE Farbvarianten
       Object.entries(customCats).forEach(([key, config]) => {
-        const externalMappings = config?.external_artikelnummer || {};
-        const articleLabel = config?.label || translateItemType(key);
-        const category = config?.category;
-        
-        // Für jeden Farbschlüssel eine Option erstellen
-        const colorKeys = Object.keys(externalMappings);
-        if (colorKeys.length > 0) {
-          colorKeys.forEach((colorKey) => {
-            options.push({
-              value: `${key}__${colorKey}`, // z.B. "bedding__grey_striped"
-              label: `${articleLabel} - ${getColorLabel(colorKey)}`,
-              category,
-            });
-          });
-        } else {
-          // Falls keine Farbmappings, Artikel ohne Farbe anzeigen
+        if (config && typeof config === 'object') {
           options.push({
-            value: key,
-            label: articleLabel,
-            category,
+            value: key, // Nur der Artikel-Key, z.B. "bedding"
+            label: config.label || translateItemType(key),
+            category: config.category,
           });
         }
       });
-    } else {
-      // Fallback standard items
+    }
+    
+    // Fallback wenn keine custom_categories existieren
+    if (options.length === 0) {
       const standardItems: Record<string, { label: string; category: string }> = {
         'bedding': { label: 'Bettwäsche', category: 'Schlafbereich' },
         'pillow_cases': { label: 'Kopfkissen', category: 'Schlafbereich' },
@@ -148,6 +128,14 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
     setHasChanges(true);
   };
 
+  const handleRefresh = async () => {
+    await Promise.all([refetchDefs(), refetchExternal()]);
+    toast({
+      title: "Daten aktualisiert",
+      description: "Interne und externe Artikel wurden neu geladen.",
+    });
+  };
+
   const handleSave = async () => {
     try {
       // Convert back to DB format: internal_item_key → external_artikelnummer
@@ -156,7 +144,7 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
       Object.entries(localMappings).forEach(([externalArtikelnummer, internalKey]) => {
         if (internalKey?.trim()) {
           mappingsToSave.push({
-            internal_item_key: internalKey,
+            internal_item_key: internalKey, // Jetzt nur noch z.B. "bedding" ohne "__grey_striped"
             external_artikelnummer: externalArtikelnummer,
           });
         }
@@ -221,19 +209,30 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
                 ) : (
                   <Badge variant="outline" className="gap-1 bg-green-50 text-green-700 border-green-300">
                     <Wifi className="h-3 w-3" />
-                    {externalArticles?.length || 0} externe Artikel geladen
+                    {externalArticles?.length || 0} externe Artikel
                   </Badge>
                 )}
+                <Badge variant="outline" className="gap-1">
+                  {internalArticleOptions.length} interne Artikel
+                </Badge>
               </div>
               <Button 
                 variant="ghost" 
                 size="sm" 
-                onClick={() => refetchExternal()}
-                disabled={isLoadingExternal}
+                onClick={handleRefresh}
+                disabled={isLoadingExternal || isDefsLoading}
               >
-                <RefreshCw className={`h-4 w-4 ${isLoadingExternal ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 ${isLoadingExternal || isDefsLoading ? 'animate-spin' : ''}`} />
               </Button>
             </div>
+
+            {/* Info */}
+            <Alert className="border-blue-300 bg-blue-50 dark:bg-blue-950/30">
+              <AlertDescription className="text-blue-800 dark:text-blue-200 text-sm">
+                Die Farbe ist bereits im externen Artikel definiert (z.B. "WA001 - Bettücher grau gestreift"). 
+                Wähle den passenden internen Artikeltyp ohne Farbvariante.
+              </AlertDescription>
+            </Alert>
 
             {/* Mapping Status */}
             <Alert className={unmappedCount > 0 ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30' : 'border-green-500 bg-green-50 dark:bg-green-950/30'}>
@@ -265,7 +264,7 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
                     <TableHead className="w-[180px]">Externer Artikel</TableHead>
                     <TableHead className="w-[120px]">Farbe</TableHead>
                     <TableHead className="w-[40px] text-center">→</TableHead>
-                    <TableHead>Interner Artikel</TableHead>
+                    <TableHead>Interner Artikeltyp</TableHead>
                     <TableHead className="w-[60px] text-center">Status</TableHead>
                   </TableRow>
                 </TableHeader>

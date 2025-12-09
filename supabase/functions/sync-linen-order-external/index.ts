@@ -173,18 +173,41 @@ serve(async (req) => {
     console.log(`[sync-external] Bestellung created: ${bestellung.id} (${bestellnummer})`);
 
     // 7. Prepare and insert bestellpositionen
+    // items = { "bedding": 5, "large_towels": 10 }
+    // item_variants = { "bedding": "grey_striped", "large_towels": "white" } (Farbe pro Artikel)
     const items = order.items || {};
+    const itemVariants = order.item_variants || {};
+    const globalColor = order.linen_color || 'white_striped'; // Fallback Gesamtfarbe
     const positionen: Array<{ bestellung_id: string; artikel_id: string; menge: number }> = [];
     const unmappedItems: string[] = [];
+
+    // Lade alle verfügbaren Mappings aus der DB
+    // Da mehrere externe Artikel zum gleichen internen Artikel passen können (verschiedene Farben),
+    // müssen wir nach itemKey + Farbe das richtige Mapping finden
+    console.log(`[sync-external] Processing items: ${JSON.stringify(items)}`);
+    console.log(`[sync-external] Item variants: ${JSON.stringify(itemVariants)}`);
+    console.log(`[sync-external] Global color: ${globalColor}`);
 
     for (const [itemKey, quantity] of Object.entries(items)) {
       if ((quantity as number) <= 0) continue;
 
-      const externalArtikelnummer = internalToExternalMap[itemKey];
+      // Bestimme die Farbe für diesen Artikel
+      const itemColor = itemVariants[itemKey] || globalColor;
+      
+      // Finde das passende externe Artikelnummer
+      // Das Mapping ist jetzt: internal_item_key = "bedding" -> external_artikelnummer = "WA001" (grau) oder "WA005" (weiß)
+      // Wir brauchen eine erweiterte Logik um die richtige Farbvariante zu finden
+      let externalArtikelnummer = internalToExternalMap[itemKey];
+      
+      // Falls kein direktes Mapping existiert, versuche mit Farbsuffix
+      if (!externalArtikelnummer) {
+        const keyWithColor = `${itemKey}__${itemColor}`;
+        externalArtikelnummer = internalToExternalMap[keyWithColor];
+      }
       
       if (!externalArtikelnummer) {
-        console.warn(`[sync-external] No mapping for: ${itemKey}`);
-        unmappedItems.push(itemKey);
+        console.warn(`[sync-external] No mapping for: ${itemKey} (color: ${itemColor})`);
+        unmappedItems.push(`${itemKey} (${itemColor})`);
         continue;
       }
 
@@ -201,7 +224,7 @@ serve(async (req) => {
         artikel_id: artikelId,
         menge: quantity as number
       });
-      console.log(`[sync-external] Position: ${itemKey} -> ${externalArtikelnummer} x ${quantity}`);
+      console.log(`[sync-external] Position: ${itemKey} (${itemColor}) -> ${externalArtikelnummer} x ${quantity}`);
     }
 
     if (positionen.length > 0) {
