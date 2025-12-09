@@ -310,8 +310,8 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
         {/* Action Buttons - Top Right */}
         {!isPending && (onEdit || onDelete || onSync || (onConfirm && order.status === 'offen')) && (
           <div className="absolute top-2 right-2 flex gap-1 z-10">
-            {/* Sync Button - nur wenn noch nicht synchronisiert und sync aktiviert */}
-            {onSync && externalSyncEnabled && !order.external_bestellnummer && order.status !== 'offen' && order.status !== 'cancelled' && (
+            {/* Sync Button - nur für pending status und noch nicht synchronisiert */}
+            {onSync && externalSyncEnabled && !order.external_bestellnummer && order.status === 'pending' && (
               <Button
                 size="sm"
                 variant="outline"
