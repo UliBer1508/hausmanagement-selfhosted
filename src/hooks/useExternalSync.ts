@@ -61,6 +61,11 @@ export const useExternalSync = () => {
         throw new Error('Bestellung nicht gefunden');
       }
 
+      // Nur Bestellungen mit Status 'pending' können synchronisiert werden
+      if (order.status !== 'pending') {
+        throw new Error('Nur Bestellungen mit Status "Ausstehend" können synchronisiert werden. Bitte erst bestätigen.');
+      }
+
       // 3. Prüfen ob bereits synchronisiert
       if (order.external_bestellnummer) {
         throw new Error('Bestellung wurde bereits synchronisiert');
