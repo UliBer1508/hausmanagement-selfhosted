@@ -162,13 +162,10 @@ export const useExternalSync = () => {
         throw new Error('Keine Artikel konnten gemappt werden');
       }
 
-      // 9. Bestellung in externer DB erstellen
-      const bestellnummer = `B${Date.now()}`;
-      
+      // 9. Bestellung in externer DB erstellen (OHNE bestellnummer - Portal generiert sie)
       const { data: neueBestellung, error: bestellError } = await externalLaundryClient
         .from('waeschebestellungen')
         .insert({
-          bestellnummer,
           kunde_id: kundeData.id,
           objekt_id: objektData.id,
           lieferdatum: order.delivery_date,
