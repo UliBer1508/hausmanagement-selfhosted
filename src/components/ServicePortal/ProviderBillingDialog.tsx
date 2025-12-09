@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { LaundryInvoicesList } from './LaundryInvoicesList';
+import { LaundryOrdersOverview } from './LaundryOrdersOverview';
 
 interface ProviderBillingDialogProps {
   provider: any;
@@ -110,18 +111,18 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
         </DialogHeader>
 
         {isLaundryProvider ? (
-          <Tabs defaultValue="invoices" className="flex-1 flex flex-col overflow-hidden">
+          <Tabs defaultValue="orders" className="flex-1 flex flex-col overflow-hidden">
             <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="orders">📦 Bestellungen</TabsTrigger>
               <TabsTrigger value="invoices">📄 Rechnungen</TabsTrigger>
-              <TabsTrigger value="tasks">🧹 Aufträge</TabsTrigger>
             </TabsList>
+            
+            <TabsContent value="orders" className="flex-1 overflow-auto mt-4">
+              <LaundryOrdersOverview />
+            </TabsContent>
             
             <TabsContent value="invoices" className="flex-1 overflow-auto mt-4">
               <LaundryInvoicesList />
-            </TabsContent>
-            
-            <TabsContent value="tasks" className="flex-1 overflow-auto mt-4">
-              {renderTasksContent()}
             </TabsContent>
           </Tabs>
         ) : (
