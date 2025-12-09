@@ -159,7 +159,7 @@ export const useExternalSync = () => {
           kunde_id: kundeData.id,
           objekt_id: objektData.id,
           lieferdatum: order.delivery_date,
-          status: 'offen',
+          status: 'neu',
           notizen: order.notes || undefined,
           waesche_farbe: order.linen_color || 'white_striped',
           // Buchungsdaten
