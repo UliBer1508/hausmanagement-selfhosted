@@ -50,9 +50,12 @@ interface LaundryOrderCardProps {
   onEdit?: (order: any) => Promise<void> | void;
   onDelete?: (order: any) => Promise<void> | void;
   onConfirm?: (order: any) => Promise<void> | void;
+  onSync?: (order: any) => Promise<void> | void;
+  isSyncing?: boolean;
+  externalSyncEnabled?: boolean;
 }
 
-const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm }: LaundryOrderCardProps) => {
+const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, isSyncing = false, externalSyncEnabled = false }: LaundryOrderCardProps) => {
   const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
@@ -304,8 +307,29 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
 
 
         {/* Action Buttons - Top Right */}
-        {!isPending && (onEdit || onDelete || (onConfirm && order.status === 'offen')) && (
+        {!isPending && (onEdit || onDelete || onSync || (onConfirm && order.status === 'offen')) && (
           <div className="absolute top-2 right-2 flex gap-1 z-10">
+            {/* Sync Button - nur wenn noch nicht synchronisiert und sync aktiviert */}
+            {onSync && externalSyncEnabled && !order.external_bestellnummer && order.status !== 'offen' && order.status !== 'cancelled' && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 px-3"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  try {
+                    await onSync(order);
+                  } catch (error) {
+                    console.error('Error in onSync:', error);
+                  }
+                }}
+                disabled={isSyncing}
+              >
+                <Link2 className="w-4 h-4 mr-1" />
+                {isSyncing ? 'Sync...' : 'An Portal'}
+              </Button>
+            )}
+
             {/* Confirm Button - nur bei Status 'offen' */}
             {onConfirm && order.status === 'offen' && (
               <Button
