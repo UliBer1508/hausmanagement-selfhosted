@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LinenItemConfig, LINEN_CATEGORIES, ItemColor, ITEM_COLORS } from '@/types/linen';
+import { LinenItemConfig, LINEN_CATEGORIES, ItemColor, ITEM_COLORS, LinenColor, LINEN_COLORS } from '@/types/linen';
 import { generateKeyFromLabel, validateLinenKey } from '@/lib/linenMigration';
 
 interface LinenItemDialogProps {
@@ -30,11 +30,19 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
   const [availability, setAvailability] = useState<'year_round' | 'seasonal'>('year_round');
   const [season, setSeason] = useState<'winter' | 'summer' | null>(null);
   const [itemColor, setItemColor] = useState<ItemColor>('white');
+  const [linenColor, setLinenColor] = useState<LinenColor>('white_striped');
 
   const handleSave = () => {
     if (!label.trim()) return;
 
     const key = generateKeyFromLabel(label, existingKeys);
+
+    // Bestimme Farbe basierend auf Kategorie
+    const selectedColor = category === 'Schlafbereich' 
+      ? linenColor 
+      : (category === 'Badbereich' || category === 'Wellness') 
+        ? itemColor 
+        : undefined;
 
     const newItem: LinenItemConfig = {
       key,
@@ -46,7 +54,8 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
       availability,
       season: availability === 'seasonal' ? season : null,
       active: true,
-      color: (category === 'Badbereich' || category === 'Wellness') ? itemColor : undefined
+      color: selectedColor,
+      external_artikelnummer: selectedColor ? { [selectedColor]: '' } : undefined
     };
 
     onSave(newItem);
@@ -63,6 +72,7 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
     setAvailability('year_round');
     setSeason(null);
     setItemColor('white');
+    setLinenColor('white_striped');
   };
 
   return (
@@ -178,6 +188,24 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
                 <SelectContent>
                   <SelectItem value="winter">Winter (Okt-Apr)</SelectItem>
                   <SelectItem value="summer">Sommer (Mai-Sep)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {category === 'Schlafbereich' && (
+            <div className="grid gap-2">
+              <Label>Wäschefarbe</Label>
+              <Select value={linenColor} onValueChange={(v) => setLinenColor(v as LinenColor)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LINEN_COLORS.map(c => (
+                    <SelectItem key={c.key} value={c.key}>
+                      {c.icon} {c.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
