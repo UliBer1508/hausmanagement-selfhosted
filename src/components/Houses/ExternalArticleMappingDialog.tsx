@@ -63,18 +63,47 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
     staleTime: 0,
   });
 
-  // Build internal article options from custom_categories
-  const internalArticleOptions: { key: string; label: string; category?: string }[] = (() => {
-    const options: { key: string; label: string; category?: string }[] = [];
+  // Helper: Farblabels für Anzeige
+  const getColorLabel = (colorKey: string): string => {
+    const colorLabels: Record<string, string> = {
+      'grey_striped': 'Grau gestreift',
+      'white_striped': 'Weiß gestreift',
+      'colorful': 'Bunt',
+      'white': 'Weiß',
+      'grey': 'Grau'
+    };
+    return colorLabels[colorKey] || colorKey;
+  };
+
+  // Build internal article options with color variants from external_artikelnummer
+  const internalArticleOptions: { value: string; label: string; category?: string }[] = (() => {
+    const options: { value: string; label: string; category?: string }[] = [];
     
     if (linenDefs?.custom_categories) {
       const customCats = linenDefs.custom_categories as Record<string, any>;
-      Object.entries(customCats).forEach(([key, value]) => {
-        options.push({
-          key,
-          label: value?.label || translateItemType(key),
-          category: value?.category,
-        });
+      Object.entries(customCats).forEach(([key, config]) => {
+        const externalMappings = config?.external_artikelnummer || {};
+        const articleLabel = config?.label || translateItemType(key);
+        const category = config?.category;
+        
+        // Für jeden Farbschlüssel eine Option erstellen
+        const colorKeys = Object.keys(externalMappings);
+        if (colorKeys.length > 0) {
+          colorKeys.forEach((colorKey) => {
+            options.push({
+              value: `${key}__${colorKey}`, // z.B. "bedding__grey_striped"
+              label: `${articleLabel} - ${getColorLabel(colorKey)}`,
+              category,
+            });
+          });
+        } else {
+          // Falls keine Farbmappings, Artikel ohne Farbe anzeigen
+          options.push({
+            value: key,
+            label: articleLabel,
+            category,
+          });
+        }
       });
     } else {
       // Fallback standard items
@@ -86,11 +115,11 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
         'small_towels': { label: 'Handtücher', category: 'Badbereich' },
         'bath_mats': { label: 'Badvorleger', category: 'Badbereich' },
         'sink_towels': { label: 'WB-Handtücher', category: 'Badbereich' },
-        'sauna_towels': { label: 'Saunahandtücher', category: 'Wellness' },
+        'sauna_towels': { label: 'Saunatücher', category: 'Wellness' },
         'kitchen_towels': { label: 'Geschirrtücher', category: 'Küchenbereich' },
       };
       Object.entries(standardItems).forEach(([key, data]) => {
-        options.push({ key, label: data.label, category: data.category });
+        options.push({ value: key, label: data.label, category: data.category });
       });
     }
     
@@ -278,7 +307,7 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
                                 <span className="text-muted-foreground">— Keine Zuordnung —</span>
                               </SelectItem>
                               {internalArticleOptions.map((option) => (
-                                <SelectItem key={option.key} value={option.key}>
+                                <SelectItem key={option.value} value={option.value}>
                                   <div className="flex items-center gap-2">
                                     <span>{option.label}</span>
                                     {option.category && (
