@@ -3,10 +3,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Save, AlertTriangle, CheckCircle2, Link2, RefreshCw, Wifi, WifiOff, Pencil } from 'lucide-react';
+import { Loader2, Save, AlertTriangle, CheckCircle2, Link2, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { useExternalArticleMapping } from '@/hooks/useExternalArticleMapping';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,129 +18,15 @@ interface ExternalArticleMappingDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-// Fixed categories
-const LINEN_CATEGORIES = [
-  { value: 'Schlafbereich', label: '🛏️ Schlafbereich' },
-  { value: 'Badbereich', label: '🛁 Badbereich' },
-  { value: 'Wellness', label: '🧖 Wellness' },
-  { value: 'Küchenbereich', label: '🍳 Küchenbereich' },
-];
-
-// Category icons
-const getCategoryIcon = (category?: string) => {
-  switch (category) {
-    case 'Schlafbereich': return '🛏️';
-    case 'Badbereich': return '🛁';
-    case 'Wellness': return '🧖';
-    case 'Küchenbereich': return '🍳';
-    default: return '📦';
-  }
-};
-
-interface MappingItem {
-  key: string;           // z.B. "large_towels_white" oder "bedding_grey_striped"
-  baseKey: string;       // z.B. "large_towels" oder "bedding"
-  label: string;         // z.B. "Badetücher"
-  category: string;      // z.B. "Badbereich"
-  colorLabel?: string;   // z.B. "weiß" oder "grau gestreift"
-}
-
-// Normalisiert Artikelnamen für Matching (z.B. "Spannbetttücher" → "spannbetttuch")
-const normalizeArticleName = (name: string): string => {
-  return name.toLowerCase()
-    .replace(/ü/g, 'u')
-    .replace(/ä/g, 'a')
-    .replace(/ö/g, 'o')
-    .replace(/ß/g, 'ss')
-    .replace(/tücher$/g, 'tuch')
-    .replace(/er$/g, '')
-    .replace(/n$/g, '')
-    .trim();
-};
-
-// Mapping von internen Keys zu möglichen externen Namen
-const INTERNAL_TO_EXTERNAL_NAMES: Record<string, string[]> = {
-  'bedding': ['bettwäsche', 'bettuch', 'bettücher', 'betttuch', 'betttücher'],
-  'pillow_cases': ['kopfkissen', 'kissenbezug', 'kissenbezüge'],
-  'spannbetttuch': ['spannbetttuch', 'spannbetttücher', 'spannbettlaken'],
-  'large_towels': ['badetuch', 'badetücher'],
-  'small_towels': ['handtuch', 'handtücher'],
-  'bath_mats': ['badvorleger', 'badematte', 'badematten'],
-  'sink_towels': ['waschbeckenhandtuch', 'wb-handtuch', 'waschbeckentuch'],
-  'sauna_towels': ['saunatuch', 'saunahandtuch', 'saunatücher', 'saunahandtücher'],
-  'kitchen_towels': ['geschirrtuch', 'geschirrtücher', 'küchentuch', 'küchentücher', 'küchenhandtuch'],
-};
-
-// Extrahiert verfügbare Farben aus dem externen Katalog für einen internen Artikel
-const getAvailableColorsFromCatalog = (
-  internalKey: string, 
-  internalLabel: string,
-  externalArticles: ExternalWaescheArtikel[] | undefined
-): { colorKey: string; colorLabel: string }[] => {
-  if (!externalArticles || externalArticles.length === 0) return [];
-  
-  // Normalisierte Suchnamen für diesen internen Artikel
-  const searchNames = INTERNAL_TO_EXTERNAL_NAMES[internalKey] || [];
-  const normalizedLabel = normalizeArticleName(internalLabel);
-  searchNames.push(normalizedLabel);
-  
-  // Finde alle externen Artikel die zu diesem internen Artikel passen
-  const matchingArticles = externalArticles.filter(ext => {
-    const normalizedExtName = normalizeArticleName(ext.name);
-    return searchNames.some(searchName => 
-      normalizedExtName.includes(searchName) || searchName.includes(normalizedExtName)
-    );
-  });
-  
-  if (matchingArticles.length === 0) return [];
-  
-  // Extrahiere einzigartige Farben
-  const colorMap = new Map<string, string>();
-  matchingArticles.forEach(article => {
-    if (article.farbe) {
-      const farbeLower = article.farbe.toLowerCase();
-      // Normalisiere Farbnamen zu Keys
-      let colorKey = 'unknown';
-      let colorLabel = article.farbe;
-      
-      if (farbeLower.includes('weiß') && farbeLower.includes('gestreift')) {
-        colorKey = 'white_striped';
-        colorLabel = 'weiß gestreift';
-      } else if (farbeLower.includes('grau') && farbeLower.includes('gestreift')) {
-        colorKey = 'grey_striped';
-        colorLabel = 'grau gestreift';
-      } else if (farbeLower === 'weiß' || farbeLower === 'weiss' || farbeLower === 'white') {
-        colorKey = 'white';
-        colorLabel = 'weiß';
-      } else if (farbeLower === 'grau' || farbeLower === 'grey' || farbeLower === 'gray') {
-        colorKey = 'grey';
-        colorLabel = 'grau';
-      } else {
-        colorKey = farbeLower.replace(/\s+/g, '_');
-        colorLabel = article.farbe;
-      }
-      
-      if (!colorMap.has(colorKey)) {
-        colorMap.set(colorKey, colorLabel);
-      }
-    }
-  });
-  
-  return Array.from(colorMap.entries()).map(([colorKey, colorLabel]) => ({
-    colorKey,
-    colorLabel,
-  }));
-};
-
 const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMappingDialogProps) => {
   const queryClient = useQueryClient();
   const { mappings, isLoading: isMappingsLoading, saveMappings, isSaving } = useExternalArticleMapping();
+  
+  // State: external_artikelnummer → internal_item_key
   const [localMappings, setLocalMappings] = useState<Record<string, string>>({});
-  const [localLabels, setLocalLabels] = useState<Record<string, string>>({});
-  const [localCategories, setLocalCategories] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Load all linen items from linen_set_definitions
+  // Load linen definitions for internal article options
   const { data: linenDefs, isLoading: isDefsLoading } = useQuery({
     queryKey: ['linen-set-definitions-all'],
     queryFn: async () => {
@@ -156,7 +41,7 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
     },
   });
 
-  // Load external articles directly from external Supabase
+  // Load external articles from external Supabase
   const { 
     data: externalArticles, 
     isLoading: isLoadingExternal, 
@@ -178,57 +63,21 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
     staleTime: 0,
   });
 
-  // Extract all unique item keys with category info - BASED ON EXTERNAL CATALOG
-  const allItems: MappingItem[] = (() => {
-    const items: MappingItem[] = [];
+  // Build internal article options from custom_categories
+  const internalArticleOptions: { key: string; label: string; category?: string }[] = (() => {
+    const options: { key: string; label: string; category?: string }[] = [];
     
-    const processItem = (key: string, label: string, category: string) => {
-      // Hole verfügbare Farben aus dem externen Katalog
-      const availableColors = getAvailableColorsFromCatalog(key, label, externalArticles);
-      
-      if (availableColors.length === 0) {
-        // Keine Farben im Katalog gefunden → einfache Zeile ohne Farbe
-        items.push({
-          key,
-          baseKey: key,
-          label,
-          category,
-        });
-      } else if (availableColors.length === 1) {
-        // Nur eine Farbe verfügbar → eine Zeile mit Farbhinweis
-        items.push({
-          key: `${key}_${availableColors[0].colorKey}`,
-          baseKey: key,
-          label,
-          category,
-          colorLabel: availableColors[0].colorLabel,
-        });
-      } else {
-        // Mehrere Farben → separate Zeilen pro Farbe
-        availableColors.forEach(color => {
-          items.push({
-            key: `${key}_${color.colorKey}`,
-            baseKey: key,
-            label,
-            category,
-            colorLabel: color.colorLabel,
-          });
-        });
-      }
-    };
-    
-    // Add from custom_categories if available
     if (linenDefs?.custom_categories) {
       const customCats = linenDefs.custom_categories as Record<string, any>;
       Object.entries(customCats).forEach(([key, value]) => {
-        processItem(
+        options.push({
           key,
-          value?.label || translateItemType(key),
-          value?.category || 'Sonstiges'
-        );
+          label: value?.label || translateItemType(key),
+          category: value?.category,
+        });
       });
     } else {
-      // Fallback to standard items
+      // Fallback standard items
       const standardItems: Record<string, { label: string; category: string }> = {
         'bedding': { label: 'Bettwäsche', category: 'Schlafbereich' },
         'pillow_cases': { label: 'Kopfkissen', category: 'Schlafbereich' },
@@ -241,118 +90,58 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
         'kitchen_towels': { label: 'Geschirrtücher', category: 'Küchenbereich' },
       };
       Object.entries(standardItems).forEach(([key, data]) => {
-        processItem(key, data.label, data.category);
+        options.push({ key, label: data.label, category: data.category });
       });
     }
-
-    // Sort by category then key
-    return items.sort((a, b) => {
-      if (a.category !== b.category) return a.category.localeCompare(b.category);
-      return a.key.localeCompare(b.key);
-    });
+    
+    return options.sort((a, b) => a.label.localeCompare(b.label));
   })();
 
   // Initialize local state when dialog opens
+  // Convert from DB format (internal_item_key → external_artikelnummer) 
+  // to UI format (external_artikelnummer → internal_item_key)
   useEffect(() => {
     if (open && mappings) {
-      const initialMappings: Record<string, string> = {};
+      const reversedMappings: Record<string, string> = {};
       for (const m of mappings) {
-        initialMappings[m.internal_item_key] = m.external_artikelnummer;
+        reversedMappings[m.external_artikelnummer] = m.internal_item_key;
       }
-      setLocalMappings(initialMappings);
-      
-      // Initialize labels and categories from linenDefs
-      const initialLabels: Record<string, string> = {};
-      const initialCategories: Record<string, string> = {};
-      
-      if (linenDefs?.custom_categories) {
-        const customCats = linenDefs.custom_categories as Record<string, any>;
-        Object.entries(customCats).forEach(([key, value]) => {
-          initialLabels[key] = value?.label || '';
-          // Fallback zu 'Küchenbereich' für Küchen-Items, sonst 'Sonstiges'
-          const fallbackCategory = key.includes('kitchen') || key.includes('dish') || key.includes('geschirr') 
-            ? 'Küchenbereich' 
-            : 'Sonstiges';
-          initialCategories[key] = value?.category || fallbackCategory;
-        });
-      }
-      
-      setLocalLabels(initialLabels);
-      setLocalCategories(initialCategories);
+      setLocalMappings(reversedMappings);
       setHasChanges(false);
     }
-  }, [open, mappings, linenDefs]);
+  }, [open, mappings]);
 
-  const handleLabelChange = (key: string, value: string) => {
-    setLocalLabels(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
-  };
-
-  const handleCategoryChange = (key: string, value: string) => {
-    setLocalCategories(prev => ({ ...prev, [key]: value }));
-    setHasChanges(true);
-  };
-
-  const handleMappingChange = (key: string, value: string) => {
-    setLocalMappings(prev => ({ ...prev, [key]: value === 'none' ? '' : value }));
+  const handleMappingChange = (externalArtikelnummer: string, internalKey: string) => {
+    setLocalMappings(prev => ({ 
+      ...prev, 
+      [externalArtikelnummer]: internalKey === 'none' ? '' : internalKey 
+    }));
     setHasChanges(true);
   };
 
   const handleSave = async () => {
     try {
-      // 1. Save external article mappings
-      const mappingsToSave = allItems
-        .filter(item => localMappings[item.key]?.trim())
-        .map(item => ({
-          internal_item_key: item.key,
-          external_artikelnummer: localMappings[item.key].trim()
-        }));
+      // Convert back to DB format: internal_item_key → external_artikelnummer
+      const mappingsToSave: { internal_item_key: string; external_artikelnummer: string }[] = [];
+      
+      Object.entries(localMappings).forEach(([externalArtikelnummer, internalKey]) => {
+        if (internalKey?.trim()) {
+          mappingsToSave.push({
+            internal_item_key: internalKey,
+            external_artikelnummer: externalArtikelnummer,
+          });
+        }
+      });
 
       await saveMappings(mappingsToSave);
 
-      // 2. Update custom_categories in linen_set_definitions (only for base keys)
-      if (linenDefs?.id) {
-        const currentCustomCategories = (linenDefs.custom_categories || {}) as Record<string, any>;
-        const updatedCustomCategories = { ...currentCustomCategories };
-
-        // Update labels and categories - nur für baseKeys (ohne Farb-Suffix)
-        for (const item of allItems) {
-          const keyToUpdate = item.baseKey;
-          if (updatedCustomCategories[keyToUpdate]) {
-            if (localLabels[keyToUpdate]) {
-              updatedCustomCategories[keyToUpdate].label = localLabels[keyToUpdate];
-            }
-            if (localCategories[keyToUpdate]) {
-              updatedCustomCategories[keyToUpdate].category = localCategories[keyToUpdate];
-            }
-          }
-        }
-
-        const { error: updateError } = await supabase
-          .from('linen_set_definitions')
-          .update({ custom_categories: updatedCustomCategories })
-          .eq('id', linenDefs.id);
-
-        if (updateError) {
-          console.error('Error updating custom_categories:', updateError);
-          toast({
-            variant: "destructive",
-            title: "Fehler beim Speichern",
-            description: "Artikelbezeichnungen konnten nicht gespeichert werden.",
-          });
-          return;
-        }
-
-        // Invalidate all related queries to refresh UI everywhere
-        await queryClient.invalidateQueries({ queryKey: ['linen-set-definitions'] });
-        await queryClient.invalidateQueries({ queryKey: ['linen-set-definitions-all'] });
-        await queryClient.invalidateQueries({ queryKey: ['linen-set-definition'] });
-        
-        toast({
-          title: "Erfolgreich gespeichert",
-          description: "Artikelbezeichnungen und Mappings wurden aktualisiert.",
-        });
-      }
+      // Invalidate queries
+      await queryClient.invalidateQueries({ queryKey: ['external-article-mapping'] });
+      
+      toast({
+        title: "Erfolgreich gespeichert",
+        description: `${mappingsToSave.length} Zuordnungen wurden aktualisiert.`,
+      });
 
       setHasChanges(false);
       onOpenChange(false);
@@ -366,8 +155,8 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
     }
   };
 
-  const unmappedCount = allItems.filter(item => !localMappings[item.key]?.trim()).length;
-  const mappedCount = allItems.length - unmappedCount;
+  const mappedCount = Object.values(localMappings).filter(v => v?.trim()).length;
+  const unmappedCount = (externalArticles?.length || 0) - mappedCount;
 
   const isLoading = isMappingsLoading || isDefsLoading;
 
@@ -377,7 +166,7 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="h-5 w-5" />
-            Artikelbezeichnungen & Zuordnung
+            Externe Artikel zu internen Artikeln zuordnen
           </DialogTitle>
         </DialogHeader>
 
@@ -424,105 +213,62 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
                   <>
                     <AlertTriangle className="h-4 w-4 text-amber-600" />
                     <span className="text-amber-800 dark:text-amber-200">
-                      {unmappedCount} von {allItems.length} Artikeln sind noch nicht zugeordnet
+                      {unmappedCount} von {externalArticles?.length || 0} externen Artikeln sind noch nicht zugeordnet
                     </span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                     <span className="text-green-800 dark:text-green-200">
-                      Alle {mappedCount} Artikel sind zugeordnet
+                      Alle {mappedCount} externen Artikel sind zugeordnet
                     </span>
                   </>
                 )}
               </AlertDescription>
             </Alert>
 
-            {/* Info about editable fields */}
-            <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md border border-blue-200 dark:border-blue-800">
-              <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-                <Pencil className="h-4 w-4" />
-                <strong>Tipp:</strong> Sie können die internen Artikelbezeichnungen und Kategorien direkt bearbeiten. 
-                Änderungen werden systemweit übernommen.
-              </p>
-            </div>
-
-            {/* Mapping Table */}
+            {/* Mapping Table - External Articles as primary list */}
             <div className="border rounded-md">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[180px]">Interne Bezeichnung</TableHead>
-                    <TableHead className="w-[150px]">Kategorie</TableHead>
+                    <TableHead className="w-[80px]">Art.-Nr.</TableHead>
+                    <TableHead className="w-[180px]">Externer Artikel</TableHead>
+                    <TableHead className="w-[120px]">Farbe</TableHead>
                     <TableHead className="w-[40px] text-center">→</TableHead>
-                    <TableHead>Externer Artikel</TableHead>
+                    <TableHead>Interner Artikel</TableHead>
                     <TableHead className="w-[60px] text-center">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allItems.map((item) => {
-                    const isMapped = !!localMappings[item.key]?.trim();
-                    const currentMapping = localMappings[item.key] || '';
-                    const currentLabel = localLabels[item.baseKey] || item.label;
-                    const currentCategory = localCategories[item.baseKey] || item.category;
-                    const labelChanged = localLabels[item.baseKey] && localLabels[item.baseKey] !== item.label;
-                    const categoryChanged = localCategories[item.baseKey] && localCategories[item.baseKey] !== item.category;
-                    
-                    // Zeige Farbe in der Bezeichnung
-                    const displayLabel = item.colorLabel 
-                      ? `${currentLabel} (${item.colorLabel})`
-                      : currentLabel;
-                    
-                    // Ist dies die erste Zeile für diesen baseKey? (für Labels/Kategorien-Bearbeitung)
-                    const isFirstForBaseKey = allItems.findIndex(i => i.baseKey === item.baseKey) === allItems.indexOf(item);
-                    const hasColorVariant = item.colorLabel !== undefined;
+                  {externalArticles?.map((extArticle) => {
+                    const currentMapping = localMappings[extArticle.artikelnummer] || '';
+                    const isMapped = !!currentMapping.trim();
                     
                     return (
-                      <TableRow key={item.key} className={labelChanged || categoryChanged ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
+                      <TableRow key={extArticle.artikelnummer}>
                         <TableCell>
-                          {/* Bei Farb-Varianten: nur readonly Text anzeigen, sonst editierbar */}
-                          {hasColorVariant ? (
-                            <div className="h-8 flex items-center text-sm px-3 bg-muted/30 rounded border">
-                              {displayLabel}
-                            </div>
-                          ) : (
-                            <Input
-                              value={currentLabel}
-                              onChange={(e) => handleLabelChange(item.baseKey, e.target.value)}
-                              className={`h-8 text-sm ${labelChanged ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/30' : ''}`}
-                              placeholder={translateItemType(item.baseKey)}
-                            />
-                          )}
+                          <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                            {extArticle.artikelnummer}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {extArticle.name || 'Unbenannt'}
                         </TableCell>
                         <TableCell>
-                          {/* Bei Farb-Varianten: nur readonly Text anzeigen */}
-                          {hasColorVariant ? (
-                            <div className="h-8 flex items-center text-sm px-3 text-muted-foreground">
-                              {getCategoryIcon(currentCategory)} {currentCategory}
-                            </div>
+                          {extArticle.farbe ? (
+                            <Badge variant="outline" className="text-xs">
+                              {extArticle.farbe}
+                            </Badge>
                           ) : (
-                            <Select
-                              value={currentCategory}
-                              onValueChange={(value) => handleCategoryChange(item.baseKey, value)}
-                            >
-                              <SelectTrigger className={`h-8 text-sm ${categoryChanged ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/30' : ''}`}>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent className="bg-background z-50">
-                                {LINEN_CATEGORIES.map((cat) => (
-                                  <SelectItem key={cat.value} value={cat.value}>
-                                    {cat.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <span className="text-muted-foreground text-xs">—</span>
                           )}
                         </TableCell>
                         <TableCell className="text-center text-muted-foreground">→</TableCell>
                         <TableCell>
                           <Select
-                            value={currentMapping}
-                            onValueChange={(value) => handleMappingChange(item.key, value)}
+                            value={currentMapping || 'none'}
+                            onValueChange={(value) => handleMappingChange(extArticle.artikelnummer, value)}
                           >
                             <SelectTrigger className="bg-background h-8 text-sm">
                               <SelectValue placeholder="Bitte wählen..." />
@@ -531,16 +277,13 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
                               <SelectItem value="none">
                                 <span className="text-muted-foreground">— Keine Zuordnung —</span>
                               </SelectItem>
-                              {externalArticles?.map((article) => (
-                                <SelectItem key={article.artikelnummer} value={article.artikelnummer}>
+                              {internalArticleOptions.map((option) => (
+                                <SelectItem key={option.key} value={option.key}>
                                   <div className="flex items-center gap-2">
-                                    <span className="font-mono text-xs bg-muted px-1 rounded">
-                                      {article.artikelnummer}
-                                    </span>
-                                    <span>{article.name || 'Unbenannt'}</span>
-                                    {article.farbe && (
+                                    <span>{option.label}</span>
+                                    {option.category && (
                                       <span className="text-muted-foreground text-xs">
-                                        ({article.farbe})
+                                        ({option.category})
                                       </span>
                                     )}
                                   </div>
@@ -573,7 +316,7 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen
           </Button>
-          <Button onClick={handleSave} disabled={isSaving || isLoading}>
+          <Button onClick={handleSave} disabled={isSaving || isLoading || !hasChanges}>
             {isSaving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
