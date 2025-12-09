@@ -65,17 +65,26 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
     staleTime: 0, // Immer neu laden
   });
 
-  // Mapping: Externer Artikelname → Interner Key
+  // Mapping: Externer Artikelname → Interner Key (mehrere Varianten pro Artikel)
   const externalNameToInternalKey: Record<string, string> = {
     'bettücher': 'bedding',
     'betttücher': 'bedding',
+    'bettuecher': 'bedding',
+    'betttuecher': 'bedding',
     'kopfkissen': 'pillow_cases',
     'spannbetttücher': 'spannbetttuch',
+    'spannbetttuecher': 'spannbetttuch',
+    'spannbettlaken': 'spannbetttuch',
     'badetücher': 'large_towels',
+    'badetuecher': 'large_towels',
     'handtücher': 'small_towels',
+    'handtuecher': 'small_towels',
     'badvorleger': 'bath_mats',
     'saunatücher': 'sauna_towels',
+    'saunatuecher': 'sauna_towels',
     'geschirrtuch': 'kitchen_towels',
+    'geschirrtücher': 'kitchen_towels',
+    'geschirrtuecher': 'kitchen_towels',
   };
 
   // Normalisiere Farbe zu Key (z.B. "grau gestreift" → "grey_striped")
