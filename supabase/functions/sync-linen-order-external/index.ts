@@ -146,14 +146,10 @@ serve(async (req) => {
     });
     console.log(`[sync-external] Article mappings: ${Object.keys(internalToExternalMap).length}`);
 
-    // 5. Generate unique Bestellnummer
-    const bestellnummer = `B${Date.now().toString().slice(-8)}`;
-
-    // 6. Insert into waeschebestellungen
+    // 5. Insert into waeschebestellungen (OHNE bestellnummer - Portal generiert sie)
     const { data: bestellung, error: bestellungError } = await externalSupabase
       .from('waeschebestellungen')
       .insert({
-        bestellnummer: bestellnummer,
         kunde_id: kunde.id,
         objekt_id: objekt.id,
         gastname: booking?.guest_name || 'Gast',
@@ -170,7 +166,7 @@ serve(async (req) => {
       console.error('[sync-external] Insert bestellung failed:', bestellungError);
       throw new Error(`Failed to create bestellung: ${bestellungError?.message}`);
     }
-    console.log(`[sync-external] Bestellung created: ${bestellung.id} (${bestellnummer})`);
+    console.log(`[sync-external] Bestellung created: ${bestellung.id} (${bestellung.bestellnummer})`);
 
     // 7. Prepare and insert bestellpositionen
     // items = { "bedding": 5, "large_towels": 10 }
