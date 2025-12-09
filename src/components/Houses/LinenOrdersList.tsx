@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Search } from 'lucide-react';
 import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
 import { useToast } from '@/hooks/use-toast';
+import { useExternalSync } from '@/hooks/useExternalSync';
 
 interface LinenOrdersListProps {
   onEditOrder?: (order: any) => void;
@@ -20,6 +21,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { syncOrder, isSyncing, isEnabled: externalSyncEnabled } = useExternalSync();
 
   // Fetch linen orders with related data (only tourist rentals)
   const { data: linenOrders, isLoading } = useQuery({
@@ -231,6 +233,14 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
               onEdit={onEditOrder}
               onDelete={onDeleteOrder}
               onConfirm={(order) => confirmOrderMutation.mutate(order.id)}
+              onSync={async (order) => {
+                const result = await syncOrder(order.id);
+                if (result.success) {
+                  queryClient.invalidateQueries({ queryKey: ['linen-orders-list'] });
+                }
+              }}
+              isSyncing={isSyncing}
+              externalSyncEnabled={externalSyncEnabled}
             />
           ))}
         </div>
