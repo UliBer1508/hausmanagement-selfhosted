@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useBookingLinenOrders } from "@/hooks/useBookingLinenOrders";
-import { translateItemType, getUrgencyVariant, getUrgencyLabel, formatCurrency, calculateDeliveryDate, translateLinenOrderStatus } from "@/lib/linenOrderHelpers";
+import { translateItemType, getUrgencyVariant, getUrgencyLabel, formatCurrency, calculateDeliveryDate, translateLinenOrderStatus, getLabelsFromLinenDef } from "@/lib/linenOrderHelpers";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react";

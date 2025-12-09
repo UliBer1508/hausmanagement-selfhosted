@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import LinenOrderDialog from './LinenOrderDialog';
 import LinenOrderEmailDialog from './LinenOrderEmailDialog';
-import { translateItemType } from '@/lib/linenOrderHelpers';
+import { translateItemType, getLabelsFromLinenDef } from '@/lib/linenOrderHelpers';
 import { 
   ShoppingCart, 
   Package, 
@@ -267,6 +267,25 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
     }
   };
 
+  // Fetch linen set definition for dynamic labels
+  const { data: linenSetDef } = useQuery({
+    queryKey: ['linen-set-definition', house?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_set_definitions')
+        .select('custom_categories')
+        .eq('house_id', house.id)
+        .maybeSingle();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!house?.id,
+  });
+
+  // Extract dynamic labels
+  const customLabels = getLabelsFromLinenDef(linenSetDef);
+
   // Fetch all linen orders for this house
   const { data: linenOrders, isLoading, error } = useQuery({
     queryKey: ['linen-orders-all', house?.id],
@@ -443,7 +462,7 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
             {Object.entries(order.items || {}).map(([itemType, quantity]) => (
               <div key={itemType} className="flex items-center justify-between p-2 bg-muted rounded text-sm">
-                <span>{translateItemType(itemType)}</span>
+                <span>{translateItemType(itemType, customLabels)}</span>
                 <Badge variant="secondary">{quantity as number}</Badge>
               </div>
             ))}
