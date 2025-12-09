@@ -60,7 +60,7 @@ export const translateItemType = (
     bedding: 'Bettwäsche',
     large_towels: 'Badetücher',
     small_towels: 'Handtücher',
-    sauna_towels: 'Saunahandtücher',
+    sauna_towels: 'Saunatücher',
     sink_towels: 'WB-Handtücher',
     bath_mats: 'Badvorleger',
     kitchen_towels: 'Geschirrtücher',
