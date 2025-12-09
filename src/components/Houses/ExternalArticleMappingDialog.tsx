@@ -38,20 +38,6 @@ const getCategoryIcon = (category?: string) => {
   }
 };
 
-// Kategorien die Farb-Varianten benötigen
-const COLOR_DEPENDENT_CATEGORIES = ['Badbereich', 'Wellness'];
-const ITEM_COLORS = [
-  { value: 'white', label: 'weiß' },
-  { value: 'grey', label: 'grau' },
-];
-
-// Kategorien die Wäschefarben (gestreift) benötigen
-const LINEN_COLOR_CATEGORIES = ['Schlafbereich'];
-const LINEN_COLORS = [
-  { value: 'white_striped', label: 'weiß gestreift' },
-  { value: 'grey_striped', label: 'grau gestreift' },
-];
-
 interface MappingItem {
   key: string;           // z.B. "large_towels_white" oder "bedding_grey_striped"
   baseKey: string;       // z.B. "large_towels" oder "bedding"
@@ -59,6 +45,93 @@ interface MappingItem {
   category: string;      // z.B. "Badbereich"
   colorLabel?: string;   // z.B. "weiß" oder "grau gestreift"
 }
+
+// Normalisiert Artikelnamen für Matching (z.B. "Spannbetttücher" → "spannbetttuch")
+const normalizeArticleName = (name: string): string => {
+  return name.toLowerCase()
+    .replace(/ü/g, 'u')
+    .replace(/ä/g, 'a')
+    .replace(/ö/g, 'o')
+    .replace(/ß/g, 'ss')
+    .replace(/tücher$/g, 'tuch')
+    .replace(/er$/g, '')
+    .replace(/n$/g, '')
+    .trim();
+};
+
+// Mapping von internen Keys zu möglichen externen Namen
+const INTERNAL_TO_EXTERNAL_NAMES: Record<string, string[]> = {
+  'bedding': ['bettwäsche', 'bettuch', 'bettücher', 'betttuch', 'betttücher'],
+  'pillow_cases': ['kopfkissen', 'kissenbezug', 'kissenbezüge'],
+  'spannbetttuch': ['spannbetttuch', 'spannbetttücher', 'spannbettlaken'],
+  'large_towels': ['badetuch', 'badetücher'],
+  'small_towels': ['handtuch', 'handtücher'],
+  'bath_mats': ['badvorleger', 'badematte', 'badematten'],
+  'sink_towels': ['waschbeckenhandtuch', 'wb-handtuch', 'waschbeckentuch'],
+  'sauna_towels': ['saunatuch', 'saunahandtuch', 'saunatücher', 'saunahandtücher'],
+  'kitchen_towels': ['geschirrtuch', 'geschirrtücher', 'küchentuch', 'küchentücher', 'küchenhandtuch'],
+};
+
+// Extrahiert verfügbare Farben aus dem externen Katalog für einen internen Artikel
+const getAvailableColorsFromCatalog = (
+  internalKey: string, 
+  internalLabel: string,
+  externalArticles: ExternalWaescheArtikel[] | undefined
+): { colorKey: string; colorLabel: string }[] => {
+  if (!externalArticles || externalArticles.length === 0) return [];
+  
+  // Normalisierte Suchnamen für diesen internen Artikel
+  const searchNames = INTERNAL_TO_EXTERNAL_NAMES[internalKey] || [];
+  const normalizedLabel = normalizeArticleName(internalLabel);
+  searchNames.push(normalizedLabel);
+  
+  // Finde alle externen Artikel die zu diesem internen Artikel passen
+  const matchingArticles = externalArticles.filter(ext => {
+    const normalizedExtName = normalizeArticleName(ext.name);
+    return searchNames.some(searchName => 
+      normalizedExtName.includes(searchName) || searchName.includes(normalizedExtName)
+    );
+  });
+  
+  if (matchingArticles.length === 0) return [];
+  
+  // Extrahiere einzigartige Farben
+  const colorMap = new Map<string, string>();
+  matchingArticles.forEach(article => {
+    if (article.farbe) {
+      const farbeLower = article.farbe.toLowerCase();
+      // Normalisiere Farbnamen zu Keys
+      let colorKey = 'unknown';
+      let colorLabel = article.farbe;
+      
+      if (farbeLower.includes('weiß') && farbeLower.includes('gestreift')) {
+        colorKey = 'white_striped';
+        colorLabel = 'weiß gestreift';
+      } else if (farbeLower.includes('grau') && farbeLower.includes('gestreift')) {
+        colorKey = 'grey_striped';
+        colorLabel = 'grau gestreift';
+      } else if (farbeLower === 'weiß' || farbeLower === 'weiss' || farbeLower === 'white') {
+        colorKey = 'white';
+        colorLabel = 'weiß';
+      } else if (farbeLower === 'grau' || farbeLower === 'grey' || farbeLower === 'gray') {
+        colorKey = 'grey';
+        colorLabel = 'grau';
+      } else {
+        colorKey = farbeLower.replace(/\s+/g, '_');
+        colorLabel = article.farbe;
+      }
+      
+      if (!colorMap.has(colorKey)) {
+        colorMap.set(colorKey, colorLabel);
+      }
+    }
+  });
+  
+  return Array.from(colorMap.entries()).map(([colorKey, colorLabel]) => ({
+    colorKey,
+    colorLabel,
+  }));
+};
 
 const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMappingDialogProps) => {
   const queryClient = useQueryClient();
@@ -105,42 +178,41 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
     staleTime: 0,
   });
 
-  // Extract all unique item keys with category info - NOW WITH COLOR VARIANTS
+  // Extract all unique item keys with category info - BASED ON EXTERNAL CATALOG
   const allItems: MappingItem[] = (() => {
     const items: MappingItem[] = [];
     
     const processItem = (key: string, label: string, category: string) => {
-      // Für Badbereich/Wellness: Separate Zeilen für weiß und grau
-      if (COLOR_DEPENDENT_CATEGORIES.includes(category)) {
-        ITEM_COLORS.forEach(color => {
-          items.push({
-            key: `${key}_${color.value}`,
-            baseKey: key,
-            label,
-            category,
-            colorLabel: color.label,
-          });
-        });
-      }
-      // Für Schlafbereich: Separate Zeilen für weiß gestreift und grau gestreift
-      else if (LINEN_COLOR_CATEGORIES.includes(category)) {
-        LINEN_COLORS.forEach(color => {
-          items.push({
-            key: `${key}_${color.value}`,
-            baseKey: key,
-            label,
-            category,
-            colorLabel: color.label,
-          });
-        });
-      }
-      // Für andere Kategorien (Küche): Keine Farb-Varianten
-      else {
+      // Hole verfügbare Farben aus dem externen Katalog
+      const availableColors = getAvailableColorsFromCatalog(key, label, externalArticles);
+      
+      if (availableColors.length === 0) {
+        // Keine Farben im Katalog gefunden → einfache Zeile ohne Farbe
         items.push({
           key,
           baseKey: key,
           label,
           category,
+        });
+      } else if (availableColors.length === 1) {
+        // Nur eine Farbe verfügbar → eine Zeile mit Farbhinweis
+        items.push({
+          key: `${key}_${availableColors[0].colorKey}`,
+          baseKey: key,
+          label,
+          category,
+          colorLabel: availableColors[0].colorLabel,
+        });
+      } else {
+        // Mehrere Farben → separate Zeilen pro Farbe
+        availableColors.forEach(color => {
+          items.push({
+            key: `${key}_${color.colorKey}`,
+            baseKey: key,
+            label,
+            category,
+            colorLabel: color.colorLabel,
+          });
         });
       }
     };
