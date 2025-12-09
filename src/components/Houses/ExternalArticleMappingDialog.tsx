@@ -38,6 +38,28 @@ const getCategoryIcon = (category?: string) => {
   }
 };
 
+// Kategorien die Farb-Varianten benötigen
+const COLOR_DEPENDENT_CATEGORIES = ['Badbereich', 'Wellness'];
+const ITEM_COLORS = [
+  { value: 'white', label: 'weiß' },
+  { value: 'grey', label: 'grau' },
+];
+
+// Kategorien die Wäschefarben (gestreift) benötigen
+const LINEN_COLOR_CATEGORIES = ['Schlafbereich'];
+const LINEN_COLORS = [
+  { value: 'white_striped', label: 'weiß gestreift' },
+  { value: 'grey_striped', label: 'grau gestreift' },
+];
+
+interface MappingItem {
+  key: string;           // z.B. "large_towels_white" oder "bedding_grey_striped"
+  baseKey: string;       // z.B. "large_towels" oder "bedding"
+  label: string;         // z.B. "Badetücher"
+  category: string;      // z.B. "Badbereich"
+  colorLabel?: string;   // z.B. "weiß" oder "grau gestreift"
+}
+
 const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMappingDialogProps) => {
   const queryClient = useQueryClient();
   const { mappings, isLoading: isMappingsLoading, saveMappings, isSaving } = useExternalArticleMapping();
@@ -83,19 +105,55 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
     staleTime: 0,
   });
 
-  // Extract all unique item keys with category info
-  const allItems = (() => {
-    const items: { key: string; label: string; category: string }[] = [];
+  // Extract all unique item keys with category info - NOW WITH COLOR VARIANTS
+  const allItems: MappingItem[] = (() => {
+    const items: MappingItem[] = [];
+    
+    const processItem = (key: string, label: string, category: string) => {
+      // Für Badbereich/Wellness: Separate Zeilen für weiß und grau
+      if (COLOR_DEPENDENT_CATEGORIES.includes(category)) {
+        ITEM_COLORS.forEach(color => {
+          items.push({
+            key: `${key}_${color.value}`,
+            baseKey: key,
+            label,
+            category,
+            colorLabel: color.label,
+          });
+        });
+      }
+      // Für Schlafbereich: Separate Zeilen für weiß gestreift und grau gestreift
+      else if (LINEN_COLOR_CATEGORIES.includes(category)) {
+        LINEN_COLORS.forEach(color => {
+          items.push({
+            key: `${key}_${color.value}`,
+            baseKey: key,
+            label,
+            category,
+            colorLabel: color.label,
+          });
+        });
+      }
+      // Für andere Kategorien (Küche): Keine Farb-Varianten
+      else {
+        items.push({
+          key,
+          baseKey: key,
+          label,
+          category,
+        });
+      }
+    };
     
     // Add from custom_categories if available
     if (linenDefs?.custom_categories) {
       const customCats = linenDefs.custom_categories as Record<string, any>;
       Object.entries(customCats).forEach(([key, value]) => {
-        items.push({
+        processItem(
           key,
-          label: value?.label || translateItemType(key),
-          category: value?.category || 'Sonstiges'
-        });
+          value?.label || translateItemType(key),
+          value?.category || 'Sonstiges'
+        );
       });
     } else {
       // Fallback to standard items
@@ -111,7 +169,7 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
         'kitchen_towels': { label: 'Geschirrtücher', category: 'Küchenbereich' },
       };
       Object.entries(standardItems).forEach(([key, data]) => {
-        items.push({ key, ...data });
+        processItem(key, data.label, data.category);
       });
     }
 
@@ -176,19 +234,20 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
 
       await saveMappings(mappingsToSave);
 
-      // 2. Update custom_categories in linen_set_definitions
+      // 2. Update custom_categories in linen_set_definitions (only for base keys)
       if (linenDefs?.id) {
         const currentCustomCategories = (linenDefs.custom_categories || {}) as Record<string, any>;
         const updatedCustomCategories = { ...currentCustomCategories };
 
-        // Update labels and categories
+        // Update labels and categories - nur für baseKeys (ohne Farb-Suffix)
         for (const item of allItems) {
-          if (updatedCustomCategories[item.key]) {
-            if (localLabels[item.key]) {
-              updatedCustomCategories[item.key].label = localLabels[item.key];
+          const keyToUpdate = item.baseKey;
+          if (updatedCustomCategories[keyToUpdate]) {
+            if (localLabels[keyToUpdate]) {
+              updatedCustomCategories[keyToUpdate].label = localLabels[keyToUpdate];
             }
-            if (localCategories[item.key]) {
-              updatedCustomCategories[item.key].category = localCategories[item.key];
+            if (localCategories[keyToUpdate]) {
+              updatedCustomCategories[keyToUpdate].category = localCategories[keyToUpdate];
             }
           }
         }
@@ -328,37 +387,60 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
                   {allItems.map((item) => {
                     const isMapped = !!localMappings[item.key]?.trim();
                     const currentMapping = localMappings[item.key] || '';
-                    const currentLabel = localLabels[item.key] || item.label;
-                    const currentCategory = localCategories[item.key] || item.category;
-                    const labelChanged = localLabels[item.key] && localLabels[item.key] !== item.label;
-                    const categoryChanged = localCategories[item.key] && localCategories[item.key] !== item.category;
+                    const currentLabel = localLabels[item.baseKey] || item.label;
+                    const currentCategory = localCategories[item.baseKey] || item.category;
+                    const labelChanged = localLabels[item.baseKey] && localLabels[item.baseKey] !== item.label;
+                    const categoryChanged = localCategories[item.baseKey] && localCategories[item.baseKey] !== item.category;
+                    
+                    // Zeige Farbe in der Bezeichnung
+                    const displayLabel = item.colorLabel 
+                      ? `${currentLabel} (${item.colorLabel})`
+                      : currentLabel;
+                    
+                    // Ist dies die erste Zeile für diesen baseKey? (für Labels/Kategorien-Bearbeitung)
+                    const isFirstForBaseKey = allItems.findIndex(i => i.baseKey === item.baseKey) === allItems.indexOf(item);
+                    const hasColorVariant = item.colorLabel !== undefined;
                     
                     return (
                       <TableRow key={item.key} className={labelChanged || categoryChanged ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}>
                         <TableCell>
-                          <Input
-                            value={currentLabel}
-                            onChange={(e) => handleLabelChange(item.key, e.target.value)}
-                            className={`h-8 text-sm ${labelChanged ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/30' : ''}`}
-                            placeholder={translateItemType(item.key)}
-                          />
+                          {/* Bei Farb-Varianten: nur readonly Text anzeigen, sonst editierbar */}
+                          {hasColorVariant ? (
+                            <div className="h-8 flex items-center text-sm px-3 bg-muted/30 rounded border">
+                              {displayLabel}
+                            </div>
+                          ) : (
+                            <Input
+                              value={currentLabel}
+                              onChange={(e) => handleLabelChange(item.baseKey, e.target.value)}
+                              className={`h-8 text-sm ${labelChanged ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/30' : ''}`}
+                              placeholder={translateItemType(item.baseKey)}
+                            />
+                          )}
                         </TableCell>
                         <TableCell>
-                          <Select
-                            value={currentCategory}
-                            onValueChange={(value) => handleCategoryChange(item.key, value)}
-                          >
-                            <SelectTrigger className={`h-8 text-sm ${categoryChanged ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/30' : ''}`}>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-background z-50">
-                              {LINEN_CATEGORIES.map((cat) => (
-                                <SelectItem key={cat.value} value={cat.value}>
-                                  {cat.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {/* Bei Farb-Varianten: nur readonly Text anzeigen */}
+                          {hasColorVariant ? (
+                            <div className="h-8 flex items-center text-sm px-3 text-muted-foreground">
+                              {getCategoryIcon(currentCategory)} {currentCategory}
+                            </div>
+                          ) : (
+                            <Select
+                              value={currentCategory}
+                              onValueChange={(value) => handleCategoryChange(item.baseKey, value)}
+                            >
+                              <SelectTrigger className={`h-8 text-sm ${categoryChanged ? 'border-blue-400 bg-blue-50 dark:bg-blue-950/30' : ''}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-background z-50">
+                                {LINEN_CATEGORIES.map((cat) => (
+                                  <SelectItem key={cat.value} value={cat.value}>
+                                    {cat.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </TableCell>
                         <TableCell className="text-center text-muted-foreground">→</TableCell>
                         <TableCell>
