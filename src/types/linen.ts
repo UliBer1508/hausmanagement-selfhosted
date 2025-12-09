@@ -1,9 +1,10 @@
 // Wäschefarben-Typen (für gesamte Bestellung)
-export type LinenColor = 'grey_striped' | 'white_striped' | 'colorful';
+export type LinenColor = 'grey_striped' | 'white_striped' | 'white' | 'colorful';
 
 export const LINEN_COLORS: { key: LinenColor; label: string; icon: string }[] = [
   { key: 'grey_striped', label: 'Grau gestreift', icon: '🔲' },
   { key: 'white_striped', label: 'Weiß gestreift', icon: '⬜' },
+  { key: 'white', label: 'Weiß', icon: '⬜' },
   { key: 'colorful', label: 'Bunt', icon: '🌈' }
 ];
 
