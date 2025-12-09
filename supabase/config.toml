@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.sync-linen-order-external]
 verify_jwt = false
+
+[functions.test-external-laundry-connection]
+verify_jwt = false
