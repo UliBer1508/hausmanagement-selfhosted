@@ -197,7 +197,11 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
         const customCats = linenDefs.custom_categories as Record<string, any>;
         Object.entries(customCats).forEach(([key, value]) => {
           initialLabels[key] = value?.label || '';
-          initialCategories[key] = value?.category || '';
+          // Fallback zu 'Küchenbereich' für Küchen-Items, sonst 'Sonstiges'
+          const fallbackCategory = key.includes('kitchen') || key.includes('dish') || key.includes('geschirr') 
+            ? 'Küchenbereich' 
+            : 'Sonstiges';
+          initialCategories[key] = value?.category || fallbackCategory;
         });
       }
       
