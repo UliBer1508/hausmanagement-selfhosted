@@ -421,7 +421,11 @@ const ChatAssistant = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => setIsOpen(false)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsOpen(false);
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
                       >
                         <X className="h-4 w-4" />
                       </Button>
