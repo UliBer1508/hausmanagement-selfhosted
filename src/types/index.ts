@@ -78,6 +78,7 @@ export interface Booking {
   notes?: string;
   created_at?: string;
   updated_at?: string;
+  guest_contact_status?: 'pending' | 'contacted' | 'not_required' | string;
   // Legacy field for compatibility
   guest_count?: number;
 }

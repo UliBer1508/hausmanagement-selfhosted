@@ -894,6 +894,7 @@ export type Database = {
           currency: string | null
           external_booking_id: string | null
           external_id: string | null
+          guest_contact_status: string | null
           guest_email: string | null
           guest_name: string
           guest_phone: string | null
@@ -921,6 +922,7 @@ export type Database = {
           currency?: string | null
           external_booking_id?: string | null
           external_id?: string | null
+          guest_contact_status?: string | null
           guest_email?: string | null
           guest_name: string
           guest_phone?: string | null
@@ -948,6 +950,7 @@ export type Database = {
           currency?: string | null
           external_booking_id?: string | null
           external_id?: string | null
+          guest_contact_status?: string | null
           guest_email?: string | null
           guest_name?: string
           guest_phone?: string | null
