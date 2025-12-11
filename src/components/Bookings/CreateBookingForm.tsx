@@ -468,14 +468,19 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         });
 
         // Auto-create cleaning task if checkbox is enabled AND not historical booking
+        // Defensiver Check: Default to true wenn undefined
+        const shouldCreateCleaning = data.auto_create_cleaning !== false;
+        
         console.log('🔍 DEBUG - Reinigungsauftrag-Check:', {
           'auto_create_cleaning': data.auto_create_cleaning,
+          'auto_create_cleaning_type': typeof data.auto_create_cleaning,
+          'shouldCreateCleaning': shouldCreateCleaning,
           'booking_id': bookingResult?.id,
           'isHistoricalBooking': isHistoricalBooking,
-          'willCreate': !!(data.auto_create_cleaning && bookingResult?.id && !isHistoricalBooking)
+          'willCreate': !!(shouldCreateCleaning && bookingResult?.id && !isHistoricalBooking)
         });
 
-        if (data.auto_create_cleaning && bookingResult?.id && !isHistoricalBooking) {
+        if (shouldCreateCleaning && bookingResult?.id && !isHistoricalBooking) {
           console.log('✅ Alle Bedingungen erfüllt! Erstelle Reinigungsauftrag...');
           console.log('🧹 Auto-creating cleaning task for booking:', bookingResult.id);
           await createCleaningTaskMutation.mutateAsync(bookingResult.id);
@@ -929,7 +934,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                     )}>
                       <FormControl>
                         <Checkbox
-                          checked={field.value}
+                          checked={field.value ?? true}
                           onCheckedChange={(checked) => {
                             console.log('🔧 Checkbox "Reinigungsauftrag erstellen" geändert auf:', checked);
                             field.onChange(checked);
