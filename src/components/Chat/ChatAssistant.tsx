@@ -409,14 +409,18 @@ const ChatAssistant = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       {chatMode === 'ai' && messages.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={clearMessages}
-                          className="text-xs"
-                        >
-                          Löschen
-                        </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          clearMessages();
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="text-xs"
+                      >
+                        Löschen
+                      </Button>
                       )}
                       <Button
                         variant="ghost"
@@ -438,6 +442,7 @@ const ChatAssistant = () => {
                       variant={chatMode === 'ai' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setChatMode('ai')}
+                      onMouseDown={(e) => e.stopPropagation()}
                       className="flex-1"
                     >
                       <Bot className="h-4 w-4 mr-2" />
@@ -447,6 +452,7 @@ const ChatAssistant = () => {
                       variant={chatMode === 'messaging' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setChatMode('messaging')}
+                      onMouseDown={(e) => e.stopPropagation()}
                       className="flex-1 relative"
                     >
                       <MessagesSquare className="h-4 w-4 mr-2" />
@@ -462,7 +468,7 @@ const ChatAssistant = () => {
                   {/* Provider Selector for Messaging Mode */}
                   {chatMode === 'messaging' && (
                     <Select value={selectedProvider || ''} onValueChange={setSelectedProvider}>
-                      <SelectTrigger>
+                      <SelectTrigger onMouseDown={(e) => e.stopPropagation()}>
                         <SelectValue placeholder="Provider auswählen" />
                       </SelectTrigger>
                       <SelectContent className="z-[200]">
