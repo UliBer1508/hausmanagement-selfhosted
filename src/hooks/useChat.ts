@@ -27,6 +27,9 @@ export const useChat = () => {
   const sendMessage = useCallback(async (content: string, context?: PageContext) => {
     setError(null);
     
+    const SUPABASE_URL = "https://usblrulkcgucxtkhugck.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzYmxydWxrY2d1Y3h0a2h1Z2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NjI4MDMsImV4cCI6MjA2OTUzODgwM30.yvF7KPN9_xhOidfRzAdiYEJASycMPLbQCoXJyAJObwI";
+    
     // Add user message
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -40,12 +43,12 @@ export const useChat = () => {
 
     try {
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-assistant`,
+        `${SUPABASE_URL}/functions/v1/chat-assistant`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
             messages: messages.concat(userMessage).map((m) => ({
