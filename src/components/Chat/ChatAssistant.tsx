@@ -390,10 +390,11 @@ const ChatAssistant = () => {
                 defaultPosition={{ x: window.innerWidth - 450, y: 50 }}
               >
                 <div className="absolute w-[400px] h-[600px] pointer-events-auto bg-background border shadow-2xl rounded-lg flex flex-col">
-                {/* Header - Draggable Handle */}
-                <div className="drag-handle cursor-move p-4 border-b bg-card rounded-t-lg flex flex-col gap-3">
+                {/* Header */}
+                <div className="p-4 border-b bg-card rounded-t-lg flex flex-col gap-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                    {/* Draggable Handle - NUR dieser Bereich */}
+                    <div className="drag-handle cursor-move flex items-center gap-2 flex-1">
                       <GripVertical className="h-4 w-4 text-muted-foreground" />
                       {chatMode === 'ai' ? (
                         <>
@@ -407,42 +408,34 @@ const ChatAssistant = () => {
                         </>
                       )}
                     </div>
+                    {/* Buttons - NICHT im drag-handle */}
                     <div className="flex items-center gap-2">
                       {chatMode === 'ai' && messages.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          clearMessages();
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        className="text-xs"
-                      >
-                        Löschen
-                      </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => clearMessages()}
+                          className="text-xs"
+                        >
+                          Löschen
+                        </Button>
                       )}
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsOpen(false);
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={() => setIsOpen(false)}
                       >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
                   
-                  {/* Mode Toggle */}
+                  {/* Mode Toggle - NICHT im drag-handle */}
                   <div className="flex gap-2">
                     <Button
                       variant={chatMode === 'ai' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setChatMode('ai')}
-                      onMouseDown={(e) => e.stopPropagation()}
                       className="flex-1"
                     >
                       <Bot className="h-4 w-4 mr-2" />
@@ -452,7 +445,6 @@ const ChatAssistant = () => {
                       variant={chatMode === 'messaging' ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setChatMode('messaging')}
-                      onMouseDown={(e) => e.stopPropagation()}
                       className="flex-1 relative"
                     >
                       <MessagesSquare className="h-4 w-4 mr-2" />
@@ -468,7 +460,7 @@ const ChatAssistant = () => {
                   {/* Provider Selector for Messaging Mode */}
                   {chatMode === 'messaging' && (
                     <Select value={selectedProvider || ''} onValueChange={setSelectedProvider}>
-                      <SelectTrigger onMouseDown={(e) => e.stopPropagation()}>
+                      <SelectTrigger>
                         <SelectValue placeholder="Provider auswählen" />
                       </SelectTrigger>
                       <SelectContent className="z-[200]">
