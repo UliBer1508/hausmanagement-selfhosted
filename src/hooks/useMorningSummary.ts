@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, addDays, differenceInDays } from "date-fns";
 import { de } from "date-fns/locale";
 
 export const useMorningSummary = () => {
@@ -12,6 +12,35 @@ export const useMorningSummary = () => {
   const nextWeekEnd = new Date();
   nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
   const nextWeekEndStr = format(nextWeekEnd, 'yyyy-MM-dd') + 'T23:59:59';
+  
+  // Gäste-Kontakt-Erinnerungen (5-10 Tage vor Check-in)
+  const { data: guestContactReminders, isLoading: loadingGuestContact } = useQuery({
+    queryKey: ['morning-guest-contact', today],
+    queryFn: async () => {
+      const fiveDaysFromNow = addDays(new Date(), 5);
+      const tenDaysFromNow = addDays(new Date(), 10);
+
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          guest_name,
+          guest_email,
+          check_in,
+          houses!inner(name, rental_type)
+        `)
+        .gte('check_in', fiveDaysFromNow.toISOString())
+        .lte('check_in', tenDaysFromNow.toISOString())
+        .eq('guest_contact_status', 'pending')
+        .eq('status', 'confirmed')
+        .eq('houses.rental_type', 'tourist')
+        .order('check_in');
+
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 1000 * 60 * 30,
+  });
 
   // Kommende Buchungen (nächste 7 Tage)
   const { data: upcomingBookings, isLoading: loadingBookings } = useQuery({
@@ -72,7 +101,8 @@ export const useMorningSummary = () => {
   const hasAnyData = 
     (upcomingBookings && upcomingBookings.length > 0) ||
     (cleanings && cleanings.length > 0) ||
-    (linenOrders && linenOrders.length > 0);
+    (linenOrders && linenOrders.length > 0) ||
+    (guestContactReminders && guestContactReminders.length > 0);
 
   // Formatierte Nachricht erstellen
   const formatSummaryMessage = (): string => {
@@ -83,7 +113,20 @@ export const useMorningSummary = () => {
     let message = '🏠 **Guten Morgen! Deine anstehenden Aufgaben**\n\n';
     message += `📅 ${format(new Date(), 'EEEE, dd. MMMM yyyy', { locale: de })}\n\n`;
     
-    // OFFENE WÄSCHEBESTELLUNGEN (höchste Priorität)
+    // GÄSTE VOR ANREISE KONTAKTIEREN (HÖCHSTE PRIORITÄT)
+    if (guestContactReminders && guestContactReminders.length > 0) {
+      message += `📞 **${guestContactReminders.length} ${guestContactReminders.length === 1 ? 'Gast' : 'Gäste'} vor Anreise kontaktieren**\n`;
+      guestContactReminders.forEach((b: any) => {
+        const checkInDate = format(new Date(b.check_in), 'dd.MM.yyyy');
+        const houseName = b.houses?.name || 'Unbekanntes Haus';
+        const daysUntil = differenceInDays(new Date(b.check_in), new Date());
+        const email = b.guest_email ? ` (${b.guest_email})` : '';
+        message += `• ${b.guest_name}${email} → ${houseName} - Check-in in ${daysUntil} Tagen (${checkInDate})\n`;
+      });
+      message += '\n';
+    }
+    
+    // OFFENE WÄSCHEBESTELLUNGEN
     const openOrders = linenOrders.filter(o => o.status === 'offen');
     if (openOrders.length > 0) {
       message += `🔔 **${openOrders.length} Wäschebestellung(en) zu bestätigen**\n`;
@@ -174,7 +217,7 @@ export const useMorningSummary = () => {
     localStorage.setItem('chat-summary-shown', today);
   };
 
-  const isLoading = loadingBookings || loadingCleanings || loadingLinen;
+  const isLoading = loadingBookings || loadingCleanings || loadingLinen || loadingGuestContact;
 
   return {
     summaryMessage,

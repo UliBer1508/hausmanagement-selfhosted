@@ -57,6 +57,7 @@ import LinenDashboard from '@/components/Houses/LinenDashboard';
 import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderManagementDialog';
 import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
 import { UsageReportDialog } from '@/components/Dashboard/UsageReportDialog';
+import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBanner';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
@@ -2028,6 +2029,9 @@ const OriginalDashboard = () => {
 
     return (
       <div>
+        {/* Guest Contact Alert Banner */}
+        <GuestContactAlertBanner />
+        
         {/* Search and Filters */}
         <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
           {/* Filter Toggle Button - All devices */}
