@@ -78,6 +78,11 @@ const GuestEmailDialog = ({ guest, open, onOpenChange }: GuestEmailDialogProps) 
       const processedSubject = replaceTemplatePlaceholders(customSubject);
       const processedMessage = replaceTemplatePlaceholders(customMessage);
 
+      console.log('[GuestEmailDialog] Sending email:', {
+        to: guest.guest_email,
+        subject: processedSubject,
+      });
+
       const { data, error } = await supabase.functions.invoke('send-gmail', {
         body: {
           to: [guest.guest_email],
@@ -87,7 +92,12 @@ const GuestEmailDialog = ({ guest, open, onOpenChange }: GuestEmailDialogProps) 
         },
       });
 
-      if (error) throw error;
+      console.log('[GuestEmailDialog] Response:', { data, error });
+
+      if (error) {
+        console.error('[GuestEmailDialog] Edge function error:', error);
+        throw error;
+      }
 
       toast({
         title: 'E-Mail versendet',
