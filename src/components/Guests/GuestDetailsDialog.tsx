@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,7 @@ import {
   MessageCircle,
   FileText
 } from 'lucide-react';
+import GuestEmailDialog from './GuestEmailDialog';
 
 interface Guest {
   guest_name: string;
@@ -36,6 +38,8 @@ interface GuestDetailsDialogProps {
 }
 
 const GuestDetailsDialog = ({ guest, open, onOpenChange }: GuestDetailsDialogProps) => {
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'confirmed':
@@ -60,7 +64,7 @@ const GuestDetailsDialog = ({ guest, open, onOpenChange }: GuestDetailsDialogPro
 
   const handleContact = () => {
     if (guest.guest_email) {
-      window.open(`mailto:${guest.guest_email}`, '_blank');
+      setShowEmailDialog(true);
     } else if (guest.guest_phone) {
       window.open(`tel:${guest.guest_phone}`, '_blank');
     }
@@ -281,6 +285,13 @@ const GuestDetailsDialog = ({ guest, open, onOpenChange }: GuestDetailsDialogPro
           </CardContent>
         </Card>
       </DialogContent>
+
+      {/* Email Dialog */}
+      <GuestEmailDialog
+        guest={guest}
+        open={showEmailDialog}
+        onOpenChange={setShowEmailDialog}
+      />
     </Dialog>
   );
 };
