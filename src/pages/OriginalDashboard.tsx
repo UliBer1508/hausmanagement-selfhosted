@@ -61,6 +61,7 @@ import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBan
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
+import BookingTimeline from '@/components/Calendar/BookingTimeline';
 
 const OriginalDashboard = () => {
   const location = useLocation();
@@ -77,7 +78,7 @@ const OriginalDashboard = () => {
     }
   }, [location.state]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
+  const [calendarView, setCalendarView] = useState<'month' | 'week' | 'timeline'>('month');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [openPopoverDate, setOpenPopoverDate] = useState<string | null>(null);
   
@@ -1320,6 +1321,28 @@ const OriginalDashboard = () => {
       );
     };
 
+    const renderTimelineView = () => {
+      return (
+        <BookingTimeline
+          bookings={bookingsData || []}
+          houses={housesData || []}
+          selectedDate={selectedDate}
+          onBookingClick={(booking) => setSelectedEvent({
+            type: 'occupied',
+            title: `Buchung: ${booking.guest_name}`,
+            booking: {
+              ...booking,
+              guest: booking.guest_name,
+              house: booking.houses?.name || 'Unbekannt',
+              checkIn: booking.check_in,
+              checkOut: booking.check_out
+            },
+            color: 'bg-cyan-400 text-white'
+          })}
+        />
+      );
+    };
+
     return (
       <div className="space-y-6">
         {/* Calendar Header */}
@@ -1371,191 +1394,194 @@ const OriginalDashboard = () => {
             >
               Woche
             </Button>
+            <Button
+              variant={calendarView === 'timeline' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setCalendarView('timeline')}
+            >
+              📊 Timeline
+            </Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-          {/* Calendar */}
-          <div className="xl:col-span-3 overflow-x-auto">
-            {calendarView === 'week' ? renderWeekView() : renderMonthView()}
+        {calendarView === 'timeline' ? (
+          <div className="overflow-x-auto">
+            {renderTimelineView()}
           </div>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+            {/* Calendar */}
+            <div className="xl:col-span-3 overflow-x-auto">
+              {calendarView === 'week' ? renderWeekView() : renderMonthView()}
+            </div>
 
-          {/* Events Sidebar */}
-          <div className="space-y-4">
-            <Card className="bg-card border">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-semibold text-foreground">
-                  Termine für {format(selectedDate, 'dd. MMMM', { locale: de })}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {selectedEvent ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${selectedEvent.color}`}>
-                        {selectedEvent.title}
+            {/* Events Sidebar */}
+            <div className="space-y-4">
+              <Card className="bg-card border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-semibold text-foreground">
+                    Termine für {format(selectedDate, 'dd. MMMM', { locale: de })}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {selectedEvent ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${selectedEvent.color}`}>
+                          {selectedEvent.title}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedEvent(null)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedEvent(null)}
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
+                      
+                      {selectedEvent.type === 'free' ? (
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-foreground">Verfügbarkeit</h4>
+                          <div className="space-y-2 text-sm">
+                            <div><span className="font-medium">Haus:</span> {selectedEvent.houseName}</div>
+                            <div><span className="font-medium">Status:</span> <span className="text-green-600 font-semibold">Verfügbar</span></div>
+                          </div>
+                        </div>
+                      ) : selectedEvent.type === 'checkin' || selectedEvent.type === 'checkout' || selectedEvent.type === 'occupied' ? (
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-foreground">Buchungsdetails</h4>
+                          <div className="space-y-2 text-sm">
+                            {selectedEvent.booking?.guest && (
+                              <div><span className="font-medium">Gast:</span> {selectedEvent.booking.guest}</div>
+                            )}
+                            {selectedEvent.booking?.house && (
+                              <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
+                            )}
+                            {selectedEvent.booking?.dates && (
+                              <div><span className="font-medium">Zeitraum:</span> {selectedEvent.booking.dates}</div>
+                            )}
+                            {selectedEvent.booking?.guests && (
+                              <div><span className="font-medium">Gäste:</span> {selectedEvent.booking.guests}</div>
+                            )}
+                            {selectedEvent.booking?.status && (
+                              <div><span className="font-medium">Status:</span> {selectedEvent.booking.status}</div>
+                            )}
+                            {selectedEvent.booking?.checkIn && (
+                              <div><span className="font-medium">Check-in:</span> {format(parseISO(selectedEvent.booking.checkIn), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
+                            )}
+                            {selectedEvent.booking?.checkOut && (
+                              <div><span className="font-medium">Check-out:</span> {format(parseISO(selectedEvent.booking.checkOut), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
+                            )}
+                          </div>
+                        </div>
+                      ) : selectedEvent.type === 'cleaning' ? (
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-foreground">Reinigungsdetails</h4>
+                          <div className="space-y-2 text-sm">
+                            {selectedEvent.booking?.house && (
+                              <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
+                            )}
+                            {selectedEvent.cleaning?.date && (
+                              <div><span className="font-medium">Datum:</span> {format(parseISO(selectedEvent.cleaning.date), 'dd.MM.yyyy', { locale: de })}</div>
+                            )}
+                            {selectedEvent.cleaning?.provider && (
+                              <div><span className="font-medium">Anbieter:</span> {selectedEvent.cleaning.provider}</div>
+                            )}
+                            {selectedEvent.cleaning?.status && (
+                              <div><span className="font-medium">Status:</span> {selectedEvent.cleaning.status}</div>
+                            )}
+                            {selectedEvent.booking?.guest && (
+                              <div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>
+                            )}
+                          </div>
+                        </div>
+                      ) : selectedEvent.type === 'laundry' ? (
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-foreground">Wäschedetails</h4>
+                          <div className="space-y-2 text-sm">
+                            {selectedEvent.booking?.house && (
+                              <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
+                            )}
+                            {selectedEvent.laundry?.status && (
+                              <div><span className="font-medium">Status:</span> {selectedEvent.laundry.status}</div>
+                            )}
+                            {selectedEvent.laundry?.provider && (
+                              <div><span className="font-medium">Anbieter:</span> {selectedEvent.laundry.provider}</div>
+                            )}
+                            {selectedEvent.laundry?.items && (
+                              <div><span className="font-medium">Artikel:</span> {selectedEvent.laundry.items.join(', ')}</div>
+                            )}
+                            {selectedEvent.booking?.guest && (
+                              <div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
-                    
-                    {selectedEvent.type === 'free' ? (
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-foreground">Verfügbarkeit</h4>
-                        <div className="space-y-2 text-sm">
-                          <div><span className="font-medium">Haus:</span> {selectedEvent.houseName}</div>
-                          <div><span className="font-medium">Status:</span> <span className="text-green-600 font-semibold">Verfügbar</span></div>
-                        </div>
-                      </div>
-                    ) : selectedEvent.type === 'checkin' || selectedEvent.type === 'checkout' || selectedEvent.type === 'occupied' ? (
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-foreground">Buchungsdetails</h4>
-                        <div className="space-y-2 text-sm">
-                          {selectedEvent.booking?.guest && (
-                            <div><span className="font-medium">Gast:</span> {selectedEvent.booking.guest}</div>
-                          )}
-                          {selectedEvent.booking?.house && (
-                            <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
-                          )}
-                          {selectedEvent.booking?.dates && (
-                            <div><span className="font-medium">Zeitraum:</span> {selectedEvent.booking.dates}</div>
-                          )}
-                          {selectedEvent.booking?.guests && (
-                            <div><span className="font-medium">Gäste:</span> {selectedEvent.booking.guests}</div>
-                          )}
-                          {selectedEvent.booking?.status && (
-                            <div><span className="font-medium">Status:</span> {selectedEvent.booking.status}</div>
-                          )}
-                          {selectedEvent.booking?.checkIn && (
-                            <div><span className="font-medium">Check-in:</span> {format(parseISO(selectedEvent.booking.checkIn), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
-                          )}
-                          {selectedEvent.booking?.checkOut && (
-                            <div><span className="font-medium">Check-out:</span> {format(parseISO(selectedEvent.booking.checkOut), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
+                  ) : getEventsForDate(selectedDate).length > 0 ? (
+                    <div className="space-y-3">
+                      {getEventsForDate(selectedDate).map((event, index) => (
+                        <div 
+                          key={index} 
+                          className="p-3 rounded-lg bg-muted/50 border cursor-pointer hover:bg-muted/70 transition-colors"
+                          onClick={() => setSelectedEvent(event)}
+                        >
+                          <div className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${event.color} mb-2`}>
+                            {event.title}
+                          </div>
+                          {event.booking?.house && (
+                            <p className="text-sm text-muted-foreground">
+                              {event.booking.house}
+                            </p>
                           )}
                         </div>
-                      </div>
-                    ) : selectedEvent.type === 'cleaning' ? (
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-foreground">Reinigungsdetails</h4>
-                        <div className="space-y-2 text-sm">
-                          {selectedEvent.booking?.house && (
-                            <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
-                          )}
-                          {selectedEvent.cleaning?.date && (
-                            <div><span className="font-medium">Datum:</span> {format(parseISO(selectedEvent.cleaning.date), 'dd.MM.yyyy', { locale: de })}</div>
-                          )}
-                          {selectedEvent.cleaning?.provider && (
-                            <div><span className="font-medium">Anbieter:</span> {selectedEvent.cleaning.provider}</div>
-                          )}
-                          {selectedEvent.cleaning?.status && (
-                            <div><span className="font-medium">Status:</span> {selectedEvent.cleaning.status}</div>
-                          )}
-                          {selectedEvent.booking?.guest && (
-                            <div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>
-                          )}
-                        </div>
-                      </div>
-                    ) : selectedEvent.type === 'laundry' ? (
-                      <div className="space-y-3">
-                        <h4 className="font-semibold text-foreground">Wäschedetails</h4>
-                        <div className="space-y-2 text-sm">
-                          {selectedEvent.booking?.house && (
-                            <div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>
-                          )}
-                          {selectedEvent.laundry?.status && (
-                            <div><span className="font-medium">Status:</span> {selectedEvent.laundry.status}</div>
-                          )}
-                          {selectedEvent.laundry?.provider && (
-                            <div><span className="font-medium">Anbieter:</span> {selectedEvent.laundry.provider}</div>
-                          )}
-                          {selectedEvent.laundry?.items && (
-                            <div><span className="font-medium">Artikel:</span> {selectedEvent.laundry.items.join(', ')}</div>
-                          )}
-                          {selectedEvent.booking?.guest && (
-                            <div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : getEventsForDate(selectedDate).length > 0 ? (
-                  <div className="space-y-3">
-                    {getEventsForDate(selectedDate).map((event, index) => (
-                      <div 
-                        key={index} 
-                        className="p-3 rounded-lg bg-muted/50 border cursor-pointer hover:bg-muted/70 transition-colors"
-                        onClick={() => setSelectedEvent(event)}
-                      >
-                        <div className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${event.color} mb-2`}>
-                          {event.title}
-                        </div>
-                        {event.booking?.house && (
-                          <p className="text-sm text-muted-foreground">
-                            {event.booking.house}
-                          </p>
-                        )}
-                        {event.booking?.guest && (
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {event.booking.guest}
-                          </p>
-                        )}
-                        {event.houseName && !event.booking && (
-                          <p className="text-sm text-muted-foreground">
-                            {event.houseName}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">Keine Termine für diesen Tag</p>
-                )}
-              </CardContent>
-            </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Keine Termine für diesen Tag</p>
+                  )}
+                </CardContent>
+              </Card>
 
-            {/* Legend */}
-            <Card className="bg-card border">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-semibold text-foreground">Legende</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-green-500 rounded-md"></div>
-                  <span className="text-sm text-foreground">Check-in</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-red-500 rounded-md"></div>
-                  <span className="text-sm text-foreground">Check-out</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-orange-500 rounded-md border border-orange-600"></div>
-                  <span className="text-sm text-foreground">Venedigersiedlung Belegt</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-cyan-200 rounded-md border border-cyan-300"></div>
-                  <span className="text-sm text-foreground">Wald Chalet Belegt</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-blue-500 rounded-md"></div>
-                  <span className="text-sm text-foreground">Reinigung</span>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-4 h-4 bg-purple-500 rounded-md"></div>
-                  <span className="text-sm text-foreground">Wäsche</span>
-                </div>
-                <div className="flex items-center space-x-3 pt-2 border-t">
-                  <div className="w-4 h-4 bg-white rounded-md border-2 border-green-500"></div>
-                  <span className="text-sm text-green-600 font-semibold">Frei (beide Häuser)</span>
-                </div>
-              </CardContent>
-            </Card>
+              {/* Legend */}
+              <Card className="bg-card border">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg font-semibold text-foreground">Legende</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-4 h-4 bg-green-500 rounded-md"></div>
+                    <span className="text-sm text-foreground">Check-in</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-4 h-4 bg-red-500 rounded-md"></div>
+                    <span className="text-sm text-foreground">Check-out</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-4 h-4 bg-orange-500 rounded-md border border-orange-600"></div>
+                    <span className="text-sm text-foreground">Venedigersiedlung Belegt</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-4 h-4 bg-cyan-200 rounded-md border border-cyan-300"></div>
+                    <span className="text-sm text-foreground">Wald Chalet Belegt</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-4 h-4 bg-blue-500 rounded-md"></div>
+                    <span className="text-sm text-foreground">Reinigung</span>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-4 h-4 bg-purple-500 rounded-md"></div>
+                    <span className="text-sm text-foreground">Wäsche</span>
+                  </div>
+                  <div className="flex items-center space-x-3 pt-2 border-t">
+                    <div className="w-4 h-4 bg-white rounded-md border-2 border-green-500"></div>
+                    <span className="text-sm text-green-600 font-semibold">Frei (beide Häuser)</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   };
