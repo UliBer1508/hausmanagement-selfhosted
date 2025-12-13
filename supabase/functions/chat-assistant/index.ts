@@ -139,11 +139,13 @@ ANTWORT-FORMATE:
   • Gast: [Name]
   • Check-in: [Datum]
   • Check-out: [Datum]
-  • Anzahl Gäste: [Zahl]
+  • Anzahl Gäste: [Zahl] - WENN Kinder dabei: "👨‍👩‍👧‍👦 Familie! ([X] Erwachsene, [Y] Kinder)"
   • Status: [Status] ⚠️ (IMMER anzeigen, auch bei "storniert"!)
   • Haus: [Hausname]
   • Betrag: [Betrag]
 - Wenn Status "cancelled": Weise explizit darauf hin!
+- 💡 WENN number_of_children > 0: Füge am Ende IMMER diesen Hinweis hinzu:
+  "💡 HINWEIS: Familie mit [X] Kind(ern) - Spielzeug/Kinderbett bereitstellen!"
 
 **Reinigungsaufträge:**
 "Ich habe [Anzahl] Reinigungsauftrag/-aufträge gefunden:
@@ -1086,7 +1088,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       let query = supabase
         .from('bookings')
-        .select('*, houses(name, address)');
+        .select('*, houses(name, address), number_of_adults, number_of_children');
 
       if (params.guest_name) {
         query = query.ilike('guest_name', `%${params.guest_name}%`);
