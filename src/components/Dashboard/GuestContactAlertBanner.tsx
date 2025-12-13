@@ -60,6 +60,11 @@ const GuestContactAlertBanner = () => {
                     >
                       in {booking.daysUntilCheckIn} Tagen
                     </Badge>
+                    {booking.isFamily && (
+                      <Badge className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200 dark:border-purple-800">
+                        👨‍👩‍👧‍👦 Familie ({booking.number_of_children} {booking.number_of_children === 1 ? 'Kind' : 'Kinder'})
+                      </Badge>
+                    )}
                   </div>
                   
                   <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
@@ -68,6 +73,7 @@ const GuestContactAlertBanner = () => {
                     </span>
                     <span>
                       {booking.number_of_guests} {booking.number_of_guests === 1 ? 'Gast' : 'Gäste'}
+                      {booking.isFamily && ` (${booking.number_of_adults || 0} Erw., ${booking.number_of_children || 0} Ki.)`}
                     </span>
                   </div>
                   

@@ -10,12 +10,15 @@ export interface GuestContactReminder {
   check_in: string;
   check_out: string;
   number_of_guests: number;
+  number_of_adults: number | null;
+  number_of_children: number | null;
   guest_contact_status: string;
   houses: {
     id: string;
     name: string;
   } | null;
   daysUntilCheckIn: number;
+  isFamily: boolean;
 }
 
 export const useGuestContactReminders = () => {
@@ -39,6 +42,8 @@ export const useGuestContactReminders = () => {
           check_in,
           check_out,
           number_of_guests,
+          number_of_adults,
+          number_of_children,
           guest_contact_status,
           houses!inner(id, name, rental_type)
         `)
@@ -51,10 +56,11 @@ export const useGuestContactReminders = () => {
 
       if (error) throw error;
 
-      // Tage bis Check-in berechnen
+      // Tage bis Check-in und Familien-Status berechnen
       return (data || []).map(booking => ({
         ...booking,
-        daysUntilCheckIn: differenceInDays(new Date(booking.check_in), new Date())
+        daysUntilCheckIn: differenceInDays(new Date(booking.check_in), new Date()),
+        isFamily: (booking.number_of_children || 0) > 0
       })) as GuestContactReminder[];
     },
     staleTime: 1000 * 60 * 5, // 5 Minuten Cache
