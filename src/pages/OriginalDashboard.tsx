@@ -62,6 +62,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
 import BookingTimeline from '@/components/Calendar/BookingTimeline';
+import { useExternalSync } from '@/hooks/useExternalSync';
 
 const OriginalDashboard = () => {
   const location = useLocation();
@@ -114,6 +115,10 @@ const OriginalDashboard = () => {
 
   // Wäsche-Daten mit useOptimizedLinenManagement Hook abrufen
   const { housesWithLinenData: linenData, isLoading: linenLoading } = useOptimizedLinenManagement();
+
+  // External Sync Hook
+  const { syncOrder, resetSync, isSyncing, isEnabled: externalSyncEnabled } = useExternalSync();
+  const [syncingOrderId, setSyncingOrderId] = useState<string | null>(null);
 
   // Linen Order Dialog States
   const [showLinenOrderDialog, setShowLinenOrderDialog] = useState(false);
@@ -2202,6 +2207,17 @@ const OriginalDashboard = () => {
                                 order={order} 
                                 colorVariant={colorVariant}
                                 onEdit={handleEditLinenOrder}
+                                onSync={async (order) => {
+                                  setSyncingOrderId(order.id);
+                                  try {
+                                    await syncOrder(order.id);
+                                  } finally {
+                                    setSyncingOrderId(null);
+                                  }
+                                }}
+                                onResetSync={async (order) => { await resetSync(order.id); }}
+                                isSyncing={syncingOrderId === order.id}
+                                externalSyncEnabled={externalSyncEnabled}
                               />
                             ))
                           ) : (

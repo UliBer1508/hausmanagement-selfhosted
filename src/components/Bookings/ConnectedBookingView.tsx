@@ -13,6 +13,7 @@ import LaundryOrderCard from './LaundryOrderCard';
 import ConnectionLine from './ConnectionLine';
 import LinenOrderDialog from '../Houses/LinenOrderDialog';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
+import { useExternalSync } from '@/hooks/useExternalSync';
 
 const ConnectedBookingView = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -27,6 +28,8 @@ const ConnectedBookingView = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { createOptimizedOrderMutation } = useOptimizedLinenManagement();
+  const { syncOrder, resetSync, isSyncing, isEnabled: externalSyncEnabled } = useExternalSync();
+  const [syncingOrderId, setSyncingOrderId] = useState<string | null>(null);
 
   console.log('ConnectedBookingView rendering with filters:', { statusFilter, houseFilter, searchTerm });
 
@@ -451,6 +454,17 @@ const ConnectedBookingView = () => {
                         order={order} 
                         colorVariant={colorVariant}
                         onEdit={handleEditLinenOrder}
+                        onSync={async (order) => {
+                          setSyncingOrderId(order.id);
+                          try {
+                            await syncOrder(order.id);
+                          } finally {
+                            setSyncingOrderId(null);
+                          }
+                        }}
+                        onResetSync={async (order) => { await resetSync(order.id); }}
+                        isSyncing={syncingOrderId === order.id}
+                        externalSyncEnabled={externalSyncEnabled}
                       />
                     ))
                   ) : (
