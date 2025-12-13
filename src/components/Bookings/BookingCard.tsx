@@ -65,7 +65,14 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
           {/* Guests */}
           <div className="flex items-center gap-2">
             <span className="text-base">👥</span>
-            <span className="text-sm">{booking.number_of_guests}</span>
+            <span className="text-sm">
+              {booking.number_of_guests}
+              {(booking.number_of_children !== undefined && booking.number_of_children > 0) && (
+                <span className="text-muted-foreground ml-1">
+                  ({booking.number_of_adults ?? booking.number_of_guests} Erw., {booking.number_of_children} Ki.)
+                </span>
+              )}
+            </span>
           </div>
         </div>
 

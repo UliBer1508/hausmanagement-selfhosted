@@ -51,7 +51,8 @@ import { cn } from '@/lib/utils';
 
 const bookingSchema = z.object({
   house_id: z.string().min(1, 'Ferienhaus ist erforderlich'),
-  number_of_guests: z.number().min(1, 'Mindestens 1 Gast erforderlich').max(20, 'Maximum 20 Gäste'),
+  number_of_adults: z.number().min(1, 'Mindestens 1 Erwachsener erforderlich').max(20, 'Maximum 20 Erwachsene'),
+  number_of_children: z.number().min(0, 'Anzahl Kinder kann nicht negativ sein').max(20, 'Maximum 20 Kinder').default(0),
   check_in: z.date({
     required_error: 'Check-in Datum ist erforderlich',
   }),
@@ -208,9 +209,14 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       const validPaymentStatus: 'pending' | 'paid' | 'partial' = 
         (paymentStatus === 'paid' || paymentStatus === 'partial') ? paymentStatus : 'pending';
       
+      // Fallback für alte Daten: wenn number_of_adults nicht gesetzt, nutze number_of_guests
+      const adults = initialData.number_of_adults ?? initialData.number_of_guests;
+      const children = initialData.number_of_children ?? 0;
+      
       return {
         house_id: initialData.houses?.id || initialData.house_id,
-        number_of_guests: initialData.number_of_guests,
+        number_of_adults: adults,
+        number_of_children: children,
         check_in: new Date(initialData.check_in),
         check_out: new Date(initialData.check_out),
         guest_name: initialData.guest_name,
@@ -226,7 +232,8 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       };
     }
     return {
-      number_of_guests: 1,
+      number_of_adults: 1,
+      number_of_children: 0,
       currency: 'EUR',
       status: 'confirmed',
       payment_status: 'pending',
@@ -423,9 +430,12 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       }
 
       // Prepare booking data
+      const numberOfGuests = data.number_of_adults + data.number_of_children;
       const bookingData = {
         house_id: data.house_id,
-        number_of_guests: data.number_of_guests,
+        number_of_guests: numberOfGuests,
+        number_of_adults: data.number_of_adults,
+        number_of_children: data.number_of_children,
         check_in: data.check_in.toISOString(),
         check_out: data.check_out.toISOString(),
         guest_name: data.guest_name.trim(),
@@ -683,22 +693,45 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
             )}
           />
 
-          {/* Anzahl Gäste */}
+          {/* Anzahl Erwachsene */}
           <FormField
             control={form.control}
-            name="number_of_guests"
+            name="number_of_adults"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Anzahl Gäste *</FormLabel>
+                <FormLabel>👨 Erwachsene *</FormLabel>
                 <FormControl>
                   <Input
                     type="number"
-                    placeholder="Anzahl Gäste"
+                    placeholder="Erwachsene"
                     min="1"
                     max="20"
                     {...field}
-                    onChange={(e) => field.onChange(parseInt(e.target.value))}
-                    value={field.value || ''}
+                    onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                    value={field.value ?? 1}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* Anzahl Kinder */}
+          <FormField
+            control={form.control}
+            name="number_of_children"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>👶 Kinder</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    placeholder="Kinder"
+                    min="0"
+                    max="20"
+                    {...field}
+                    onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                    value={field.value ?? 0}
                   />
                 </FormControl>
                 <FormMessage />
