@@ -903,6 +903,8 @@ export type Database = {
           import_platform: string | null
           nationality: string | null
           notes: string | null
+          number_of_adults: number | null
+          number_of_children: number | null
           number_of_guests: number
           payment_status: string | null
           platform: string | null
@@ -931,6 +933,8 @@ export type Database = {
           import_platform?: string | null
           nationality?: string | null
           notes?: string | null
+          number_of_adults?: number | null
+          number_of_children?: number | null
           number_of_guests: number
           payment_status?: string | null
           platform?: string | null
@@ -959,6 +963,8 @@ export type Database = {
           import_platform?: string | null
           nationality?: string | null
           notes?: string | null
+          number_of_adults?: number | null
+          number_of_children?: number | null
           number_of_guests?: number
           payment_status?: string | null
           platform?: string | null

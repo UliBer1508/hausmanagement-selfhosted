@@ -65,6 +65,8 @@ export interface Booking {
   guest_phone?: string;
   nationality?: string;
   number_of_guests: number;
+  number_of_adults?: number;
+  number_of_children?: number;
   house_id: string;
   status?: 'confirmed' | 'checked_in' | 'completed' | 'cancelled';
   payment_status?: 'pending' | 'paid' | 'partial' | null;

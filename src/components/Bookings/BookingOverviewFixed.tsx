@@ -181,6 +181,8 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
           check_in,
           check_out,
           number_of_guests,
+          number_of_adults,
+          number_of_children,
           house_id,
           status,
           payment_status,
@@ -656,7 +658,16 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
                     {format(parseISO(booking.check_out), 'dd.MM.yyyy, HH:mm', { locale: de })}
                   </TableCell>
                   <TableCell>
-                    {booking.number_of_guests}
+                    <span title={
+                      (booking.number_of_children !== undefined && booking.number_of_children > 0)
+                        ? `${booking.number_of_adults ?? booking.number_of_guests} Erwachsene, ${booking.number_of_children} Kinder`
+                        : `${booking.number_of_guests} Gäste`
+                    }>
+                      {booking.number_of_guests}
+                      {(booking.number_of_children !== undefined && booking.number_of_children > 0) && (
+                        <span className="text-muted-foreground text-xs ml-1">👶</span>
+                      )}
+                    </span>
                   </TableCell>
                   <TableCell>
                     {getStatusBadge(booking.status)}
