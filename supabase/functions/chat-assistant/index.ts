@@ -467,8 +467,9 @@ TOOLS - KRITISCHE REGELN:
 8. Bei "müssen wir wäsche bestellen" / "offene bestellungen" / "zu bestätigen" → search_linen_orders mit status="offen"
 9. Bei "wäschebestellungen prüfen" / "bestellstatus" → search_linen_orders ohne Status-Filter
 10. Bei "statistik" / "übersicht" → get_dashboard_stats
-9. Bei "kalender" / "termine" → get_calendar_events
-10. Bei UUID → entsprechendes get_*_details Tool
+11. Bei "kalender" / "termine" → get_calendar_events
+12. Bei UUID → entsprechendes get_*_details Tool
+13. Bei "familien" / "buchungen mit kindern" / "kinder dabei" → search_bookings mit has_children=true
 
 📋 BEISPIELE FÜR TOOL-CALLS:
 
@@ -565,6 +566,15 @@ User: "Welche Wäschebestellungen wurden gestern geändert?" (Heute ist 09.10.20
   "updated_to": "2025-10-08T21:59:59Z"
 })
 
+Beispiel 12 (Familien-Buchungen):
+User: "Zeige mir alle Familien" / "Welche Buchungen haben Kinder?"
+✅ Tool: search_bookings({"has_children": true})
+✅ Zeigt: Alle Buchungen mit Kindern (number_of_children > 0) mit Familien-Hinweis
+
+Beispiel 13 (Familien in bestimmtem Zeitraum):
+User: "Gibt es nächste Woche Familien?" / "Familien im Dezember"
+✅ Tool: search_bookings({"has_children": true, "date_from": "[Startdatum]", "date_to": "[Enddatum]"})
+
 Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
 
     // Define available tools
@@ -583,7 +593,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               date_from: { type: "string", description: "Startdatum für Check-in (ISO 8601)" },
               date_to: { type: "string", description: "Enddatum für Check-out (ISO 8601)" },
               updated_from: { type: "string", description: "Buchungen geändert ab diesem Zeitpunkt (ISO 8601)" },
-              updated_to: { type: "string", description: "Buchungen geändert bis zu diesem Zeitpunkt (ISO 8601)" }
+              updated_to: { type: "string", description: "Buchungen geändert bis zu diesem Zeitpunkt (ISO 8601)" },
+              has_children: { type: "boolean", description: "Buchungen mit Kindern (Familien)" }
             }
           }
         }
@@ -1116,6 +1127,10 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       }
       if (params.updated_to) {
         query = query.lte('updated_at', params.updated_to);
+      }
+      // Familien-Filter: Buchungen mit Kindern
+      if (params.has_children === true) {
+        query = query.gt('number_of_children', 0);
       }
 
       const { data, error } = await query.order('check_in', { ascending: true });
