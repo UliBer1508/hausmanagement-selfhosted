@@ -132,17 +132,37 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     }
   };
 
-  const handleSendEmail = async (emailData: any) => {
+  const handleSendEmail = async (emailData: {
+    to: string;
+    subject: string;
+    customText: string;
+    orderDetails: string;
+  }) => {
     try {
+      // Vollständigen E-Mail-Text aus Komponenten zusammensetzen
+      const fullEmailText = `${emailData.customText ? `${emailData.customText}\n\n` : ''}${emailData.orderDetails}\n\nBitte bestätigen Sie den Erhalt dieser Bestellung.\n\nMit freundlichen Grüßen\nSteinbock Chalets Team`;
+
       const { error } = await supabase.functions.invoke('send-gmail', {
-        body: emailData
+        body: {
+          to: [emailData.to],
+          subject: emailData.subject,
+          text: fullEmailText
+        }
       });
       
       if (error) throw error;
+
+      // E-Mail-Zeitstempel aktualisieren
+      if (createdOrderForEmail?.id) {
+        await supabase
+          .from('linen_orders')
+          .update({ email_sent_at: new Date().toISOString() })
+          .eq('id', createdOrderForEmail.id);
+      }
       
       toast({
         title: "E-Mail versendet",
-        description: "Die Bestellung wurde erfolgreich per E-Mail versendet.",
+        description: `Bestellung wurde erfolgreich an ${emailData.to} gesendet.`,
       });
       setEmailDialogOpen(false);
       setCreatedOrderForEmail(null);
