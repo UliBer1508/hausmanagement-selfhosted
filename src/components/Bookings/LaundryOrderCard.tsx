@@ -1,12 +1,13 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Edit, Package, Trash2, CheckCircle, Link2, RotateCcw } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Edit, Package, Trash2, CheckCircle, Link2, RotateCcw, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 import { translateItemType } from '@/lib/linenOrderHelpers';
-
 // Feste Anzeige-Reihenfolge der Wäscheartikel
 const ITEM_DISPLAY_ORDER = [
   'bedding',        // 1. Bettwäsche
@@ -57,6 +58,7 @@ interface LaundryOrderCardProps {
 }
 
 const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false }: LaundryOrderCardProps) => {
+  const [isItemsOpen, setIsItemsOpen] = useState(false);
   const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
@@ -194,29 +196,82 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
 
           {/* Right Column: Items & Notes */}
           <div className="space-y-2">
-            {/* Items List */}
+            {/* Items List - Collapsible */}
             {((order.laundry_order_items && order.laundry_order_items.length > 0) || order.items) && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground font-medium">Artikel ({getTotalItems()}):</p>
+              <Collapsible open={isItemsOpen} onOpenChange={setIsItemsOpen}>
+                <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-muted/50 rounded p-1 -ml-1 transition-colors">
+                  <ChevronDown 
+                    className={cn(
+                      "h-4 w-4 text-muted-foreground transition-transform duration-200",
+                      isItemsOpen && "rotate-180"
+                    )} 
+                  />
+                  <span className="text-xs text-muted-foreground font-medium">
+                    Artikel ({getTotalItems()})
+                  </span>
+                </CollapsibleTrigger>
                 
-                {/* Desktop: Table View */}
-                <table className="w-full text-sm hidden lg:table">
-                  <thead>
-                    <tr className="text-xs text-muted-foreground border-b">
-                      <th className="text-left font-medium pb-1">Artikel</th>
-                      <th className="text-center font-medium pb-1">Farbe</th>
-                      <th className="text-right font-medium pb-1">Anz.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <CollapsibleContent className="mt-1">
+                  {/* Desktop: Table View */}
+                  <table className="w-full text-sm hidden lg:table">
+                    <thead>
+                      <tr className="text-xs text-muted-foreground border-b">
+                        <th className="text-left font-medium pb-1">Artikel</th>
+                        <th className="text-center font-medium pb-1">Farbe</th>
+                        <th className="text-right font-medium pb-1">Anz.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {order.laundry_order_items && order.laundry_order_items
+                        .filter((item: any) => item.quantity > 0)
+                        .map((item: any) => (
+                        <tr key={item.id}>
+                          <td className="py-0.5">{item.item_name}</td>
+                          <td className="text-center py-0.5 text-muted-foreground">-</td>
+                          <td className="text-right text-muted-foreground py-0.5">{item.quantity}x</td>
+                        </tr>
+                      ))}
+                      
+                      {order.items && Object.entries(order.items)
+                        .filter(([_, count]: [string, any]) => count > 0)
+                        .sort(([a], [b]) => {
+                          const indexA = ITEM_DISPLAY_ORDER.indexOf(a);
+                          const indexB = ITEM_DISPLAY_ORDER.indexOf(b);
+                          return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+                        })
+                        .map(([itemType, count]: [string, any]) => {
+                          const itemVariants = order.item_variants as Record<string, string> | null;
+                          const itemColor = itemVariants?.[itemType];
+                          const itemHasLinenColor = hasLinenColor(itemType);
+                          const itemHasItemColor = hasItemColor(itemType);
+                          
+                          return (
+                            <tr key={itemType}>
+                              <td className="py-0.5">{translateItemType(itemType)}</td>
+                              <td className="text-center py-0.5">
+                                {itemHasLinenColor
+                                  ? (itemColor ? getLinenColorLabel(itemColor as LinenColor) : '⬜ Weiß gestreift')
+                                  : itemHasItemColor
+                                    ? (itemColor ? getItemColorLabel(itemColor as ItemColor) : '⬜ Weiß')
+                                    : <span className="text-muted-foreground">-</span>
+                                }
+                              </td>
+                              <td className="text-right text-muted-foreground py-0.5">{count}x</td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+
+                  {/* Mobile: Compact List View */}
+                  <div className="lg:hidden space-y-0.5">
                     {order.laundry_order_items && order.laundry_order_items
                       .filter((item: any) => item.quantity > 0)
                       .map((item: any) => (
-                      <tr key={item.id}>
-                        <td className="py-0.5">{item.item_name}</td>
-                        <td className="text-center py-0.5 text-muted-foreground">-</td>
-                        <td className="text-right text-muted-foreground py-0.5">{item.quantity}x</td>
-                      </tr>
+                      <div key={item.id} className="flex justify-between text-xs">
+                        <span className="truncate">{item.item_name}</span>
+                        <span className="text-muted-foreground ml-2 shrink-0">{item.quantity}x</span>
+                      </div>
                     ))}
                     
                     {order.items && Object.entries(order.items)
@@ -232,68 +287,27 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                         const itemHasLinenColor = hasLinenColor(itemType);
                         const itemHasItemColor = hasItemColor(itemType);
                         
+                        // Get short color label for mobile
+                        let colorLabel = '';
+                        if (itemHasLinenColor) {
+                          colorLabel = itemColor ? getLinenColorLabel(itemColor as LinenColor).replace('gestreift', 'gestr.') : 'Weiß gestr.';
+                        } else if (itemHasItemColor) {
+                          colorLabel = itemColor ? getItemColorLabel(itemColor as ItemColor) : 'Weiß';
+                        }
+                        
                         return (
-                          <tr key={itemType}>
-                            <td className="py-0.5">{translateItemType(itemType)}</td>
-                            <td className="text-center py-0.5">
-                              {itemHasLinenColor
-                                ? (itemColor ? getLinenColorLabel(itemColor as LinenColor) : '⬜ Weiß gestreift')
-                                : itemHasItemColor
-                                  ? (itemColor ? getItemColorLabel(itemColor as ItemColor) : '⬜ Weiß')
-                                  : <span className="text-muted-foreground">-</span>
-                              }
-                            </td>
-                            <td className="text-right text-muted-foreground py-0.5">{count}x</td>
-                          </tr>
+                          <div key={itemType} className="flex justify-between text-xs">
+                            <span className="truncate">
+                              {translateItemType(itemType)}
+                              {colorLabel && <span className="text-muted-foreground"> ({colorLabel})</span>}
+                            </span>
+                            <span className="text-muted-foreground ml-2 shrink-0">{count}x</span>
+                          </div>
                         );
                       })}
-                  </tbody>
-                </table>
-
-                {/* Mobile: Compact List View */}
-                <div className="lg:hidden space-y-0.5">
-                  {order.laundry_order_items && order.laundry_order_items
-                    .filter((item: any) => item.quantity > 0)
-                    .map((item: any) => (
-                    <div key={item.id} className="flex justify-between text-xs">
-                      <span className="truncate">{item.item_name}</span>
-                      <span className="text-muted-foreground ml-2 shrink-0">{item.quantity}x</span>
-                    </div>
-                  ))}
-                  
-                  {order.items && Object.entries(order.items)
-                    .filter(([_, count]: [string, any]) => count > 0)
-                    .sort(([a], [b]) => {
-                      const indexA = ITEM_DISPLAY_ORDER.indexOf(a);
-                      const indexB = ITEM_DISPLAY_ORDER.indexOf(b);
-                      return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
-                    })
-                    .map(([itemType, count]: [string, any]) => {
-                      const itemVariants = order.item_variants as Record<string, string> | null;
-                      const itemColor = itemVariants?.[itemType];
-                      const itemHasLinenColor = hasLinenColor(itemType);
-                      const itemHasItemColor = hasItemColor(itemType);
-                      
-                      // Get short color label for mobile
-                      let colorLabel = '';
-                      if (itemHasLinenColor) {
-                        colorLabel = itemColor ? getLinenColorLabel(itemColor as LinenColor).replace('gestreift', 'gestr.') : 'Weiß gestr.';
-                      } else if (itemHasItemColor) {
-                        colorLabel = itemColor ? getItemColorLabel(itemColor as ItemColor) : 'Weiß';
-                      }
-                      
-                      return (
-                        <div key={itemType} className="flex justify-between text-xs">
-                          <span className="truncate">
-                            {translateItemType(itemType)}
-                            {colorLabel && <span className="text-muted-foreground"> ({colorLabel})</span>}
-                          </span>
-                          <span className="text-muted-foreground ml-2 shrink-0">{count}x</span>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
 
             {/* Notes */}
