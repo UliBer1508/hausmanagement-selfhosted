@@ -21,6 +21,7 @@ const GuestStats = () => {
       const guestMap = new Map();
       let totalRevenue = 0;
       let totalBookings = 0;
+      let bookingsWithAmount = 0;
       let totalStayDays = 0;
 
       overallStats.forEach(booking => {
@@ -34,22 +35,26 @@ const GuestStats = () => {
         guest.bookings += 1;
         guest.revenue += booking.booking_amount || 0;
         
-        totalRevenue += booking.booking_amount || 0;
+        // Nur Buchungen mit Betrag für Durchschnitt zählen
+        if (booking.booking_amount && booking.booking_amount > 0) {
+          totalRevenue += booking.booking_amount;
+          bookingsWithAmount += 1;
+        }
         totalBookings += 1;
         
         // Calculate stay duration
-          const checkIn = new Date(booking.check_in);
-          const checkOut = new Date(booking.check_out);
-          const daysDifference = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-          const nights = Math.max(0, daysDifference - 1); // Nächte = Tage - 1
-          totalStayDays += nights;
+        const checkIn = new Date(booking.check_in);
+        const checkOut = new Date(booking.check_out);
+        const daysDifference = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+        const nights = Math.max(0, daysDifference - 1); // Nächte = Tage - 1
+        totalStayDays += nights;
       });
 
       const totalGuests = guestMap.size;
       const returningGuests = Array.from(guestMap.values()).filter(guest => guest.bookings > 1).length;
       const returningRate = totalGuests > 0 ? (returningGuests / totalGuests) * 100 : 0;
       const avgStayDuration = totalBookings > 0 ? totalStayDays / totalBookings : 0;
-      const avgRevenuePerBooking = totalBookings > 0 ? totalRevenue / totalBookings : 0;
+      const avgRevenuePerBooking = bookingsWithAmount > 0 ? totalRevenue / bookingsWithAmount : 0;
 
       // Calculate 6-month growth (simplified)
       const sixMonthsAgo = new Date();
