@@ -13,7 +13,6 @@ const GuestStats = () => {
         .select('guest_name, booking_amount, check_in, check_out, status, houses!inner(rental_type)')
         .eq('houses.rental_type', 'tourist')
         .not('guest_name', 'is', null)
-        .not('booking_amount', 'is', null)
         .neq('status', 'cancelled');
 
       if (!overallStats) return null;
@@ -33,9 +32,9 @@ const GuestStats = () => {
         
         const guest = guestMap.get(guestKey);
         guest.bookings += 1;
-        guest.revenue += booking.booking_amount;
+        guest.revenue += booking.booking_amount || 0;
         
-        totalRevenue += booking.booking_amount;
+        totalRevenue += booking.booking_amount || 0;
         totalBookings += 1;
         
         // Calculate stay duration
