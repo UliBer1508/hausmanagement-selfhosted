@@ -33,12 +33,14 @@ const GuestCommunication = () => {
 
   // Fetch guest segments for targeting
   const { data: segmentData } = useQuery({
-    queryKey: ['communication-segments'],
+    queryKey: ['communication-segments', 'tourist'],
     queryFn: async () => {
       const { data: bookings } = await supabase
         .from('bookings')
-        .select('*')
-        .not('guest_name', 'is', null);
+        .select('*, houses!inner(rental_type)')
+        .eq('houses.rental_type', 'tourist')
+        .not('guest_name', 'is', null)
+        .neq('status', 'cancelled');
 
       if (!bookings) return null;
 
