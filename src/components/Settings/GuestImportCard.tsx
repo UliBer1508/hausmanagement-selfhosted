@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, XCircle, Loader2, Trash2, Search, Edit2, Check, X } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, XCircle, Loader2, Trash2, Search, Edit2, Check, X, Info, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useHouses } from '@/hooks/useHouses';
 import * as XLSX from 'xlsx';
@@ -647,6 +647,15 @@ const GuestImportCard = () => {
               </Table>
             </ScrollArea>
 
+            {/* Hinweis: Vorschau-Modus */}
+            <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800">
+              <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <AlertDescription className="text-blue-800 dark:text-blue-200">
+                <strong>Vorschau-Modus:</strong> Prüfe und korrigiere die Daten. 
+                Erst nach Klick auf "Speichern" werden sie in die Datenbank übernommen.
+              </AlertDescription>
+            </Alert>
+
             {/* Action buttons */}
             <div className="flex items-center justify-between pt-2">
               <div className="text-sm text-muted-foreground">
@@ -660,12 +669,12 @@ const GuestImportCard = () => {
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Importiere...
+                      Speichere...
                     </>
                   ) : (
                     <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      {selectedCount} Buchungen importieren
+                      <Save className="w-4 h-4 mr-2" />
+                      {selectedCount} Buchungen speichern
                     </>
                   )}
                 </Button>
