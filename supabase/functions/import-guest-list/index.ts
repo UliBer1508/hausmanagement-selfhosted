@@ -15,6 +15,11 @@ interface ProcessedBooking {
   numberOfAdults: number;
   numberOfChildren: number;
   nationality: string;
+  guestStreet: string;
+  guestCity: string;
+  guestBirthDate: string;
+  guestTravelDocument: string;
+  bookingAmount: number | null;
   isValid: boolean;
   validationErrors: string[];
   selected: boolean;
@@ -120,6 +125,11 @@ serve(async (req) => {
           number_of_adults: booking.numberOfAdults,
           number_of_children: booking.numberOfChildren,
           nationality: booking.nationality || null,
+          guest_street: booking.guestStreet || null,
+          guest_city: booking.guestCity || null,
+          guest_birth_date: booking.guestBirthDate || null,
+          guest_travel_document: booking.guestTravelDocument || null,
+          booking_amount: booking.bookingAmount || null,
           status: 'completed',
           source: 'excel_import'
         });
