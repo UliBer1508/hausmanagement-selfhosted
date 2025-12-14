@@ -42,7 +42,6 @@ interface ProcessedBooking {
   guestCity: string;
   guestBirthDate: string;
   guestTravelDocument: string;
-  bookingAmount: number | null;
   isValid: boolean;
   validationErrors: string[];
   selected: boolean;
@@ -186,14 +185,9 @@ const GuestImportCard = () => {
       const stadtOrt = getField(mainBooker, 'Stadt/Ort', 'Stadt', 'Ort') || '';
       const geburtstag = getField(mainBooker, 'Geburtstag', 'geburtstag') || '';
       const reisedokument = getField(mainBooker, 'Reisedokument Nr.', 'Reisedokument', 'Passnummer') || '';
-      const total = getField(mainBooker, 'Total', 'Betrag', 'Preis') || '';
 
       // Geburtsdatum parsen (TT.MM.JJJJ → YYYY-MM-DD)
       const guestBirthDate = parseGermanDate(geburtstag);
-
-      // Betrag parsen (z.B. "1.234,56 €" → 1234.56)
-      const parsedAmount = total ? parseFloat(total.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')) : null;
-      const bookingAmount = parsedAmount && !isNaN(parsedAmount) ? parsedAmount : null;
 
       // Berechne Erwachsene/Kinder aus Geburtsdaten
       const referenceDate = checkIn ? new Date(checkIn) : new Date();
@@ -230,7 +224,6 @@ const GuestImportCard = () => {
         guestCity: stadtOrt,
         guestBirthDate,
         guestTravelDocument: reisedokument,
-        bookingAmount,
         isValid: validationErrors.length === 0,
         validationErrors,
         selected: true
@@ -400,7 +393,6 @@ const GuestImportCard = () => {
       guestCity: booking.guestCity,
       guestBirthDate: booking.guestBirthDate,
       guestTravelDocument: booking.guestTravelDocument,
-      bookingAmount: booking.bookingAmount,
     });
   };
 
@@ -428,7 +420,6 @@ const GuestImportCard = () => {
         guestCity: editValues.guestCity ?? b.guestCity,
         guestBirthDate: editValues.guestBirthDate ?? b.guestBirthDate,
         guestTravelDocument: editValues.guestTravelDocument ?? b.guestTravelDocument,
-        bookingAmount: editValues.bookingAmount ?? b.bookingAmount,
       };
       
       // Neu validieren
@@ -584,7 +575,6 @@ const GuestImportCard = () => {
                     <TableHead>Straße</TableHead>
                     <TableHead>Stadt</TableHead>
                     <TableHead className="w-28">Geb.Datum</TableHead>
-                    <TableHead className="w-24">Betrag</TableHead>
                     <TableHead className="w-16">Status</TableHead>
                     <TableHead className="w-20 text-right">Aktionen</TableHead>
                   </TableRow>
@@ -684,16 +674,6 @@ const GuestImportCard = () => {
                               className="h-8"
                             />
                           </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={editValues.bookingAmount ?? ''}
-                              onChange={e => setEditValues(v => ({ ...v, bookingAmount: parseFloat(e.target.value) || null }))}
-                              className="h-8 w-20"
-                              placeholder="EUR"
-                            />
-                          </TableCell>
                           <TableCell>-</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
@@ -717,7 +697,6 @@ const GuestImportCard = () => {
                           <TableCell className="text-xs">{booking.guestStreet || '-'}</TableCell>
                           <TableCell className="text-xs">{booking.guestCity || '-'}</TableCell>
                           <TableCell>{booking.guestBirthDate ? formatDateForDisplay(booking.guestBirthDate) : '-'}</TableCell>
-                          <TableCell className="text-right">{booking.bookingAmount ? `${booking.bookingAmount.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €` : '-'}</TableCell>
                           <TableCell>
                             {booking.isValid ? (
                               <Badge variant="outline" className="text-green-600 border-green-600">✓</Badge>
