@@ -753,6 +753,7 @@ const GuestAnalytics = () => {
         totalRevenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
         paidRevenue: bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
         totalBookings: bookings.length,
+        bookingsWithAmount: bookings.filter(b => b.status !== 'cancelled' && b.booking_amount && b.booking_amount > 0).length,
         totalGuests: bookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0)
       };
     },
@@ -863,10 +864,10 @@ const GuestAnalytics = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              €{Math.round(analyticsData.totalRevenue / analyticsData.totalBookings)}
+              €{analyticsData.bookingsWithAmount > 0 ? Math.round(analyticsData.totalRevenue / analyticsData.bookingsWithAmount) : 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Durchschnittlicher Umsatz
+              Basierend auf {analyticsData.bookingsWithAmount} von {analyticsData.totalBookings} Buchungen
             </p>
           </CardContent>
         </Card>
