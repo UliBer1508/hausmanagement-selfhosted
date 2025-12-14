@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import nodemailer from "npm:nodemailer@6.9.7";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,11 @@ interface EmailRequest {
   html?: string;
   text?: string;
   guestName?: string;
+}
+
+interface EmailSettings {
+  email: string;
+  display_name: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -59,6 +65,40 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Gmail app password not configured");
     }
 
+    // Load email settings from database
+    let emailAddress = "steinbockchalets@gmail.com";
+    let displayName = "Steinbock Chalets";
+
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      
+      if (supabaseUrl && supabaseKey) {
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        const { data: settings, error } = await supabase
+          .from('system_settings')
+          .select('value')
+          .eq('key', 'email_settings')
+          .maybeSingle();
+        
+        if (!error && settings?.value) {
+          const emailSettings = settings.value as EmailSettings;
+          if (emailSettings.email) {
+            emailAddress = emailSettings.email;
+          }
+          if (emailSettings.display_name) {
+            displayName = emailSettings.display_name;
+          }
+          console.log(`Loaded email settings from DB: ${displayName} <${emailAddress}>`);
+        } else {
+          console.log("Using default email settings (not found in DB)");
+        }
+      }
+    } catch (dbError) {
+      console.warn("Could not load email settings from DB, using defaults:", dbError);
+    }
+
     // Prepare email content
     let emailContent = html || text || "";
     
@@ -77,7 +117,7 @@ const handler = async (req: Request): Promise<Response> => {
       port: 587,
       secure: false, // use TLS
       auth: {
-        user: "steinbockchalets@gmail.com",
+        user: emailAddress,
         pass: gmailPassword,
       },
     });
@@ -88,7 +128,7 @@ const handler = async (req: Request): Promise<Response> => {
     for (const recipient of validEmails) {
       try {
         const info = await transporter.sendMail({
-          from: '"Steinbock Chalets" <steinbockchalets@gmail.com>',
+          from: `"${displayName}" <${emailAddress}>`,
           to: recipient,
           subject: subject,
           text: html ? undefined : emailContent,
@@ -109,7 +149,8 @@ const handler = async (req: Request): Promise<Response> => {
       messageId: `msg_${Date.now()}`,
       method: "Gmail SMTP",
       recipients: validEmails.length,
-      from: "steinbockchalets@gmail.com",
+      from: emailAddress,
+      displayName: displayName,
       subject: subject,
       timestamp: new Date().toISOString()
     };

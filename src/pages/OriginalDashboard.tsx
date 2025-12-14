@@ -66,6 +66,7 @@ import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
 import BookingTimeline from '@/components/Calendar/BookingTimeline';
 import { useExternalSync } from '@/hooks/useExternalSync';
+import { useEmailSettings, useProfileSettings, useAppearanceSettings } from '@/hooks/useSystemSettings';
 
 const OriginalDashboard = () => {
   const location = useLocation();
@@ -91,12 +92,44 @@ const OriginalDashboard = () => {
   const [statusFilter, setStatusFilter] = useState('confirmed');
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   
-  // Settings state
-  const [profileSettings, setProfileSettings] = useState({
-    displayName: 'Uli Berresheim',
-    email: 'uli.berresheim@hotmail.de',
-    phone: '+49 171 3020406'
+  // Settings from database
+  const { data: emailSettingsData, saveSettings: saveEmailSettings, isSaving: isSavingEmail } = useEmailSettings();
+  const { data: profileSettingsData, saveSettings: saveProfileSettingsDb, isSaving: isSavingProfile } = useProfileSettings();
+  const { data: appearanceSettingsData, saveSettings: saveAppearanceSettings, isSaving: isSavingAppearance } = useAppearanceSettings();
+
+  // Local state for form editing
+  const [localEmailSettings, setLocalEmailSettings] = useState({
+    email: 'steinbockchalets@gmail.com',
+    display_name: 'Steinbock Chalets'
   });
+  const [localProfileSettings, setLocalProfileSettings] = useState({
+    user_name: 'Uli Berresheim',
+    company_name: 'Steinbock Chalets'
+  });
+  const [localAppearanceSettings, setLocalAppearanceSettings] = useState({
+    theme: 'light' as 'light' | 'dark',
+    language: 'de',
+    compact_view: false
+  });
+
+  // Sync local state with database data
+  useEffect(() => {
+    if (emailSettingsData) {
+      setLocalEmailSettings(emailSettingsData);
+    }
+  }, [emailSettingsData]);
+
+  useEffect(() => {
+    if (profileSettingsData) {
+      setLocalProfileSettings(profileSettingsData);
+    }
+  }, [profileSettingsData]);
+
+  useEffect(() => {
+    if (appearanceSettingsData) {
+      setLocalAppearanceSettings(appearanceSettingsData);
+    }
+  }, [appearanceSettingsData]);
 
   const [notificationSettings, setNotificationSettings] = useState({
     emailNotifications: false,
@@ -105,13 +138,7 @@ const OriginalDashboard = () => {
     serviceUpdates: true
   });
 
-  const [systemSettings, setSystemSettings] = useState({
-    language: 'de',
-    timezone: 'europe-vienna',
-    dateFormat: 'dd-mm-yyyy',
-    darkMode: false,
-    compactView: false
-  });
+  // systemSettings state removed - now using useAppearanceSettings hook
   const [houseFilter, setHouseFilter] = useState('all');
   const [serviceTypeFilter, setServiceTypeFilter] = useState('all');
   const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
@@ -134,39 +161,7 @@ const OriginalDashboard = () => {
   // Settings save functions
   const saveProfileSettings = async () => {
     try {
-      // First check if a record exists, then update or insert
-      const { data: existingRecord } = await supabase
-        .from('notification_preferences')
-        .select('id')
-        .limit(1)
-        .single();
-
-      let error;
-      if (existingRecord) {
-        // Update existing record
-        const { error: updateError } = await supabase
-          .from('notification_preferences')
-          .update({
-            user_name: profileSettings.displayName,
-            email_address: profileSettings.email,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingRecord.id);
-        error = updateError;
-      } else {
-        // Insert new record
-        const { error: insertError } = await supabase
-          .from('notification_preferences')
-          .insert({
-            user_name: profileSettings.displayName,
-            email_address: profileSettings.email,
-            updated_at: new Date().toISOString()
-          });
-        error = insertError;
-      }
-
-      if (error) throw error;
-
+      await saveProfileSettingsDb(localProfileSettings);
       toast({
         title: "Profil gespeichert",
         description: "Ihre Profileinstellungen wurden erfolgreich aktualisiert.",
@@ -176,6 +171,41 @@ const OriginalDashboard = () => {
       toast({
         title: "Fehler",
         description: "Profileinstellungen konnten nicht gespeichert werden.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveEmailSettings = async () => {
+    try {
+      await saveEmailSettings(localEmailSettings);
+      toast({
+        title: "E-Mail-Einstellungen gespeichert",
+        description: "Ihre E-Mail-Einstellungen wurden erfolgreich aktualisiert.",
+      });
+    } catch (error) {
+      console.error('Error saving email settings:', error);
+      toast({
+        title: "Fehler",
+        description: "E-Mail-Einstellungen konnten nicht gespeichert werden.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveAppearanceSettings = async (settings: typeof localAppearanceSettings) => {
+    try {
+      await saveAppearanceSettings(settings);
+      setLocalAppearanceSettings(settings);
+      toast({
+        title: "Erscheinungsbild gespeichert",
+        description: "Ihre Anzeigeeinstellungen wurden aktualisiert.",
+      });
+    } catch (error) {
+      console.error('Error saving appearance settings:', error);
+      toast({
+        title: "Fehler",
+        description: "Erscheinungsbild konnte nicht gespeichert werden.",
         variant: "destructive",
       });
     }
@@ -1698,57 +1728,43 @@ const OriginalDashboard = () => {
                     <Avatar className="w-16 h-16">
                       <AvatarImage src="/placeholder-avatar.jpg" />
                       <AvatarFallback className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 text-xl font-semibold">
-                        {profileSettings.displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                        {localProfileSettings.user_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                      <h3 className="font-medium">{profileSettings.displayName}</h3>
-                      <p className="text-sm text-muted-foreground">{profileSettings.email}</p>
+                      <h3 className="font-medium">{localProfileSettings.user_name}</h3>
+                      <p className="text-sm text-muted-foreground">{localProfileSettings.company_name}</p>
                     </div>
                   </div>
                   
                    <div className="space-y-3">
                      <div>
-                       <Label htmlFor="displayName">Anzeigename</Label>
+                       <Label htmlFor="userName">Benutzername</Label>
                        <Input 
-                         id="displayName" 
-                         value={profileSettings.displayName}
-                         onChange={(e) => setProfileSettings(prev => ({
+                         id="userName" 
+                         value={localProfileSettings.user_name}
+                         onChange={(e) => setLocalProfileSettings(prev => ({
                            ...prev,
-                           displayName: e.target.value
+                           user_name: e.target.value
                          }))}
                        />
                      </div>
                      <div>
-                       <Label htmlFor="email">E-Mail</Label>
+                       <Label htmlFor="companyName">Firmenname</Label>
                        <Input 
-                         id="email" 
-                         type="email" 
-                         value={profileSettings.email}
-                         onChange={(e) => setProfileSettings(prev => ({
+                         id="companyName" 
+                         value={localProfileSettings.company_name}
+                         onChange={(e) => setLocalProfileSettings(prev => ({
                            ...prev,
-                           email: e.target.value
+                           company_name: e.target.value
                          }))}
-                       />
-                     </div>
-                     <div>
-                       <Label htmlFor="phone">Telefon</Label>
-                       <Input 
-                         id="phone" 
-                         type="tel" 
-                         value={profileSettings.phone}
-                         onChange={(e) => setProfileSettings(prev => ({
-                           ...prev,
-                           phone: e.target.value
-                         }))}
-                         placeholder="+43 660 8005926"
                        />
                      </div>
                    </div>
 
-                   <Button className="w-full" onClick={saveProfileSettings}>
+                   <Button className="w-full" onClick={saveProfileSettings} disabled={isSavingProfile}>
                      <Save className="w-4 h-4 mr-2" />
-                     Profil speichern
+                     {isSavingProfile ? 'Speichern...' : 'Profil speichern'}
                    </Button>
                 </CardContent>
               </Card>
@@ -1880,13 +1896,28 @@ const OriginalDashboard = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between py-2 border-b">
-                      <span className="text-sm font-medium">Absender-Adresse</span>
-                      <span className="text-sm text-muted-foreground">steinbockchalets@gmail.com</span>
+                    <div>
+                      <Label htmlFor="emailAddress">Absender-Adresse</Label>
+                      <Input 
+                        id="emailAddress"
+                        type="email"
+                        value={localEmailSettings.email}
+                        onChange={(e) => setLocalEmailSettings(prev => ({
+                          ...prev,
+                          email: e.target.value
+                        }))}
+                      />
                     </div>
-                    <div className="flex items-center justify-between py-2 border-b">
-                      <span className="text-sm font-medium">Anzeigename</span>
-                      <span className="text-sm text-muted-foreground">Steinbock Chalets</span>
+                    <div>
+                      <Label htmlFor="emailDisplayName">Anzeigename</Label>
+                      <Input 
+                        id="emailDisplayName"
+                        value={localEmailSettings.display_name}
+                        onChange={(e) => setLocalEmailSettings(prev => ({
+                          ...prev,
+                          display_name: e.target.value
+                        }))}
+                      />
                     </div>
                     <div className="flex items-center justify-between py-2">
                       <span className="text-sm font-medium">Status</span>
@@ -1902,35 +1933,45 @@ const OriginalDashboard = () => {
                     Das App-Passwort ist sicher in den Secrets gespeichert.
                   </p>
 
-                  <Button 
-                    variant="outline" 
-                    className="w-full"
-                    onClick={async () => {
-                      try {
-                        const { error } = await supabase.functions.invoke('send-gmail', {
-                          body: {
-                            to: ['steinbockchalets@gmail.com'],
-                            subject: 'Test-E-Mail vom Ferienhaus Management',
-                            text: `Dies ist eine Test-E-Mail.\n\nGesendet am: ${new Date().toLocaleString('de-DE')}\n\nWenn Sie diese E-Mail erhalten, funktioniert der E-Mail-Versand korrekt.\n\nMit freundlichen Grüßen\nSteinbock Chalets System`
-                          }
-                        });
-                        if (error) throw error;
-                        toast({
-                          title: "Test-E-Mail versendet",
-                          description: "Eine Test-E-Mail wurde an steinbockchalets@gmail.com gesendet.",
-                        });
-                      } catch (error: any) {
-                        toast({
-                          variant: "destructive",
-                          title: "Fehler beim Versenden",
-                          description: error.message || "Die Test-E-Mail konnte nicht versendet werden.",
-                        });
-                      }
-                    }}
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    Test-E-Mail senden
-                  </Button>
+                  <div className="space-y-2">
+                    <Button 
+                      className="w-full" 
+                      onClick={handleSaveEmailSettings}
+                      disabled={isSavingEmail}
+                    >
+                      <Save className="w-4 h-4 mr-2" />
+                      {isSavingEmail ? 'Speichern...' : 'E-Mail-Einstellungen speichern'}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={async () => {
+                        try {
+                          const { error } = await supabase.functions.invoke('send-gmail', {
+                            body: {
+                              to: [localEmailSettings.email],
+                              subject: 'Test-E-Mail vom Ferienhaus Management',
+                              text: `Dies ist eine Test-E-Mail.\n\nGesendet am: ${new Date().toLocaleString('de-DE')}\n\nWenn Sie diese E-Mail erhalten, funktioniert der E-Mail-Versand korrekt.\n\nMit freundlichen Grüßen\n${localEmailSettings.display_name} System`
+                            }
+                          });
+                          if (error) throw error;
+                          toast({
+                            title: "Test-E-Mail versendet",
+                            description: `Eine Test-E-Mail wurde an ${localEmailSettings.email} gesendet.`,
+                          });
+                        } catch (error: any) {
+                          toast({
+                            variant: "destructive",
+                            title: "Fehler beim Versenden",
+                            description: error.message || "Die Test-E-Mail konnte nicht versendet werden.",
+                          });
+                        }
+                      }}
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Test-E-Mail senden
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -1990,14 +2031,29 @@ const OriginalDashboard = () => {
                     <div>
                       <Label>Design-Modus</Label>
                       <div className="grid grid-cols-2 gap-2 mt-2">
-                        <Button variant="outline" size="sm">Hell</Button>
-                        <Button variant="outline" size="sm">Dunkel</Button>
+                        <Button 
+                          variant={localAppearanceSettings.theme === 'light' ? 'default' : 'outline'} 
+                          size="sm"
+                          onClick={() => handleSaveAppearanceSettings({ ...localAppearanceSettings, theme: 'light' })}
+                        >
+                          Hell
+                        </Button>
+                        <Button 
+                          variant={localAppearanceSettings.theme === 'dark' ? 'default' : 'outline'} 
+                          size="sm"
+                          onClick={() => handleSaveAppearanceSettings({ ...localAppearanceSettings, theme: 'dark' })}
+                        >
+                          Dunkel
+                        </Button>
                       </div>
                     </div>
 
                     <div>
                       <Label>Sprache</Label>
-                      <Select defaultValue="de">
+                      <Select 
+                        value={localAppearanceSettings.language}
+                        onValueChange={(value) => handleSaveAppearanceSettings({ ...localAppearanceSettings, language: value })}
+                      >
                         <SelectTrigger className="mt-2">
                           <SelectValue placeholder="Sprache auswählen" />
                         </SelectTrigger>
@@ -2017,7 +2073,10 @@ const OriginalDashboard = () => {
                           Mehr Inhalte auf weniger Platz
                         </p>
                       </div>
-                      <Switch />
+                      <Switch 
+                        checked={localAppearanceSettings.compact_view}
+                        onCheckedChange={(checked) => handleSaveAppearanceSettings({ ...localAppearanceSettings, compact_view: checked })}
+                      />
                     </div>
                   </div>
                 </CardContent>
