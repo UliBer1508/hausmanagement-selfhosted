@@ -39,7 +39,10 @@ import {
   ChevronDown,
   ChevronUp,
   Building2,
-  FileBarChart
+  FileBarChart,
+  Mail,
+  Send,
+  CheckCircle
 } from 'lucide-react';
 import { format, isSameDay, parseISO, addDays, addMonths, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -1863,6 +1866,70 @@ const OriginalDashboard = () => {
                   >
                     <FileBarChart className="w-4 h-4 mr-2" />
                     Bericht anzeigen
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* E-Mail-Versand */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-primary" />
+                    E-Mail-Versand
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between py-2 border-b">
+                      <span className="text-sm font-medium">Absender-Adresse</span>
+                      <span className="text-sm text-muted-foreground">steinbockchalets@gmail.com</span>
+                    </div>
+                    <div className="flex items-center justify-between py-2 border-b">
+                      <span className="text-sm font-medium">Anzeigename</span>
+                      <span className="text-sm text-muted-foreground">Steinbock Chalets</span>
+                    </div>
+                    <div className="flex items-center justify-between py-2">
+                      <span className="text-sm font-medium">Status</span>
+                      <Badge variant="outline" className="text-green-600">
+                        <CheckCircle className="w-3 h-3 mr-1" />
+                        Verbunden (Gmail SMTP)
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">
+                    Alle E-Mails werden über Ihren Gmail-Account versendet. 
+                    Das App-Passwort ist sicher in den Secrets gespeichert.
+                  </p>
+
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={async () => {
+                      try {
+                        const { error } = await supabase.functions.invoke('send-gmail', {
+                          body: {
+                            to: ['steinbockchalets@gmail.com'],
+                            subject: 'Test-E-Mail vom Ferienhaus Management',
+                            text: `Dies ist eine Test-E-Mail.\n\nGesendet am: ${new Date().toLocaleString('de-DE')}\n\nWenn Sie diese E-Mail erhalten, funktioniert der E-Mail-Versand korrekt.\n\nMit freundlichen Grüßen\nSteinbock Chalets System`
+                          }
+                        });
+                        if (error) throw error;
+                        toast({
+                          title: "Test-E-Mail versendet",
+                          description: "Eine Test-E-Mail wurde an steinbockchalets@gmail.com gesendet.",
+                        });
+                      } catch (error: any) {
+                        toast({
+                          variant: "destructive",
+                          title: "Fehler beim Versenden",
+                          description: error.message || "Die Test-E-Mail konnte nicht versendet werden.",
+                        });
+                      }
+                    }}
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Test-E-Mail senden
                   </Button>
                 </CardContent>
               </Card>
