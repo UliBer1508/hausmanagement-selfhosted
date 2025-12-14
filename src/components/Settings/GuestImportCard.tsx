@@ -230,9 +230,35 @@ const GuestImportCard = () => {
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       
-      // Excel hat spezielle Struktur: Zeile 1 = Titel, Zeile 2 = Trennlinie, Zeile 3 = Header
+      // Lese alle Zeilen als Array-of-Arrays um Header-Zeile zu finden
+      const allRows = XLSX.utils.sheet_to_json<string[]>(firstSheet, { 
+        header: 1,
+        defval: ''
+      });
+
+      console.log('Alle Zeilen (erste 5):', allRows.slice(0, 5));
+
+      // Finde die Header-Zeile (enthält "Blatt-Nr." oder "Nachname")
+      let headerRowIndex = -1;
+      for (let i = 0; i < Math.min(allRows.length, 10); i++) {
+        const row = allRows[i];
+        if (row && Array.isArray(row)) {
+          const rowStr = row.join(' ').toLowerCase();
+          if (rowStr.includes('blatt-nr') || rowStr.includes('nachname')) {
+            headerRowIndex = i;
+            console.log('Header gefunden in Zeile:', i, row);
+            break;
+          }
+        }
+      }
+
+      if (headerRowIndex === -1) {
+        throw new Error('Header-Zeile nicht gefunden (suche nach "Blatt-Nr." oder "Nachname")');
+      }
+
+      // Jetzt mit korrektem Range parsen
       const rows = XLSX.utils.sheet_to_json<ExcelRow>(firstSheet, { 
-        range: 2,
+        range: headerRowIndex,
         defval: ''
       });
 
@@ -251,7 +277,7 @@ const GuestImportCard = () => {
       console.error('Parse error:', error);
       toast({
         title: 'Fehler beim Lesen',
-        description: 'Die Datei konnte nicht gelesen werden',
+        description: error instanceof Error ? error.message : 'Die Datei konnte nicht gelesen werden',
         variant: 'destructive',
       });
     } finally {
