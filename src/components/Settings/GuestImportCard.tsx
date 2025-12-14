@@ -69,14 +69,33 @@ const GuestImportCard = () => {
       const arrayBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<ExcelRow>(firstSheet);
+      
+      // Excel hat spezielle Struktur: Zeile 1 = Titel, Zeile 2 = Trennlinie, Zeile 3 = Header
+      // range: 2 überspringt die ersten 2 Zeilen und liest Header aus Zeile 3
+      const rows = XLSX.utils.sheet_to_json<ExcelRow>(firstSheet, { 
+        range: 2,
+        defval: ''
+      });
+
+      console.log('Excel Spalten:', Object.keys(rows[0] || {}));
+      console.log('Erste Datenzeile:', rows[0]);
+
+      // Robuste Feld-Erkennung
+      const getField = (row: ExcelRow, ...keys: string[]): string | undefined => {
+        for (const key of keys) {
+          if (row[key] !== undefined && row[key] !== '') return row[key];
+        }
+        return undefined;
+      };
 
       // Count unique bookings by Blatt-Nr.
-      const uniqueBlattNrs = new Set(rows.map(r => r['Blatt-Nr.']).filter(Boolean));
+      const uniqueBlattNrs = new Set(
+        rows.map(r => getField(r, 'Blatt-Nr.', 'Blatt-Nr', 'BlattNr')).filter(Boolean)
+      );
       
       // Find date range
       const dates = rows
-        .map(r => r['Anreise'])
+        .map(r => getField(r, 'Anreise'))
         .filter(Boolean)
         .map(d => {
           const parts = d!.split('.');
