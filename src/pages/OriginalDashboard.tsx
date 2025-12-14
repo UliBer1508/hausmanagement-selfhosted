@@ -61,6 +61,7 @@ import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderMan
 import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
 import { UsageReportDialog } from '@/components/Dashboard/UsageReportDialog';
 import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBanner';
+import GuestImportCard from '@/components/Settings/GuestImportCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
@@ -2081,6 +2082,9 @@ const OriginalDashboard = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Gästeliste Import */}
+              <GuestImportCard />
 
               {/* System */}
               <Card>
