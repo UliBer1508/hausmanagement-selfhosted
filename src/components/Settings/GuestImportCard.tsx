@@ -218,8 +218,19 @@ const GuestImportCard = () => {
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('=== handleFileSelect START ===');
+    
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log('Keine Datei ausgewählt');
+      return;
+    }
+    
+    console.log('Datei erkannt:', file.name, file.size, 'bytes');
+    toast({
+      title: 'Datei erkannt',
+      description: `${file.name} wird verarbeitet...`,
+    });
 
     setIsParsing(true);
     setProcessedBookings([]);
@@ -452,34 +463,45 @@ const GuestImportCard = () => {
           </Select>
         </div>
 
-        {/* File Upload */}
+        {/* File Input - IMMER gerendert, außerhalb des bedingten Blocks */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleFileSelect}
+          className="sr-only"
+          id="excel-upload"
+        />
+
+        {/* File Upload UI */}
         {processedBookings.length === 0 && !importResult && (
           <div className="space-y-2">
             <label className="text-sm font-medium">Excel-Datei hochladen</label>
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleFileSelect}
-                className="hidden"
-                id="excel-upload"
-              />
-              <label htmlFor="excel-upload" className="cursor-pointer">
-                {isParsing ? (
-                  <div className="flex flex-col items-center">
-                    <Loader2 className="w-10 h-10 text-primary animate-spin mb-2" />
-                    <span className="text-sm text-muted-foreground">Datei wird analysiert...</span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center">
-                    <FileSpreadsheet className="w-10 h-10 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">
-                      Excel-Datei (.xlsx) hier ablegen oder klicken
-                    </span>
-                  </div>
-                )}
-              </label>
+              {isParsing ? (
+                <div className="flex flex-col items-center">
+                  <Loader2 className="w-10 h-10 text-primary animate-spin mb-2" />
+                  <span className="text-sm text-muted-foreground">Datei wird analysiert...</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3">
+                  <FileSpreadsheet className="w-10 h-10 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    Excel-Datei (.xlsx) auswählen
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      console.log('Button geklickt, triggere Datei-Input');
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Datei auswählen
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         )}
