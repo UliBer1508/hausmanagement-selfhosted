@@ -179,12 +179,29 @@ export const useExternalSync = () => {
         return isoDate.split('T')[0]; // "2024-12-20T14:00:00.000Z" → "2024-12-20"
       };
 
+      // Hilfsfunktion: Validierung für anzahl_personen (nur 1-50 erlaubt)
+      const validateAnzahlPersonen = (value: unknown): number => {
+        const num = Number(value);
+        // Gültige Personenzahl: 1-50 (fängt Timestamps und andere ungültige Werte ab)
+        if (isNaN(num) || num < 1 || num > 50) {
+          console.warn(`⚠️ Ungültige anzahl_personen: ${value} (Typ: ${typeof value}) - Verwende Standard 1`);
+          return 1;
+        }
+        return Math.floor(num); // Sicherstellen dass es ein Integer ist
+      };
+
+      // Sicherstellen dass bookings kein Array ist (Supabase kann bei Relations Arrays zurückgeben)
+      const bookingData = Array.isArray(order.bookings) 
+        ? order.bookings[0] 
+        : order.bookings;
+
       // DEBUG: Rohe Werte loggen
       console.log('=== DEBUG: Externe Bestellung erstellen ===');
-      console.log('check_in RAW:', order.bookings?.check_in);
-      console.log('check_out RAW:', order.bookings?.check_out);
-      console.log('check_in FORMATTED:', formatDateOnly(order.bookings?.check_in));
-      console.log('check_out FORMATTED:', formatDateOnly(order.bookings?.check_out));
+      console.log('order.bookings (RAW):', JSON.stringify(order.bookings, null, 2));
+      console.log('bookingData (nach Array-Check):', JSON.stringify(bookingData, null, 2));
+      console.log('number_of_guests RAW:', bookingData?.number_of_guests, '| Typ:', typeof bookingData?.number_of_guests);
+      console.log('check_in RAW:', bookingData?.check_in);
+      console.log('check_out RAW:', bookingData?.check_out);
 
       const insertData = {
         kunde_id: kundeData.id,
@@ -192,10 +209,10 @@ export const useExternalSync = () => {
         lieferdatum: order.delivery_date, // Sollte bereits YYYY-MM-DD sein
         status: 'neu',
         notizen: order.notes || null, // null statt undefined
-        gastname: order.bookings?.guest_name || 'Unbekannt',
-        check_in: formatDateOnly(order.bookings?.check_in), // YYYY-MM-DD Format
-        check_out: formatDateOnly(order.bookings?.check_out), // YYYY-MM-DD Format
-        anzahl_personen: order.bookings?.number_of_guests || 1, // Default 1 laut Dokumentation
+        gastname: bookingData?.guest_name || 'Unbekannt',
+        check_in: formatDateOnly(bookingData?.check_in), // YYYY-MM-DD Format
+        check_out: formatDateOnly(bookingData?.check_out), // YYYY-MM-DD Format
+        anzahl_personen: validateAnzahlPersonen(bookingData?.number_of_guests), // Validiert: nur 1-50 erlaubt
       };
       
       console.log('kunde_id:', insertData.kunde_id, '| Typ:', typeof insertData.kunde_id);
