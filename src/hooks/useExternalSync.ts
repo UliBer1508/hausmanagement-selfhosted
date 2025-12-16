@@ -172,20 +172,34 @@ export const useExternalSync = () => {
       }
 
       // 9. Bestellung in externer DB erstellen (OHNE bestellnummer - Portal generiert sie)
+      // DEBUG: Alle Werte vor dem Insert loggen
+      const insertData = {
+        kunde_id: kundeData.id,
+        objekt_id: objektData.id,
+        lieferdatum: order.delivery_date,
+        status: 'neu',
+        notizen: order.notes || undefined,
+        gastname: order.bookings?.guest_name || 'Unbekannt',
+        check_in: order.bookings?.check_in || null,
+        check_out: order.bookings?.check_out || null,
+        anzahl_personen: order.bookings?.number_of_guests || null,
+      };
+      
+      console.log('=== DEBUG: Externe Bestellung erstellen ===');
+      console.log('kunde_id:', insertData.kunde_id, '| Typ:', typeof insertData.kunde_id);
+      console.log('objekt_id:', insertData.objekt_id, '| Typ:', typeof insertData.objekt_id);
+      console.log('lieferdatum:', insertData.lieferdatum, '| Typ:', typeof insertData.lieferdatum);
+      console.log('gastname:', insertData.gastname);
+      console.log('check_in:', insertData.check_in, '| Typ:', typeof insertData.check_in);
+      console.log('check_out:', insertData.check_out, '| Typ:', typeof insertData.check_out);
+      console.log('anzahl_personen:', insertData.anzahl_personen, '| Typ:', typeof insertData.anzahl_personen);
+      console.log('notizen:', insertData.notizen);
+      console.log('Komplettes Insert-Objekt:', JSON.stringify(insertData, null, 2));
+      console.log('============================================');
+
       const { data: neueBestellung, error: bestellError } = await externalLaundryClient
         .from('waeschebestellungen')
-        .insert({
-          kunde_id: kundeData.id,
-          objekt_id: objektData.id,
-          lieferdatum: order.delivery_date,
-          status: 'neu',
-          notizen: order.notes || undefined,
-          // Buchungsdaten
-          gastname: order.bookings?.guest_name || 'Unbekannt',
-          check_in: order.bookings?.check_in || null,
-          check_out: order.bookings?.check_out || null,
-          anzahl_personen: order.bookings?.number_of_guests || null,
-        })
+        .insert(insertData)
         .select('id, bestellnummer')
         .single();
 
