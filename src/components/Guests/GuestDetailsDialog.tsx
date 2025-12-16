@@ -23,6 +23,7 @@ interface Guest {
   guest_email?: string;
   guest_phone?: string;
   nationality?: string;
+  guest_notes?: string;
   bookings: any[];
   total_revenue: number;
   last_booking?: any;
@@ -127,6 +128,18 @@ const GuestDetailsDialog = ({ guest, open, onOpenChange }: GuestDetailsDialogPro
                 <div className="flex items-center gap-2">
                   <Phone className="w-4 h-4 text-muted-foreground" />
                   <span className="text-sm">{guest.guest_phone}</span>
+                </div>
+              )}
+
+              {guest.guest_notes && (
+                <div className="pt-3 border-t">
+                  <div className="flex items-start gap-2">
+                    <FileText className="w-4 h-4 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium mb-1">Notizen & Vorlieben</p>
+                      <p className="text-sm text-muted-foreground whitespace-pre-wrap">{guest.guest_notes}</p>
+                    </div>
+                  </div>
                 </div>
               )}
 
