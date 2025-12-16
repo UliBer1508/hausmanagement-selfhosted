@@ -899,6 +899,7 @@ export type Database = {
           guest_contact_status: string | null
           guest_email: string | null
           guest_name: string
+          guest_notes: string | null
           guest_phone: string | null
           guest_postal_code: string | null
           guest_street: string | null
@@ -934,6 +935,7 @@ export type Database = {
           guest_contact_status?: string | null
           guest_email?: string | null
           guest_name: string
+          guest_notes?: string | null
           guest_phone?: string | null
           guest_postal_code?: string | null
           guest_street?: string | null
@@ -969,6 +971,7 @@ export type Database = {
           guest_contact_status?: string | null
           guest_email?: string | null
           guest_name?: string
+          guest_notes?: string | null
           guest_phone?: string | null
           guest_postal_code?: string | null
           guest_street?: string | null

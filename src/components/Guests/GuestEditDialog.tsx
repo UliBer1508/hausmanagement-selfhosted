@@ -4,15 +4,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { User, Mail, Phone, MapPin, Loader2 } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Loader2, FileText } from 'lucide-react';
 
 interface Guest {
   guest_name: string;
   guest_email?: string;
   guest_phone?: string;
   nationality?: string;
+  guest_notes?: string;
   bookings: any[];
   total_revenue: number;
   last_booking?: any;
@@ -33,6 +35,7 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
     guest_email: guest.guest_email || '',
     guest_phone: guest.guest_phone || '',
     nationality: guest.nationality || '',
+    guest_notes: guest.guest_notes || '',
   });
 
   const { toast } = useToast();
@@ -54,6 +57,7 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
           guest_email: data.guest_email || null,
           guest_phone: data.guest_phone || null,
           nationality: data.nationality || null,
+          guest_notes: data.guest_notes || null,
         })
         .in('id', bookingIds)
         .select();
@@ -171,6 +175,20 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
                 placeholder="DE, AT, CH, etc."
                 className="pl-10"
                 maxLength={2}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="guest_notes">Notizen & Vorlieben</Label>
+            <div className="relative">
+              <FileText className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Textarea
+                id="guest_notes"
+                value={formData.guest_notes}
+                onChange={(e) => handleInputChange('guest_notes', e.target.value)}
+                placeholder="z.B. Allergiker, bevorzugt Erdgeschoss, Stammgast-Extras..."
+                className="pl-10 min-h-[80px]"
               />
             </div>
           </div>

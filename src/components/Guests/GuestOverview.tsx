@@ -28,7 +28,7 @@ const GuestOverview = () => {
   const { data: guestData, isLoading }: any = useQuery({
     queryKey: ['guests-tourist-list', searchTerm, statusFilter, houseFilter, categoryFilter, sortBy],
     queryFn: async () => {
-      let query: any = supabase.from('bookings').select('id, guest_name, guest_email, guest_phone, booking_amount, check_in, check_out, status, nationality, houses!inner(id, name, address, rental_type)').eq('houses.rental_type', 'tourist').not('guest_name', 'is', null);
+      let query: any = supabase.from('bookings').select('id, guest_name, guest_email, guest_phone, guest_notes, booking_amount, check_in, check_out, status, nationality, houses!inner(id, name, address, rental_type)').eq('houses.rental_type', 'tourist').not('guest_name', 'is', null);
       if (searchTerm) query = query.or(`guest_name.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%,guest_phone.ilike.%${searchTerm}%`);
       if (statusFilter !== 'all') query = query.eq('status', statusFilter);
       if (houseFilter !== 'all') query = query.eq('house_id', houseFilter);
@@ -38,11 +38,13 @@ const GuestOverview = () => {
       response.data.forEach((booking: any) => {
         const guestKey = `${booking.guest_name}-${booking.guest_email || ''}-${booking.guest_phone || ''}`;
         if (!guestMap.has(guestKey)) {
-          guestMap.set(guestKey, { guest_name: booking.guest_name, guest_email: booking.guest_email, guest_phone: booking.guest_phone, nationality: booking.nationality, bookings: [], total_revenue: 0, last_booking: null, next_booking: null, stay_count: 0, active_booking_count: 0, category: 'new' });
+          guestMap.set(guestKey, { guest_name: booking.guest_name, guest_email: booking.guest_email, guest_phone: booking.guest_phone, nationality: booking.nationality, guest_notes: booking.guest_notes, bookings: [], total_revenue: 0, last_booking: null, next_booking: null, stay_count: 0, active_booking_count: 0, category: 'new' });
         }
         const guest = guestMap.get(guestKey);
         guest.bookings.push(booking);
         guest.stay_count += 1;
+        // Take the latest non-empty guest_notes
+        if (booking.guest_notes && !guest.guest_notes) guest.guest_notes = booking.guest_notes;
         if (booking.status !== 'cancelled') {
           guest.total_revenue += booking.booking_amount || 0;
           guest.active_booking_count += 1;
