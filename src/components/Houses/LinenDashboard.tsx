@@ -22,16 +22,16 @@ import AutoLinenOrderSettingsCard from './AutoLinenOrderSettingsCard';
 
 interface HouseLinenStatus {
   house: any;
-  totalItems: number;
-  upcomingBookings: number;
-  nextBookingDate?: string;
-  bookingsWithoutOrder: number;
+  // Neue Metriken
+  bookingsWithOrder: number;        // Buchungen MIT Wäschebestellung
+  pendingOrders: number;            // Davon noch nicht geliefert (status=pending)
+  bookingsWithoutOrder: number;     // Buchungen OHNE Wäschebestellung
+  ordersToApprove: number;          // Bestellungen zur Genehmigung (status=offen)
+  nextApprovalDue?: string;         // Datum der nächsten zu genehmigenden Bestellung
+  nextBookingWithoutOrder?: string; // Nächste Buchung ohne Bestellung
+  // Legacy für Kompatibilität
   urgentBookingsWithoutOrder: number;
-  soonBookingsWithoutOrder: number;
-  openOrders: number;
-  urgentOpenOrders: number;
-  soonOpenOrders: number;
-  openOrdersList: any[];
+  ordersToApproveList: any[];
   status: 'good' | 'warning' | 'critical';
 }
 
@@ -96,9 +96,9 @@ const LinenDashboard = () => {
     },
   });
 
-  // Fetch all open orders (status 'offen') with urgency calculation
-  const { data: openOrders } = useQuery({
-    queryKey: ['linen-orders-open', 'tourist'],
+  // Fetch orders to approve (status 'offen')
+  const { data: ordersToApprove } = useQuery({
+    queryKey: ['linen-orders-to-approve', 'tourist'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('linen_orders')
@@ -113,92 +113,104 @@ const LinenDashboard = () => {
       
       if (error) throw error;
       
-      // Add urgency calculation based on delivery_date
       const today = new Date();
       return data.map(order => {
         const daysUntilDelivery = Math.ceil(
           (new Date(order.delivery_date).getTime() - today.getTime()) 
           / (1000 * 60 * 60 * 24)
         );
-        
-        return {
-          ...order,
-          daysUntilDelivery,
-          isUrgent: daysUntilDelivery <= 7,
-          isSoon: daysUntilDelivery > 7 && daysUntilDelivery <= 14
-        };
+        return { ...order, daysUntilDelivery, isUrgent: daysUntilDelivery <= 7 };
       });
+    }
+  });
+
+  // Fetch pending orders (status 'pending' - bestätigt, noch nicht geliefert)
+  const { data: pendingOrders } = useQuery({
+    queryKey: ['linen-orders-pending', 'tourist'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .select(`
+          *,
+          houses!inner(id, name, rental_type),
+          bookings(guest_name, check_in)
+        `)
+        .eq('houses.rental_type', 'tourist')
+        .eq('status', 'pending')
+        .order('delivery_date', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
     }
   });
 
   // Calculate linen status for each house
   const houseStatuses: HouseLinenStatus[] = houses?.map(house => {
-    const linenStock = house.linen_stock || {};
     const houseBookings = upcomingBookings?.filter(b => b.house_id === house.id) || [];
     
+    // Buchungen MIT Wäschebestellung
+    const bookingsWithOrderArr = houseBookings.filter(booking => 
+      booking.linen_orders && booking.linen_orders.length > 0
+    );
+    
     // Buchungen OHNE Wäschebestellung
-    const bookingsWithoutOrder = houseBookings.filter(booking => {
-      return !booking.linen_orders || booking.linen_orders.length === 0;
-    });
+    const bookingsWithoutOrderArr = houseBookings.filter(booking => 
+      !booking.linen_orders || booking.linen_orders.length === 0
+    );
 
-    // Dringlichkeit berechnen (Tage bis Check-in)
+    // Pending orders für dieses Haus (bestätigt, noch nicht geliefert)
+    const housePendingOrders = pendingOrders?.filter(o => o.house_id === house.id) || [];
+    
+    // Orders zur Genehmigung für dieses Haus (status=offen)
+    const houseOrdersToApprove = ordersToApprove?.filter(o => o.house_id === house.id) || [];
+
+    // Dringlichkeit berechnen
     const today = new Date();
-    const urgentBookings = bookingsWithoutOrder.filter(booking => {
+    const urgentBookings = bookingsWithoutOrderArr.filter(booking => {
       const daysUntil = Math.ceil((new Date(booking.check_in).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       return daysUntil <= 7;
     });
 
-    const soonBookings = bookingsWithoutOrder.filter(booking => {
-      const daysUntil = Math.ceil((new Date(booking.check_in).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return daysUntil > 7 && daysUntil <= 14;
-    });
-
-    // Offene Bestellungen für dieses Haus
-    const houseOpenOrders = openOrders?.filter(o => o.house_id === house.id) || [];
-    const urgentOrders = houseOpenOrders.filter(o => o.isUrgent);
-    const soonOrders = houseOpenOrders.filter(o => o.isSoon);
-
     // Status bestimmen
     let status: HouseLinenStatus['status'] = 'good';
-    if (urgentBookings.length > 0 || urgentOrders.length > 0) {
+    const hasUrgentApproval = houseOrdersToApprove.some(o => o.isUrgent);
+    if (urgentBookings.length > 0 || hasUrgentApproval) {
       status = 'critical';
-    } else if (bookingsWithoutOrder.length > 0 || houseOpenOrders.length > 0) {
+    } else if (bookingsWithoutOrderArr.length > 0 || houseOrdersToApprove.length > 0) {
       status = 'warning';
     }
 
-    // Nächste Buchung OHNE Bestellung finden
-    const nextUnorderedBooking = bookingsWithoutOrder.sort((a, b) => 
+    // Nächste Buchung ohne Bestellung
+    const nextUnorderedBooking = [...bookingsWithoutOrderArr].sort((a, b) => 
       new Date(a.check_in).getTime() - new Date(b.check_in).getTime()
     )[0];
 
-    const totalItems = Object.values(linenStock).reduce((sum, val) => sum + (val as number), 0);
+    // Nächste zu genehmigende Bestellung
+    const nextApproval = houseOrdersToApprove[0];
 
     return {
       house,
-      totalItems,
-      upcomingBookings: houseBookings.length,
-      nextBookingDate: nextUnorderedBooking?.check_in,
-      bookingsWithoutOrder: bookingsWithoutOrder.length,
+      bookingsWithOrder: bookingsWithOrderArr.length,
+      pendingOrders: housePendingOrders.length,
+      bookingsWithoutOrder: bookingsWithoutOrderArr.length,
+      ordersToApprove: houseOrdersToApprove.length,
+      nextApprovalDue: nextApproval?.delivery_date,
+      nextBookingWithoutOrder: nextUnorderedBooking?.check_in,
       urgentBookingsWithoutOrder: urgentBookings.length,
-      soonBookingsWithoutOrder: soonBookings.length,
-      openOrders: houseOpenOrders.length,
-      urgentOpenOrders: urgentOrders.length,
-      soonOpenOrders: soonOrders.length,
-      openOrdersList: houseOpenOrders.slice(0, 2),
+      ordersToApproveList: houseOrdersToApprove.slice(0, 2),
       status
     };
   }) || [];
 
   const overallStatus = {
     totalHouses: houseStatuses.length,
-    totalOpenOrders: openOrders?.length || 0,
-    urgentOpenOrders: openOrders?.filter(o => o.isUrgent).length || 0,
-    soonOpenOrders: openOrders?.filter(o => o.isSoon).length || 0,
+    totalOrdersToApprove: ordersToApprove?.length || 0,
+    urgentOrdersToApprove: ordersToApprove?.filter(o => o.isUrgent).length || 0,
+    totalPendingOrders: pendingOrders?.length || 0,
     totalBookingsWithoutOrder: houseStatuses.reduce((sum, h) => sum + h.bookingsWithoutOrder, 0),
+    totalBookingsWithOrder: houseStatuses.reduce((sum, h) => sum + h.bookingsWithOrder, 0),
     totalUrgentBookings: houseStatuses.reduce((sum, h) => sum + h.urgentBookingsWithoutOrder, 0),
     criticalHouses: houseStatuses.filter(h => h.status === 'critical').length,
-    warningHouses: houseStatuses.filter(h => h.status === 'warning').length,
-    goodHouses: houseStatuses.filter(h => h.status === 'good').length,
   };
 
   // Confirm order mutation (offen → pending)
@@ -499,14 +511,14 @@ const LinenDashboard = () => {
       </div>
 
       {/* Overall Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
               <span className="text-2xl">🏠</span>
               <div>
                 <div className="text-2xl font-bold">{overallStatus.totalHouses}</div>
-                <div className="text-sm text-muted-foreground">Häuser gesamt</div>
+                <div className="text-sm text-muted-foreground">Häuser</div>
               </div>
             </div>
           </CardContent>
@@ -515,15 +527,10 @@ const LinenDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">📝</span>
+              <span className="text-2xl">✅</span>
               <div>
-                <div className="text-2xl font-bold text-amber-600">{overallStatus.totalOpenOrders}</div>
-                <div className="text-sm text-muted-foreground">Offene Bestellungen</div>
-                {overallStatus.urgentOpenOrders > 0 && (
-                  <div className="text-xs font-bold text-red-600 mt-1">
-                    ({overallStatus.urgentOpenOrders} dringend)
-                  </div>
-                )}
+                <div className="text-2xl font-bold text-green-600">{overallStatus.totalBookingsWithOrder}</div>
+                <div className="text-sm text-muted-foreground">Mit Bestellung</div>
               </div>
             </div>
           </CardContent>
@@ -534,8 +541,8 @@ const LinenDashboard = () => {
             <div className="flex items-center gap-2">
               <span className="text-2xl">📦</span>
               <div>
-                <div className="text-2xl font-bold text-yellow-600">{overallStatus.totalBookingsWithoutOrder}</div>
-                <div className="text-sm text-muted-foreground">Buchungen ohne Best.</div>
+                <div className="text-2xl font-bold text-blue-600">{overallStatus.totalPendingOrders}</div>
+                <div className="text-sm text-muted-foreground">Ausstehend</div>
               </div>
             </div>
           </CardContent>
@@ -544,11 +551,27 @@ const LinenDashboard = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <span className="text-2xl">🔴</span>
+              <span className="text-2xl">⚠️</span>
               <div>
-                <div className="text-2xl font-bold text-red-600">{overallStatus.totalUrgentBookings}</div>
-                <div className="text-sm text-muted-foreground">Davon dringend</div>
-                <div className="text-xs text-muted-foreground mt-1">(≤7 Tage)</div>
+                <div className="text-2xl font-bold text-yellow-600">{overallStatus.totalBookingsWithoutOrder}</div>
+                <div className="text-sm text-muted-foreground">Ohne Bestellung</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">📝</span>
+              <div>
+                <div className="text-2xl font-bold text-amber-600">{overallStatus.totalOrdersToApprove}</div>
+                <div className="text-sm text-muted-foreground">Zu genehmigen</div>
+                {overallStatus.urgentOrdersToApprove > 0 && (
+                  <div className="text-xs font-bold text-red-600 mt-1">
+                    ({overallStatus.urgentOrdersToApprove} dringend)
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
@@ -556,197 +579,162 @@ const LinenDashboard = () => {
       </div>
 
       {/* Critical Alert */}
-      {(overallStatus.urgentOpenOrders > 0 || overallStatus.totalUrgentBookings > 0) && (
+      {(overallStatus.urgentOrdersToApprove > 0 || overallStatus.totalUrgentBookings > 0) && (
         <Alert variant="destructive">
           <AlertTriangle className="h-5 w-5" />
           <AlertDescription>
             <strong>DRINGEND:</strong>
-            {overallStatus.urgentOpenOrders > 0 && (
+            {overallStatus.urgentOrdersToApprove > 0 && (
               <span className="block mt-1">
-                • <strong>{overallStatus.urgentOpenOrders} offene Bestellungen</strong> müssen bestätigt werden (Lieferung ≤7 Tage)
+                • <strong>{overallStatus.urgentOrdersToApprove} Bestellungen</strong> müssen genehmigt werden (Lieferung ≤7 Tage)
               </span>
             )}
             {overallStatus.totalUrgentBookings > 0 && (
               <span className="block mt-1">
-                • <strong>{overallStatus.totalUrgentBookings} Buchungen</strong> benötigen eine neue Bestellung (Check-in ≤7 Tagen)
-              </span>
-            )}
-            {overallStatus.totalBookingsWithoutOrder > overallStatus.totalUrgentBookings && (
-              <span className="block mt-1 text-sm">
-                Insgesamt {overallStatus.totalBookingsWithoutOrder} Buchungen ohne Bestellung.
+                • <strong>{overallStatus.totalUrgentBookings} Buchungen</strong> benötigen eine Bestellung (Check-in ≤7 Tage)
               </span>
             )}
           </AlertDescription>
         </Alert>
       )}
 
-      {/* Houses Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Houses - Horizontal Layout */}
+      <div className="space-y-4">
         {houseStatuses.map((houseStatus) => (
           <Card key={houseStatus.house.id} className={`relative ${getStatusColor(houseStatus.status)}`}>
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{houseStatus.house.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {houseStatus.house.address}
-                  </p>
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                {/* House Info */}
+                <div className="flex items-center gap-3 lg:min-w-[200px]">
+                  <div>
+                    <div className="font-semibold text-lg">{houseStatus.house.name}</div>
+                    <div className="text-sm text-muted-foreground">{houseStatus.house.address}</div>
+                  </div>
+                  {getStatusBadge(houseStatus.status)}
                 </div>
-                {getStatusBadge(houseStatus.status)}
-              </div>
-            </CardHeader>
-            
-            <CardContent className="space-y-4">
-              {/* Linen Stats */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <div className="font-medium">Bestellstatus</div>
-                  <div className="text-lg font-bold">
-                    {houseStatus.bookingsWithoutOrder === 0 ? (
-                      <span className="text-green-600">Alle erfasst ✓</span>
+
+                {/* Stats Grid - Horizontal */}
+                <div className="flex flex-wrap gap-6 lg:flex-1">
+                  {/* Mit Bestellung */}
+                  <div className="text-center min-w-[80px]">
+                    <div className="text-2xl font-bold text-green-600">{houseStatus.bookingsWithOrder}</div>
+                    <div className="text-xs text-muted-foreground">Mit Bestellung</div>
+                  </div>
+
+                  {/* Ausstehend (pending) */}
+                  <div className="text-center min-w-[80px]">
+                    <div className="text-2xl font-bold text-blue-600">{houseStatus.pendingOrders}</div>
+                    <div className="text-xs text-muted-foreground">Ausstehend</div>
+                  </div>
+
+                  {/* Ohne Bestellung */}
+                  <div className="text-center min-w-[80px]">
+                    <div className={cn(
+                      "text-2xl font-bold",
+                      houseStatus.bookingsWithoutOrder > 0 ? "text-yellow-600" : "text-muted-foreground"
+                    )}>
+                      {houseStatus.bookingsWithoutOrder}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Ohne Bestellung</div>
+                    {houseStatus.urgentBookingsWithoutOrder > 0 && (
+                      <div className="text-xs text-red-600 font-medium">({houseStatus.urgentBookingsWithoutOrder} dringend)</div>
+                    )}
+                  </div>
+
+                  {/* Zu genehmigen */}
+                  <div className="text-center min-w-[80px]">
+                    <div className={cn(
+                      "text-2xl font-bold",
+                      houseStatus.ordersToApprove > 0 ? "text-amber-600" : "text-muted-foreground"
+                    )}>
+                      {houseStatus.ordersToApprove}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Zu genehmigen</div>
+                  </div>
+
+                  {/* Nächste Fälligkeit */}
+                  <div className="text-center min-w-[120px]">
+                    {houseStatus.nextApprovalDue ? (
+                      <>
+                        <div className="text-sm font-bold text-amber-600">
+                          in {calculateDaysUntil(houseStatus.nextApprovalDue)} Tagen
+                        </div>
+                        <div className="text-xs text-muted-foreground">Nächste Genehmigung</div>
+                      </>
+                    ) : houseStatus.nextBookingWithoutOrder ? (
+                      <>
+                        <div className={cn(
+                          "text-sm font-bold",
+                          houseStatus.urgentBookingsWithoutOrder > 0 ? "text-red-600" : "text-yellow-600"
+                        )}>
+                          in {calculateDaysUntil(houseStatus.nextBookingWithoutOrder)} Tagen
+                        </div>
+                        <div className="text-xs text-muted-foreground">Nächste ohne Best.</div>
+                      </>
                     ) : (
-                      <span className="text-red-600">{houseStatus.bookingsWithoutOrder} offen</span>
+                      <>
+                        <div className="text-sm font-bold text-green-600">—</div>
+                        <div className="text-xs text-muted-foreground">Alles erledigt</div>
+                      </>
                     )}
                   </div>
                 </div>
-                <div>
-                  <div className="font-medium">Davon dringend</div>
-                  <div className="text-lg font-bold">
-                    {houseStatus.urgentBookingsWithoutOrder > 0 ? (
-                      <span className="text-red-700">{houseStatus.urgentBookingsWithoutOrder}</span>
-                    ) : (
-                      <span className="text-muted-foreground">0</span>
-                    )}
-                  </div>
+
+                {/* Actions */}
+                <div className="flex gap-2 lg:ml-auto">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedHouse(houseStatus.house)}
+                  >
+                    Verwalten
+                  </Button>
+                  {houseStatus.ordersToApprove > 0 && (
+                    <Button
+                      size="sm"
+                      className="bg-amber-600 hover:bg-amber-700"
+                      onClick={() => handleConfirmOrder(houseStatus.ordersToApproveList[0]?.id)}
+                    >
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      Genehmigen
+                    </Button>
+                  )}
                 </div>
               </div>
 
-              {/* Offene Bestellungen (zu bestätigen) */}
-              {houseStatus.openOrders > 0 && (
-                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200">
-                  <div className="font-medium text-sm mb-2 flex items-center justify-between">
-                    <span>📝 Offene Bestellungen (zu bestätigen)</span>
-                    <div className="flex gap-1">
-                      <Badge variant="secondary" className="text-xs">
-                        {houseStatus.openOrders} offen
-                      </Badge>
-                      {houseStatus.urgentOpenOrders > 0 && (
-                        <Badge variant="destructive" className="text-xs">
-                          {houseStatus.urgentOpenOrders} dringend
-                        </Badge>
-                      )}
-                    </div>
+              {/* Expandable approval section */}
+              {houseStatus.ordersToApprove > 1 && (
+                <div className="mt-3 pt-3 border-t border-border/50">
+                  <div className="text-sm text-muted-foreground mb-2">
+                    {houseStatus.ordersToApprove} Bestellungen zur Genehmigung:
                   </div>
-                  
-                  {/* Top 2 dringendste Bestellungen */}
-                  <div className="space-y-2">
-                    {houseStatus.openOrdersList.map((order: any) => (
+                  <div className="flex flex-wrap gap-2">
+                    {houseStatus.ordersToApproveList.map((order: any) => (
                       <div 
                         key={order.id}
                         className={cn(
-                          "p-2 rounded border text-sm",
-                          order.isUrgent && "border-red-300 bg-red-50 dark:bg-red-950/20",
-                          order.isSoon && "border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20",
-                          !order.isUrgent && !order.isSoon && "border-gray-300 bg-gray-50 dark:bg-gray-950/20"
+                          "flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border",
+                          order.isUrgent ? "border-red-300 bg-red-50 dark:bg-red-950/20" : "border-amber-200 bg-amber-50 dark:bg-amber-950/20"
                         )}
                       >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium">
-                            📦 {order.bookings?.guest_name || 'Ohne Buchung'}
-                          </span>
-                          {order.isUrgent && (
-                            <Badge variant="destructive" className="text-xs">DRINGEND</Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground mb-2">
-                          Lieferung: {format(new Date(order.delivery_date), 'dd.MM.yyyy', { locale: de })} 
-                          {' '}(in {order.daysUntilDelivery} Tagen)
-                        </div>
-                        <Button 
-                          size="sm" 
-                          className="w-full h-7 bg-green-600 hover:bg-green-700"
+                        <span>{order.bookings?.guest_name || 'Ohne Buchung'}</span>
+                        <span className="text-muted-foreground">
+                          {format(new Date(order.delivery_date), 'dd.MM.', { locale: de })}
+                        </span>
+                        {order.isUrgent && <Badge variant="destructive" className="text-xs h-5">!</Badge>}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-green-600 hover:text-green-700 hover:bg-green-100"
                           onClick={() => handleConfirmOrder(order.id)}
                         >
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Bestätigen
+                          <CheckCircle className="w-3 h-3" />
                         </Button>
                       </div>
                     ))}
                   </div>
-                  
-                  {houseStatus.openOrders > 2 && (
-                    <div className="text-center mt-2">
-                      <span className="text-xs text-muted-foreground">
-                        + {houseStatus.openOrders - 2} weitere (siehe Bestellungsliste unten)
-                      </span>
-                    </div>
-                  )}
                 </div>
               )}
-
-              {/* Issues Summary */}
-              {houseStatus.bookingsWithoutOrder > 0 && (
-                <div className="space-y-2">
-                  {houseStatus.urgentBookingsWithoutOrder > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-red-700 font-bold">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span>{houseStatus.urgentBookingsWithoutOrder} dringende (Check-in ≤ 7 Tage)</span>
-                    </div>
-                  )}
-                  {houseStatus.soonBookingsWithoutOrder > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-yellow-700">
-                      <Clock className="h-4 w-4" />
-                      <span>{houseStatus.soonBookingsWithoutOrder} bald fällig (Check-in ≤ 14 Tage)</span>
-                    </div>
-                  )}
-                  {houseStatus.bookingsWithoutOrder > houseStatus.urgentBookingsWithoutOrder + houseStatus.soonBookingsWithoutOrder && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Package className="h-4 w-4" />
-                      <span>
-                        {houseStatus.bookingsWithoutOrder - houseStatus.urgentBookingsWithoutOrder - houseStatus.soonBookingsWithoutOrder} weitere ohne Bestellung
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Next Booking */}
-              {houseStatus.nextBookingDate && (
-                <div className="p-3 bg-muted/50 rounded-lg space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">Nächste Buchung ohne Bestellung:</span>
-                    <Badge variant={houseStatus.urgentBookingsWithoutOrder > 0 ? "destructive" : "secondary"}>
-                      in {calculateDaysUntil(houseStatus.nextBookingDate)} Tagen
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {format(new Date(houseStatus.nextBookingDate), 'EEEE, dd.MM.yyyy', { locale: de })}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row gap-2 pt-2">
-              <Button
-                  variant="outline"
-                  size="sm"
-                  className="flex-1"
-                  onClick={() => setSelectedHouse(houseStatus.house)}
-                >
-                  <span className="mr-1">📈</span>
-                  Wäsche verwalten
-                </Button>
-                {houseStatus.status === 'critical' && (
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => handleQuickOrder(houseStatus)}
-                  >
-                    <span className="mr-1">🛒</span>
-                    Bestellen
-                  </Button>
-                )}
-              </div>
             </CardContent>
           </Card>
         ))}
