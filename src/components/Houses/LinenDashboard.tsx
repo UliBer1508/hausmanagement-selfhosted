@@ -80,14 +80,15 @@ const LinenDashboard = () => {
     },
   });
 
-  // Fetch upcoming bookings for all houses
+  // Fetch upcoming bookings for all houses (only confirmed)
   const { data: upcomingBookings } = useQuery({
-    queryKey: ['all-upcoming-bookings'],
+    queryKey: ['all-upcoming-bookings-confirmed'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
         .select('*, linen_orders!linen_orders_booking_id_fkey(id)')
         .gte('check_in', format(new Date(), 'yyyy-MM-dd'))
+        .eq('status', 'confirmed')
         .order('check_in', { ascending: true });
       
       if (error) throw error;
