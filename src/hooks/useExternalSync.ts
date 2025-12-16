@@ -130,8 +130,10 @@ export const useExternalSync = () => {
         // Farbe aus item_variants holen für farb-basiertes Mapping
         const color = itemVariants?.[itemKey];
         
-        // Mapping-Key mit Farbe konstruieren (z.B. "large_towels_white")
-        const mappingKeyWithColor = color ? `${itemKey}_${color}` : null;
+        // Mapping-Key mit Farbe konstruieren (z.B. "bedding__grey_striped") - DOPPELTER Unterstrich!
+        const mappingKeyWithColor = color ? `${itemKey}__${color}` : null;
+        
+        console.log(`Mapping: itemKey=${itemKey}, color=${color}, mappingKeyWithColor=${mappingKeyWithColor}`);
         
         // Erst mit Farbe suchen, dann Fallback ohne Farbe
         const externalArtikelnummer = 
@@ -139,16 +141,21 @@ export const useExternalSync = () => {
           mappingDict[itemKey];
         
         if (!externalArtikelnummer) {
-          console.warn(`Kein Mapping für Artikel: ${mappingKeyWithColor || itemKey}`);
+          console.warn(`Kein Mapping für Artikel: ${mappingKeyWithColor || itemKey}. Verfügbare Keys:`, Object.keys(mappingDict));
           continue;
         }
 
         // Artikel-ID aus externer DB holen
-        const { data: artikelData } = await externalLaundryClient
+        const { data: artikelData, error: artikelError } = await externalLaundryClient
           .from('waescheartikel')
           .select('id')
           .eq('artikelnummer', externalArtikelnummer)
           .single();
+
+        if (artikelError) {
+          console.warn(`Artikel ${externalArtikelnummer} nicht in externer DB gefunden:`, artikelError);
+          continue;
+        }
 
         if (artikelData) {
           positionen.push({
@@ -158,8 +165,10 @@ export const useExternalSync = () => {
         }
       }
 
+      console.log('Gemappte Positionen:', positionen);
+
       if (positionen.length === 0) {
-        throw new Error('Keine Artikel konnten gemappt werden');
+        throw new Error('Keine Artikel konnten gemappt werden. Prüfen Sie das Artikel-Mapping.');
       }
 
       // 9. Bestellung in externer DB erstellen (OHNE bestellnummer - Portal generiert sie)
@@ -181,7 +190,8 @@ export const useExternalSync = () => {
         .single();
 
       if (bestellError || !neueBestellung) {
-        throw new Error('Fehler beim Erstellen der externen Bestellung');
+        console.error('Externe Bestellung Fehler:', bestellError);
+        throw new Error(`Fehler beim Erstellen der externen Bestellung: ${bestellError?.message || 'Keine Daten zurückgegeben'}`);
       }
 
       // 10. Bestellpositionen in externer DB erstellen
@@ -195,12 +205,13 @@ export const useExternalSync = () => {
         .insert(positionenMitBestellung);
 
       if (positionenError) {
+        console.error('Bestellpositionen Fehler:', positionenError);
         // Rollback: Bestellung löschen
         await externalLaundryClient
           .from('waeschebestellungen')
           .delete()
           .eq('id', neueBestellung.id);
-        throw new Error('Fehler beim Erstellen der Bestellpositionen');
+        throw new Error(`Fehler beim Erstellen der Bestellpositionen: ${positionenError.message}`);
       }
 
       // 11. Interne Bestellung aktualisieren
