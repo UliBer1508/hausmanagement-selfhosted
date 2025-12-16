@@ -172,20 +172,32 @@ export const useExternalSync = () => {
       }
 
       // 9. Bestellung in externer DB erstellen (OHNE bestellnummer - Portal generiert sie)
-      // DEBUG: Alle Werte vor dem Insert loggen
+      
+      // Hilfsfunktion: ISO-Timestamp zu YYYY-MM-DD formatieren (Portal erwartet dieses Format)
+      const formatDateOnly = (isoDate: string | null | undefined): string | null => {
+        if (!isoDate) return null;
+        return isoDate.split('T')[0]; // "2024-12-20T14:00:00.000Z" → "2024-12-20"
+      };
+
+      // DEBUG: Rohe Werte loggen
+      console.log('=== DEBUG: Externe Bestellung erstellen ===');
+      console.log('check_in RAW:', order.bookings?.check_in);
+      console.log('check_out RAW:', order.bookings?.check_out);
+      console.log('check_in FORMATTED:', formatDateOnly(order.bookings?.check_in));
+      console.log('check_out FORMATTED:', formatDateOnly(order.bookings?.check_out));
+
       const insertData = {
         kunde_id: kundeData.id,
         objekt_id: objektData.id,
-        lieferdatum: order.delivery_date,
+        lieferdatum: order.delivery_date, // Sollte bereits YYYY-MM-DD sein
         status: 'neu',
-        notizen: order.notes || undefined,
+        notizen: order.notes || null, // null statt undefined
         gastname: order.bookings?.guest_name || 'Unbekannt',
-        check_in: order.bookings?.check_in || null,
-        check_out: order.bookings?.check_out || null,
-        anzahl_personen: order.bookings?.number_of_guests || null,
+        check_in: formatDateOnly(order.bookings?.check_in), // YYYY-MM-DD Format
+        check_out: formatDateOnly(order.bookings?.check_out), // YYYY-MM-DD Format
+        anzahl_personen: order.bookings?.number_of_guests || 1, // Default 1 laut Dokumentation
       };
       
-      console.log('=== DEBUG: Externe Bestellung erstellen ===');
       console.log('kunde_id:', insertData.kunde_id, '| Typ:', typeof insertData.kunde_id);
       console.log('objekt_id:', insertData.objekt_id, '| Typ:', typeof insertData.objekt_id);
       console.log('lieferdatum:', insertData.lieferdatum, '| Typ:', typeof insertData.lieferdatum);
