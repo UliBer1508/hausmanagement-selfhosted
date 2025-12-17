@@ -79,8 +79,8 @@ const CleaningManagement = () => {
         .from('bookings')
         .select(`
           *,
-          houses!house_id!inner(id, name, address, rental_type),
-          service_tasks!booking_id(id, service_type, status)
+          houses!bookings_house_id_fkey!inner(id, name, address, rental_type),
+          service_tasks!service_tasks_booking_id_fkey(id, service_type, status)
         `)
         .eq('houses.rental_type', 'tourist')
         .neq('status', 'completed') // Exclude completed bookings
@@ -162,10 +162,10 @@ const CleaningManagement = () => {
         .from('service_tasks')
         .select(`
           *,
-          houses!house_id!inner(id, name, address, rental_type),
-          bookings!booking_id(id, guest_name, check_in, check_out, number_of_guests),
-          service_providers!provider_id(id, name, service_type),
-          cleaning_assignments!service_task_id(id, cleaning_staff!cleaning_staff_id(id, name))
+          houses!service_tasks_house_id_fkey!inner(id, name, address, rental_type),
+          bookings!service_tasks_booking_id_fkey(id, guest_name, check_in, check_out, number_of_guests),
+          service_providers!service_tasks_provider_id_fkey(id, name, service_type),
+          cleaning_assignments!cleaning_assignments_service_task_id_fkey(id, cleaning_staff!cleaning_assignments_cleaning_staff_id_fkey(id, name))
         `)
         .eq('service_type', 'cleaning')
         .eq('houses.rental_type', 'tourist')

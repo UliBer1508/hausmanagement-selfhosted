@@ -27,7 +27,7 @@ export const useMorningSummary = () => {
           guest_name,
           guest_email,
           check_in,
-          houses!house_id!inner(name, rental_type)
+          houses!bookings_house_id_fkey!inner(name, rental_type)
         `)
         .gte('check_in', fiveDaysFromNow.toISOString())
         .lte('check_in', tenDaysFromNow.toISOString())
@@ -48,7 +48,7 @@ export const useMorningSummary = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, houses!house_id(name)')
+        .select('*, houses!bookings_house_id_fkey(name)')
         .gte('check_in', todayStart)
         .lte('check_in', nextWeekEndStr)
         .eq('status', 'confirmed')
@@ -67,7 +67,7 @@ export const useMorningSummary = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('service_tasks')
-        .select('*, houses!house_id(name), bookings!booking_id(guest_name)')
+        .select('*, houses!service_tasks_house_id_fkey(name), bookings!service_tasks_booking_id_fkey(guest_name)')
         .eq('service_type', 'cleaning')
         .gte('scheduled_date', today)
         .lte('scheduled_date', format(nextWeekEnd, 'yyyy-MM-dd'))
@@ -87,7 +87,7 @@ export const useMorningSummary = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('linen_orders')
-        .select('*, houses!house_id(name), bookings!booking_id(guest_name, check_in)')
+        .select('*, houses!linen_orders_house_id_fkey(name), bookings!linen_orders_booking_id_fkey(guest_name, check_in)')
         .in('status', ['offen', 'pending', 'assigned'])
         .order('delivery_date');
       

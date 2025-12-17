@@ -247,7 +247,7 @@ const ConnectedBookingView = () => {
       
       const { data: fetchedBooking, error } = await supabase
         .from('bookings')
-        .select('*, houses!house_id(*)')
+        .select('*, houses!bookings_house_id_fkey(*)')
         .eq('id', order.booking_id)
         .single();
       

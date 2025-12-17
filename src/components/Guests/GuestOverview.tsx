@@ -28,7 +28,7 @@ const GuestOverview = () => {
   const { data: guestData, isLoading }: any = useQuery({
     queryKey: ['guests-tourist-list', searchTerm, statusFilter, houseFilter, categoryFilter, sortBy],
     queryFn: async () => {
-      let query: any = supabase.from('bookings').select('id, guest_name, guest_email, guest_phone, guest_notes, booking_amount, check_in, check_out, status, nationality, houses!house_id!inner(id, name, address, rental_type)').eq('houses.rental_type', 'tourist').not('guest_name', 'is', null);
+      let query: any = supabase.from('bookings').select('id, guest_name, guest_email, guest_phone, guest_notes, booking_amount, check_in, check_out, status, nationality, houses!bookings_house_id_fkey!inner(id, name, address, rental_type)').eq('houses.rental_type', 'tourist').not('guest_name', 'is', null);
       if (searchTerm) query = query.or(`guest_name.ilike.%${searchTerm}%,guest_email.ilike.%${searchTerm}%,guest_phone.ilike.%${searchTerm}%`);
       if (statusFilter !== 'all') query = query.eq('status', statusFilter);
       if (houseFilter !== 'all') query = query.eq('house_id', houseFilter);

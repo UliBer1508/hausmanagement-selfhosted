@@ -45,7 +45,7 @@ export const useGuestContactReminders = () => {
           number_of_adults,
           number_of_children,
           guest_contact_status,
-          houses!house_id!inner(id, name, rental_type)
+          houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .gte('check_in', fiveDaysFromNow.toISOString())
         .lte('check_in', tenDaysFromNow.toISOString())

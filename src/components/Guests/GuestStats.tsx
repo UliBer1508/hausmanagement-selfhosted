@@ -10,7 +10,7 @@ const GuestStats = () => {
       // Get overall statistics (exclude cancelled bookings, only tourist rentals)
       const { data: overallStats } = await supabase
         .from('bookings')
-        .select('guest_name, booking_amount, check_in, check_out, status, houses!house_id!inner(rental_type)')
+        .select('guest_name, booking_amount, check_in, check_out, status, houses!bookings_house_id_fkey!inner(rental_type)')
         .eq('houses.rental_type', 'tourist')
         .not('guest_name', 'is', null)
         .neq('status', 'cancelled');
@@ -62,7 +62,7 @@ const GuestStats = () => {
       
       const { data: recentBookings } = await supabase
         .from('bookings')
-        .select('guest_name, houses!house_id!inner(rental_type)')
+        .select('guest_name, houses!bookings_house_id_fkey!inner(rental_type)')
         .eq('houses.rental_type', 'tourist')
         .not('guest_name', 'is', null)
         .neq('status', 'cancelled')
