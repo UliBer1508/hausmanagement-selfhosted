@@ -743,6 +743,20 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_booking_action_action"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_booking_action_booking"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
         ]
       }
       booking_activities: {
@@ -886,6 +900,13 @@ export type Database = {
             referencedRelation: "houses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_booking_inquiries_house"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
         ]
       }
       booking_linen_config: {
@@ -919,6 +940,13 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "booking_linen_config_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: true
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_booking_linen_config_house"
             columns: ["house_id"]
             isOneToOne: true
             referencedRelation: "houses"
@@ -1044,6 +1072,13 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "bookings_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_bookings_house"
             columns: ["house_id"]
             isOneToOne: false
             referencedRelation: "houses"
@@ -1267,6 +1302,20 @@ export type Database = {
             referencedRelation: "service_tasks"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_assignments_staff"
+            columns: ["cleaning_staff_id"]
+            isOneToOne: false
+            referencedRelation: "cleaning_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_assignments_task"
+            columns: ["service_task_id"]
+            isOneToOne: false
+            referencedRelation: "service_tasks"
+            referencedColumns: ["id"]
+          },
         ]
       }
       cleaning_automation_settings: {
@@ -1305,6 +1354,13 @@ export type Database = {
             referencedRelation: "service_providers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_cleaning_automation_provider"
+            columns: ["default_provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
         ]
       }
       cleaning_confirmations: {
@@ -1338,6 +1394,13 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cleaning_confirmations_cleaning_assignment_id_fkey"
+            columns: ["cleaning_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "cleaning_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_confirmations_assignment"
             columns: ["cleaning_assignment_id"]
             isOneToOne: false
             referencedRelation: "cleaning_assignments"
@@ -1426,6 +1489,13 @@ export type Database = {
             referencedRelation: "service_providers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_cleaning_staff_provider"
+            columns: ["service_provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
         ]
       }
       competitor_properties: {
@@ -1495,6 +1565,13 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "competitor_properties_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_competitor_properties_house"
             columns: ["house_id"]
             isOneToOne: false
             referencedRelation: "houses"
@@ -1600,6 +1677,20 @@ export type Database = {
           },
           {
             foreignKeyName: "daily_pricing_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_daily_pricing_competitor"
+            columns: ["competitor_property_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_properties"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_daily_pricing_house"
             columns: ["house_id"]
             isOneToOne: false
             referencedRelation: "houses"
@@ -1887,6 +1978,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_guest_preference_responses_booking"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "guest_preference_responses_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
@@ -1951,6 +2049,20 @@ export type Database = {
           weather_preference?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_guest_preferences_booking"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_guest_preferences_house"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "guest_preferences_booking_id_fkey"
             columns: ["booking_id"]
@@ -2073,6 +2185,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_house_cleaning_instructions_house"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "house_cleaning_instructions_house_id_fkey"
             columns: ["house_id"]
             isOneToOne: false
@@ -2122,6 +2241,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_house_ical_sources_house"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "house_ical_sources_house_id_fkey"
             columns: ["house_id"]
@@ -2178,6 +2304,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_house_inventory_house"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "house_inventory_house_id_fkey"
             columns: ["house_id"]
@@ -2696,6 +2829,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_linen_automation_provider"
+            columns: ["default_provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "linen_automation_settings_default_provider_id_fkey"
             columns: ["default_provider_id"]
             isOneToOne: false
@@ -2778,6 +2918,27 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_linen_orders_booking"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_linen_orders_house"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_linen_orders_provider"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "linen_orders_assigned_staff_id_fkey"
             columns: ["assigned_staff_id"]
@@ -2933,6 +3094,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_linen_defs_house"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "linen_set_definitions_house_id_fkey"
             columns: ["house_id"]
@@ -3617,6 +3785,27 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_provider_messages_order"
+            columns: ["related_linen_order_id"]
+            isOneToOne: false
+            referencedRelation: "linen_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_provider_messages_provider"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_provider_messages_task"
+            columns: ["related_task_id"]
+            isOneToOne: false
+            referencedRelation: "service_tasks"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "provider_messages_provider_id_fkey"
             columns: ["provider_id"]
             isOneToOne: false
@@ -4126,6 +4315,27 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_service_tasks_booking"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_service_tasks_house"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_service_tasks_provider"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "service_providers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "service_tasks_booking_id_fkey"
             columns: ["booking_id"]
             isOneToOne: false
@@ -4216,6 +4426,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_payments_house"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tenant_payments_house_id_fkey"
             columns: ["house_id"]

@@ -602,7 +602,7 @@ const GuestAnalytics = () => {
         .from('bookings')
         .select(`
           *,
-          houses!inner(name, rental_type, additional_fees)
+          houses!house_id!inner(name, rental_type, additional_fees)
         `)
         .eq('houses.rental_type', 'tourist')
         .not('guest_name', 'is', null);

@@ -438,7 +438,7 @@ CREATE TABLE house_additional_fees (
 
 ## Migrations-Reihenfolge
 
-1. ✅ **Sofort möglich:** Foreign Keys (Phase 1)
+1. ✅ **ABGESCHLOSSEN (17.12.2025):** Foreign Keys (Phase 1) - 25+ FKs + 13 Indizes
 2. ⏳ **Nach Tests:** JSONB-Normalisierung (Phase 2)
 3. 📅 **Geplant:** Gäste-Separation (Phase 3) - nach Activities-App Refactoring
 4. 💡 **Optional:** Gebühren-Normalisierung (Phase 4)

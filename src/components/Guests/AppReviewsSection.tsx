@@ -66,7 +66,7 @@ export const AppReviewsSection = ({ selectedHouseId }: AppReviewsSectionProps) =
             check_out,
             number_of_guests,
             house_id,
-            houses!inner(
+            houses!house_id!inner(
               name
             )
           )

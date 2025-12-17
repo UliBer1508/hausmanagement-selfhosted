@@ -330,7 +330,7 @@ const OriginalDashboard = () => {
     // Lade die Buchung mit Haus-Details
     const { data: booking, error } = await supabase
       .from('bookings')
-      .select('*, houses(*)')
+      .select('*, houses!house_id(*)')
       .eq('id', order.booking_id)
       .single();
     
@@ -472,7 +472,7 @@ const OriginalDashboard = () => {
           currency,
           notes,
           status,
-          houses:house_id (
+          houses!house_id (
             id,
             name,
             address
@@ -502,7 +502,7 @@ const OriginalDashboard = () => {
           booking_id,
           house_id,
           provider_id,
-          service_providers:provider_id (
+          service_providers!provider_id (
             id,
             name,
             service_type,
@@ -675,13 +675,13 @@ const OriginalDashboard = () => {
         .from('linen_orders')
         .select(`
           *,
-          houses!inner(id, name, rental_type),
-          service_providers:provider_id (
+          houses!house_id!inner(id, name, rental_type),
+          service_providers!provider_id (
             id,
             name,
             service_type
           ),
-          bookings:booking_id (
+          bookings!booking_id (
             id,
             guest_name
           )
