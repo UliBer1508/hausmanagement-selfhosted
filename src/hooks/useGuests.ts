@@ -149,13 +149,70 @@ export const useGuests = (filters: GuestFilters = {}) => {
 export const useGuestStats = () => {
   const { data: guests, isLoading } = useGuests();
 
-  const stats = {
-    totalGuests: guests?.length || 0,
-    newGuests: guests?.filter(g => g.category === 'new').length || 0,
-    returningGuests: guests?.filter(g => g.category === 'returning').length || 0,
-    guestsWithoutBookings: guests?.filter(g => g.stay_count === 0).length || 0,
-    totalRevenue: guests?.reduce((sum, g) => sum + g.total_revenue, 0) || 0,
-  };
+  const stats = (() => {
+    if (!guests || guests.length === 0) {
+      return {
+        totalGuests: 0,
+        newGuests: 0,
+        returningGuests: 0,
+        guestsWithoutBookings: 0,
+        totalRevenue: 0,
+        returningRate: 0,
+        avgStayDuration: 0,
+        avgRevenuePerBooking: 0,
+        growthRate: 0,
+      };
+    }
+
+    const totalGuests = guests.length;
+    const returningGuests = guests.filter(g => g.category === 'returning').length;
+    const returningRate = totalGuests > 0 ? (returningGuests / totalGuests) * 100 : 0;
+
+    // Calculate total bookings, revenue, and stay duration
+    let totalBookings = 0;
+    let bookingsWithAmount = 0;
+    let totalRevenue = 0;
+    let totalStayNights = 0;
+
+    guests.forEach(guest => {
+      guest.bookings
+        .filter(b => b.status !== 'cancelled')
+        .forEach(booking => {
+          totalBookings++;
+          if (booking.booking_amount && booking.booking_amount > 0) {
+            totalRevenue += booking.booking_amount;
+            bookingsWithAmount++;
+          }
+          const checkIn = new Date(booking.check_in);
+          const checkOut = new Date(booking.check_out);
+          const nights = Math.max(0, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+          totalStayNights += nights;
+        });
+    });
+
+    const avgStayDuration = totalBookings > 0 ? Math.round(totalStayNights / totalBookings) : 0;
+    const avgRevenuePerBooking = bookingsWithAmount > 0 ? Math.round(totalRevenue / bookingsWithAmount) : 0;
+
+    // Calculate 6-month growth (guests created in last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const recentGuests = guests.filter(g => 
+      g.created_at && new Date(g.created_at) >= sixMonthsAgo
+    ).length;
+    const growthRate = totalGuests > 0 ? Math.round((recentGuests / totalGuests) * 100) : 0;
+
+    return {
+      totalGuests,
+      newGuests: guests.filter(g => g.category === 'new').length,
+      returningGuests,
+      guestsWithoutBookings: guests.filter(g => g.stay_count === 0).length,
+      totalRevenue,
+      returningRate: Math.round(returningRate),
+      avgStayDuration,
+      avgRevenuePerBooking,
+      growthRate,
+    };
+  })();
 
   return { stats, isLoading };
 };
