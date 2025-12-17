@@ -398,10 +398,15 @@ export const useGuestSegments = () => {
       const vipThreshold = 2000;
       const returningThreshold = 2;
 
-      const vipGuests = allGuests.filter(g => g.total_revenue >= vipThreshold);
-      const returningGuests = allGuests.filter(g => 
-        g.stay_count >= returningThreshold && g.total_revenue < vipThreshold
+      // VIP: Gäste mit hohem Umsatz (Untermenge der Stammgäste)
+      const vipGuests = allGuests.filter(g => 
+        g.stay_count >= returningThreshold && g.total_revenue >= vipThreshold
       );
+      
+      // Stammgäste: ALLE Gäste mit 2+ Buchungen (unabhängig vom Umsatz)
+      const returningGuests = allGuests.filter(g => g.stay_count >= returningThreshold);
+      
+      // Neue Gäste: Gäste mit nur 1 Buchung
       const newGuests = allGuests.filter(g => g.stay_count < returningThreshold);
 
       // Recent guests (last 3 months)
@@ -415,6 +420,7 @@ export const useGuestSegments = () => {
       const totalRevenue = allGuests.reduce((sum, g) => sum + g.total_revenue, 0);
       const vipRevenue = vipGuests.reduce((sum, g) => sum + g.total_revenue, 0);
       const returningRevenue = returningGuests.reduce((sum, g) => sum + g.total_revenue, 0);
+      const newGuestsRevenue = newGuests.reduce((sum, g) => sum + g.total_revenue, 0);
 
       return {
         totalGuests: allGuests.length,
@@ -435,8 +441,8 @@ export const useGuestSegments = () => {
         },
         newGuests: {
           count: newGuests.length,
-          revenue: totalRevenue - vipRevenue - returningRevenue,
-          percentage: totalRevenue > 0 ? Math.round(((totalRevenue - vipRevenue - returningRevenue) / totalRevenue) * 100) : 0,
+          revenue: newGuestsRevenue,
+          percentage: totalRevenue > 0 ? Math.round((newGuestsRevenue / totalRevenue) * 100) : 0,
           guests: newGuests.sort((a, b) => b.total_revenue - a.total_revenue).slice(0, 5)
         },
         recentActivity: {
