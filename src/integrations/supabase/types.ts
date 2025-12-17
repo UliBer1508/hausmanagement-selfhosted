@@ -2145,6 +2145,91 @@ export type Database = {
         }
         Relationships: []
       }
+      house_additional_fees: {
+        Row: {
+          cleaning_fee_per_stay: number | null
+          created_at: string | null
+          electricity_fee_per_stay: number | null
+          house_id: string
+          id: string
+          linen_fee_per_stay: number | null
+          platform: string
+          service_fee_per_stay: number | null
+          tourist_tax_per_night: number | null
+          updated_at: string | null
+          vat_percentage: number | null
+        }
+        Insert: {
+          cleaning_fee_per_stay?: number | null
+          created_at?: string | null
+          electricity_fee_per_stay?: number | null
+          house_id: string
+          id?: string
+          linen_fee_per_stay?: number | null
+          platform?: string
+          service_fee_per_stay?: number | null
+          tourist_tax_per_night?: number | null
+          updated_at?: string | null
+          vat_percentage?: number | null
+        }
+        Update: {
+          cleaning_fee_per_stay?: number | null
+          created_at?: string | null
+          electricity_fee_per_stay?: number | null
+          house_id?: string
+          id?: string
+          linen_fee_per_stay?: number | null
+          platform?: string
+          service_fee_per_stay?: number | null
+          tourist_tax_per_night?: number | null
+          updated_at?: string | null
+          vat_percentage?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "house_additional_fees_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      house_amenities: {
+        Row: {
+          amenity_key: string
+          created_at: string | null
+          house_id: string
+          id: string
+          value_boolean: boolean | null
+          value_integer: number | null
+        }
+        Insert: {
+          amenity_key: string
+          created_at?: string | null
+          house_id: string
+          id?: string
+          value_boolean?: boolean | null
+          value_integer?: number | null
+        }
+        Update: {
+          amenity_key?: string
+          created_at?: string | null
+          house_id?: string
+          id?: string
+          value_boolean?: boolean | null
+          value_integer?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "house_amenities_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       house_cleaning_instructions: {
         Row: {
           created_at: string | null
@@ -2306,6 +2391,44 @@ export type Database = {
           },
           {
             foreignKeyName: "house_inventory_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      house_linen_inventory: {
+        Row: {
+          created_at: string | null
+          house_id: string
+          id: string
+          item_key: string
+          quantity: number
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          house_id: string
+          id?: string
+          item_key: string
+          quantity?: number
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          house_id?: string
+          id?: string
+          item_key?: string
+          quantity?: number
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "house_linen_inventory_house_id_fkey"
             columns: ["house_id"]
             isOneToOne: false
             referencedRelation: "houses"
