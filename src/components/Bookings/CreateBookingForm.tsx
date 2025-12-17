@@ -436,10 +436,62 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         return;
       }
 
+      // Phase II: Gast erstellen oder finden
+      let guestId: string | null = null;
+      
+      // Prüfe ob ein Gast mit dieser Email existiert
+      if (data.guest_email) {
+        const { data: existingGuest } = await supabase
+          .from('guests')
+          .select('id')
+          .eq('email', data.guest_email)
+          .maybeSingle();
+        
+        if (existingGuest) {
+          console.log('✅ Existierender Gast gefunden:', existingGuest.id);
+          guestId = existingGuest.id;
+          
+          // Aktualisiere Gast-Daten falls vorhanden
+          await supabase
+            .from('guests')
+            .update({
+              name: data.guest_name.trim(),
+              phone: data.guest_phone || null,
+              nationality: (data.nationality && data.nationality !== 'none' && data.nationality !== '') ? data.nationality : null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingGuest.id);
+        }
+      }
+      
+      // Erstelle neuen Gast falls nicht gefunden
+      if (!guestId) {
+        console.log('📝 Erstelle neuen Gast:', data.guest_name);
+        const { data: newGuest, error: guestError } = await supabase
+          .from('guests')
+          .insert({
+            name: data.guest_name.trim(),
+            email: data.guest_email || null,
+            phone: data.guest_phone || null,
+            nationality: (data.nationality && data.nationality !== 'none' && data.nationality !== '') ? data.nationality : null,
+          })
+          .select('id')
+          .single();
+        
+        if (guestError) {
+          console.error('Fehler beim Erstellen des Gastes:', guestError);
+          // Fortfahren ohne guest_id - Fallback auf Legacy-Felder
+        } else {
+          guestId = newGuest.id;
+          console.log('✅ Neuer Gast erstellt:', guestId);
+        }
+      }
+
       // Prepare booking data
       const numberOfGuests = data.number_of_adults + data.number_of_children;
       const bookingData = {
         house_id: data.house_id,
+        guest_id: guestId, // Verknüpfung zur guests-Tabelle
         number_of_guests: numberOfGuests,
         number_of_adults: data.number_of_adults,
         number_of_children: data.number_of_children,
