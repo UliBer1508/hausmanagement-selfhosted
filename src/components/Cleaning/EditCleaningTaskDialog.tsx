@@ -89,10 +89,10 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
         .from('service_tasks')
         .select(`
           *,
-          houses!house_id(id, name, address, default_cleaning_hours),
-          bookings!booking_id(id, guest_name, guest_email, guest_phone, check_in, check_out, number_of_guests, booking_amount),
-          service_providers!provider_id(id, name, hourly_rate),
-          cleaning_assignments!service_task_id(id, cleaning_staff_id, cleaning_staff!cleaning_staff_id(id, name, email, phone, hourly_rate))
+          houses!service_tasks_house_id_fkey(id, name, address, default_cleaning_hours),
+          bookings!service_tasks_booking_id_fkey(id, guest_name, guest_email, guest_phone, check_in, check_out, number_of_guests, booking_amount),
+          service_providers!service_tasks_provider_id_fkey(id, name, hourly_rate),
+          cleaning_assignments!cleaning_assignments_service_task_id_fkey(id, cleaning_staff_id, cleaning_staff!cleaning_assignments_cleaning_staff_id_fkey(id, name, email, phone, hourly_rate))
         `)
         .eq('id', taskId)
         .eq('service_type', 'cleaning')

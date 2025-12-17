@@ -104,8 +104,8 @@ const LinenDashboard = () => {
         .from('linen_orders')
         .select(`
           *,
-          houses!house_id!inner(id, name, rental_type),
-          bookings!booking_id(guest_name, check_in)
+          houses!linen_orders_house_id_fkey!inner(id, name, rental_type),
+          bookings!linen_orders_booking_id_fkey(guest_name, check_in)
         `)
         .eq('houses.rental_type', 'tourist')
         .eq('status', 'offen')
@@ -132,8 +132,8 @@ const LinenDashboard = () => {
         .from('linen_orders')
         .select(`
           *,
-          houses!house_id!inner(id, name, rental_type),
-          bookings!booking_id(guest_name, check_in)
+          houses!linen_orders_house_id_fkey!inner(id, name, rental_type),
+          bookings!linen_orders_booking_id_fkey(guest_name, check_in)
         `)
         .eq('houses.rental_type', 'tourist')
         .eq('status', 'pending')

@@ -172,7 +172,7 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
           external_rating,
           normalized_rating,
           platform,
-          houses!house_id!inner(id, name, rental_type)
+          houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .eq('houses.rental_type', 'tourist')
         .neq('status', 'cancelled');
@@ -254,7 +254,7 @@ export const useAffectedBookings = (actionId: string, targetCriteria: TargetCrit
           external_rating,
           normalized_rating,
           platform,
-          houses!house_id!inner(id, name, rental_type)
+          houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .eq('houses.rental_type', 'tourist')
         .neq('status', 'cancelled')

@@ -32,13 +32,13 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
         .from('linen_orders')
         .select(`
           *,
-          houses!house_id!inner (
+          houses!linen_orders_house_id_fkey!inner (
             id,
             name,
             address,
             rental_type
           ),
-          bookings!booking_id (
+          bookings!linen_orders_booking_id_fkey (
             id,
             guest_name,
             guest_email,
