@@ -135,8 +135,8 @@ export const useOptimizedLinenManagement = () => {
         .from('houses')
         .select(`
           *,
-          linen_set_definitions (*),
-          bookings!inner (
+          linen_set_definitions!linen_set_definitions_house_id_fkey (*),
+          bookings!bookings_house_id_fkey (
             id,
             guest_name,
             check_in,

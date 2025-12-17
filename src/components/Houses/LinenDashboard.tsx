@@ -70,7 +70,7 @@ const LinenDashboard = () => {
         .from('houses')
         .select(`
           *,
-          linen_set_definitions (*)
+          linen_set_definitions!linen_set_definitions_house_id_fkey (*)
         `)
         .eq('rental_type', 'tourist')
         .order('name');
