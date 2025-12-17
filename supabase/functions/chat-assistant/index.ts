@@ -1099,7 +1099,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       let query = supabase
         .from('bookings')
-        .select('*, houses(name, address), number_of_adults, number_of_children');
+        .select('*, houses!bookings_house_id_fkey(name, address), number_of_adults, number_of_children');
 
       if (params.guest_name) {
         query = query.ilike('guest_name', `%${params.guest_name}%`);
@@ -1149,7 +1149,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, houses(name, address, max_guests)')
+        .select('*, houses!bookings_house_id_fkey(name, address, max_guests)')
         .eq('id', booking_id)
         .single();
 
@@ -1263,8 +1263,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         .from('service_tasks')
         .select(`
           *,
-          houses:house_id (name, address),
-          bookings:booking_id (guest_name, check_in, check_out)
+          houses!service_tasks_house_id_fkey (name, address),
+          bookings!service_tasks_booking_id_fkey (guest_name, check_in, check_out)
         `)
         .eq('service_type', 'cleaning');
 
@@ -1350,8 +1350,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         .from('service_tasks')
         .select(`
           *,
-          houses:house_id (*),
-          bookings:booking_id (*)
+          houses!service_tasks_house_id_fkey (*),
+          bookings!service_tasks_booking_id_fkey (*)
         `)
         .eq('id', task_id)
         .single();
@@ -1369,8 +1369,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       const [housesRes, bookingsRes, tasksRes] = await Promise.all([
         supabase.from('houses').select('*').eq('rental_type', 'tourist'),
-        supabase.from('bookings').select('*, houses!inner(rental_type)').eq('houses.rental_type', 'tourist'),
-        supabase.from('service_tasks').select('*, houses!inner(rental_type)').eq('houses.rental_type', 'tourist')
+        supabase.from('bookings').select('*, houses!bookings_house_id_fkey(rental_type)').eq('houses.rental_type', 'tourist'),
+        supabase.from('service_tasks').select('*, houses!service_tasks_house_id_fkey(rental_type)').eq('houses.rental_type', 'tourist')
       ]);
 
       const stats = {
@@ -1673,7 +1673,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       let query = supabase
         .from('linen_orders')
-        .select('*, houses(name, address), service_providers:provider_id(name, service_type), bookings:booking_id(guest_name, check_in, check_out)');
+        .select('*, houses!linen_orders_house_id_fkey(name, address), service_providers!linen_orders_provider_id_fkey(name, service_type), bookings!linen_orders_booking_id_fkey(guest_name, check_in, check_out)');
 
       // Wenn nach guest_name gesucht wird, erst die Buchungen finden
       if (params.guest_name) {
@@ -1735,7 +1735,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       if (eventTypes.includes('booking')) {
         const { data: bookings } = await supabase
           .from('bookings')
-          .select('*, houses(name)')
+          .select('*, houses!bookings_house_id_fkey(name)')
           .gte('check_in', params.date_from)
           .lte('check_out', params.date_to)
           .order('check_in', { ascending: true });
@@ -1756,7 +1756,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       if (eventTypes.includes('cleaning')) {
         const { data: tasks } = await supabase
           .from('service_tasks')
-          .select('*, houses(name)')
+          .select('*, houses!service_tasks_house_id_fkey(name)')
           .eq('service_type', 'cleaning')
           .gte('scheduled_date', params.date_from)
           .lte('scheduled_date', params.date_to)
@@ -1778,7 +1778,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       if (eventTypes.includes('laundry')) {
         const { data: orders } = await supabase
           .from('linen_orders')
-          .select('*, houses(name)')
+          .select('*, houses!linen_orders_house_id_fkey(name)')
           .gte('delivery_date', params.date_from)
           .lte('delivery_date', params.date_to)
           .order('delivery_date', { ascending: true });
@@ -1845,7 +1845,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       const now = new Date().toISOString();
       let query = supabase
         .from('bookings')
-        .select('*, houses(name, address)')
+        .select('*, houses!bookings_house_id_fkey(name, address)')
         .eq('house_id', house_id);
 
       // Basis-Query: Alle Buchungen für das Haus
@@ -1922,7 +1922,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       const today = new Date().toISOString().split('T')[0];
       const { data: allTasks } = await supabase
         .from('service_tasks')
-        .select('id, scheduled_date, scheduled_time, status, houses(name)')
+        .select('id, scheduled_date, scheduled_time, status, houses!service_tasks_house_id_fkey(name)')
         .eq('service_type', 'cleaning')
         .gte('scheduled_date', today)
         .in('status', ['scheduled', 'in_progress']);
@@ -2139,7 +2139,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       let query = supabase
         .from('tenant_payments')
-        .select('*, houses(name, address, tenant_info)');
+        .select('*, houses!tenant_payments_house_id_fkey(name, address, tenant_info)');
 
       if (params.house_id) query = query.eq('house_id', params.house_id);
       if (params.status) query = query.eq('status', params.status);
@@ -2196,7 +2196,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       const { data: payments, error } = await supabase
         .from('tenant_payments')
-        .select('*, houses(name, tenant_info)')
+        .select('*, houses!tenant_payments_house_id_fkey(name, tenant_info)')
         .gte('due_date', params.date_from)
         .lte('due_date', params.date_to);
 

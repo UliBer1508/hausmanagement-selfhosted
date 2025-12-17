@@ -60,8 +60,8 @@ serve(async (req) => {
       .from('linen_orders')
       .select(`
         *,
-        houses:house_id (id, name, external_objektnummer),
-        bookings:booking_id (guest_name, check_in, check_out, number_of_guests)
+        houses!linen_orders_house_id_fkey (id, name, external_objektnummer),
+        bookings!linen_orders_booking_id_fkey (guest_name, check_in, check_out, number_of_guests)
       `)
       .eq('id', linen_order_id)
       .single();
