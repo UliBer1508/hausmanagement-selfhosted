@@ -3078,60 +3078,6 @@ export type Database = {
           },
         ]
       }
-      linen_transactions: {
-        Row: {
-          booking_id: string | null
-          created_at: string | null
-          house_id: string
-          id: string
-          linen_items: Json
-          new_stock: Json | null
-          notes: string | null
-          previous_stock: Json | null
-          transaction_type: string
-          updated_at: string | null
-        }
-        Insert: {
-          booking_id?: string | null
-          created_at?: string | null
-          house_id: string
-          id?: string
-          linen_items?: Json
-          new_stock?: Json | null
-          notes?: string | null
-          previous_stock?: Json | null
-          transaction_type: string
-          updated_at?: string | null
-        }
-        Update: {
-          booking_id?: string | null
-          created_at?: string | null
-          house_id?: string
-          id?: string
-          linen_items?: Json
-          new_stock?: Json | null
-          notes?: string | null
-          previous_stock?: Json | null
-          transaction_type?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "linen_transactions_booking_id_fkey"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "linen_transactions_house_id_fkey"
-            columns: ["house_id"]
-            isOneToOne: false
-            referencedRelation: "houses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       linen_usage_history: {
         Row: {
           actual_usage: Json
