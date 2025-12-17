@@ -10,8 +10,8 @@ export const useServiceTasks = () => {
         .from('service_tasks')
         .select(`
           *,
-          houses!house_id (*),
-          bookings!booking_id (*)
+          houses!service_tasks_house_id_fkey (*),
+          bookings!service_tasks_booking_id_fkey (*)
         `)
         .order('scheduled_date', { ascending: false });
       
@@ -29,8 +29,8 @@ export const useServiceTasksByStatus = (status: 'scheduled' | 'in_progress' | 'c
         .from('service_tasks')
         .select(`
           *,
-          houses!house_id (*),
-          bookings!booking_id (*)
+          houses!service_tasks_house_id_fkey (*),
+          bookings!service_tasks_booking_id_fkey (*)
         `)
         .eq('status', status)
         .order('scheduled_date', { ascending: false });
@@ -50,8 +50,8 @@ export const useServiceTasksByProvider = (providerId: string) => {
         .from('service_tasks')
         .select(`
           *,
-          houses!house_id (*),
-          bookings!booking_id (*)
+          houses!service_tasks_house_id_fkey (*),
+          bookings!service_tasks_booking_id_fkey (*)
         `)
         .eq('provider_id', providerId)
         .order('scheduled_date', { ascending: false });
