@@ -61,6 +61,7 @@ import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderMan
 import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
 import { UsageReportDialog } from '@/components/Dashboard/UsageReportDialog';
 import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBanner';
+import RatingReminderBanner from '@/components/Dashboard/RatingReminderBanner';
 import GuestImportCard from '@/components/Settings/GuestImportCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
@@ -2192,6 +2193,11 @@ const OriginalDashboard = () => {
       <div>
         {/* Guest Contact Alert Banner */}
         <GuestContactAlertBanner />
+        
+        {/* Rating Reminder Banner */}
+        <div className="mt-4">
+          <RatingReminderBanner />
+        </div>
         
         {/* Search and Filters */}
         <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">

@@ -124,6 +124,8 @@ WORKFLOW (ZWINGEND!):
 - "bestellung bestätigen" / "status ändern" → update_linen_order_status (mit Bestätigung!)
 - "reinigung ändern" / "reinigung verschieben" → update_cleaning_task (mit Bestätigung!)
 - "personal zuweisen" / "reinigungskraft zuweisen" → assign_cleaning_staff (mit Bestätigung!)
+- "marketing" / "aktion" / "kindergeschenk" / "welche aktionen" / "was muss ich vorbereiten" → get_marketing_reminders
+- "bewertungen" / "rating" / "bewertung fehlt" / "bewertungen nachtragen" / "bewertung eintragen" / "marketing auswertung" → get_rating_reminders
 
 BEISPIELE:
 ❌ FALSCH: "ABSOLUTE REGEL: Du darfst nicht..."
@@ -1107,6 +1109,31 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
               days_ahead: {
                 type: "number",
                 description: "Wie viele Tage in die Zukunft schauen (default: 90)"
+              }
+            }
+          }
+        }
+      },
+      // PHASE 6: Rating Reminders
+      {
+        type: "function",
+        function: {
+          name: "get_rating_reminders",
+          description: "Holt alle Buchungen bei denen externe Bewertungen fehlen und nachgetragen werden sollten (2+ Wochen nach Checkout). Priorisiert Marketing-Kandidaten für die Erfolgsauswertung.",
+          parameters: {
+            type: "object",
+            properties: {
+              min_days_after_checkout: { 
+                type: "number", 
+                description: "Mindestanzahl Tage nach Checkout (default: 14)" 
+              },
+              max_days_after_checkout: {
+                type: "number",
+                description: "Maximale Tage nach Checkout (default: 90)"
+              },
+              marketing_only: {
+                type: "boolean",
+                description: "Nur Buchungen mit angewendeten Marketing-Aktionen (default: false)"
               }
             }
           }
@@ -2704,6 +2731,145 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       };
     }
 
+    // PHASE 6: Rating Reminders
+    async function executeGetRatingReminders(params: any) {
+      console.log('Executing get_rating_reminders with params:', params);
+      
+      const minDays = params.min_days_after_checkout || 14;
+      const maxDays = params.max_days_after_checkout || 90;
+      const marketingOnly = params.marketing_only || false;
+      
+      const today = new Date();
+      const minCheckoutDate = new Date(today.getTime() - (maxDays * 24 * 60 * 60 * 1000));
+      const maxCheckoutDate = new Date(today.getTime() - (minDays * 24 * 60 * 60 * 1000));
+      
+      // 1. Buchungen ohne Bewertung laden (14-90 Tage nach Checkout)
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          guest_name,
+          guest_email,
+          check_out,
+          platform,
+          house_id,
+          number_of_children,
+          external_rating,
+          houses!bookings_house_id_fkey!inner(id, name, rental_type)
+        `)
+        .eq('status', 'completed')
+        .eq('houses.rental_type', 'tourist')
+        .gte('check_out', minCheckoutDate.toISOString())
+        .lte('check_out', maxCheckoutDate.toISOString())
+        .is('external_rating', null)
+        .not('platform', 'is', null)
+        .order('check_out', { ascending: false });
+      
+      if (bookingsError) {
+        console.error('Error loading bookings:', bookingsError);
+        return { success: false, error: bookingsError.message };
+      }
+      
+      if (!bookings || bookings.length === 0) {
+        return {
+          success: true,
+          reminders: [],
+          message: 'Keine ausstehenden Bewertungen gefunden.'
+        };
+      }
+      
+      // 2. Aktive Marketing-Aktionen laden
+      const { data: actions } = await supabase
+        .from('marketing_actions')
+        .select('id, name, target_criteria')
+        .eq('status', 'active');
+      
+      // 3. Tracking-Daten laden
+      const bookingIds = bookings.map(b => b.id);
+      const { data: tracking } = await supabase
+        .from('booking_action_tracking')
+        .select('*')
+        .in('booking_id', bookingIds)
+        .eq('action_applied', true);
+      
+      // 4. Für jede Buchung prüfen
+      const reminders: any[] = [];
+      
+      bookings.forEach(booking => {
+        const daysSinceCheckout = Math.floor(
+          (today.getTime() - new Date(booking.check_out).getTime()) / (1000 * 60 * 60 * 24)
+        );
+        
+        // Finde passende Marketing-Aktion mit angewendetem Tracking
+        let isMarketingCandidate = false;
+        let marketingActionName = null;
+        
+        if (actions) {
+          for (const action of actions) {
+            const criteria = action.target_criteria || {};
+            let matches = true;
+            
+            // Prüfe has_children Kriterium
+            if (criteria.has_children && (!booking.number_of_children || booking.number_of_children <= 0)) {
+              matches = false;
+            }
+            
+            if (matches) {
+              // Prüfe ob Aktion angewendet wurde
+              const trackingEntry = tracking?.find(
+                t => t.booking_id === booking.id && t.action_id === action.id
+              );
+              
+              if (trackingEntry?.action_applied) {
+                isMarketingCandidate = true;
+                marketingActionName = action.name;
+                break;
+              }
+            }
+          }
+        }
+        
+        // Filter basierend auf marketing_only
+        if (marketingOnly && !isMarketingCandidate) {
+          return;
+        }
+        
+        reminders.push({
+          booking_id: booking.id,
+          guest_name: booking.guest_name,
+          guest_email: booking.guest_email,
+          check_out: booking.check_out,
+          platform: booking.platform,
+          house_name: (booking.houses as any)?.name || 'Unbekannt',
+          days_since_checkout: daysSinceCheckout,
+          is_marketing_candidate: isMarketingCandidate,
+          marketing_action_name: marketingActionName,
+          number_of_children: booking.number_of_children
+        });
+      });
+      
+      // Sortieren: Marketing-Kandidaten zuerst
+      reminders.sort((a, b) => {
+        if (a.is_marketing_candidate && !b.is_marketing_candidate) return -1;
+        if (!a.is_marketing_candidate && b.is_marketing_candidate) return 1;
+        return b.days_since_checkout - a.days_since_checkout;
+      });
+      
+      const marketingCount = reminders.filter(r => r.is_marketing_candidate).length;
+      
+      console.log(`Found ${reminders.length} rating reminders (${marketingCount} marketing priority)`);
+      
+      return {
+        success: true,
+        reminders,
+        totalCount: reminders.length,
+        marketingPriorityCount: marketingCount,
+        message: reminders.length > 0 
+          ? `${reminders.length} Buchung(en) ohne Bewertung gefunden${marketingCount > 0 ? ` (${marketingCount} mit Marketing-Priorität)` : ''}.`
+          : 'Keine ausstehenden Bewertungen gefunden.'
+      };
+    }
+
     // Tool router
     async function executeTool(toolName: string, args: any) {
       try {
@@ -2775,6 +2941,9 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
           // PHASE 5: Marketing Reminders
           case 'get_marketing_reminders':
             return await executeGetMarketingReminders(args);
+          // PHASE 6: Rating Reminders
+          case 'get_rating_reminders':
+            return await executeGetRatingReminders(args);
           default:
             throw new Error(`Unknown tool: ${toolName}`);
         }
