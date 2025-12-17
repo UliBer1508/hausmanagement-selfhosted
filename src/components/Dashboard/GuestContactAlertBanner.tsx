@@ -68,7 +68,7 @@ const GuestContactAlertBanner = () => {
       <div className="flex items-start gap-3">
         <Bell className="h-6 w-6 text-amber-600 dark:text-amber-400 animate-pulse flex-shrink-0 mt-0.5" />
         <div className="flex-1">
-          <h3 className="font-semibold text-amber-800 dark:text-amber-200 text-lg">
+          <h3 className="font-semibold text-amber-800 dark:text-amber-200 text-base sm:text-lg">
             📞 {guestsToContact.length} {guestsToContact.length === 1 ? 'Gast' : 'Gäste'} vor Anreise kontaktieren
           </h3>
           <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
@@ -87,25 +87,27 @@ const GuestContactAlertBanner = () => {
                   {/* Buchungsinformationen */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-start sm:items-center gap-1 sm:gap-2 flex-wrap">
                         <span className="font-medium text-foreground">{booking.guest_name}</span>
-                        <Badge variant="outline" className="text-xs">
-                          {booking.houses?.name}
-                        </Badge>
-                        <Badge 
-                          variant={booking.daysUntilCheckIn <= 7 ? "destructive" : "secondary"}
-                          className="text-xs"
-                        >
-                          in {booking.daysUntilCheckIn} Tagen
-                        </Badge>
-                        {booking.isFamily && (
-                          <Badge className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200 dark:border-purple-800">
-                            👨‍👩‍👧‍👦 Familie ({booking.number_of_children} {booking.number_of_children === 1 ? 'Kind' : 'Kinder'})
+                        <div className="flex flex-wrap gap-1 sm:gap-2">
+                          <Badge variant="outline" className="text-xs truncate max-w-[100px] sm:max-w-[180px]">
+                            {booking.houses?.name}
                           </Badge>
-                        )}
+                          <Badge 
+                            variant={booking.daysUntilCheckIn <= 7 ? "destructive" : "secondary"}
+                            className="text-xs whitespace-nowrap"
+                          >
+                            in {booking.daysUntilCheckIn} Tagen
+                          </Badge>
+                          {booking.isFamily && (
+                            <Badge className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border-purple-200 dark:border-purple-800 whitespace-nowrap">
+                              👨‍👩‍👧‍👦 Familie
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                       
-                      <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-1 text-sm text-muted-foreground">
                         <span>
                           Check-in: {format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de })}
                         </span>
@@ -115,35 +117,37 @@ const GuestContactAlertBanner = () => {
                         </span>
                       </div>
                       
-                      <div className="flex items-center gap-3 mt-2">
+                      <div className="flex items-center gap-2 sm:gap-3 mt-2">
                         {booking.guest_email && (
                           <a 
                             href={`mailto:${booking.guest_email}`}
                             className="flex items-center gap-1 text-sm text-primary hover:underline"
+                            title={booking.guest_email}
                           >
-                            <Mail className="h-3 w-3" />
-                            {booking.guest_email}
+                            <Mail className="h-4 w-4 sm:h-3 sm:w-3 flex-shrink-0" />
+                            <span className="hidden sm:inline truncate max-w-[150px]">{booking.guest_email}</span>
                           </a>
                         )}
                         {booking.guest_phone && (
                           <a 
                             href={`tel:${booking.guest_phone}`}
                             className="flex items-center gap-1 text-sm text-primary hover:underline"
+                            title={booking.guest_phone}
                           >
-                            <Phone className="h-3 w-3" />
-                            {booking.guest_phone}
+                            <Phone className="h-4 w-4 sm:h-3 sm:w-3 flex-shrink-0" />
+                            <span className="hidden sm:inline">{booking.guest_phone}</span>
                           </a>
                         )}
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                       <Button
                         size="sm"
                         variant="ghost"
                         onClick={() => handleMarkNotRequired(booking.id, booking.guest_name)}
                         disabled={isUpdating}
-                        className="text-muted-foreground hover:text-foreground"
+                        className="text-muted-foreground hover:text-foreground w-full sm:w-auto"
                       >
                         <X className="h-4 w-4 mr-1" />
                         Nicht nötig
@@ -152,7 +156,7 @@ const GuestContactAlertBanner = () => {
                         size="sm"
                         onClick={() => handleMarkContacted(booking.id, booking.guest_name)}
                         disabled={isUpdating}
-                        className="bg-green-600 hover:bg-green-700 text-white"
+                        className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
                       >
                         <Check className="h-4 w-4 mr-1" />
                         Kontaktiert
