@@ -35,12 +35,13 @@ serve(async (req) => {
     const { booking_id, generate_new = false } = await req.json();
     console.log('Generating guest profile for booking:', booking_id);
 
-    // 1. Hole Buchungsdaten
+    // 1. Hole Buchungsdaten mit guests-Relation
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .select(`
         *,
-        houses (name, address)
+        houses (name, address),
+        guests!bookings_guest_id_fkey (*)
       `)
       .eq('id', booking_id)
       .single();
@@ -78,13 +79,20 @@ serve(async (req) => {
       .limit(10);
 
     // 4. Generiere Gäste-Präferenzen basierend auf Buchungsdaten
-    const guestProfile = await generateGuestProfile(booking, aiAnalyses || []);
+    // Nutze guests-Relation falls verfügbar, sonst Legacy-Felder
+    const guestData = {
+      email: booking.guests?.email || booking.guest_email,
+      name: booking.guests?.name || booking.guest_name,
+      nationality: booking.guests?.nationality || booking.nationality,
+    };
+    
+    const guestProfile = await generateGuestProfile(booking, guestData, aiAnalyses || []);
 
     // 5. Speichere Gäste-Präferenzen in der Datenbank
     const { data: savedProfile, error: prefError } = await supabase
       .from('guest_preferences')
       .upsert({
-        guest_email: booking.guest_email,
+        guest_email: guestData.email,
         house_id: booking.house_id,
         booking_id: booking.id,
         ...guestProfile
@@ -120,10 +128,12 @@ serve(async (req) => {
 });
 
 // Hilfsfunktion zur Generierung von Gästeprofilen
-async function generateGuestProfile(booking: any, aiAnalyses: any[]) {
+async function generateGuestProfile(booking: any, guestData: any, aiAnalyses: any[]) {
   const checkInDate = new Date(booking.check_in);
   const checkOutDate = new Date(booking.check_out);
   const stayDuration = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Nutze guestData (aus guests-Relation mit Fallback)
   
   // Demografische Analyse
   const groupType = booking.number_of_guests === 1 ? 'solo' :
@@ -155,7 +165,7 @@ async function generateGuestProfile(booking: any, aiAnalyses: any[]) {
     age_group: 'middle_aged', // Standardwert - könnte durch weitere Analyse verfeinert werden
     group_type: groupType,
     group_size: booking.number_of_guests,
-    nationality: booking.nationality || 'DE',
+    nationality: guestData.nationality || 'DE',
     preferred_categories: preferredCategories,
     activity_level: activityLevel,
     budget_range: budgetRange,

@@ -66,10 +66,10 @@ serve(async (req) => {
     for (const house of houses || []) {
       console.log(`\n🏠 Processing house: ${house.name}`);
 
-      // Load next X bookings
+      // Load next X bookings with guests relation
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, number_of_guests')
+        .select('id, guest_name, check_in, number_of_guests, guests!bookings_guest_id_fkey(name)')
         .eq('house_id', house.id)
         .eq('status', 'confirmed')
         .gte('check_in', new Date().toISOString())
@@ -84,7 +84,9 @@ serve(async (req) => {
       console.log(`  📅 Found ${bookings?.length || 0} upcoming bookings`);
 
       for (const booking of bookings || []) {
-        console.log(`\n  📋 Checking booking: ${booking.guest_name} (${booking.id.substring(0, 8)}...)`);
+        // Nutze guests-Relation falls verfügbar, sonst Legacy-Feld
+        const guestName = (booking as any).guests?.name || booking.guest_name;
+        console.log(`\n  📋 Checking booking: ${guestName} (${booking.id.substring(0, 8)}...)`);
 
         // Check if order already exists (excluding cancelled)
         const { data: existingOrders, error: ordersError } = await supabase
@@ -103,7 +105,7 @@ serve(async (req) => {
           totalSkipped++;
           details.push({
             booking_id: booking.id,
-            guest: booking.guest_name,
+            guest: guestName,
             house: house.name,
             action: 'skipped',
             reason: 'order_exists',
@@ -127,7 +129,7 @@ serve(async (req) => {
           totalSkipped++;
           details.push({
             booking_id: booking.id,
-            guest: booking.guest_name,
+            guest: guestName,
             house: house.name,
             action: 'skipped',
             reason: 'too_close',
@@ -149,7 +151,7 @@ serve(async (req) => {
           totalSkipped++;
           details.push({
             booking_id: booking.id,
-            guest: booking.guest_name,
+            guest: guestName,
             house: house.name,
             action: 'skipped',
             reason: 'generation_failed',
@@ -181,7 +183,7 @@ serve(async (req) => {
             order_date: new Date().toISOString().split('T')[0],
             delivery_date: deliveryDateStr,
             delivery_type: 'delivery',
-            notes: `Automatisch erstellt für ${booking.guest_name} (${booking.number_of_guests} Gäste) - Check-in: ${checkInDate.toLocaleDateString('de-DE')}`,
+            notes: `Automatisch erstellt für ${guestName} (${booking.number_of_guests} Gäste) - Check-in: ${checkInDate.toLocaleDateString('de-DE')}`,
           });
 
         if (insertError) {
@@ -189,7 +191,7 @@ serve(async (req) => {
           totalSkipped++;
           details.push({
             booking_id: booking.id,
-            guest: booking.guest_name,
+            guest: guestName,
             house: house.name,
             action: 'skipped',
             reason: 'insert_failed',
@@ -199,7 +201,7 @@ serve(async (req) => {
           totalCreated++;
           details.push({
             booking_id: booking.id,
-            guest: booking.guest_name,
+            guest: guestName,
             house: house.name,
             check_in: checkInDate.toISOString().split('T')[0],
             action: 'created',
