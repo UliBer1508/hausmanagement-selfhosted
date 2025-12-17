@@ -98,13 +98,8 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
   };
 
   const getTotalItems = () => {
-    // Handle both laundry_order_items (array) and linen order items (JSON object)
-    if (order.laundry_order_items) {
-      return order.laundry_order_items
-        .filter((item: any) => item.quantity > 0)
-        .reduce((sum: number, item: any) => sum + item.quantity, 0);
-    } else if (order.items) {
-      // For linen orders, items is a JSON object like {"kitchen_towels": 1}
+    // Items is a JSON object like {"kitchen_towels": 1}
+    if (order.items) {
       return Object.entries(order.items)
         .filter(([_, count]: [string, any]) => count > 0)
         .reduce((sum: number, [_, count]: [string, any]) => sum + count, 0);
@@ -197,7 +192,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
           {/* Right Column: Items & Notes */}
           <div className="space-y-2">
             {/* Items List - Collapsible */}
-            {((order.laundry_order_items && order.laundry_order_items.length > 0) || order.items) && (
+            {order.items && (
               <Collapsible open={isItemsOpen} onOpenChange={setIsItemsOpen}>
                 <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-muted/50 rounded p-1 -ml-1 transition-colors">
                   <ChevronDown 
@@ -222,17 +217,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                       </tr>
                     </thead>
                     <tbody>
-                      {order.laundry_order_items && order.laundry_order_items
-                        .filter((item: any) => item.quantity > 0)
-                        .map((item: any) => (
-                        <tr key={item.id}>
-                          <td className="py-0.5">{item.item_name}</td>
-                          <td className="text-center py-0.5 text-muted-foreground">-</td>
-                          <td className="text-right text-muted-foreground py-0.5">{item.quantity}x</td>
-                        </tr>
-                      ))}
-                      
-                      {order.items && Object.entries(order.items)
+                      {Object.entries(order.items)
                         .filter(([_, count]: [string, any]) => count > 0)
                         .sort(([a], [b]) => {
                           const indexA = ITEM_DISPLAY_ORDER.indexOf(a);
@@ -265,16 +250,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
 
                   {/* Mobile: Compact List View */}
                   <div className="lg:hidden space-y-0.5">
-                    {order.laundry_order_items && order.laundry_order_items
-                      .filter((item: any) => item.quantity > 0)
-                      .map((item: any) => (
-                      <div key={item.id} className="flex justify-between text-xs">
-                        <span className="truncate">{item.item_name}</span>
-                        <span className="text-muted-foreground ml-2 shrink-0">{item.quantity}x</span>
-                      </div>
-                    ))}
-                    
-                    {order.items && Object.entries(order.items)
+                    {Object.entries(order.items)
                       .filter(([_, count]: [string, any]) => count > 0)
                       .sort(([a], [b]) => {
                         const indexA = ITEM_DISPLAY_ORDER.indexOf(a);
