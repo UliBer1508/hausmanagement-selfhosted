@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Target, Users, Star, CheckCircle, Clock, MoreVertical, Pencil, Trash2, Eye, ClipboardList, BarChart3 } from 'lucide-react';
+import { Plus, Target, Users, CheckCircle, Clock, MoreVertical, Pencil, Trash2, Eye, ClipboardList, BarChart3, MessageSquareText } from 'lucide-react';
 import { useMarketingActions, useActionStats, TargetCriteria } from '@/hooks/useMarketingActions';
 import CreateActionDialog from './CreateActionDialog';
 import ActionDetailsDialog from './ActionDetailsDialog';
@@ -259,15 +259,15 @@ const ActionCard = ({ action, onView, onEdit, onDelete, getStatusBadge, getCrite
             </div>
 
             {/* Evaluation Section */}
-            <div className="bg-amber-500/5 rounded-lg p-2 border border-amber-500/10">
+            <div className="bg-blue-500/5 rounded-lg p-2 border border-blue-500/10">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1.5">
                 <BarChart3 className="h-3 w-3" />
                 <span>Auswertung</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
-                  <Star className="h-4 w-4 text-amber-500" />
-                  <span className="text-lg font-semibold text-amber-600">
+                  <MessageSquareText className="h-4 w-4 text-blue-500" />
+                  <span className="text-lg font-semibold text-blue-600">
                     {stats.avgRating ? stats.avgRating.toFixed(1) : '-'}
                   </span>
                   <span className="text-xs text-muted-foreground">/10</span>
