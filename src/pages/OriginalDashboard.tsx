@@ -472,7 +472,7 @@ const OriginalDashboard = () => {
           currency,
           notes,
           status,
-          houses!house_id (
+          houses!bookings_house_id_fkey (
             id,
             name,
             address

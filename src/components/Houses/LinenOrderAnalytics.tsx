@@ -43,7 +43,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
         .from('linen_orders')
         .select(`
           *,
-          bookings!booking_id (
+          bookings!linen_orders_booking_id_fkey (
             id,
             guest_name,
             number_of_guests,
