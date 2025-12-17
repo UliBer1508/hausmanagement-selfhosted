@@ -3,6 +3,34 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, differenceInDays } from "date-fns";
 import { de } from "date-fns/locale";
 
+interface MarketingAction {
+  id: string;
+  name: string;
+  target_criteria: {
+    has_children?: boolean;
+    min_nights?: number;
+    nationality?: string;
+    booking_amount_min?: number;
+  };
+}
+
+interface ActionTracking {
+  booking_id: string;
+  action_id: string;
+  action_applied: boolean;
+}
+
+// Helper: Prüft ob eine Buchung den Kriterien entspricht
+function matchesCriteria(
+  booking: any,
+  criteria: MarketingAction['target_criteria']
+): boolean {
+  if (criteria.has_children && (!booking.number_of_children || booking.number_of_children <= 0)) {
+    return false;
+  }
+  return true;
+}
+
 export const useMorningSummary = () => {
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayStart = `${today}T00:00:00`;
@@ -27,6 +55,7 @@ export const useMorningSummary = () => {
           guest_name,
           guest_email,
           check_in,
+          number_of_children,
           houses!bookings_house_id_fkey!inner(name, rental_type)
         `)
         .gte('check_in', fiveDaysFromNow.toISOString())
@@ -38,6 +67,38 @@ export const useMorningSummary = () => {
 
       if (error) throw error;
       return data || [];
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+
+  // Aktive Marketing-Aktionen laden
+  const { data: marketingActions, isLoading: loadingMarketing } = useQuery({
+    queryKey: ['morning-marketing-actions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('marketing_actions')
+        .select('id, name, target_criteria')
+        .eq('status', 'active');
+      
+      if (error) throw error;
+      return (data || []) as MarketingAction[];
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+
+  // Tracking für Gäste-Kontakt-Buchungen laden
+  const bookingIds = guestContactReminders?.map(b => b.id) || [];
+  const { data: actionTracking, isLoading: loadingTracking } = useQuery({
+    queryKey: ['morning-action-tracking', bookingIds],
+    enabled: bookingIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('booking_action_tracking')
+        .select('booking_id, action_id, action_applied')
+        .in('booking_id', bookingIds);
+      
+      if (error) throw error;
+      return (data || []) as ActionTracking[];
     },
     staleTime: 1000 * 60 * 30,
   });
@@ -104,6 +165,23 @@ export const useMorningSummary = () => {
     (linenOrders && linenOrders.length > 0) ||
     (guestContactReminders && guestContactReminders.length > 0);
 
+  // Helper: Finde Marketing-Aktionen für eine Buchung
+  const getMarketingActionsForBooking = (booking: any): { action: MarketingAction; isApplied: boolean }[] => {
+    if (!marketingActions) return [];
+    
+    return marketingActions
+      .filter(action => matchesCriteria(booking, action.target_criteria || {}))
+      .map(action => {
+        const tracking = actionTracking?.find(
+          t => t.booking_id === booking.id && t.action_id === action.id
+        );
+        return {
+          action,
+          isApplied: tracking?.action_applied || false,
+        };
+      });
+  };
+
   // Formatierte Nachricht erstellen
   const formatSummaryMessage = (): string => {
     if (!upcomingBookings || !cleanings || !linenOrders) {
@@ -113,7 +191,7 @@ export const useMorningSummary = () => {
     let message = '🏠 **Guten Morgen! Deine anstehenden Aufgaben**\n\n';
     message += `📅 ${format(new Date(), 'EEEE, dd. MMMM yyyy', { locale: de })}\n\n`;
     
-    // GÄSTE VOR ANREISE KONTAKTIEREN (HÖCHSTE PRIORITÄT)
+    // GÄSTE VOR ANREISE KONTAKTIEREN (HÖCHSTE PRIORITÄT) - MIT MARKETING-AKTIONEN
     if (guestContactReminders && guestContactReminders.length > 0) {
       message += `📞 **${guestContactReminders.length} ${guestContactReminders.length === 1 ? 'Gast' : 'Gäste'} vor Anreise kontaktieren**\n`;
       guestContactReminders.forEach((b: any) => {
@@ -121,7 +199,18 @@ export const useMorningSummary = () => {
         const houseName = b.houses?.name || 'Unbekanntes Haus';
         const daysUntil = differenceInDays(new Date(b.check_in), new Date());
         const email = b.guest_email ? ` (${b.guest_email})` : '';
-        message += `• ${b.guest_name}${email} → ${houseName} - Check-in in ${daysUntil} Tagen (${checkInDate})\n`;
+        const isFamily = (b.number_of_children || 0) > 0;
+        const familyTag = isFamily ? ` 👨‍👩‍👧‍👦 Familie mit ${b.number_of_children} Kind(ern)` : '';
+        
+        message += `• **${b.guest_name}**${email} → ${houseName} - Check-in in ${daysUntil} Tagen (${checkInDate})${familyTag}\n`;
+        
+        // Marketing-Aktionen für diese Buchung anzeigen
+        const bookingActions = getMarketingActionsForBooking(b);
+        bookingActions.forEach(({ action, isApplied }) => {
+          const statusIcon = isApplied ? '✅' : '⏳';
+          const statusText = isApplied ? 'Angewendet' : 'Noch nicht angewendet';
+          message += `  ⭐ Marketing-Aktion: "${action.name}" - ${statusIcon} ${statusText}\n`;
+        });
       });
       message += '\n';
     }
@@ -217,7 +306,7 @@ export const useMorningSummary = () => {
     localStorage.setItem('chat-summary-shown', today);
   };
 
-  const isLoading = loadingBookings || loadingCleanings || loadingLinen || loadingGuestContact;
+  const isLoading = loadingBookings || loadingCleanings || loadingLinen || loadingGuestContact || loadingMarketing || loadingTracking;
 
   return {
     summaryMessage,
