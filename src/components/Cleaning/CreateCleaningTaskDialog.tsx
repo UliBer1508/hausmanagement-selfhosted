@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { getGuestName } from '@/lib/guestHelpers';
 
 import {
   Dialog,
@@ -168,7 +169,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
       if (!selectedHouseId) return [];
       const { data } = await supabase
         .from('bookings')
-        .select('id, guest_name, guest_email, guest_phone, check_in, check_out, number_of_guests, booking_amount, currency')
+        .select('id, guest_name, guest_email, guest_phone, check_in, check_out, number_of_guests, booking_amount, currency, guests(*)')
         .eq('house_id', selectedHouseId)
         .not('status', 'in', '(completed,cancelled)')
         .gte('check_out', new Date().toISOString())
@@ -420,7 +421,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
                           <div className="space-y-2">
                             <div className="flex items-center gap-2">
                               <User className="w-4 h-4" />
-                              <h4 className="font-semibold">{booking.guest_name}</h4>
+                              <h4 className="font-semibold">{getGuestName(booking)}</h4>
                               <span className="text-sm text-muted-foreground">({booking.number_of_guests} Gäste)</span>
                             </div>
                             <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -488,7 +489,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div className="space-y-2">
                       <div><strong>Haus:</strong> {houses?.find(h => h.id === form.watch('house_id'))?.name}</div>
-                      <div><strong>Gast:</strong> {displayBooking.guest_name}</div>
+                      <div><strong>Gast:</strong> {getGuestName(displayBooking)}</div>
                       <div><strong>Gäste:</strong> {displayBooking.number_of_guests}</div>
                       {displayBooking.guest_email && (
                         <div><strong>E-Mail:</strong> {displayBooking.guest_email}</div>

@@ -8,6 +8,7 @@ import { Edit, Package, Trash2, CheckCircle, Link2, RotateCcw, ChevronDown } fro
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 import { translateItemType } from '@/lib/linenOrderHelpers';
+import { getGuestName } from '@/lib/guestHelpers';
 // Feste Anzeige-Reihenfolge der Wäscheartikel
 const ITEM_DISPLAY_ORDER = [
   'bedding',        // 1. Bettwäsche
@@ -115,7 +116,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
   const checkIn = order.bookings?.check_in ? new Date(order.bookings.check_in).toLocaleDateString('de-DE') : null;
   const checkOut = order.bookings?.check_out ? new Date(order.bookings.check_out).toLocaleDateString('de-DE') : null;
   const numberOfGuests = order.bookings?.number_of_guests || null;
-  const guestName = order.bookings?.guest_name || null;
+  const guestName = order.bookings ? getGuestName(order.bookings) : null;
 
   return (
     <Card className={cn(

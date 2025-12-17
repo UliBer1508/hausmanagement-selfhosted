@@ -6,6 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditBookingDialog from './EditBookingDialog';
 import { BookingWithHouse } from '@/types';
+import { getGuestName } from '@/lib/guestHelpers';
 
 interface BookingCardProps {
   booking: BookingWithHouse;
@@ -46,7 +47,7 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
         <div className="space-y-3">
           {/* Guest Name */}
           <div>
-            <h3 className="font-semibold text-lg">{booking.guest_name}</h3>
+            <h3 className="font-semibold text-lg">{getGuestName(booking)}</h3>
             <p className="text-sm text-muted-foreground">{booking.houses?.name}</p>
           </div>
 

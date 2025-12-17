@@ -9,7 +9,7 @@ export const useDashboardData = () => {
       // Fetch all data in parallel
       const [housesResponse, bookingsResponse, tasksResponse] = await Promise.all([
         supabase.from('houses').select('*'),
-        supabase.from('bookings').select('*').neq('status', 'cancelled').order('check_in', { ascending: true }),
+        supabase.from('bookings').select('*, guests(*)').neq('status', 'cancelled').order('check_in', { ascending: true }),
         supabase.from('service_tasks').select('*')
       ]);
 

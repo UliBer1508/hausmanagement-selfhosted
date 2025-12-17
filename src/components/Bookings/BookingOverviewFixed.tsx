@@ -44,6 +44,7 @@ import { cn } from '@/lib/utils';
 import { useDeleteBooking } from '@/hooks/useBookings';
 import CreateBookingDialog from './CreateBookingDialog';
 import EditBookingDialog from './EditBookingDialog';
+import { getGuestName } from '@/lib/guestHelpers';
 
 // Länderliste für Nationalität (gleiche wie in CreateBookingForm)
 const countries = [
@@ -151,7 +152,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
       onSuccess: () => {
         toast({
           title: "Buchung gelöscht",
-          description: `Buchung von ${bookingToDelete.guest_name} wurde erfolgreich gelöscht.`,
+          description: `Buchung von ${getGuestName(bookingToDelete)} wurde erfolgreich gelöscht.`,
         });
         setBookingToDelete(null);
         window.location.reload();
@@ -192,6 +193,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
           notes,
           created_at,
           updated_at,
+          guests (*),
           houses!bookings_house_id_fkey (
             id,
             name
@@ -290,7 +292,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
     // Search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      const guestMatch = booking.guest_name?.toLowerCase().includes(searchLower);
+      const guestMatch = getGuestName(booking).toLowerCase().includes(searchLower);
       const houseMatch = booking.houses?.name?.toLowerCase().includes(searchLower);
       if (!guestMatch && !houseMatch) return false;
     }
