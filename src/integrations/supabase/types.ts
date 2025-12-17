@@ -700,6 +700,51 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_action_tracking: {
+        Row: {
+          action_applied: boolean
+          action_id: string
+          applied_at: string | null
+          booking_id: string
+          created_at: string
+          id: string
+          notes: string | null
+        }
+        Insert: {
+          action_applied?: boolean
+          action_id: string
+          applied_at?: string | null
+          booking_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+        }
+        Update: {
+          action_applied?: boolean
+          action_id?: string
+          applied_at?: string | null
+          booking_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_action_tracking_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_actions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_action_tracking_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_activities: {
         Row: {
           activity_id: string
@@ -3004,6 +3049,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      marketing_actions: {
+        Row: {
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          name: string
+          start_date: string
+          status: string
+          target_criteria: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name: string
+          start_date?: string
+          status?: string
+          target_criteria?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          name?: string
+          start_date?: string
+          status?: string
+          target_criteria?: Json
+          updated_at?: string
+        }
+        Relationships: []
       }
       model_parameters: {
         Row: {
