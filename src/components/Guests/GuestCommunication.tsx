@@ -244,12 +244,12 @@ const GuestCommunication = () => {
         {/* Communication Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <div>
-                <CardTitle className="text-sm font-medium">E-Mail versenden</CardTitle>
-              </div>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">E-Mail versenden</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <div className="flex items-center gap-2">
-                <Label className="text-sm text-muted-foreground">Vorlagensprache:</Label>
+                <Label className="text-sm text-muted-foreground">Sprache:</Label>
                 <div className="flex border rounded-md">
                   <Button
                     type="button"
@@ -259,7 +259,7 @@ const GuestCommunication = () => {
                       setLanguage('de');
                       setSelectedTemplate('');
                     }}
-                    className="rounded-r-none"
+                    className="rounded-r-none h-7 px-2"
                   >
                     🇩🇪 DE
                   </Button>
@@ -271,18 +271,18 @@ const GuestCommunication = () => {
                       setLanguage('en');
                       setSelectedTemplate('');
                     }}
-                    className="rounded-l-none"
+                    className="rounded-l-none h-7 px-2"
                   >
                     🇬🇧 EN
                   </Button>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{getSegmentCount('all')}</div>
-              <p className="text-xs text-muted-foreground">
-                Gäste mit E-Mail-Adresse
-              </p>
+              <div>
+                <div className="text-2xl font-bold">{getSegmentCount('all')}</div>
+                <p className="text-xs text-muted-foreground">
+                  Gäste mit E-Mail-Adresse
+                </p>
+              </div>
             </CardContent>
           </Card>
 
