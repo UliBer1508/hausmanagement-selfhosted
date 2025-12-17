@@ -165,7 +165,7 @@ const CleaningManagement = () => {
         .select(`
           *,
           houses!service_tasks_house_id_fkey!inner(id, name, address, rental_type),
-          bookings!service_tasks_booking_id_fkey(id, guest_name, check_in, check_out, number_of_guests, guests(*)),
+          bookings!service_tasks_booking_id_fkey(id, guest_name, check_in, check_out, number_of_guests, guests!bookings_guest_id_fkey(*)),
           service_providers!service_tasks_provider_id_fkey(id, name, service_type),
           cleaning_assignments!cleaning_assignments_service_task_id_fkey(id, cleaning_staff!cleaning_assignments_cleaning_staff_id_fkey(id, name))
         `)

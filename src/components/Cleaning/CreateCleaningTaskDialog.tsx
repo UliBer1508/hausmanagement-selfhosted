@@ -169,7 +169,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
       if (!selectedHouseId) return [];
       const { data } = await supabase
         .from('bookings')
-        .select('id, guest_name, guest_email, guest_phone, check_in, check_out, number_of_guests, booking_amount, currency, guests(*)')
+        .select('id, guest_name, guest_email, guest_phone, check_in, check_out, number_of_guests, booking_amount, currency, guests!bookings_guest_id_fkey(*)')
         .eq('house_id', selectedHouseId)
         .not('status', 'in', '(completed,cancelled)')
         .gte('check_out', new Date().toISOString())

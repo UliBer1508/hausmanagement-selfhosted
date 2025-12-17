@@ -8,7 +8,7 @@ export const useBookings = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, guests(*)')
+        .select('*, guests!bookings_guest_id_fkey(*)')
         .neq('status', 'cancelled')
         .order('check_in', { ascending: true });
       
@@ -24,7 +24,7 @@ export const useBookingsByHouse = (houseId: string) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, guests(*)')
+        .select('*, guests!bookings_guest_id_fkey(*)')
         .eq('house_id', houseId)
         .order('check_in', { ascending: true });
       
@@ -43,7 +43,7 @@ export const useCreateBooking = () => {
       const { data, error } = await supabase
         .from('bookings')
         .insert([booking])
-        .select('*, guests(*)')
+        .select('*, guests!bookings_guest_id_fkey(*)')
         .single();
       
       if (error) throw error;
@@ -70,7 +70,7 @@ export const useUpdateBooking = () => {
         .from('bookings')
         .update(updates)
         .eq('id', id)
-        .select('*, guests(*)')
+        .select('*, guests!bookings_guest_id_fkey(*)')
         .single();
       
       if (error) throw error;
