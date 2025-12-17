@@ -37,7 +37,7 @@ const GuestCommunication = () => {
     queryFn: async () => {
       const { data: bookings } = await supabase
         .from('bookings')
-        .select('*, houses!inner(rental_type)')
+        .select('*, houses!house_id!inner(rental_type)')
         .eq('houses.rental_type', 'tourist')
         .not('guest_name', 'is', null)
         .neq('status', 'cancelled');

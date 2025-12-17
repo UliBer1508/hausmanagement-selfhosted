@@ -49,7 +49,7 @@ const BookingOverview = () => {
         .from('bookings')
         .select(`
           *,
-          houses:house_id (
+          houses!house_id (
             id,
             name
           )

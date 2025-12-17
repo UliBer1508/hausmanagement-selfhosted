@@ -192,7 +192,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
           notes,
           created_at,
           updated_at,
-          houses:house_id (
+          houses!house_id (
             id,
             name
           )

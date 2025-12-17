@@ -41,12 +41,12 @@ export const useExternalSync = () => {
         .from('linen_orders')
         .select(`
           *,
-          houses:house_id (
+          houses!house_id (
             id,
             name,
             external_objektnummer
           ),
-          bookings:booking_id (
+          bookings!booking_id (
             id,
             guest_name,
             check_in,

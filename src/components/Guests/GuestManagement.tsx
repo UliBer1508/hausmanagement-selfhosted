@@ -19,7 +19,7 @@ const GuestManagement = () => {
         .from('bookings')
         .select(`
           *,
-          houses!inner(name, address)
+          houses!house_id!inner(name, address)
         `)
         .not('guest_name', 'is', null);
 
