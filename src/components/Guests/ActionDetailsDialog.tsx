@@ -171,7 +171,6 @@ const ActionDetailsDialog = ({ open, onOpenChange, action }: ActionDetailsDialog
                                   {booking.number_of_children} Kind{(booking.number_of_children || 0) > 1 ? 'er' : ''}
                                 </Badge>
                               )}
-                              {isPast && <Badge variant="secondary" className="text-xs">Vergangen</Badge>}
                               {isCurrent && <Badge className="text-xs bg-blue-500/10 text-blue-600 border-blue-500/20">Aktuell</Badge>}
                               {isFuture && <Badge className="text-xs bg-green-500/10 text-green-600 border-green-500/20">Zukünftig</Badge>}
                             </div>

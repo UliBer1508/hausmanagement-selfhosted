@@ -156,6 +156,9 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
   return useQuery({
     queryKey: ['action-stats', actionId],
     queryFn: async () => {
+      // Only consider future bookings (no historical data)
+      const today = new Date().toISOString().split('T')[0];
+      
       // Get all tourist bookings with rating fields
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
@@ -175,7 +178,8 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .eq('houses.rental_type', 'tourist')
-        .neq('status', 'cancelled');
+        .neq('status', 'cancelled')
+        .gte('check_in', today);
 
       if (bookingsError) throw bookingsError;
 
@@ -238,6 +242,9 @@ export const useAffectedBookings = (actionId: string, targetCriteria: TargetCrit
   return useQuery({
     queryKey: ['affected-bookings', actionId, targetCriteria],
     queryFn: async () => {
+      // Only consider future bookings (no historical data)
+      const today = new Date().toISOString().split('T')[0];
+      
       // Get all tourist bookings with rating fields
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
@@ -258,6 +265,7 @@ export const useAffectedBookings = (actionId: string, targetCriteria: TargetCrit
         `)
         .eq('houses.rental_type', 'tourist')
         .neq('status', 'cancelled')
+        .gte('check_in', today)
         .order('check_in', { ascending: true });
 
       if (bookingsError) throw bookingsError;
