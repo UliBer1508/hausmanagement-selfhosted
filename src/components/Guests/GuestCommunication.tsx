@@ -1,10 +1,6 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import EmailTemplateEditor from './EmailTemplateEditor';
 import GuestPersonalization from './GuestPersonalization';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
+import { useGuestSegments, GuestSegmentData } from '@/hooks/useGuests';
+import { supabase } from '@/integrations/supabase/client';
 
 const GuestCommunication = () => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -22,7 +20,6 @@ const GuestCommunication = () => {
   const [language, setLanguage] = useState<'de' | 'en'>('de');
   const { toast } = useToast();
   
-  // Use the email templates hook with language parameter
   const { 
     templates: emailTemplates, 
     isLoading: templatesLoading,
@@ -31,79 +28,50 @@ const GuestCommunication = () => {
     deleteTemplate 
   } = useEmailTemplates(language);
 
-  // Fetch guest segments for targeting
-  const { data: segmentData } = useQuery({
-    queryKey: ['communication-segments', 'tourist'],
-    queryFn: async () => {
-      const { data: bookings } = await supabase
-        .from('bookings')
-        .select('*, houses!bookings_house_id_fkey!inner(rental_type)')
-        .eq('houses.rental_type', 'tourist')
-        .not('guest_name', 'is', null)
-        .neq('status', 'cancelled');
-
-      if (!bookings) return null;
-
-      // Group by guest and analyze segments
-      const guestMap = new Map();
-      
-      bookings.forEach(booking => {
-        const guestKey = `${booking.guest_name}-${booking.guest_email || ''}`;
-        if (!guestMap.has(guestKey)) {
-          guestMap.set(guestKey, {
-            guest_name: booking.guest_name,
-            guest_email: booking.guest_email,
-            guest_phone: booking.guest_phone,
-            total_revenue: 0,
-            stay_count: 0,
-            last_booking: null,
-          });
-        }
-
-        const guest = guestMap.get(guestKey);
-        guest.total_revenue += booking.booking_amount || 0;
-        guest.stay_count += 1;
-        
-        if (!guest.last_booking || new Date(booking.check_in) > new Date(guest.last_booking)) {
-          guest.last_booking = booking.check_in;
-        }
-      });
-
-      const guests = Array.from(guestMap.values()).filter(g => g.guest_email);
-
-      return {
-        all: guests.length,
-        vip: guests.filter(g => g.total_revenue >= 2000).length,
-        returning: guests.filter(g => g.stay_count >= 2 && g.total_revenue < 2000).length,
-        new: guests.filter(g => g.stay_count === 1).length,
-        recent: guests.filter(g => {
-          const threeMonthsAgo = new Date();
-          threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-          return g.last_booking && new Date(g.last_booking) >= threeMonthsAgo;
-        }).length,
-        guests: guests // Store actual guest data for email sending
-      };
-    },
-  });
+  // Use the centralized guest segments hook
+  const { data: segmentData } = useGuestSegments();
 
   const getGuestEmailsForSegment = (segment: string): string[] => {
-    if (!segmentData || !segmentData.guests) return [];
+    if (!segmentData?.allGuests) return [];
     
-    const guests = segmentData.guests;
+    const guests = segmentData.allGuests.filter(g => g.guest_email);
     
     switch (segment) {
       case 'vip':
-        return guests.filter((g: any) => g.total_revenue >= 2000).map((g: any) => g.guest_email);
+        return guests.filter(g => g.total_revenue >= 2000).map(g => g.guest_email!);
       case 'returning':
-        return guests.filter((g: any) => g.stay_count >= 2 && g.total_revenue < 2000).map((g: any) => g.guest_email);
+        return guests.filter(g => g.stay_count >= 2 && g.total_revenue < 2000).map(g => g.guest_email!);
       case 'new':
-        return guests.filter((g: any) => g.stay_count === 1).map((g: any) => g.guest_email);
+        return guests.filter(g => g.stay_count === 1).map(g => g.guest_email!);
       case 'recent':
         const threeMonthsAgo = new Date();
         threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-        return guests.filter((g: any) => g.last_booking && new Date(g.last_booking) >= threeMonthsAgo).map((g: any) => g.guest_email);
+        return guests.filter(g => g.last_booking && new Date(g.last_booking) >= threeMonthsAgo).map(g => g.guest_email!);
       default:
-        return guests.map((g: any) => g.guest_email);
+        return guests.map(g => g.guest_email!);
+    }
+  };
+
+  const getSegmentCount = (segment: string): number => {
+    if (!segmentData?.allGuests) return 0;
+    
+    const guests = segmentData.allGuests.filter(g => g.guest_email);
+    
+    switch (segment) {
+      case 'vip':
+        return guests.filter(g => g.total_revenue >= 2000).length;
+      case 'returning':
+        return guests.filter(g => g.stay_count >= 2 && g.total_revenue < 2000).length;
+      case 'new':
+        return guests.filter(g => g.stay_count === 1).length;
+      case 'recent':
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        return guests.filter(g => g.last_booking && new Date(g.last_booking) >= threeMonthsAgo).length;
+      case 'all':
+        return guests.length;
+      default:
+        return 0;
     }
   };
 
@@ -121,7 +89,6 @@ const GuestCommunication = () => {
       const content = customMessage || emailTemplates[selectedTemplate as keyof typeof emailTemplates]?.content || '';
       const subject = selectedTemplate ? emailTemplates[selectedTemplate as keyof typeof emailTemplates]?.subject : 'Nachricht von Steinbock Chalets';
       
-      // Get guest emails based on segment
       const targetGuests = getGuestEmailsForSegment(selectedSegment);
       
       if (targetGuests.length === 0) {
@@ -133,7 +100,6 @@ const GuestCommunication = () => {
         return;
       }
 
-      // Send email via our Gmail SMTP function
       const { data, error } = await supabase.functions.invoke('send-gmail', {
         body: {
           to: targetGuests,
@@ -164,21 +130,6 @@ const GuestCommunication = () => {
         variant: "destructive"
       });
     }
-  };
-
-  const getSegmentName = (segment: string) => {
-    switch (segment) {
-      case 'vip': return 'VIP';
-      case 'returning': return 'Stammgäste';
-      case 'new': return 'neue';
-      case 'recent': return 'kürzlich aktive';
-      default: return 'alle';
-    }
-  };
-
-  const getSegmentCount = (segment: string) => {
-    if (!segmentData) return 0;
-    return segmentData[segment as keyof typeof segmentData] || 0;
   };
 
   const handleSendPersonalizedMessage = async (content: string, subject: string, segment: string) => {
@@ -249,7 +200,7 @@ const GuestCommunication = () => {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-2">
-                <Label className="text-sm text-muted-foreground">Sprache:</Label>
+                <span className="text-sm text-muted-foreground">Sprache:</span>
                 <div className="flex border rounded-md">
                   <Button
                     type="button"
@@ -449,29 +400,18 @@ const GuestCommunication = () => {
                     <p className="text-xs text-muted-foreground mb-2">
                       Check-in Erinnerungen und wichtige Updates per SMS
                     </p>
-                    <Badge variant="secondary" className="text-xs">Geplant</Badge>
+                    <Badge variant="secondary" className="text-xs">Demnächst verfügbar</Badge>
                   </div>
 
                   <div className="p-3 border rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
-                      <Send className="h-4 w-4" />
-                      <span className="font-medium text-sm">Automatisierte Kampagnen</span>
+                      <MessageCircle className="h-4 w-4" />
+                      <span className="font-medium text-sm">WhatsApp Integration</span>
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">
-                      Zeitgesteuerte E-Mails basierend auf Buchungsdaten
+                      Direkte Kommunikation über WhatsApp Business
                     </p>
-                    <Badge variant="secondary" className="text-xs">Geplant</Badge>
-                  </div>
-
-                  <div className="p-3 border rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Star className="h-4 w-4" />
-                      <span className="font-medium text-sm">Personalisierung</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      KI-gestützte personalisierte Nachrichtenerstellung
-                    </p>
-                    <Badge variant="secondary" className="text-xs">Geplant</Badge>
+                    <Badge variant="secondary" className="text-xs">In Planung</Badge>
                   </div>
                 </div>
               </CardContent>
@@ -480,42 +420,51 @@ const GuestCommunication = () => {
         </div>
       </TabsContent>
 
-      <TabsContent value="personalization" className="space-y-6">
-        <GuestPersonalization 
-          onSendPersonalizedMessage={handleSendPersonalizedMessage}
-        />
+      <TabsContent value="personalization">
+        <GuestPersonalization onSendPersonalizedMessage={handleSendPersonalizedMessage} />
       </TabsContent>
 
-      <TabsContent value="manage">
-        <div className="mb-4 flex items-center gap-2">
-          <Label>Sprachfilter:</Label>
-          <div className="flex border rounded-md">
-            <Button
-              type="button"
-              variant={language === 'de' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setLanguage('de')}
-              className="rounded-r-none"
-            >
-              🇩🇪 Deutsch
-            </Button>
-            <Button
-              type="button"
-              variant={language === 'en' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setLanguage('en')}
-              className="rounded-l-none"
-            >
-              🇬🇧 English
-            </Button>
-          </div>
-        </div>
-        <EmailTemplateEditor 
-          language={language}
-          onCreateTemplate={createTemplate}
-          onUpdateTemplate={updateTemplate}
-          onDeleteTemplate={deleteTemplate}
-        />
+      <TabsContent value="manage" className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              E-Mail Vorlagen verwalten
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm text-muted-foreground">Sprache:</span>
+              <div className="flex border rounded-md">
+                <Button
+                  type="button"
+                  variant={language === 'de' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setLanguage('de')}
+                  className="rounded-r-none h-7 px-2"
+                >
+                  🇩🇪 Deutsch
+                </Button>
+                <Button
+                  type="button"
+                  variant={language === 'en' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setLanguage('en')}
+                  className="rounded-l-none h-7 px-2"
+                >
+                  🇬🇧 English
+                </Button>
+              </div>
+            </div>
+            
+            <EmailTemplateEditor
+              language={language}
+              onCreateTemplate={createTemplate}
+              onUpdateTemplate={updateTemplate}
+              onDeleteTemplate={deleteTemplate}
+            />
+          </CardContent>
+        </Card>
       </TabsContent>
     </Tabs>
   );

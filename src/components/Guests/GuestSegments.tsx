@@ -1,114 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Target, Crown, Heart, TrendingUp, Euro, Star, UserPlus } from 'lucide-react';
+import { Target, Crown, Heart, TrendingUp, Star, UserPlus } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { useGuestSegments } from '@/hooks/useGuests';
 
 const GuestSegments = () => {
-  // Fetch and analyze guest segments
-  const { data: segmentData, isLoading } = useQuery({
-    queryKey: ['guest-segments', 'tourist'],
-    queryFn: async () => {
-      const { data: bookings } = await supabase
-        .from('bookings')
-        .select('*, houses!bookings_house_id_fkey!inner(rental_type)')
-        .eq('houses.rental_type', 'tourist')
-        .not('guest_name', 'is', null)
-        .neq('status', 'cancelled');
-
-      if (!bookings) return null;
-
-      // Group by guest and calculate metrics
-      const guestMap = new Map();
-      
-      bookings.forEach(booking => {
-        const guestKey = `${booking.guest_name}-${booking.guest_email || ''}-${booking.guest_phone || ''}`;
-        
-        if (!guestMap.has(guestKey)) {
-          guestMap.set(guestKey, {
-            guest_name: booking.guest_name,
-            guest_email: booking.guest_email,
-            guest_phone: booking.guest_phone,
-            nationality: booking.nationality,
-            bookings: [],
-            total_revenue: 0,
-            stay_count: 0,
-            last_booking: null,
-            first_booking: null,
-          });
-        }
-
-        const guest = guestMap.get(guestKey);
-        guest.bookings.push(booking);
-        guest.total_revenue += booking.booking_amount || 0;
-        guest.stay_count += 1;
-
-        const bookingDate = new Date(booking.check_in);
-        if (!guest.first_booking || bookingDate < new Date(guest.first_booking)) {
-          guest.first_booking = booking.check_in;
-        }
-        if (!guest.last_booking || bookingDate > new Date(guest.last_booking)) {
-          guest.last_booking = booking.check_in;
-        }
-      });
-
-      const guests = Array.from(guestMap.values());
-
-      // Define segment criteria
-      const vipThreshold = 2000; // €2000+ total revenue
-      const returningThreshold = 2; // 2+ bookings
-
-      // Categorize guests
-      const vipGuests = guests.filter(g => g.total_revenue >= vipThreshold);
-      const returningGuests = guests.filter(g => 
-        g.stay_count >= returningThreshold && g.total_revenue < vipThreshold
-      );
-      const newGuests = guests.filter(g => g.stay_count < returningThreshold);
-
-      // Recent guests (last 3 months)
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-      
-      const recentGuests = guests.filter(g => 
-        g.last_booking && new Date(g.last_booking) >= threeMonthsAgo
-      );
-
-      // Calculate segment insights
-      const totalRevenue = guests.reduce((sum, g) => sum + g.total_revenue, 0);
-      const vipRevenue = vipGuests.reduce((sum, g) => sum + g.total_revenue, 0);
-      const returningRevenue = returningGuests.reduce((sum, g) => sum + g.total_revenue, 0);
-
-      return {
-        totalGuests: guests.length,
-        vipGuests: {
-          count: vipGuests.length,
-          revenue: vipRevenue,
-          percentage: totalRevenue > 0 ? Math.round((vipRevenue / totalRevenue) * 100) : 0,
-          avgRevenue: vipGuests.length > 0 ? Math.round(vipRevenue / vipGuests.length) : 0,
-          guests: vipGuests.slice(0, 5) // Top 5 for preview
-        },
-        returningGuests: {
-          count: returningGuests.length,
-          revenue: returningRevenue,
-          percentage: totalRevenue > 0 ? Math.round((returningRevenue / totalRevenue) * 100) : 0,
-          avgRevenue: returningGuests.length > 0 ? Math.round(returningRevenue / returningGuests.length) : 0,
-          guests: returningGuests.slice(0, 5)
-        },
-        newGuests: {
-          count: newGuests.length,
-          revenue: totalRevenue - vipRevenue - returningRevenue,
-          percentage: totalRevenue > 0 ? Math.round(((totalRevenue - vipRevenue - returningRevenue) / totalRevenue) * 100) : 0,
-          guests: newGuests.slice(0, 5)
-        },
-        recentActivity: {
-          count: recentGuests.length,
-          percentage: Math.round((recentGuests.length / guests.length) * 100)
-        },
-        totalRevenue
-      };
-    },
-  });
+  const { data: segmentData, isLoading } = useGuestSegments();
 
   if (isLoading) {
     return (
@@ -235,7 +132,7 @@ const GuestSegments = () => {
               <div className="space-y-2">
                 <div className="text-sm font-medium">Top VIP Gäste:</div>
                 {segmentData.vipGuests.guests.map((guest, index) => (
-                  <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
+                  <div key={guest.id || index} className="flex justify-between items-center p-2 bg-muted rounded">
                     <span className="text-sm font-medium">{guest.guest_name}</span>
                     <Badge variant="outline" className="text-xs">
                       €{guest.total_revenue} • {guest.stay_count}x
@@ -271,7 +168,7 @@ const GuestSegments = () => {
               <div className="space-y-2">
                 <div className="text-sm font-medium">Aktive Stammgäste:</div>
                 {segmentData.returningGuests.guests.map((guest, index) => (
-                  <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
+                  <div key={guest.id || index} className="flex justify-between items-center p-2 bg-muted rounded">
                     <span className="text-sm font-medium">{guest.guest_name}</span>
                     <Badge variant="outline" className="text-xs">
                       €{guest.total_revenue} • {guest.stay_count}x
@@ -307,7 +204,7 @@ const GuestSegments = () => {
               <div className="space-y-2">
                 <div className="text-sm font-medium">Neue Gäste:</div>
                 {segmentData.newGuests.guests.map((guest, index) => (
-                  <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
+                  <div key={guest.id || index} className="flex justify-between items-center p-2 bg-muted rounded">
                     <span className="text-sm font-medium">{guest.guest_name}</span>
                     <Badge variant="outline" className="text-xs">
                       €{guest.total_revenue} • Neu
@@ -340,7 +237,7 @@ const GuestSegments = () => {
             <div className="p-4 border rounded-lg">
               <div className="text-lg font-semibold text-red-600">Loyalität</div>
               <p className="text-sm text-muted-foreground mt-1">
-                {Math.round((segmentData.returningGuests.count / segmentData.totalGuests) * 100)}% Ihrer Gäste sind wiederkehrende Kunden
+                {segmentData.totalGuests > 0 ? Math.round((segmentData.returningGuests.count / segmentData.totalGuests) * 100) : 0}% Ihrer Gäste sind wiederkehrende Kunden
               </p>
             </div>
             
