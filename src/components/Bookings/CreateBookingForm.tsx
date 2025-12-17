@@ -70,6 +70,7 @@ const bookingSchema = z.object({
   status: z.enum(['confirmed', 'checked_in', 'completed', 'cancelled']).default('confirmed'),
   payment_status: z.enum(['pending', 'paid', 'partial']).default('pending'),
   platform: z.string().optional(),
+  external_booking_id: z.string().optional(),
   notes: z.string().optional(),
   cancellation_date: z.string().optional(),
   cancellation_reason: z.string().optional(),
@@ -228,6 +229,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         status: initialData.status || 'confirmed',
         payment_status: validPaymentStatus,
         platform: initialData.platform || 'none',
+        external_booking_id: initialData.external_booking_id || '',
         notes: initialData.notes || '',
       };
     }
@@ -241,6 +243,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       guest_phone: '',
       nationality: '',
       platform: 'none',
+      external_booking_id: '',
       notes: '',
       auto_create_cleaning: true,
     };
@@ -445,6 +448,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         booking_amount: data.booking_amount || null,
         currency: data.currency || 'EUR',
         platform: (data.platform && data.platform !== 'none') ? data.platform : null,
+        external_booking_id: data.external_booking_id || null,
         notes: data.notes || null,
         status: data.status,
         payment_status: data.payment_status,
@@ -925,7 +929,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
           />
         </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Platform */}
             <FormField
               control={form.control}
@@ -949,6 +953,24 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                       <SelectItem value="other">Sonstige</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Buchungsnummer */}
+            <FormField
+              control={form.control}
+              name="external_booking_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Buchungsnummer</FormLabel>
+                  <FormControl>
+                    <Input 
+                      placeholder="z.B. HM123456789" 
+                      {...field} 
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
