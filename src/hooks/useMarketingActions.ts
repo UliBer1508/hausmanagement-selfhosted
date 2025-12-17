@@ -31,11 +31,15 @@ export interface BookingActionTracking {
   created_at: string;
 }
 
-export interface ActionWithStats extends MarketingAction {
-  totalAffected: number;
-  applied: number;
-  pending: number;
-  reviewsCount: number;
+export interface ActionStats {
+  // Planung (zukünftige Buchungen)
+  planningTotal: number;
+  planningApplied: number;
+  planningPending: number;
+  
+  // Auswertung (vergangene Buchungen mit angewendeter Aktion)
+  evaluationTotal: number;
+  evaluationWithRating: number;
   avgRating: number | null;
 }
 
@@ -152,61 +156,52 @@ export const useMarketingActions = () => {
   };
 };
 
+// Helper to filter bookings by criteria
+const filterBookingsByCriteria = (bookings: any[], targetCriteria: TargetCriteria) => {
+  return bookings.filter(booking => {
+    if (targetCriteria.has_children && (booking.number_of_children || 0) === 0) {
+      return false;
+    }
+    if (targetCriteria.nationality && booking.nationality !== targetCriteria.nationality) {
+      return false;
+    }
+    if (targetCriteria.min_nights) {
+      const checkIn = new Date(booking.check_in);
+      const checkOut = new Date(booking.check_out);
+      const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+      if (nights < targetCriteria.min_nights) {
+        return false;
+      }
+    }
+    return true;
+  });
+};
+
 export const useActionStats = (actionId: string, targetCriteria: TargetCriteria) => {
   return useQuery({
     queryKey: ['action-stats', actionId],
-    queryFn: async () => {
-      // Only consider future bookings (no historical data)
+    queryFn: async (): Promise<ActionStats> => {
       const today = new Date().toISOString().split('T')[0];
       
-      // Get all tourist bookings with rating fields
-      const { data: bookings, error: bookingsError } = await supabase
+      // Get ALL tourist bookings (both future and past)
+      const { data: allBookings, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
           id,
           guest_name,
-          guest_email,
           check_in,
           check_out,
           number_of_guests,
           number_of_children,
           nationality,
           status,
-          external_rating,
           normalized_rating,
-          platform,
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .eq('houses.rental_type', 'tourist')
-        .neq('status', 'cancelled')
-        .gte('check_in', today);
+        .neq('status', 'cancelled');
 
       if (bookingsError) throw bookingsError;
-
-      // Filter bookings by criteria
-      const affectedBookings = (bookings || []).filter(booking => {
-        // Has children criteria
-        if (targetCriteria.has_children && (booking.number_of_children || 0) === 0) {
-          return false;
-        }
-
-        // Nationality criteria
-        if (targetCriteria.nationality && booking.nationality !== targetCriteria.nationality) {
-          return false;
-        }
-
-        // Min nights criteria
-        if (targetCriteria.min_nights) {
-          const checkIn = new Date(booking.check_in);
-          const checkOut = new Date(booking.check_out);
-          const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-          if (nights < targetCriteria.min_nights) {
-            return false;
-          }
-        }
-
-        return true;
-      });
 
       // Get tracking data for this action
       const { data: trackingData, error: trackingError } = await supabase
@@ -216,37 +211,53 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
 
       if (trackingError) throw trackingError;
 
-      const appliedCount = (trackingData || []).filter(t => t.action_applied).length;
+      // Filter by criteria
+      const affectedBookings = filterBookingsByCriteria(allBookings || [], targetCriteria);
 
-      // Calculate rating stats from normalized_rating in bookings (not app_reviews)
-      const bookingsWithRating = affectedBookings.filter(b => b.normalized_rating !== null);
-      const reviewsCount = bookingsWithRating.length;
-      const avgRating = reviewsCount > 0
-        ? bookingsWithRating.reduce((sum, b) => sum + (b.normalized_rating || 0), 0) / reviewsCount
+      // Split into future (planning) and past (evaluation)
+      const futureBookings = affectedBookings.filter(b => b.check_in >= today);
+      const pastBookings = affectedBookings.filter(b => b.check_out < today);
+
+      // Planning stats
+      const futureApplied = futureBookings.filter(b => 
+        trackingData?.some(t => t.booking_id === b.id && t.action_applied)
+      ).length;
+
+      // Evaluation: Only past bookings where action was applied
+      const pastWithAction = pastBookings.filter(b => 
+        trackingData?.some(t => t.booking_id === b.id && t.action_applied)
+      );
+      const pastWithRating = pastWithAction.filter(b => b.normalized_rating !== null);
+      
+      const avgRating = pastWithRating.length > 0
+        ? pastWithRating.reduce((sum, b) => sum + (b.normalized_rating || 0), 0) / pastWithRating.length
         : null;
 
       return {
-        totalAffected: affectedBookings.length,
-        applied: appliedCount,
-        pending: affectedBookings.length - appliedCount,
-        reviewsCount,
+        planningTotal: futureBookings.length,
+        planningApplied: futureApplied,
+        planningPending: futureBookings.length - futureApplied,
+        evaluationTotal: pastWithAction.length,
+        evaluationWithRating: pastWithRating.length,
         avgRating,
-        affectedBookings,
       };
     },
     enabled: !!actionId,
   });
 };
 
-export const useAffectedBookings = (actionId: string, targetCriteria: TargetCriteria) => {
+export const useAffectedBookings = (
+  actionId: string, 
+  targetCriteria: TargetCriteria,
+  mode: 'planning' | 'evaluation' = 'planning'
+) => {
   return useQuery({
-    queryKey: ['affected-bookings', actionId, targetCriteria],
+    queryKey: ['affected-bookings', actionId, targetCriteria, mode],
     queryFn: async () => {
-      // Only consider future bookings (no historical data)
       const today = new Date().toISOString().split('T')[0];
       
-      // Get all tourist bookings with rating fields
-      const { data: bookings, error: bookingsError } = await supabase
+      // Build query based on mode
+      let query = supabase
         .from('bookings')
         .select(`
           id,
@@ -265,29 +276,21 @@ export const useAffectedBookings = (actionId: string, targetCriteria: TargetCrit
         `)
         .eq('houses.rental_type', 'tourist')
         .neq('status', 'cancelled')
-        .gte('check_in', today)
-        .order('check_in', { ascending: true });
+        .order('check_in', { ascending: mode === 'planning' });
 
+      if (mode === 'planning') {
+        // Future bookings for planning
+        query = query.gte('check_in', today);
+      } else {
+        // Past bookings for evaluation
+        query = query.lt('check_out', today);
+      }
+
+      const { data: bookings, error: bookingsError } = await query;
       if (bookingsError) throw bookingsError;
 
       // Filter bookings by criteria
-      const affectedBookings = (bookings || []).filter(booking => {
-        if (targetCriteria.has_children && (booking.number_of_children || 0) === 0) {
-          return false;
-        }
-        if (targetCriteria.nationality && booking.nationality !== targetCriteria.nationality) {
-          return false;
-        }
-        if (targetCriteria.min_nights) {
-          const checkIn = new Date(booking.check_in);
-          const checkOut = new Date(booking.check_out);
-          const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-          if (nights < targetCriteria.min_nights) {
-            return false;
-          }
-        }
-        return true;
-      });
+      const affectedBookings = filterBookingsByCriteria(bookings || [], targetCriteria);
 
       // Get tracking data
       const { data: trackingData } = await supabase
@@ -295,8 +298,16 @@ export const useAffectedBookings = (actionId: string, targetCriteria: TargetCrit
         .select('*')
         .eq('action_id', actionId);
 
-      // Combine data - use normalized_rating from bookings directly
-      return affectedBookings.map(booking => {
+      // For evaluation mode: only show bookings where action was applied
+      let filteredBookings = affectedBookings;
+      if (mode === 'evaluation') {
+        filteredBookings = affectedBookings.filter(b => 
+          trackingData?.some(t => t.booking_id === b.id && t.action_applied)
+        );
+      }
+
+      // Combine data
+      return filteredBookings.map(booking => {
         const tracking = trackingData?.find(t => t.booking_id === booking.id);
         
         return {
@@ -305,7 +316,6 @@ export const useAffectedBookings = (actionId: string, targetCriteria: TargetCrit
           appliedAt: tracking?.applied_at || null,
           trackingNotes: tracking?.notes || null,
           trackingId: tracking?.id || null,
-          // Use normalized_rating from booking instead of app_reviews
           rating: booking.normalized_rating,
         };
       });

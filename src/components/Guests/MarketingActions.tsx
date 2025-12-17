@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Target, Users, Star, CheckCircle, Clock, MoreVertical, Pencil, Trash2, Eye } from 'lucide-react';
+import { Plus, Target, Users, Star, CheckCircle, Clock, MoreVertical, Pencil, Trash2, Eye, ClipboardList, BarChart3 } from 'lucide-react';
 import { useMarketingActions, useActionStats, TargetCriteria } from '@/hooks/useMarketingActions';
 import CreateActionDialog from './CreateActionDialog';
 import ActionDetailsDialog from './ActionDetailsDialog';
@@ -228,45 +228,56 @@ const ActionCard = ({ action, onView, onEdit, onDelete, getStatusBadge, getCrite
           ))}
         </div>
 
-        {/* Stats */}
+        {/* Stats - Two sections: Planning and Evaluation */}
         {isLoadingStats ? (
-          <div className="grid grid-cols-4 gap-2">
-            {[1, 2, 3, 4].map(i => (
-              <Skeleton key={i} className="h-12" />
-            ))}
+          <div className="space-y-2">
+            <Skeleton className="h-16" />
+            <Skeleton className="h-12" />
           </div>
         ) : stats ? (
-          <div className="grid grid-cols-4 gap-2 text-center">
-            <div className="bg-muted/50 rounded-lg p-2">
-              <div className="flex items-center justify-center text-muted-foreground mb-1">
-                <Users className="h-3 w-3" />
+          <div className="space-y-2">
+            {/* Planning Section */}
+            <div className="bg-muted/30 rounded-lg p-2">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1.5">
+                <ClipboardList className="h-3 w-3" />
+                <span>Planung</span>
               </div>
-              <div className="text-sm font-medium">{stats.totalAffected}</div>
-              <div className="text-[10px] text-muted-foreground">Betroffen</div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <div className="text-sm font-medium">{stats.planningTotal}</div>
+                  <div className="text-[10px] text-muted-foreground">Kommend</div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-green-600">{stats.planningApplied}</div>
+                  <div className="text-[10px] text-muted-foreground">Angewendet</div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-yellow-600">{stats.planningPending}</div>
+                  <div className="text-[10px] text-muted-foreground">Offen</div>
+                </div>
+              </div>
             </div>
-            <div className="bg-green-500/10 rounded-lg p-2">
-              <div className="flex items-center justify-center text-green-600 mb-1">
-                <CheckCircle className="h-3 w-3" />
+
+            {/* Evaluation Section */}
+            <div className="bg-amber-500/5 rounded-lg p-2 border border-amber-500/10">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1.5">
+                <BarChart3 className="h-3 w-3" />
+                <span>Auswertung</span>
               </div>
-              <div className="text-sm font-medium text-green-600">{stats.applied}</div>
-              <div className="text-[10px] text-muted-foreground">Erledigt</div>
-            </div>
-            <div className="bg-yellow-500/10 rounded-lg p-2">
-              <div className="flex items-center justify-center text-yellow-600 mb-1">
-                <Clock className="h-3 w-3" />
-              </div>
-              <div className="text-sm font-medium text-yellow-600">{stats.pending}</div>
-              <div className="text-[10px] text-muted-foreground">Offen</div>
-            </div>
-            <div className="bg-amber-500/10 rounded-lg p-2">
-              <div className="flex items-center justify-center text-amber-600 mb-1">
-                <Star className="h-3 w-3" />
-              </div>
-              <div className="text-sm font-medium text-amber-600">
-                {stats.avgRating ? stats.avgRating.toFixed(1) : '-'}
-              </div>
-              <div className="text-[10px] text-muted-foreground">
-                {stats.reviewsCount > 0 ? `${stats.reviewsCount} Bew.` : 'Keine'}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Star className="h-4 w-4 text-amber-500" />
+                  <span className="text-lg font-semibold text-amber-600">
+                    {stats.avgRating ? stats.avgRating.toFixed(1) : '-'}
+                  </span>
+                  <span className="text-xs text-muted-foreground">/10</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {stats.evaluationWithRating > 0 
+                    ? `${stats.evaluationWithRating} Bewertung${stats.evaluationWithRating !== 1 ? 'en' : ''}`
+                    : 'Noch keine Daten'
+                  }
+                </div>
               </div>
             </div>
           </div>
