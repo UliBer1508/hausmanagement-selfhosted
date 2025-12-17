@@ -1090,6 +1090,27 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
             required: ["house_id", "vacancy_start", "vacancy_end"]
           }
         }
+      },
+      // PHASE 5: Marketing Reminders
+      {
+        type: "function",
+        function: {
+          name: "get_marketing_reminders",
+          description: "Holt alle kommenden Buchungen für die Marketing-Aktionen relevant sind. Zeigt Buchungen die Kriterien aktiver Marketing-Aktionen erfüllen (z.B. Familien mit Kindern für Kindergeschenke).",
+          parameters: {
+            type: "object",
+            properties: {
+              include_applied: { 
+                type: "boolean", 
+                description: "Auch bereits angewendete Aktionen anzeigen (default: false)" 
+              },
+              days_ahead: {
+                type: "number",
+                description: "Wie viele Tage in die Zukunft schauen (default: 90)"
+              }
+            }
+          }
+        }
       }
     ];
 
@@ -2531,6 +2552,158 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       };
     }
 
+    // PHASE 5: Marketing Reminders
+    async function executeGetMarketingReminders(params: any) {
+      console.log('Executing get_marketing_reminders with params:', params);
+      
+      const includeApplied = params.include_applied || false;
+      const daysAhead = params.days_ahead || 90;
+      
+      // 1. Aktive Marketing-Aktionen laden
+      const { data: actions, error: actionsError } = await supabase
+        .from('marketing_actions')
+        .select('*')
+        .eq('status', 'active');
+      
+      if (actionsError) {
+        console.error('Error loading marketing actions:', actionsError);
+        return { success: false, error: actionsError.message };
+      }
+      
+      if (!actions || actions.length === 0) {
+        return { 
+          success: true, 
+          reminders: [], 
+          message: 'Keine aktiven Marketing-Aktionen vorhanden.',
+          totalActions: 0
+        };
+      }
+      
+      // 2. Zukünftige touristische Buchungen laden
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + daysAhead);
+      const currentDate = new Date().toISOString().split('T')[0];
+      
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select(`
+          id, guest_name, guest_email, check_in, check_out, 
+          number_of_guests, number_of_adults, number_of_children,
+          booking_amount, nationality,
+          houses!bookings_house_id_fkey!inner(id, name, rental_type)
+        `)
+        .gte('check_in', currentDate)
+        .lte('check_in', futureDate.toISOString())
+        .eq('status', 'confirmed')
+        .eq('houses.rental_type', 'tourist')
+        .order('check_in');
+      
+      if (bookingsError) {
+        console.error('Error loading bookings:', bookingsError);
+        return { success: false, error: bookingsError.message };
+      }
+      
+      // 3. Tracking-Daten laden
+      const bookingIds = bookings?.map(b => b.id) || [];
+      const { data: tracking } = await supabase
+        .from('booking_action_tracking')
+        .select('*')
+        .in('booking_id', bookingIds);
+      
+      // 4. Für jede Buchung prüfen welche Aktionen zutreffen
+      const reminders: any[] = [];
+      
+      bookings?.forEach(booking => {
+        const matchingActions: any[] = [];
+        
+        actions.forEach(action => {
+          const criteria = action.target_criteria || {};
+          let matches = true;
+          
+          // has_children: Prüfen ob Kinder vorhanden
+          if (criteria.has_children && (!booking.number_of_children || booking.number_of_children <= 0)) {
+            matches = false;
+          }
+          
+          // min_nights: Mindestaufenthalt prüfen
+          if (criteria.min_nights && booking.check_in && booking.check_out) {
+            const checkIn = new Date(booking.check_in);
+            const checkOut = new Date(booking.check_out);
+            const nights = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
+            if (nights < criteria.min_nights) {
+              matches = false;
+            }
+          }
+          
+          // nationality: Nationalität prüfen
+          if (criteria.nationality && booking.nationality) {
+            if (!booking.nationality.toLowerCase().includes(criteria.nationality.toLowerCase())) {
+              matches = false;
+            }
+          }
+          
+          // booking_amount_min: Mindestbetrag prüfen
+          if (criteria.booking_amount_min && (!booking.booking_amount || booking.booking_amount < criteria.booking_amount_min)) {
+            matches = false;
+          }
+          
+          if (matches) {
+            const trackingEntry = tracking?.find(
+              t => t.booking_id === booking.id && t.action_id === action.id
+            );
+            const isApplied = trackingEntry?.action_applied || false;
+            
+            // Filter basierend auf include_applied
+            if (includeApplied || !isApplied) {
+              matchingActions.push({
+                action_id: action.id,
+                action_name: action.name,
+                action_description: action.description,
+                is_applied: isApplied,
+                applied_at: trackingEntry?.applied_at
+              });
+            }
+          }
+        });
+        
+        if (matchingActions.length > 0) {
+          const daysUntilCheckIn = Math.ceil(
+            (new Date(booking.check_in).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+          );
+          const isFamily = (booking.number_of_children || 0) > 0;
+          
+          reminders.push({
+            booking_id: booking.id,
+            guest_name: booking.guest_name,
+            guest_email: booking.guest_email,
+            house_name: booking.houses?.name || 'Unbekannt',
+            check_in: booking.check_in,
+            check_out: booking.check_out,
+            days_until_check_in: daysUntilCheckIn,
+            number_of_guests: booking.number_of_guests,
+            number_of_children: booking.number_of_children,
+            is_family: isFamily,
+            matching_actions: matchingActions
+          });
+        }
+      });
+      
+      // Nach Check-in-Datum sortieren
+      reminders.sort((a, b) => new Date(a.check_in).getTime() - new Date(b.check_in).getTime());
+      
+      console.log(`Found ${reminders.length} bookings with marketing reminders`);
+      
+      return {
+        success: true,
+        reminders,
+        totalActions: actions.length,
+        totalBookingsWithActions: reminders.length,
+        message: reminders.length > 0 
+          ? `${reminders.length} Buchung(en) mit relevanten Marketing-Aktionen gefunden.`
+          : 'Keine Buchungen mit passenden Marketing-Aktionen gefunden.'
+      };
+    }
+
     // Tool router
     async function executeTool(toolName: string, args: any) {
       try {
@@ -2599,6 +2772,9 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
             return await executeGetVacancies(args);
           case 'analyze_vacancy_with_ai':
             return await executeAnalyzeVacancyWithAI(args.house_id, args.vacancy_start, args.vacancy_end);
+          // PHASE 5: Marketing Reminders
+          case 'get_marketing_reminders':
+            return await executeGetMarketingReminders(args);
           default:
             throw new Error(`Unknown tool: ${toolName}`);
         }

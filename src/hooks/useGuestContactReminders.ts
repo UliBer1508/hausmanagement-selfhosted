@@ -13,6 +13,8 @@ export interface GuestContactReminder {
   number_of_adults: number | null;
   number_of_children: number | null;
   guest_contact_status: string;
+  booking_amount: number | null;
+  nationality: string | null;
   houses: {
     id: string;
     name: string;
@@ -45,6 +47,8 @@ export const useGuestContactReminders = () => {
           number_of_adults,
           number_of_children,
           guest_contact_status,
+          booking_amount,
+          nationality,
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .gte('check_in', fiveDaysFromNow.toISOString())
