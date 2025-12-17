@@ -9,7 +9,7 @@ export const useTenantPayments = (houseId?: string) => {
     queryFn: async () => {
       let query = supabase
         .from('tenant_payments' as any)
-        .select('*, houses(id, name, address, tenant_info)')
+        .select('*, houses!tenant_payments_house_id_fkey(id, name, address, tenant_info)')
         .order('due_date', { ascending: false });
       
       if (houseId) {
