@@ -420,20 +420,13 @@ function getDefaultLinenRules() {
   };
 }
 
-async function checkBufferStatus(
+function checkBufferStatus(
   supabase: any,
   house_id: string,
   currentStock: LinenItem
 ) {
-  // Load buffer settings from database
-  const { data: bufferSettings } = await supabase
-    .from('buffer_settings')
-    .select('min_buffer_stock')
-    .eq('house_id', house_id)
-    .maybeSingle();
-
-  // Use default values if no settings found
-  const defaultBuffer = {
+  // Default buffer values (buffer_settings table removed)
+  const minBufferStock = {
     bedding: 5,
     large_towels: 5,
     small_towels: 5,
@@ -443,7 +436,6 @@ async function checkBufferStatus(
     kitchen_towels: 2
   };
 
-  const minBufferStock = bufferSettings?.min_buffer_stock || defaultBuffer;
   return checkBufferDeficit(currentStock, minBufferStock);
 }
 
