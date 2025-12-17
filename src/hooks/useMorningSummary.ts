@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, differenceInDays } from "date-fns";
+import { format, addDays, differenceInDays, subDays } from "date-fns";
 import { de } from "date-fns/locale";
 
 interface MarketingAction {
@@ -19,6 +19,9 @@ interface ActionTracking {
   action_id: string;
   action_applied: boolean;
 }
+
+const RATING_REMINDER_DAYS = 14;
+const RATING_REMINDER_MAX_DAYS = 90;
 
 // Helper: Prüft ob eine Buchung den Kriterien entspricht
 function matchesCriteria(
@@ -103,6 +106,56 @@ export const useMorningSummary = () => {
     staleTime: 1000 * 60 * 30,
   });
 
+  // Bewertungs-Erinnerungen (14-90 Tage nach Checkout ohne Bewertung)
+  const minCheckoutDate = subDays(new Date(), RATING_REMINDER_MAX_DAYS);
+  const maxCheckoutDate = subDays(new Date(), RATING_REMINDER_DAYS);
+  
+  const { data: ratingReminders, isLoading: loadingRatings } = useQuery({
+    queryKey: ['morning-rating-reminders', today],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select(`
+          id,
+          guest_name,
+          check_out,
+          platform,
+          number_of_children,
+          external_rating,
+          houses!bookings_house_id_fkey!inner(name, rental_type)
+        `)
+        .eq('status', 'completed')
+        .eq('houses.rental_type', 'tourist')
+        .gte('check_out', minCheckoutDate.toISOString())
+        .lte('check_out', maxCheckoutDate.toISOString())
+        .is('external_rating', null)
+        .not('platform', 'is', null)
+        .order('check_out', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+
+  // Tracking für Bewertungs-Buchungen laden
+  const ratingBookingIds = ratingReminders?.map(b => b.id) || [];
+  const { data: ratingActionTracking, isLoading: loadingRatingTracking } = useQuery({
+    queryKey: ['morning-rating-action-tracking', ratingBookingIds],
+    enabled: ratingBookingIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('booking_action_tracking')
+        .select('booking_id, action_id, action_applied')
+        .in('booking_id', ratingBookingIds);
+      
+      if (error) throw error;
+      return (data || []) as ActionTracking[];
+    },
+    staleTime: 1000 * 60 * 30,
+  });
+
   // Kommende Buchungen (nächste 7 Tage)
   const { data: upcomingBookings, isLoading: loadingBookings } = useQuery({
     queryKey: ['morning-upcoming-bookings', today],
@@ -163,7 +216,8 @@ export const useMorningSummary = () => {
     (upcomingBookings && upcomingBookings.length > 0) ||
     (cleanings && cleanings.length > 0) ||
     (linenOrders && linenOrders.length > 0) ||
-    (guestContactReminders && guestContactReminders.length > 0);
+    (guestContactReminders && guestContactReminders.length > 0) ||
+    (ratingReminders && ratingReminders.length > 0);
 
   // Helper: Finde Marketing-Aktionen für eine Buchung
   const getMarketingActionsForBooking = (booking: any): { action: MarketingAction; isApplied: boolean }[] => {
@@ -173,6 +227,23 @@ export const useMorningSummary = () => {
       .filter(action => matchesCriteria(booking, action.target_criteria || {}))
       .map(action => {
         const tracking = actionTracking?.find(
+          t => t.booking_id === booking.id && t.action_id === action.id
+        );
+        return {
+          action,
+          isApplied: tracking?.action_applied || false,
+        };
+      });
+  };
+
+  // Helper: Finde Marketing-Aktionen für Bewertungs-Buchungen
+  const getRatingMarketingActionsForBooking = (booking: any): { action: MarketingAction; isApplied: boolean }[] => {
+    if (!marketingActions) return [];
+    
+    return marketingActions
+      .filter(action => matchesCriteria(booking, action.target_criteria || {}))
+      .map(action => {
+        const tracking = ratingActionTracking?.find(
           t => t.booking_id === booking.id && t.action_id === action.id
         );
         return {
@@ -212,6 +283,54 @@ export const useMorningSummary = () => {
           message += `  ⭐ Marketing-Aktion: "${action.name}" - ${statusIcon} ${statusText}\n`;
         });
       });
+      message += '\n';
+    }
+
+    // BEWERTUNGEN NACHTRAGEN - Marketing-Priorität zuerst
+    if (ratingReminders && ratingReminders.length > 0) {
+      // Finde Marketing-Kandidaten
+      const marketingRatingReminders = ratingReminders.filter((b: any) => {
+        const actions = getRatingMarketingActionsForBooking(b);
+        return actions.some(a => a.isApplied);
+      });
+      
+      const otherRatingReminders = ratingReminders.filter((b: any) => {
+        const actions = getRatingMarketingActionsForBooking(b);
+        return !actions.some(a => a.isApplied);
+      });
+
+      message += `⭐ **Bewertungen nachtragen (${ratingReminders.length})**\n`;
+      
+      if (marketingRatingReminders.length > 0) {
+        message += `\n🎯 **Marketing-Priorität:**\n`;
+        marketingRatingReminders.forEach((b: any) => {
+          const checkOutDate = format(new Date(b.check_out), 'dd.MM.yyyy');
+          const houseName = b.houses?.name || 'Unbekanntes Haus';
+          const daysSince = differenceInDays(new Date(), new Date(b.check_out));
+          const platform = b.platform || 'Unbekannt';
+          
+          message += `• **${b.guest_name}** (${platform}) - ${houseName}\n`;
+          message += `  Checkout: ${checkOutDate} (vor ${daysSince} Tagen)\n`;
+          
+          const actions = getRatingMarketingActionsForBooking(b);
+          actions.filter(a => a.isApplied).forEach(({ action }) => {
+            message += `  ⚠️ Marketing-Aktion "${action.name}" - Bewertung für Auswertung benötigt!\n`;
+          });
+        });
+      }
+      
+      if (otherRatingReminders.length > 0) {
+        message += `\n📝 **Weitere ausstehende (${otherRatingReminders.length}):**\n`;
+        otherRatingReminders.slice(0, 3).forEach((b: any) => {
+          const checkOutDate = format(new Date(b.check_out), 'dd.MM.yyyy');
+          const daysSince = differenceInDays(new Date(), new Date(b.check_out));
+          const platform = b.platform || 'Unbekannt';
+          message += `• ${b.guest_name} (${platform}) - Checkout vor ${daysSince} Tagen (${checkOutDate})\n`;
+        });
+        if (otherRatingReminders.length > 3) {
+          message += `  ... und ${otherRatingReminders.length - 3} weitere\n`;
+        }
+      }
       message += '\n';
     }
     
@@ -306,7 +425,7 @@ export const useMorningSummary = () => {
     localStorage.setItem('chat-summary-shown', today);
   };
 
-  const isLoading = loadingBookings || loadingCleanings || loadingLinen || loadingGuestContact || loadingMarketing || loadingTracking;
+  const isLoading = loadingBookings || loadingCleanings || loadingLinen || loadingGuestContact || loadingMarketing || loadingTracking || loadingRatings || loadingRatingTracking;
 
   return {
     summaryMessage,
