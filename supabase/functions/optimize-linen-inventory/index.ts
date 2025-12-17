@@ -18,11 +18,6 @@ interface AISettings {
   max_storage_ratio: number;
   reorder_threshold: number;
   seasonal_factor: boolean;
-  learning_rate?: number;
-  seasonal_weights?: Record<string, number>;
-  guest_type_multipliers?: Record<string, number>;
-  booking_pattern_influence?: number;
-  weather_impact_factor?: number;
   prices: {
     bedding: number;
     large_towels: number;
@@ -54,7 +49,7 @@ serve(async (req) => {
       throw new Error('house_id is required');
     }
 
-    console.log('Starting ML-enhanced optimization for house:', house_id);
+    console.log('Starting optimization for house:', house_id);
 
     // Fetch upcoming bookings
     const { data: bookings, error: bookingsError } = await supabase
@@ -85,47 +80,7 @@ serve(async (req) => {
 
     if (rulesError) console.error('Error fetching linen rules:', rulesError);
 
-    // Fetch historical usage data for ML learning
-    const { data: historicalUsage } = await supabase
-      .from('linen_usage_history')
-      .select('*')
-      .eq('house_id', house_id)
-      .order('date', { ascending: false })
-      .limit(50);
-
-    // Fetch seasonal adjustments
-    const currentMonth = new Date().getMonth() + 1;
-    const { data: seasonalData } = await supabase
-      .from('seasonal_adjustments')
-      .select('*')
-      .eq('house_id', house_id)
-      .eq('month', currentMonth)
-      .maybeSingle();
-
-    // Fetch guest behavior patterns
-    const { data: guestPatterns } = await supabase
-      .from('guest_behavior_patterns')
-      .select('*');
-
-    // Fetch active model parameters
-    const { data: modelParams } = await supabase
-      .from('model_parameters')
-      .select('*')
-      .eq('house_id', house_id)
-      .eq('is_active', true)
-      .maybeSingle();
-
     const settings = ai_settings || getDefaultAISettings();
-    
-    // Merge with learned parameters
-    if (modelParams) {
-      settings.learning_rate = modelParams.learning_rate;
-      settings.seasonal_weights = modelParams.seasonal_weights;
-      settings.guest_type_multipliers = modelParams.guest_type_multipliers;
-      settings.booking_pattern_influence = modelParams.booking_pattern_influence;
-      settings.weather_impact_factor = modelParams.weather_impact_factor;
-    }
-
     const rules = linenRules || getDefaultLinenRules();
 
     const optimization = calculateOptimalInventory(
@@ -133,9 +88,6 @@ serve(async (req) => {
       bookings || [],
       rules,
       settings,
-      historicalUsage || [],
-      seasonalData,
-      guestPatterns || [],
       house.max_guests
     );
 
@@ -152,13 +104,7 @@ serve(async (req) => {
       order_suggestion: orderSuggestion,
       ai_insights: optimization.insights,
       confidence_score: optimization.confidence,
-      storage_utilization: optimization.storage_utilization,
-      ml_metadata: {
-        historical_samples: historicalUsage?.length || 0,
-        seasonal_adjustment_applied: !!seasonalData,
-        guest_patterns_used: guestPatterns?.length || 0,
-        model_version: modelParams?.parameter_set_name || 'default'
-      }
+      storage_utilization: optimization.storage_utilization
     };
 
     // Save optimization result to database
@@ -171,20 +117,15 @@ serve(async (req) => {
         recommendations: orderSuggestion.items
       });
 
-    // Calculate and save prediction accuracy if we have historical data
-    if (historicalUsage && historicalUsage.length > 0) {
-      await updatePredictionAccuracy(supabase, house_id, optimization, historicalUsage);
-    }
-
     // Check buffer status
-    const bufferStatus = checkBufferStatus(supabase, house_id, optimization.current_stock);
+    const bufferStatus = checkBufferStatus(house_id, optimization.current_stock);
     console.log('🎯 Buffer status:', bufferStatus);
 
-    console.log('ML-enhanced optimization completed successfully');
+    console.log('Optimization completed successfully');
 
     return new Response(JSON.stringify({
       ...result,
-      buffer_status: bufferStatus // NEW: Buffer status
+      buffer_status: bufferStatus
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
@@ -204,9 +145,6 @@ function calculateOptimalInventory(
   bookings: any[],
   rules: any,
   settings: AISettings,
-  historicalUsage: any[],
-  seasonalData: any,
-  guestPatterns: any[],
   maxGuests: number
 ) {
   const linenTypes = ['bedding', 'large_towels', 'small_towels', 'bath_mats', 'sink_towels', 'sauna_towels'];
@@ -223,45 +161,18 @@ function calculateOptimalInventory(
     totalGuests += booking.number_of_guests || 0;
   });
 
-  // Apply machine learning adjustments
+  // Apply booking pattern adjustment
   let demandMultiplier = 1.0;
   
-  // 1. Historical pattern learning
-  if (historicalUsage.length > 5) {
-    const avgActualUsage = calculateAverageUsage(historicalUsage);
-    const avgPredictedUsage = calculateAveragePredictedUsage(historicalUsage);
-    
-    if (avgPredictedUsage > 0) {
-      const historicalAccuracy = avgActualUsage / avgPredictedUsage;
-      demandMultiplier *= historicalAccuracy;
-      insights.push(`Historische Lernrate angewendet: ${(historicalAccuracy * 100).toFixed(1)}%`);
-    }
-  }
-
-  // 2. Seasonal adjustments
-  if (seasonalData && settings.seasonal_factor) {
-    const seasonalFactor = seasonalData.adjustment_factors?.average || 1.0;
-    demandMultiplier *= seasonalFactor;
-    insights.push(`Saisonaler Faktor: ${(seasonalFactor * 100).toFixed(1)}% (${seasonalData.season})`);
-  }
-
-  // 3. Guest behavior patterns
-  if (guestPatterns.length > 0 && bookings.length > 0) {
-    const avgGuestMultiplier = calculateGuestTypeMultiplier(bookings, guestPatterns);
-    if (avgGuestMultiplier !== 1.0) {
-      demandMultiplier *= avgGuestMultiplier;
-      insights.push(`Gästetyp-Anpassung: ${(avgGuestMultiplier * 100).toFixed(1)}%`);
-    }
-  }
-
-  // 4. Booking pattern influence
-  if (settings.booking_pattern_influence && bookings.length > 0) {
+  if (bookings.length > 0) {
     const patternFactor = analyzeBookingPattern(bookings);
-    demandMultiplier *= (1 + (patternFactor - 1) * settings.booking_pattern_influence);
-    insights.push(`Buchungsmuster-Einfluss: ${(patternFactor * 100).toFixed(1)}%`);
+    if (patternFactor !== 1.0) {
+      demandMultiplier *= patternFactor;
+      insights.push(`Buchungsmuster-Anpassung: ${(patternFactor * 100).toFixed(1)}%`);
+    }
   }
 
-  // Calculate demand for each linen type with ML adjustments
+  // Calculate demand for each linen type
   linenTypes.forEach(type => {
     const perGuest = rules[`${type}_per_guest`] || 0;
     const perBooking = rules[`${type}_per_booking`] || 0;
@@ -271,7 +182,7 @@ function calculateOptimalInventory(
     
     // Berechne empfohlenen Bestand OHNE Safety Buffer
     // Buffer wird separat im Inventar vorgehalten
-    recommended[type] = forecasted[type]; // Kein Safety Buffer mehr!
+    recommended[type] = forecasted[type];
     
     // Apply max storage ratio
     const maxStorage = Math.ceil(recommended[type] * settings.max_storage_ratio);
@@ -279,19 +190,17 @@ function calculateOptimalInventory(
   });
 
   // Calculate confidence score based on data availability
-  let confidence = 0.5; // Base confidence
-  if (historicalUsage.length > 10) confidence += 0.2;
-  if (historicalUsage.length > 30) confidence += 0.1;
-  if (seasonalData) confidence += 0.1;
-  if (guestPatterns.length > 0) confidence += 0.1;
-  confidence = Math.min(confidence, 0.99);
+  let confidence = 0.6; // Base confidence without ML data
+  if (bookings.length > 3) confidence += 0.1;
+  if (bookings.length > 5) confidence += 0.1;
+  confidence = Math.min(confidence, 0.85);
 
   // Generate insights
   if (bookings.length > 3) {
-    insights.push(`Hohe Buchungsdichte in den nächsten ${settings.lookahead_bookings} Buchungen erkannt`);
+    insights.push(`Hohe Buchungsdichte: ${bookings.length} Buchungen im Vorausblick`);
   }
 
-  if (totalGuests / bookings.length > 4) {
+  if (totalBookings > 0 && totalGuests / totalBookings > 4) {
     insights.push('Große Gruppen erwartet - erhöhter Wäschebedarf');
   }
 
@@ -300,7 +209,7 @@ function calculateOptimalInventory(
   }, 0) / linenTypes.length;
 
   insights.push(`Speicherauslastung: ${(storage_utilization * 100).toFixed(0)}%`);
-  insights.push(`Konfidenzwert: ${(confidence * 100).toFixed(0)}% basierend auf ${historicalUsage.length} historischen Datenpunkten`);
+  insights.push(`Konfidenzwert: ${(confidence * 100).toFixed(0)}%`);
 
   return {
     current_stock: currentStock,
@@ -310,42 +219,6 @@ function calculateOptimalInventory(
     confidence,
     storage_utilization
   };
-}
-
-function calculateAverageUsage(history: any[]): number {
-  if (history.length === 0) return 0;
-  const total = history.reduce((sum, record) => {
-    const usage = record.actual_usage || {};
-    return sum + Object.values(usage).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
-  }, 0);
-  return total / history.length;
-}
-
-function calculateAveragePredictedUsage(history: any[]): number {
-  if (history.length === 0) return 0;
-  const total = history.reduce((sum, record) => {
-    const predicted = record.predicted_usage || {};
-    return sum + Object.values(predicted).reduce((s: number, v: any) => s + (Number(v) || 0), 0);
-  }, 0);
-  return total / history.length;
-}
-
-function calculateGuestTypeMultiplier(bookings: any[], patterns: any[]): number {
-  if (patterns.length === 0) return 1.0;
-  
-  let totalMultiplier = 0;
-  let count = 0;
-
-  bookings.forEach(booking => {
-    const nationality = booking.nationality;
-    const pattern = patterns.find(p => p.nationality === nationality);
-    if (pattern) {
-      totalMultiplier += pattern.usage_multiplier || 1.0;
-      count++;
-    }
-  });
-
-  return count > 0 ? totalMultiplier / count : 1.0;
 }
 
 function analyzeBookingPattern(bookings: any[]): number {
@@ -421,11 +294,10 @@ function getDefaultLinenRules() {
 }
 
 function checkBufferStatus(
-  supabase: any,
   house_id: string,
   currentStock: LinenItem
 ) {
-  // Default buffer values (buffer_settings table removed)
+  // Default buffer values
   const minBufferStock = {
     bedding: 5,
     large_towels: 5,
@@ -464,54 +336,6 @@ function checkBufferDeficit(currentStock: LinenItem, minBufferStock: any) {
   };
 }
 
-async function updatePredictionAccuracy(
-  supabaseClient: any,
-  houseId: string,
-  optimization: any,
-  historicalUsage: any[]
-) {
-  // Compare latest predictions with actual usage
-  const latest = historicalUsage[0];
-  if (!latest || !latest.predicted_usage || !latest.actual_usage) return;
-
-  const predicted = latest.predicted_usage;
-  const actual = latest.actual_usage;
-
-  // Calculate MAE and RMSE
-  let totalError = 0;
-  let totalSquaredError = 0;
-  let count = 0;
-
-  Object.keys(predicted).forEach(key => {
-    if (actual[key] !== undefined) {
-      const error = Math.abs(predicted[key] - actual[key]);
-      totalError += error;
-      totalSquaredError += error * error;
-      count++;
-    }
-  });
-
-  if (count > 0) {
-    const mae = totalError / count;
-    const rmse = Math.sqrt(totalSquaredError / count);
-    const accuracyScore = Math.max(0, 1 - (mae / 10)); // Normalize to 0-1
-
-    await supabaseClient
-      .from('prediction_accuracy')
-      .insert({
-        house_id: houseId,
-        prediction_date: latest.date,
-        actual_date: new Date().toISOString(),
-        predicted_values: predicted,
-        actual_values: actual,
-        accuracy_score: accuracyScore,
-        mae: mae,
-        rmse: rmse,
-        model_version: 'v2_ml_enhanced'
-      });
-  }
-}
-
 function getDefaultAISettings(): AISettings {
   return {
     lookahead_bookings: 3,
@@ -519,11 +343,6 @@ function getDefaultAISettings(): AISettings {
     max_storage_ratio: 1.5,
     reorder_threshold: 0.8,
     seasonal_factor: false,
-    learning_rate: 0.01,
-    seasonal_weights: {},
-    guest_type_multipliers: {},
-    booking_pattern_influence: 1.0,
-    weather_impact_factor: 1.0,
     prices: {
       bedding: 30,
       large_towels: 18,
