@@ -285,6 +285,26 @@ const LinenOrderDialog = ({
     initialData?.status || 'pending'
   );
   const [sendToTeuni, setSendToTeuni] = useState(false);
+
+  // Query to check if there are any 'offen' orders in the system
+  const { data: openOrdersCount } = useQuery({
+    queryKey: ['linen-orders-open-count'],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('linen_orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'offen');
+      return count || 0;
+    },
+    enabled: open && mode === 'create' && !initialData?.status,
+  });
+
+  // Dynamic default status: if open orders exist, default to 'offen' as reminder
+  useEffect(() => {
+    if (open && mode === 'create' && !initialData?.status && openOrdersCount !== undefined) {
+      setStatus(openOrdersCount > 0 ? 'offen' : 'pending');
+    }
+  }, [open, mode, openOrdersCount, initialData?.status]);
   const [editableItems, setEditableItems] = useState(orderItems);
   const [orderType, setOrderType] = useState<'standard' | 'exceptional'>(
     selectedBooking ? 'standard' : 'exceptional'
