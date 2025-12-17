@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import LinenManagement from './LinenManagement';
+
 import HouseInventory from './HouseInventory';
 import SmartLinenSettings from './SmartLinenSettings';
 import AdditionalFeesTab from './AdditionalFeesTab';
@@ -306,17 +306,14 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
           <TabsList className={`grid w-full ${
             formData.rental_type === 'long_term' 
               ? 'grid-cols-4'
-              : 'grid-cols-5'
+              : 'grid-cols-4'
           }`}>
             <TabsTrigger value="basic">Grunddaten</TabsTrigger>
             
             {formData.rental_type === 'long_term' ? (
               <TabsTrigger value="tenant">🏘️ Mietvertrag</TabsTrigger>
             ) : (
-              <>
-                <TabsTrigger value="linen-management">Wäsche-Management</TabsTrigger>
-                <TabsTrigger value="ai-settings">KI-Einstellungen</TabsTrigger>
-              </>
+              <TabsTrigger value="ai-settings">KI-Einstellungen</TabsTrigger>
             )}
             
             <TabsTrigger value="fees">Nebenkosten</TabsTrigger>
@@ -819,9 +816,6 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
             </TabsContent>
           )}
           
-          <TabsContent value="linen-management">
-            <LinenManagement house={house} />
-          </TabsContent>
           
           <TabsContent value="ai-settings">
             <SmartLinenSettings
