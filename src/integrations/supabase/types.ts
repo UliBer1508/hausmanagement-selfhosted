@@ -972,6 +972,7 @@ export type Database = {
           guest_city: string | null
           guest_contact_status: string | null
           guest_email: string | null
+          guest_id: string | null
           guest_name: string
           guest_notes: string | null
           guest_phone: string | null
@@ -1011,6 +1012,7 @@ export type Database = {
           guest_city?: string | null
           guest_contact_status?: string | null
           guest_email?: string | null
+          guest_id?: string | null
           guest_name: string
           guest_notes?: string | null
           guest_phone?: string | null
@@ -1050,6 +1052,7 @@ export type Database = {
           guest_city?: string | null
           guest_contact_status?: string | null
           guest_email?: string | null
+          guest_id?: string | null
           guest_name?: string
           guest_notes?: string | null
           guest_phone?: string | null
@@ -1073,6 +1076,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "guests"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_house_id_fkey"
             columns: ["house_id"]
@@ -2086,6 +2096,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      guests: {
+        Row: {
+          birth_date: string | null
+          city: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          nationality: string | null
+          notes: string | null
+          phone: string | null
+          postal_code: string | null
+          street: string | null
+          travel_document: string | null
+          updated_at: string
+        }
+        Insert: {
+          birth_date?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          nationality?: string | null
+          notes?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          street?: string | null
+          travel_document?: string | null
+          updated_at?: string
+        }
+        Update: {
+          birth_date?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          nationality?: string | null
+          notes?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          street?: string | null
+          travel_document?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       house_cleaning_instructions: {
         Row: {
