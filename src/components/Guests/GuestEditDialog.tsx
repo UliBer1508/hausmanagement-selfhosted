@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { User, Mail, Phone, MapPin, Loader2, FileText, Home, Calendar, CreditCard } from 'lucide-react';
 
 interface Guest {
+  id?: string;              // ID aus guests-Tabelle (optional für Legacy-Kompatibilität)
   guest_name: string;
   guest_email?: string;
   guest_phone?: string;
@@ -53,32 +54,70 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
 
   const updateGuestMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      // Update all bookings for this guest
-      const bookingIds = guest.bookings.map(booking => booking.id);
-      
-      if (bookingIds.length === 0) {
-        throw new Error('Keine Buchungen für diesen Gast gefunden');
+      // SCHRITT 1: Primär in guests-Tabelle schreiben (wenn id vorhanden)
+      if (guest.id) {
+        const { error: guestError } = await supabase
+          .from('guests')
+          .update({
+            name: data.guest_name,
+            email: data.guest_email || null,
+            phone: data.guest_phone || null,
+            nationality: data.nationality || null,
+            notes: data.guest_notes || null,
+            street: data.guest_street || null,
+            city: data.guest_city || null,
+            postal_code: data.guest_postal_code || null,
+            birth_date: data.guest_birth_date || null,
+            travel_document: data.guest_travel_document || null,
+          })
+          .eq('id', guest.id);
+
+        if (guestError) throw guestError;
+
+        // SCHRITT 2a: Alle Buchungen mit dieser guest_id aktualisieren (Abwärtskompatibilität)
+        const { error: bookingsError } = await supabase
+          .from('bookings')
+          .update({
+            guest_name: data.guest_name,
+            guest_email: data.guest_email || null,
+            guest_phone: data.guest_phone || null,
+            nationality: data.nationality || null,
+            guest_notes: data.guest_notes || null,
+            guest_street: data.guest_street || null,
+            guest_city: data.guest_city || null,
+            guest_postal_code: data.guest_postal_code || null,
+            guest_birth_date: data.guest_birth_date || null,
+            guest_travel_document: data.guest_travel_document || null,
+          })
+          .eq('guest_id', guest.id);
+
+        if (bookingsError) throw bookingsError;
+      } else {
+        // SCHRITT 2b: Fallback - Legacy-Modus mit booking IDs
+        const bookingIds = guest.bookings.map(booking => booking.id);
+        
+        if (bookingIds.length === 0) {
+          throw new Error('Keine Buchungen für diesen Gast gefunden');
+        }
+
+        const { error } = await supabase
+          .from('bookings')
+          .update({
+            guest_name: data.guest_name,
+            guest_email: data.guest_email || null,
+            guest_phone: data.guest_phone || null,
+            nationality: data.nationality || null,
+            guest_notes: data.guest_notes || null,
+            guest_street: data.guest_street || null,
+            guest_city: data.guest_city || null,
+            guest_postal_code: data.guest_postal_code || null,
+            guest_birth_date: data.guest_birth_date || null,
+            guest_travel_document: data.guest_travel_document || null,
+          })
+          .in('id', bookingIds);
+
+        if (error) throw error;
       }
-
-      const { data: updatedBookings, error } = await supabase
-        .from('bookings')
-        .update({
-          guest_name: data.guest_name,
-          guest_email: data.guest_email || null,
-          guest_phone: data.guest_phone || null,
-          nationality: data.nationality || null,
-          guest_notes: data.guest_notes || null,
-          guest_street: data.guest_street || null,
-          guest_city: data.guest_city || null,
-          guest_postal_code: data.guest_postal_code || null,
-          guest_birth_date: data.guest_birth_date || null,
-          guest_travel_document: data.guest_travel_document || null,
-        })
-        .in('id', bookingIds)
-        .select();
-
-      if (error) throw error;
-      return updatedBookings;
     },
     onSuccess: () => {
       toast({
@@ -87,6 +126,7 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
       });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       queryClient.invalidateQueries({ queryKey: ['guests'] });
+      queryClient.invalidateQueries({ queryKey: ['guests-with-bookings'] });
       onOpenChange(false);
     },
     onError: (error) => {
@@ -308,8 +348,12 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
 
         <div className="mt-4 p-3 bg-muted rounded-lg">
           <p className="text-sm text-muted-foreground">
-            <strong>Hinweis:</strong> Die Änderungen werden auf alle {guest.bookings.length} Buchung(en) 
-            dieses Gastes angewendet.
+            <strong>Hinweis:</strong>{' '}
+            {guest.id ? (
+              <>Die Änderungen werden im Gast-Profil und allen {guest.bookings.length} verknüpften Buchung(en) gespeichert.</>
+            ) : (
+              <>Die Änderungen werden auf alle {guest.bookings.length} Buchung(en) dieses Gastes angewendet.</>
+            )}
           </p>
         </div>
       </DialogContent>
