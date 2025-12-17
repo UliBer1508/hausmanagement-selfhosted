@@ -74,6 +74,8 @@ export interface Booking {
   currency?: string;
   external_booking_id?: string;
   external_id?: string;
+  external_rating?: number;
+  normalized_rating?: number;
   import_platform?: string;
   platform?: string;
   source?: string;
