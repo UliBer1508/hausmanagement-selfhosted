@@ -55,13 +55,13 @@ serve(async (req) => {
       });
     }
 
-    // 2. Load the linen order with house and booking data
+    // 2. Load the linen order with house, booking and guest data
     const { data: order, error: orderError } = await internalSupabase
       .from('linen_orders')
       .select(`
         *,
         houses!linen_orders_house_id_fkey (id, name, external_objektnummer),
-        bookings!linen_orders_booking_id_fkey (guest_name, check_in, check_out, number_of_guests)
+        bookings!linen_orders_booking_id_fkey (guest_name, check_in, check_out, number_of_guests, guests!bookings_guest_id_fkey(name))
       `)
       .eq('id', linen_order_id)
       .single();
@@ -147,12 +147,15 @@ serve(async (req) => {
     console.log(`[sync-external] Article mappings: ${Object.keys(internalToExternalMap).length}`);
 
     // 5. Insert into waeschebestellungen (OHNE bestellnummer - Portal generiert sie)
+    // Nutze guests-Relation falls verfügbar, sonst Legacy-Feld
+    const guestName = booking?.guests?.name || booking?.guest_name || 'Gast';
+    
     const { data: bestellung, error: bestellungError } = await externalSupabase
       .from('waeschebestellungen')
       .insert({
         kunde_id: kunde.id,
         objekt_id: objekt.id,
-        gastname: booking?.guest_name || 'Gast',
+        gastname: guestName,
         check_in: booking?.check_in?.split('T')[0] || null,
         check_out: booking?.check_out?.split('T')[0] || null,
         anzahl_personen: booking?.number_of_guests || 1,

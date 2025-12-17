@@ -55,7 +55,7 @@ serve(async (req) => {
       );
     }
 
-    // 2. Load booking data with house information
+    // 2. Load booking data with house and guest information
     console.log('📋 Loading booking data...');
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
@@ -70,6 +70,9 @@ serve(async (req) => {
           id,
           name,
           default_cleaning_hours
+        ),
+        guests!bookings_guest_id_fkey (
+          name
         )
       `)
       .eq('id', booking_id)
@@ -119,6 +122,9 @@ serve(async (req) => {
     console.log('  Total:', estimatedCost);
 
     // 6. Create service task
+    // Nutze guests-Relation falls verfügbar, sonst Legacy-Feld
+    const guestName = (booking as any).guests?.name || booking.guest_name;
+    
     console.log('📝 Creating service task...');
     const scheduledTime = settings.default_time.substring(0, 5); // Extract HH:MM
 
@@ -134,7 +140,7 @@ serve(async (req) => {
         cleaning_cost: estimatedCost,
         provider_id: settings.default_provider_id,
         status: 'draft',
-        notes: `Automatisch erstellt für Buchung von ${booking.guest_name} - Bitte prüfen`,
+        notes: `Automatisch erstellt für Buchung von ${guestName} - Bitte prüfen`,
       })
       .select()
       .single();

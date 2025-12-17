@@ -1147,7 +1147,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       let query = supabase
         .from('bookings')
-        .select('*, houses!bookings_house_id_fkey(name, address), number_of_adults, number_of_children');
+        .select('*, houses!bookings_house_id_fkey(name, address), guests!bookings_guest_id_fkey(*), number_of_adults, number_of_children');
 
       if (params.guest_name) {
         query = query.ilike('guest_name', `%${params.guest_name}%`);
@@ -1197,7 +1197,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, houses!bookings_house_id_fkey(name, address, max_guests)')
+        .select('*, houses!bookings_house_id_fkey(name, address, max_guests), guests!bookings_guest_id_fkey(*)')
         .eq('id', booking_id)
         .single();
 
@@ -1312,7 +1312,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         .select(`
           *,
           houses!service_tasks_house_id_fkey (name, address),
-          bookings!service_tasks_booking_id_fkey (guest_name, check_in, check_out)
+          bookings!service_tasks_booking_id_fkey (guest_name, check_in, check_out, guests!bookings_guest_id_fkey(name, email, phone))
         `)
         .eq('service_type', 'cleaning');
 
@@ -1399,7 +1399,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         .select(`
           *,
           houses!service_tasks_house_id_fkey (*),
-          bookings!service_tasks_booking_id_fkey (*)
+          bookings!service_tasks_booking_id_fkey (*, guests!bookings_guest_id_fkey(*))
         `)
         .eq('id', task_id)
         .single();
@@ -1435,63 +1435,81 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
     async function executeSearchGuests(params: any) {
       console.log('Executing search_guests with params:', params);
       
-      let query = supabase
-        .from('bookings')
-        .select('guest_name, guest_email, guest_phone, nationality, check_in, check_out, id')
-        .not('guest_name', 'is', null);
+      // Query direkt von guests-Tabelle
+      let guestsQuery = supabase
+        .from('guests')
+        .select('*');
 
       if (params.guest_name) {
-        query = query.ilike('guest_name', `%${params.guest_name}%`);
+        guestsQuery = guestsQuery.ilike('name', `%${params.guest_name}%`);
       }
       if (params.guest_email) {
-        query = query.ilike('guest_email', `%${params.guest_email}%`);
+        guestsQuery = guestsQuery.ilike('email', `%${params.guest_email}%`);
       }
       if (params.nationality) {
-        query = query.ilike('nationality', `%${params.nationality}%`);
+        guestsQuery = guestsQuery.ilike('nationality', `%${params.nationality}%`);
       }
       if (params.updated_from) {
-        query = query.gte('updated_at', params.updated_from);
+        guestsQuery = guestsQuery.gte('updated_at', params.updated_from);
       }
       if (params.updated_to) {
-        query = query.lte('updated_at', params.updated_to);
+        guestsQuery = guestsQuery.lte('updated_at', params.updated_to);
       }
 
-      const { data, error } = await query.order('check_in', { ascending: false });
+      const { data: guestsData, error: guestsError } = await guestsQuery.order('name', { ascending: true });
       
-      if (error) {
-        console.error('Error searching guests:', error);
-        return { success: false, error: error.message };
+      if (guestsError) {
+        console.error('Error searching guests:', guestsError);
+        return { success: false, error: guestsError.message };
       }
 
-      // Gruppiere nach Gast (Name + Email)
-      const guestMap = new Map();
-      data?.forEach((booking: any) => {
-        const key = `${booking.guest_name}-${booking.guest_email || 'no-email'}`;
-        if (!guestMap.has(key)) {
-          guestMap.set(key, {
-            name: booking.guest_name,
-            email: booking.guest_email,
-            phone: booking.guest_phone,
-            nationality: booking.nationality,
-            bookings: [],
-            lastBooking: booking.check_in
-          });
+      // Lade Buchungen für gefundene Gäste
+      const guestIds = guestsData?.map((g: any) => g.id) || [];
+      
+      let bookingsData: any[] = [];
+      if (guestIds.length > 0) {
+        const { data } = await supabase
+          .from('bookings')
+          .select('id, guest_id, check_in, check_out')
+          .in('guest_id', guestIds);
+        bookingsData = data || [];
+      }
+
+      // Gruppiere Buchungen nach guest_id
+      const bookingsByGuest = new Map();
+      bookingsData.forEach((b: any) => {
+        if (!bookingsByGuest.has(b.guest_id)) {
+          bookingsByGuest.set(b.guest_id, []);
         }
-        guestMap.get(key).bookings.push({
-          id: booking.id,
-          check_in: booking.check_in,
-          check_out: booking.check_out
+        bookingsByGuest.get(b.guest_id).push({
+          id: b.id,
+          check_in: b.check_in,
+          check_out: b.check_out
         });
       });
 
-      const guests = Array.from(guestMap.values())
-        .map((g: any) => ({ 
-          ...g, 
-          bookingCount: g.bookings.length 
-        }))
-        .filter((g: any) => !params.min_bookings || g.bookingCount >= params.min_bookings);
+      const guests = (guestsData || []).map((g: any) => {
+        const guestBookings = bookingsByGuest.get(g.id) || [];
+        return {
+          id: g.id,
+          name: g.name,
+          email: g.email,
+          phone: g.phone,
+          nationality: g.nationality,
+          street: g.street,
+          city: g.city,
+          postal_code: g.postal_code,
+          birth_date: g.birth_date,
+          notes: g.notes,
+          bookings: guestBookings,
+          bookingCount: guestBookings.length,
+          lastBooking: guestBookings.length > 0 
+            ? guestBookings.sort((a: any, b: any) => new Date(b.check_in).getTime() - new Date(a.check_in).getTime())[0].check_in 
+            : null
+        };
+      }).filter((g: any) => !params.min_bookings || g.bookingCount >= params.min_bookings);
 
-      console.log(`Found ${guests.length} guests`);
+      console.log(`Found ${guests.length} guests from guests table`);
       return { success: true, guests, count: guests.length };
     }
 
