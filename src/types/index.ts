@@ -11,6 +11,22 @@ export interface Provider {
 
 // Note: Provider type kept for potential future API integrations
 
+export interface Guest {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  street?: string;
+  city?: string;
+  postal_code?: string;
+  birth_date?: string;
+  travel_document?: string;
+  nationality?: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface ServiceTask {
   id: string;
   status: 'draft' | 'scheduled' | 'in_progress' | 'completed' | 'cancelled' | 'delayed';
@@ -84,6 +100,9 @@ export interface Booking {
   updated_at?: string;
   guest_contact_status?: 'pending' | 'contacted' | 'not_required' | string;
   guest_notes?: string;
+  // Guest relation (Phase 2: Gast-Buchungs-Trennung)
+  guest_id?: string;
+  guests?: Guest;
   // Legacy field for compatibility
   guest_count?: number;
 }
@@ -97,6 +116,7 @@ export interface BookingWithHouse extends Omit<Booking, 'house_id' | 'payment_st
     name: string;
     address?: string;
   };
+  guests?: Guest;
 }
 
 export interface TenantInfo {
