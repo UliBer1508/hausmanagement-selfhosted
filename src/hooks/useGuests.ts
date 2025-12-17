@@ -216,3 +216,235 @@ export const useGuestStats = () => {
 
   return { stats, isLoading };
 };
+
+// Types for guest segments
+export interface GuestSegmentData {
+  id?: string;
+  guest_name: string;
+  guest_email: string | null;
+  guest_phone: string | null;
+  nationality: string | null;
+  total_revenue: number;
+  stay_count: number;
+  first_booking: string | null;
+  last_booking: string | null;
+  average_stay_duration: number;
+  preferred_seasons: string[];
+  loyalty_level: 'new' | 'returning' | 'gold' | 'platinum';
+}
+
+export interface GuestSegments {
+  totalGuests: number;
+  totalRevenue: number;
+  vipGuests: { 
+    count: number; 
+    revenue: number; 
+    percentage: number; 
+    avgRevenue: number; 
+    guests: GuestSegmentData[] 
+  };
+  returningGuests: { 
+    count: number; 
+    revenue: number; 
+    percentage: number; 
+    avgRevenue: number; 
+    guests: GuestSegmentData[] 
+  };
+  newGuests: { 
+    count: number; 
+    revenue: number; 
+    percentage: number; 
+    guests: GuestSegmentData[] 
+  };
+  recentActivity: { 
+    count: number; 
+    percentage: number 
+  };
+  allGuests: GuestSegmentData[];
+}
+
+// Hook for guest segments with VIP, returning, new categorization
+export const useGuestSegments = () => {
+  return useQuery({
+    queryKey: ['guest-segments', 'tourist'],
+    queryFn: async (): Promise<GuestSegments | null> => {
+      // Load all guests from guests table
+      const { data: guests, error: guestsError } = await supabase
+        .from('guests')
+        .select('*')
+        .order('name');
+
+      if (guestsError) throw guestsError;
+
+      // Load bookings with tourist filter
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select(`
+          id, guest_id, guest_name, guest_email, guest_phone, 
+          check_in, check_out, booking_amount, nationality, status,
+          houses!bookings_house_id_fkey!inner(rental_type)
+        `)
+        .eq('houses.rental_type', 'tourist')
+        .neq('status', 'cancelled');
+
+      if (bookingsError) throw bookingsError;
+      if (!bookings || bookings.length === 0) return null;
+
+      // Map to track guests with their metrics
+      const guestMap = new Map<string, GuestSegmentData>();
+
+      // First, add all guests from guests table
+      guests?.forEach(guest => {
+        guestMap.set(guest.id, {
+          id: guest.id,
+          guest_name: guest.name,
+          guest_email: guest.email,
+          guest_phone: guest.phone,
+          nationality: guest.nationality,
+          total_revenue: 0,
+          stay_count: 0,
+          first_booking: null,
+          last_booking: null,
+          average_stay_duration: 0,
+          preferred_seasons: [],
+          loyalty_level: 'new',
+        });
+      });
+
+      // Process bookings and calculate metrics
+      const bookingsByGuest = new Map<string, typeof bookings>();
+      
+      bookings.forEach(booking => {
+        // Determine guest key - prefer guest_id, fallback to name+email
+        let guestKey: string;
+        
+        if (booking.guest_id && guestMap.has(booking.guest_id)) {
+          guestKey = booking.guest_id;
+        } else {
+          // Legacy: create key from name+email for bookings without guest_id
+          guestKey = `legacy_${booking.guest_name}_${booking.guest_email || ''}`;
+          
+          if (!guestMap.has(guestKey)) {
+            guestMap.set(guestKey, {
+              guest_name: booking.guest_name,
+              guest_email: booking.guest_email,
+              guest_phone: booking.guest_phone,
+              nationality: booking.nationality,
+              total_revenue: 0,
+              stay_count: 0,
+              first_booking: null,
+              last_booking: null,
+              average_stay_duration: 0,
+              preferred_seasons: [],
+              loyalty_level: 'new',
+            });
+          }
+        }
+
+        // Collect bookings by guest
+        if (!bookingsByGuest.has(guestKey)) {
+          bookingsByGuest.set(guestKey, []);
+        }
+        bookingsByGuest.get(guestKey)!.push(booking);
+      });
+
+      // Calculate metrics for each guest
+      bookingsByGuest.forEach((guestBookings, guestKey) => {
+        const guest = guestMap.get(guestKey);
+        if (!guest) return;
+
+        const seasonsSet = new Set<string>();
+        let totalNights = 0;
+
+        guestBookings.forEach(booking => {
+          guest.total_revenue += booking.booking_amount || 0;
+          guest.stay_count += 1;
+
+          const checkIn = new Date(booking.check_in);
+          const checkOut = new Date(booking.check_out);
+          const nights = Math.max(0, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+          totalNights += nights;
+
+          // Track first and last booking
+          if (!guest.first_booking || checkIn < new Date(guest.first_booking)) {
+            guest.first_booking = booking.check_in;
+          }
+          if (!guest.last_booking || checkIn > new Date(guest.last_booking)) {
+            guest.last_booking = booking.check_in;
+          }
+
+          // Determine season
+          const month = checkIn.getMonth();
+          if (month >= 11 || month <= 2) seasonsSet.add('winter');
+          else if (month >= 3 && month <= 5) seasonsSet.add('spring');
+          else if (month >= 6 && month <= 8) seasonsSet.add('summer');
+          else seasonsSet.add('autumn');
+        });
+
+        guest.average_stay_duration = guest.stay_count > 0 ? Math.round(totalNights / guest.stay_count) : 0;
+        guest.preferred_seasons = Array.from(seasonsSet);
+
+        // Determine loyalty level
+        if (guest.total_revenue >= 3000) guest.loyalty_level = 'platinum';
+        else if (guest.total_revenue >= 1500) guest.loyalty_level = 'gold';
+        else if (guest.stay_count >= 2) guest.loyalty_level = 'returning';
+        else guest.loyalty_level = 'new';
+      });
+
+      // Filter to only guests with bookings (remove guests with 0 stay_count)
+      const allGuests = Array.from(guestMap.values()).filter(g => g.stay_count > 0);
+
+      // Segment criteria
+      const vipThreshold = 2000;
+      const returningThreshold = 2;
+
+      const vipGuests = allGuests.filter(g => g.total_revenue >= vipThreshold);
+      const returningGuests = allGuests.filter(g => 
+        g.stay_count >= returningThreshold && g.total_revenue < vipThreshold
+      );
+      const newGuests = allGuests.filter(g => g.stay_count < returningThreshold);
+
+      // Recent guests (last 3 months)
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      const recentGuests = allGuests.filter(g => 
+        g.last_booking && new Date(g.last_booking) >= threeMonthsAgo
+      );
+
+      // Calculate totals
+      const totalRevenue = allGuests.reduce((sum, g) => sum + g.total_revenue, 0);
+      const vipRevenue = vipGuests.reduce((sum, g) => sum + g.total_revenue, 0);
+      const returningRevenue = returningGuests.reduce((sum, g) => sum + g.total_revenue, 0);
+
+      return {
+        totalGuests: allGuests.length,
+        totalRevenue,
+        vipGuests: {
+          count: vipGuests.length,
+          revenue: vipRevenue,
+          percentage: totalRevenue > 0 ? Math.round((vipRevenue / totalRevenue) * 100) : 0,
+          avgRevenue: vipGuests.length > 0 ? Math.round(vipRevenue / vipGuests.length) : 0,
+          guests: vipGuests.sort((a, b) => b.total_revenue - a.total_revenue).slice(0, 5)
+        },
+        returningGuests: {
+          count: returningGuests.length,
+          revenue: returningRevenue,
+          percentage: totalRevenue > 0 ? Math.round((returningRevenue / totalRevenue) * 100) : 0,
+          avgRevenue: returningGuests.length > 0 ? Math.round(returningRevenue / returningGuests.length) : 0,
+          guests: returningGuests.sort((a, b) => b.total_revenue - a.total_revenue).slice(0, 5)
+        },
+        newGuests: {
+          count: newGuests.length,
+          revenue: totalRevenue - vipRevenue - returningRevenue,
+          percentage: totalRevenue > 0 ? Math.round(((totalRevenue - vipRevenue - returningRevenue) / totalRevenue) * 100) : 0,
+          guests: newGuests.sort((a, b) => b.total_revenue - a.total_revenue).slice(0, 5)
+        },
+        recentActivity: {
+          count: recentGuests.length,
+          percentage: allGuests.length > 0 ? Math.round((recentGuests.length / allGuests.length) * 100) : 0
+        },
+        allGuests
+      };
+    },
+  });
+};
