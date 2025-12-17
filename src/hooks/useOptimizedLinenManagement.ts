@@ -142,7 +142,8 @@ export const useOptimizedLinenManagement = () => {
             check_in,
             check_out,
             number_of_guests,
-            status
+            status,
+            guests (*)
           )
         `)
         .eq('rental_type', 'tourist')

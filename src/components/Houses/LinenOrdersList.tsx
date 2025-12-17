@@ -8,6 +8,7 @@ import { Search } from 'lucide-react';
 import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
 import { useToast } from '@/hooks/use-toast';
 import { useExternalSync } from '@/hooks/useExternalSync';
+import { getGuestName } from '@/lib/guestHelpers';
 
 interface LinenOrdersListProps {
   onEditOrder?: (order: any) => void;
@@ -44,7 +45,8 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
             guest_email,
             check_in,
             check_out,
-            number_of_guests
+            number_of_guests,
+            guests (*)
           )
         `)
         .eq('houses.rental_type', 'tourist')
@@ -97,8 +99,9 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
 
   // Filter orders
   const filteredOrders = linenOrders?.filter(order => {
+    const guestNameFromBooking = order.bookings ? getGuestName(order.bookings) : '';
     const matchesSearch = 
-      order.bookings?.guest_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      guestNameFromBooking.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.houses?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.notes?.toLowerCase().includes(searchTerm.toLowerCase());
     

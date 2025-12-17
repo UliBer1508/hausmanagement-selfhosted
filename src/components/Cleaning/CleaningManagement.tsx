@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
 import EditCleaningTaskDialog from './EditCleaningTaskDialog';
 import AutoCleaningSettingsCard from './AutoCleaningSettingsCard';
+import { getGuestName } from '@/lib/guestHelpers';
 
 const CleaningManagement = () => {
   const location = useLocation();
@@ -79,6 +80,7 @@ const CleaningManagement = () => {
         .from('bookings')
         .select(`
           *,
+          guests (*),
           houses!bookings_house_id_fkey!inner(id, name, address, rental_type),
           service_tasks!service_tasks_booking_id_fkey(id, service_type, status)
         `)
@@ -163,7 +165,7 @@ const CleaningManagement = () => {
         .select(`
           *,
           houses!service_tasks_house_id_fkey!inner(id, name, address, rental_type),
-          bookings!service_tasks_booking_id_fkey(id, guest_name, check_in, check_out, number_of_guests),
+          bookings!service_tasks_booking_id_fkey(id, guest_name, check_in, check_out, number_of_guests, guests(*)),
           service_providers!service_tasks_provider_id_fkey(id, name, service_type),
           cleaning_assignments!cleaning_assignments_service_task_id_fkey(id, cleaning_staff!cleaning_assignments_cleaning_staff_id_fkey(id, name))
         `)
@@ -191,7 +193,7 @@ const CleaningManagement = () => {
       if (taskSearchTerm && taskSearchTerm.trim() !== '') {
         const searchLower = taskSearchTerm.trim().toLowerCase();
         filteredData = filteredData.filter(task => {
-          const guestName = task.bookings?.guest_name?.toLowerCase() || '';
+          const guestName = task.bookings ? getGuestName(task.bookings).toLowerCase() : '';
           const houseName = task.houses?.name?.toLowerCase() || '';
           
           return guestName.includes(searchLower) || houseName.includes(searchLower);
@@ -433,7 +435,7 @@ const CleaningManagement = () => {
                               </div>
                               <div className="flex items-center gap-2 text-sm">
                                 <span>👤</span>
-                                Gast: {booking.guest_name}
+                                Gast: {getGuestName(booking)}
                               </div>
                               <div className="flex items-center gap-2 text-sm">
                                 <span>📅</span>
@@ -587,7 +589,7 @@ const CleaningManagement = () => {
                               </div>
                               <div className="flex items-center gap-2 text-sm">
                                 <span>👤</span>
-                                Gast: {task.bookings.guest_name}
+                                Gast: {getGuestName(task.bookings)}
                               </div>
                               <div className="flex items-center gap-2 text-sm">
                                 <span>👤</span>

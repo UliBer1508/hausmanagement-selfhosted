@@ -14,6 +14,7 @@ import ConnectionLine from './ConnectionLine';
 import LinenOrderDialog from '../Houses/LinenOrderDialog';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { useExternalSync } from '@/hooks/useExternalSync';
+import { getGuestName } from '@/lib/guestHelpers';
 
 const ConnectedBookingView = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -99,6 +100,7 @@ const ConnectedBookingView = () => {
         .from('bookings')
         .select(`
           *,
+          guests (*),
           houses!bookings_house_id_fkey (
             id,
             name,
@@ -164,7 +166,8 @@ const ConnectedBookingView = () => {
           ),
           bookings:booking_id (
             id,
-            guest_name
+            guest_name,
+            guests (*)
           )
         `);
       
@@ -192,7 +195,7 @@ const ConnectedBookingView = () => {
   const filteredBookings = bookingsData?.filter(booking => {
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      const guestMatch = booking.guest_name?.toLowerCase().includes(searchLower);
+      const guestMatch = getGuestName(booking).toLowerCase().includes(searchLower);
       const houseMatch = booking.houses?.name?.toLowerCase().includes(searchLower);
       if (!guestMatch && !houseMatch) return false;
     }
@@ -247,7 +250,7 @@ const ConnectedBookingView = () => {
       
       const { data: fetchedBooking, error } = await supabase
         .from('bookings')
-        .select('*, houses!bookings_house_id_fkey(*)')
+        .select('*, guests(*), houses!bookings_house_id_fkey(*)')
         .eq('id', order.booking_id)
         .single();
       
@@ -261,12 +264,12 @@ const ConnectedBookingView = () => {
         return;
       }
       
-      booking = fetchedBooking;
-      console.log('✅ Buchung aus DB geladen:', booking.guest_name);
+    booking = fetchedBooking;
+      console.log('✅ Buchung aus DB geladen:', getGuestName(booking));
     }
     
     console.log('📦 Setze Dialog-Daten:', {
-      guestName: booking.guest_name,
+      guestName: getGuestName(booking),
       houseName: booking.houses?.name,
       itemsCount: Object.keys(order.items || {}).length
     });
@@ -306,7 +309,7 @@ const ConnectedBookingView = () => {
         
         toast({
           title: "Bestellung aktualisiert",
-          description: `Wäschebestellung für ${selectedBookingForOrder.guest_name} wurde aktualisiert.`,
+          description: `Wäschebestellung für ${getGuestName(selectedBookingForOrder)} wurde aktualisiert.`,
         });
       } else {
         // CREATE new order
@@ -321,7 +324,7 @@ const ConnectedBookingView = () => {
         
         toast({
           title: "Bestellung erstellt",
-          description: `Wäschebestellung für ${selectedBookingForOrder.guest_name} wurde erstellt.`,
+          description: `Wäschebestellung für ${getGuestName(selectedBookingForOrder)} wurde erstellt.`,
         });
       }
 
