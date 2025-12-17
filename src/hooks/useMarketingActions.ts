@@ -156,7 +156,7 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
   return useQuery({
     queryKey: ['action-stats', actionId],
     queryFn: async () => {
-      // Get all tourist bookings
+      // Get all tourist bookings with rating fields
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -169,6 +169,9 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
           number_of_children,
           nationality,
           status,
+          external_rating,
+          normalized_rating,
+          platform,
           houses!inner(id, name, rental_type)
         `)
         .eq('houses.rental_type', 'tourist')
@@ -211,18 +214,11 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
 
       const appliedCount = (trackingData || []).filter(t => t.action_applied).length;
 
-      // Get reviews for affected bookings
-      const affectedBookingIds = affectedBookings.map(b => b.id);
-      const { data: reviews, error: reviewsError } = await supabase
-        .from('app_reviews')
-        .select('rating, booking_id')
-        .in('booking_id', affectedBookingIds.length > 0 ? affectedBookingIds : ['no-match']);
-
-      if (reviewsError) throw reviewsError;
-
-      const reviewsCount = reviews?.length || 0;
+      // Calculate rating stats from normalized_rating in bookings (not app_reviews)
+      const bookingsWithRating = affectedBookings.filter(b => b.normalized_rating !== null);
+      const reviewsCount = bookingsWithRating.length;
       const avgRating = reviewsCount > 0
-        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviewsCount
+        ? bookingsWithRating.reduce((sum, b) => sum + (b.normalized_rating || 0), 0) / reviewsCount
         : null;
 
       return {
@@ -242,7 +238,7 @@ export const useAffectedBookings = (actionId: string, targetCriteria: TargetCrit
   return useQuery({
     queryKey: ['affected-bookings', actionId, targetCriteria],
     queryFn: async () => {
-      // Get all tourist bookings
+      // Get all tourist bookings with rating fields
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
@@ -255,6 +251,9 @@ export const useAffectedBookings = (actionId: string, targetCriteria: TargetCrit
           number_of_children,
           nationality,
           status,
+          external_rating,
+          normalized_rating,
+          platform,
           houses!inner(id, name, rental_type)
         `)
         .eq('houses.rental_type', 'tourist')
@@ -288,17 +287,9 @@ export const useAffectedBookings = (actionId: string, targetCriteria: TargetCrit
         .select('*')
         .eq('action_id', actionId);
 
-      // Get reviews
-      const bookingIds = affectedBookings.map(b => b.id);
-      const { data: reviews } = await supabase
-        .from('app_reviews')
-        .select('booking_id, rating')
-        .in('booking_id', bookingIds.length > 0 ? bookingIds : ['no-match']);
-
-      // Combine data
+      // Combine data - use normalized_rating from bookings directly
       return affectedBookings.map(booking => {
         const tracking = trackingData?.find(t => t.booking_id === booking.id);
-        const review = reviews?.find(r => r.booking_id === booking.id);
         
         return {
           ...booking,
@@ -306,7 +297,8 @@ export const useAffectedBookings = (actionId: string, targetCriteria: TargetCrit
           appliedAt: tracking?.applied_at || null,
           trackingNotes: tracking?.notes || null,
           trackingId: tracking?.id || null,
-          rating: review?.rating || null,
+          // Use normalized_rating from booking instead of app_reviews
+          rating: booking.normalized_rating,
         };
       });
     },

@@ -939,6 +939,7 @@ export type Database = {
           currency: string | null
           external_booking_id: string | null
           external_id: string | null
+          external_rating: number | null
           guest_birth_date: string | null
           guest_city: string | null
           guest_contact_status: string | null
@@ -953,6 +954,7 @@ export type Database = {
           id: string
           import_platform: string | null
           nationality: string | null
+          normalized_rating: number | null
           notes: string | null
           number_of_adults: number | null
           number_of_children: number | null
@@ -975,6 +977,7 @@ export type Database = {
           currency?: string | null
           external_booking_id?: string | null
           external_id?: string | null
+          external_rating?: number | null
           guest_birth_date?: string | null
           guest_city?: string | null
           guest_contact_status?: string | null
@@ -989,6 +992,7 @@ export type Database = {
           id?: string
           import_platform?: string | null
           nationality?: string | null
+          normalized_rating?: number | null
           notes?: string | null
           number_of_adults?: number | null
           number_of_children?: number | null
@@ -1011,6 +1015,7 @@ export type Database = {
           currency?: string | null
           external_booking_id?: string | null
           external_id?: string | null
+          external_rating?: number | null
           guest_birth_date?: string | null
           guest_city?: string | null
           guest_contact_status?: string | null
@@ -1025,6 +1030,7 @@ export type Database = {
           id?: string
           import_platform?: string | null
           nationality?: string | null
+          normalized_rating?: number | null
           notes?: string | null
           number_of_adults?: number | null
           number_of_children?: number | null

@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, CheckCircle, Clock, Star, CalendarDays, Home, Baby } from 'lucide-react';
 import { MarketingAction, useAffectedBookings, useBookingActionTracking, TargetCriteria } from '@/hooks/useMarketingActions';
+import { formatRatingDisplay } from '@/lib/ratingHelpers';
 
 interface ActionDetailsDialogProps {
   open: boolean;
@@ -117,7 +118,7 @@ const ActionDetailsDialog = ({ open, onOpenChange, action }: ActionDetailsDialog
               <CardContent className="p-3 text-center">
                 <Star className="h-4 w-4 mx-auto text-amber-600 mb-1" />
                 <div className="text-lg font-semibold text-amber-600">
-                  {avgRating ? avgRating.toFixed(1) : '-'}
+                  {avgRating ? `${avgRating.toFixed(1)}/10` : '-'}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {reviewsWithRating.length} Bewertung{reviewsWithRating.length !== 1 ? 'en' : ''}
@@ -190,12 +191,19 @@ const ActionDetailsDialog = ({ open, onOpenChange, action }: ActionDetailsDialog
                             </div>
                           </div>
 
-                          {/* Rating */}
+                          {/* Rating - now shows normalized rating with platform detail */}
                           <div className="text-right">
-                            {booking.rating !== null ? (
-                              <div className="flex items-center gap-1 text-amber-600">
-                                <Star className="h-4 w-4 fill-amber-500" />
-                                <span className="font-medium">{booking.rating}</span>
+                            {booking.rating !== null && booking.normalized_rating !== null ? (
+                              <div className="flex flex-col items-end">
+                                <div className="flex items-center gap-1 text-amber-600">
+                                  <Star className="h-4 w-4 fill-amber-500" />
+                                  <span className="font-medium">{booking.normalized_rating.toFixed(1)}/10</span>
+                                </div>
+                                {booking.external_rating && booking.platform && !booking.platform.toLowerCase().includes('booking') && (
+                                  <span className="text-xs text-muted-foreground">
+                                    ({booking.external_rating}★ {booking.platform})
+                                  </span>
+                                )}
                               </div>
                             ) : isPast ? (
                               <span className="text-xs text-muted-foreground">Keine Bewertung</span>

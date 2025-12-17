@@ -4,13 +4,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { CalendarIcon, Loader2, ShoppingCart } from 'lucide-react';
+import { CalendarIcon, Loader2, ShoppingCart, Star } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCreateBooking, useUpdateBooking, useDeleteBooking } from '@/hooks/useBookings';
 import { useUpdateServiceTask } from '@/hooks/useServiceTasks';
 import { Booking, BookingWithHouse } from '@/types';
+import { normalizeRating, getMaxRatingForPlatform } from '@/lib/ratingHelpers';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,6 +72,7 @@ const bookingSchema = z.object({
   payment_status: z.enum(['pending', 'paid', 'partial']).default('pending'),
   platform: z.string().optional(),
   external_booking_id: z.string().optional(),
+  external_rating: z.number().min(0).max(10).optional(),
   notes: z.string().optional(),
   cancellation_date: z.string().optional(),
   cancellation_reason: z.string().optional(),
@@ -230,6 +232,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         payment_status: validPaymentStatus,
         platform: initialData.platform || 'none',
         external_booking_id: initialData.external_booking_id || '',
+        external_rating: (initialData as any).external_rating || undefined,
         notes: initialData.notes || '',
       };
     }
@@ -244,6 +247,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       nationality: '',
       platform: 'none',
       external_booking_id: '',
+      external_rating: undefined,
       notes: '',
       auto_create_cleaning: true,
     };
@@ -449,6 +453,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         currency: data.currency || 'EUR',
         platform: (data.platform && data.platform !== 'none') ? data.platform : null,
         external_booking_id: data.external_booking_id || null,
+        external_rating: data.external_rating || null,
+        normalized_rating: data.external_rating 
+          ? normalizeRating(data.external_rating, (data.platform && data.platform !== 'none') ? data.platform : null)
+          : null,
         notes: data.notes || null,
         status: data.status,
         payment_status: data.payment_status,
@@ -974,6 +982,45 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                   <FormMessage />
                 </FormItem>
               )}
+            />
+
+            {/* Externe Bewertung - dynamisch basierend auf Plattform */}
+            <FormField
+              control={form.control}
+              name="external_rating"
+              render={({ field }) => {
+                const currentPlatform = form.watch('platform');
+                const maxRating = getMaxRatingForPlatform(currentPlatform === 'none' ? null : currentPlatform);
+                const isBookingCom = currentPlatform?.toLowerCase().includes('booking');
+                
+                return (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-1">
+                      <Star className="h-3 w-3 text-amber-500" />
+                      Externe Bewertung
+                    </FormLabel>
+                    <div className="flex items-center space-x-2">
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max={maxRating}
+                          placeholder={`0.0`}
+                          {...field}
+                          onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)}
+                          value={field.value || ''}
+                          className="flex-1"
+                        />
+                      </FormControl>
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">
+                        {isBookingCom ? '/10' : `/${maxRating} ⭐`}
+                      </span>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
 
             {/* Auto-create cleaning task checkbox - only in create mode */}
