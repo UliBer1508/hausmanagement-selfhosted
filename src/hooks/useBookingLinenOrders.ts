@@ -211,7 +211,7 @@ export const useBookingLinenOrders = (houseId: string) => {
           linen_color: userOverrides.linenColor || 'white_striped',
           item_variants: userOverrides.itemColors || null,
         })
-        .select('*, bookings(*), houses(*)')
+        .select('*, bookings!linen_orders_booking_id_fkey(*), houses!linen_orders_house_id_fkey(*)')
         .single();
 
       if (error) throw error;

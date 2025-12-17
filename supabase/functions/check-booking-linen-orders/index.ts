@@ -58,7 +58,7 @@ serve(async (req) => {
     // 2. Get next X confirmed bookings
     const { data: bookings, error: bookingsError } = await supabase
       .from('bookings')
-      .select('id, guest_name, check_in, check_out, number_of_guests, house_id, houses(id, name)')
+      .select('id, guest_name, check_in, check_out, number_of_guests, house_id, houses!bookings_house_id_fkey(id, name)')
       .eq('house_id', house_id)
       .eq('status', 'confirmed')
       .gte('check_in', new Date().toISOString())
