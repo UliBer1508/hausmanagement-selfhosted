@@ -17,7 +17,7 @@ const HouseManagement = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
-        .select('*, linen_set_definitions(*)')
+        .select('*, linen_set_definitions!linen_set_definitions_house_id_fkey(*)')
         .order('name', { ascending: true });
       
       if (error) throw error;
