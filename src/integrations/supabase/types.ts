@@ -989,6 +989,7 @@ export type Database = {
           number_of_guests: number
           payment_status: string | null
           platform: string | null
+          rating_not_expected: boolean | null
           source: string | null
           status: Database["public"]["Enums"]["booking_status"] | null
           updated_at: string | null
@@ -1027,6 +1028,7 @@ export type Database = {
           number_of_guests: number
           payment_status?: string | null
           platform?: string | null
+          rating_not_expected?: boolean | null
           source?: string | null
           status?: Database["public"]["Enums"]["booking_status"] | null
           updated_at?: string | null
@@ -1065,6 +1067,7 @@ export type Database = {
           number_of_guests?: number
           payment_status?: string | null
           platform?: string | null
+          rating_not_expected?: boolean | null
           source?: string | null
           status?: Database["public"]["Enums"]["booking_status"] | null
           updated_at?: string | null

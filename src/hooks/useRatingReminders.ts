@@ -52,12 +52,27 @@ export const useRatingReminders = () => {
         .lte('check_out', maxCheckoutDate.toISOString())
         .is('external_rating', null)
         .not('platform', 'is', null)
+        .or('rating_not_expected.is.null,rating_not_expected.eq.false')
         .order('check_out', { ascending: false });
 
       if (error) throw error;
       return data || [];
     },
     staleTime: 1000 * 60 * 15, // 15 Minuten
+  });
+
+  // Mutation: Als "keine Bewertung" markieren
+  const markAsNoRatingMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ rating_not_expected: true })
+        .eq('id', bookingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rating-reminders-bookings'] });
+    },
   });
 
   // Aktive Marketing-Aktionen laden
@@ -155,5 +170,7 @@ export const useRatingReminders = () => {
     marketingCount: marketingCandidates.length,
     isLoading,
     RATING_REMINDER_DAYS,
+    markAsNoRating: markAsNoRatingMutation.mutate,
+    isMarkingNoRating: markAsNoRatingMutation.isPending,
   };
 };
