@@ -1090,13 +1090,6 @@ export type Database = {
             referencedRelation: "houses"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "fk_bookings_house"
-            columns: ["house_id"]
-            isOneToOne: false
-            referencedRelation: "houses"
-            referencedColumns: ["id"]
-          },
         ]
       }
       boris_card_config: {
