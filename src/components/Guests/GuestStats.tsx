@@ -1,89 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, TrendingUp, RotateCcw, Calendar } from 'lucide-react';
+import { useGuestStats } from '@/hooks/useGuests';
 
 const GuestStats = () => {
-  const { data: stats, isLoading } = useQuery({
-    queryKey: ['guest-stats-tourist'],
-    queryFn: async () => {
-      // Get overall statistics (exclude cancelled bookings, only tourist rentals)
-      const { data: overallStats } = await supabase
-        .from('bookings')
-        .select('guest_name, booking_amount, check_in, check_out, status, houses!bookings_house_id_fkey!inner(rental_type)')
-        .eq('houses.rental_type', 'tourist')
-        .not('guest_name', 'is', null)
-        .neq('status', 'cancelled');
+  const { stats, isLoading } = useGuestStats();
 
-      if (!overallStats) return null;
-
-      // Calculate unique guests and returning guests
-      const guestMap = new Map();
-      let totalRevenue = 0;
-      let totalBookings = 0;
-      let bookingsWithAmount = 0;
-      let totalStayDays = 0;
-
-      overallStats.forEach(booking => {
-        const guestKey = booking.guest_name;
-        
-        if (!guestMap.has(guestKey)) {
-          guestMap.set(guestKey, { bookings: 0, revenue: 0 });
-        }
-        
-        const guest = guestMap.get(guestKey);
-        guest.bookings += 1;
-        guest.revenue += booking.booking_amount || 0;
-        
-        // Nur Buchungen mit Betrag für Durchschnitt zählen
-        if (booking.booking_amount && booking.booking_amount > 0) {
-          totalRevenue += booking.booking_amount;
-          bookingsWithAmount += 1;
-        }
-        totalBookings += 1;
-        
-        // Calculate stay duration
-        const checkIn = new Date(booking.check_in);
-        const checkOut = new Date(booking.check_out);
-        const daysDifference = Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
-        const nights = Math.max(0, daysDifference - 1); // Nächte = Tage - 1
-        totalStayDays += nights;
-      });
-
-      const totalGuests = guestMap.size;
-      const returningGuests = Array.from(guestMap.values()).filter(guest => guest.bookings > 1).length;
-      const returningRate = totalGuests > 0 ? (returningGuests / totalGuests) * 100 : 0;
-      const avgStayDuration = totalBookings > 0 ? totalStayDays / totalBookings : 0;
-      const avgRevenuePerBooking = bookingsWithAmount > 0 ? totalRevenue / bookingsWithAmount : 0;
-
-      // Calculate 6-month growth (simplified)
-      const sixMonthsAgo = new Date();
-      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-      
-      const { data: recentBookings } = await supabase
-        .from('bookings')
-        .select('guest_name, houses!bookings_house_id_fkey!inner(rental_type)')
-        .eq('houses.rental_type', 'tourist')
-        .not('guest_name', 'is', null)
-        .neq('status', 'cancelled')
-        .gte('created_at', sixMonthsAgo.toISOString());
-
-      const recentGuestsCount = new Set(recentBookings?.map(b => b.guest_name) || []).size;
-      const growthRate = recentGuestsCount > 0 ? ((recentGuestsCount / totalGuests) * 100) : 0;
-
-      return {
-        totalGuests,
-        totalRevenue,
-        returningRate,
-        avgStayDuration: Math.round(avgStayDuration),
-        avgRevenuePerBooking,
-        growthRate: Math.round(growthRate),
-        returningGuests,
-      };
-    },
-  });
-
-  if (isLoading || !stats) {
+  if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[...Array(4)].map((_, i) => (
@@ -123,7 +44,7 @@ const GuestStats = () => {
         <CardContent>
           <div className="text-2xl font-bold">€{stats.totalRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</div>
           <p className="text-xs text-muted-foreground">
-            €{Math.round(stats.avgRevenuePerBooking)} pro Buchung
+            €{stats.avgRevenuePerBooking} pro Buchung
           </p>
         </CardContent>
       </Card>
@@ -134,7 +55,7 @@ const GuestStats = () => {
           <span className="text-2xl">🔄</span>
         </CardHeader>
         <CardContent>
-          <div className="text-2xl font-bold">{Math.round(stats.returningRate)}%</div>
+          <div className="text-2xl font-bold">{stats.returningRate}%</div>
           <p className="text-xs text-muted-foreground">
             {stats.returningGuests} Stammgäste
           </p>
