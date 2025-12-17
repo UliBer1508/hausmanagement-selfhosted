@@ -84,8 +84,8 @@ const AutoCleaningSettingsCard = () => {
           Automatisierung
         </CardTitle>
         
-        <div className="flex items-center gap-3">
-          <Switch 
+          <div className="flex items-center gap-3 w-full">
+            <Switch
             checked={localIsEnabled}
             onCheckedChange={(checked) => {
               setLocalIsEnabled(checked);
@@ -100,7 +100,7 @@ const AutoCleaningSettingsCard = () => {
             onClick={handleSave} 
             disabled={!hasChanges || isUpdating}
             size="sm"
-            className="gap-2"
+            className="gap-2 ml-auto"
           >
             {isUpdating ? (
               <>
