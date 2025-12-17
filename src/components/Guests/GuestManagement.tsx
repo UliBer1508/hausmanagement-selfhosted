@@ -7,6 +7,7 @@ import GuestOverview from './GuestOverview';
 import GuestAnalytics from './GuestAnalytics';
 import GuestCommunication from './GuestCommunication';
 import GuestSegments from './GuestSegments';
+import MarketingActions from './MarketingActions';
 
 const GuestManagement = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -58,7 +59,7 @@ const GuestManagement = () => {
         }
 
         // Calculate average guests
-        const totalGuests = guest.bookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0);
+        const totalGuests = guest.bookings.reduce((sum: number, b: any) => sum + (b.number_of_guests || 0), 0);
         guest.avg_guests = Math.round((totalGuests / guest.stay_count) * 10) / 10;
       });
 
@@ -127,7 +128,7 @@ const GuestManagement = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 h-auto gap-1">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto gap-1">
           <TabsTrigger value="overview" className="flex-col h-auto py-2 gap-1">
             <span className="text-base">📋</span>
             <span className="text-xs">Übersicht</span>
@@ -143,6 +144,10 @@ const GuestManagement = () => {
           <TabsTrigger value="segments" className="flex-col h-auto py-2 gap-1">
             <span className="text-base">🎯</span>
             <span className="text-xs">Segmente</span>
+          </TabsTrigger>
+          <TabsTrigger value="marketing" className="flex-col h-auto py-2 gap-1">
+            <span className="text-base">🎁</span>
+            <span className="text-xs">Marketing</span>
           </TabsTrigger>
         </TabsList>
 
@@ -160,6 +165,10 @@ const GuestManagement = () => {
 
         <TabsContent value="segments" className="space-y-6">
           <GuestSegments />
+        </TabsContent>
+
+        <TabsContent value="marketing" className="space-y-6">
+          <MarketingActions />
         </TabsContent>
       </Tabs>
     </div>
