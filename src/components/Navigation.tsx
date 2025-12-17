@@ -15,25 +15,26 @@ const Navigation = () => {
   
   // Calculate total urgent orders across all houses
   const totalUrgentOrders = useMemo(() => {
-    // For now, return 0. In production, you would need to fetch status for all houses
-    // This would require a new aggregated endpoint or fetching all houses' status
     return 0;
   }, [houses]);
 
   const navigationItems = [
-    { name: 'Übersicht', href: '/', emoji: '📊' },
-    { name: 'Häuser', href: '/houses', emoji: '🏠' },
-    { name: 'Buchungen', href: '/bookings', emoji: '📅' },
-    { name: 'Gäste', href: '/guests', emoji: '👥' },
-    { name: 'Mieter', href: '/tenants', emoji: '🏘️' },
-    { name: 'Reinigung', href: '/cleaning', emoji: '✨' },
-    { name: 'Wäsche', href: '/laundry', emoji: '💧', badge: totalUrgentOrders },
-    { name: 'Provider', href: '/providers', emoji: '🏢' },
-    { name: 'Einstellungen', href: '/settings', emoji: '⚙️' }
+    { name: 'Übersicht', emoji: '📊' },
+    { name: 'Häuser', emoji: '🏠' },
+    { name: 'Buchungen', emoji: '📅' },
+    { name: 'Gäste', emoji: '👥' },
+    { name: 'Mieter', emoji: '🏘️' },
+    { name: 'Reinigung', emoji: '✨' },
+    { name: 'Wäsche', emoji: '💧', badge: totalUrgentOrders },
+    { name: 'Provider', emoji: '🏢' },
+    { name: 'Einstellungen', emoji: '⚙️' }
   ];
 
-  const isActivePath = (path: string) => {
-    return location.pathname === path;
+  // Get active tab from location state or default to 'Übersicht'
+  const activeTab = (location.state as { activeTab?: string })?.activeTab || 'Übersicht';
+
+  const isActiveTab = (tabName: string) => {
+    return activeTab === tabName;
   };
 
   return (
@@ -58,10 +59,10 @@ const Navigation = () => {
 
         <nav className="flex-1 p-4 space-y-1">
           {navigationItems.map((item) => {
-            const isActive = isActivePath(item.href);
+            const isActive = isActiveTab(item.name);
             
             return (
-              <Link key={item.name} to={item.href}>
+              <Link key={item.name} to="/" state={{ activeTab: item.name }}>
                 <Button
                   variant={isActive ? "default" : "ghost"}
                   className={`w-full justify-start gap-3 transition-all duration-200 relative ${
@@ -104,10 +105,10 @@ const Navigation = () => {
           {/* Navigation Grid - 4 columns x 2 rows */}
           <div className="grid grid-cols-4 auto-rows-fr gap-1.5">
             {navigationItems.map((item) => {
-              const isActive = isActivePath(item.href);
+              const isActive = isActiveTab(item.name);
               
               return (
-                <Link key={item.name} to={item.href}>
+                <Link key={item.name} to="/" state={{ activeTab: item.name }}>
                   <Button
                     variant={isActive ? "default" : "ghost"}
                     size="sm"
