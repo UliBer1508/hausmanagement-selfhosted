@@ -13,9 +13,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, CheckCircle, Clock, Star, CalendarDays, Home, Baby, ClipboardList, BarChart3, Info } from 'lucide-react';
+import { Users, CheckCircle, Clock, CalendarDays, Home, Baby, ClipboardList, BarChart3, Info, MessageSquareText } from 'lucide-react';
 import { MarketingAction, useAffectedBookings, useBookingActionTracking, useActionStats, TargetCriteria } from '@/hooks/useMarketingActions';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { formatRatingDisplay } from '@/lib/ratingHelpers';
 
 interface ActionDetailsDialogProps {
   open: boolean;
@@ -204,14 +205,17 @@ const ActionDetailsDialog = ({ open, onOpenChange, action }: ActionDetailsDialog
                     <div className="text-xs text-muted-foreground">Abgeschlossen</div>
                   </CardContent>
                 </Card>
-                <Card className="bg-amber-500/5 border-amber-500/20">
+                <Card className="bg-blue-500/5 border-blue-500/20">
                   <CardContent className="p-3 text-center">
-                    <Star className="h-4 w-4 mx-auto text-amber-600 mb-1" />
-                    <div className="text-lg font-semibold text-amber-600">
+                    <BarChart3 className="h-4 w-4 mx-auto text-blue-600 mb-1" />
+                    <div className="text-lg font-semibold text-blue-600">
                       {stats?.avgRating ? `${stats.avgRating.toFixed(1)}/10` : '-'}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {stats?.evaluationWithRating || 0} Bewertung{(stats?.evaluationWithRating || 0) !== 1 ? 'en' : ''}
+                      Ø Portal-Bewertung
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      ({stats?.evaluationWithRating || 0} normalisiert)
                     </div>
                   </CardContent>
                 </Card>
@@ -266,17 +270,26 @@ const ActionDetailsDialog = ({ open, onOpenChange, action }: ActionDetailsDialog
                               {/* Rating */}
                               <div className="text-right">
                                 {booking.rating !== null ? (
-                                  <div className="flex flex-col items-end">
-                                    <div className="flex items-center gap-1 text-amber-600">
-                                      <Star className="h-4 w-4 fill-amber-500" />
-                                      <span className="font-medium">{booking.rating.toFixed(1)}/10</span>
-                                    </div>
-                                    {booking.external_rating && booking.platform && !booking.platform.toLowerCase().includes('booking') && (
-                                      <span className="text-xs text-muted-foreground">
-                                        ({booking.external_rating}★ {booking.platform})
-                                      </span>
-                                    )}
-                                  </div>
+                                  (() => {
+                                    const ratingInfo = formatRatingDisplay(
+                                      booking.rating,
+                                      booking.external_rating,
+                                      booking.platform
+                                    );
+                                    return (
+                                      <div className="flex flex-col items-end">
+                                        <div className="flex items-center gap-1 text-blue-600">
+                                          <MessageSquareText className="h-4 w-4" />
+                                          <span className="font-medium">{ratingInfo.display}</span>
+                                        </div>
+                                        {ratingInfo.detail && (
+                                          <span className="text-xs text-muted-foreground">
+                                            {ratingInfo.detail}
+                                          </span>
+                                        )}
+                                      </div>
+                                    );
+                                  })()
                                 ) : (
                                   <span className="text-xs text-muted-foreground">Keine Bewertung</span>
                                 )}
