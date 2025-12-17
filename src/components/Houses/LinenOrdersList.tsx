@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,10 +17,11 @@ interface LinenOrdersListProps {
 
 const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [houseFilter, setHouseFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [syncingOrderId, setSyncingOrderId] = useState<string | null>(null);
+  const hasInitializedFilter = useRef(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { syncOrder, resetSync, isEnabled: externalSyncEnabled } = useExternalSync();
@@ -56,6 +57,17 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
       return data || [];
     },
   });
+
+  // Dynamischer Default: Wenn offene Bestellungen existieren → Filter auf 'offen'
+  useEffect(() => {
+    if (!hasInitializedFilter.current && linenOrders && linenOrders.length > 0) {
+      const hasOpenOrders = linenOrders.some(order => order.status === 'offen');
+      if (hasOpenOrders) {
+        setStatusFilter('offen');
+      }
+      hasInitializedFilter.current = true;
+    }
+  }, [linenOrders]);
 
   // Fetch houses for filter
   const { data: houses } = useQuery({
