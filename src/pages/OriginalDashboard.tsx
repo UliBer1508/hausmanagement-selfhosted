@@ -634,7 +634,7 @@ const OriginalDashboard = () => {
         .select(`
           id,
           service_task_id,
-          cleaning_staff (
+          cleaning_staff!cleaning_assignments_cleaning_staff_id_fkey (
             id,
             name,
             email,
