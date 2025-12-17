@@ -1874,42 +1874,6 @@ export type Database = {
         }
         Relationships: []
       }
-      guest_behavior_patterns: {
-        Row: {
-          avg_linen_usage: Json
-          confidence_level: number | null
-          created_at: string | null
-          guest_type: string
-          id: string
-          nationality: string | null
-          sample_size: number | null
-          updated_at: string | null
-          usage_multiplier: number | null
-        }
-        Insert: {
-          avg_linen_usage?: Json
-          confidence_level?: number | null
-          created_at?: string | null
-          guest_type: string
-          id?: string
-          nationality?: string | null
-          sample_size?: number | null
-          updated_at?: string | null
-          usage_multiplier?: number | null
-        }
-        Update: {
-          avg_linen_usage?: Json
-          confidence_level?: number | null
-          created_at?: string | null
-          guest_type?: string
-          id?: string
-          nationality?: string | null
-          sample_size?: number | null
-          updated_at?: string | null
-          usage_multiplier?: number | null
-        }
-        Relationships: []
-      }
       guest_preference_responses: {
         Row: {
           booking_id: string | null
