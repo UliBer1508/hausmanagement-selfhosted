@@ -995,15 +995,15 @@ const GuestAnalytics = () => {
       {analyticsData.perHouseOccupancy.map((house) => (
         <Collapsible 
           key={house.houseId}
-          open={openHouses[house.houseId] ?? true}
-          onOpenChange={() => setOpenHouses(prev => ({ ...prev, [house.houseId]: !(prev[house.houseId] ?? true) }))}
+          open={openHouses[house.houseId] ?? false}
+          onOpenChange={() => setOpenHouses(prev => ({ ...prev, [house.houseId]: !(prev[house.houseId] ?? false) }))}
         >
           <Card>
             <CollapsibleTrigger asChild>
               <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
-                    <ChevronRight className={`h-5 w-5 transition-transform duration-200 ${(openHouses[house.houseId] ?? true) ? 'rotate-90' : ''}`} />
+                    <ChevronRight className={`h-5 w-5 transition-transform duration-200 ${(openHouses[house.houseId] ?? false) ? 'rotate-90' : ''}`} />
                     🏠 {house.houseName}
                   </CardTitle>
                   <Badge variant="outline" className="text-base">
@@ -1011,7 +1011,7 @@ const GuestAnalytics = () => {
                   </Badge>
                 </div>
                 <CardDescription>
-                  {house.vacancies.length} freie Zeiträume • Klicken zum {(openHouses[house.houseId] ?? true) ? 'Einklappen' : 'Ausklappen'}
+                  {house.vacancies.length} freie Zeiträume • Klicken zum {(openHouses[house.houseId] ?? false) ? 'Einklappen' : 'Ausklappen'}
                 </CardDescription>
               </CardHeader>
             </CollapsibleTrigger>
