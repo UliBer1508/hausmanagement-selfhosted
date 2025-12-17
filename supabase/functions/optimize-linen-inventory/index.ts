@@ -177,7 +177,7 @@ serve(async (req) => {
     }
 
     // Check buffer status
-    const bufferStatus = await checkBufferStatus(supabase, house_id, optimization.current_stock);
+    const bufferStatus = checkBufferStatus(supabase, house_id, optimization.current_stock);
     console.log('🎯 Buffer status:', bufferStatus);
 
     console.log('ML-enhanced optimization completed successfully');
