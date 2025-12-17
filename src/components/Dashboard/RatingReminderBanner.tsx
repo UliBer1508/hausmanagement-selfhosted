@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Star, ChevronDown, ChevronUp, ExternalLink, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useRatingReminders, RatingReminder } from '@/hooks/useRatingReminders';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const RatingReminderBanner = () => {
   const navigate = useNavigate();
-  const { reminders, marketingCandidates, otherReminders, totalCount, isLoading, RATING_REMINDER_DAYS } = useRatingReminders();
+  const { reminders, marketingCandidates, otherReminders, totalCount, isLoading, RATING_REMINDER_DAYS, markAsNoRating, isMarkingNoRating } = useRatingReminders();
   const [isExpanded, setIsExpanded] = useState(true);
   const [isHidden, setIsHidden] = useState(false);
 
@@ -31,6 +33,17 @@ const RatingReminderBanner = () => {
   const handleOpenBooking = (bookingId: string) => {
     // Navigate to bookings tab with the booking selected for editing
     navigate('/', { state: { activeTab: 'Buchungen', editBookingId: bookingId } });
+  };
+
+  const handleMarkAsNoRating = (bookingId: string, guestName: string) => {
+    markAsNoRating(bookingId, {
+      onSuccess: () => {
+        toast.success(`"${guestName}" als "keine Bewertung" markiert`);
+      },
+      onError: () => {
+        toast.error('Fehler beim Markieren');
+      }
+    });
   };
 
   const ReminderItem = ({ reminder, priority = false }: { reminder: RatingReminder; priority?: boolean }) => (
@@ -70,15 +83,33 @@ const RatingReminderBanner = () => {
           )}
         </div>
         
-        <Button
-          size="sm"
-          variant={priority ? "default" : "outline"}
-          onClick={() => handleOpenBooking(reminder.id)}
-          className="shrink-0"
-        >
-          <ExternalLink className="h-3.5 w-3.5 mr-1" />
-          Eintragen
-        </Button>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <Checkbox
+              id={`no-rating-${reminder.id}`}
+              disabled={isMarkingNoRating}
+              onCheckedChange={(checked) => {
+                if (checked) {
+                  handleMarkAsNoRating(reminder.id, reminder.guest_name);
+                }
+              }}
+            />
+            <label 
+              htmlFor={`no-rating-${reminder.id}`}
+              className="text-xs text-muted-foreground cursor-pointer whitespace-nowrap"
+            >
+              Keine Bewertung
+            </label>
+          </div>
+          <Button
+            size="sm"
+            variant={priority ? "default" : "outline"}
+            onClick={() => handleOpenBooking(reminder.id)}
+          >
+            <ExternalLink className="h-3.5 w-3.5 mr-1" />
+            Eintragen
+          </Button>
+        </div>
       </div>
     </div>
   );
