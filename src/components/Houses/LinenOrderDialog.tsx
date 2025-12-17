@@ -134,7 +134,7 @@ interface LinenOrderDialogProps {
     booking_id?: string;
     orderType?: 'standard' | 'exceptional';
     exceptionReason?: string;
-    status?: 'pending' | 'in-progress' | 'completed' | 'delivered';
+    status?: 'offen' | 'pending' | 'in-progress' | 'completed' | 'delivered';
     sendEmail?: boolean;
     linenColor?: LinenColor;
     itemColors?: Record<string, ItemColor | LinenColor>;
@@ -146,7 +146,7 @@ interface LinenOrderDialogProps {
     deliveryDate?: string;
     deliveryType?: 'delivery' | 'pickup';
     notes?: string;
-    status?: 'pending' | 'in-progress' | 'completed' | 'delivered';
+    status?: 'offen' | 'pending' | 'in-progress' | 'completed' | 'delivered';
     linenColor?: LinenColor;
     item_variants?: Record<string, ItemColor | LinenColor>;
   };
@@ -281,7 +281,7 @@ const LinenOrderDialog = ({
     initialData?.deliveryType || 'delivery'
   );
   const [notes, setNotes] = useState(initialData?.notes || '');
-  const [status, setStatus] = useState<'pending' | 'in-progress' | 'completed' | 'delivered'>(
+  const [status, setStatus] = useState<'offen' | 'pending' | 'in-progress' | 'completed' | 'delivered'>(
     initialData?.status || 'pending'
   );
   const [sendToTeuni, setSendToTeuni] = useState(false);
