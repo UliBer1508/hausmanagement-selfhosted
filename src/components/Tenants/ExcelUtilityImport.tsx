@@ -35,13 +35,18 @@ interface ExcelUtilityImportProps {
 
 // Excel-Kategorie → System-Kategorie Mapping
 const CATEGORY_MAPPING: Record<string, string> = {
+  // Wasser
   'trinkwasser': 'Wasserversorgung',
   'wasser': 'Wasserversorgung',
   'wasserversorgung': 'Wasserversorgung',
   'abwasser': 'Entwässerung',
   'entwässerung': 'Entwässerung',
   'kanalgebühren': 'Entwässerung',
+  
+  // Grundsteuer
   'grundsteuer': 'Grundsteuer',
+  
+  // Versicherungen
   'gebäudeversicherung': 'Gebäudeversicherung',
   'gebäudeversicherrung': 'Gebäudeversicherung',
   'versicherung': 'Gebäudeversicherung',
@@ -49,6 +54,8 @@ const CATEGORY_MAPPING: Record<string, string> = {
   'haftpflicht': 'Gebäudeversicherung',
   'inhaltsversicherung': 'Gebäudeversicherung',
   'wohngebäudeversicherung': 'Gebäudeversicherung',
+  
+  // Heizung
   'heizung': 'Heizkosten',
   'heizkosten': 'Heizkosten',
   'gas': 'Heizkosten',
@@ -56,22 +63,61 @@ const CATEGORY_MAPPING: Record<string, string> = {
   'fernwärme': 'Heizkosten',
   'öl': 'Heizkosten',
   'heizöl': 'Heizkosten',
+  
+  // Schornstein
   'schornsteinfeger': 'Schornsteinreinigung',
   'schornstein': 'Schornsteinreinigung',
+  
+  // Müll
   'müll': 'Müllabfuhr',
   'müllabfuhr': 'Müllabfuhr',
   'abfallentsorgung': 'Müllabfuhr',
-  'strom': 'Allgemeinstrom',
-  'allgemeinstrom': 'Allgemeinstrom',
-  'hausmeister': 'Hausmeister',
-  'winterdienst': 'Winterdienst',
+  
+  // Strom/Beleuchtung - KORRIGIERT: "Beleuchtung" statt "Allgemeinstrom"
+  'strom': 'Beleuchtung',
+  'allgemeinstrom': 'Beleuchtung',
+  'beleuchtung': 'Beleuchtung',
+  
+  // Hausmeister/Hauswart - KORRIGIERT: "Hauswart" statt "Hausmeister"
+  'hausmeister': 'Hauswart',
+  'hauswart': 'Hauswart',
+  
+  // Gartenpflege
   'gartenpflege': 'Gartenpflege',
-  'aufzug': 'Aufzugwartung',
-  'wartung': 'Sonstige Kosten',
+  'garten': 'Gartenpflege',
+  'grünflächen': 'Gartenpflege',
+  
+  // Aufzug - KORRIGIERT: "Aufzug" statt "Aufzugwartung"
+  'aufzug': 'Aufzug',
+  'aufzugwartung': 'Aufzug',
+  'fahrstuhl': 'Aufzug',
+  
+  // Reinigung
   'reinigung': 'Gebäudereinigung',
+  'gebäudereinigung': 'Gebäudereinigung',
+  'treppenhausreinigung': 'Gebäudereinigung',
+  
+  // Kabel/Internet/Telefon
   'kabel': 'Kabelanschluss',
   'internet': 'Kabelanschluss',
+  'vodafon': 'Kabelanschluss',
+  'vodafone': 'Kabelanschluss',
+  'telekom': 'Kabelanschluss',
+  'telefon': 'Kabelanschluss',
+  'dsl': 'Kabelanschluss',
+  
+  // Straßenreinigung
   'straßenreinigung': 'Straßenreinigung',
+  
+  // Sonstige Betriebskosten (Winterdienst, Wohngeld, Wartung)
+  'winterdienst': 'Sonstige Betriebskosten',
+  'streudienst': 'Sonstige Betriebskosten',
+  'wohngeld': 'Sonstige Betriebskosten',
+  'hausgeld': 'Sonstige Betriebskosten',
+  'weg': 'Sonstige Betriebskosten',
+  'nebenkosten': 'Sonstige Betriebskosten',
+  'wartung': 'Sonstige Betriebskosten',
+  'sonstig': 'Sonstige Betriebskosten',
 };
 
 // Nicht-umlegbare Kategorien mit Gründen
@@ -82,6 +128,7 @@ const NON_ALLOCABLE_RULES: { keywords: string[]; reason: string }[] = [
   { keywords: ['mieteinnahmen', 'einnahmen', 'miete eingegangen'], reason: 'Einnahmen (keine Kosten)' },
   { keywords: ['privat', 'eigenanteil', 'persönlich'], reason: 'Privat/Eigenanteil' },
   { keywords: ['rücklage', 'instandhaltungsrücklage'], reason: 'Rücklage' },
+  { keywords: ['hausrat', 'hausratversicherung'], reason: 'Nicht umlegbar (Eigentümer-Versicherung)' },
 ];
 
 // Manuelle Ausschlussgründe für Dropdown
