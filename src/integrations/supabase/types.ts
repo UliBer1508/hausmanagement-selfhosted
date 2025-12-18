@@ -2865,27 +2865,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_linen_orders_booking"
-            columns: ["booking_id"]
-            isOneToOne: false
-            referencedRelation: "bookings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_linen_orders_house"
-            columns: ["house_id"]
-            isOneToOne: false
-            referencedRelation: "houses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_linen_orders_provider"
-            columns: ["provider_id"]
-            isOneToOne: false
-            referencedRelation: "service_providers"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "linen_orders_assigned_staff_id_fkey"
             columns: ["assigned_staff_id"]
             isOneToOne: false
