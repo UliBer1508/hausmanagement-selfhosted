@@ -26,21 +26,39 @@ interface ExcelUtilityImportProps {
   houseName: string;
 }
 
-// Excel-Kategorie → System-Kategorie Mapping
+// Excel-Kategorie → System-Kategorie Mapping (erweitert für verschiedene Schreibweisen)
 const CATEGORY_MAPPING: Record<string, string> = {
+  // Wasser
   'trinkwasser': 'Wasserversorgung',
   'wasser': 'Wasserversorgung',
+  'wasserversorgung': 'Wasserversorgung',
   'abwasser': 'Entwässerung',
+  'entwässerung': 'Entwässerung',
+  'kanalgebühren': 'Entwässerung',
+  // Steuern
   'grundsteuer': 'Grundsteuer',
+  // Versicherungen
   'gebäudeversicherung': 'Gebäudeversicherung',
+  'gebäudeversicherrung': 'Gebäudeversicherung', // Tippfehler-Toleranz
   'versicherung': 'Gebäudeversicherung',
+  'haftpflichtversicherung': 'Gebäudeversicherung',
+  'haftpflicht': 'Gebäudeversicherung',
+  'inhaltsversicherung': 'Gebäudeversicherung',
+  'wohngebäudeversicherung': 'Gebäudeversicherung',
+  // Heizung
+  'heizung': 'Heizkosten',
+  'heizkosten': 'Heizkosten',
+  'gas': 'Heizkosten',
+  'gasverbrauch': 'Heizkosten',
+  'fernwärme': 'Heizkosten',
+  'öl': 'Heizkosten',
+  'heizöl': 'Heizkosten',
+  // Sonstige
   'schornsteinfeger': 'Schornsteinreinigung',
   'schornstein': 'Schornsteinreinigung',
   'müll': 'Müllabfuhr',
   'müllabfuhr': 'Müllabfuhr',
-  'heizung': 'Heizkosten',
-  'heizkosten': 'Heizkosten',
-  'gas': 'Heizkosten',
+  'abfallentsorgung': 'Müllabfuhr',
   'strom': 'Allgemeinstrom',
   'allgemeinstrom': 'Allgemeinstrom',
   'hausmeister': 'Hausmeister',
@@ -50,6 +68,8 @@ const CATEGORY_MAPPING: Record<string, string> = {
   'wartung': 'Sonstige Kosten',
   'reinigung': 'Gebäudereinigung',
   'kabel': 'Kabelanschluss',
+  'internet': 'Kabelanschluss',
+  'straßenreinigung': 'Straßenreinigung',
 };
 
 // Nicht-umlegbare Kategorien (werden ausgeschlossen)
@@ -58,6 +78,7 @@ const NON_ALLOCABLE_KEYWORDS = [
   'reparatur', 'instandsetzung', 'renovierung',
   'anschaffung', 'möbel', 'einrichtung',
   'mieteinnahmen', 'einnahmen', 'miete',
+  'privat', 'eigenanteil',
 ];
 
 const ExcelUtilityImport = ({
@@ -76,7 +97,7 @@ const ExcelUtilityImport = ({
   const saveCost = useSaveUtilityCost();
 
   const findMappedCategory = (excelCategory: string): UtilityCostCategory | null => {
-    const normalized = excelCategory.toLowerCase();
+    const normalized = excelCategory.toLowerCase().trim();
     
     // Direkte Suche nach Namen
     const directMatch = categories.find(c => 
@@ -100,6 +121,22 @@ const ExcelUtilityImport = ({
     return NON_ALLOCABLE_KEYWORDS.some(keyword => normalized.includes(keyword));
   };
 
+  // Flexible Spalten-Erkennung
+  const findColumnValue = (row: Record<string, unknown>, keywords: string[]): unknown => {
+    // Erst direkte Matches
+    for (const keyword of keywords) {
+      if (row[keyword] !== undefined) return row[keyword];
+    }
+    // Dann case-insensitive Suche
+    for (const [key, value] of Object.entries(row)) {
+      const keyLower = key.toLowerCase();
+      if (keywords.some(kw => keyLower.includes(kw.toLowerCase()))) {
+        return value;
+      }
+    }
+    return undefined;
+  };
+
   const processExcelFile = useCallback((file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -110,42 +147,89 @@ const ExcelUtilityImport = ({
         // Erste Sheet verarbeiten
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
+        
+        // Als 2D-Array lesen um Header-Zeile zu finden
+        const rawData = XLSX.utils.sheet_to_json<(string | number | undefined)[]>(worksheet, { header: 1 });
+        
+        console.log('Excel Rohdaten (erste 15 Zeilen):', rawData.slice(0, 15));
+        
+        // Header-Zeile finden (sucht nach Zeile mit "Kategorie" ODER "Betrag" ODER "Buchungstag")
+        const headerRowIndex = rawData.findIndex(row => {
+          if (!Array.isArray(row)) return false;
+          const rowStr = row.map(cell => String(cell || '').toLowerCase()).join(' ');
+          return (rowStr.includes('kategorie') || rowStr.includes('konto')) && 
+                 (rowStr.includes('betrag') || rowStr.includes('summe') || rowStr.includes('soll') || rowStr.includes('haben'));
+        });
+        
+        console.log('Header-Zeile gefunden in Zeile:', headerRowIndex);
+        
+        if (headerRowIndex === -1) {
+          // Fallback: Standard-Parse ohne Header-Suche
+          console.log('Kein Header gefunden, nutze Standard-Parse');
+        }
+        
+        // Ab Header-Zeile als JSON parsen
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
+          range: headerRowIndex > 0 ? headerRowIndex : 0 
+        }) as Record<string, unknown>[];
+        
+        console.log('Verarbeitete Zeilen:', jsonData.length);
+        console.log('Erste Zeile:', jsonData[0]);
         
         // Kosten aggregieren nach Kategorie
         const costsByCategory: Record<string, { amount: number; transactions: number }> = {};
         
-        // Haus-Präfix ermitteln (z.B. "Haus Berlin Ausgaben:")
-        const housePrefix = `Haus Berlin Ausgaben:`.toLowerCase();
-        
         jsonData.forEach((row) => {
-          // Kategorie-Spalte finden (verschiedene mögliche Namen)
-          const categoryCol = row['Kategorie'] || row['Category'] || row['Konto'] || row['Account'];
-          const amountCol = row['Betrag'] || row['Amount'] || row['Summe'] || row['Value'];
+          // Erste Zelle prüfen - Zusammenfassungszeilen überspringen
+          const firstCell = String(Object.values(row)[0] || '');
+          if (firstCell.match(/^(Gesamt|Stand|Summe|Total|\d{4}$)/i)) {
+            console.log('Überspringe Zusammenfassungszeile:', firstCell);
+            return;
+          }
           
-          if (!categoryCol || !amountCol) return;
+          // Kategorie-Spalte finden (verschiedene mögliche Namen)
+          const categoryCol = findColumnValue(row, ['Kategorie', 'Category', 'Konto', 'Account', 'Kontobezeichnung']);
+          const amountCol = findColumnValue(row, ['Betrag', 'Amount', 'Summe', 'Value', 'Soll', 'Haben']);
+          
+          if (!categoryCol) return;
           
           const categoryStr = String(categoryCol).toLowerCase();
           
-          // Nur Ausgaben für das Haus filtern
-          if (!categoryStr.includes('ausgaben')) return;
-          
           // Nicht-umlegbare ausschließen
-          if (isNonAllocable(categoryStr)) return;
+          if (isNonAllocable(categoryStr)) {
+            console.log('Nicht-umlegbar übersprungen:', categoryStr);
+            return;
+          }
           
-          // Betrag parsen (kann negativ für Ausgaben sein)
-          let amount = typeof amountCol === 'number' 
-            ? amountCol 
-            : parseFloat(String(amountCol).replace(',', '.').replace(/[^\d.-]/g, ''));
+          // Betrag parsen
+          let amount = 0;
+          if (amountCol !== undefined) {
+            amount = typeof amountCol === 'number' 
+              ? amountCol 
+              : parseFloat(String(amountCol).replace(',', '.').replace(/[^\d.-]/g, ''));
+          }
           
           // Ausgaben sind oft negativ, wir wollen positive Werte
           amount = Math.abs(amount);
           
           if (isNaN(amount) || amount === 0) return;
           
-          // Kategorie-Name extrahieren (nach dem letzten ":")
+          // Kategorie-Name extrahieren 
+          // Format kann sein: "Haus Berlin Ausgaben:Abwasser" oder einfach "Abwasser"
           const parts = String(categoryCol).split(':');
-          const categoryName = parts[parts.length - 1].trim();
+          let categoryName = parts[parts.length - 1].trim();
+          
+          // Falls leer, nimm den ganzen String
+          if (!categoryName && parts.length > 0) {
+            categoryName = String(categoryCol).trim();
+          }
+          
+          // Nur Ausgaben-Kategorien berücksichtigen (wenn "Ausgaben" im Pfad)
+          const fullCategory = String(categoryCol);
+          if (fullCategory.includes(':') && !fullCategory.toLowerCase().includes('ausgaben')) {
+            console.log('Keine Ausgaben-Kategorie:', fullCategory);
+            return;
+          }
           
           if (!costsByCategory[categoryName]) {
             costsByCategory[categoryName] = { amount: 0, transactions: 0 };
@@ -153,6 +237,8 @@ const ExcelUtilityImport = ({
           costsByCategory[categoryName].amount += amount;
           costsByCategory[categoryName].transactions += 1;
         });
+        
+        console.log('Gefundene Kategorien:', Object.keys(costsByCategory));
         
         // In ImportedCost Array umwandeln
         const imported: ImportedCost[] = Object.entries(costsByCategory)
