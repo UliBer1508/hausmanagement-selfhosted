@@ -175,7 +175,7 @@ export const useLinenManagement = (houseId: string) => {
           order_date: format(new Date(), 'yyyy-MM-dd'),
           delivery_date: orderData.deliveryDate || format(addDays(new Date(), 2), 'yyyy-MM-dd'),
           notes: orderData.notes || 'Automatische Bestellung basierend auf Bedarfsanalyse',
-          linen_color: orderData.linenColor || 'white_striped',
+          linen_color: orderData.linenColor || null, // Aus Datenbank - kein Fallback
         })
         .select()
         .single();

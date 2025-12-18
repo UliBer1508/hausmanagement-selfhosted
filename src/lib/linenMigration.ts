@@ -8,32 +8,8 @@ export const migrateOldToNewStructure = (linenDef: any): Record<string, LinenIte
 
   // Check if custom_categories already exists and has data
   if (linenDef.custom_categories && Object.keys(linenDef.custom_categories).length > 0) {
-    // Nachträgliche Initialisierung fehlender Farbwerte für bestehende Artikel
-    const updatedCategories: Record<string, LinenItemConfig> = {};
-    
-    Object.entries(linenDef.custom_categories).forEach(([key, item]: [string, any]) => {
-      // Für Badbereich, Wellness UND Schlafbereich: Standard-Farbe setzen wenn nicht vorhanden
-      const needsColor = item.category === 'Badbereich' || 
-                         item.category === 'Wellness' || 
-                         item.category === 'Schlafbereich';
-      
-      if (needsColor && item.color === undefined) {
-        // Schlafbereich: Default ist 'white_striped' (LinenColor)
-        // Badbereich/Wellness: Default ist 'white' (ItemColor)
-        const defaultColor = item.category === 'Schlafbereich' 
-          ? 'white_striped' as LinenColor 
-          : 'white' as ItemColor;
-        
-        updatedCategories[key] = {
-          ...item,
-          color: defaultColor
-        };
-      } else {
-        updatedCategories[key] = item;
-      }
-    });
-    
-    return updatedCategories;
+    // Bestehende custom_categories zurückgeben - keine automatischen Modifikationen
+    return linenDef.custom_categories;
   }
 
   // Migrate from old columns
@@ -52,7 +28,7 @@ export const migrateOldToNewStructure = (linenDef: any): Record<string, LinenIte
       availability: 'year_round',
       season: null,
       active: true,
-      color: (meta.category === 'Badbereich' || meta.category === 'Wellness') ? 'white' : undefined // Default für Badbereich und Wellness
+      // Keine hardcodierten Default-Farben - müssen in DB definiert werden
     };
   });
 

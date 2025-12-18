@@ -320,7 +320,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                           {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich') && (
                             <TableCell>
                               <Select
-                                value={item.color || (category === 'Schlafbereich' ? 'white_striped' : 'white')}
+                                value={item.color || ''}
                                 onValueChange={(v) => updateItem(item.key, { color: v as ItemColor | LinenColor })}
                               >
                                 <SelectTrigger className="w-28">

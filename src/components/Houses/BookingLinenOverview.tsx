@@ -431,7 +431,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
           isCreating={isCreatingOrder || generatePreviewMutation.isPending}
           mode="create"
           generatedOrderData={generatedOrderData}
-          defaultLinenColor={(houseData?.default_linen_color as LinenColor) || 'white_striped'}
+          defaultLinenColor={(houseData?.default_linen_color as LinenColor) || undefined}
         />
       )}
 

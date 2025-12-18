@@ -245,7 +245,7 @@ const LinenOrderDialog = ({
   initialData,
   mode = 'create',
   generatedOrderData,
-  defaultLinenColor = 'white_striped'
+  defaultLinenColor
 }: LinenOrderDialogProps) => {
   // Lade linenSetDefinition aus DB falls nicht als Prop übergeben
   const { data: fetchedLinenDefinition } = useQuery({
@@ -398,21 +398,7 @@ const LinenOrderDialog = ({
         });
       }
       
-      // Fallbacks dynamisch basierend auf Kategorie setzen
-      if (effectiveLinenDefinition?.custom_categories) {
-        Object.entries(effectiveLinenDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
-          if (!colors[key] && config?.active !== false) {
-            // Artikelspezifische Farben basierend auf verfügbaren Varianten
-            if (key === 'bath_mats' || key === 'sink_towels') {
-              colors[key] = 'grey';  // Diese gibt es in grau
-            } else if (key === 'large_towels' || key === 'small_towels' || key === 'sauna_towels') {
-              colors[key] = 'white';  // Handtücher gibt es NUR in weiß
-            } else if (config.category === 'Schlafbereich') {
-              colors[key] = 'white_striped';
-            }
-          }
-        });
-      }
+      // Keine hardcodierten Fallbacks - Farben kommen NUR aus config.color in der Datenbank
       setItemColors(colors);
     }
   }, [open, mode, effectiveLinenDefinition, initialData]);
@@ -858,7 +844,7 @@ const LinenOrderDialog = ({
                             {/* Farbauswahl für Schlafbereich: LINEN_COLORS */}
                               {hasLinenColorByCategory(itemType, effectiveLinenDefinition) && isActive && (
                                 <Select
-                                  value={itemColors[itemType] || 'white_striped'}
+                                  value={itemColors[itemType] || effectiveLinenDefinition?.custom_categories?.[itemType]?.color || ''}
                                   onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as LinenColor }))}
                                 >
                                   <SelectTrigger className="w-32 h-8 text-xs">
@@ -876,7 +862,7 @@ const LinenOrderDialog = ({
                               {/* Farbauswahl für Badbereich/Wellness: ITEM_COLORS */}
                               {hasItemColorByCategory(itemType, effectiveLinenDefinition) && isActive && (
                                 <Select
-                                  value={itemColors[itemType] || 'white'}
+                                  value={itemColors[itemType] || effectiveLinenDefinition?.custom_categories?.[itemType]?.color || ''}
                                   onValueChange={(v) => setItemColors(prev => ({ ...prev, [itemType]: v as ItemColor }))}
                                 >
                                   <SelectTrigger className="w-24 h-8 text-xs">
