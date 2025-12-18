@@ -147,7 +147,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-medium truncate">
-                                  {booking.houses?.name || 'Unbekanntes Haus'}
+                                  {booking.house_name || 'Unbekanntes Haus'}
                                 </span>
                                 <span className="text-muted-foreground text-xs">
                                   {checkIn} - {checkOut}
