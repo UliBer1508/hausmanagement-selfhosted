@@ -43,17 +43,18 @@ interface OrderStatusResponse {
   };
 }
 
-// Helper function to build default item variants based on item categories
+// Helper function to build default item variants based on available colors
 const buildDefaultItemVariants = (orderItems: Record<string, number>): Record<string, string> => {
   const variants: Record<string, string> = {};
-  const badItems = ['bath_mats', 'sink_towels', 'large_towels', 'small_towels', 'sauna_towels'];
-  const schlafItems = ['bedding'];
   
   Object.keys(orderItems).forEach(key => {
-    if (badItems.includes(key)) {
+    // Nur bath_mats und sink_towels gibt es in grau
+    if (key === 'bath_mats' || key === 'sink_towels') {
       variants[key] = 'grey';
-    } else if (schlafItems.includes(key)) {
+    } else if (key === 'bedding' || key === 'pillow_cases') {
       variants[key] = 'white_striped';
+    } else if (key === 'large_towels' || key === 'small_towels' || key === 'sauna_towels') {
+      variants[key] = 'white';  // Diese gibt es NUR in weiß
     }
   });
   
