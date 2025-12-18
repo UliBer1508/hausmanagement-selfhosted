@@ -47,7 +47,7 @@ const ObjectPerformanceCard = ({
 
   return (
     <Card 
-      className="p-6 hover:shadow-lg transition-shadow cursor-pointer"
+      className="p-4 sm:p-6 hover:shadow-lg transition-shadow cursor-pointer"
       onClick={onNavigateToPayments}
     >
       {/* Header */}
@@ -87,14 +87,16 @@ const ObjectPerformanceCard = ({
       </div>
 
       {/* Metriken */}
-      <div className="space-y-3 mb-4 pb-4 border-b">
+      <div className="space-y-2 sm:space-y-3 mb-4 pb-4 border-b">
         <div className="flex justify-between items-center">
-          <span className="text-sm text-muted-foreground flex items-center gap-2">
-            <Euro className="h-4 w-4" />
-            Jahreseinnahmen {selectedYear}
+          <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1 sm:gap-2">
+            <Euro className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+            <span className="hidden sm:inline">Jahreseinnahmen</span>
+            <span className="sm:hidden">Einnahmen</span>
+            {selectedYear}
           </span>
-          <span className="font-semibold">
-            {yearRevenue.toLocaleString('de-DE')} € 
+          <span className="font-semibold text-sm sm:text-base">
+            {yearRevenue.toLocaleString('de-DE')} €
             <span className="text-xs text-muted-foreground ml-1">
               ({paidPayments.length}/12)
             </span>
@@ -102,11 +104,11 @@ const ObjectPerformanceCard = ({
         </div>
 
         <div className="flex justify-between items-center">
-          <span className="text-sm text-muted-foreground flex items-center gap-2">
-            <CheckCircle className="h-4 w-4" />
+          <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1 sm:gap-2">
+            <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
             Pünktlichkeit
           </span>
-          <span className={`font-semibold ${punctuality >= 90 ? 'text-green-600' : 'text-orange-600'}`}>
+          <span className={`font-semibold text-sm sm:text-base ${punctuality >= 90 ? 'text-green-600' : 'text-orange-600'}`}>
             {punctuality}%
             <span className="text-xs text-muted-foreground ml-1">
               ({paidOnTime}/{paidPayments.length})
@@ -115,21 +117,22 @@ const ObjectPerformanceCard = ({
         </div>
 
         <div className="flex justify-between items-center">
-          <span className="text-sm text-muted-foreground">
-            Monatliche Miete
+          <span className="text-xs sm:text-sm text-muted-foreground">
+            <span className="hidden sm:inline">Monatliche Miete</span>
+            <span className="sm:hidden">Miete/Monat</span>
           </span>
-          <span className="font-medium">
+          <span className="font-medium text-sm sm:text-base">
             {tenantInfo?.monthly_rent?.toLocaleString('de-DE') || 0} €
           </span>
         </div>
 
         {tenantInfo?.contract_end && (
           <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
+            <span className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1 sm:gap-2">
+              <Calendar className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
               Vertrag bis
             </span>
-            <span className="font-medium">
+            <span className="font-medium text-sm sm:text-base">
               {format(new Date(tenantInfo.contract_end), 'dd.MM.yyyy', { locale: de })}
             </span>
           </div>

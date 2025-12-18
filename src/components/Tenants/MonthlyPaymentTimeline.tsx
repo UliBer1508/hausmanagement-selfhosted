@@ -74,13 +74,13 @@ const MonthlyPaymentTimeline = ({ payments, selectedYear }: Props) => {
         Zahlungs-Timeline {selectedYear}
       </p>
       
-      <div className="flex gap-1">
+      <div className="flex gap-0.5 sm:gap-1">
         {months.map(({ month, monthName, payment, status, color }) => (
           <TooltipProvider key={month}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <div 
-                  className={`flex-1 h-8 rounded ${color} cursor-pointer hover:opacity-80 transition-opacity`}
+                  className={`flex-1 h-6 sm:h-8 rounded ${color} cursor-pointer hover:opacity-80 transition-opacity`}
                 />
               </TooltipTrigger>
               <TooltipContent>
@@ -114,21 +114,21 @@ const MonthlyPaymentTimeline = ({ payments, selectedYear }: Props) => {
       </div>
       
       {/* Legende */}
-      <div className="flex gap-4 text-xs text-muted-foreground">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 sm:gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-green-500" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-green-500" />
           Pünktlich
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-yellow-500" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-yellow-500" />
           Verspätet
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-red-500" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-red-500" />
           Überfällig
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-muted-foreground/30" />
+          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded bg-muted-foreground/30" />
           Ausstehend
         </div>
       </div>
