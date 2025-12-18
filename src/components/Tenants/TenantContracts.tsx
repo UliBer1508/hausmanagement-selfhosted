@@ -5,11 +5,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Edit, Euro, Calendar, CreditCard, FileText, Mail, Phone } from "lucide-react";
-import { format } from "date-fns";
+import { Search, Edit, Euro, Calendar, CreditCard, FileText, Mail, Phone, TrendingUp } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { House } from "@/types";
 import EditHouseDialog from "@/components/Houses/EditHouseDialog";
+import { RentHistoryDialog } from "./RentHistoryDialog";
+import { useTenantRentChanges, getActiveRent, getPendingRentChanges } from "@/hooks/useTenantRentChanges";
 
 const TenantContracts = () => {
   const { data: houses } = useHouses();
@@ -18,10 +20,14 @@ const TenantContracts = () => {
   const [houseFilter, setHouseFilter] = useState("all");
   const [selectedHouse, setSelectedHouse] = useState<House | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [rentHistoryHouse, setRentHistoryHouse] = useState<House | null>(null);
 
   const longTermRentals = houses?.filter(h => 
     h.rental_type === 'long_term' && h.tenant_info
   ) || [];
+
+  // Fetch rent changes for all long-term rentals
+  const { data: allRentChanges = [] } = useTenantRentChanges();
 
   const getContractStatus = (house: House) => {
     const tenantInfo = house.tenant_info as any;
@@ -58,6 +64,17 @@ const TenantContracts = () => {
       case 'direct_debit': return 'Lastschrift';
       default: return '-';
     }
+  };
+
+  const getRentChangesForHouse = (houseId: string) => {
+    return allRentChanges.filter(rc => rc.house_id === houseId);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('de-DE', {
+      style: 'currency',
+      currency: 'EUR',
+    }).format(amount);
   };
 
   return (
@@ -104,6 +121,11 @@ const TenantContracts = () => {
         {filteredRentals.map(house => {
           const tenantInfo = house.tenant_info as any;
           const status = getContractStatus(house);
+          const houseRentChanges = getRentChangesForHouse(house.id);
+          const baseMontlyRent = tenantInfo?.monthly_rent || 0;
+          const currentRent = getActiveRent(houseRentChanges, baseMontlyRent);
+          const pendingChanges = getPendingRentChanges(houseRentChanges);
+          const nextChange = pendingChanges[0];
           
           return (
             <Card key={house.id} className="p-6">
@@ -112,15 +134,22 @@ const TenantContracts = () => {
                   <h3 className="text-lg font-semibold">{house.name}</h3>
                   <p className="text-sm text-muted-foreground">{house.address}</p>
                 </div>
-                <Badge variant={
-                  status === 'active' ? 'default' : 
-                  status === 'expiring' ? 'secondary' : 
-                  'destructive'
-                }>
-                  {status === 'active' ? 'Aktiv' : 
-                   status === 'expiring' ? 'Läuft bald aus' : 
-                   'Abgelaufen'}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  {nextChange && (
+                    <Badge variant="outline" className="text-amber-600 border-amber-400">
+                      ⏰ Erhöhung geplant
+                    </Badge>
+                  )}
+                  <Badge variant={
+                    status === 'active' ? 'default' : 
+                    status === 'expiring' ? 'secondary' : 
+                    'destructive'
+                  }>
+                    {status === 'active' ? 'Aktiv' : 
+                     status === 'expiring' ? 'Läuft bald aus' : 
+                     'Abgelaufen'}
+                  </Badge>
+                </div>
               </div>
 
               <div className="mb-3">
@@ -170,8 +199,13 @@ const TenantContracts = () => {
                   <div>
                     <p className="text-sm font-medium">Monatliche Miete</p>
                     <p className="text-sm text-muted-foreground">
-                      {tenantInfo?.monthly_rent ? `${tenantInfo.monthly_rent.toLocaleString('de-DE')} €` : '-'}
+                      {formatCurrency(currentRent)}
                     </p>
+                    {nextChange && (
+                      <p className="text-xs text-amber-600 mt-0.5">
+                        ⏰ Ab {format(parseISO(nextChange.effective_date), 'dd.MM.yyyy', { locale: de })}: {formatCurrency(nextChange.new_rent)}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -204,22 +238,29 @@ const TenantContracts = () => {
                 </div>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button 
                   variant="outline" 
                   size="sm"
-                  className="flex-1"
                   onClick={() => handleEdit(house)}
                 >
                   <Edit className="h-4 w-4 mr-1" />
                   Details bearbeiten
+                </Button>
+
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setRentHistoryHouse(house)}
+                >
+                  <TrendingUp className="h-4 w-4 mr-1" />
+                  Miethistorie
                 </Button>
                 
                 {tenantInfo?.tenant_email && (
                   <Button 
                     variant="outline" 
                     size="sm"
-                    className="flex-1"
                     onClick={() => window.location.href = `mailto:${tenantInfo.tenant_email}`}
                   >
                     <Mail className="h-4 w-4 mr-1" />
@@ -237,6 +278,14 @@ const TenantContracts = () => {
           house={selectedHouse}
           open={isEditDialogOpen}
           onOpenChange={setIsEditDialogOpen}
+        />
+      )}
+
+      {rentHistoryHouse && (
+        <RentHistoryDialog
+          house={rentHistoryHouse}
+          open={!!rentHistoryHouse}
+          onOpenChange={(open) => !open && setRentHistoryHouse(null)}
         />
       )}
     </div>
