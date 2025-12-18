@@ -63,13 +63,19 @@ const TenantManagement = () => {
         </Button>
       </div>
 
-      <Card className="p-6">
+      <Card className="p-3 sm:p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="flex flex-wrap h-auto gap-1 w-full justify-center sm:grid sm:grid-cols-5">
             <TabsTrigger value="overview">Übersicht</TabsTrigger>
             <TabsTrigger value="contracts">Verträge</TabsTrigger>
-            <TabsTrigger value="payments">Zahlungen</TabsTrigger>
-            <TabsTrigger value="utilities">NK-Abrechnung</TabsTrigger>
+            <TabsTrigger value="payments">
+              <span className="hidden sm:inline">Zahlungen</span>
+              <span className="sm:hidden">Zahlung.</span>
+            </TabsTrigger>
+            <TabsTrigger value="utilities">
+              <span className="hidden sm:inline">NK-Abrechnung</span>
+              <span className="sm:hidden">NK-Abr.</span>
+            </TabsTrigger>
             <TabsTrigger value="analytics">Analyse</TabsTrigger>
           </TabsList>
 
