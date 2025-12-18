@@ -12,12 +12,15 @@ import {
   useUtilityCostCategories,
   useSaveUtilityCost,
   useDeleteUtilityCost,
+  useCreateUtilityCostCategory,
   calculateTenantShare,
   distributionKeyLabels,
   UtilitySettings,
 } from '@/hooks/useUtilityCosts';
 import { toast } from 'sonner';
 import ExcelUtilityImport from './ExcelUtilityImport';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 const currentYear = new Date().getFullYear();
 
@@ -31,11 +34,18 @@ const UtilityCostEntry = () => {
   const { data: categories } = useUtilityCostCategories();
   const saveCost = useSaveUtilityCost();
   const deleteCost = useDeleteUtilityCost();
+  const createCategory = useCreateUtilityCostCategory();
 
   const [editingCosts, setEditingCosts] = useState<Record<string, string>>({});
   const [newCategoryId, setNewCategoryId] = useState<string>('');
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
+  
+  // State for new category dialog
+  const [showNewCategoryDialog, setShowNewCategoryDialog] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [newCategoryDistributionKey, setNewCategoryDistributionKey] = useState('wohnflaeche');
 
   useEffect(() => {
     if (houses?.length && !selectedHouseId) {
@@ -119,6 +129,26 @@ const UtilityCostEntry = () => {
     });
     setEditingCosts(newEditingCosts);
     setShowAllCategories(true);
+  };
+
+  const handleCreateCategory = () => {
+    if (!newCategoryName.trim()) {
+      toast.error('Name ist erforderlich');
+      return;
+    }
+    
+    createCategory.mutate({
+      name: newCategoryName.trim(),
+      description: newCategoryDescription.trim() || null,
+      default_distribution_key: newCategoryDistributionKey,
+    }, {
+      onSuccess: () => {
+        setShowNewCategoryDialog(false);
+        setNewCategoryName('');
+        setNewCategoryDescription('');
+        setNewCategoryDistributionKey('wohnflaeche');
+      }
+    });
   };
 
   const handleSaveAll = async () => {
@@ -415,26 +445,39 @@ const UtilityCostEntry = () => {
                   )}
 
                   {/* Neue Kostenart hinzufügen */}
-                  {availableCategories.length > 0 && (
-                    <div className="flex gap-2 mt-4 pt-4 border-t">
-                      <Select value={newCategoryId} onValueChange={setNewCategoryId}>
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Kostenart hinzufügen..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableCategories.map(cat => (
-                            <SelectItem key={cat.id} value={cat.id}>
-                              {cat.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button onClick={handleAddCategory} disabled={!newCategoryId || saveCost.isPending}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Hinzufügen
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex gap-2 mt-4 pt-4 border-t">
+                    {availableCategories.length > 0 ? (
+                      <>
+                        <Select value={newCategoryId} onValueChange={setNewCategoryId}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Kostenart hinzufügen..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableCategories.map(cat => (
+                              <SelectItem key={cat.id} value={cat.id}>
+                                {cat.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button onClick={handleAddCategory} disabled={!newCategoryId || saveCost.isPending}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Hinzufügen
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="flex-1 text-sm text-muted-foreground">
+                        Alle Kostenarten wurden bereits hinzugefügt
+                      </div>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowNewCategoryDialog(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Neue Kostenart
+                    </Button>
+                  </div>
                 </>
               )}
             </CardContent>
@@ -451,6 +494,57 @@ const UtilityCostEntry = () => {
           />
         </>
       )}
+
+      {/* Neue Kostenart Dialog */}
+      <Dialog open={showNewCategoryDialog} onOpenChange={setShowNewCategoryDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Neue Kostenart erstellen</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="cat-name">Name *</Label>
+              <Input
+                id="cat-name"
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                placeholder="z.B. Hausstrom"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cat-desc">Beschreibung (optional)</Label>
+              <Input
+                id="cat-desc"
+                value={newCategoryDescription}
+                onChange={(e) => setNewCategoryDescription(e.target.value)}
+                placeholder="z.B. Strom für Gemeinschaftsbereiche"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Verteilerschlüssel</Label>
+              <Select value={newCategoryDistributionKey} onValueChange={setNewCategoryDistributionKey}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="wohnflaeche">Nach Wohnfläche</SelectItem>
+                  <SelectItem value="personen">Nach Personenzahl</SelectItem>
+                  <SelectItem value="einheiten">Nach Wohneinheiten</SelectItem>
+                  <SelectItem value="70_30">70/30 Regel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowNewCategoryDialog(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleCreateCategory} disabled={createCategory.isPending || !newCategoryName.trim()}>
+              Erstellen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
