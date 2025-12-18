@@ -43,13 +43,25 @@ const UtilityCostEntry = () => {
     }
   }, [houses, selectedHouseId]);
 
+  // Reset state when house or year changes
+  useEffect(() => {
+    setEditingCosts({});
+    setShowAllCategories(false);
+  }, [selectedHouseId, selectedYear]);
+
+  // Merge DB values without overwriting manual input
   useEffect(() => {
     if (costs) {
-      const costMap: Record<string, string> = {};
-      costs.forEach(c => {
-        costMap[c.category_id] = c.total_amount.toString();
+      setEditingCosts(prev => {
+        const newCosts = { ...prev };
+        costs.forEach(c => {
+          // Only set if not already manually entered
+          if (!(c.category_id in newCosts) || newCosts[c.category_id] === '') {
+            newCosts[c.category_id] = c.total_amount.toString();
+          }
+        });
+        return newCosts;
       });
-      setEditingCosts(costMap);
     }
   }, [costs]);
 
