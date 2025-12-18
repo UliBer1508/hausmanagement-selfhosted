@@ -26,6 +26,7 @@ const UtilityCostSettings = () => {
     tenant_area_sqm: '',
     total_units: '1',
     tenant_persons: '1',
+    monthly_prepayment: '',
   });
 
   const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set());
@@ -43,6 +44,7 @@ const UtilityCostSettings = () => {
         tenant_area_sqm: settings.tenant_area_sqm?.toString() || '',
         total_units: settings.total_units?.toString() || '1',
         tenant_persons: settings.tenant_persons?.toString() || '1',
+        monthly_prepayment: settings.monthly_prepayment?.toString() || '',
       });
     } else {
       setFormData({
@@ -50,6 +52,7 @@ const UtilityCostSettings = () => {
         tenant_area_sqm: '',
         total_units: '1',
         tenant_persons: '1',
+        monthly_prepayment: '',
       });
     }
   }, [settings]);
@@ -69,6 +72,7 @@ const UtilityCostSettings = () => {
       tenant_area_sqm: formData.tenant_area_sqm ? parseFloat(formData.tenant_area_sqm) : null,
       total_units: parseInt(formData.total_units) || 1,
       tenant_persons: parseInt(formData.tenant_persons) || 1,
+      monthly_prepayment: formData.monthly_prepayment ? parseFloat(formData.monthly_prepayment) : null,
     });
   };
 
@@ -186,6 +190,29 @@ const UtilityCostSettings = () => {
                         value={formData.tenant_persons}
                         onChange={(e) => setFormData({ ...formData, tenant_persons: e.target.value })}
                       />
+                    </div>
+                  </div>
+
+                  {/* Monatliche NK-Vorauszahlung */}
+                  <div className="pt-4 border-t">
+                    <div className="space-y-2">
+                      <Label htmlFor="monthly_prepayment">Monatliche NK-Vorauszahlung (€)</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          id="monthly_prepayment"
+                          type="number"
+                          step="0.01"
+                          className="w-32"
+                          value={formData.monthly_prepayment}
+                          onChange={(e) => setFormData({ ...formData, monthly_prepayment: e.target.value })}
+                          placeholder="z.B. 130"
+                        />
+                        {formData.monthly_prepayment && (
+                          <span className="text-sm text-muted-foreground">
+                            = {(parseFloat(formData.monthly_prepayment) * 12).toFixed(2)} €/Jahr
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </>

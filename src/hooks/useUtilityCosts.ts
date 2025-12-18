@@ -18,6 +18,7 @@ export interface UtilitySettings {
   tenant_area_sqm: number | null;
   total_units: number;
   tenant_persons: number;
+  monthly_prepayment: number | null;
 }
 
 export interface UtilityCost {

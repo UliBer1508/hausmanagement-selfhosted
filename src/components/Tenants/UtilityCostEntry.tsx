@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Building2, Save, Plus, Trash2, Calculator } from 'lucide-react';
+import { Building2, Save, Plus, Trash2, Calculator, FileSpreadsheet } from 'lucide-react';
 import { useHouses } from '@/hooks/useHouses';
 import {
   useUtilitySettings,
@@ -17,6 +17,7 @@ import {
   UtilitySettings,
 } from '@/hooks/useUtilityCosts';
 import { toast } from 'sonner';
+import ExcelUtilityImport from './ExcelUtilityImport';
 
 const currentYear = new Date().getFullYear();
 
@@ -33,6 +34,7 @@ const UtilityCostEntry = () => {
 
   const [editingCosts, setEditingCosts] = useState<Record<string, string>>({});
   const [newCategoryId, setNewCategoryId] = useState<string>('');
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   useEffect(() => {
     if (houses?.length && !selectedHouseId) {
@@ -169,10 +171,20 @@ const UtilityCostEntry = () => {
           {/* Kostentabelle */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Calculator className="h-5 w-5" />
-                Kosten {selectedYear}
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Calculator className="h-5 w-5" />
+                  Kosten {selectedYear}
+                </CardTitle>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowImportDialog(true)}
+                >
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Aus Excel importieren
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {costsLoading ? (
@@ -284,6 +296,16 @@ const UtilityCostEntry = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Excel Import Dialog */}
+          <ExcelUtilityImport
+            open={showImportDialog}
+            onOpenChange={setShowImportDialog}
+            houseId={selectedHouseId}
+            year={selectedYear}
+            categories={categories || []}
+            houseName={houses?.find(h => h.id === selectedHouseId)?.name || ''}
+          />
         </>
       )}
     </div>
