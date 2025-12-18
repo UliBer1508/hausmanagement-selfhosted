@@ -36,7 +36,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
 const UtilityStatementGenerator = () => {
   const { data: houses } = useHouses({ rental_type: 'long_term' });
   const [selectedHouseId, setSelectedHouseId] = useState<string | null>(null);
-  const [selectedYear, setSelectedYear] = useState(currentYear - 1); // Abrechnung für Vorjahr
+  const [selectedYear, setSelectedYear] = useState(currentYear); // Standard: aktuelles Jahr für vorläufige Abrechnung
   const [manualPrepayments, setManualPrepayments] = useState<string>('');
 
   const { data: settings } = useUtilitySettings(selectedHouseId);
@@ -85,7 +85,7 @@ const UtilityStatementGenerator = () => {
     updateStatus.mutate({ id: existingStatement.id, status, houseId: selectedHouseId });
   };
 
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - 1 - i);
+  const years = Array.from({ length: 6 }, (_, i) => currentYear - i); // Inkl. aktuelles Jahr für vorläufige Abrechnung
 
   // Berechne aktuelle Werte für Vorschau
   const totalCosts = costs?.reduce((sum, c) => sum + c.total_amount, 0) || 0;
@@ -156,6 +156,11 @@ const UtilityStatementGenerator = () => {
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <FileText className="h-5 w-5" />
                   Nebenkostenabrechnung {selectedYear}
+                  {selectedYear === currentYear && (
+                    <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 ml-2">
+                      Vorläufig
+                    </Badge>
+                  )}
                 </CardTitle>
                 {existingStatement && (
                   <Badge variant="outline" className={statusConfig[existingStatement.status].color}>
@@ -164,6 +169,11 @@ const UtilityStatementGenerator = () => {
                   </Badge>
                 )}
               </div>
+              {selectedYear === currentYear && (
+                <p className="text-sm text-amber-600 mt-1">
+                  Diese Abrechnung ist vorläufig, da das Jahr noch nicht abgeschlossen ist.
+                </p>
+              )}
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Header Info */}
