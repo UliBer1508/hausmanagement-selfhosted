@@ -4180,6 +4180,7 @@ export type Database = {
           created_at: string | null
           house_id: string
           id: string
+          monthly_prepayment: number | null
           tenant_area_sqm: number | null
           tenant_persons: number | null
           total_area_sqm: number | null
@@ -4190,6 +4191,7 @@ export type Database = {
           created_at?: string | null
           house_id: string
           id?: string
+          monthly_prepayment?: number | null
           tenant_area_sqm?: number | null
           tenant_persons?: number | null
           total_area_sqm?: number | null
@@ -4200,6 +4202,7 @@ export type Database = {
           created_at?: string | null
           house_id?: string
           id?: string
+          monthly_prepayment?: number | null
           tenant_area_sqm?: number | null
           tenant_persons?: number | null
           total_area_sqm?: number | null

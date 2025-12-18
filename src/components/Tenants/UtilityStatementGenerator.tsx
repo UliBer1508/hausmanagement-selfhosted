@@ -56,27 +56,17 @@ const UtilityStatementGenerator = () => {
     }
   }, [houses, selectedHouseId]);
 
-  // Berechne Vorauszahlungen aus tenant_payments oder tenant_info
+  // Berechne Vorauszahlungen aus utility_settings.monthly_prepayment oder tenant_info
   useEffect(() => {
-    if (selectedHouseId && tenantInfo) {
-      // Versuche, Vorauszahlungen aus Zahlungen zu berechnen
-      const yearPayments = payments?.filter(p => 
-        p.house_id === selectedHouseId && 
-        p.status === 'paid' &&
-        new Date(p.payment_date).getFullYear() === selectedYear
-      ) || [];
-
-      if (yearPayments.length > 0) {
-        // Falls separate Nebenkosten-Zahlungen existieren würden
-        // Für jetzt: nutze monthly additional_costs × 12
-        const monthlyNK = tenantInfo.additional_costs || 0;
-        setManualPrepayments((monthlyNK * 12).toFixed(2));
-      } else {
-        const monthlyNK = tenantInfo.additional_costs || 0;
-        setManualPrepayments((monthlyNK * 12).toFixed(2));
-      }
+    if (selectedHouseId && settings?.monthly_prepayment) {
+      // Primär: monthly_prepayment aus utility_settings
+      setManualPrepayments((settings.monthly_prepayment * 12).toFixed(2));
+    } else if (tenantInfo?.additional_costs) {
+      // Fallback: additional_costs aus tenant_info
+      const monthlyNK = tenantInfo.additional_costs || 0;
+      setManualPrepayments((monthlyNK * 12).toFixed(2));
     }
-  }, [selectedHouseId, tenantInfo, payments, selectedYear]);
+  }, [selectedHouseId, settings, tenantInfo]);
 
   const handleGenerate = () => {
     if (!selectedHouseId || !settings || !costs?.length) return;
