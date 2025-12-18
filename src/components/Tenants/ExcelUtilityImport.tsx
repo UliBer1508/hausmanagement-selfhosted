@@ -7,9 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Upload, FileSpreadsheet, Check, X, AlertTriangle, Plus, Minus, ArrowRight, Info } from 'lucide-react';
+import { Upload, FileSpreadsheet, Check, X, AlertTriangle, Plus, Minus, ArrowRight, Info, Wrench } from 'lucide-react';
 import { toast } from 'sonner';
 import { UtilityCostCategory, useSaveUtilityCost } from '@/hooks/useUtilityCosts';
 
@@ -83,6 +83,17 @@ const NON_ALLOCABLE_RULES: { keywords: string[]; reason: string }[] = [
   { keywords: ['privat', 'eigenanteil', 'persönlich'], reason: 'Privat/Eigenanteil' },
   { keywords: ['rücklage', 'instandhaltungsrücklage'], reason: 'Rücklage' },
 ];
+
+// Manuelle Ausschlussgründe für Dropdown
+const MANUAL_EXCLUDE_REASONS = [
+  { value: 'repair', label: '🔧 Reparatur/Instandsetzung', reason: 'Reparatur/Instandsetzung' },
+  { value: 'purchase', label: '🛒 Anschaffung', reason: 'Anschaffung' },
+  { value: 'private', label: '🏠 Privat/Eigenanteil', reason: 'Privat/Eigenanteil' },
+  { value: 'other', label: '❌ Sonstig nicht umlegbar', reason: 'Manuell ausgeschlossen' },
+];
+
+// Keywords die auf Handwerker/Reparatur hindeuten
+const REPAIR_SUPPLIER_KEYWORDS = ['gmbh', 'monteur', 'service', 'technik', 'installation', 'sanitär', 'heizungsbau', 'handwerk'];
 
 type ImportStep = 'upload' | 'review' | 'confirm';
 
@@ -293,7 +304,7 @@ const ExcelUtilityImport = ({
     }
   }, [processExcelFile]);
 
-  const toggleExclude = (index: number) => {
+  const toggleExclude = (index: number, reason?: string) => {
     setImportedCosts(prev => prev.map((cost, i) => {
       if (i !== index) return cost;
       
@@ -307,24 +318,43 @@ const ExcelUtilityImport = ({
           mappedCategory: mapped,
         };
       } else {
-        // Exclude
+        // Exclude mit Grund
         return {
           ...cost,
           excluded: true,
-          excludeReason: 'Manuell ausgeschlossen',
+          excludeReason: reason || 'Manuell ausgeschlossen',
           mappedCategory: null,
         };
       }
     }));
   };
 
+  const excludeAsRepair = (index: number) => {
+    toggleExclude(index, 'Reparatur/Instandsetzung');
+  };
+
   const updateCategory = (index: number, categoryId: string) => {
+    // Check if it's an exclude option
+    const excludeOption = MANUAL_EXCLUDE_REASONS.find(r => r.value === categoryId);
+    if (excludeOption) {
+      toggleExclude(index, excludeOption.reason);
+      return;
+    }
+    
     const category = categories.find(c => c.id === categoryId);
     if (!category) return;
     
     setImportedCosts(prev => prev.map((cost, i) => 
       i === index ? { ...cost, mappedCategory: category } : cost
     ));
+  };
+
+  // Prüft ob Heizkosten möglicherweise eine Reparatur sind
+  const isLikelyRepair = (cost: ImportedCost): boolean => {
+    const isHeizung = cost.excelCategory.toLowerCase().includes('heizung');
+    if (!isHeizung || !cost.supplier) return false;
+    const supplierLower = cost.supplier.toLowerCase();
+    return REPAIR_SUPPLIER_KEYWORDS.some(kw => supplierLower.includes(kw));
   };
 
   const handleImport = async () => {
@@ -501,14 +531,21 @@ const ExcelUtilityImport = ({
                         {includedCosts.map((cost) => {
                           const originalIndex = importedCosts.indexOf(cost);
                           const isHeizung = cost.excelCategory.toLowerCase().includes('heizung');
+                          const likelyRepair = isLikelyRepair(cost);
                           return (
-                            <TableRow key={originalIndex} className={isHeizung ? 'bg-amber-50' : ''}>
+                            <TableRow key={originalIndex} className={likelyRepair ? 'bg-red-50' : isHeizung ? 'bg-amber-50' : ''}>
                               <TableCell>
                                 <div className="font-medium">{cost.excelCategory}</div>
                                 {cost.supplier && (
                                   <div className="text-xs text-muted-foreground">{cost.supplier}</div>
                                 )}
                                 <span className="text-xs text-muted-foreground">({cost.transactions}x)</span>
+                                {likelyRepair && (
+                                  <div className="flex items-center gap-1 mt-1 text-xs text-red-600 font-medium">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    Möglicherweise Reparatur!
+                                  </div>
+                                )}
                               </TableCell>
                               <TableCell>
                                 <Select
@@ -524,6 +561,12 @@ const ExcelUtilityImport = ({
                                         {cat.name}
                                       </SelectItem>
                                     ))}
+                                    <SelectSeparator />
+                                    {MANUAL_EXCLUDE_REASONS.map(reason => (
+                                      <SelectItem key={reason.value} value={reason.value} className="text-destructive">
+                                        {reason.label}
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                               </TableCell>
@@ -531,14 +574,28 @@ const ExcelUtilityImport = ({
                                 {cost.amount.toFixed(2)} €
                               </TableCell>
                               <TableCell>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => toggleExclude(originalIndex)}
-                                  className="text-destructive hover:text-destructive"
-                                >
-                                  <Minus className="h-4 w-4" />
-                                </Button>
+                                <div className="flex items-center gap-1">
+                                  {isHeizung && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => excludeAsRepair(originalIndex)}
+                                      className="text-amber-600 hover:text-amber-700 hover:bg-amber-100"
+                                      title="Als Reparatur markieren"
+                                    >
+                                      <Wrench className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => toggleExclude(originalIndex)}
+                                    className="text-destructive hover:text-destructive"
+                                    title="Ausschließen"
+                                  >
+                                    <Minus className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           );
