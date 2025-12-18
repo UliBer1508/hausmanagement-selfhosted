@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,6 +38,7 @@ const UtilityStatementGenerator = () => {
   const [selectedHouseId, setSelectedHouseId] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState(currentYear); // Standard: aktuelles Jahr für vorläufige Abrechnung
   const [manualPrepayments, setManualPrepayments] = useState<string>('');
+  const statementCardRef = useRef<HTMLDivElement>(null);
 
   const { data: settings } = useUtilitySettings(selectedHouseId);
   const { data: costs } = useUtilityCosts(selectedHouseId, selectedYear);
@@ -150,7 +151,7 @@ const UtilityStatementGenerator = () => {
       {selectedHouseId && (
         <>
           {/* Bestehende Abrechnung oder Vorschau */}
-          <Card>
+          <Card ref={statementCardRef}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -372,7 +373,12 @@ const UtilityStatementGenerator = () => {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          onClick={() => setSelectedYear(stmt.year)}
+                          onClick={() => {
+                            setSelectedYear(stmt.year);
+                            setTimeout(() => {
+                              statementCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }, 100);
+                          }}
                         >
                           Anzeigen
                         </Button>
