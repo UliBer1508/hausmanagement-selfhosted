@@ -7,6 +7,9 @@ import TenantOverview from "./TenantOverview";
 import TenantContracts from "./TenantContracts";
 import TenantPayments from "./TenantPayments";
 import TenantAnalytics from "./TenantAnalytics";
+import UtilityCostSettings from "./UtilityCostSettings";
+import UtilityCostEntry from "./UtilityCostEntry";
+import UtilityStatementGenerator from "./UtilityStatementGenerator";
 import { useHouses } from "@/hooks/useHouses";
 import { toast } from "sonner";
 
@@ -62,10 +65,11 @@ const TenantManagement = () => {
 
       <Card className="p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Übersicht</TabsTrigger>
             <TabsTrigger value="contracts">Verträge</TabsTrigger>
             <TabsTrigger value="payments">Zahlungen</TabsTrigger>
+            <TabsTrigger value="utilities">NK-Abrechnung</TabsTrigger>
             <TabsTrigger value="analytics">Analyse</TabsTrigger>
           </TabsList>
 
@@ -79,6 +83,25 @@ const TenantManagement = () => {
 
           <TabsContent value="payments" className="space-y-6">
             <TenantPayments />
+          </TabsContent>
+
+          <TabsContent value="utilities" className="space-y-6">
+            <Tabs defaultValue="settings" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="settings">Einstellungen</TabsTrigger>
+                <TabsTrigger value="costs">Kosten erfassen</TabsTrigger>
+                <TabsTrigger value="statement">Abrechnung</TabsTrigger>
+              </TabsList>
+              <TabsContent value="settings">
+                <UtilityCostSettings />
+              </TabsContent>
+              <TabsContent value="costs">
+                <UtilityCostEntry />
+              </TabsContent>
+              <TabsContent value="statement">
+                <UtilityStatementGenerator />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">

@@ -4091,6 +4091,193 @@ export type Database = {
         }
         Relationships: []
       }
+      utility_cost_categories: {
+        Row: {
+          created_at: string | null
+          default_distribution_key: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          is_system: boolean | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          default_distribution_key?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system?: boolean | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          default_distribution_key?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system?: boolean | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      utility_costs: {
+        Row: {
+          category_id: string
+          created_at: string | null
+          distribution_key: string | null
+          house_id: string
+          id: string
+          notes: string | null
+          total_amount: number
+          updated_at: string | null
+          year: number
+        }
+        Insert: {
+          category_id: string
+          created_at?: string | null
+          distribution_key?: string | null
+          house_id: string
+          id?: string
+          notes?: string | null
+          total_amount?: number
+          updated_at?: string | null
+          year: number
+        }
+        Update: {
+          category_id?: string
+          created_at?: string | null
+          distribution_key?: string | null
+          house_id?: string
+          id?: string
+          notes?: string | null
+          total_amount?: number
+          updated_at?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "utility_costs_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "utility_cost_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utility_costs_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      utility_settings: {
+        Row: {
+          created_at: string | null
+          house_id: string
+          id: string
+          tenant_area_sqm: number | null
+          tenant_persons: number | null
+          total_area_sqm: number | null
+          total_units: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          house_id: string
+          id?: string
+          tenant_area_sqm?: number | null
+          tenant_persons?: number | null
+          total_area_sqm?: number | null
+          total_units?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          house_id?: string
+          id?: string
+          tenant_area_sqm?: number | null
+          tenant_persons?: number | null
+          total_area_sqm?: number | null
+          total_units?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "utility_settings_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: true
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      utility_statements: {
+        Row: {
+          cost_breakdown: Json | null
+          created_at: string | null
+          generated_at: string | null
+          house_id: string
+          id: string
+          period_end: string
+          period_start: string
+          prepayments: number
+          result: number
+          sent_at: string | null
+          status: string | null
+          tenant_share: number
+          total_costs: number
+          updated_at: string | null
+          year: number
+        }
+        Insert: {
+          cost_breakdown?: Json | null
+          created_at?: string | null
+          generated_at?: string | null
+          house_id: string
+          id?: string
+          period_end: string
+          period_start: string
+          prepayments?: number
+          result?: number
+          sent_at?: string | null
+          status?: string | null
+          tenant_share?: number
+          total_costs?: number
+          updated_at?: string | null
+          year: number
+        }
+        Update: {
+          cost_breakdown?: Json | null
+          created_at?: string | null
+          generated_at?: string | null
+          house_id?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          prepayments?: number
+          result?: number
+          sent_at?: string | null
+          status?: string | null
+          tenant_share?: number
+          total_costs?: number
+          updated_at?: string | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "utility_statements_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vacation_trips: {
         Row: {
           budget: number | null
