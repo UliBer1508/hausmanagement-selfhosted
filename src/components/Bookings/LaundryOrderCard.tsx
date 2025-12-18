@@ -173,8 +173,10 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
               </div>
             )}
 
-            {/* Linen Color */}
-            {order.linen_color && (
+            {/* Linen Color - nur anzeigen wenn Schlafbereich-Items vorhanden */}
+            {order.linen_color && order.items && Object.keys(order.items).some(key => 
+              SCHLAFBEREICH_DEFAULT_ITEMS.includes(key) && order.items[key] > 0
+            ) && (
               <div className="flex items-start gap-2 text-xs lg:text-sm">
                 <span className="text-sm lg:text-base">🎨</span>
                 <span>{getLinenColorLabel(order.linen_color as LinenColor)}</span>
