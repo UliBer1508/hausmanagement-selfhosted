@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { Building2, FileText, Calculator, CheckCircle, Clock, Send, Euro } from 'lucide-react';
+import { Building2, FileText, Calculator, CheckCircle, Clock, Send, Euro, Download } from 'lucide-react';
 import { useHouses } from '@/hooks/useHouses';
 import { useTenantPayments } from '@/hooks/useTenantPayments';
 import {
@@ -24,6 +24,8 @@ import {
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TenantInfo } from '@/types';
+import { generateUtilityStatementPdf } from '@/lib/utilityStatementPdf';
+import { useProfileSettings } from '@/hooks/useSystemSettings';
 
 const currentYear = new Date().getFullYear();
 
@@ -46,6 +48,7 @@ const UtilityStatementGenerator = () => {
   const { data: payments } = useTenantPayments();
   const generateStatement = useGenerateStatement();
   const updateStatus = useUpdateStatementStatus();
+  const { data: profileSettings } = useProfileSettings();
 
   const selectedHouse = houses?.find(h => h.id === selectedHouseId);
   const tenantInfo = selectedHouse?.tenant_info as TenantInfo | null;
@@ -329,6 +332,21 @@ const UtilityStatementGenerator = () => {
                       >
                         <Calculator className="h-4 w-4 mr-2" />
                         Neu berechnen
+                      </Button>
+                    )}
+                    {existingStatement.status !== 'draft' && (
+                      <Button 
+                        variant="outline"
+                        onClick={() => generateUtilityStatementPdf(
+                          existingStatement, 
+                          selectedHouse!, 
+                          tenantInfo, 
+                          settings,
+                          profileSettings
+                        )}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Als PDF exportieren
                       </Button>
                     )}
                   </>
