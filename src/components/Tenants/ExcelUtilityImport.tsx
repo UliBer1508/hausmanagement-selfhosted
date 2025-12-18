@@ -207,6 +207,9 @@ const ExcelUtilityImport = ({
               : parseFloat(String(amountCol).replace(',', '.').replace(/[^\d.-]/g, ''));
           }
           
+          // Positive Beträge = Einnahmen in Banking-App-Exporten
+          const originalAmount = amount;
+          
           amount = Math.abs(amount);
           if (isNaN(amount) || amount === 0) return;
           
@@ -216,15 +219,15 @@ const ExcelUtilityImport = ({
             categoryName = String(categoryCol).trim();
           }
           
-          // Einnahmen komplett überspringen (keine Kosten)
+          // Einnahmen überspringen:
+          // 1. Kategorie enthält "einnahm" oder "mieteinnahm"  
+          // 2. ODER der Betrag ist positiv (Einnahme in Banking-Export)
           const fullCategory = String(categoryCol).toLowerCase();
-          if (fullCategory.includes('einnahmen') || fullCategory.includes('mieteinnahmen')) {
-            return;
-          }
+          const isIncomeByCategory = fullCategory.includes('einnahm') || fullCategory.includes('mieteinnahm');
+          const isIncomeByAmount = originalAmount > 0;
           
-          // Nur Ausgaben-Kategorien berücksichtigen
-          if (fullCategory.includes(':') && !fullCategory.toLowerCase().includes('ausgaben')) {
-            return;
+          if (isIncomeByCategory || isIncomeByAmount) {
+            return; // Einnahmen nicht als Kosten importieren
           }
           
           const excludeInfo = getExcludeReason(categoryName);
