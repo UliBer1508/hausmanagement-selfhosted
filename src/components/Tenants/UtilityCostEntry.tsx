@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Building2, Save, Plus, Trash2, Calculator, FileSpreadsheet, ListPlus, SaveAll } from 'lucide-react';
+import { Building2, Save, Plus, Trash2, Calculator, FileSpreadsheet, ListPlus, SaveAll, Check } from 'lucide-react';
 import { useHouses } from '@/hooks/useHouses';
 import {
   useUtilitySettings,
@@ -37,6 +37,7 @@ const UtilityCostEntry = () => {
   const createCategory = useCreateUtilityCostCategory();
 
   const [editingCosts, setEditingCosts] = useState<Record<string, string>>({});
+  const [savedIndicator, setSavedIndicator] = useState<Record<string, boolean>>({});
   const [newCategoryId, setNewCategoryId] = useState<string>('');
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
@@ -47,6 +48,16 @@ const UtilityCostEntry = () => {
   const [newCategoryDescription, setNewCategoryDescription] = useState('');
   const [newCategoryDistributionKey, setNewCategoryDistributionKey] = useState('wohnflaeche');
 
+  // Debounce timers ref
+  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      Object.values(debounceTimers.current).forEach(clearTimeout);
+    };
+  }, []);
+
   useEffect(() => {
     if (houses?.length && !selectedHouseId) {
       setSelectedHouseId(houses[0].id);
@@ -56,6 +67,7 @@ const UtilityCostEntry = () => {
   // Reset state when house or year changes
   useEffect(() => {
     setEditingCosts({});
+    setSavedIndicator({});
     setShowAllCategories(false);
   }, [selectedHouseId, selectedYear]);
 
@@ -75,24 +87,39 @@ const UtilityCostEntry = () => {
     }
   }, [costs]);
 
-  const handleSaveCost = (categoryId: string) => {
-    if (!selectedHouseId) return;
+  // Auto-save with debounce
+  const autoSaveCost = (categoryId: string, value: string) => {
+    // Update local state immediately for UI responsiveness
+    setEditingCosts(prev => ({ ...prev, [categoryId]: value }));
+    setSavedIndicator(prev => ({ ...prev, [categoryId]: false }));
 
-    const amount = parseFloat(editingCosts[categoryId] || '0');
-    if (isNaN(amount)) {
-      toast.error('Ungültiger Betrag');
-      return;
+    // Clear existing timer
+    if (debounceTimers.current[categoryId]) {
+      clearTimeout(debounceTimers.current[categoryId]);
     }
 
-    const category = categories?.find(c => c.id === categoryId);
-
-    saveCost.mutate({
-      house_id: selectedHouseId,
-      category_id: categoryId,
-      year: selectedYear,
-      total_amount: amount,
-      distribution_key: category?.default_distribution_key || 'wohnflaeche',
-    });
+    // Set new debounced save
+    debounceTimers.current[categoryId] = setTimeout(() => {
+      const amount = parseFloat(value);
+      if (!isNaN(amount) && amount >= 0 && selectedHouseId) {
+        const category = categories?.find(c => c.id === categoryId);
+        saveCost.mutate({
+          house_id: selectedHouseId,
+          category_id: categoryId,
+          year: selectedYear,
+          total_amount: amount,
+          distribution_key: category?.default_distribution_key || 'wohnflaeche',
+        }, {
+          onSuccess: () => {
+            setSavedIndicator(prev => ({ ...prev, [categoryId]: true }));
+            // Hide indicator after 2 seconds
+            setTimeout(() => {
+              setSavedIndicator(prev => ({ ...prev, [categoryId]: false }));
+            }, 2000);
+          }
+        });
+      }
+    }, 500);
   };
 
   const handleAddCategory = () => {
@@ -331,12 +358,12 @@ const UtilityCostEntry = () => {
                                   step="0.01"
                                   className="w-28 text-right"
                                   value={editingCosts[cost.category_id] || ''}
-                                  onChange={(e) => setEditingCosts({
-                                    ...editingCosts,
-                                    [cost.category_id]: e.target.value
-                                  })}
+                                  onChange={(e) => autoSaveCost(cost.category_id, e.target.value)}
                                 />
                                 <span className="text-muted-foreground">€</span>
+                                {savedIndicator[cost.category_id] && (
+                                  <Check className="h-4 w-4 text-green-500" />
+                                )}
                               </div>
                             </TableCell>
                             <TableCell className="text-center text-sm text-muted-foreground">
@@ -346,25 +373,15 @@ const UtilityCostEntry = () => {
                               {share.toFixed(2)} €
                             </TableCell>
                             <TableCell>
-                              <div className="flex gap-1">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => handleSaveCost(cost.category_id)}
-                                  disabled={saveCost.isPending}
-                                >
-                                  <Save className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="text-destructive"
-                                  onClick={() => handleDeleteCost(cost.id)}
-                                  disabled={deleteCost.isPending}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive"
+                                onClick={() => handleDeleteCost(cost.id)}
+                                disabled={deleteCost.isPending}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );
@@ -395,12 +412,12 @@ const UtilityCostEntry = () => {
                                     className="w-28 text-right"
                                     placeholder="0,00"
                                     value={editingCosts[category.id] || ''}
-                                    onChange={(e) => setEditingCosts({
-                                      ...editingCosts,
-                                      [category.id]: e.target.value
-                                    })}
+                                    onChange={(e) => autoSaveCost(category.id, e.target.value)}
                                   />
                                   <span className="text-muted-foreground">€</span>
+                                  {savedIndicator[category.id] && (
+                                    <Check className="h-4 w-4 text-green-500" />
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell className="text-center text-sm text-muted-foreground">
