@@ -394,8 +394,15 @@ const ExcelUtilityImport = ({
     const category = categories.find(c => c.id === categoryId);
     if (!category) return;
     
+    // Kategorie zuweisen UND aus excluded entfernen (wichtig für Ausgeschlossen-Tab)
     setImportedCosts(prev => prev.map((cost, i) => 
-      i === index ? { ...cost, mappedCategory: category } : cost
+      i === index ? { 
+        ...cost, 
+        mappedCategory: category,
+        excluded: false,
+        excludeReason: null,
+        isAutoExcluded: false 
+      } : cost
     ));
   };
 
@@ -666,6 +673,7 @@ const ExcelUtilityImport = ({
                         <TableRow>
                           <TableHead>Excel-Kategorie</TableHead>
                           <TableHead>Ausschlussgrund</TableHead>
+                          <TableHead>NK-Kategorie zuweisen</TableHead>
                           <TableHead className="text-right">Betrag</TableHead>
                           <TableHead className="w-[80px]"></TableHead>
                         </TableRow>
@@ -685,6 +693,23 @@ const ExcelUtilityImport = ({
                                 <Badge variant={cost.isAutoExcluded ? 'secondary' : 'outline'}>
                                   {cost.excludeReason}
                                 </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Select
+                                  value=""
+                                  onValueChange={(value) => updateCategory(originalIndex, value)}
+                                >
+                                  <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="Kategorie wählen..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {categories.map(cat => (
+                                      <SelectItem key={cat.id} value={cat.id}>
+                                        {cat.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </TableCell>
                               <TableCell className="text-right font-mono text-muted-foreground">
                                 {cost.amount.toFixed(2)} €
