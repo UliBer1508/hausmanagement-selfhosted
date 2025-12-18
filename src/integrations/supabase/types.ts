@@ -3776,6 +3776,50 @@ export type Database = {
           },
         ]
       }
+      tenant_rent_changes: {
+        Row: {
+          created_at: string | null
+          effective_date: string
+          house_id: string
+          id: string
+          new_rent: number
+          notes: string | null
+          old_rent: number | null
+          reason: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          effective_date: string
+          house_id: string
+          id?: string
+          new_rent: number
+          notes?: string | null
+          old_rent?: number | null
+          reason?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          effective_date?: string
+          house_id?: string
+          id?: string
+          new_rent?: number
+          notes?: string | null
+          old_rent?: number | null
+          reason?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_rent_changes_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trip_activities: {
         Row: {
           activity_date: string
