@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Building2, Save, Plus, Trash2, Calculator, FileSpreadsheet } from 'lucide-react';
+import { Building2, Save, Plus, Trash2, Calculator, FileSpreadsheet, ListPlus, SaveAll } from 'lucide-react';
 import { useHouses } from '@/hooks/useHouses';
 import {
   useUtilitySettings,
@@ -35,6 +35,7 @@ const UtilityCostEntry = () => {
   const [editingCosts, setEditingCosts] = useState<Record<string, string>>({});
   const [newCategoryId, setNewCategoryId] = useState<string>('');
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   useEffect(() => {
     if (houses?.length && !selectedHouseId) {
@@ -94,8 +95,62 @@ const UtilityCostEntry = () => {
     deleteCost.mutate({ id: costId, houseId: selectedHouseId, year: selectedYear });
   };
 
+  const handleShowAllCategories = () => {
+    if (!categories) return;
+    
+    // Add all active categories that don't have costs yet
+    const newEditingCosts = { ...editingCosts };
+    categories.filter(c => c.is_active).forEach(cat => {
+      if (!(cat.id in newEditingCosts)) {
+        newEditingCosts[cat.id] = '';
+      }
+    });
+    setEditingCosts(newEditingCosts);
+    setShowAllCategories(true);
+  };
+
+  const handleSaveAll = async () => {
+    if (!selectedHouseId || !categories) return;
+
+    const toSave = Object.entries(editingCosts)
+      .filter(([_, value]) => value !== '' && parseFloat(value) > 0)
+      .map(([categoryId, value]) => {
+        const category = categories.find(c => c.id === categoryId);
+        return {
+          house_id: selectedHouseId,
+          category_id: categoryId,
+          year: selectedYear,
+          total_amount: parseFloat(value),
+          distribution_key: category?.default_distribution_key || 'wohnflaeche',
+        };
+      });
+
+    if (toSave.length === 0) {
+      toast.error('Keine Beträge zum Speichern');
+      return;
+    }
+
+    let saved = 0;
+    for (const cost of toSave) {
+      try {
+        await saveCost.mutateAsync(cost);
+        saved++;
+      } catch (e) {
+        console.error('Error saving cost:', e);
+      }
+    }
+    
+    toast.success(`${saved} Kosten gespeichert`);
+    setShowAllCategories(false);
+  };
+
   const usedCategoryIds = new Set(costs?.map(c => c.category_id) || []);
   const availableCategories = categories?.filter(c => c.is_active && !usedCategoryIds.has(c.id)) || [];
+  
+  // Combine existing costs with all categories when showing all
+  const displayCategories = showAllCategories 
+    ? categories?.filter(c => c.is_active) || []
+    : [];
 
   const totalCosts = costs?.reduce((sum, c) => sum + c.total_amount, 0) || 0;
   const totalTenantShare = costs?.reduce((sum, c) => {
@@ -176,14 +231,25 @@ const UtilityCostEntry = () => {
                   <Calculator className="h-5 w-5" />
                   Kosten {selectedYear}
                 </CardTitle>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowImportDialog(true)}
-                >
-                  <FileSpreadsheet className="h-4 w-4 mr-2" />
-                  Aus Excel importieren
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={handleShowAllCategories}
+                    disabled={showAllCategories}
+                  >
+                    <ListPlus className="h-4 w-4 mr-2" />
+                    Alle Kategorien
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowImportDialog(true)}
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Excel Import
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -202,6 +268,7 @@ const UtilityCostEntry = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
+                      {/* Existing costs */}
                       {costs?.map(cost => {
                         const key = cost.distribution_key || cost.category?.default_distribution_key || 'wohnflaeche';
                         const { share, percentage } = calculateTenantShare(
@@ -260,6 +327,51 @@ const UtilityCostEntry = () => {
                           </TableRow>
                         );
                       })}
+                      
+                      {/* Show all categories (empty rows for input) */}
+                      {showAllCategories && displayCategories
+                        .filter(cat => !usedCategoryIds.has(cat.id))
+                        .map(category => {
+                          const key = category.default_distribution_key || 'wohnflaeche';
+                          const amount = parseFloat(editingCosts[category.id] || '0');
+                          const { share, percentage } = calculateTenantShare(
+                            amount,
+                            key,
+                            settings as UtilitySettings
+                          );
+
+                          return (
+                            <TableRow key={category.id} className="bg-muted/20">
+                              <TableCell className="font-medium text-muted-foreground">
+                                {category.name}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    className="w-28 text-right"
+                                    placeholder="0,00"
+                                    value={editingCosts[category.id] || ''}
+                                    onChange={(e) => setEditingCosts({
+                                      ...editingCosts,
+                                      [category.id]: e.target.value
+                                    })}
+                                  />
+                                  <span className="text-muted-foreground">€</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-center text-sm text-muted-foreground">
+                                {percentage.toFixed(1)}% {distributionKeyLabels[key]?.split(' ')[0]}
+                              </TableCell>
+                              <TableCell className="text-right font-medium text-muted-foreground">
+                                {share.toFixed(2)} €
+                              </TableCell>
+                              <TableCell></TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      
                       {/* Summenzeile */}
                       <TableRow className="bg-muted/50 font-semibold">
                         <TableCell>GESAMT</TableCell>
@@ -270,6 +382,25 @@ const UtilityCostEntry = () => {
                       </TableRow>
                     </TableBody>
                   </Table>
+                  
+                  {/* Alle speichern Button wenn alle Kategorien angezeigt werden */}
+                  {showAllCategories && (
+                    <div className="flex justify-end gap-2 mt-4 pt-4 border-t">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowAllCategories(false)}
+                      >
+                        Abbrechen
+                      </Button>
+                      <Button 
+                        onClick={handleSaveAll}
+                        disabled={saveCost.isPending}
+                      >
+                        <SaveAll className="h-4 w-4 mr-2" />
+                        Alle speichern
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Neue Kostenart hinzufügen */}
                   {availableCategories.length > 0 && (
