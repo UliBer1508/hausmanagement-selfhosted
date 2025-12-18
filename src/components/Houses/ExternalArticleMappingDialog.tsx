@@ -91,37 +91,22 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
         const category = config.category || 'Sonstige';
         const label = config.label || translateItemType(key);
         
-        // Farben basierend auf Kategorie bestimmen
+        // Farben aus external_artikelnummer Keys lesen (aus Datenbank)
         let colors: string[] = [];
-        if (category === 'Schlafbereich') {
-          colors = ['grey_striped', 'white_striped', 'colorful'];
-        } else if (category === 'Badbereich' || category === 'Wellness') {
-          colors = ['white', 'grey'];
-        } else if (category === 'Küchenbereich') {
-          colors = ['white'];
-        } else {
-          colors = ['white'];
+        if (config.external_artikelnummer && typeof config.external_artikelnummer === 'object') {
+          colors = Object.keys(config.external_artikelnummer);
+        }
+        // Minimaler Fallback nur wenn external_artikelnummer fehlt
+        if (colors.length === 0) {
+          colors = [config.color || 'white'];
         }
         
         options.push({ key, label, category, colors });
       });
     }
     
-    // Fallback wenn keine custom_categories
-    if (options.length === 0) {
-      const standardItems: { key: string; label: string; category: string; colors: string[] }[] = [
-        { key: 'bedding', label: 'Bettwäsche', category: 'Schlafbereich', colors: ['grey_striped', 'white_striped', 'colorful'] },
-        { key: 'pillow_cases', label: 'Kopfkissen', category: 'Schlafbereich', colors: ['grey_striped', 'white_striped', 'colorful'] },
-        { key: 'spannbetttuch', label: 'Spannbetttücher', category: 'Schlafbereich', colors: ['white'] },
-        { key: 'large_towels', label: 'Badetücher', category: 'Badbereich', colors: ['white', 'grey'] },
-        { key: 'small_towels', label: 'Handtücher', category: 'Badbereich', colors: ['white', 'grey'] },
-        { key: 'bath_mats', label: 'Badvorleger', category: 'Badbereich', colors: ['white', 'grey'] },
-        { key: 'sink_towels', label: 'WB-Handtücher', category: 'Badbereich', colors: ['white', 'grey'] },
-        { key: 'sauna_towels', label: 'Saunatücher', category: 'Wellness', colors: ['white', 'grey'] },
-        { key: 'kitchen_towels', label: 'Geschirrtücher', category: 'Küchenbereich', colors: ['white'] },
-      ];
-      options.push(...standardItems);
-    }
+    // Kein Fallback mit hardcodierten Farben - Daten müssen aus DB kommen
+    // Falls keine custom_categories vorhanden, ist die Liste leer
     
     return options.sort((a, b) => {
       const categoryOrder = ['Schlafbereich', 'Badbereich', 'Wellness', 'Küchenbereich'];

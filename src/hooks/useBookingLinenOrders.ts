@@ -43,18 +43,18 @@ interface OrderStatusResponse {
   };
 }
 
-// Helper function to build default item variants based on available colors
-const buildDefaultItemVariants = (orderItems: Record<string, number>): Record<string, string> => {
+// Helper function to build default item variants from database custom_categories
+const buildDefaultItemVariants = (
+  orderItems: Record<string, number>,
+  customCategories?: Record<string, any>
+): Record<string, string> => {
   const variants: Record<string, string> = {};
   
   Object.keys(orderItems).forEach(key => {
-    // Nur bath_mats und sink_towels gibt es in grau
-    if (key === 'bath_mats' || key === 'sink_towels') {
-      variants[key] = 'grey';
-    } else if (key === 'bedding' || key === 'pillow_cases') {
-      variants[key] = 'white_striped';
-    } else if (key === 'large_towels' || key === 'small_towels' || key === 'sauna_towels') {
-      variants[key] = 'white';  // Diese gibt es NUR in weiß
+    // Farbe aus Datenbank (custom_categories) lesen - KEINE hardcodierten Defaults
+    const definedColor = customCategories?.[key]?.color;
+    if (definedColor) {
+      variants[key] = definedColor;
     }
   });
   
@@ -206,11 +206,13 @@ export const useBookingLinenOrders = (houseId: string) => {
     mutationFn: async ({ 
       bookingId, 
       generatedData, 
-      userOverrides 
+      userOverrides,
+      customCategories 
     }: {
       bookingId: string;
       generatedData: any;
       userOverrides: any;
+      customCategories?: Record<string, any>;
     }) => {
       const { data, error } = await supabase
         .from('linen_orders')
@@ -226,8 +228,8 @@ export const useBookingLinenOrders = (houseId: string) => {
           delivery_date: userOverrides.deliveryDate || calculateDeliveryDate(generatedData.booking.check_in),
           delivery_type: userOverrides.deliveryType || 'delivery',
           notes: userOverrides.notes || generatedData.note,
-          linen_color: userOverrides.linenColor || 'white_striped',
-          item_variants: userOverrides.itemColors || buildDefaultItemVariants(generatedData.order_items),
+          linen_color: userOverrides.linenColor || null, // Aus Datenbank - kein Fallback
+          item_variants: userOverrides.itemColors || buildDefaultItemVariants(generatedData.order_items, customCategories),
         })
         .select('*, bookings!linen_orders_booking_id_fkey(*), houses!linen_orders_house_id_fkey(*)')
         .single();
