@@ -8,6 +8,8 @@ export interface TenantRentChange {
   effective_date: string;
   new_rent: number;
   old_rent?: number;
+  new_additional_costs?: number;
+  old_additional_costs?: number;
   reason?: string;
   notes?: string;
   created_at?: string;
@@ -122,6 +124,21 @@ export function getActiveRent(
     .sort((a, b) => b.effective_date.localeCompare(a.effective_date))[0];
   
   return applicableChange ? applicableChange.new_rent : baseMontlyRent;
+}
+
+// Helper: Ermittelt die gültigen Nebenkosten zu einem bestimmten Datum
+export function getActiveAdditionalCosts(
+  rentChanges: TenantRentChange[],
+  baseAdditionalCosts: number,
+  date: Date = new Date()
+): number {
+  const dateStr = date.toISOString().split('T')[0];
+  
+  const applicableChange = rentChanges
+    .filter(rc => rc.effective_date <= dateStr && rc.new_additional_costs !== null && rc.new_additional_costs !== undefined)
+    .sort((a, b) => b.effective_date.localeCompare(a.effective_date))[0];
+  
+  return applicableChange?.new_additional_costs ?? baseAdditionalCosts;
 }
 
 // Helper: Gibt zukünftige Mietänderungen zurück

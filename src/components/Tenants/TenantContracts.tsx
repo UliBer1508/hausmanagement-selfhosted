@@ -11,7 +11,7 @@ import { de } from "date-fns/locale";
 import { House } from "@/types";
 import EditHouseDialog from "@/components/Houses/EditHouseDialog";
 import { RentHistoryDialog } from "./RentHistoryDialog";
-import { useTenantRentChanges, getActiveRent, getPendingRentChanges } from "@/hooks/useTenantRentChanges";
+import { useTenantRentChanges, getActiveRent, getActiveAdditionalCosts, getPendingRentChanges } from "@/hooks/useTenantRentChanges";
 
 const TenantContracts = () => {
   const { data: houses } = useHouses();
@@ -122,8 +122,11 @@ const TenantContracts = () => {
           const tenantInfo = house.tenant_info as any;
           const status = getContractStatus(house);
           const houseRentChanges = getRentChangesForHouse(house.id);
-          const baseMontlyRent = tenantInfo?.monthly_rent || 0;
-          const currentRent = getActiveRent(houseRentChanges, baseMontlyRent);
+          const baseMonthlyRent = tenantInfo?.monthly_rent || 0;
+          const baseAdditionalCosts = tenantInfo?.additional_costs || 0;
+          const currentRent = getActiveRent(houseRentChanges, baseMonthlyRent);
+          const currentAdditionalCosts = getActiveAdditionalCosts(houseRentChanges, baseAdditionalCosts);
+          const currentWarmmiete = currentRent + currentAdditionalCosts;
           const pendingChanges = getPendingRentChanges(houseRentChanges);
           const nextChange = pendingChanges[0];
           
@@ -137,7 +140,7 @@ const TenantContracts = () => {
                 <div className="flex items-center gap-2">
                   {nextChange && (
                     <Badge variant="outline" className="text-amber-600 border-amber-400">
-                      ⏰ Erhöhung geplant
+                      ⏰ Änderung geplant
                     </Badge>
                   )}
                   <Badge variant={
@@ -197,13 +200,19 @@ const TenantContracts = () => {
                 <div className="flex items-start gap-2">
                   <Euro className="h-4 w-4 text-muted-foreground mt-0.5" />
                   <div>
-                    <p className="text-sm font-medium">Monatliche Miete</p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatCurrency(currentRent)}
-                    </p>
+                    <p className="text-sm font-medium">Miete</p>
+                    <div className="text-sm text-muted-foreground space-y-0.5">
+                      <div>Kaltmiete: {formatCurrency(currentRent)}</div>
+                      <div>Nebenkosten: {formatCurrency(currentAdditionalCosts)}</div>
+                      <div className="font-semibold text-foreground">Warmmiete: {formatCurrency(currentWarmmiete)}</div>
+                    </div>
                     {nextChange && (
-                      <p className="text-xs text-amber-600 mt-0.5">
-                        ⏰ Ab {format(parseISO(nextChange.effective_date), 'dd.MM.yyyy', { locale: de })}: {formatCurrency(nextChange.new_rent)}
+                      <p className="text-xs text-amber-600 mt-1">
+                        ⏰ Ab {format(parseISO(nextChange.effective_date), 'dd.MM.yyyy', { locale: de })}: 
+                        {' '}Kaltmiete {formatCurrency(nextChange.new_rent)}
+                        {nextChange.new_additional_costs !== null && nextChange.new_additional_costs !== undefined && (
+                          <>, NK {formatCurrency(nextChange.new_additional_costs)}</>
+                        )}
                       </p>
                     )}
                   </div>

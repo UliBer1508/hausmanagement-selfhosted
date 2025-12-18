@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format, parseISO, isFuture } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { TrendingUp, Plus, Trash2, Edit2, X, Check } from 'lucide-react';
+import { TrendingUp, Plus, Trash2, X, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,7 @@ import {
   useDeleteRentChange,
   TenantRentChange,
   getActiveRent,
+  getActiveAdditionalCosts,
 } from '@/hooks/useTenantRentChanges';
 
 interface RentHistoryDialogProps {
@@ -58,6 +59,7 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
   const [formData, setFormData] = useState({
     effective_date: '',
     new_rent: '',
+    new_additional_costs: '',
     reason: '',
     notes: '',
   });
@@ -66,8 +68,11 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
   const createMutation = useCreateRentChange();
   const deleteMutation = useDeleteRentChange();
 
-  const baseMontlyRent = house.tenant_info?.monthly_rent || 0;
-  const currentRent = getActiveRent(rentChanges, baseMontlyRent);
+  const baseMonthlyRent = house.tenant_info?.monthly_rent || 0;
+  const baseAdditionalCosts = house.tenant_info?.additional_costs || 0;
+  const currentRent = getActiveRent(rentChanges, baseMonthlyRent);
+  const currentAdditionalCosts = getActiveAdditionalCosts(rentChanges, baseAdditionalCosts);
+  const currentWarmmiete = currentRent + currentAdditionalCosts;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +84,12 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
     // Finde die vorherige Miete
     const prevRent = getActiveRent(
       rentChanges,
-      baseMontlyRent,
+      baseMonthlyRent,
+      parseISO(formData.effective_date)
+    );
+    const prevAdditionalCosts = getActiveAdditionalCosts(
+      rentChanges,
+      baseAdditionalCosts,
       parseISO(formData.effective_date)
     );
 
@@ -88,11 +98,13 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
       effective_date: formData.effective_date,
       new_rent: parseFloat(formData.new_rent),
       old_rent: prevRent,
+      new_additional_costs: formData.new_additional_costs ? parseFloat(formData.new_additional_costs) : undefined,
+      old_additional_costs: formData.new_additional_costs ? prevAdditionalCosts : undefined,
       reason: formData.reason || undefined,
       notes: formData.notes || undefined,
     });
 
-    setFormData({ effective_date: '', new_rent: '', reason: '', notes: '' });
+    setFormData({ effective_date: '', new_rent: '', new_additional_costs: '', reason: '', notes: '' });
     setShowAddForm(false);
   };
 
@@ -123,12 +135,24 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
 
           <div className="space-y-4">
             {/* Aktuelle Miete */}
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="text-sm text-muted-foreground">Aktuelle Miete</div>
-              <div className="text-2xl font-bold">{formatCurrency(currentRent)}</div>
-              {baseMontlyRent !== currentRent && (
-                <div className="text-xs text-muted-foreground mt-1">
-                  (Ursprünglich: {formatCurrency(baseMontlyRent)})
+            <div className="p-4 bg-muted rounded-lg space-y-2">
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <div>
+                  <div className="text-muted-foreground">Kaltmiete</div>
+                  <div className="font-semibold">{formatCurrency(currentRent)}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Nebenkosten</div>
+                  <div className="font-semibold">{formatCurrency(currentAdditionalCosts)}</div>
+                </div>
+                <div>
+                  <div className="text-muted-foreground">Warmmiete</div>
+                  <div className="text-xl font-bold">{formatCurrency(currentWarmmiete)}</div>
+                </div>
+              </div>
+              {(baseMonthlyRent !== currentRent || baseAdditionalCosts !== currentAdditionalCosts) && (
+                <div className="text-xs text-muted-foreground">
+                  (Ursprünglich: Kaltmiete {formatCurrency(baseMonthlyRent)}, NK {formatCurrency(baseAdditionalCosts)})
                 </div>
               )}
             </div>
@@ -136,7 +160,7 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
             {/* Mietänderungen Liste */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="font-medium">Mietänderungen</h3>
+                <h3 className="font-medium">Änderungen</h3>
                 <Button
                   size="sm"
                   variant="outline"
@@ -148,7 +172,7 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
                     </>
                   ) : (
                     <>
-                      <Plus className="h-4 w-4 mr-1" /> Neue Erhöhung
+                      <Plus className="h-4 w-4 mr-1" /> Neue Änderung
                     </>
                   )}
                 </Button>
@@ -169,7 +193,7 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="new_rent">Neue Miete (EUR)</Label>
+                      <Label htmlFor="new_rent">Neue Kaltmiete (€)</Label>
                       <Input
                         id="new_rent"
                         type="number"
@@ -181,6 +205,18 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
                         required
                       />
                     </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="new_additional_costs">Neue Nebenkosten (€, optional)</Label>
+                    <Input
+                      id="new_additional_costs"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="220.00"
+                      value={formData.new_additional_costs}
+                      onChange={(e) => setFormData(prev => ({ ...prev, new_additional_costs: e.target.value }))}
+                    />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="reason">Grund</Label>
@@ -224,13 +260,16 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
                 </div>
               ) : rentChanges.length === 0 ? (
                 <div className="text-sm text-muted-foreground py-4 text-center border rounded-lg">
-                  Keine Mietänderungen vorhanden
+                  Keine Änderungen vorhanden
                 </div>
               ) : (
                 <div className="space-y-2">
                   {rentChanges.map((change) => {
                     const isFutureChange = isFuture(parseISO(change.effective_date));
-                    const diff = change.old_rent ? change.new_rent - change.old_rent : 0;
+                    const rentDiff = change.old_rent ? change.new_rent - change.old_rent : 0;
+                    const additionalCostsDiff = (change.old_additional_costs && change.new_additional_costs) 
+                      ? change.new_additional_costs - change.old_additional_costs 
+                      : 0;
                     const reasonLabel = REASON_OPTIONS.find(r => r.value === change.reason)?.label;
 
                     return (
@@ -250,12 +289,26 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
                                 </Badge>
                               )}
                             </div>
-                            <div className="text-lg font-semibold">
-                              {formatCurrency(change.new_rent)}
-                              {diff !== 0 && (
-                                <span className={`text-sm ml-2 ${diff > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                  ({diff > 0 ? '+' : ''}{formatCurrency(diff)})
-                                </span>
+                            <div className="text-sm space-y-0.5">
+                              <div>
+                                <span className="text-muted-foreground">Kaltmiete:</span>{' '}
+                                <span className="font-semibold">{formatCurrency(change.new_rent)}</span>
+                                {rentDiff !== 0 && (
+                                  <span className={`text-xs ml-1 ${rentDiff > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                    ({rentDiff > 0 ? '+' : ''}{formatCurrency(rentDiff)})
+                                  </span>
+                                )}
+                              </div>
+                              {change.new_additional_costs !== null && change.new_additional_costs !== undefined && (
+                                <div>
+                                  <span className="text-muted-foreground">Nebenkosten:</span>{' '}
+                                  <span className="font-semibold">{formatCurrency(change.new_additional_costs)}</span>
+                                  {additionalCostsDiff !== 0 && (
+                                    <span className={`text-xs ml-1 ${additionalCostsDiff > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                      ({additionalCostsDiff > 0 ? '+' : ''}{formatCurrency(additionalCostsDiff)})
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </div>
                             {reasonLabel && (
@@ -290,9 +343,9 @@ export function RentHistoryDialog({ open, onOpenChange, house }: RentHistoryDial
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Mietänderung löschen?</AlertDialogTitle>
+            <AlertDialogTitle>Änderung löschen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Diese geplante Mietänderung wird unwiderruflich gelöscht.
+              Diese geplante Änderung wird unwiderruflich gelöscht.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
