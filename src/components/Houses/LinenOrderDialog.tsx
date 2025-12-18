@@ -405,7 +405,7 @@ const LinenOrderDialog = ({
             if (config.category === 'Schlafbereich') {
               colors[key] = 'white_striped';
             } else if (config.category === 'Badbereich' || config.category === 'Wellness') {
-              colors[key] = 'white';
+              colors[key] = 'grey';
             }
           }
         });

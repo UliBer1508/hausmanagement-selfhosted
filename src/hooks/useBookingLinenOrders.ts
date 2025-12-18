@@ -43,6 +43,23 @@ interface OrderStatusResponse {
   };
 }
 
+// Helper function to build default item variants based on item categories
+const buildDefaultItemVariants = (orderItems: Record<string, number>): Record<string, string> => {
+  const variants: Record<string, string> = {};
+  const badItems = ['bath_mats', 'sink_towels', 'large_towels', 'small_towels', 'sauna_towels'];
+  const schlafItems = ['bedding'];
+  
+  Object.keys(orderItems).forEach(key => {
+    if (badItems.includes(key)) {
+      variants[key] = 'grey';
+    } else if (schlafItems.includes(key)) {
+      variants[key] = 'white_striped';
+    }
+  });
+  
+  return variants;
+};
+
 export const useBookingLinenOrders = (houseId: string) => {
   const queryClient = useQueryClient();
 
@@ -209,7 +226,7 @@ export const useBookingLinenOrders = (houseId: string) => {
           delivery_type: userOverrides.deliveryType || 'delivery',
           notes: userOverrides.notes || generatedData.note,
           linen_color: userOverrides.linenColor || 'white_striped',
-          item_variants: userOverrides.itemColors || null,
+          item_variants: userOverrides.itemColors || buildDefaultItemVariants(generatedData.order_items),
         })
         .select('*, bookings!linen_orders_booking_id_fkey(*), houses!linen_orders_house_id_fkey(*)')
         .single();
