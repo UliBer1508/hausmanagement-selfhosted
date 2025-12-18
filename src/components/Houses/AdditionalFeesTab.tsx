@@ -25,7 +25,14 @@ const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
 
   useEffect(() => {
     if (fees) {
-      setLocalFees(fees);
+      setLocalFees({
+        service_fee_per_stay: fees.service_fee_per_stay ?? 0,
+        tourist_tax_per_night: fees.tourist_tax_per_night ?? 2.50,
+        cleaning_fee_per_stay: fees.cleaning_fee_per_stay ?? 80,
+        electricity_fee_per_stay: fees.electricity_fee_per_stay ?? 40,
+        linen_fee_per_stay: fees.linen_fee_per_stay ?? 30,
+        vat_percentage: fees.vat_percentage ?? 19
+      });
     }
   }, [fees]);
 
