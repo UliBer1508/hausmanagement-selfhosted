@@ -55,6 +55,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
     contract_start: house?.tenant_info?.contract_start || '',
     contract_end: house?.tenant_info?.contract_end || '',
     monthly_rent: house?.tenant_info?.monthly_rent || 0,
+    additional_costs: house?.tenant_info?.additional_costs || 0,
     deposit_amount: house?.tenant_info?.deposit_amount || 0,
     payment_day: house?.tenant_info?.payment_day || 1,
     payment_method: house?.tenant_info?.payment_method || 'bank_transfer',
@@ -284,6 +285,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
           contract_start: house.tenant_info.contract_start || '',
           contract_end: house.tenant_info.contract_end || '',
           monthly_rent: house.tenant_info.monthly_rent || 0,
+          additional_costs: house.tenant_info.additional_costs || 0,
           deposit_amount: house.tenant_info.deposit_amount || 0,
           payment_day: house.tenant_info.payment_day || 1,
           payment_method: house.tenant_info.payment_method || 'bank_transfer',
@@ -684,7 +686,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
                     </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="monthly_rent">Monatliche Miete (€)</Label>
+                      <Label htmlFor="monthly_rent">Kaltmiete (€)</Label>
                       <Input
                         id="monthly_rent"
                         type="number"
@@ -692,6 +694,26 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
                         onChange={(e) => setTenantInfo({...tenantInfo, monthly_rent: parseFloat(e.target.value) || 0})}
                         placeholder="1200"
                       />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="additional_costs">Nebenkosten (€)</Label>
+                      <Input
+                        id="additional_costs"
+                        type="number"
+                        value={tenantInfo.additional_costs}
+                        onChange={(e) => setTenantInfo({...tenantInfo, additional_costs: parseFloat(e.target.value) || 0})}
+                        placeholder="200"
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Warmmiete (berechnet)</Label>
+                      <div className="h-10 px-3 py-2 bg-muted rounded-md text-sm flex items-center font-medium">
+                        {((tenantInfo.monthly_rent || 0) + (tenantInfo.additional_costs || 0)).toLocaleString('de-DE')} €
+                      </div>
                     </div>
                   </div>
 

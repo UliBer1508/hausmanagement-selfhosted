@@ -3782,8 +3782,10 @@ export type Database = {
           effective_date: string
           house_id: string
           id: string
+          new_additional_costs: number | null
           new_rent: number
           notes: string | null
+          old_additional_costs: number | null
           old_rent: number | null
           reason: string | null
           updated_at: string | null
@@ -3793,8 +3795,10 @@ export type Database = {
           effective_date: string
           house_id: string
           id?: string
+          new_additional_costs?: number | null
           new_rent: number
           notes?: string | null
+          old_additional_costs?: number | null
           old_rent?: number | null
           reason?: string | null
           updated_at?: string | null
@@ -3804,8 +3808,10 @@ export type Database = {
           effective_date?: string
           house_id?: string
           id?: string
+          new_additional_costs?: number | null
           new_rent?: number
           notes?: string | null
+          old_additional_costs?: number | null
           old_rent?: number | null
           reason?: string | null
           updated_at?: string | null

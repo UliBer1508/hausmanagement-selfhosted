@@ -126,6 +126,7 @@ export interface TenantInfo {
   contract_start?: string;
   contract_end?: string;
   monthly_rent?: number;
+  additional_costs?: number;
   deposit_amount?: number;
   payment_day?: number;
   payment_method?: 'bank_transfer' | 'cash' | 'direct_debit';
