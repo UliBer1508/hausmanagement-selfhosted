@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectSeparator } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Upload, FileSpreadsheet, Check, X, AlertTriangle, Plus, Minus, ArrowRight, Info, Wrench } from 'lucide-react';
+import { Upload, FileSpreadsheet, Check, X, AlertTriangle, Plus, Minus, ArrowRight, Info, TrendingUp, TrendingDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { UtilityCostCategory, useSaveUtilityCost } from '@/hooks/useUtilityCosts';
 
@@ -21,7 +21,7 @@ interface ImportedCost {
   supplier?: string;
   excluded: boolean;
   excludeReason: string | null;
-  isAutoExcluded: boolean;
+  isRevenue: boolean; // NEU: Kennzeichnung für Einnahmen
 }
 
 interface ExcelUtilityImportProps {
@@ -73,12 +73,12 @@ const CATEGORY_MAPPING: Record<string, string> = {
   'müllabfuhr': 'Müllabfuhr',
   'abfallentsorgung': 'Müllabfuhr',
   
-  // Strom/Beleuchtung - KORRIGIERT: "Beleuchtung" statt "Allgemeinstrom"
+  // Strom/Beleuchtung
   'strom': 'Beleuchtung',
   'allgemeinstrom': 'Beleuchtung',
   'beleuchtung': 'Beleuchtung',
   
-  // Hausmeister/Hauswart - KORRIGIERT: "Hauswart" statt "Hausmeister"
+  // Hausmeister/Hauswart
   'hausmeister': 'Hauswart',
   'hauswart': 'Hauswart',
   
@@ -87,7 +87,7 @@ const CATEGORY_MAPPING: Record<string, string> = {
   'garten': 'Gartenpflege',
   'grünflächen': 'Gartenpflege',
   
-  // Aufzug - KORRIGIERT: "Aufzug" statt "Aufzugwartung"
+  // Aufzug
   'aufzug': 'Aufzug',
   'aufzugwartung': 'Aufzug',
   'fahrstuhl': 'Aufzug',
@@ -109,7 +109,7 @@ const CATEGORY_MAPPING: Record<string, string> = {
   // Straßenreinigung
   'straßenreinigung': 'Straßenreinigung',
   
-  // Sonstige Betriebskosten (Winterdienst, Wohngeld, Wartung)
+  // Sonstige Betriebskosten
   'winterdienst': 'Sonstige Betriebskosten',
   'streudienst': 'Sonstige Betriebskosten',
   'wohngeld': 'Sonstige Betriebskosten',
@@ -120,27 +120,16 @@ const CATEGORY_MAPPING: Record<string, string> = {
   'sonstig': 'Sonstige Betriebskosten',
 };
 
-// Nicht-umlegbare Kategorien mit Gründen
-const NON_ALLOCABLE_RULES: { keywords: string[]; reason: string }[] = [
-  { keywords: ['darlehen', 'kredit', 'tilgung', 'zinsen'], reason: 'Darlehen/Finanzierung' },
-  { keywords: ['reparatur', 'instandsetzung', 'renovierung', 'sanierung'], reason: 'Reparatur/Instandsetzung' },
-  { keywords: ['anschaffung', 'möbel', 'einrichtung', 'kauf'], reason: 'Anschaffung' },
-  { keywords: ['mieteinnahmen', 'einnahmen', 'miete eingegangen'], reason: 'Einnahmen (keine Kosten)' },
-  { keywords: ['privat', 'eigenanteil', 'persönlich'], reason: 'Privat/Eigenanteil' },
-  { keywords: ['rücklage', 'instandhaltungsrücklage'], reason: 'Rücklage' },
-  { keywords: ['hausrat', 'hausratversicherung'], reason: 'Nicht umlegbar (Eigentümer-Versicherung)' },
-];
-
 // Manuelle Ausschlussgründe für Dropdown
 const MANUAL_EXCLUDE_REASONS = [
   { value: 'repair', label: '🔧 Reparatur/Instandsetzung', reason: 'Reparatur/Instandsetzung' },
-  { value: 'purchase', label: '🛒 Anschaffung', reason: 'Anschaffung' },
+  { value: 'reserve', label: '💰 Rücklage', reason: 'Rücklage (nicht umlegbar)' },
+  { value: 'loan', label: '🏦 Darlehen/Finanzierung', reason: 'Darlehen/Finanzierung' },
   { value: 'private', label: '🏠 Privat/Eigenanteil', reason: 'Privat/Eigenanteil' },
+  { value: 'tenant_pays', label: '👤 Mieter zahlt direkt', reason: 'Mieter zahlt direkt' },
+  { value: 'revenue', label: '📥 Einnahme (keine Kosten)', reason: 'Einnahme (keine Kosten)' },
   { value: 'other', label: '❌ Sonstig nicht umlegbar', reason: 'Manuell ausgeschlossen' },
 ];
-
-// Keywords die auf Handwerker/Reparatur hindeuten
-const REPAIR_SUPPLIER_KEYWORDS = ['gmbh', 'monteur', 'service', 'technik', 'installation', 'sanitär', 'heizungsbau', 'handwerk'];
 
 type ImportStep = 'upload' | 'review' | 'confirm';
 
@@ -179,18 +168,6 @@ const ExcelUtilityImport = ({
     return null;
   };
 
-  const getExcludeReason = (category: string): { excluded: boolean; reason: string | null } => {
-    const normalized = category.toLowerCase();
-    
-    for (const rule of NON_ALLOCABLE_RULES) {
-      if (rule.keywords.some(keyword => normalized.includes(keyword))) {
-        return { excluded: true, reason: rule.reason };
-      }
-    }
-    
-    return { excluded: false, reason: null };
-  };
-
   const findColumnValue = (row: Record<string, unknown>, keywords: string[]): unknown => {
     for (const keyword of keywords) {
       if (row[keyword] !== undefined) return row[keyword];
@@ -227,12 +204,12 @@ const ExcelUtilityImport = ({
           range: headerRowIndex > 0 ? headerRowIndex : 0 
         }) as Record<string, unknown>[];
         
-        // Kosten aggregieren - ALLE erfassen, nicht nur umlegbare
+        // Kosten aggregieren - ALLE erfassen ohne automatische Ausschlüsse
         const costsByCategory: Record<string, { 
           amount: number; 
           transactions: number;
           suppliers: Set<string>;
-          excludeInfo: { excluded: boolean; reason: string | null };
+          isRevenue: boolean;
         }> = {};
         
         jsonData.forEach((row) => {
@@ -256,6 +233,7 @@ const ExcelUtilityImport = ({
           
           // Positive Beträge = Einnahmen in Banking-App-Exporten
           const originalAmount = amount;
+          const isRevenue = originalAmount > 0;
           
           amount = Math.abs(amount);
           if (isNaN(amount) || amount === 0) return;
@@ -266,25 +244,14 @@ const ExcelUtilityImport = ({
             categoryName = String(categoryCol).trim();
           }
           
-          // Einnahmen überspringen:
-          // 1. Kategorie enthält "einnahm" oder "mieteinnahm"  
-          // 2. ODER der Betrag ist positiv (Einnahme in Banking-Export)
-          const fullCategory = String(categoryCol).toLowerCase();
-          const isIncomeByCategory = fullCategory.includes('einnahm') || fullCategory.includes('mieteinnahm');
-          const isIncomeByAmount = originalAmount > 0;
-          
-          if (isIncomeByCategory || isIncomeByAmount) {
-            return; // Einnahmen nicht als Kosten importieren
-          }
-          
-          const excludeInfo = getExcludeReason(categoryName);
+          // KEINE automatische Filterung mehr - alles erfassen!
           
           if (!costsByCategory[categoryName]) {
             costsByCategory[categoryName] = { 
               amount: 0, 
               transactions: 0, 
               suppliers: new Set(),
-              excludeInfo
+              isRevenue
             };
           }
           costsByCategory[categoryName].amount += amount;
@@ -294,19 +261,19 @@ const ExcelUtilityImport = ({
           }
         });
         
-        // In ImportedCost Array umwandeln
+        // In ImportedCost Array umwandeln - ALLE mit excluded: false
         const imported: ImportedCost[] = Object.entries(costsByCategory)
           .map(([excelCategory, data]) => {
             const mapped = findMappedCategory(excelCategory);
             return {
               excelCategory,
-              mappedCategory: data.excludeInfo.excluded ? null : mapped,
+              mappedCategory: mapped, // Kann null sein, wird als "Nicht zugeordnet" angezeigt
               amount: Math.round(data.amount * 100) / 100,
               transactions: data.transactions,
               supplier: Array.from(data.suppliers).join(', ') || undefined,
-              excluded: data.excludeInfo.excluded || !mapped,
-              excludeReason: data.excludeInfo.reason || (!mapped ? 'Keine NK-Kategorie zugeordnet' : null),
-              isAutoExcluded: data.excludeInfo.excluded,
+              excluded: false, // KEINE automatische Ausschlüsse mehr!
+              excludeReason: null,
+              isRevenue: data.isRevenue,
             };
           })
           .filter(c => c.amount > 0)
@@ -316,8 +283,7 @@ const ExcelUtilityImport = ({
         setFileName(file.name);
         setStep('review');
         
-        const includedCount = imported.filter(c => !c.excluded).length;
-        toast.success(`${imported.length} Kostenarten erkannt, ${includedCount} zur Übernahme vorgeschlagen`);
+        toast.success(`${imported.length} Positionen erkannt - bitte prüfen und zuweisen`);
       } catch (error) {
         console.error('Excel parse error:', error);
         toast.error('Fehler beim Lesen der Excel-Datei');
@@ -359,13 +325,11 @@ const ExcelUtilityImport = ({
       if (i !== index) return cost;
       
       if (cost.excluded) {
-        // Include wieder - prüfe ob Kategorie zugeordnet werden kann
-        const mapped = findMappedCategory(cost.excelCategory);
+        // Include wieder - behalte die gemappte Kategorie
         return {
           ...cost,
           excluded: false,
           excludeReason: null,
-          mappedCategory: mapped,
         };
       } else {
         // Exclude mit Grund
@@ -373,14 +337,9 @@ const ExcelUtilityImport = ({
           ...cost,
           excluded: true,
           excludeReason: reason || 'Manuell ausgeschlossen',
-          mappedCategory: null,
         };
       }
     }));
-  };
-
-  const excludeAsRepair = (index: number) => {
-    toggleExclude(index, 'Reparatur/Instandsetzung');
   };
 
   const updateCategory = (index: number, categoryId: string) => {
@@ -394,24 +353,15 @@ const ExcelUtilityImport = ({
     const category = categories.find(c => c.id === categoryId);
     if (!category) return;
     
-    // Kategorie zuweisen UND aus excluded entfernen (wichtig für Ausgeschlossen-Tab)
+    // Kategorie zuweisen UND aus excluded entfernen
     setImportedCosts(prev => prev.map((cost, i) => 
       i === index ? { 
         ...cost, 
         mappedCategory: category,
         excluded: false,
         excludeReason: null,
-        isAutoExcluded: false 
       } : cost
     ));
-  };
-
-  // Prüft ob Heizkosten möglicherweise eine Reparatur sind
-  const isLikelyRepair = (cost: ImportedCost): boolean => {
-    const isHeizung = cost.excelCategory.toLowerCase().includes('heizung');
-    if (!isHeizung || !cost.supplier) return false;
-    const supplierLower = cost.supplier.toLowerCase();
-    return REPAIR_SUPPLIER_KEYWORDS.some(kw => supplierLower.includes(kw));
   };
 
   const handleImport = async () => {
@@ -461,14 +411,12 @@ const ExcelUtilityImport = ({
   const totalExcelAmount = importedCosts.reduce((sum, c) => sum + c.amount, 0);
   const totalIncludedAmount = includedCosts.reduce((sum, c) => sum + c.amount, 0);
   const totalExcludedAmount = excludedCosts.reduce((sum, c) => sum + c.amount, 0);
-  const hasHeizung = includedCosts.some(c => 
-    c.excelCategory.toLowerCase().includes('heizung') && 
-    c.mappedCategory?.name === 'Heizkosten'
-  );
+  const unmappedCount = includedCosts.filter(c => !c.mappedCategory).length;
+  const revenueCount = includedCosts.filter(c => c.isRevenue).length;
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) resetState(); onOpenChange(o); }}>
-      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
@@ -484,6 +432,10 @@ const ExcelUtilityImport = ({
                 <Info className="h-4 w-4" />
                 <AlertDescription>
                   Importiert Nebenkosten aus Excel für <strong>{houseName}</strong> ({year}).
+                  <br />
+                  <span className="text-muted-foreground">
+                    Alle Positionen werden angezeigt - Sie entscheiden, welche übernommen werden.
+                  </span>
                 </AlertDescription>
               </Alert>
 
@@ -525,27 +477,32 @@ const ExcelUtilityImport = ({
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
                       <div className="text-2xl font-bold">{totalExcelAmount.toFixed(2)} €</div>
-                      <div className="text-xs text-muted-foreground">Gesamtkosten im Excel</div>
+                      <div className="text-xs text-muted-foreground">Alle Positionen</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-green-600">{totalIncludedAmount.toFixed(2)} €</div>
-                      <div className="text-xs text-muted-foreground">Davon umlegbar (NK)</div>
+                      <div className="text-xs text-muted-foreground">Zu übernehmen</div>
                     </div>
                     <div>
                       <div className="text-2xl font-bold text-muted-foreground">{totalExcludedAmount.toFixed(2)} €</div>
-                      <div className="text-xs text-muted-foreground">Nicht umlegbar</div>
+                      <div className="text-xs text-muted-foreground">Ausgeschlossen</div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Heizkosten Warnung */}
-              {hasHeizung && (
+              {/* Warnungen */}
+              {(unmappedCount > 0 || revenueCount > 0) && (
                 <Alert variant="destructive" className="bg-amber-50 border-amber-300 text-amber-800">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <AlertDescription>
-                    <strong>Heizung erkannt!</strong> Prüfen Sie, ob es sich um tatsächliche Heizkosten handelt 
-                    oder um Reparaturen/Wartung (z.B. Heizungsmonteur). Reparaturen sind nicht umlegbar!
+                    <strong>Hinweis:</strong>
+                    {unmappedCount > 0 && (
+                      <span> {unmappedCount} Position(en) ohne Kategorie-Zuweisung.</span>
+                    )}
+                    {revenueCount > 0 && (
+                      <span> {revenueCount} Einnahme(n) erkannt - bitte prüfen.</span>
+                    )}
                   </AlertDescription>
                 </Alert>
               )}
@@ -578,47 +535,66 @@ const ExcelUtilityImport = ({
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[60px]">Typ</TableHead>
                           <TableHead>Excel-Kategorie</TableHead>
-                          <TableHead>NK-Kategorie</TableHead>
+                          <TableHead>NK-Kategorie / Ausschließen</TableHead>
                           <TableHead className="text-right">Betrag</TableHead>
-                          <TableHead className="w-[80px]"></TableHead>
+                          <TableHead className="w-[60px]"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {includedCosts.map((cost) => {
                           const originalIndex = importedCosts.indexOf(cost);
-                          const isHeizung = cost.excelCategory.toLowerCase().includes('heizung');
-                          const likelyRepair = isLikelyRepair(cost);
+                          const isUnmapped = !cost.mappedCategory;
                           return (
-                            <TableRow key={originalIndex} className={likelyRepair ? 'bg-red-50' : isHeizung ? 'bg-amber-50' : ''}>
+                            <TableRow 
+                              key={originalIndex} 
+                              className={
+                                cost.isRevenue ? 'bg-blue-50' : 
+                                isUnmapped ? 'bg-amber-50' : ''
+                              }
+                            >
+                              <TableCell>
+                                {cost.isRevenue ? (
+                                  <Badge variant="outline" className="text-blue-600 border-blue-300 gap-1">
+                                    <TrendingUp className="h-3 w-3" />
+                                    +
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-red-600 border-red-300 gap-1">
+                                    <TrendingDown className="h-3 w-3" />
+                                    -
+                                  </Badge>
+                                )}
+                              </TableCell>
                               <TableCell>
                                 <div className="font-medium">{cost.excelCategory}</div>
                                 {cost.supplier && (
-                                  <div className="text-xs text-muted-foreground">{cost.supplier}</div>
+                                  <div className="text-xs text-muted-foreground truncate max-w-[200px]">{cost.supplier}</div>
                                 )}
                                 <span className="text-xs text-muted-foreground">({cost.transactions}x)</span>
-                                {likelyRepair && (
-                                  <div className="flex items-center gap-1 mt-1 text-xs text-red-600 font-medium">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    Möglicherweise Reparatur!
-                                  </div>
-                                )}
                               </TableCell>
                               <TableCell>
                                 <Select
                                   value={cost.mappedCategory?.id || ''}
                                   onValueChange={(value) => updateCategory(originalIndex, value)}
                                 >
-                                  <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="Kategorie wählen" />
+                                  <SelectTrigger className={`w-[200px] ${isUnmapped ? 'border-amber-400' : ''}`}>
+                                    <SelectValue placeholder="⚠️ Bitte zuweisen..." />
                                   </SelectTrigger>
                                   <SelectContent>
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                      NK-Kategorien
+                                    </div>
                                     {categories.map(cat => (
                                       <SelectItem key={cat.id} value={cat.id}>
                                         {cat.name}
                                       </SelectItem>
                                     ))}
                                     <SelectSeparator />
+                                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                                      Ausschließen als...
+                                    </div>
                                     {MANUAL_EXCLUDE_REASONS.map(reason => (
                                       <SelectItem key={reason.value} value={reason.value} className="text-destructive">
                                         {reason.label}
@@ -631,28 +607,15 @@ const ExcelUtilityImport = ({
                                 {cost.amount.toFixed(2)} €
                               </TableCell>
                               <TableCell>
-                                <div className="flex items-center gap-1">
-                                  {isHeizung && (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => excludeAsRepair(originalIndex)}
-                                      className="text-amber-600 hover:text-amber-700 hover:bg-amber-100"
-                                      title="Als Reparatur markieren"
-                                    >
-                                      <Wrench className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => toggleExclude(originalIndex)}
-                                    className="text-destructive hover:text-destructive"
-                                    title="Ausschließen"
-                                  >
-                                    <Minus className="h-4 w-4" />
-                                  </Button>
-                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleExclude(originalIndex)}
+                                  className="text-destructive hover:text-destructive"
+                                  title="Ausschließen"
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </Button>
                               </TableCell>
                             </TableRow>
                           );
@@ -671,11 +634,11 @@ const ExcelUtilityImport = ({
                     <Table>
                       <TableHeader>
                         <TableRow>
+                          <TableHead className="w-[60px]">Typ</TableHead>
                           <TableHead>Excel-Kategorie</TableHead>
                           <TableHead>Ausschlussgrund</TableHead>
-                          <TableHead>NK-Kategorie zuweisen</TableHead>
                           <TableHead className="text-right">Betrag</TableHead>
-                          <TableHead className="w-[80px]"></TableHead>
+                          <TableHead className="w-[60px]"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -684,47 +647,42 @@ const ExcelUtilityImport = ({
                           return (
                             <TableRow key={originalIndex}>
                               <TableCell>
-                                <div className="font-medium">{cost.excelCategory}</div>
-                                {cost.supplier && (
-                                  <div className="text-xs text-muted-foreground">{cost.supplier}</div>
+                                {cost.isRevenue ? (
+                                  <Badge variant="outline" className="text-blue-600 border-blue-300 gap-1">
+                                    <TrendingUp className="h-3 w-3" />
+                                    +
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-red-600 border-red-300 gap-1">
+                                    <TrendingDown className="h-3 w-3" />
+                                    -
+                                  </Badge>
                                 )}
                               </TableCell>
                               <TableCell>
-                                <Badge variant={cost.isAutoExcluded ? 'secondary' : 'outline'}>
-                                  {cost.excludeReason}
-                                </Badge>
+                                <div className="font-medium">{cost.excelCategory}</div>
+                                {cost.supplier && (
+                                  <div className="text-xs text-muted-foreground truncate max-w-[200px]">{cost.supplier}</div>
+                                )}
                               </TableCell>
                               <TableCell>
-                                <Select
-                                  value=""
-                                  onValueChange={(value) => updateCategory(originalIndex, value)}
-                                >
-                                  <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="Kategorie wählen..." />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {categories.map(cat => (
-                                      <SelectItem key={cat.id} value={cat.id}>
-                                        {cat.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                                <Badge variant="secondary">
+                                  {cost.excludeReason}
+                                </Badge>
                               </TableCell>
                               <TableCell className="text-right font-mono text-muted-foreground">
                                 {cost.amount.toFixed(2)} €
                               </TableCell>
                               <TableCell>
-                                {!cost.isAutoExcluded && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => toggleExclude(originalIndex)}
-                                    className="text-green-600 hover:text-green-600"
-                                  >
-                                    <Plus className="h-4 w-4" />
-                                  </Button>
-                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => toggleExclude(originalIndex)}
+                                  className="text-green-600 hover:text-green-600"
+                                  title="Wieder aufnehmen"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
                               </TableCell>
                             </TableRow>
                           );
@@ -758,11 +716,20 @@ const ExcelUtilityImport = ({
                     ))}
                     <div className="flex justify-between items-center pt-2 font-bold">
                       <span>Gesamt</span>
-                      <span className="font-mono">{totalIncludedAmount.toFixed(2)} €</span>
+                      <span className="font-mono">{includedCosts.filter(c => c.mappedCategory).reduce((sum, c) => sum + c.amount, 0).toFixed(2)} €</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {unmappedCount > 0 && (
+                <Alert variant="destructive" className="bg-amber-50 border-amber-300 text-amber-800">
+                  <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  <AlertDescription>
+                    {unmappedCount} Position(en) ohne Kategorie-Zuweisung werden nicht importiert.
+                  </AlertDescription>
+                </Alert>
+              )}
             </>
           )}
         </div>
