@@ -402,10 +402,13 @@ const LinenOrderDialog = ({
       if (effectiveLinenDefinition?.custom_categories) {
         Object.entries(effectiveLinenDefinition.custom_categories).forEach(([key, config]: [string, any]) => {
           if (!colors[key] && config?.active !== false) {
-            if (config.category === 'Schlafbereich') {
+            // Artikelspezifische Farben basierend auf verfügbaren Varianten
+            if (key === 'bath_mats' || key === 'sink_towels') {
+              colors[key] = 'grey';  // Diese gibt es in grau
+            } else if (key === 'large_towels' || key === 'small_towels' || key === 'sauna_towels') {
+              colors[key] = 'white';  // Handtücher gibt es NUR in weiß
+            } else if (config.category === 'Schlafbereich') {
               colors[key] = 'white_striped';
-            } else if (config.category === 'Badbereich' || config.category === 'Wellness') {
-              colors[key] = 'grey';
             }
           }
         });
