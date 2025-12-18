@@ -5,13 +5,20 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Settings, Save, Building2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
+import { Settings, Save, Building2, Plus, Pencil, Trash2 } from 'lucide-react';
 import { useHouses } from '@/hooks/useHouses';
 import {
   useUtilitySettings,
   useSaveUtilitySettings,
   useUtilityCostCategories,
+  useCreateUtilityCostCategory,
+  useUpdateUtilityCostCategory,
+  useDeleteUtilityCostCategory,
   distributionKeyLabels,
+  UtilityCostCategory,
 } from '@/hooks/useUtilityCosts';
 
 const UtilityCostSettings = () => {
@@ -20,6 +27,9 @@ const UtilityCostSettings = () => {
   const { data: settings, isLoading: settingsLoading } = useUtilitySettings(selectedHouseId);
   const { data: categories } = useUtilityCostCategories();
   const saveSettings = useSaveUtilitySettings();
+  const createCategory = useCreateUtilityCostCategory();
+  const updateCategory = useUpdateUtilityCostCategory();
+  const deleteCategory = useDeleteUtilityCostCategory();
 
   const [formData, setFormData] = useState({
     total_area_sqm: '',
@@ -30,6 +40,17 @@ const UtilityCostSettings = () => {
   });
 
   const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set());
+  
+  // Category dialog states
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<UtilityCostCategory | null>(null);
+  const [categoryForm, setCategoryForm] = useState({
+    name: '',
+    description: '',
+    default_distribution_key: 'wohnflaeche',
+  });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<UtilityCostCategory | null>(null);
 
   useEffect(() => {
     if (houses?.length && !selectedHouseId) {
@@ -73,6 +94,55 @@ const UtilityCostSettings = () => {
       total_units: parseInt(formData.total_units) || 1,
       tenant_persons: parseInt(formData.tenant_persons) || 1,
       monthly_prepayment: formData.monthly_prepayment ? parseFloat(formData.monthly_prepayment) : null,
+    });
+  };
+
+  const openCreateDialog = () => {
+    setEditingCategory(null);
+    setCategoryForm({ name: '', description: '', default_distribution_key: 'wohnflaeche' });
+    setCategoryDialogOpen(true);
+  };
+
+  const openEditDialog = (category: UtilityCostCategory) => {
+    setEditingCategory(category);
+    setCategoryForm({
+      name: category.name,
+      description: category.description || '',
+      default_distribution_key: category.default_distribution_key,
+    });
+    setCategoryDialogOpen(true);
+  };
+
+  const handleSaveCategory = () => {
+    if (!categoryForm.name.trim()) return;
+
+    if (editingCategory) {
+      updateCategory.mutate({
+        id: editingCategory.id,
+        name: categoryForm.name.trim(),
+        description: categoryForm.description.trim() || null,
+        default_distribution_key: categoryForm.default_distribution_key,
+      }, {
+        onSuccess: () => setCategoryDialogOpen(false),
+      });
+    } else {
+      createCategory.mutate({
+        name: categoryForm.name.trim(),
+        description: categoryForm.description.trim() || null,
+        default_distribution_key: categoryForm.default_distribution_key,
+      }, {
+        onSuccess: () => setCategoryDialogOpen(false),
+      });
+    }
+  };
+
+  const handleDeleteCategory = () => {
+    if (!categoryToDelete) return;
+    deleteCategory.mutate(categoryToDelete.id, {
+      onSuccess: () => {
+        setDeleteDialogOpen(false);
+        setCategoryToDelete(null);
+      },
     });
   };
 
@@ -223,7 +293,13 @@ const UtilityCostSettings = () => {
           {/* Aktive Kostenarten */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg">Aktive Kostenarten</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Kostenarten</CardTitle>
+                <Button onClick={openCreateDialog} size="sm" variant="outline">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Neue Kostenart
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
@@ -244,17 +320,49 @@ const UtilityCostSettings = () => {
                         }}
                       />
                       <div>
-                        <Label htmlFor={category.id} className="cursor-pointer font-medium">
-                          {category.name}
-                        </Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor={category.id} className="cursor-pointer font-medium">
+                            {category.name}
+                          </Label>
+                          {!category.is_system && (
+                            <Badge variant="secondary" className="text-xs">
+                              Benutzerdefiniert
+                            </Badge>
+                          )}
+                        </div>
                         {category.description && (
                           <p className="text-xs text-muted-foreground">{category.description}</p>
                         )}
                       </div>
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {distributionKeyLabels[category.default_distribution_key] || category.default_distribution_key}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">
+                        {distributionKeyLabels[category.default_distribution_key] || category.default_distribution_key}
+                      </span>
+                      {!category.is_system && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditDialog(category)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => {
+                              setCategoryToDelete(category);
+                              setDeleteDialogOpen(true);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -262,6 +370,88 @@ const UtilityCostSettings = () => {
           </Card>
         </>
       )}
+
+      {/* Create/Edit Category Dialog */}
+      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingCategory ? 'Kostenart bearbeiten' : 'Neue Kostenart erstellen'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="cat-name">Name *</Label>
+              <Input
+                id="cat-name"
+                value={categoryForm.name}
+                onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                placeholder="z.B. Hausstrom"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cat-desc">Beschreibung (optional)</Label>
+              <Input
+                id="cat-desc"
+                value={categoryForm.description}
+                onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                placeholder="z.B. Stromkosten für Allgemeinflächen"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cat-dist">Verteilerschlüssel</Label>
+              <Select
+                value={categoryForm.default_distribution_key}
+                onValueChange={(value) => setCategoryForm({ ...categoryForm, default_distribution_key: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(distributionKeyLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button
+              onClick={handleSaveCategory}
+              disabled={!categoryForm.name.trim() || createCategory.isPending || updateCategory.isPending}
+            >
+              {editingCategory ? 'Speichern' : 'Erstellen'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Kostenart löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchtest du die Kostenart "{categoryToDelete?.name}" wirklich löschen?
+              Dies ist nur möglich, wenn sie noch nicht verwendet wird.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCategory}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

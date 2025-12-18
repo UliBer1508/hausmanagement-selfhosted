@@ -132,6 +132,112 @@ export const useUtilityCostCategories = () => {
   });
 };
 
+export const useCreateUtilityCostCategory = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (category: {
+      name: string;
+      description?: string | null;
+      default_distribution_key: string;
+    }) => {
+      const { data, error } = await supabase
+        .from('utility_cost_categories')
+        .insert({
+          name: category.name,
+          description: category.description || null,
+          default_distribution_key: category.default_distribution_key,
+          is_system: false,
+          is_active: true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['utility-cost-categories'] });
+      toast.success('Kostenart erstellt');
+    },
+    onError: (error) => {
+      toast.error('Fehler: ' + error.message);
+    },
+  });
+};
+
+export const useUpdateUtilityCostCategory = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      name,
+      description,
+      default_distribution_key,
+    }: {
+      id: string;
+      name: string;
+      description?: string | null;
+      default_distribution_key: string;
+    }) => {
+      const { data, error } = await supabase
+        .from('utility_cost_categories')
+        .update({
+          name,
+          description: description || null,
+          default_distribution_key,
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['utility-cost-categories'] });
+      toast.success('Kostenart aktualisiert');
+    },
+    onError: (error) => {
+      toast.error('Fehler: ' + error.message);
+    },
+  });
+};
+
+export const useDeleteUtilityCostCategory = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Check if category is in use
+      const { data: usedCosts } = await supabase
+        .from('utility_costs')
+        .select('id')
+        .eq('category_id', id)
+        .limit(1);
+
+      if (usedCosts && usedCosts.length > 0) {
+        throw new Error('Diese Kostenart wird bereits verwendet und kann nicht gelöscht werden.');
+      }
+
+      const { error } = await supabase
+        .from('utility_cost_categories')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['utility-cost-categories'] });
+      toast.success('Kostenart gelöscht');
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+};
+
 export const useUtilitySettings = (houseId: string | null) => {
   return useQuery({
     queryKey: ['utility-settings', houseId],
