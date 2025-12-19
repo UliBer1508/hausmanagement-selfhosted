@@ -20,8 +20,9 @@ const Navigation = () => {
 
   const navigationItems = [
     { name: 'Übersicht', emoji: '📊' },
+    { name: 'Kalender', emoji: '📅' },
     { name: 'Häuser', emoji: '🏠' },
-    { name: 'Buchungen', emoji: '📅' },
+    { name: 'Buchungen', emoji: '🗓️' },
     { name: 'Gäste', emoji: '👥' },
     { name: 'Mieter', emoji: '🏘️' },
     { name: 'Reinigung', emoji: '✨' },
@@ -102,8 +103,8 @@ const Navigation = () => {
             </div>
           </div>
           
-          {/* Navigation Grid - 4 columns x 2 rows */}
-          <div className="grid grid-cols-4 auto-rows-fr gap-1.5">
+          {/* Navigation Grid - 2 columns x 5 rows */}
+          <div className="grid grid-cols-2 gap-2">
             {navigationItems.map((item) => {
               const isActive = isActiveTab(item.name);
               
@@ -112,16 +113,16 @@ const Navigation = () => {
                   <Button
                     variant={isActive ? "default" : "ghost"}
                     size="sm"
-                    className={`w-full h-[65px] flex flex-col items-center justify-center gap-1 p-1 transition-all duration-200 relative ${
+                    className={`w-full h-11 flex flex-row items-center justify-start gap-3 px-3 transition-all duration-200 ${
                       isActive 
                         ? 'bg-primary text-primary-foreground shadow-md' 
                         : 'hover:bg-accent/50'
                     }`}
                   >
-                    <span className="text-xl shrink-0">{item.emoji}</span>
-                    <span className="text-[9px] leading-[10px] text-center w-full px-1">{item.name}</span>
+                    <span className="text-lg shrink-0">{item.emoji}</span>
+                    <span className="text-sm truncate">{item.name}</span>
                     {item.badge && item.badge > 0 && (
-                      <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 w-4 rounded-full p-0 flex items-center justify-center text-[8px]">
+                      <Badge variant="destructive" className="ml-auto h-5 min-w-[20px] px-1 flex items-center justify-center text-xs">
                         {item.badge}
                       </Badge>
                     )}
