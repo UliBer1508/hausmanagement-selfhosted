@@ -5,13 +5,26 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Save, Settings, Link2, AlertTriangle } from 'lucide-react';
+import { Loader2, Save, Settings, Link2, AlertTriangle, Play, CheckCircle, Info } from 'lucide-react';
 import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
 import { useExternalArticleMapping } from '@/hooks/useExternalArticleMapping';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import ExternalArticleMappingDialog from './ExternalArticleMappingDialog';
+
+interface CheckResult {
+  success: boolean;
+  ordersCreated: number;
+  bookingsSkipped: number;
+  details: Array<{
+    guest: string;
+    house: string;
+    action: string;
+    reason?: string;
+  }>;
+}
 
 const AutoLinenOrderSettingsCard = () => {
   const { settings, isLoading, updateSettings, isUpdating } = useLinenAutomationSettings();
@@ -25,6 +38,8 @@ const AutoLinenOrderSettingsCard = () => {
   const [localExternalSyncEnabled, setLocalExternalSyncEnabled] = useState<boolean>(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showMappingDialog, setShowMappingDialog] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
+  const [lastCheckResult, setLastCheckResult] = useState<CheckResult | null>(null);
 
   // Load settings into local state when available
   useEffect(() => {
@@ -71,6 +86,36 @@ const AutoLinenOrderSettingsCard = () => {
     setHasChanges(true);
   };
 
+  const handleCheckNow = async () => {
+    setIsChecking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('auto-create-linen-orders');
+      
+      if (error) throw error;
+      
+      const result: CheckResult = {
+        success: data?.success ?? false,
+        ordersCreated: data?.summary?.orders_created ?? 0,
+        bookingsSkipped: data?.summary?.bookings_skipped ?? 0,
+        details: data?.details ?? []
+      };
+      
+      setLastCheckResult(result);
+      
+      if (result.ordersCreated > 0) {
+        toast.success(`${result.ordersCreated} Bestellung(en) erstellt!`);
+      } else {
+        toast.info('Keine neuen Bestellungen nötig');
+      }
+      
+    } catch (error: any) {
+      toast.error('Fehler bei der Prüfung: ' + (error.message || 'Unbekannter Fehler'));
+      setLastCheckResult(null);
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
   // Count mappings for display
   const mappingCount = mappings?.length || 0;
 
@@ -113,6 +158,25 @@ const AutoLinenOrderSettingsCard = () => {
             <Label className="text-sm font-medium cursor-pointer">
               Automatisierung aktivieren
             </Label>
+            <Button 
+              variant="outline"
+              onClick={handleCheckNow} 
+              disabled={isChecking || !localIsEnabled}
+              size="sm"
+              className="gap-2"
+            >
+              {isChecking ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Prüfe...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Jetzt prüfen
+                </>
+              )}
+            </Button>
             <Button 
               onClick={handleSave} 
               disabled={!hasChanges || isUpdating}
@@ -239,6 +303,51 @@ const AutoLinenOrderSettingsCard = () => {
               Der Liefertermin wird auf <strong>{localDeliveryAdvanceDays} Tage vor Check-in</strong> gesetzt.
             </p>
           </div>
+
+          {/* Letzte Prüfung Ergebnis */}
+          {lastCheckResult && (
+            <div className={`p-3 rounded-md border ${
+              lastCheckResult.ordersCreated > 0 
+                ? 'bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800' 
+                : 'bg-muted/50 border-border'
+            }`}>
+              <div className="flex items-center gap-2 mb-2">
+                {lastCheckResult.ordersCreated > 0 ? (
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                ) : (
+                  <Info className="h-5 w-5 text-muted-foreground" />
+                )}
+                <strong className="text-sm">Letzte Prüfung:</strong>
+              </div>
+              <ul className="text-sm space-y-1">
+                <li>✅ {lastCheckResult.ordersCreated} Bestellung(en) erstellt</li>
+                <li>⏭️ {lastCheckResult.bookingsSkipped} Buchung(en) übersprungen</li>
+              </ul>
+              
+              {lastCheckResult.details.length > 0 && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                    Details anzeigen ({lastCheckResult.details.length})
+                  </summary>
+                  <ul className="mt-2 text-xs space-y-1 max-h-40 overflow-y-auto">
+                    {lastCheckResult.details.map((d, i) => (
+                      <li key={i} className="flex items-start gap-1">
+                        <span>{d.action === 'skipped' ? '⏭️' : '✅'}</span>
+                        <span>
+                          <strong>{d.guest}</strong> ({d.house}): {
+                            d.action === 'created' ? 'Bestellung erstellt' :
+                            d.reason === 'order_exists' ? 'Bestellung existiert bereits' :
+                            d.reason === 'too_close' ? 'Zu nah am Check-in' :
+                            d.reason || 'Übersprungen'
+                          }
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          )}
 
           {/* Externe Synchronisation */}
           <div className="border-t pt-4 space-y-4">
