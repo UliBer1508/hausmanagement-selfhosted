@@ -34,11 +34,18 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   }, [guestsToContact, isLoading, toast]);
 
   return (
-    <div className="layout-container">
+    <div className="layout-container min-h-screen flex flex-col">
       {/* Simplified Layout - No Sidebar */}
-      <main className="content-main min-h-screen">
+      <main className="content-main flex-1">
         {children}
       </main>
+
+      {/* Global Copyright Footer */}
+      <footer className="py-4 border-t border-border/50 text-center">
+        <p className="text-xs text-muted-foreground">
+          © {new Date().getFullYear()} Steinbock Chalets
+        </p>
+      </footer>
 
       {/* PWA Components */}
       <InstallPrompt />
