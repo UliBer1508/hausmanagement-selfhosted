@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Save, Settings, Link2, AlertTriangle, Play, CheckCircle, Info } from 'lucide-react';
 import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
 import { useExternalArticleMapping } from '@/hooks/useExternalArticleMapping';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
@@ -27,6 +27,7 @@ interface CheckResult {
 }
 
 const AutoLinenOrderSettingsCard = () => {
+  const queryClient = useQueryClient();
   const { settings, isLoading, updateSettings, isUpdating } = useLinenAutomationSettings();
   const { mappings } = useExternalArticleMapping();
   
@@ -101,6 +102,14 @@ const AutoLinenOrderSettingsCard = () => {
       };
       
       setLastCheckResult(result);
+      
+      // Cache invalidieren damit die Listen sofort aktualisiert werden
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-list'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+      await queryClient.invalidateQueries({ queryKey: ['houses-linen-overview'] });
+      await queryClient.invalidateQueries({ queryKey: ['connected-bookings'] });
+      await queryClient.invalidateQueries({ queryKey: ['booking-orders-status'] });
       
       if (result.ordersCreated > 0) {
         toast.success(`${result.ordersCreated} Bestellung(en) erstellt!`);
