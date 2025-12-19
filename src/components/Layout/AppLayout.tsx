@@ -1,5 +1,4 @@
 import { ReactNode, useEffect } from 'react';
-import Navigation from '@/components/Navigation';
 import InstallPrompt from '@/components/PWA/InstallPrompt';
 import UpdatePrompt from '@/components/PWA/UpdatePrompt';
 import { useProviderMessageNotifications } from '@/hooks/useProviderMessageNotifications';
