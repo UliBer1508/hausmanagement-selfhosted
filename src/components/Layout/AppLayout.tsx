@@ -43,7 +43,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
       {/* Global Copyright Footer */}
       <footer className="py-4 border-t border-border/50 text-center">
         <p className="text-xs text-muted-foreground">
-          {new Date().getFullYear()} Copy Right Steinbock Chalets
+          © {new Date().getFullYear()} Copy Right Steinbock Chalets
         </p>
       </footer>
 
