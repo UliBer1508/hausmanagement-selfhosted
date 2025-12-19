@@ -146,55 +146,59 @@ const AutoLinenOrderSettingsCard = () => {
             Automatisierung
           </CardTitle>
           
-          <div className="flex items-center gap-3">
-            <Switch 
-              checked={localIsEnabled}
-              onCheckedChange={(checked) => {
-                setLocalIsEnabled(checked);
-                handleChange();
-              }}
-              disabled={isLoading}
-            />
-            <Label className="text-sm font-medium cursor-pointer">
-              Automatisierung aktivieren
-            </Label>
-            <Button 
-              variant="outline"
-              onClick={handleCheckNow} 
-              disabled={isChecking || !localIsEnabled}
-              size="sm"
-              className="gap-2"
-            >
-              {isChecking ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Prüfe...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  Jetzt prüfen
-                </>
-              )}
-            </Button>
-            <Button 
-              onClick={handleSave} 
-              disabled={!hasChanges || isUpdating}
-              size="sm"
-              className="gap-2"
-            >
-              {isUpdating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Speichere...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Einstellungen speichern
-                </>
-              )}
-            </Button>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-3">
+              <Switch 
+                checked={localIsEnabled}
+                onCheckedChange={(checked) => {
+                  setLocalIsEnabled(checked);
+                  handleChange();
+                }}
+                disabled={isLoading}
+              />
+              <Label className="text-sm font-medium cursor-pointer">
+                Automatisierung aktivieren
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline"
+                onClick={handleCheckNow} 
+                disabled={isChecking || !localIsEnabled}
+                size="sm"
+                className="gap-2"
+              >
+                {isChecking ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Prüfe...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4" />
+                    Jetzt prüfen
+                  </>
+                )}
+              </Button>
+              <Button 
+                onClick={handleSave} 
+                disabled={!hasChanges || isUpdating}
+                size="sm"
+                className="gap-2"
+              >
+                {isUpdating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Speichere...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Einstellungen speichern
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         
