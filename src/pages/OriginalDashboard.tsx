@@ -2172,13 +2172,13 @@ const OriginalDashboard = () => {
       ...(housesData?.map(house => ({ id: house.id, name: house.name })) || [])
     ];
 
-    // Get unique status values for filter
+    // Get unique status values for filter (booking_status enum: confirmed, checked_in, completed, cancelled)
     const availableStatuses = [
       { value: 'all', label: 'Alle Status' },
       { value: 'confirmed', label: 'Bestätigt' },
-      { value: 'pending', label: 'Ausstehend' },
-      { value: 'cancelled', label: 'Storniert' },
-      { value: 'completed', label: 'Abgeschlossen' }
+      { value: 'checked_in', label: 'Eingecheckt' },
+      { value: 'completed', label: 'Abgeschlossen' },
+      { value: 'cancelled', label: 'Storniert' }
     ];
 
     // Get available time periods
