@@ -84,6 +84,13 @@ const Navigation = () => {
             );
           })}
         </nav>
+        
+        {/* Desktop Footer */}
+        <div className="p-4 border-t border-border/50 text-center">
+          <p className="text-xs text-muted-foreground">
+            © {new Date().getFullYear()} Steinbock
+          </p>
+        </div>
       </Card>
 
       {/* Mobile Navigation - Multi-row Grid */}
@@ -130,6 +137,13 @@ const Navigation = () => {
                 </Link>
               );
             })}
+          </div>
+          
+          {/* Mobile Footer */}
+          <div className="mt-3 pt-2 border-t border-border/50 text-center">
+            <p className="text-xs text-muted-foreground">
+              © {new Date().getFullYear()} Steinbock Ferienhaus Manager
+            </p>
           </div>
         </div>
       </Card>
