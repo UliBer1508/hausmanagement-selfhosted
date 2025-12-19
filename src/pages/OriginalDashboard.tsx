@@ -2616,6 +2616,13 @@ const OriginalDashboard = () => {
           } : undefined}
         />
       )}
+
+      {/* Copyright Footer */}
+      <footer className="mt-8 py-4 border-t border-border/50 text-center">
+        <p className="text-xs text-muted-foreground">
+          © {new Date().getFullYear()} Steinbock Ferienhaus Manager
+        </p>
+      </footer>
     </div>
   );
 };
