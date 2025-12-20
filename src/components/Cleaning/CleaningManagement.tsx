@@ -606,6 +606,14 @@ const CleaningManagement = () => {
                           <div className="flex items-center gap-2 text-sm">
                             <span>📊</span>
                             Status: {getStatusBadge(task.status)}
+                            {task.status_changed_by && (
+                              <span 
+                                className="text-muted-foreground"
+                                title={task.status_changed_at ? `Geändert am ${new Date(task.status_changed_at).toLocaleDateString('de-DE')} um ${new Date(task.status_changed_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : undefined}
+                              >
+                                ({task.status_changed_by})
+                              </span>
+                            )}
                           </div>
                           {task.cleaning_cost && (
                             <div className="flex items-center gap-2 text-sm">
