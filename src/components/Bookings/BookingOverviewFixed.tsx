@@ -340,7 +340,8 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
     total: bookingsData?.length || 0,
     confirmed: bookingsData?.filter(b => b.status === 'confirmed').length || 0,
     completed: bookingsData?.filter(b => b.status === 'completed').length || 0,
-    totalRevenue: bookingsData?.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
+    totalRevenue: bookingsData?.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0,
+    paidRevenue: bookingsData?.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
   };
 
   // Statistics for filtered results (for reference only)
@@ -465,6 +466,16 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
               {allBookingsStats.totalRevenue.toLocaleString('de-DE')} EUR
             </div>
             <p className="text-xs text-muted-foreground">Gesamtumsatz</p>
+            <div className="mt-2 pt-2 border-t space-y-1 text-xs">
+              <p className="text-green-600 flex justify-between">
+                <span>✅ Gezahlt:</span>
+                <span className="font-medium">{allBookingsStats.paidRevenue.toLocaleString('de-DE')} EUR</span>
+              </p>
+              <p className="text-orange-600 flex justify-between">
+                <span>⚠️ Offen:</span>
+                <span className="font-medium">{(allBookingsStats.totalRevenue - allBookingsStats.paidRevenue).toLocaleString('de-DE')} EUR</span>
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
