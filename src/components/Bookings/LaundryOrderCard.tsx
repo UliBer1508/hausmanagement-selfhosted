@@ -59,6 +59,9 @@ interface LaundryOrderCardProps {
 }
 
 const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false }: LaundryOrderCardProps) => {
+  // Debug: Check if status_changed_by is present
+  console.log('[LaundryOrderCard] Order:', order.id, 'status_changed_by:', order.status_changed_by, 'status_changed_at:', order.status_changed_at);
+  
   const [isItemsOpen, setIsItemsOpen] = useState(false);
   const getBorderColor = (variant: string) => {
     switch (variant) {
