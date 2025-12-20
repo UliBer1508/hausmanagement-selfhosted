@@ -18,7 +18,15 @@ export interface AppearanceSettings {
   compact_view: boolean;
 }
 
-type SettingsValue = EmailSettings | ProfileSettings | AppearanceSettings | Record<string, unknown>;
+export interface RatingReminderSettings {
+  is_enabled: boolean;
+  min_days_after_checkout: number;
+  max_days_after_checkout: number;
+  require_platform: boolean;
+  rental_type_filter: 'tourist' | 'tenant' | 'all';
+}
+
+type SettingsValue = EmailSettings | ProfileSettings | AppearanceSettings | RatingReminderSettings | Record<string, unknown>;
 
 export function useSystemSettings<T extends SettingsValue>(key: string) {
   const queryClient = useQueryClient();
@@ -97,3 +105,15 @@ export function useProfileSettings() {
 export function useAppearanceSettings() {
   return useSystemSettings<AppearanceSettings>('appearance_settings');
 }
+
+export function useRatingReminderSettings() {
+  return useSystemSettings<RatingReminderSettings>('rating_reminder_settings');
+}
+
+export const DEFAULT_RATING_REMINDER_SETTINGS: RatingReminderSettings = {
+  is_enabled: true,
+  min_days_after_checkout: 14,
+  max_days_after_checkout: 90,
+  require_platform: true,
+  rental_type_filter: 'tourist',
+};

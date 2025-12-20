@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 
 const RatingReminderBanner = () => {
   const navigate = useNavigate();
-  const { reminders, marketingCandidates, otherReminders, totalCount, isLoading, RATING_REMINDER_DAYS, markAsNoRating, isMarkingNoRating } = useRatingReminders();
+  const { reminders, marketingCandidates, otherReminders, totalCount, isLoading, settings, markAsNoRating, isMarkingNoRating } = useRatingReminders();
   const [isExpanded, setIsExpanded] = useState(true);
   const [isHidden, setIsHidden] = useState(false);
 
@@ -149,7 +149,7 @@ const RatingReminderBanner = () => {
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Buchungen ohne Bewertung ({RATING_REMINDER_DAYS}+ Tage nach Checkout)
+          Buchungen ohne Bewertung ({settings.min_days_after_checkout}+ Tage nach Checkout)
         </p>
       </CardHeader>
 
