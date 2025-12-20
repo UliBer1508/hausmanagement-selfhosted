@@ -392,7 +392,9 @@ const OriginalDashboard = () => {
           delivery_type: orderData.deliveryType || 'delivery',
           notes: orderData.notes,
           status: orderData.status || 'pending',
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          status_changed_by: 'Admin',
+          status_changed_at: new Date().toISOString()
         };
 
         console.log('📝 Update Payload:', updatePayload);
