@@ -2343,7 +2343,11 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
       
       const { data, error } = await supabase
         .from('linen_orders')
-        .update({ status: new_status })
+        .update({ 
+          status: new_status,
+          status_changed_by: 'AI-Assistent',
+          status_changed_at: new Date().toISOString()
+        })
         .eq('id', order_id)
         .select()
         .single();
