@@ -120,35 +120,34 @@ const ConnectedBookingView = () => {
     },
   });
 
-  // Fetch service tasks
+  // Fetch service tasks - DEBUG: staleTime:0 um Cache zu umgehen
   const { data: serviceTasks } = useQuery({
     queryKey: ['service-tasks-connected'],
     queryFn: async () => {
-      console.log('Fetching service tasks...');
+      console.log('🔍 [DEBUG] Fetching service tasks from Supabase...');
       
+      // Vereinfachte Query zum Debuggen - nur Haupttabelle
       const { data, error } = await supabase
         .from('service_tasks')
-        .select(`
-          *,
-          service_providers:provider_id (
-            id,
-            name,
-            service_type
-          ),
-          cleaning_staff:assigned_staff_id (
-            id,
-            name
-          )
-        `);
+        .select('*');
       
       if (error) {
-        console.error('Error fetching service tasks:', error);
+        console.error('❌ Error fetching service tasks:', error);
         throw error;
       }
       
-      console.log('Fetched service tasks:', data);
+      // DEBUG: Zeige status_changed_by für alle Tasks
+      console.log('✅ [DEBUG] service_tasks RAW from Supabase:', data?.map(t => ({
+        id: t.id.substring(0, 8),
+        status: t.status,
+        status_changed_by: t.status_changed_by,
+        status_changed_at: t.status_changed_at
+      })));
+      
       return data;
     },
+    staleTime: 0,  // DEBUG: Kein Cache
+    gcTime: 0,     // DEBUG: Sofort garbage collect
   });
 
   // Fetch linen orders
