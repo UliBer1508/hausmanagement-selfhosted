@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { differenceInDays, format, subDays } from "date-fns";
+import { useRatingReminderSettings, DEFAULT_RATING_REMINDER_SETTINGS } from "./useSystemSettings";
 
 export interface RatingReminder {
   id: string;
@@ -18,22 +19,25 @@ export interface RatingReminder {
   number_of_children?: number;
 }
 
-const RATING_REMINDER_DAYS = 14; // 2 Wochen nach Checkout
-const RATING_REMINDER_MAX_DAYS = 90; // Maximal 90 Tage zurück
-
 export const useRatingReminders = () => {
   const queryClient = useQueryClient();
   const today = new Date();
   
-  // Datum-Bereich berechnen (14-90 Tage nach Checkout)
-  const minCheckoutDate = subDays(today, RATING_REMINDER_MAX_DAYS);
-  const maxCheckoutDate = subDays(today, RATING_REMINDER_DAYS);
+  // Settings aus Datenbank laden
+  const { data: settingsData, isLoading: loadingSettings } = useRatingReminderSettings();
+  const settings = { ...DEFAULT_RATING_REMINDER_SETTINGS, ...settingsData };
+  
+  // Datum-Bereich aus Settings berechnen
+  const minCheckoutDate = subDays(today, settings.max_days_after_checkout);
+  const maxCheckoutDate = subDays(today, settings.min_days_after_checkout);
 
   // Buchungen ohne Bewertungen laden
   const { data: bookingsWithoutRatings, isLoading: loadingBookings } = useQuery({
-    queryKey: ['rating-reminders-bookings', format(today, 'yyyy-MM-dd')],
+    queryKey: ['rating-reminders-bookings', format(today, 'yyyy-MM-dd'), settings],
+    enabled: !loadingSettings && settings.is_enabled,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Basis-Query aufbauen
+      let query = supabase
         .from('bookings')
         .select(`
           id,
@@ -47,13 +51,23 @@ export const useRatingReminders = () => {
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .eq('status', 'completed')
-        .eq('houses.rental_type', 'tourist')
         .gte('check_out', minCheckoutDate.toISOString())
         .lte('check_out', maxCheckoutDate.toISOString())
         .is('external_rating', null)
-        .not('platform', 'is', null)
         .or('rating_not_expected.is.null,rating_not_expected.eq.false')
         .order('check_out', { ascending: false });
+      
+      // Plattform-Filter anwenden wenn aktiviert
+      if (settings.require_platform) {
+        query = query.not('platform', 'is', null);
+      }
+      
+      // Rental-Type Filter anwenden
+      if (settings.rental_type_filter !== 'all') {
+        query = query.eq('houses.rental_type', settings.rental_type_filter);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data || [];
@@ -78,6 +92,7 @@ export const useRatingReminders = () => {
   // Aktive Marketing-Aktionen laden
   const { data: marketingActions, isLoading: loadingMarketing } = useQuery({
     queryKey: ['rating-reminders-marketing-actions'],
+    enabled: settings.is_enabled,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('marketing_actions')
@@ -94,7 +109,7 @@ export const useRatingReminders = () => {
   const bookingIds = bookingsWithoutRatings?.map(b => b.id) || [];
   const { data: actionTracking, isLoading: loadingTracking } = useQuery({
     queryKey: ['rating-reminders-tracking', bookingIds],
-    enabled: bookingIds.length > 0,
+    enabled: bookingIds.length > 0 && settings.is_enabled,
     queryFn: async () => {
       const { data, error } = await supabase
         .from('booking_action_tracking')
@@ -115,6 +130,21 @@ export const useRatingReminders = () => {
     }
     return true;
   };
+
+  // Wenn deaktiviert, leere Listen zurückgeben
+  if (!settings.is_enabled) {
+    return {
+      reminders: [],
+      marketingCandidates: [],
+      otherReminders: [],
+      totalCount: 0,
+      marketingCount: 0,
+      isLoading: false,
+      settings,
+      markAsNoRating: markAsNoRatingMutation.mutate,
+      isMarkingNoRating: markAsNoRatingMutation.isPending,
+    };
+  }
 
   // Kombiniere Daten zu RatingReminder Liste
   const ratingReminders: RatingReminder[] = (bookingsWithoutRatings || []).map(booking => {
@@ -160,7 +190,7 @@ export const useRatingReminders = () => {
   const marketingCandidates = sortedReminders.filter(r => r.is_marketing_candidate);
   const otherReminders = sortedReminders.filter(r => !r.is_marketing_candidate);
 
-  const isLoading = loadingBookings || loadingMarketing || loadingTracking;
+  const isLoading = loadingSettings || loadingBookings || loadingMarketing || loadingTracking;
 
   return {
     reminders: sortedReminders,
@@ -169,7 +199,7 @@ export const useRatingReminders = () => {
     totalCount: sortedReminders.length,
     marketingCount: marketingCandidates.length,
     isLoading,
-    RATING_REMINDER_DAYS,
+    settings,
     markAsNoRating: markAsNoRatingMutation.mutate,
     isMarkingNoRating: markAsNoRatingMutation.isPending,
   };

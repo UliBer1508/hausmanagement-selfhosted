@@ -2753,16 +2753,42 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
     async function executeGetRatingReminders(params: any) {
       console.log('Executing get_rating_reminders with params:', params);
       
-      const minDays = params.min_days_after_checkout || 14;
-      const maxDays = params.max_days_after_checkout || 90;
+      // Settings aus Datenbank laden
+      const { data: settingsData } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'rating_reminder_settings')
+        .maybeSingle();
+      
+      const defaultSettings = {
+        is_enabled: true,
+        min_days_after_checkout: 14,
+        max_days_after_checkout: 90,
+        require_platform: true,
+        rental_type_filter: 'tourist'
+      };
+      
+      const settings = { ...defaultSettings, ...(settingsData?.value as any || {}) };
+      
+      // Prüfen ob Feature deaktiviert
+      if (!settings.is_enabled) {
+        return {
+          success: true,
+          reminders: [],
+          message: 'Bewertungs-Erinnerungen sind in den Einstellungen deaktiviert.'
+        };
+      }
+      
+      const minDays = params.min_days_after_checkout || settings.min_days_after_checkout;
+      const maxDays = params.max_days_after_checkout || settings.max_days_after_checkout;
       const marketingOnly = params.marketing_only || false;
       
       const today = new Date();
       const minCheckoutDate = new Date(today.getTime() - (maxDays * 24 * 60 * 60 * 1000));
       const maxCheckoutDate = new Date(today.getTime() - (minDays * 24 * 60 * 60 * 1000));
       
-      // 1. Buchungen ohne Bewertung laden (14-90 Tage nach Checkout)
-      const { data: bookings, error: bookingsError } = await supabase
+      // 1. Buchungen ohne Bewertung laden (basierend auf Settings)
+      let query = supabase
         .from('bookings')
         .select(`
           id,
@@ -2777,13 +2803,23 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .eq('status', 'completed')
-        .eq('houses.rental_type', 'tourist')
         .gte('check_out', minCheckoutDate.toISOString())
         .lte('check_out', maxCheckoutDate.toISOString())
         .is('external_rating', null)
-        .not('platform', 'is', null)
         .or('rating_not_expected.is.null,rating_not_expected.eq.false')
         .order('check_out', { ascending: false });
+      
+      // Plattform-Filter anwenden wenn aktiviert
+      if (settings.require_platform) {
+        query = query.not('platform', 'is', null);
+      }
+      
+      // Rental-Type Filter anwenden
+      if (settings.rental_type_filter !== 'all') {
+        query = query.eq('houses.rental_type', settings.rental_type_filter);
+      }
+      
+      const { data: bookings, error: bookingsError } = await query;
       
       if (bookingsError) {
         console.error('Error loading bookings:', bookingsError);

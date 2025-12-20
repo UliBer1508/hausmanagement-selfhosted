@@ -68,7 +68,8 @@ import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
 import BookingTimeline from '@/components/Calendar/BookingTimeline';
 import { useExternalSync } from '@/hooks/useExternalSync';
-import { useEmailSettings, useProfileSettings, useAppearanceSettings } from '@/hooks/useSystemSettings';
+import { useEmailSettings, useProfileSettings, useAppearanceSettings, useRatingReminderSettings } from '@/hooks/useSystemSettings';
+import RatingReminderSettingsCard from '@/components/Settings/RatingReminderSettingsCard';
 
 const OriginalDashboard = () => {
   const location = useLocation();
@@ -2083,6 +2084,9 @@ const OriginalDashboard = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Bewertungs-Erinnerungen */}
+              <RatingReminderSettingsCard />
 
               {/* Gästeliste Import */}
               <GuestImportCard />
