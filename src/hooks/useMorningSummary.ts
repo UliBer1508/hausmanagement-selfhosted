@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, differenceInDays, subDays } from "date-fns";
 import { de } from "date-fns/locale";
+import { useRatingReminderSettings, DEFAULT_RATING_REMINDER_SETTINGS } from "@/hooks/useSystemSettings";
 
 interface MarketingAction {
   id: string;
@@ -19,9 +20,6 @@ interface ActionTracking {
   action_id: string;
   action_applied: boolean;
 }
-
-const RATING_REMINDER_DAYS = 14;
-const RATING_REMINDER_MAX_DAYS = 90;
 
 // Helper: Prüft ob eine Buchung den Kriterien entspricht
 function matchesCriteria(
@@ -43,6 +41,9 @@ export const useMorningSummary = () => {
   const nextWeekEnd = new Date();
   nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
   const nextWeekEndStr = format(nextWeekEnd, 'yyyy-MM-dd') + 'T23:59:59';
+  
+  // Rating-Einstellungen laden
+  const { data: ratingSettings } = useRatingReminderSettings();
   
   // Gäste-Kontakt-Erinnerungen (5-10 Tage vor Check-in)
   const { data: guestContactReminders, isLoading: loadingGuestContact } = useQuery({
@@ -106,14 +107,22 @@ export const useMorningSummary = () => {
     staleTime: 1000 * 60 * 30,
   });
 
-  // Bewertungs-Erinnerungen (14-90 Tage nach Checkout ohne Bewertung)
-  const minCheckoutDate = subDays(new Date(), RATING_REMINDER_MAX_DAYS);
-  const maxCheckoutDate = subDays(new Date(), RATING_REMINDER_DAYS);
+  // Rating-Settings mit Defaults
+  const ratingsEnabled = ratingSettings?.is_enabled ?? DEFAULT_RATING_REMINDER_SETTINGS.is_enabled;
+  const minDays = ratingSettings?.min_days_after_checkout ?? DEFAULT_RATING_REMINDER_SETTINGS.min_days_after_checkout;
+  const maxDays = ratingSettings?.max_days_after_checkout ?? DEFAULT_RATING_REMINDER_SETTINGS.max_days_after_checkout;
+  const requirePlatform = ratingSettings?.require_platform ?? DEFAULT_RATING_REMINDER_SETTINGS.require_platform;
+  const rentalTypeFilter = ratingSettings?.rental_type_filter ?? DEFAULT_RATING_REMINDER_SETTINGS.rental_type_filter;
+
+  // Bewertungs-Erinnerungen (dynamisch basierend auf Einstellungen)
+  const minCheckoutDate = subDays(new Date(), maxDays);
+  const maxCheckoutDate = subDays(new Date(), minDays);
   
   const { data: ratingReminders, isLoading: loadingRatings } = useQuery({
-    queryKey: ['morning-rating-reminders', today],
+    queryKey: ['morning-rating-reminders', today, minDays, maxDays, requirePlatform, rentalTypeFilter, ratingsEnabled],
+    enabled: ratingsEnabled, // Nur laden wenn Ratings aktiviert sind
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('bookings')
         .select(`
           id,
@@ -125,11 +134,21 @@ export const useMorningSummary = () => {
           houses!bookings_house_id_fkey!inner(name, rental_type)
         `)
         .eq('status', 'completed')
-        .eq('houses.rental_type', 'tourist')
         .gte('check_out', minCheckoutDate.toISOString())
         .lte('check_out', maxCheckoutDate.toISOString())
-        .is('external_rating', null)
-        .not('platform', 'is', null)
+        .is('external_rating', null);
+      
+      // Rental Type Filter anwenden (wenn nicht 'all')
+      if (rentalTypeFilter !== 'all') {
+        query = query.eq('houses.rental_type', rentalTypeFilter);
+      }
+      
+      // Plattform-Filter anwenden (wenn require_platform = true)
+      if (requirePlatform) {
+        query = query.not('platform', 'is', null);
+      }
+      
+      const { data, error } = await query
         .order('check_out', { ascending: false })
         .limit(10);
 
@@ -217,7 +236,7 @@ export const useMorningSummary = () => {
     (cleanings && cleanings.length > 0) ||
     (linenOrders && linenOrders.length > 0) ||
     (guestContactReminders && guestContactReminders.length > 0) ||
-    (ratingReminders && ratingReminders.length > 0);
+    (ratingsEnabled && ratingReminders && ratingReminders.length > 0);
 
   // Helper: Finde Marketing-Aktionen für eine Buchung
   const getMarketingActionsForBooking = (booking: any): { action: MarketingAction; isApplied: boolean }[] => {
@@ -286,8 +305,8 @@ export const useMorningSummary = () => {
       message += '\n';
     }
 
-    // BEWERTUNGEN NACHTRAGEN - Marketing-Priorität zuerst
-    if (ratingReminders && ratingReminders.length > 0) {
+    // BEWERTUNGEN NACHTRAGEN - Marketing-Priorität zuerst (NUR wenn aktiviert)
+    if (ratingsEnabled && ratingReminders && ratingReminders.length > 0) {
       // Finde Marketing-Kandidaten
       const marketingRatingReminders = ratingReminders.filter((b: any) => {
         const actions = getRatingMarketingActionsForBooking(b);
