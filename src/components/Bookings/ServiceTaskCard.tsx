@@ -15,6 +15,9 @@ interface ServiceTaskCardProps {
 
 const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardProps) => {
   const [showEditDialog, setShowEditDialog] = useState(false);
+  
+  // Debug: Check if status_changed_by is present
+  console.log('[ServiceTaskCard] Task:', task.id, 'status_changed_by:', task.status_changed_by, 'status_changed_at:', task.status_changed_at);
   const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
@@ -154,7 +157,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
 
         {/* Status Badge with Change Info - Bottom Right Corner */}
         <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
-          {getStatusBadge(task.status)}
+          {/* Status Changed Info - links vom Badge */}
           {task.status_changed_by && (
             <span 
               className="text-xs text-muted-foreground"
@@ -163,6 +166,8 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
               ({task.status_changed_by})
             </span>
           )}
+          {/* Status Badge - ganz rechts */}
+          {getStatusBadge(task.status)}
         </div>
       </CardContent>
 
