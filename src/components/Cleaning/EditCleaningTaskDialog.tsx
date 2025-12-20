@@ -284,14 +284,14 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
         title: 'Erfolg',
         description: 'Reinigungsauftrag wurde aktualisiert.',
       });
-      // Invalidate multiple queries to ensure UI updates
-      queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['cleaning-task', taskId] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-service-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['service-tasks-overview'] });
-      queryClient.invalidateQueries({ queryKey: ['cleaning-staff'] });
-      queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
-      queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+      // Invalidate all cleaning-related queries to ensure UI updates immediately
+      queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['cleaning-task'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-service-tasks'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['service-tasks-overview'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['cleaning-staff'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['service_tasks'], exact: false });
       onTaskUpdated?.();
       onOpenChange(false);
     },
@@ -326,9 +326,9 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
         title: 'Erfolg',
         description: 'Reinigungsauftrag wurde gelöscht.',
       });
-      queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
-      queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'], exact: false });
+      queryClient.invalidateQueries({ queryKey: ['service_tasks'], exact: false });
       onTaskUpdated?.();
       onOpenChange(false);
     },
