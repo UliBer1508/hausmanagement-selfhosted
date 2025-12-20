@@ -205,9 +205,14 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     ? (selectedProvider.hourly_rate * cleaningHours)
     : null;
 
+  // Track if status changed
+  const originalStatus = task?.status;
+  
   // Update task mutation
   const updateTaskMutation = useMutation({
     mutationFn: async (data: EditTaskForm) => {
+      const statusChanged = data.status !== originalStatus;
+      
       // Update service task
       const { error: taskError } = await supabase
         .from('service_tasks')
@@ -222,6 +227,11 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
           status: data.status,
           notes: data.notes,
           updated_at: new Date().toISOString(),
+          // Track who changed the status (Admin App)
+          ...(statusChanged ? {
+            status_changed_by: 'Admin',
+            status_changed_at: new Date().toISOString(),
+          } : {}),
         })
         .eq('id', taskId);
 
@@ -464,6 +474,18 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
                     </div>
                   )}
                 </>
+              )}
+              {/* Status Change Info */}
+              {task.status_changed_by && (
+                <div className="mt-3 pt-3 border-t text-sm">
+                  <strong>Status zuletzt geändert von:</strong>{' '}
+                  <span className="text-primary font-medium">{task.status_changed_by}</span>
+                  {task.status_changed_at && (
+                    <span className="text-muted-foreground">
+                      {' '}am {format(new Date(task.status_changed_at), 'dd.MM.yyyy HH:mm', { locale: de })}
+                    </span>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
