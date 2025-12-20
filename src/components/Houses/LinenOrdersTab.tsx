@@ -751,7 +751,8 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
           onCreateOrder={(orderData) => {
             updateOrderMutation.mutate({ 
               orderId: editingOrder.id, 
-              orderData 
+              orderData,
+              originalStatus: editingOrder.status
             });
           }}
           isCreating={updateOrderMutation.isPending}
