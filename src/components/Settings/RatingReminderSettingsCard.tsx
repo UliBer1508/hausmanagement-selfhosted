@@ -100,7 +100,7 @@ export default function RatingReminderSettingsCard() {
           <div>
             <Label>Nur mit Plattform</Label>
             <p className="text-sm text-muted-foreground">
-              Nur Buchungen mit Airbnb, Booking.com etc.
+              Nur Buchungen mit Airbnb, Booking.com, Belvilla etc.
             </p>
           </div>
           <Switch
