@@ -96,10 +96,22 @@ export const useUpdateServiceTask = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<ServiceTask> & { id: string }) => {
+    mutationFn: async ({ id, ...updates }: Partial<ServiceTask> & { id: string; previousStatus?: string }) => {
+      const statusChanged = updates.previousStatus !== undefined && updates.status !== updates.previousStatus;
+      
+      // Remove previousStatus from updates as it's not a DB field
+      const { previousStatus, ...dbUpdates } = updates as any;
+      
       const { data, error } = await supabase
         .from('service_tasks')
-        .update(updates)
+        .update({
+          ...dbUpdates,
+          // Track who changed the status (Admin App)
+          ...(statusChanged ? {
+            status_changed_by: 'Admin',
+            status_changed_at: new Date().toISOString(),
+          } : {}),
+        })
         .eq('id', id)
         .select()
         .single();

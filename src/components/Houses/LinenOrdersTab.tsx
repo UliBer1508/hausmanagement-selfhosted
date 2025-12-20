@@ -73,7 +73,11 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
       
       const { data, error } = await supabase
         .from('linen_orders')
-        .update({ status: 'cancelled' })
+        .update({ 
+          status: 'cancelled',
+          status_changed_by: 'Admin',
+          status_changed_at: new Date().toISOString(),
+        })
         .eq('id', orderId)
         .select()
         .single();
@@ -114,8 +118,10 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
 
   // Mutation to update an order
   const updateOrderMutation = useMutation({
-    mutationFn: async ({ orderId, orderData }: { orderId: string; orderData: any }) => {
+    mutationFn: async ({ orderId, orderData, originalStatus }: { orderId: string; orderData: any; originalStatus?: string }) => {
       console.log('✏️ Aktualisiere Bestellung:', orderId, orderData);
+      
+      const statusChanged = originalStatus && orderData.status !== originalStatus;
       
       const { data, error } = await supabase
         .from('linen_orders')
@@ -128,6 +134,11 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
           linen_color: orderData.linenColor,
           item_variants: orderData.itemColors,
           status: orderData.status,
+          // Track who changed the status (Admin App)
+          ...(statusChanged ? {
+            status_changed_by: 'Admin',
+            status_changed_at: new Date().toISOString(),
+          } : {}),
         })
         .eq('id', orderId)
         .select()
@@ -390,6 +401,12 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
             <p className="text-sm text-muted-foreground mt-1">
               Erstellt am {format(new Date(order.created_at), 'dd.MM.yyyy HH:mm', { locale: de })}
             </p>
+            {order.status_changed_by && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Status geändert von <span className="font-medium text-primary">{order.status_changed_by}</span>
+                {order.status_changed_at && ` am ${format(new Date(order.status_changed_at), 'dd.MM.yyyy HH:mm', { locale: de })}`}
+              </p>
+            )}
           </div>
           <Badge variant="outline" className={getStatusColor(order.status)}>
             {getStatusIcon(order.status)}

@@ -2671,6 +2671,8 @@ export type Database = {
           order_source: string | null
           provider_id: string | null
           status: string | null
+          status_changed_at: string | null
+          status_changed_by: string | null
           suggested_at: string | null
           total_items: number
           updated_at: string | null
@@ -2695,6 +2697,8 @@ export type Database = {
           order_source?: string | null
           provider_id?: string | null
           status?: string | null
+          status_changed_at?: string | null
+          status_changed_by?: string | null
           suggested_at?: string | null
           total_items: number
           updated_at?: string | null
@@ -2719,6 +2723,8 @@ export type Database = {
           order_source?: string | null
           provider_id?: string | null
           status?: string | null
+          status_changed_at?: string | null
+          status_changed_by?: string | null
           suggested_at?: string | null
           total_items?: number
           updated_at?: string | null
@@ -3637,6 +3643,8 @@ export type Database = {
           scheduled_time: string | null
           service_type: Database["public"]["Enums"]["service_type"]
           status: Database["public"]["Enums"]["task_status"] | null
+          status_changed_at: string | null
+          status_changed_by: string | null
           updated_at: string | null
         }
         Insert: {
@@ -3655,6 +3663,8 @@ export type Database = {
           scheduled_time?: string | null
           service_type: Database["public"]["Enums"]["service_type"]
           status?: Database["public"]["Enums"]["task_status"] | null
+          status_changed_at?: string | null
+          status_changed_by?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -3673,6 +3683,8 @@ export type Database = {
           scheduled_time?: string | null
           service_type?: Database["public"]["Enums"]["service_type"]
           status?: Database["public"]["Enums"]["task_status"] | null
+          status_changed_at?: string | null
+          status_changed_by?: string | null
           updated_at?: string | null
         }
         Relationships: [
