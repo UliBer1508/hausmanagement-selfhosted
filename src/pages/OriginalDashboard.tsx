@@ -505,6 +505,8 @@ const OriginalDashboard = () => {
           booking_id,
           house_id,
           provider_id,
+          status_changed_by,
+          status_changed_at,
           service_providers!service_tasks_provider_id_fkey (
             id,
             name,
