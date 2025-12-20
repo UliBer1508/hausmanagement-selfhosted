@@ -290,6 +290,8 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
       queryClient.invalidateQueries({ queryKey: ['dashboard-service-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['service-tasks-overview'] });
       queryClient.invalidateQueries({ queryKey: ['cleaning-staff'] });
+      queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
+      queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
       onTaskUpdated?.();
       onOpenChange(false);
     },
@@ -325,6 +327,8 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
         description: 'Reinigungsauftrag wurde gelöscht.',
       });
       queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['service-tasks-connected'] });
+      queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
       onTaskUpdated?.();
       onOpenChange(false);
     },
