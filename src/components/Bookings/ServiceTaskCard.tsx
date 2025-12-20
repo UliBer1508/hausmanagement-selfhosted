@@ -152,9 +152,17 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
 
         </div>
 
-        {/* Status Badge - Bottom Right Corner */}
-        <div className="absolute bottom-2 right-2">
+        {/* Status Badge with Change Info - Bottom Right Corner */}
+        <div className="absolute bottom-2 right-2 flex items-center gap-1.5">
           {getStatusBadge(task.status)}
+          {task.status_changed_by && (
+            <span 
+              className="text-xs text-muted-foreground"
+              title={task.status_changed_at ? `Geändert am ${format(new Date(task.status_changed_at), "dd.MM.yyyy 'um' HH:mm", { locale: de })}` : undefined}
+            >
+              ({task.status_changed_by})
+            </span>
+          )}
         </div>
       </CardContent>
 
