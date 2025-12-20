@@ -433,6 +433,28 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
               </Tooltip>
             </TooltipProvider>
           )}
+          
+          {/* Status Changed Info */}
+          {order.status_changed_by && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground">
+                    ({order.status_changed_by})
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Status geändert von: {order.status_changed_by}</p>
+                  {order.status_changed_at && (
+                    <p className="text-xs text-muted-foreground">
+                      am {new Date(order.status_changed_at).toLocaleString('de-DE')}
+                    </p>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          
           {getStatusBadge(order.status, isPending)}
         </div>
       </CardContent>

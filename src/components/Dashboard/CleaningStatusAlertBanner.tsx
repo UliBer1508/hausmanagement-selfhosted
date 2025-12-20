@@ -40,7 +40,7 @@ const CleaningStatusAlertBanner = () => {
             )}
           </div>
           <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-            Reinigungsaufträge wurden von Teuni, Amela oder Boris aktualisiert.
+            Aufträge wurden von Teuni, Amela oder Boris aktualisiert.
           </p>
           
           <div className="mt-4 space-y-3">
@@ -51,6 +51,9 @@ const CleaningStatusAlertBanner = () => {
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-lg">
+                      {notification.type === 'linen' ? '🧺' : '🧹'}
+                    </span>
                     <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
                       {notification.changedBy}
                     </Badge>

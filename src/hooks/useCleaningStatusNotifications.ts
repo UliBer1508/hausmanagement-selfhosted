@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface CleaningStatusNotification {
   id: string;
   taskId: string;
+  type: 'cleaning' | 'linen';
   houseName: string;
   changedBy: string;
   oldStatus: string | null;
@@ -21,7 +22,11 @@ const STATUS_LABELS: Record<string, string> = {
   'in_progress': 'In Bearbeitung',
   'completed': 'Fertig ✅',
   'cancelled': 'Storniert',
-  'pending': 'Ausstehend'
+  'pending': 'Ausstehend',
+  'offen': 'Offen',
+  'assigned': 'Zugewiesen',
+  'confirmed': 'Bestätigt',
+  'delivered': 'Geliefert'
 };
 
 export const useCleaningStatusNotifications = () => {
@@ -93,6 +98,7 @@ export const useCleaningStatusNotifications = () => {
           const notification: CleaningStatusNotification = {
             id: `${newRecord.id}-${Date.now()}`,
             taskId: newRecord.id,
+            type: 'cleaning',
             houseName,
             changedBy,
             oldStatus: oldRecord.status,
@@ -108,8 +114,67 @@ export const useCleaningStatusNotifications = () => {
       )
       .subscribe();
 
+    // Zweite Subscription für linen_orders
+    const linenChannel = supabase
+      .channel('linen-orders-status-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'linen_orders'
+        },
+        async (payload) => {
+          const newRecord = payload.new as any;
+          const oldRecord = payload.old as any;
+          
+          // Prüfe ob status_changed_by einer der beobachteten User ist
+          const changedBy = newRecord.status_changed_by;
+          if (!changedBy || !WATCHED_USERS.includes(changedBy)) {
+            return;
+          }
+
+          // Prüfe ob sich der Status tatsächlich geändert hat
+          if (oldRecord.status === newRecord.status) {
+            return;
+          }
+
+          // Lade Haus-Name
+          let houseName = 'Unbekanntes Haus';
+          if (newRecord.house_id) {
+            const { data: house } = await supabase
+              .from('houses')
+              .select('name')
+              .eq('id', newRecord.house_id)
+              .single();
+            if (house) {
+              houseName = house.name;
+            }
+          }
+
+          // Neue Benachrichtigung erstellen
+          const notification: CleaningStatusNotification = {
+            id: `linen-${newRecord.id}-${Date.now()}`,
+            taskId: newRecord.id,
+            type: 'linen',
+            houseName,
+            changedBy,
+            oldStatus: oldRecord.status,
+            newStatus: newRecord.status,
+            changedAt: new Date().toISOString(),
+            acknowledged: false
+          };
+
+          console.log('🧺 Neue Wäsche-Status-Änderung erkannt:', notification);
+
+          setNotifications(prev => [notification, ...prev]);
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(linenChannel);
     };
   }, []);
 

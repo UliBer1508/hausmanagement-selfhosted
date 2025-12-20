@@ -90,7 +90,11 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
     mutationFn: async (orderId: string) => {
       const { error } = await supabase
         .from('linen_orders')
-        .update({ status: 'pending' })
+        .update({ 
+          status: 'pending',
+          status_changed_by: 'Admin',
+          status_changed_at: new Date().toISOString()
+        })
         .eq('id', orderId);
       if (error) throw error;
     },
