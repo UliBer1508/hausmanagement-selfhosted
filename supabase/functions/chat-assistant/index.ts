@@ -2773,6 +2773,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
           house_id,
           number_of_children,
           external_rating,
+          rating_not_expected,
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .eq('status', 'completed')
@@ -2781,6 +2782,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         .lte('check_out', maxCheckoutDate.toISOString())
         .is('external_rating', null)
         .not('platform', 'is', null)
+        .or('rating_not_expected.is.null,rating_not_expected.eq.false')
         .order('check_out', { ascending: false });
       
       if (bookingsError) {
