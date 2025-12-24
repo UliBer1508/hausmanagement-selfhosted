@@ -96,6 +96,7 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
   };
 
   // Berechne Position und Breite des Buchungs-Balkens
+  // Halbe-Tage-Logik: Check-in 15:00 = Nachmittag (+0.5), Check-out 10:00 = Vormittag (+0.5)
   const getBarStyle = (booking: Booking) => {
     const checkIn = startOfDay(parseISO(booking.check_in));
     const checkOut = startOfDay(parseISO(booking.check_out));
@@ -108,13 +109,26 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
     
     // Berechne Offset vom Monatsanfang
     const startOffset = differenceInDays(barStart, monthStart);
-    // +1 für inklusive Berechnung (letzter Tag wird mitgezählt)
-    const duration = differenceInDays(barEnd, barStart) + 1;
+    const duration = differenceInDays(barEnd, barStart);
     
     // Prozentuale Position (jeder Tag = 100/daysInMonth %)
     const dayWidth = 100 / daysInMonth;
-    const left = startOffset * dayWidth;
-    const width = Math.max(duration * dayWidth, dayWidth); // Mindestens 1 Tag breit
+    
+    // Halbe-Tag-Logik:
+    // - Check-in um 15:00 = Balken startet bei halber Tag (+0.5)
+    // - Check-out um 10:00 = Balken endet bei halber Tag (+0.5 statt +1)
+    const isCheckInInMonth = checkIn >= monthStart && checkIn <= monthEnd;
+    const isCheckOutInMonth = checkOut >= monthStart && checkOut <= monthEnd;
+    
+    // Start: +0.5 wenn Check-in im sichtbaren Monat (15:00 = Nachmittag)
+    const adjustedStart = startOffset + (isCheckInInMonth ? 0.5 : 0);
+    
+    // Breite: Duration + 0.5 für Check-out (10:00 = Vormittag endet halben Tag)
+    // Wenn Check-in auch im Monat ist, haben wir bereits 0.5 vom Start abgezogen
+    const adjustedDuration = duration + (isCheckOutInMonth ? 0.5 : 1) - (isCheckInInMonth ? 0.5 : 0);
+    
+    const left = adjustedStart * dayWidth;
+    const width = Math.max(adjustedDuration * dayWidth, dayWidth * 0.5); // Mindestens halber Tag
     
     return {
       left: `${left}%`,
