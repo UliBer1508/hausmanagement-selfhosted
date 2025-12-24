@@ -1028,7 +1028,8 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
                   <FormControl>
                     <Input 
                       placeholder="z.B. HM123456789" 
-                      {...field} 
+                      {...field}
+                      value={field.value || ''}
                     />
                   </FormControl>
                   <FormMessage />
