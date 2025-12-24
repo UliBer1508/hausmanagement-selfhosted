@@ -65,6 +65,36 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
     [bookings]
   );
 
+  // Prüfe ob zwei Buchungen sich überlappen
+  const bookingsOverlap = (a: Booking, b: Booking) => {
+    const aStart = startOfDay(parseISO(a.check_in));
+    const aEnd = startOfDay(parseISO(a.check_out));
+    const bStart = startOfDay(parseISO(b.check_in));
+    const bEnd = startOfDay(parseISO(b.check_out));
+    return aStart < bEnd && bStart < aEnd;
+  };
+
+  // Berechne vertikalen Offset für überlappende Buchungen
+  const getVerticalOffset = (bookingIndex: number, houseBookings: Booking[]) => {
+    let overlaps = 0;
+    for (let i = 0; i < bookingIndex; i++) {
+      if (bookingsOverlap(houseBookings[i], houseBookings[bookingIndex])) {
+        overlaps++;
+      }
+    }
+    return overlaps * 28; // 28px Versatz pro Überlappung
+  };
+
+  // Berechne maximale Überlappungen für Container-Höhe
+  const getMaxOverlaps = (houseBookings: Booking[]) => {
+    let maxOverlaps = 0;
+    for (let i = 0; i < houseBookings.length; i++) {
+      const offset = getVerticalOffset(i, houseBookings);
+      maxOverlaps = Math.max(maxOverlaps, offset);
+    }
+    return maxOverlaps;
+  };
+
   // Berechne Position und Breite des Buchungs-Balkens
   const getBarStyle = (booking: Booking) => {
     const checkIn = startOfDay(parseISO(booking.check_in));
@@ -78,7 +108,8 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
     
     // Berechne Offset vom Monatsanfang
     const startOffset = differenceInDays(barStart, monthStart);
-    const duration = differenceInDays(barEnd, barStart);
+    // +1 für inklusive Berechnung (letzter Tag wird mitgezählt)
+    const duration = differenceInDays(barEnd, barStart) + 1;
     
     // Prozentuale Position (jeder Tag = 100/daysInMonth %)
     const dayWidth = 100 / daysInMonth;
@@ -146,10 +177,12 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
 
         {/* Haus-Zeilen */}
         {touristHouses.map((house, houseIndex) => {
-          const houseBookings = activeBookings.filter(
-            b => (b.house_id === house.id || b.houses?.id === house.id) && isBookingVisible(b)
-          );
+          const houseBookings = activeBookings
+            .filter(b => (b.house_id === house.id || b.houses?.id === house.id) && isBookingVisible(b))
+            .sort((a, b) => parseISO(a.check_in).getTime() - parseISO(b.check_in).getTime());
           const colors = HOUSE_COLORS[house.name] || HOUSE_COLORS.default;
+          const maxOverlaps = getMaxOverlaps(houseBookings);
+          const containerHeight = 64 + maxOverlaps; // Basis 64px + Überlappungen
           
           return (
             <div 
@@ -165,7 +198,10 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
               </div>
               
               {/* Timeline-Bereich mit Buchungs-Balken */}
-              <div className="flex-1 relative h-16 min-h-[64px]">
+              <div 
+                className="flex-1 relative"
+                style={{ height: `${containerHeight}px`, minHeight: '64px' }}
+              >
                 {/* Hintergrund-Raster */}
                 <div className="absolute inset-0 flex">
                   {Array.from({ length: daysInMonth }, (_, i) => {
@@ -187,16 +223,17 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
                 </div>
                 
                 {/* Buchungs-Balken */}
-                {houseBookings.map(booking => {
+                {houseBookings.map((booking, bookingIndex) => {
                   const style = getBarStyle(booking);
                   const nights = getNights(booking);
                   const firstName = booking.guest_name.split(' ')[0];
+                  const verticalOffset = getVerticalOffset(bookingIndex, houseBookings);
                   
                   return (
                     <div
                       key={booking.id}
                       className={`
-                        absolute top-2 h-12 ${colors.bg} ${colors.text} ${colors.border}
+                        absolute h-10 ${colors.bg} ${colors.text} ${colors.border}
                         rounded-lg px-2 flex items-center text-sm font-medium 
                         cursor-pointer hover:opacity-90 shadow-md border-2
                         transition-all duration-150 hover:scale-[1.02] hover:z-10
@@ -204,7 +241,8 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
                       style={{ 
                         left: style.left, 
                         width: style.width,
-                        minWidth: '60px'
+                        minWidth: '60px',
+                        top: `${8 + verticalOffset}px`
                       }}
                       onClick={() => onBookingClick(booking)}
                       title={`${booking.guest_name} - ${nights} Nächte (${booking.number_of_guests} Gäste)`}
