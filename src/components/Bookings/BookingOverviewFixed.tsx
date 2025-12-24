@@ -190,6 +190,8 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
           booking_amount,
           currency,
           platform,
+          external_booking_id,
+          external_rating,
           notes,
           created_at,
           updated_at,
