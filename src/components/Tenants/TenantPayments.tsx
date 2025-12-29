@@ -97,15 +97,11 @@ const TenantPayments = () => {
         if (checkDate < contractStart) continue;
         if (contractEnd && checkDate > contractEnd) continue;
         
-        // Get active rent considering rent changes
+        // Get active rent considering rent changes (new_rent = Warmmiete, enthält bereits NK)
         const activeRent = getActiveRent(houseRentChanges, tenantInfo.monthly_rent, checkDate);
-        const activeAdditionalCosts = getActiveAdditionalCosts(
-          houseRentChanges, 
-          tenantInfo.additional_costs || 0, 
-          checkDate
-        );
         
-        total += activeRent + activeAdditionalCosts;
+        // activeRent ist die Warmmiete (Kaltmiete + NK), daher keine separate Addition von NK
+        total += activeRent;
       }
     });
     
