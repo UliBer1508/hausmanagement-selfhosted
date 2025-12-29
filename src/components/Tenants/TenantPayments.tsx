@@ -50,9 +50,61 @@ const TenantPayments = () => {
     }) || [];
   }, [payments, selectedYear]);
 
-  // Calculate year statistics
-  const expectedTotal = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
-  const receivedTotal = filteredPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
+  // Calculate expected total from active rental contracts
+  const expectedTotal = useMemo(() => {
+    const today = new Date();
+    const currentMonth = today.getMonth();
+    const currentYearNum = today.getFullYear();
+    
+    // Filter houses by selectedHouseId if not "all"
+    const relevantHouses = selectedHouseId === "all" 
+      ? longTermRentals 
+      : longTermRentals.filter(h => h.id === selectedHouseId);
+    
+    let total = 0;
+    
+    relevantHouses.forEach(house => {
+      const tenantInfo = house.tenant_info as any;
+      if (!tenantInfo?.monthly_rent || !tenantInfo?.contract_start) return;
+      
+      const contractStart = new Date(tenantInfo.contract_start);
+      const contractEnd = tenantInfo.contract_end ? new Date(tenantInfo.contract_end) : null;
+      const monthlyTotal = (tenantInfo.monthly_rent || 0) + (tenantInfo.additional_costs || 0);
+      
+      // For each month of the selected year
+      for (let month = 0; month < 12; month++) {
+        const checkDate = new Date(selectedYear, month, 15); // Mid-month check
+        
+        // Contract must be active in this month
+        if (checkDate < contractStart) continue;
+        if (contractEnd && checkDate > contractEnd) continue;
+        
+        // Only count past months or current month if we're in the selected year
+        if (selectedYear < currentYearNum) {
+          // Past year - count all 12 months where contract was active
+          total += monthlyTotal;
+        } else if (selectedYear === currentYearNum && month <= currentMonth) {
+          // Current year - only count up to current month
+          total += monthlyTotal;
+        }
+        // Future months in future years are not counted
+      }
+    });
+    
+    return total;
+  }, [longTermRentals, selectedYear, selectedHouseId]);
+
+  // Calculate received total from paid payments
+  const receivedTotal = useMemo(() => {
+    return filteredPayments
+      .filter(p => p.status === 'paid')
+      .reduce((sum, p) => sum + p.amount, 0);
+  }, [filteredPayments]);
+
+  // Calculate outstanding amount
+  const outstandingTotal = expectedTotal - receivedTotal;
+  
+  // Get overdue payments count
   const overduePayments = filteredPayments.filter(p => p.status === 'overdue');
 
   const handleSendReminder = (payment: TenantPayment) => {
@@ -123,8 +175,8 @@ const TenantPayments = () => {
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Überfällig</p>
-              <p className="text-2xl font-bold">{overduePayments.length}</p>
+              <p className="text-sm text-muted-foreground">Offen ({selectedYear})</p>
+              <p className="text-2xl font-bold">{outstandingTotal.toLocaleString('de-DE')} €</p>
             </div>
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
