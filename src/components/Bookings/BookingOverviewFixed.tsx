@@ -35,7 +35,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Plus, Search, Edit, Trash2, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO, isAfter, isBefore, startOfDay, endOfDay, addMonths, startOfYear, endOfYear } from 'date-fns';
@@ -117,6 +117,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const [sortOption, setSortOption] = useState('check_in_asc');
   const [selectedBookingForEdit, setSelectedBookingForEdit] = useState<any | null>(null);
   const [bookingToDelete, setBookingToDelete] = useState<any | null>(null);
   const [relatedItems, setRelatedItems] = useState<{ cleanings: number; orders: number }>({ cleanings: 0, orders: 0 });
@@ -337,6 +338,30 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
     return true;
   }) || [];
 
+  // Sort bookings based on selected sort option
+  const sortedBookings = [...filteredBookings].sort((a, b) => {
+    switch (sortOption) {
+      case 'check_in_desc':
+        return new Date(b.check_in).getTime() - new Date(a.check_in).getTime();
+      case 'check_in_asc':
+        return new Date(a.check_in).getTime() - new Date(b.check_in).getTime();
+      case 'created_at_desc':
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+      case 'created_at_asc':
+        return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+      case 'guest_name_asc':
+        return (a.guest_name || '').localeCompare(b.guest_name || '', 'de');
+      case 'guest_name_desc':
+        return (b.guest_name || '').localeCompare(a.guest_name || '', 'de');
+      case 'amount_desc':
+        return (b.booking_amount || 0) - (a.booking_amount || 0);
+      case 'amount_asc':
+        return (a.booking_amount || 0) - (b.booking_amount || 0);
+      default:
+        return 0;
+    }
+  });
+
   // Statistics for ALL bookings (not filtered) - for display in cards
   const allBookingsStats = {
     total: bookingsData?.length || 0,
@@ -508,7 +533,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
           <div className={`${isFiltersExpanded ? 'block' : 'hidden'}`}>
             <div className="space-y-4">
               {/* Main Filter Row */}
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
                 {/* Search */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -562,6 +587,24 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
                     <SelectItem value="next-year">Nächstes Jahr</SelectItem>
                     <SelectItem value="last-year">Letztes Jahr</SelectItem>
                     <SelectItem value="custom">Benutzerdefiniert</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Sort Option */}
+                <Select value={sortOption} onValueChange={setSortOption}>
+                  <SelectTrigger>
+                    <ArrowUpDown className="w-4 h-4 mr-2" />
+                    <SelectValue placeholder="Sortierung" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border shadow-md z-50">
+                    <SelectItem value="check_in_asc">Check-in (älteste zuerst)</SelectItem>
+                    <SelectItem value="check_in_desc">Check-in (neueste zuerst)</SelectItem>
+                    <SelectItem value="created_at_desc">Erstellt (neueste zuerst)</SelectItem>
+                    <SelectItem value="created_at_asc">Erstellt (älteste zuerst)</SelectItem>
+                    <SelectItem value="guest_name_asc">Gastname (A-Z)</SelectItem>
+                    <SelectItem value="guest_name_desc">Gastname (Z-A)</SelectItem>
+                    <SelectItem value="amount_desc">Betrag (höchste zuerst)</SelectItem>
+                    <SelectItem value="amount_asc">Betrag (niedrigste zuerst)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -650,7 +693,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredBookings.map((booking) => (
+              {sortedBookings.map((booking) => (
                 <TableRow key={booking.id}>
                   <TableCell className="font-medium">
                     {booking.guest_name}
