@@ -30,8 +30,24 @@ const TenantPayments = () => {
 
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState<number | "all">("all");
 
   const longTermRentals = houses?.filter(h => h.rental_type === 'long_term') || [];
+
+  const months = [
+    { value: 0, label: "Januar" },
+    { value: 1, label: "Februar" },
+    { value: 2, label: "März" },
+    { value: 3, label: "April" },
+    { value: 4, label: "Mai" },
+    { value: 5, label: "Juni" },
+    { value: 6, label: "Juli" },
+    { value: 7, label: "August" },
+    { value: 8, label: "September" },
+    { value: 9, label: "Oktober" },
+    { value: 10, label: "November" },
+    { value: 11, label: "Dezember" },
+  ];
 
   // Generate available years (2020 to current year + 1)
   const availableYears = useMemo(() => {
@@ -42,24 +58,27 @@ const TenantPayments = () => {
     return years.reverse(); // Newest first
   }, [currentYear]);
 
-  // Filter payments by selected year
+  // Filter payments by selected year and month (cumulative)
   const filteredPayments = useMemo(() => {
     return payments?.filter(p => {
       const dueDate = new Date(p.due_date);
-      return dueDate.getFullYear() === selectedYear;
+      const yearMatch = dueDate.getFullYear() === selectedYear;
+      const monthMatch = selectedMonth === "all" 
+        ? true 
+        : dueDate.getMonth() <= selectedMonth; // Cumulative up to selected month
+      return yearMatch && monthMatch;
     }) || [];
-  }, [payments, selectedYear]);
+  }, [payments, selectedYear, selectedMonth]);
 
-  // Calculate expected total from active rental contracts
+  // Calculate expected total from active rental contracts (cumulative)
   const expectedTotal = useMemo(() => {
-    const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYearNum = today.getFullYear();
-    
     // Filter houses by selectedHouseId if not "all"
     const relevantHouses = selectedHouseId === "all" 
       ? longTermRentals 
       : longTermRentals.filter(h => h.id === selectedHouseId);
+    
+    // Determine last month to count (cumulative)
+    const lastMonth = selectedMonth === "all" ? 11 : selectedMonth;
     
     let total = 0;
     
@@ -71,28 +90,20 @@ const TenantPayments = () => {
       const contractEnd = tenantInfo.contract_end ? new Date(tenantInfo.contract_end) : null;
       const monthlyTotal = (tenantInfo.monthly_rent || 0) + (tenantInfo.additional_costs || 0);
       
-      // For each month of the selected year
-      for (let month = 0; month < 12; month++) {
+      // For each month from January to the selected month (cumulative)
+      for (let month = 0; month <= lastMonth; month++) {
         const checkDate = new Date(selectedYear, month, 15); // Mid-month check
         
         // Contract must be active in this month
         if (checkDate < contractStart) continue;
         if (contractEnd && checkDate > contractEnd) continue;
         
-        // Only count past months or current month if we're in the selected year
-        if (selectedYear < currentYearNum) {
-          // Past year - count all 12 months where contract was active
-          total += monthlyTotal;
-        } else if (selectedYear === currentYearNum && month <= currentMonth) {
-          // Current year - only count up to current month
-          total += monthlyTotal;
-        }
-        // Future months in future years are not counted
+        total += monthlyTotal;
       }
     });
     
     return total;
-  }, [longTermRentals, selectedYear, selectedHouseId]);
+  }, [longTermRentals, selectedYear, selectedMonth, selectedHouseId]);
 
   // Calculate received total from paid payments
   const receivedTotal = useMemo(() => {
@@ -155,7 +166,7 @@ const TenantPayments = () => {
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Erwartet ({selectedYear})</p>
+              <p className="text-sm text-muted-foreground">Erwartet ({selectedMonth === "all" ? selectedYear : `${months[selectedMonth].label} ${selectedYear}`})</p>
               <p className="text-2xl font-bold">{expectedTotal.toLocaleString('de-DE')} €</p>
             </div>
             <Euro className="h-8 w-8 text-blue-600" />
@@ -165,7 +176,7 @@ const TenantPayments = () => {
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Erhalten ({selectedYear})</p>
+              <p className="text-sm text-muted-foreground">Erhalten ({selectedMonth === "all" ? selectedYear : `${months[selectedMonth].label} ${selectedYear}`})</p>
               <p className="text-2xl font-bold">{receivedTotal.toLocaleString('de-DE')} €</p>
             </div>
             <CheckCircle2 className="h-8 w-8 text-green-600" />
@@ -175,7 +186,7 @@ const TenantPayments = () => {
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Offen ({selectedYear})</p>
+              <p className="text-sm text-muted-foreground">Offen ({selectedMonth === "all" ? selectedYear : `${months[selectedMonth].label} ${selectedYear}`})</p>
               <p className="text-2xl font-bold">{outstandingTotal.toLocaleString('de-DE')} €</p>
             </div>
             <AlertCircle className="h-8 w-8 text-red-600" />
@@ -203,6 +214,21 @@ const TenantPayments = () => {
           <SelectContent>
             {availableYears.map(year => (
               <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select 
+          value={selectedMonth === "all" ? "all" : selectedMonth.toString()} 
+          onValueChange={(v) => setSelectedMonth(v === "all" ? "all" : parseInt(v))}
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Monat" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Monate</SelectItem>
+            {months.map(m => (
+              <SelectItem key={m.value} value={m.value.toString()}>{m.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
