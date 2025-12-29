@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useHouses } from "@/hooks/useHouses";
 import { useTenantPayments, useDeletePayment, useUpdatePayment } from "@/hooks/useTenantPayments";
 import { Card } from "@/components/ui/card";
@@ -28,17 +28,32 @@ const TenantPayments = () => {
   const deletePayment = useDeletePayment();
   const updatePayment = useUpdatePayment();
 
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+
   const longTermRentals = houses?.filter(h => h.rental_type === 'long_term') || [];
 
-  const thisMonth = new Date();
-  const monthlyPayments = payments?.filter(p => {
-    const dueDate = new Date(p.due_date);
-    return dueDate.getMonth() === thisMonth.getMonth() && dueDate.getFullYear() === thisMonth.getFullYear();
-  }) || [];
+  // Generate available years (2020 to current year + 1)
+  const availableYears = useMemo(() => {
+    const years: number[] = [];
+    for (let y = 2020; y <= currentYear + 1; y++) {
+      years.push(y);
+    }
+    return years.reverse(); // Newest first
+  }, [currentYear]);
 
-  const expectedTotal = monthlyPayments.reduce((sum, p) => sum + p.amount, 0);
-  const receivedTotal = monthlyPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
-  const overduePayments = payments?.filter(p => p.status === 'overdue') || [];
+  // Filter payments by selected year
+  const filteredPayments = useMemo(() => {
+    return payments?.filter(p => {
+      const dueDate = new Date(p.due_date);
+      return dueDate.getFullYear() === selectedYear;
+    }) || [];
+  }, [payments, selectedYear]);
+
+  // Calculate year statistics
+  const expectedTotal = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
+  const receivedTotal = filteredPayments.filter(p => p.status === 'paid').reduce((sum, p) => sum + p.amount, 0);
+  const overduePayments = filteredPayments.filter(p => p.status === 'overdue');
 
   const handleSendReminder = (payment: TenantPayment) => {
     const house = payment.houses;
@@ -104,7 +119,7 @@ const TenantPayments = () => {
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Erwartet (Monat)</p>
+              <p className="text-sm text-muted-foreground">Erwartet ({selectedYear})</p>
               <p className="text-2xl font-bold">{expectedTotal.toLocaleString('de-DE')} €</p>
             </div>
             <Euro className="h-8 w-8 text-blue-600" />
@@ -114,7 +129,7 @@ const TenantPayments = () => {
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Erhalten (Monat)</p>
+              <p className="text-sm text-muted-foreground">Erhalten ({selectedYear})</p>
               <p className="text-2xl font-bold">{receivedTotal.toLocaleString('de-DE')} €</p>
             </div>
             <CheckCircle2 className="h-8 w-8 text-green-600" />
@@ -145,6 +160,17 @@ const TenantPayments = () => {
       </div>
 
       <div className="flex gap-4">
+        <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+          <SelectTrigger className="w-32">
+            <SelectValue placeholder="Jahr" />
+          </SelectTrigger>
+          <SelectContent>
+            {availableYears.map(year => (
+              <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
           <SelectTrigger className="w-64">
             <SelectValue placeholder="Objekt filtern" />
@@ -188,7 +214,7 @@ const TenantPayments = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {payments?.map(payment => (
+            {filteredPayments.map(payment => (
               <TableRow key={payment.id}>
                 <TableCell className="font-medium">{payment.houses?.name}</TableCell>
                 <TableCell>{(payment.houses?.tenant_info as any)?.tenant_name || '-'}</TableCell>
