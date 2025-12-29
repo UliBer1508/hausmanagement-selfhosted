@@ -209,10 +209,11 @@ const TenantContracts = () => {
                     {nextChange && (
                       <p className="text-xs text-amber-600 mt-1">
                         ⏰ Ab {format(parseISO(nextChange.effective_date), 'dd.MM.yyyy', { locale: de })}: 
-                        {' '}Kaltmiete {formatCurrency(nextChange.new_rent)}
+                        {' '}Warmmiete {formatCurrency(nextChange.new_rent + (nextChange.new_additional_costs || 0))}
+                        {' '}(Kaltmiete {formatCurrency(nextChange.new_rent)}
                         {nextChange.new_additional_costs !== null && nextChange.new_additional_costs !== undefined && (
                           <>, NK {formatCurrency(nextChange.new_additional_costs)}</>
-                        )}
+                        )})
                       </p>
                     )}
                   </div>
