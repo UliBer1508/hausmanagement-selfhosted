@@ -23,6 +23,13 @@ const CreatePaymentDialog = ({ open, onOpenChange }: CreatePaymentDialogProps) =
   const selectedHouse = longTermRentals.find(h => h.id === selectedHouseId);
 
   const onSubmit = (data: any) => {
+    // Validiere das Jahr des Fälligkeitsdatums
+    const dueDate = new Date(data.due_date);
+    const year = dueDate.getFullYear();
+    if (year < 2020 || year > 2100) {
+      return; // HTML5-Validierung sollte das abfangen, aber sicher ist sicher
+    }
+    
     createPayment.mutate(data, {
       onSuccess: () => {
         reset();
@@ -60,7 +67,12 @@ const CreatePaymentDialog = ({ open, onOpenChange }: CreatePaymentDialogProps) =
 
           <div>
             <Label>Fälligkeitsdatum</Label>
-            <Input type="date" {...register('due_date', { required: true })} />
+            <Input 
+              type="date" 
+              min="2020-01-01"
+              max="2100-12-31"
+              {...register('due_date', { required: true })} 
+            />
           </div>
 
           <div>
