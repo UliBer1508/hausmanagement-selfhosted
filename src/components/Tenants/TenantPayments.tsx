@@ -86,22 +86,6 @@ const TenantPayments = () => {
     });
   };
 
-  const testPaymentGeneration = async () => {
-    try {
-      toast.info("Starte automatische Zahlungsgenerierung...");
-      const { data, error } = await supabase.functions.invoke('generate-tenant-payments', {
-        body: { trigger: 'manual_test' }
-      });
-      
-      if (error) throw error;
-      
-      console.log('✅ Test result:', data);
-      toast.success(`Test erfolgreich: ${data.payments_created} Zahlung(en) erstellt in ${data.execution_time_ms}ms`);
-    } catch (error: any) {
-      console.error('❌ Test error:', error);
-      toast.error('Test fehlgeschlagen: ' + error.message);
-    }
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -187,16 +171,6 @@ const TenantPayments = () => {
           <Plus className="h-4 w-4 mr-1" />
           Zahlung erfassen
         </Button>
-        
-        {process.env.NODE_ENV === 'development' && (
-          <Button 
-            variant="outline" 
-            onClick={testPaymentGeneration}
-          >
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            🧪 Test Auto-Generation
-          </Button>
-        )}
       </div>
 
       <Card>
