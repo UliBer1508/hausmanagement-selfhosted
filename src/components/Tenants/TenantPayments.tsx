@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useHouses } from "@/hooks/useHouses";
 import { useTenantPayments, useDeletePayment, useUpdatePayment } from "@/hooks/useTenantPayments";
+import { useTenantRentChanges, getActiveRent, getActiveAdditionalCosts } from "@/hooks/useTenantRentChanges";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ const TenantPayments = () => {
   const [selectedMonth, setSelectedMonth] = useState<number | "all">("all");
 
   const longTermRentals = houses?.filter(h => h.rental_type === 'long_term') || [];
+  const { data: rentChanges = [] } = useTenantRentChanges();
 
   const months = [
     { value: 0, label: "Januar" },
@@ -70,16 +72,13 @@ const TenantPayments = () => {
     }) || [];
   }, [payments, selectedYear, selectedMonth]);
 
-  // Calculate expected total from active rental contracts (cumulative)
+  // Calculate expected total from active rental contracts (cumulative) with rent changes
   const expectedTotal = useMemo(() => {
-    // Filter houses by selectedHouseId if not "all"
     const relevantHouses = selectedHouseId === "all" 
       ? longTermRentals 
       : longTermRentals.filter(h => h.id === selectedHouseId);
     
-    // Determine last month to count (cumulative)
     const lastMonth = selectedMonth === "all" ? 11 : selectedMonth;
-    
     let total = 0;
     
     relevantHouses.forEach(house => {
@@ -88,22 +87,30 @@ const TenantPayments = () => {
       
       const contractStart = new Date(tenantInfo.contract_start);
       const contractEnd = tenantInfo.contract_end ? new Date(tenantInfo.contract_end) : null;
-      const monthlyTotal = (tenantInfo.monthly_rent || 0) + (tenantInfo.additional_costs || 0);
       
-      // For each month from January to the selected month (cumulative)
+      // Get rent changes for this house
+      const houseRentChanges = rentChanges.filter(rc => rc.house_id === house.id);
+      
       for (let month = 0; month <= lastMonth; month++) {
-        const checkDate = new Date(selectedYear, month, 15); // Mid-month check
+        const checkDate = new Date(selectedYear, month, 15);
         
-        // Contract must be active in this month
         if (checkDate < contractStart) continue;
         if (contractEnd && checkDate > contractEnd) continue;
         
-        total += monthlyTotal;
+        // Get active rent considering rent changes
+        const activeRent = getActiveRent(houseRentChanges, tenantInfo.monthly_rent, checkDate);
+        const activeAdditionalCosts = getActiveAdditionalCosts(
+          houseRentChanges, 
+          tenantInfo.additional_costs || 0, 
+          checkDate
+        );
+        
+        total += activeRent + activeAdditionalCosts;
       }
     });
     
     return total;
-  }, [longTermRentals, selectedYear, selectedMonth, selectedHouseId]);
+  }, [longTermRentals, selectedYear, selectedMonth, selectedHouseId, rentChanges]);
 
   // Calculate received total from paid payments
   const receivedTotal = useMemo(() => {
