@@ -145,76 +145,107 @@ export const useGuests = (filters: GuestFilters = {}) => {
   });
 };
 
-// Helper hook to get guest statistics
-export const useGuestStats = () => {
-  const { data: guests, isLoading } = useGuests();
+// Helper hook to get guest statistics with year filter
+export const useGuestStatsWithYear = (selectedYear?: number) => {
+  return useQuery({
+    queryKey: ['guest-stats-by-year', selectedYear],
+    queryFn: async () => {
+      // Load all bookings to determine available years
+      const { data: allBookingsForYears, error: yearsError } = await supabase
+        .from('bookings')
+        .select('check_in, houses!bookings_house_id_fkey!inner(rental_type)')
+        .eq('houses.rental_type', 'tourist')
+        .not('check_in', 'is', null);
 
-  const stats = (() => {
-    if (!guests || guests.length === 0) {
+      if (yearsError) throw yearsError;
+
+      const availableYears = [...new Set(
+        allBookingsForYears?.map(b => new Date(b.check_in).getFullYear()) || []
+      )].sort((a, b) => b - a);
+
+      // Build query for bookings with optional year filter
+      let query = supabase
+        .from('bookings')
+        .select(`
+          id, guest_id, guest_name, check_in, check_out, 
+          booking_amount, status,
+          houses!bookings_house_id_fkey!inner(rental_type)
+        `)
+        .eq('houses.rental_type', 'tourist')
+        .neq('status', 'cancelled');
+
+      if (selectedYear) {
+        query = query
+          .gte('check_in', `${selectedYear}-01-01`)
+          .lte('check_in', `${selectedYear}-12-31`);
+      }
+
+      const { data: bookings, error: bookingsError } = await query;
+      if (bookingsError) throw bookingsError;
+
+      // Calculate statistics from filtered bookings
+      const guestIds = new Set(bookings?.map(b => b.guest_id).filter(Boolean));
+      const totalGuests = guestIds.size;
+
+      // Count bookings per guest for returning rate
+      const bookingsPerGuest = new Map<string, number>();
+      bookings?.forEach(b => {
+        if (b.guest_id) {
+          bookingsPerGuest.set(b.guest_id, (bookingsPerGuest.get(b.guest_id) || 0) + 1);
+        }
+      });
+      const returningGuests = [...bookingsPerGuest.values()].filter(count => count >= 2).length;
+
+      // Revenue and stay duration
+      let totalRevenue = 0;
+      let totalNights = 0;
+      bookings?.forEach(b => {
+        totalRevenue += b.booking_amount || 0;
+        const checkIn = new Date(b.check_in);
+        const checkOut = new Date(b.check_out);
+        totalNights += Math.max(0, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
+      });
+
+      const totalBookings = bookings?.length || 0;
+      const avgStayDuration = totalBookings > 0 ? Math.round(totalNights / totalBookings) : 0;
+      const avgRevenuePerBooking = totalBookings > 0 ? Math.round(totalRevenue / totalBookings) : 0;
+      const returningRate = totalGuests > 0 ? Math.round((returningGuests / totalGuests) * 100) : 0;
+
       return {
-        totalGuests: 0,
-        newGuests: 0,
-        returningGuests: 0,
-        guestsWithoutBookings: 0,
-        totalRevenue: 0,
-        returningRate: 0,
-        avgStayDuration: 0,
-        avgRevenuePerBooking: 0,
-        growthRate: 0,
+        stats: {
+          totalGuests,
+          totalRevenue,
+          returningGuests,
+          returningRate,
+          avgStayDuration,
+          avgRevenuePerBooking,
+          totalBookings,
+        },
+        availableYears
       };
     }
+  });
+};
 
-    const totalGuests = guests.length;
-    const returningGuests = guests.filter(g => g.category === 'returning').length;
-    const returningRate = totalGuests > 0 ? (returningGuests / totalGuests) * 100 : 0;
-
-    // Calculate total bookings, revenue, and stay duration
-    let totalBookings = 0;
-    let bookingsWithAmount = 0;
-    let totalRevenue = 0;
-    let totalStayNights = 0;
-
-    guests.forEach(guest => {
-      guest.bookings
-        .filter(b => b.status !== 'cancelled')
-        .forEach(booking => {
-          totalBookings++;
-          if (booking.booking_amount && booking.booking_amount > 0) {
-            totalRevenue += booking.booking_amount;
-            bookingsWithAmount++;
-          }
-          const checkIn = new Date(booking.check_in);
-          const checkOut = new Date(booking.check_out);
-          const nights = Math.max(0, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)));
-          totalStayNights += nights;
-        });
-    });
-
-    const avgStayDuration = totalBookings > 0 ? Math.round(totalStayNights / totalBookings) : 0;
-    const avgRevenuePerBooking = bookingsWithAmount > 0 ? Math.round(totalRevenue / bookingsWithAmount) : 0;
-
-    // Calculate 6-month growth (guests created in last 6 months)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const recentGuests = guests.filter(g => 
-      g.created_at && new Date(g.created_at) >= sixMonthsAgo
-    ).length;
-    const growthRate = totalGuests > 0 ? Math.round((recentGuests / totalGuests) * 100) : 0;
-
-    return {
-      totalGuests,
-      newGuests: guests.filter(g => g.category === 'new').length,
-      returningGuests,
-      guestsWithoutBookings: guests.filter(g => g.stay_count === 0).length,
-      totalRevenue,
-      returningRate: Math.round(returningRate),
-      avgStayDuration,
-      avgRevenuePerBooking,
-      growthRate,
-    };
-  })();
-
-  return { stats, isLoading };
+// Legacy hook for backwards compatibility
+export const useGuestStats = () => {
+  const { data, isLoading } = useGuestStatsWithYear();
+  
+  return {
+    stats: data?.stats || {
+      totalGuests: 0,
+      totalRevenue: 0,
+      returningGuests: 0,
+      returningRate: 0,
+      avgStayDuration: 0,
+      avgRevenuePerBooking: 0,
+      totalBookings: 0,
+      newGuests: 0,
+      guestsWithoutBookings: 0,
+      growthRate: 0,
+    },
+    isLoading
+  };
 };
 
 // Types for guest segments
