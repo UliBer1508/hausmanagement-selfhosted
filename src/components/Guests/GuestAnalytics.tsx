@@ -627,14 +627,17 @@ const GuestAnalytics = () => {
         ? allBookings 
         : allBookings.filter(b => new Date(b.check_in).getFullYear() === parseInt(selectedYear));
 
-      // Monthly booking trends (last 12 months)
+      // CRITICAL: Exclude cancelled bookings for all calculations
+      const activeBookings = bookings.filter(b => b.status !== 'cancelled');
+
+      // Monthly booking trends (last 12 months) - using activeBookings
       const monthlyData = [];
       for (let i = 11; i >= 0; i--) {
         const month = subMonths(new Date(), i);
         const monthStart = startOfMonth(month);
         const monthEnd = endOfMonth(month);
         
-        const monthBookings = bookings.filter(b => {
+        const monthBookings = activeBookings.filter(b => {
           const checkIn = new Date(b.check_in);
           return checkIn >= monthStart && checkIn <= monthEnd;
         });
@@ -647,8 +650,8 @@ const GuestAnalytics = () => {
         });
       }
 
-      // Nationality distribution
-      const nationalityCount = bookings.reduce((acc, booking) => {
+      // Nationality distribution - using activeBookings
+      const nationalityCount = activeBookings.reduce((acc, booking) => {
         const nationality = booking.nationality || 'Unbekannt';
         acc[nationality] = (acc[nationality] || 0) + 1;
         return acc;
@@ -659,8 +662,8 @@ const GuestAnalytics = () => {
         .sort((a, b) => b.count - a.count)
         .slice(0, 6);
 
-      // Average stay duration
-      const stayDurations = bookings
+      // Average stay duration - using activeBookings
+      const stayDurations = activeBookings
         .filter(b => b.check_in && b.check_out)
         .map(b => {
           const checkIn = new Date(b.check_in);
@@ -690,17 +693,17 @@ const GuestAnalytics = () => {
       
       const perHouseOccupancy: HouseOccupancy[] = [];
       
-      // Get unique houses from bookings or use filtered house if selected
+      // Get unique houses from activeBookings or use filtered house if selected
       const relevantHouses = selectedHouseId === 'all' 
-        ? Array.from(new Set(bookings.map(b => b.house_id)))
+        ? Array.from(new Set(activeBookings.map(b => b.house_id)))
             .map(houseId => ({
               id: houseId,
-              name: bookings.find(b => b.house_id === houseId)?.houses?.name || 'Unbekannt'
+              name: activeBookings.find(b => b.house_id === houseId)?.houses?.name || 'Unbekannt'
             }))
         : [{ id: selectedHouseId, name: houses?.find(h => h.id === selectedHouseId)?.name || 'Unbekannt' }];
       
       relevantHouses.forEach(house => {
-        const houseBookings = bookings.filter(b => b.house_id === house.id);
+        const houseBookings = activeBookings.filter(b => b.house_id === house.id);
         
         // Calculate monthly occupancy
         const monthlyOccupancy = [];
@@ -714,8 +717,8 @@ const GuestAnalytics = () => {
           const daysInMonth = differenceInDays(monthEnd, monthStart) + 1;
           totalDaysInPeriod += daysInMonth;
           
+          // Already using activeBookings, no need to filter cancelled again
           const monthBookings = houseBookings.filter(b => {
-            if (b.status === 'cancelled') return false;
             const checkIn = new Date(b.check_in);
             const checkOut = new Date(b.check_out);
             return checkIn <= monthEnd && checkOut >= monthStart;
@@ -744,7 +747,7 @@ const GuestAnalytics = () => {
         }
         
         // Find vacancies with ML analysis (free periods)
-        const vacancies = findVacanciesWithML(houseBookings, bookings, today, sixMonthsLater, mlSettings, house.id);
+        const vacancies = findVacanciesWithML(houseBookings, activeBookings, today, sixMonthsLater, mlSettings, house.id);
         
         perHouseOccupancy.push({
           houseId: house.id,
@@ -755,8 +758,8 @@ const GuestAnalytics = () => {
         });
       });
 
-      // Platform distribution
-      const platformCount = bookings.reduce((acc, booking) => {
+      // Platform distribution - using activeBookings
+      const platformCount = activeBookings.reduce((acc, booking) => {
         const platform = booking.platform || 'Direktbuchung';
         if (!acc[platform]) {
           acc[platform] = { count: 0, revenue: 0 };
@@ -782,11 +785,11 @@ const GuestAnalytics = () => {
         durationData,
         perHouseOccupancy,
         platformData,
-        totalRevenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
-        paidRevenue: bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
-        totalBookings: bookings.length,
-        bookingsWithAmount: bookings.filter(b => b.status !== 'cancelled' && b.booking_amount && b.booking_amount > 0).length,
-        totalGuests: bookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0),
+        totalRevenue: activeBookings.reduce((sum, b) => sum + (b.booking_amount || 0), 0),
+        paidRevenue: activeBookings.filter(b => b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
+        totalBookings: activeBookings.length,
+        bookingsWithAmount: activeBookings.filter(b => b.booking_amount && b.booking_amount > 0).length,
+        totalGuests: activeBookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0),
         availableYears
       };
     },
