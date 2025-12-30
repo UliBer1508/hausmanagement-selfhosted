@@ -535,6 +535,7 @@ const CustomOccupancyTooltip = ({ active, payload }: any) => {
 
 const GuestAnalytics = () => {
   const [selectedHouseId, setSelectedHouseId] = useState<string>('all');
+  const [selectedYear, setSelectedYear] = useState<string>('all');
   const [mlSettings, setMLSettings] = useState<MLSettings>(DEFAULT_ML_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [analyzingVacancyId, setAnalyzingVacancyId] = useState<string | null>(null);
@@ -596,7 +597,7 @@ const GuestAnalytics = () => {
 
   // Fetch booking data for analytics
   const { data: analyticsData, isLoading } = useQuery({
-    queryKey: ['guest-analytics', selectedHouseId],
+    queryKey: ['guest-analytics', selectedHouseId, selectedYear],
     queryFn: async () => {
       let query = supabase
         .from('bookings')
@@ -612,9 +613,19 @@ const GuestAnalytics = () => {
         query = query.eq('house_id', selectedHouseId);
       }
 
-      const { data: bookings } = await query;
+      const { data: allBookings } = await query;
 
-      if (!bookings) return null;
+      if (!allBookings) return null;
+
+      // Extract available years from all bookings
+      const availableYears = [...new Set(
+        allBookings.map(b => new Date(b.check_in).getFullYear())
+      )].sort((a, b) => b - a);
+
+      // Filter bookings by selected year
+      const bookings = selectedYear === 'all' 
+        ? allBookings 
+        : allBookings.filter(b => new Date(b.check_in).getFullYear() === parseInt(selectedYear));
 
       // Monthly booking trends (last 12 months)
       const monthlyData = [];
@@ -754,7 +765,8 @@ const GuestAnalytics = () => {
         paidRevenue: bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
         totalBookings: bookings.length,
         bookingsWithAmount: bookings.filter(b => b.status !== 'cancelled' && b.booking_amount && b.booking_amount > 0).length,
-        totalGuests: bookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0)
+        totalGuests: bookings.reduce((sum, b) => sum + (b.number_of_guests || 0), 0),
+        availableYears
       };
     },
   });
@@ -794,24 +806,43 @@ const GuestAnalytics = () => {
         onSettingsChange={setMLSettings}
       />
       
-      {/* House Filter */}
+      {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium">Haus filtern:</label>
-            <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
-              <SelectTrigger className="w-[280px]">
-                <SelectValue placeholder="Alle Häuser" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Häuser</SelectItem>
-                {houses?.map(house => (
-                  <SelectItem key={house.id} value={house.id}>
-                    {house.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex items-center gap-6 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Haus filtern:</label>
+              <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Alle Häuser" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Häuser</SelectItem>
+                  {houses?.map(house => (
+                    <SelectItem key={house.id} value={house.id}>
+                      {house.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Jahr:</label>
+              <Select value={selectedYear} onValueChange={setSelectedYear}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="Alle Jahre" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Jahre</SelectItem>
+                  {analyticsData?.availableYears?.map(year => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -820,7 +851,7 @@ const GuestAnalytics = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gesamtumsatz</CardTitle>
+            <CardTitle className="text-sm font-medium">Gesamtumsatz {selectedYear !== 'all' && selectedYear}</CardTitle>
             <Euro className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
