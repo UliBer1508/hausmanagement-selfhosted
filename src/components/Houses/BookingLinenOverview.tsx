@@ -220,7 +220,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     );
   }
 
-  if (!orderStatus) {
+  if (!orderStatus || !orderStatus.summary || !orderStatus.bookings) {
     return (
       <Alert>
         <AlertDescription>
@@ -239,7 +239,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
             <CardTitle className="text-sm font-medium">Berücksichtigte Buchungen</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{orderStatus.summary.total_bookings}</div>
+            <div className="text-2xl font-bold">{orderStatus.summary?.total_bookings ?? 0}</div>
           </CardContent>
         </Card>
         
@@ -248,7 +248,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
             <CardTitle className="text-sm font-medium">Bestellungen erstellt</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{orderStatus.summary.orders_complete}</div>
+            <div className="text-2xl font-bold text-green-600">{orderStatus.summary?.orders_complete ?? 0}</div>
           </CardContent>
         </Card>
 
@@ -266,7 +266,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
             <CardTitle className="text-sm font-medium">Dringende Bestellungen</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{orderStatus.summary.urgent_count}</div>
+            <div className="text-2xl font-bold text-red-600">{orderStatus.summary?.urgent_count ?? 0}</div>
           </CardContent>
         </Card>
       </div>
@@ -306,7 +306,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {orderStatus.bookings.map((booking) => (
+              {orderStatus.bookings?.map((booking) => (
                 <div key={booking.booking_id} className="flex items-center justify-between p-4 border-2 border-green-500 rounded-lg">
                   <div className="space-y-1">
                     <div className="font-medium">{booking.guest_name}</div>
