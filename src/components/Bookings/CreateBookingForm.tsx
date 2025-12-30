@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { CalendarIcon, Loader2, ShoppingCart, Star } from 'lucide-react';
+import { CalendarIcon, Loader2, ShoppingCart, Star, UserCheck } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -12,6 +12,7 @@ import { useCreateBooking, useUpdateBooking, useDeleteBooking } from '@/hooks/us
 import { useUpdateServiceTask } from '@/hooks/useServiceTasks';
 import { Booking, BookingWithHouse } from '@/types';
 import { normalizeRating, getMaxRatingForPlatform } from '@/lib/ratingHelpers';
+import { GuestSuggestions } from './GuestSuggestions';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -143,6 +144,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
   const [isHistoricalBooking, setIsHistoricalBooking] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [relatedItems, setRelatedItems] = useState<{ cleaningTasks: any[]; linenOrders: any[] }>({ cleaningTasks: [], linenOrders: [] });
+
+  // Guest suggestions state
+  const [showGuestSuggestions, setShowGuestSuggestions] = useState(false);
+  const [selectedGuestId, setSelectedGuestId] = useState<string | null>(initialData?.guest_id || null);
 
   // Helper function to set standard time on date
   const setTimeOnDate = (date: Date, hours: number, minutes: number = 0): Date => {
@@ -914,16 +919,50 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Gastname */}
+          {/* Gastname mit Vorschlägen */}
           <FormField
             control={form.control}
             name="guest_name"
             render={({ field }) => (
-              <FormItem>
-                <FormLabel>Gastname *</FormLabel>
+              <FormItem className="relative">
+                <FormLabel className="flex items-center gap-2">
+                  Gastname *
+                  {selectedGuestId && (
+                    <span className="flex items-center gap-1 text-xs text-primary font-normal">
+                      <UserCheck className="h-3 w-3" />
+                      Bekannter Gast
+                    </span>
+                  )}
+                </FormLabel>
                 <FormControl>
-                  <Input placeholder="Name des Gastes" {...field} />
+                  <Input 
+                    placeholder="Name des Gastes" 
+                    {...field} 
+                    onChange={(e) => {
+                      field.onChange(e);
+                      setShowGuestSuggestions(true);
+                      // Reset selected guest when typing
+                      if (selectedGuestId) {
+                        setSelectedGuestId(null);
+                      }
+                    }}
+                    onFocus={() => setShowGuestSuggestions(true)}
+                  />
                 </FormControl>
+                <GuestSuggestions
+                  searchTerm={field.value || ''}
+                  isOpen={showGuestSuggestions && mode === 'create'}
+                  onClose={() => setShowGuestSuggestions(false)}
+                  onSelect={(guest) => {
+                    // Fill in guest data
+                    form.setValue('guest_name', guest.name);
+                    if (guest.email) form.setValue('guest_email', guest.email);
+                    if (guest.phone) form.setValue('guest_phone', guest.phone);
+                    if (guest.nationality) form.setValue('nationality', guest.nationality);
+                    setSelectedGuestId(guest.id);
+                    setShowGuestSuggestions(false);
+                  }}
+                />
                 <FormMessage />
               </FormItem>
             )}
