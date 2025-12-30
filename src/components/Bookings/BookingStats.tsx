@@ -10,37 +10,16 @@ interface BookingStatsProps {
   completed: number;
   totalRevenue: number;
   paidRevenue: number;
-  timeFilter: string;
+  selectedYear: number;
 }
 
-const BookingStats = ({ total, confirmed, completed, totalRevenue, paidRevenue, timeFilter }: BookingStatsProps) => {
+const BookingStats = ({ total, confirmed, completed, totalRevenue, paidRevenue, selectedYear }: BookingStatsProps) => {
   const queryClient = useQueryClient();
   
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['bookings'] });
     queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-  };
-
-  const getTimeFilterLabel = (filter: string) => {
-    switch (filter) {
-      case 'all':
-        return 'Alle Zeiträume';
-      case 'next-3-months':
-        return 'Nächste 3 Monate';
-      case 'next-6-months':
-        return 'Nächste 6 Monate';
-      case 'current-year':
-        return 'Aktuelles Jahr';
-      case 'next-year':
-        return 'Nächstes Jahr';
-      case 'last-year':
-        return 'Letztes Jahr';
-      case 'custom':
-        return 'Benutzerdefinierter Zeitraum';
-      default:
-        return filter;
-    }
   };
 
   const stats = [
@@ -78,13 +57,13 @@ const BookingStats = ({ total, confirmed, completed, totalRevenue, paidRevenue, 
 
   return (
     <div className="space-y-4">
-      {/* Time Filter Info */}
+      {/* Year Info */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Calendar className="w-4 h-4" />
-          <span>Zeitraum:</span>
+          <span>Statistiken für:</span>
           <Badge variant="outline" className="font-normal">
-            {getTimeFilterLabel(timeFilter)}
+            Jahr {selectedYear}
           </Badge>
         </div>
         <Button
