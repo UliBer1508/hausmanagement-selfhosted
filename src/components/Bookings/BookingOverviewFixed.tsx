@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -118,6 +118,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const [sortOption, setSortOption] = useState('check_in_asc');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedBookingForEdit, setSelectedBookingForEdit] = useState<any | null>(null);
   const [bookingToDelete, setBookingToDelete] = useState<any | null>(null);
   const [relatedItems, setRelatedItems] = useState<{ cleanings: number; orders: number }>({ cleanings: 0, orders: 0 });
@@ -362,13 +363,28 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
     }
   });
 
-  // Statistics for ALL bookings (not filtered) - for display in cards
-  const allBookingsStats = {
-    total: bookingsData?.length || 0,
-    confirmed: bookingsData?.filter(b => b.status === 'confirmed').length || 0,
-    completed: bookingsData?.filter(b => b.status === 'completed').length || 0,
-    totalRevenue: bookingsData?.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0,
-    paidRevenue: bookingsData?.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
+  // Verfügbare Jahre aus Buchungsdaten ermitteln
+  const availableYears = useMemo(() => {
+    if (!bookingsData || bookingsData.length === 0) return [new Date().getFullYear()];
+    const years = new Set(bookingsData.map(b => new Date(b.check_in).getFullYear()));
+    return Array.from(years).sort((a, b) => b - a);
+  }, [bookingsData]);
+
+  // Buchungen nach Jahr filtern für Statistiken
+  const yearFilteredBookings = useMemo(() => {
+    return bookingsData?.filter(b => {
+      const checkIn = new Date(b.check_in);
+      return checkIn.getFullYear() === selectedYear;
+    }) || [];
+  }, [bookingsData, selectedYear]);
+
+  // Statistics for selected year - for display in cards
+  const yearStats = {
+    total: yearFilteredBookings.length,
+    confirmed: yearFilteredBookings.filter(b => b.status === 'confirmed').length,
+    completed: yearFilteredBookings.filter(b => b.status === 'completed').length,
+    totalRevenue: yearFilteredBookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
+    paidRevenue: yearFilteredBookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0)
   };
 
   // Statistics for filtered results (for reference only)
@@ -450,20 +466,30 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
           <h1 className="text-2xl font-bold text-foreground">Buchungsübersicht</h1>
           <p className="text-muted-foreground">Alle Buchungen verwalten und bearbeiten</p>
         </div>
-        <div className="sm:ml-auto">
+        <div className="flex items-center gap-4 sm:ml-auto">
+          <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+            <SelectTrigger className="w-[100px] bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-background">
+              {availableYears.map((year) => (
+                <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <CreateBookingDialog onBookingCreated={() => window.location.reload()} />
         </div>
       </div>
 
-      {/* Statistics - Shows ALL bookings */}
+      {/* Statistics - Shows selected year bookings */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-2xl">📊</span>
             </div>
-            <div className="text-2xl font-bold">{allBookingsStats.total}</div>
-            <p className="text-xs text-muted-foreground">Buchungen gesamt</p>
+            <div className="text-2xl font-bold">{yearStats.total}</div>
+            <p className="text-xs text-muted-foreground">Buchungen {selectedYear}</p>
           </CardContent>
         </Card>
         <Card>
@@ -471,8 +497,8 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
             <div className="flex items-center justify-between mb-2">
               <span className="text-2xl">✅</span>
             </div>
-            <div className="text-2xl font-bold text-green-600">{allBookingsStats.confirmed}</div>
-            <p className="text-xs text-muted-foreground">Bestätigt</p>
+            <div className="text-2xl font-bold text-green-600">{yearStats.confirmed}</div>
+            <p className="text-xs text-muted-foreground">Bestätigt {selectedYear}</p>
           </CardContent>
         </Card>
         <Card>
@@ -480,8 +506,8 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
             <div className="flex items-center justify-between mb-2">
               <span className="text-2xl">✔️</span>
             </div>
-            <div className="text-2xl font-bold text-blue-600">{allBookingsStats.completed}</div>
-            <p className="text-xs text-muted-foreground">Abgeschlossen</p>
+            <div className="text-2xl font-bold text-blue-600">{yearStats.completed}</div>
+            <p className="text-xs text-muted-foreground">Abgeschlossen {selectedYear}</p>
           </CardContent>
         </Card>
         <Card>
@@ -490,17 +516,17 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
               <span className="text-2xl">💰</span>
             </div>
             <div className="text-2xl font-bold text-orange-600">
-              {allBookingsStats.totalRevenue.toLocaleString('de-DE')} EUR
+              {yearStats.totalRevenue.toLocaleString('de-DE')} EUR
             </div>
-            <p className="text-xs text-muted-foreground">Gesamtumsatz</p>
+            <p className="text-xs text-muted-foreground">Gesamtumsatz {selectedYear}</p>
             <div className="mt-2 pt-2 border-t space-y-1 text-xs">
               <p className="text-green-600 flex justify-between">
                 <span>✅ Gezahlt:</span>
-                <span className="font-medium">{allBookingsStats.paidRevenue.toLocaleString('de-DE')} EUR</span>
+                <span className="font-medium">{yearStats.paidRevenue.toLocaleString('de-DE')} EUR</span>
               </p>
               <p className="text-orange-600 flex justify-between">
                 <span>⚠️ Offen:</span>
-                <span className="font-medium">{(allBookingsStats.totalRevenue - allBookingsStats.paidRevenue).toLocaleString('de-DE')} EUR</span>
+                <span className="font-medium">{(yearStats.totalRevenue - yearStats.paidRevenue).toLocaleString('de-DE')} EUR</span>
               </p>
             </div>
           </CardContent>
