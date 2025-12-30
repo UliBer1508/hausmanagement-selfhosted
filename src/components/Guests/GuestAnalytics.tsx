@@ -755,12 +755,33 @@ const GuestAnalytics = () => {
         });
       });
 
+      // Platform distribution
+      const platformCount = bookings.reduce((acc, booking) => {
+        const platform = booking.platform || 'Direktbuchung';
+        if (!acc[platform]) {
+          acc[platform] = { count: 0, revenue: 0 };
+        }
+        acc[platform].count += 1;
+        acc[platform].revenue += booking.booking_amount || 0;
+        return acc;
+      }, {} as Record<string, { count: number; revenue: number }>);
+
+      const platformData = Object.entries(platformCount)
+        .map(([platform, data]) => ({ 
+          platform, 
+          count: data.count, 
+          revenue: data.revenue,
+          avgRevenue: data.count > 0 ? Math.round(data.revenue / data.count) : 0
+        }))
+        .sort((a, b) => b.count - a.count);
+
       return {
         monthlyData,
         nationalityData,
         avgStayDuration: Math.round(avgStayDuration * 10) / 10,
         durationData,
         perHouseOccupancy,
+        platformData,
         totalRevenue: bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
         paidRevenue: bookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
         totalBookings: bookings.length,
@@ -929,6 +950,67 @@ const GuestAnalytics = () => {
                 />
               </LineChart>
             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Platform Distribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Buchungsquellen {selectedYear !== 'all' && selectedYear}
+            </CardTitle>
+            <CardDescription>
+              Über welche Plattformen kommen die Gäste?
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={200}>
+              <PieChart>
+                <Pie
+                  data={analyticsData.platformData}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={70}
+                  fill="#8884d8"
+                  dataKey="count"
+                  label={({ platform, count }) => `${platform}: ${count}`}
+                >
+                  {analyticsData.platformData.map((_, index) => (
+                    <Cell key={`cell-platform-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  formatter={(value, _, props) => [
+                    `${value} Buchungen (€${props.payload.revenue.toLocaleString()})`,
+                    props.payload.platform
+                  ]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            
+            {/* Platform Details Table */}
+            <div className="mt-4 border-t pt-4">
+              <div className="space-y-2">
+                {analyticsData.platformData.map((p, idx) => (
+                  <div key={idx} className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-full" 
+                        style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                      />
+                      <span>{p.platform}</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-medium">{p.count} Buchungen</span>
+                      <span className="text-muted-foreground ml-2">
+                        (Ø €{p.avgRevenue.toLocaleString()})
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
