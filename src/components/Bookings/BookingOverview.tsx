@@ -33,7 +33,8 @@ import { cn } from '@/lib/utils';
 import BookingStats from './BookingStats';
 
 const BookingOverview = () => {
-  const [searchTerm, setSearchTerm] = useState('');
+const [searchTerm, setSearchTerm] = useState('');
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [statusFilter, setStatusFilter] = useState('confirmed');
   const [houseFilter, setHouseFilter] = useState('all');
   const [timeFilter, setTimeFilter] = useState('all');
@@ -187,21 +188,20 @@ const BookingOverview = () => {
     return true;
   }) || [];
 
-  // Statistics for ALL bookings (not filtered)
-  const allBookingsStats = {
-    total: bookingsData?.length || 0,
-    confirmed: bookingsData?.filter(b => b.status === 'confirmed').length || 0,
-    completed: bookingsData?.filter(b => b.status === 'completed').length || 0,
-    totalRevenue: bookingsData?.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0,
-    paidRevenue: bookingsData?.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0
-  };
+  // Filter bookings by selected year (based on check-in date)
+  const yearFilteredBookings = bookingsData?.filter(b => {
+    const checkIn = new Date(b.check_in);
+    return checkIn.getFullYear() === selectedYear;
+  }) || [];
 
-  // Debug logging
-  console.log('BookingOverview Debug:', {
-    bookingsDataLength: bookingsData?.length,
-    allStatuses: bookingsData?.map(b => b.status),
-    allBookingsStats
-  });
+  // Statistics for year-filtered bookings
+  const yearStats = {
+    total: yearFilteredBookings.length,
+    confirmed: yearFilteredBookings.filter(b => b.status === 'confirmed').length,
+    completed: yearFilteredBookings.filter(b => b.status === 'completed').length,
+    totalRevenue: yearFilteredBookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + (b.booking_amount || 0), 0),
+    paidRevenue: yearFilteredBookings.filter(b => b.status !== 'cancelled' && b.payment_status === 'paid').reduce((sum, b) => sum + (b.booking_amount || 0), 0)
+  };
 
   // Statistics for filtered results (for display info only)
   const filteredStats = {
@@ -251,28 +251,45 @@ const BookingOverview = () => {
     );
   }
 
+  // Generate available years for dropdown (current year +/- 2 years)
+  const currentYear = new Date().getFullYear();
+  const availableYears = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2];
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Year Selection */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Buchungsübersicht</h1>
           <p className="text-muted-foreground">Alle Buchungen verwalten und bearbeiten</p>
         </div>
-        <Button>
-          <Plus className="w-4 h-4 mr-2" />
-          Buchung erstellen
-        </Button>
+        <div className="flex items-center gap-4">
+          <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
+            <SelectTrigger className="w-[120px]">
+              <CalendarIcon className="w-4 h-4 mr-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {availableYears.map((year) => (
+                <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button>
+            <Plus className="w-4 h-4 mr-2" />
+            Buchung erstellen
+          </Button>
+        </div>
       </div>
 
-      {/* Statistics Overview - Shows ALL bookings */}
+      {/* Statistics Overview - Shows year-filtered bookings */}
       <BookingStats
-        total={allBookingsStats.total}
-        confirmed={allBookingsStats.confirmed}
-        completed={allBookingsStats.completed}
-        totalRevenue={allBookingsStats.totalRevenue}
-        paidRevenue={allBookingsStats.paidRevenue}
-        timeFilter="all"
+        total={yearStats.total}
+        confirmed={yearStats.confirmed}
+        completed={yearStats.completed}
+        totalRevenue={yearStats.totalRevenue}
+        paidRevenue={yearStats.paidRevenue}
+        selectedYear={selectedYear}
       />
 
       {/* Filters */}
