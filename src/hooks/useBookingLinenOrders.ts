@@ -316,7 +316,7 @@ export const useBookingLinenOrders = (houseId: string) => {
   });
 
   // Derived data
-  const missingOrders = (orderStatus?.bookings.filter(b => !b.linen_order.exists) || [])
+  const missingOrders = (orderStatus?.bookings?.filter(b => !b.linen_order.exists) || [])
     .sort((a, b) => {
       // Primary: Urgency (smallest days_until_checkin first)
       const urgencyDiff = a.days_until_checkin - b.days_until_checkin;
@@ -324,8 +324,8 @@ export const useBookingLinenOrders = (houseId: string) => {
       // Secondary: Alphabetically by guest name
       return a.guest_name.localeCompare(b.guest_name);
     });
-  const urgentOrders = orderStatus?.bookings.filter(b => b.urgency === 'urgent' && !b.linen_order.exists) || [];
-  const activeOrders = orderStatus?.bookings.filter(
+  const urgentOrders = orderStatus?.bookings?.filter(b => b.urgency === 'urgent' && !b.linen_order.exists) || [];
+  const activeOrders = orderStatus?.bookings?.filter(
     b => b.linen_order.exists && 
     (b.linen_order.status === 'pending' || b.linen_order.status === 'in-progress')
   ) || [];
