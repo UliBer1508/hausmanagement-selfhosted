@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, Check, X, Calendar, Users, Home, Mail, Phone } from 'lucide-react';
+import { Bell, Check, X, Calendar, Users, Home, Mail, Phone, Euro, Baby } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useBookingInquiries, BookingInquiry } from '@/hooks/useBookingInquiries';
@@ -75,6 +75,9 @@ const BookingInquiryAlertBanner = () => {
     check_in: new Date(inquiry.check_in),
     check_out: new Date(inquiry.check_out),
     number_of_guests: inquiry.number_of_guests,
+    number_of_adults: inquiry.number_of_adults ?? inquiry.number_of_guests,
+    number_of_children: inquiry.number_of_children ?? 0,
+    booking_amount: inquiry.estimated_amount ?? undefined,
     notes: inquiry.message || undefined,
     inquiry_id: inquiry.id,
   });
@@ -120,7 +123,12 @@ const BookingInquiryAlertBanner = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <Users className="h-4 w-4" />
-                          <span>{inquiry.number_of_guests} {inquiry.number_of_guests === 1 ? 'Gast' : 'Gäste'}</span>
+                          <span>
+                            {inquiry.number_of_adults ?? inquiry.number_of_guests} Erwachsene
+                            {(inquiry.number_of_children ?? 0) > 0 && (
+                              <span className="ml-1">+ {inquiry.number_of_children} Kinder</span>
+                            )}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Home className="h-4 w-4" />
@@ -134,6 +142,12 @@ const BookingInquiryAlertBanner = () => {
                           <div className="flex items-center gap-2">
                             <Phone className="h-4 w-4" />
                             <span>{inquiry.guest_phone}</span>
+                          </div>
+                        )}
+                        {inquiry.estimated_amount != null && inquiry.estimated_amount > 0 && (
+                          <div className="flex items-center gap-2">
+                            <Euro className="h-4 w-4" />
+                            <span>{inquiry.estimated_amount.toLocaleString('de-DE')} EUR</span>
                           </div>
                         )}
                       </div>

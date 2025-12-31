@@ -141,6 +141,9 @@ interface BookingPrefillData {
   check_in: Date;
   check_out: Date;
   number_of_guests: number;
+  number_of_adults?: number;
+  number_of_children?: number;
+  booking_amount?: number;
   notes?: string;
   inquiry_id?: string;
 }
@@ -259,14 +262,15 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     if (prefillData) {
       return {
         house_id: prefillData.house_id,
-        number_of_adults: prefillData.number_of_guests,
-        number_of_children: 0,
+        number_of_adults: prefillData.number_of_adults ?? prefillData.number_of_guests,
+        number_of_children: prefillData.number_of_children ?? 0,
         check_in: prefillData.check_in,
         check_out: prefillData.check_out,
         guest_name: prefillData.guest_name,
         guest_email: prefillData.guest_email || '',
         guest_phone: prefillData.guest_phone || '',
         nationality: '',
+        booking_amount: prefillData.booking_amount,
         currency: 'EUR',
         status: 'confirmed',
         payment_status: 'pending',
