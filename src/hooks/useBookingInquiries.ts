@@ -21,6 +21,53 @@ export interface BookingInquiry {
   };
 }
 
+// Hilfsfunktion: Gast speichern oder aktualisieren
+const saveOrUpdateGuest = async (inquiry: BookingInquiry): Promise<string | null> => {
+  let guestId: string | null = null;
+  
+  // Prüfen ob Gast bereits existiert (per E-Mail)
+  if (inquiry.guest_email) {
+    const { data: existingGuest } = await supabase
+      .from('guests')
+      .select('id')
+      .eq('email', inquiry.guest_email)
+      .maybeSingle();
+    
+    if (existingGuest) {
+      // Existierenden Gast aktualisieren
+      guestId = existingGuest.id;
+      await supabase
+        .from('guests')
+        .update({
+          name: inquiry.guest_name,
+          phone: inquiry.guest_phone || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingGuest.id);
+    }
+  }
+  
+  // Neuen Gast erstellen falls nicht gefunden
+  if (!guestId) {
+    const { data: newGuest } = await supabase
+      .from('guests')
+      .insert({
+        name: inquiry.guest_name,
+        email: inquiry.guest_email,
+        phone: inquiry.guest_phone || null,
+        notes: `Quelle: Buchungsanfrage vom ${new Date(inquiry.created_at || new Date()).toLocaleDateString('de-DE')}`,
+      })
+      .select('id')
+      .single();
+    
+    if (newGuest) {
+      guestId = newGuest.id;
+    }
+  }
+  
+  return guestId;
+};
+
 export const useBookingInquiries = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -49,11 +96,15 @@ export const useBookingInquiries = () => {
   // Anfrage akzeptieren und zur Buchung konvertieren
   const acceptInquiry = useMutation({
     mutationFn: async (inquiry: BookingInquiry) => {
-      // 1. Buchung erstellen
+      // 1. Gast speichern oder aktualisieren
+      const guestId = await saveOrUpdateGuest(inquiry);
+
+      // 2. Buchung erstellen mit guest_id
       const { data: booking, error: bookingError } = await supabase
         .from('bookings')
         .insert({
           house_id: inquiry.house_id,
+          guest_id: guestId,
           guest_name: inquiry.guest_name,
           guest_email: inquiry.guest_email,
           guest_phone: inquiry.guest_phone,
@@ -117,21 +168,26 @@ export const useBookingInquiries = () => {
     },
   });
 
-  // Anfrage ablehnen
+  // Anfrage ablehnen (Gastdaten werden trotzdem gespeichert!)
   const rejectInquiry = useMutation({
-    mutationFn: async (inquiryId: string) => {
+    mutationFn: async (inquiry: BookingInquiry) => {
+      // 1. Gast speichern oder aktualisieren (Lead behalten!)
+      await saveOrUpdateGuest(inquiry);
+
+      // 2. Anfrage-Status auf rejected setzen
       const { error } = await supabase
         .from('booking_inquiries')
         .update({ status: 'rejected', updated_at: new Date().toISOString() })
-        .eq('id', inquiryId);
+        .eq('id', inquiry.id);
 
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['booking-inquiries'] });
+      queryClient.invalidateQueries({ queryKey: ['guests'] });
       toast({
         title: "Anfrage abgelehnt",
-        description: "Die Buchungsanfrage wurde abgelehnt.",
+        description: "Die Buchungsanfrage wurde abgelehnt. Gastdaten wurden gespeichert.",
       });
     },
     onError: (error: any) => {
