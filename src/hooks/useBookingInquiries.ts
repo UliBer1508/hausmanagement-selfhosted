@@ -199,6 +199,17 @@ export const useBookingInquiries = () => {
     },
   });
 
+  // Funktion um nur den Status zu aktualisieren (ohne Gast zu speichern)
+  const updateInquiryStatus = async (inquiryId: string, status: 'confirmed' | 'rejected') => {
+    const { error } = await supabase
+      .from('booking_inquiries')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', inquiryId);
+    
+    if (error) throw error;
+    queryClient.invalidateQueries({ queryKey: ['booking-inquiries'] });
+  };
+
   return {
     inquiries,
     pendingCount: inquiries.length,
@@ -206,6 +217,7 @@ export const useBookingInquiries = () => {
     refetch,
     acceptInquiry: acceptInquiry.mutate,
     rejectInquiry: rejectInquiry.mutate,
+    updateInquiryStatus,
     isAccepting: acceptInquiry.isPending,
     isRejecting: rejectInquiry.isPending,
   };

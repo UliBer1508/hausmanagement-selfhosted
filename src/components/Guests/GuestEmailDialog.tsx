@@ -25,9 +25,17 @@ interface GuestEmailDialogProps {
   guest: Guest;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultTemplate?: string; // Pre-select a template (e.g., 'inquiry_rejected')
+  templatePlaceholders?: Record<string, string>; // Additional placeholders for template
 }
 
-const GuestEmailDialog = ({ guest, open, onOpenChange }: GuestEmailDialogProps) => {
+const GuestEmailDialog = ({ 
+  guest, 
+  open, 
+  onOpenChange, 
+  defaultTemplate,
+  templatePlaceholders = {} 
+}: GuestEmailDialogProps) => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [customSubject, setCustomSubject] = useState('');
   const [customMessage, setCustomMessage] = useState('');
@@ -47,10 +55,24 @@ const GuestEmailDialog = ({ guest, open, onOpenChange }: GuestEmailDialogProps) 
     }
   };
 
+  // Auto-select default template when templates are loaded
+  useEffect(() => {
+    if (defaultTemplate && emailTemplates[defaultTemplate] && !selectedTemplate) {
+      handleTemplateChange(defaultTemplate);
+    }
+  }, [defaultTemplate, emailTemplates, selectedTemplate]);
+
   const replaceTemplatePlaceholders = (text: string): string => {
-    return text
+    let result = text
       .replace(/{guestName}/g, guest.guest_name || 'Gast')
       .replace(/{GUEST_NAME}/g, guest.guest_name || 'Gast');
+    
+    // Replace additional custom placeholders
+    Object.entries(templatePlaceholders).forEach(([key, value]) => {
+      result = result.replace(new RegExp(`{${key}}`, 'g'), value);
+    });
+    
+    return result;
   };
 
   const handleSendEmail = async () => {

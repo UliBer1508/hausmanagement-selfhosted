@@ -132,14 +132,28 @@ const countries = [
 
 type BookingFormData = z.infer<typeof bookingSchema>;
 
+// Prefill data from booking inquiry
+interface BookingPrefillData {
+  house_id: string;
+  guest_name: string;
+  guest_email: string;
+  guest_phone?: string;
+  check_in: Date;
+  check_out: Date;
+  number_of_guests: number;
+  notes?: string;
+  inquiry_id?: string;
+}
+
 interface CreateBookingFormProps {
   mode?: 'create' | 'edit';
   initialData?: BookingWithHouse;
   onSuccess: () => void;
   onCancel?: () => void;
+  prefillData?: BookingPrefillData; // From booking inquiry
 }
 
-const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }: CreateBookingFormProps) => {
+const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, prefillData }: CreateBookingFormProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isHistoricalBooking, setIsHistoricalBooking] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -241,6 +255,28 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         notes: initialData.notes || '',
       };
     }
+    // Prefill data from booking inquiry
+    if (prefillData) {
+      return {
+        house_id: prefillData.house_id,
+        number_of_adults: prefillData.number_of_guests,
+        number_of_children: 0,
+        check_in: prefillData.check_in,
+        check_out: prefillData.check_out,
+        guest_name: prefillData.guest_name,
+        guest_email: prefillData.guest_email || '',
+        guest_phone: prefillData.guest_phone || '',
+        nationality: '',
+        currency: 'EUR',
+        status: 'confirmed',
+        payment_status: 'pending',
+        platform: 'website', // From inquiry
+        external_booking_id: '',
+        external_rating: undefined,
+        notes: prefillData.notes || '',
+        auto_create_cleaning: true,
+      };
+    }
     return {
       number_of_adults: 1,
       number_of_children: 0,
@@ -263,7 +299,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
     defaultValues: getDefaultValues(),
   });
 
-  // Reset form when initial data changes (for edit mode)
+  // Reset form when initial data or prefill data changes
   useEffect(() => {
     if (mode === 'edit' && initialData) {
       console.log('Edit mode - initialData:', JSON.stringify(initialData, null, 2));
@@ -271,8 +307,12 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
       const values = getDefaultValues();
       console.log('Form values being set:', JSON.stringify(values, null, 2));
       form.reset(values);
+    } else if (prefillData) {
+      console.log('Prefill mode - prefillData:', JSON.stringify(prefillData, null, 2));
+      const values = getDefaultValues();
+      form.reset(values);
     }
-  }, [initialData, mode, form]);
+  }, [initialData, mode, form, prefillData]);
 
   // Auto-disable cleaning task creation for historical bookings
   useEffect(() => {
@@ -541,9 +581,21 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel }
         const bookingResult = await createBooking.mutateAsync(bookingData);
 
         console.log('Booking created successfully');
+        
+        // Update inquiry status if this booking is from an inquiry
+        if (prefillData?.inquiry_id) {
+          console.log('Updating inquiry status to confirmed:', prefillData.inquiry_id);
+          await supabase
+            .from('booking_inquiries')
+            .update({ status: 'confirmed', updated_at: new Date().toISOString() })
+            .eq('id', prefillData.inquiry_id);
+        }
+
         toast({
           title: 'Buchung erstellt',
-          description: 'Die Buchung wurde erfolgreich erstellt.',
+          description: prefillData?.inquiry_id 
+            ? 'Die Buchung wurde aus der Anfrage erstellt. Sie können dem Gast jetzt eine Bestätigungs-E-Mail senden.'
+            : 'Die Buchung wurde erfolgreich erstellt.',
         });
 
         // Auto-create cleaning task if checkbox is enabled AND not historical booking
