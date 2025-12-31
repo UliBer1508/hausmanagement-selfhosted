@@ -63,6 +63,7 @@ import { UsageReportDialog } from '@/components/Dashboard/UsageReportDialog';
 import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBanner';
 import RatingReminderBanner from '@/components/Dashboard/RatingReminderBanner';
 import CleaningStatusAlertBanner from '@/components/Dashboard/CleaningStatusAlertBanner';
+import BookingInquiryAlertBanner from '@/components/Dashboard/BookingInquiryAlertBanner';
 import GuestImportCard from '@/components/Settings/GuestImportCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
@@ -2207,6 +2208,9 @@ const OriginalDashboard = () => {
 
     return (
       <div>
+        {/* Booking Inquiry Alert Banner - ganz oben */}
+        <BookingInquiryAlertBanner />
+        
         {/* Guest Contact Alert Banner */}
         <GuestContactAlertBanner />
         
