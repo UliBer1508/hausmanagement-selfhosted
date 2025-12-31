@@ -33,7 +33,7 @@ export const useBookingInquiries = () => {
         .from('booking_inquiries')
         .select(`
           *,
-          houses (
+          houses!booking_inquiries_house_id_fkey (
             id,
             name
           )
