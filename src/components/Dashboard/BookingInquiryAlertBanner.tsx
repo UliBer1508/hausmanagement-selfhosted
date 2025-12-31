@@ -138,7 +138,7 @@ const BookingInquiryAlertBanner = () => {
                         <AlertDialogFooter>
                           <AlertDialogCancel>Abbrechen</AlertDialogCancel>
                           <AlertDialogAction
-                            onClick={() => rejectInquiry(inquiry.id)}
+                            onClick={() => rejectInquiry(inquiry)}
                             className="bg-red-600 hover:bg-red-700"
                           >
                             Ablehnen
