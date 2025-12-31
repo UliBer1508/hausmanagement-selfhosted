@@ -840,12 +840,15 @@ export type Database = {
           check_in: string
           check_out: string
           created_at: string | null
+          estimated_amount: number | null
           guest_email: string
           guest_name: string
           guest_phone: string
           house_id: string
           id: string
           message: string | null
+          number_of_adults: number | null
+          number_of_children: number | null
           number_of_guests: number
           status: string | null
           updated_at: string | null
@@ -854,12 +857,15 @@ export type Database = {
           check_in: string
           check_out: string
           created_at?: string | null
+          estimated_amount?: number | null
           guest_email: string
           guest_name: string
           guest_phone: string
           house_id: string
           id?: string
           message?: string | null
+          number_of_adults?: number | null
+          number_of_children?: number | null
           number_of_guests: number
           status?: string | null
           updated_at?: string | null
@@ -868,12 +874,15 @@ export type Database = {
           check_in?: string
           check_out?: string
           created_at?: string | null
+          estimated_amount?: number | null
           guest_email?: string
           guest_name?: string
           guest_phone?: string
           house_id?: string
           id?: string
           message?: string | null
+          number_of_adults?: number | null
+          number_of_children?: number | null
           number_of_guests?: number
           status?: string | null
           updated_at?: string | null

@@ -11,6 +11,9 @@ export interface BookingInquiry {
   check_in: string;
   check_out: string;
   number_of_guests: number;
+  number_of_adults?: number | null;
+  number_of_children?: number | null;
+  estimated_amount?: number | null;
   message: string | null;
   status: 'pending' | 'confirmed' | 'rejected';
   created_at: string;

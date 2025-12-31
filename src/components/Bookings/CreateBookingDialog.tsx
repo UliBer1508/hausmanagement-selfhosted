@@ -19,6 +19,9 @@ export interface BookingPrefillData {
   check_in: Date;
   check_out: Date;
   number_of_guests: number;
+  number_of_adults?: number;
+  number_of_children?: number;
+  booking_amount?: number;
   notes?: string;
   inquiry_id?: string; // To update inquiry status after booking
 }
