@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, Check, X, Calendar, Users, Home, Mail, Phone, Euro, Baby } from 'lucide-react';
+import { Bell, Check, X, Calendar, Users, Home, Mail, Phone, Euro } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useBookingInquiries, BookingInquiry } from '@/hooks/useBookingInquiries';
@@ -24,7 +24,6 @@ const BookingInquiryAlertBanner = () => {
     inquiries, 
     pendingCount,
     rejectInquiry,
-    updateInquiryStatus,
     isRejecting 
   } = useBookingInquiries();
 
@@ -36,9 +35,9 @@ const BookingInquiryAlertBanner = () => {
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [rejectedInquiry, setRejectedInquiry] = useState<BookingInquiry | null>(null);
 
-  if (pendingCount === 0) {
-    return null;
-  }
+  // State for email dialog after confirmation
+  const [showConfirmEmailDialog, setShowConfirmEmailDialog] = useState(false);
+  const [confirmedInquiry, setConfirmedInquiry] = useState<BookingInquiry | null>(null);
 
   const formatDateRange = (checkIn: string, checkOut: string) => {
     const start = new Date(checkIn);
@@ -53,7 +52,11 @@ const BookingInquiryAlertBanner = () => {
   };
 
   const handleBookingCreated = () => {
-    // Inquiry status will be updated in the form after successful booking
+    // After booking created, show confirmation email dialog
+    if (selectedInquiry) {
+      setConfirmedInquiry(selectedInquiry);
+      setShowConfirmEmailDialog(true);
+    }
     setShowBookingDialog(false);
     setSelectedInquiry(null);
   };
@@ -81,6 +84,64 @@ const BookingInquiryAlertBanner = () => {
     notes: inquiry.message || undefined,
     inquiry_id: inquiry.id,
   });
+
+  // Email dialog for rejection - extracted so it can render even when pendingCount is 0
+  const rejectionEmailDialog = rejectedInquiry && (
+    <GuestEmailDialog
+      guest={{
+        guest_name: rejectedInquiry.guest_name,
+        guest_email: rejectedInquiry.guest_email,
+        guest_phone: rejectedInquiry.guest_phone,
+      }}
+      open={showEmailDialog}
+      onOpenChange={(open) => {
+        setShowEmailDialog(open);
+        if (!open) setRejectedInquiry(null);
+      }}
+      defaultTemplate="inquiry_rejected"
+      templatePlaceholders={{
+        checkIn: format(new Date(rejectedInquiry.check_in), 'dd.MM.yyyy', { locale: de }),
+        checkOut: format(new Date(rejectedInquiry.check_out), 'dd.MM.yyyy', { locale: de }),
+        houseName: rejectedInquiry.houses?.name || '',
+      }}
+    />
+  );
+
+  // Email dialog for confirmation - extracted so it can render even when pendingCount is 0
+  const confirmationEmailDialog = confirmedInquiry && (
+    <GuestEmailDialog
+      guest={{
+        guest_name: confirmedInquiry.guest_name,
+        guest_email: confirmedInquiry.guest_email,
+        guest_phone: confirmedInquiry.guest_phone,
+      }}
+      open={showConfirmEmailDialog}
+      onOpenChange={(open) => {
+        setShowConfirmEmailDialog(open);
+        if (!open) setConfirmedInquiry(null);
+      }}
+      defaultTemplate="inquiry_confirmed"
+      templatePlaceholders={{
+        checkIn: format(new Date(confirmedInquiry.check_in), 'dd.MM.yyyy', { locale: de }),
+        checkOut: format(new Date(confirmedInquiry.check_out), 'dd.MM.yyyy', { locale: de }),
+        houseName: confirmedInquiry.houses?.name || '',
+        guestName: confirmedInquiry.guest_name,
+      }}
+    />
+  );
+
+  // If no pending inquiries, only render active email dialogs
+  if (pendingCount === 0) {
+    if ((showEmailDialog && rejectedInquiry) || (showConfirmEmailDialog && confirmedInquiry)) {
+      return (
+        <>
+          {rejectionEmailDialog}
+          {confirmationEmailDialog}
+        </>
+      );
+    }
+    return null;
+  }
 
   return (
     <>
@@ -224,26 +285,9 @@ const BookingInquiryAlertBanner = () => {
         />
       )}
 
-      {/* Email Dialog for rejection */}
-      {rejectedInquiry && (
-        <GuestEmailDialog
-          guest={{
-            guest_name: rejectedInquiry.guest_name,
-            guest_email: rejectedInquiry.guest_email,
-            guest_phone: rejectedInquiry.guest_phone,
-          }}
-          open={showEmailDialog}
-          onOpenChange={(open) => {
-            setShowEmailDialog(open);
-            if (!open) setRejectedInquiry(null);
-          }}
-          defaultTemplate="inquiry_rejected"
-          templatePlaceholders={{
-            checkIn: format(new Date(rejectedInquiry.check_in), 'dd.MM.yyyy', { locale: de }),
-            checkOut: format(new Date(rejectedInquiry.check_out), 'dd.MM.yyyy', { locale: de }),
-          }}
-        />
-      )}
+      {/* Email Dialogs */}
+      {rejectionEmailDialog}
+      {confirmationEmailDialog}
     </>
   );
 };
