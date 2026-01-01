@@ -124,6 +124,271 @@ const ChatAssistant = () => {
   // Calculate total unread count
   const totalUnread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
 
+  // Render Chat Content as a reusable section
+  const renderChatContent = (isEmbedded = false) => (
+    <div className={`flex flex-col ${isEmbedded ? 'h-full' : ''}`}>
+      {/* Header */}
+      <div className="p-4 border-b bg-card flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {chatMode === 'ai' ? (
+              <>
+                <Bot className="h-5 w-5 text-primary" />
+                <h2 className="font-semibold">AI Assistent</h2>
+              </>
+            ) : (
+              <>
+                <MessagesSquare className="h-5 w-5 text-primary" />
+                <h2 className="font-semibold">Nachrichten</h2>
+              </>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {!isEmbedded && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsDashboardOpen(true)}
+                title="Operations Dashboard"
+              >
+                <LayoutDashboard className="h-4 w-4" />
+              </Button>
+            )}
+            {chatMode === 'ai' && messages.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearMessages}
+                className="text-xs"
+              >
+                Löschen
+              </Button>
+            )}
+            {!isEmbedded && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+        
+        {/* Mode Toggle */}
+        <div className="flex gap-2">
+          <Button
+            variant={chatMode === 'ai' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setChatMode('ai')}
+            className="flex-1"
+          >
+            <Bot className="h-4 w-4 mr-2" />
+            KI
+          </Button>
+          <Button
+            variant={chatMode === 'messaging' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setChatMode('messaging')}
+            className="flex-1 relative"
+          >
+            <MessagesSquare className="h-4 w-4 mr-2" />
+            Messaging
+            {totalUnread > 0 && (
+              <Badge className="ml-2 h-5 w-5 flex items-center justify-center p-0">
+                {totalUnread}
+              </Badge>
+            )}
+          </Button>
+        </div>
+
+        {/* Provider Selector for Messaging Mode */}
+        {chatMode === 'messaging' && (
+          <Select value={selectedProvider || ''} onValueChange={setSelectedProvider}>
+            <SelectTrigger>
+              <SelectValue placeholder="Provider auswählen" />
+            </SelectTrigger>
+            <SelectContent className="z-[200]">
+              {providers.map((provider) => (
+                <SelectItem key={provider.id} value={provider.id}>
+                  <div className="flex items-center justify-between w-full">
+                    <span>{provider.name}</span>
+                    {unreadCounts[provider.id] > 0 && (
+                      <Badge className="ml-2 h-5 w-5 flex items-center justify-center p-0">
+                        {unreadCounts[provider.id]}
+                      </Badge>
+                    )}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      {/* Messages Area */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* AI Mode */}
+        {chatMode === 'ai' && (
+          <>
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                <Bot className="h-12 w-12 mb-4 opacity-50" />
+                <p className="text-sm">Hallo! Ich bin dein AI-Assistent.</p>
+                <p className="text-xs mt-2">Stelle mir Fragen zu Buchungen, Reinigungen oder Häusern.</p>
+              </div>
+            )}
+            
+            {messages.map((message) => (
+              <ChatMessage 
+                key={message.id} 
+                message={message}
+                onClose={() => setIsOpen(false)}
+              />
+            ))}
+
+            {isStreaming && (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+                <span>Schreibt...</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm">
+                <p className="font-semibold">Fehler:</p>
+                <p>{error}</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Messaging Mode */}
+        {chatMode === 'messaging' && (
+          <>
+            {!selectedProvider ? (
+              <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                <MessagesSquare className="h-12 w-12 mb-4 opacity-50" />
+                <p className="text-sm">Wähle einen Provider aus</p>
+                <p className="text-xs mt-2">um Nachrichten zu senden und zu empfangen.</p>
+              </div>
+            ) : isLoadingMessages ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            ) : providerMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                <MessagesSquare className="h-12 w-12 mb-4 opacity-50" />
+                <p className="text-sm">Noch keine Nachrichten</p>
+                <p className="text-xs mt-2">Sende die erste Nachricht an {providers.find(p => p.id === selectedProvider)?.name}</p>
+              </div>
+            ) : (
+              providerMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`flex ${msg.sender_type === 'admin' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-lg p-3 ${
+                      msg.sender_type === 'admin'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted'
+                    }`}
+                  >
+                    <p className="text-sm whitespace-pre-wrap">{msg.message}</p>
+                    <p className="text-xs mt-1 opacity-70">
+                      {new Date(msg.created_at).toLocaleString('de-DE', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Input Area */}
+      <div className="border-t p-4 bg-card">
+        <ChatInput 
+          onSendMessage={handleSendMessage} 
+          disabled={chatMode === 'ai' ? isStreaming : !selectedProvider}
+          onFocus={scrollToBottom}
+        />
+      </div>
+    </div>
+  );
+
+  // Split-View Mode: Dashboard left, Chat right
+  if (isDashboardOpen && !isMobile) {
+    return (
+      <>
+        {/* Floating Action Button when closed */}
+        {!isOpen && (
+          <div className="fixed bottom-6 right-6 z-50">
+            <Button
+              onClick={() => setIsOpen(true)}
+              size="icon"
+              className="relative h-14 w-14 rounded-full shadow-lg hover:scale-110 transition-transform"
+            >
+              <MessageCircle className="h-6 w-6" />
+              {totalUnread > 0 && (
+                <Badge 
+                  className="absolute -top-1 -right-1 h-6 w-6 flex items-center justify-center p-0 bg-destructive text-destructive-foreground animate-pulse"
+                >
+                  {totalUnread}
+                </Badge>
+              )}
+            </Button>
+          </div>
+        )}
+
+        {/* Split-View Container */}
+        <div className="fixed inset-0 z-[100]">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50" 
+            onClick={() => {
+              setIsDashboardOpen(false);
+              setIsOpen(false);
+            }}
+          />
+          
+          {/* Split Panels */}
+          <div className="relative flex w-full h-full p-4 gap-4">
+            {/* Dashboard Panel (75%) */}
+            <div className="flex-[3] bg-background rounded-lg shadow-2xl overflow-hidden">
+              <OperationsDashboard 
+                isOpen={true} 
+                onClose={() => setIsDashboardOpen(false)} 
+                embedded 
+              />
+            </div>
+            
+            {/* Chat Panel (25%) */}
+            <div className="flex-1 min-w-[350px] bg-background rounded-lg shadow-2xl overflow-hidden">
+              {renderChatContent(true)}
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       {/* Floating Action Button */}
@@ -400,10 +665,9 @@ const ChatAssistant = () => {
                 defaultPosition={{ x: window.innerWidth - 450, y: 50 }}
               >
                 <div className="absolute w-[400px] h-[600px] pointer-events-auto bg-background border shadow-2xl rounded-lg flex flex-col">
-                {/* Header */}
+                {/* Header with drag handle */}
                 <div className="p-4 border-b bg-card rounded-t-lg flex flex-col gap-3">
                   <div className="flex items-center justify-between">
-                    {/* Draggable Handle - NUR dieser Bereich */}
                     <div className="drag-handle cursor-move flex items-center gap-2 flex-1">
                       <GripVertical className="h-4 w-4 text-muted-foreground" />
                       {chatMode === 'ai' ? (
@@ -418,7 +682,6 @@ const ChatAssistant = () => {
                         </>
                       )}
                     </div>
-                    {/* Buttons - NICHT im drag-handle */}
                     <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"
@@ -448,7 +711,6 @@ const ChatAssistant = () => {
                     </div>
                   </div>
                   
-                  {/* Mode Toggle - NICHT im drag-handle */}
                   <div className="flex gap-2">
                     <Button
                       variant={chatMode === 'ai' ? 'default' : 'outline'}
@@ -475,7 +737,6 @@ const ChatAssistant = () => {
                     </Button>
                   </div>
 
-                  {/* Provider Selector for Messaging Mode */}
                   {chatMode === 'messaging' && (
                     <Select value={selectedProvider || ''} onValueChange={setSelectedProvider}>
                       <SelectTrigger>
@@ -499,9 +760,7 @@ const ChatAssistant = () => {
                   )}
                 </div>
 
-                {/* Messages Area */}
                 <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {/* AI Mode */}
                   {chatMode === 'ai' && (
                     <>
                       {messages.length === 0 && (
@@ -540,7 +799,6 @@ const ChatAssistant = () => {
                     </>
                   )}
 
-                  {/* Messaging Mode */}
                   {chatMode === 'messaging' && (
                     <>
                       {!selectedProvider ? (
@@ -594,7 +852,6 @@ const ChatAssistant = () => {
                   )}
                 </div>
 
-                {/* Input Area */}
                 <div className="border-t p-4 bg-card rounded-b-lg">
                   <ChatInput 
                     onSendMessage={handleSendMessage} 
@@ -609,8 +866,10 @@ const ChatAssistant = () => {
         </>
       )}
 
-      {/* Operations Dashboard Modal */}
-      <OperationsDashboard isOpen={isDashboardOpen} onClose={() => setIsDashboardOpen(false)} />
+      {/* Operations Dashboard Modal - only used on mobile */}
+      {isMobile && (
+        <OperationsDashboard isOpen={isDashboardOpen} onClose={() => setIsDashboardOpen(false)} />
+      )}
     </>
   );
 };
