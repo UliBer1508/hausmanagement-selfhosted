@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, GripVertical, Bot, MessagesSquare } from 'lucide-react';
+import { MessageCircle, X, GripVertical, Bot, MessagesSquare, LayoutDashboard } from 'lucide-react';
+import { OperationsDashboard } from '@/components/Operations/OperationsDashboard';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,6 +21,7 @@ const ChatAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>('ai');
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const location = useLocation();
   const isMobileRaw = useIsMobile();
   const isMobile = isMobileRaw === undefined ? false : isMobileRaw;
@@ -187,17 +189,25 @@ const ChatAssistant = () => {
                       </>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {chatMode === 'ai' && messages.length > 0 && (
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"
-                        size="sm"
-                        onClick={clearMessages}
-                        className="text-xs"
+                        size="icon"
+                        onClick={() => setIsDashboardOpen(true)}
+                        title="Operations Dashboard"
                       >
-                        Löschen
+                        <LayoutDashboard className="h-4 w-4" />
                       </Button>
-                    )}
+                      {chatMode === 'ai' && messages.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={clearMessages}
+                          className="text-xs"
+                        >
+                          Löschen
+                        </Button>
+                      )}
             <Button
               variant="ghost"
               size="icon"
@@ -410,6 +420,14 @@ const ChatAssistant = () => {
                     </div>
                     {/* Buttons - NICHT im drag-handle */}
                     <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setIsDashboardOpen(true)}
+                        title="Operations Dashboard"
+                      >
+                        <LayoutDashboard className="h-4 w-4" />
+                      </Button>
                       {chatMode === 'ai' && messages.length > 0 && (
                         <Button
                           variant="ghost"
@@ -590,6 +608,9 @@ const ChatAssistant = () => {
           )}
         </>
       )}
+
+      {/* Operations Dashboard Modal */}
+      <OperationsDashboard isOpen={isDashboardOpen} onClose={() => setIsDashboardOpen(false)} />
     </>
   );
 };
