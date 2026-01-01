@@ -85,13 +85,7 @@ export const useChat = () => {
             id: crypto.randomUUID(),
             role: 'assistant',
             content: data.response,
-            timestamp: new Date(),
-            toolCalls: data.toolResults?.map((tr: any) => ({
-              id: crypto.randomUUID(),
-              name: tr.tool,
-              arguments: JSON.stringify(tr.args),
-              result: tr.result
-            }))
+            timestamp: new Date()
           };
           setMessages((prev) => [...prev, assistantMessage]);
         }
