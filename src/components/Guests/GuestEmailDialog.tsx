@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -12,7 +13,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 
 interface Guest {
@@ -39,7 +39,6 @@ const GuestEmailDialog = ({
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [customSubject, setCustomSubject] = useState('');
   const [customMessage, setCustomMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [language, setLanguage] = useState<'de' | 'en'>('de');
   const { toast } = useToast();
   
@@ -75,7 +74,7 @@ const GuestEmailDialog = ({
     return result;
   };
 
-  const handleSendEmail = async () => {
+  const handleOpenInMailClient = () => {
     if (!guest.guest_email) {
       toast({
         title: 'Keine E-Mail-Adresse',
@@ -94,52 +93,24 @@ const GuestEmailDialog = ({
       return;
     }
 
-    setIsLoading(true);
+    const processedSubject = replaceTemplatePlaceholders(customSubject);
+    const processedMessage = replaceTemplatePlaceholders(customMessage);
 
-    try {
-      const processedSubject = replaceTemplatePlaceholders(customSubject);
-      const processedMessage = replaceTemplatePlaceholders(customMessage);
-
-      console.log('[GuestEmailDialog] Sending email:', {
-        to: guest.guest_email,
-        subject: processedSubject,
-      });
-
-      const { data, error } = await supabase.functions.invoke('send-gmail', {
-        body: {
-          to: [guest.guest_email],
-          subject: processedSubject,
-          text: processedMessage,
-          html: processedMessage.replace(/\n/g, '<br>'),
-        },
-      });
-
-      console.log('[GuestEmailDialog] Response:', { data, error });
-
-      if (error) {
-        console.error('[GuestEmailDialog] Edge function error:', error);
-        throw error;
-      }
-
-      toast({
-        title: 'E-Mail versendet',
-        description: `Die E-Mail wurde erfolgreich an ${guest.guest_name} gesendet.`,
-      });
-
-      onOpenChange(false);
-      setSelectedTemplate('');
-      setCustomSubject('');
-      setCustomMessage('');
-    } catch (error) {
-      console.error('Error sending email:', error);
-      toast({
-        title: 'Fehler beim Senden',
-        description: 'Die E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es erneut.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    // Create mailto link
+    const mailtoLink = `mailto:${encodeURIComponent(guest.guest_email)}?subject=${encodeURIComponent(processedSubject)}&body=${encodeURIComponent(processedMessage)}`;
+    
+    // Open local email client
+    window.location.href = mailtoLink;
+    
+    toast({
+      title: 'E-Mail-Client geöffnet',
+      description: 'Die E-Mail wurde in Ihrem E-Mail-Programm vorbereitet.',
+    });
+    
+    onOpenChange(false);
+    setSelectedTemplate('');
+    setCustomSubject('');
+    setCustomMessage('');
   };
 
   return (
@@ -230,10 +201,11 @@ const GuestEmailDialog = ({
             Abbrechen
           </Button>
           <Button 
-            onClick={handleSendEmail} 
-            disabled={!guest.guest_email || isLoading}
+            onClick={handleOpenInMailClient} 
+            disabled={!guest.guest_email}
           >
-            {isLoading ? 'Wird gesendet...' : 'E-Mail senden'}
+            <Mail className="h-4 w-4 mr-2" />
+            Im E-Mail-Client öffnen
           </Button>
         </div>
       </DialogContent>
