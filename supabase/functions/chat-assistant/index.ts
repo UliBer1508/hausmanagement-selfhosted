@@ -704,6 +704,92 @@ async function executeSearchLinenOrders(params: any) {
   return { success: true, data, count: data?.length || 0 };
 }
 
+async function executeGetRevenueStats(params: any) {
+  console.log('Executing get_revenue_stats with params:', params);
+  
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  
+  let startDate: string;
+  let endDate: string;
+  let periodLabel: string;
+  
+  if (params.year && params.month) {
+    // Spezifischer Monat: z.B. März 2026
+    const year = params.year;
+    const month = params.month;
+    startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    endDate = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
+    const monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 
+                        'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    periodLabel = `${monthNames[month - 1]} ${year}`;
+  } else if (params.quarter && params.year) {
+    // Quartal
+    const quarterStarts: Record<number, string> = { 1: '01-01', 2: '04-01', 3: '07-01', 4: '10-01' };
+    const quarterEnds: Record<number, string> = { 1: '03-31', 2: '06-30', 3: '09-30', 4: '12-31' };
+    startDate = `${params.year}-${quarterStarts[params.quarter]}`;
+    endDate = `${params.year}-${quarterEnds[params.quarter]}`;
+    periodLabel = `Q${params.quarter} ${params.year}`;
+  } else if (params.year) {
+    // Ganzes Jahr
+    startDate = `${params.year}-01-01`;
+    endDate = `${params.year}-12-31`;
+    periodLabel = `Jahr ${params.year}`;
+  } else if (params.date_from && params.date_to) {
+    // Benutzerdefinierter Zeitraum
+    startDate = params.date_from;
+    endDate = params.date_to;
+    periodLabel = `${params.date_from} bis ${params.date_to}`;
+  } else {
+    // Standard: Aktuelles Jahr
+    startDate = `${currentYear}-01-01`;
+    endDate = `${currentYear}-12-31`;
+    periodLabel = `Jahr ${currentYear}`;
+  }
+  
+  // Buchungen im Zeitraum abrufen (nur Tourist-Häuser)
+  const { data: bookings, error } = await supabase
+    .from('bookings')
+    .select('booking_amount, status, payment_status, houses!inner(rental_type, name)')
+    .gte('check_in', startDate)
+    .lte('check_in', endDate + 'T23:59:59')
+    .neq('status', 'cancelled')
+    .eq('houses.rental_type', 'tourist');
+  
+  if (error) {
+    console.error('Error fetching revenue:', error);
+    return { success: false, error: error.message };
+  }
+  
+  // Berechnungen
+  const totalRevenue = bookings?.reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0;
+  const paidRevenue = bookings?.filter(b => b.payment_status === 'paid')
+    .reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0;
+  const openRevenue = totalRevenue - paidRevenue;
+  const bookingCount = bookings?.length || 0;
+  
+  // Umsatz pro Haus
+  const revenueByHouse: Record<string, number> = {};
+  bookings?.forEach(b => {
+    const houseName = (b.houses as any)?.name || 'Unbekannt';
+    revenueByHouse[houseName] = (revenueByHouse[houseName] || 0) + (b.booking_amount || 0);
+  });
+  
+  return {
+    success: true,
+    data: {
+      period: periodLabel,
+      date_range: { from: startDate, to: endDate },
+      total_revenue: totalRevenue,
+      paid_revenue: paidRevenue,
+      open_revenue: openRevenue,
+      booking_count: bookingCount,
+      revenue_by_house: revenueByHouse
+    }
+  };
+}
+
 async function executeGetCalendarEvents(params: any) {
   console.log('Executing get_calendar_events with params:', params);
   
@@ -785,6 +871,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeSearchLinenOrders(args);
     case 'get_calendar_events':
       return await executeGetCalendarEvents(args);
+    case 'get_revenue_stats':
+      return await executeGetRevenueStats(args);
     
     default:
       console.warn(`Unknown tool: ${toolName}`);
@@ -883,6 +971,22 @@ bestand, lager, vorrat, handtuch, bettzeug, lakens
 Trigger: übersicht, dashboard, statistik, statistiken, stats, kennzahlen, auswertung, 
 zusammenfassung, report, bericht, wie läuft es, wie ist der stand, status, zahlen,
 wie läuft der laden, alles klar, performance, leistung
+
+💶 UMSATZ/EINNAHMEN (get_revenue_stats):
+Trigger: umsatz, einnahmen, revenue, erlöse, gesamtumsatz, jahresumsatz, monatsumsatz,
+wie viel verdient, wie viel eingenommen, was haben wir verdient, finanzen, geld,
+bilanz, ertrag, gewinn, umsatzstatistik, einnahmenübersicht, umsatz 2026, umsatz 2025
+
+Zeitraum-Erkennung:
+- "Umsatz 2026" / "Jahresumsatz 2026" → get_revenue_stats({ year: 2026 })
+- "Umsatz März 2026" / "Einnahmen im März" → get_revenue_stats({ year: 2026, month: 3 })
+- "Q1 2026" / "erstes Quartal" → get_revenue_stats({ year: 2026, quarter: 1 })
+- "Wie viel haben wir dieses Jahr verdient?" → get_revenue_stats({ year: aktuelles_jahr })
+- "Einnahmen von Januar bis März 2026" → get_revenue_stats({ date_from: "2026-01-01", date_to: "2026-03-31" })
+
+Monatsnamen-Mapping:
+Januar=1, Februar=2, März=3, April=4, Mai=5, Juni=6,
+Juli=7, August=8, September=9, Oktober=10, November=11, Dezember=12
 
 📅 KALENDER (get_calendar_events):
 Trigger: kalender, termine, terminplan, schedule, was steht an, nächste tage, diese woche, 
@@ -1143,6 +1247,23 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
             properties: {
               date_from: { type: "string" },
               date_to: { type: "string" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_revenue_stats",
+          description: "Berechnet Umsatzstatistiken für flexible Zeiträume: Jahr, Monat, Quartal oder beliebige Datumsbereiche. Nutze für 'Umsatz 2026', 'Einnahmen März 2026', 'Q1 2026' etc.",
+          parameters: {
+            type: "object",
+            properties: {
+              year: { type: "number", description: "Jahr (z.B. 2026). Pflicht für Jahr/Monat/Quartal-Abfragen" },
+              month: { type: "number", description: "Monat 1-12 (z.B. 3 für März). Optional, zusammen mit year" },
+              quarter: { type: "number", description: "Quartal 1-4 (z.B. 1 für Q1). Optional, zusammen mit year" },
+              date_from: { type: "string", description: "Start-Datum ISO (z.B. 2026-01-01) für beliebige Zeiträume" },
+              date_to: { type: "string", description: "End-Datum ISO (z.B. 2026-03-31) für beliebige Zeiträume" }
             }
           }
         }
