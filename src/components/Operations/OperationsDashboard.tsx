@@ -8,6 +8,7 @@ import { CheckOutsCard } from './CheckOutsCard';
 import { CleaningsCard } from './CleaningsCard';
 import { LinenDeliveriesCard } from './LinenDeliveriesCard';
 import { RevenueCard } from './RevenueCard';
+import { useToast } from '@/hooks/use-toast';
 
 interface OperationsDashboardProps {
   isOpen: boolean;
@@ -17,7 +18,16 @@ interface OperationsDashboardProps {
 
 export function OperationsDashboard({ isOpen, onClose, embedded = false }: OperationsDashboardProps) {
   const [timeRange, setTimeRange] = useState<TimeRange>('this_week');
-  const { data, isLoading, refetch } = useOperationsDashboard(timeRange);
+  const { data, isLoading, isFetching, refetch } = useOperationsDashboard(timeRange);
+  const { toast } = useToast();
+
+  const handleRefresh = async () => {
+    await refetch();
+    toast({
+      title: "✅ Aktualisiert",
+      description: "Operations-Daten wurden neu geladen.",
+    });
+  };
 
   if (!isOpen) return null;
 
@@ -35,11 +45,11 @@ export function OperationsDashboard({ isOpen, onClose, embedded = false }: Opera
             <Button
               variant="outline"
               size="sm"
-              onClick={() => refetch()}
-              disabled={isLoading}
+              onClick={handleRefresh}
+              disabled={isFetching}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Aktualisieren
+              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              {isFetching ? 'Lädt...' : 'Aktualisieren'}
             </Button>
             <Button variant="ghost" size="icon" onClick={onClose}>
               <X className="h-4 w-4" />
@@ -101,11 +111,11 @@ export function OperationsDashboard({ isOpen, onClose, embedded = false }: Opera
             <Button
               variant="outline"
               size="sm"
-              onClick={() => refetch()}
-              disabled={isLoading}
+              onClick={handleRefresh}
+              disabled={isFetching}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Aktualisieren
+              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              {isFetching ? 'Lädt...' : 'Aktualisieren'}
             </Button>
             <Button variant="ghost" size="icon" onClick={onClose}>
               <X className="h-4 w-4" />
