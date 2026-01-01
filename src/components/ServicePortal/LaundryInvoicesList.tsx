@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw, FileText, Check, AlertCircle, Eye } from 'lucide-react';
+import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,11 +10,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { useLaundryInvoices, useSyncLaundryInvoices, useMarkInvoicePaid, useInvoiceStats, LaundryInvoice } from '@/hooks/useLaundryInvoices';
 import { InvoiceDetailsDialog } from './InvoiceDetailsDialog';
+import { CreateInvoiceDialog } from './CreateInvoiceDialog';
 
 export const LaundryInvoicesList = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<LaundryInvoice | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const { data: invoices, isLoading } = useLaundryInvoices({
     status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -143,6 +145,14 @@ export const LaundryInvoicesList = () => {
                 </SelectContent>
               </Select>
               <Button
+                variant="default"
+                size="sm"
+                onClick={() => setCreateDialogOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Rechnung
+              </Button>
+              <Button
                 variant="outline"
                 size="sm"
                 onClick={() => syncMutation.mutate()}
@@ -243,6 +253,12 @@ export const LaundryInvoicesList = () => {
         invoice={selectedInvoice}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
+      />
+
+      {/* Create Invoice Dialog */}
+      <CreateInvoiceDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
       />
     </div>
   );

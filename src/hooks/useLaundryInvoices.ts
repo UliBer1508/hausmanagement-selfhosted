@@ -166,6 +166,64 @@ export const useUpdateInvoiceNotes = () => {
   });
 };
 
+export const useCreateLaundryInvoice = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (invoice: {
+      rechnungsnummer: string;
+      rechnungsdatum: string;
+      faelligkeitsdatum?: string;
+      nettobetrag: number;
+      mwst_satz?: number;
+      mwst_betrag?: number;
+      bruttobetrag: number;
+      positionen?: Array<{
+        id: string;
+        rechnung_id: string;
+        artikelnummer: string;
+        bezeichnung: string;
+        menge: number;
+        einzelpreis: number;
+        gesamtpreis: number;
+      }>;
+      notes?: string;
+    }) => {
+      const manualId = `MANUAL-${Date.now()}`;
+      
+      const { data, error } = await supabase
+        .from('laundry_invoices')
+        .insert({
+          external_rechnung_id: manualId,
+          rechnungsnummer: invoice.rechnungsnummer,
+          rechnungsdatum: invoice.rechnungsdatum,
+          faelligkeitsdatum: invoice.faelligkeitsdatum || null,
+          nettobetrag: invoice.nettobetrag,
+          mwst_satz: invoice.mwst_satz || null,
+          mwst_betrag: invoice.mwst_betrag || null,
+          bruttobetrag: invoice.bruttobetrag,
+          positionen: invoice.positionen || null,
+          notes: invoice.notes || null,
+          status: 'offen',
+          kunde_name: 'Teuni Wäscheservice',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['laundry-invoices'] });
+      toast.success('Rechnung erfolgreich erstellt');
+    },
+    onError: (error) => {
+      console.error('Error creating invoice:', error);
+      toast.error(`Fehler beim Erstellen: ${error.message}`);
+    },
+  });
+};
+
 // Computed stats for invoices
 export const useInvoiceStats = () => {
   const { data: invoices, isLoading } = useLaundryInvoices();
