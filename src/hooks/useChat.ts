@@ -73,6 +73,33 @@ export const useChat = () => {
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
+      // Check content type to handle JSON vs SSE responses
+      const contentType = response.headers.get('content-type') || '';
+
+      // Handle standard JSON response from chat-assistant
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        
+        if (data.response) {
+          const assistantMessage: Message = {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: data.response,
+            timestamp: new Date(),
+            toolCalls: data.toolResults?.map((tr: any) => ({
+              id: crypto.randomUUID(),
+              name: tr.tool,
+              arguments: JSON.stringify(tr.args),
+              result: tr.result
+            }))
+          };
+          setMessages((prev) => [...prev, assistantMessage]);
+        }
+        setIsStreaming(false);
+        return;
+      }
+
+      // Handle SSE streaming response
       if (!response.body) {
         throw new Error('Keine Antwort vom Server');
       }
