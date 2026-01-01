@@ -241,6 +241,13 @@ export function useOperationsDashboard(timeRange: TimeRange) {
     linenQuery.isLoading ||
     revenueQuery.isLoading;
 
+  const isFetching =
+    checkInsQuery.isFetching ||
+    checkOutsQuery.isFetching ||
+    cleaningsQuery.isFetching ||
+    linenQuery.isFetching ||
+    revenueQuery.isFetching;
+
   const isError =
     checkInsQuery.isError ||
     checkOutsQuery.isError ||
@@ -248,12 +255,14 @@ export function useOperationsDashboard(timeRange: TimeRange) {
     linenQuery.isError ||
     revenueQuery.isError;
 
-  const refetchAll = () => {
-    checkInsQuery.refetch();
-    checkOutsQuery.refetch();
-    cleaningsQuery.refetch();
-    linenQuery.refetch();
-    revenueQuery.refetch();
+  const refetchAll = async () => {
+    await Promise.all([
+      checkInsQuery.refetch(),
+      checkOutsQuery.refetch(),
+      cleaningsQuery.refetch(),
+      linenQuery.refetch(),
+      revenueQuery.refetch(),
+    ]);
   };
 
   return {
@@ -265,6 +274,7 @@ export function useOperationsDashboard(timeRange: TimeRange) {
       revenue: revenueQuery.data || { total: 0, paid: 0, open: 0, byHouse: [] },
     } as OperationsDashboardData,
     isLoading,
+    isFetching,
     isError,
     refetch: refetchAll,
   };
