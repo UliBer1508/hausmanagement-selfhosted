@@ -189,7 +189,7 @@ export const useCreateLaundryInvoice = () => {
       }>;
       notes?: string;
     }) => {
-      const manualId = `MANUAL-${Date.now()}`;
+      const manualId = crypto.randomUUID();
       
       const { data, error } = await supabase
         .from('laundry_invoices')
