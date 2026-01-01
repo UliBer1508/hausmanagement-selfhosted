@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { startOfWeek, endOfWeek, addWeeks, startOfMonth, endOfMonth, format } from 'date-fns';
+import { startOfWeek, endOfWeek, addWeeks, startOfMonth, endOfMonth, startOfYear, endOfYear, format } from 'date-fns';
 
-export type TimeRange = 'this_week' | 'next_week' | 'month';
+export type TimeRange = 'this_week' | 'next_week' | 'month' | 'year';
 
 export interface CheckInData {
   id: string;
@@ -71,6 +71,11 @@ function getDateRange(range: TimeRange): { start: Date; end: Date } {
       return {
         start: startOfMonth(now),
         end: endOfMonth(now),
+      };
+    case 'year':
+      return {
+        start: startOfYear(now),
+        end: endOfYear(now),
       };
   }
 }
