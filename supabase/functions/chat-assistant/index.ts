@@ -17,6 +17,783 @@ if (!supabaseUrl || !supabaseServiceKey) {
 
 const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 
+// ==================== TOOL EXECUTION FUNCTIONS ====================
+
+// Booking Inquiries Tools
+async function executeSearchBookingInquiries(params: any) {
+  console.log('Executing search_booking_inquiries with params:', params);
+  
+  let query = supabase
+    .from('booking_inquiries')
+    .select('*, houses(name)')
+    .order('created_at', { ascending: false });
+  
+  if (params.status) {
+    query = query.eq('status', params.status);
+  }
+  if (params.house_id) {
+    query = query.eq('house_id', params.house_id);
+  }
+  if (params.guest_name) {
+    query = query.ilike('guest_name', `%${params.guest_name}%`);
+  }
+  if (params.date_from) {
+    query = query.gte('check_in', params.date_from);
+  }
+  if (params.date_to) {
+    query = query.lte('check_in', params.date_to);
+  }
+  
+  const { data, error } = await query.limit(20);
+  
+  if (error) {
+    console.error('Error searching booking inquiries:', error);
+    return { success: false, error: error.message };
+  }
+  
+  console.log(`Found ${data?.length || 0} booking inquiries`);
+  return { success: true, data, count: data?.length || 0 };
+}
+
+async function executeAcceptBookingInquiry(params: any) {
+  console.log('Executing accept_booking_inquiry with params:', params);
+  
+  const { inquiry_id } = params;
+  
+  // 1. Get the inquiry
+  const { data: inquiry, error: inquiryError } = await supabase
+    .from('booking_inquiries')
+    .select('*, houses(name)')
+    .eq('id', inquiry_id)
+    .single();
+  
+  if (inquiryError || !inquiry) {
+    return { success: false, error: 'Buchungsanfrage nicht gefunden' };
+  }
+  
+  if (inquiry.status !== 'pending') {
+    return { success: false, error: `Anfrage ist bereits ${inquiry.status}` };
+  }
+  
+  // 2. Create the booking
+  const { data: booking, error: bookingError } = await supabase
+    .from('bookings')
+    .insert({
+      house_id: inquiry.house_id,
+      guest_name: inquiry.guest_name,
+      guest_email: inquiry.guest_email,
+      guest_phone: inquiry.guest_phone,
+      check_in: inquiry.check_in,
+      check_out: inquiry.check_out,
+      number_of_guests: inquiry.number_of_guests,
+      number_of_adults: inquiry.number_of_adults,
+      number_of_children: inquiry.number_of_children,
+      booking_amount: inquiry.estimated_amount,
+      notes: inquiry.message,
+      status: 'confirmed',
+      source: 'inquiry'
+    })
+    .select()
+    .single();
+  
+  if (bookingError) {
+    console.error('Error creating booking:', bookingError);
+    return { success: false, error: 'Fehler beim Erstellen der Buchung: ' + bookingError.message };
+  }
+  
+  // 3. Create cleaning task for check-out
+  const { error: cleaningError } = await supabase
+    .from('service_tasks')
+    .insert({
+      house_id: inquiry.house_id,
+      booking_id: booking.id,
+      service_type: 'cleaning',
+      scheduled_date: inquiry.check_out.split('T')[0],
+      scheduled_time: '10:00',
+      status: 'scheduled',
+      notes: `Reinigung nach Abreise von ${inquiry.guest_name}`
+    });
+  
+  if (cleaningError) {
+    console.warn('Error creating cleaning task:', cleaningError);
+    // Don't fail the whole operation
+  }
+  
+  // 4. Update inquiry status
+  await supabase
+    .from('booking_inquiries')
+    .update({ status: 'confirmed' })
+    .eq('id', inquiry_id);
+  
+  return { 
+    success: true, 
+    booking_id: booking.id,
+    guest_name: inquiry.guest_name,
+    house_name: inquiry.houses?.name,
+    check_in: inquiry.check_in,
+    check_out: inquiry.check_out
+  };
+}
+
+async function executeRejectBookingInquiry(params: any) {
+  console.log('Executing reject_booking_inquiry with params:', params);
+  
+  const { inquiry_id, reason } = params;
+  
+  const { data, error } = await supabase
+    .from('booking_inquiries')
+    .update({ 
+      status: 'rejected',
+      message: reason ? `[Abgelehnt: ${reason}] ${params.original_message || ''}` : undefined
+    })
+    .eq('id', inquiry_id)
+    .select('*, houses(name)')
+    .single();
+  
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  
+  return { 
+    success: true, 
+    guest_name: data.guest_name,
+    house_name: data.houses?.name
+  };
+}
+
+// Bulk Action Tools
+async function executeCreateBulkCleaningTasks(params: any) {
+  console.log('Executing create_bulk_cleaning_tasks with params:', params);
+  
+  const { for_date, trigger, house_id } = params;
+  
+  // Calculate the target date
+  let targetDate = for_date;
+  if (for_date === 'tomorrow') {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    targetDate = tomorrow.toISOString().split('T')[0];
+  } else if (for_date === 'today') {
+    targetDate = new Date().toISOString().split('T')[0];
+  }
+  
+  // Find bookings based on trigger
+  let query = supabase
+    .from('bookings')
+    .select('id, guest_name, house_id, check_in, check_out, houses(name)')
+    .neq('status', 'cancelled');
+  
+  if (trigger === 'checkout') {
+    query = query
+      .gte('check_out', `${targetDate}T00:00:00`)
+      .lt('check_out', `${targetDate}T23:59:59`);
+  } else if (trigger === 'checkin') {
+    query = query
+      .gte('check_in', `${targetDate}T00:00:00`)
+      .lt('check_in', `${targetDate}T23:59:59`);
+  }
+  
+  if (house_id) {
+    query = query.eq('house_id', house_id);
+  }
+  
+  const { data: bookings, error: bookingsError } = await query;
+  
+  if (bookingsError) {
+    return { success: false, error: bookingsError.message };
+  }
+  
+  if (!bookings || bookings.length === 0) {
+    return { 
+      success: true, 
+      created: 0, 
+      skipped: 0, 
+      message: `Keine ${trigger === 'checkout' ? 'Abreisen' : 'Ankünfte'} am ${targetDate} gefunden`
+    };
+  }
+  
+  // Check which bookings already have cleaning tasks
+  const bookingIds = bookings.map(b => b.id);
+  const { data: existingTasks } = await supabase
+    .from('service_tasks')
+    .select('booking_id')
+    .in('booking_id', bookingIds)
+    .eq('service_type', 'cleaning')
+    .neq('status', 'cancelled');
+  
+  const existingBookingIds = new Set(existingTasks?.map(t => t.booking_id) || []);
+  
+  // Create missing tasks
+  const tasksToCreate = [];
+  const createdDetails = [];
+  const skippedDetails = [];
+  
+  for (const booking of bookings) {
+    if (existingBookingIds.has(booking.id)) {
+      skippedDetails.push({
+        house_name: booking.houses?.name,
+        guest_name: booking.guest_name,
+        reason: 'Bereits Reinigung vorhanden'
+      });
+      continue;
+    }
+    
+    tasksToCreate.push({
+      house_id: booking.house_id,
+      booking_id: booking.id,
+      service_type: 'cleaning',
+      scheduled_date: targetDate,
+      scheduled_time: '10:00',
+      status: 'scheduled',
+      notes: `Reinigung nach ${trigger === 'checkout' ? 'Abreise' : 'Ankunft'} von ${booking.guest_name}`
+    });
+    
+    createdDetails.push({
+      house_name: booking.houses?.name,
+      guest_name: booking.guest_name,
+      date: targetDate
+    });
+  }
+  
+  if (tasksToCreate.length > 0) {
+    const { error: insertError } = await supabase
+      .from('service_tasks')
+      .insert(tasksToCreate);
+    
+    if (insertError) {
+      return { success: false, error: insertError.message };
+    }
+  }
+  
+  return {
+    success: true,
+    created: createdDetails.length,
+    created_details: createdDetails,
+    skipped: skippedDetails.length,
+    skipped_details: skippedDetails,
+    target_date: targetDate,
+    trigger
+  };
+}
+
+async function executeCreateBulkLinenOrders(params: any) {
+  console.log('Executing create_bulk_linen_orders with params:', params);
+  
+  const { date_from, date_to, house_id } = params;
+  
+  // Find bookings in date range that don't have linen orders
+  let query = supabase
+    .from('bookings')
+    .select('id, guest_name, house_id, number_of_guests, check_in, check_out, houses(name)')
+    .neq('status', 'cancelled')
+    .gte('check_in', date_from)
+    .lte('check_in', date_to);
+  
+  if (house_id) {
+    query = query.eq('house_id', house_id);
+  }
+  
+  const { data: bookings, error } = await query;
+  
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  
+  if (!bookings || bookings.length === 0) {
+    return { success: true, created: 0, message: 'Keine Buchungen im Zeitraum gefunden' };
+  }
+  
+  // Check for existing orders
+  const bookingIds = bookings.map(b => b.id);
+  const { data: existingOrders } = await supabase
+    .from('linen_orders')
+    .select('booking_id')
+    .in('booking_id', bookingIds);
+  
+  const existingBookingIds = new Set(existingOrders?.map(o => o.booking_id) || []);
+  
+  const ordersCreated = [];
+  let totalCost = 0;
+  
+  for (const booking of bookings) {
+    if (existingBookingIds.has(booking.id)) continue;
+    
+    // Get linen set definitions
+    const { data: linenDef } = await supabase
+      .from('linen_set_definitions')
+      .select('*')
+      .eq('house_id', booking.house_id)
+      .single();
+    
+    if (!linenDef) continue;
+    
+    const guests = booking.number_of_guests || 2;
+    const items = {
+      bedding: guests * (linenDef.bedding_per_guest || 1),
+      large_towels: guests * (linenDef.large_towels_per_guest || 1),
+      small_towels: guests * (linenDef.small_towels_per_guest || 1),
+      sauna_towels: guests * (linenDef.sauna_towels_per_guest || 0),
+      bath_mats: linenDef.bath_mats_per_booking || 2,
+      sink_towels: linenDef.sink_towels_per_booking || 2,
+      kitchen_towels: linenDef.kitchen_towels_per_booking || 2
+    };
+    
+    // Get prices
+    const { data: settings } = await supabase
+      .from('ai_linen_settings')
+      .select('prices')
+      .eq('house_id', booking.house_id)
+      .single();
+    
+    const prices = settings?.prices || { bedding: 30, large_towels: 18, small_towels: 10, sauna_towels: 20, bath_mats: 15, sink_towels: 8, kitchen_towels: 5 };
+    
+    let orderTotal = 0;
+    for (const [key, qty] of Object.entries(items)) {
+      orderTotal += (qty as number) * (prices[key] || 0);
+    }
+    
+    const { error: orderError } = await supabase
+      .from('linen_orders')
+      .insert({
+        house_id: booking.house_id,
+        booking_id: booking.id,
+        order_date: new Date().toISOString().split('T')[0],
+        delivery_date: booking.check_in.split('T')[0],
+        status: 'offen',
+        items,
+        total_cost: orderTotal
+      });
+    
+    if (!orderError) {
+      ordersCreated.push({
+        house_name: booking.houses?.name,
+        guest_name: booking.guest_name,
+        cost: orderTotal
+      });
+      totalCost += orderTotal;
+    }
+  }
+  
+  return {
+    success: true,
+    created: ordersCreated.length,
+    created_details: ordersCreated,
+    total_cost: totalCost,
+    skipped: bookings.length - ordersCreated.length
+  };
+}
+
+// Enhanced search_bookings with new parameters
+async function executeSearchBookings(params: any) {
+  console.log('Executing search_bookings with params:', params);
+  
+  let query = supabase
+    .from('bookings')
+    .select('*, houses(name, rental_type)')
+    .order('check_in', { ascending: true });
+  
+  // Filter for tourist rentals only
+  query = query.eq('houses.rental_type', 'tourist');
+  
+  // Guest name search
+  if (params.guest_name) {
+    query = query.ilike('guest_name', `%${params.guest_name}%`);
+  }
+  
+  // Status filter
+  if (params.status) {
+    query = query.eq('status', params.status);
+  }
+  
+  // Exclude cancelled (default: true)
+  if (params.exclude_cancelled !== false && !params.status) {
+    query = query.neq('status', 'cancelled');
+  }
+  
+  // House filter
+  if (params.house_id) {
+    query = query.eq('house_id', params.house_id);
+  }
+  
+  // Has children filter (CRITICAL!)
+  if (params.has_children === true) {
+    query = query.gt('number_of_children', 0);
+  }
+  
+  // Date range filters (overlap detection)
+  if (params.date_from && params.date_to) {
+    query = query
+      .lte('check_in', params.date_to)
+      .gte('check_out', params.date_from);
+  } else if (params.date_from) {
+    query = query.gte('check_in', params.date_from);
+  } else if (params.date_to) {
+    query = query.lte('check_out', params.date_to);
+  }
+  
+  // Exact check-in date (NEW!)
+  if (params.check_in_date) {
+    query = query
+      .gte('check_in', `${params.check_in_date}T00:00:00`)
+      .lt('check_in', `${params.check_in_date}T23:59:59`);
+  }
+  
+  // Exact check-out date (NEW!)
+  if (params.check_out_date) {
+    query = query
+      .gte('check_out', `${params.check_out_date}T00:00:00`)
+      .lt('check_out', `${params.check_out_date}T23:59:59`);
+  }
+  
+  // Upcoming only (NEW!)
+  if (params.upcoming_only) {
+    const today = new Date().toISOString().split('T')[0];
+    query = query.gte('check_in', today);
+  }
+  
+  // Updated timestamp filters
+  if (params.updated_from) {
+    query = query.gte('updated_at', params.updated_from);
+  }
+  if (params.updated_to) {
+    query = query.lte('updated_at', params.updated_to);
+  }
+  
+  const limit = params.limit || 20;
+  const { data, error } = await query.limit(limit);
+  
+  if (error) {
+    console.error('Error searching bookings:', error);
+    return { success: false, error: error.message };
+  }
+  
+  // Filter out bookings where house is null (not tourist rental)
+  const filteredData = data?.filter(b => b.houses !== null) || [];
+  
+  console.log(`Found ${filteredData.length} bookings`);
+  return { success: true, data: filteredData, count: filteredData.length };
+}
+
+async function executeSearchCleaningTasks(params: any) {
+  console.log('Executing search_cleaning_tasks with params:', params);
+  
+  let query = supabase
+    .from('service_tasks')
+    .select(`
+      *,
+      houses(name),
+      bookings(guest_name, guest_email, guest_phone),
+      cleaning_staff(name, email, phone)
+    `)
+    .eq('service_type', 'cleaning')
+    .order('scheduled_date', { ascending: true });
+  
+  if (params.status) {
+    query = query.eq('status', params.status);
+  }
+  if (params.house_id) {
+    query = query.eq('house_id', params.house_id);
+  }
+  if (params.date_from) {
+    query = query.gte('scheduled_date', params.date_from);
+  }
+  if (params.date_to) {
+    query = query.lte('scheduled_date', params.date_to);
+  }
+  if (params.payment_status) {
+    query = query.eq('payment_status', params.payment_status);
+  }
+  
+  const { data, error } = await query.limit(params.limit || 20);
+  
+  if (error) {
+    console.error('Error searching cleaning tasks:', error);
+    return { success: false, error: error.message };
+  }
+  
+  // Filter by guest_name or staff_name if provided
+  let filteredData = data || [];
+  if (params.guest_name) {
+    filteredData = filteredData.filter(t => 
+      t.bookings?.guest_name?.toLowerCase().includes(params.guest_name.toLowerCase())
+    );
+  }
+  if (params.staff_name) {
+    filteredData = filteredData.filter(t => 
+      t.cleaning_staff?.name?.toLowerCase().includes(params.staff_name.toLowerCase())
+    );
+  }
+  
+  return { success: true, data: filteredData, count: filteredData.length };
+}
+
+async function executeSearchHouses(params: any) {
+  console.log('Executing search_houses with params:', params);
+  
+  let query = supabase
+    .from('houses')
+    .select('*')
+    .eq('rental_type', 'tourist')
+    .order('name');
+  
+  if (params.name) {
+    query = query.ilike('name', `%${params.name}%`);
+  }
+  if (params.address) {
+    query = query.ilike('address', `%${params.address}%`);
+  }
+  
+  const { data, error } = await query.limit(params.limit || 20);
+  
+  if (error) {
+    console.error('Error searching houses:', error);
+    return { success: false, error: error.message };
+  }
+  
+  return { success: true, data, count: data?.length || 0 };
+}
+
+async function executeSearchGuests(params: any) {
+  console.log('Executing search_guests with params:', params);
+  
+  let query = supabase
+    .from('bookings')
+    .select('guest_name, guest_email, guest_phone, nationality, houses(name)')
+    .order('created_at', { ascending: false });
+  
+  if (params.name) {
+    query = query.ilike('guest_name', `%${params.name}%`);
+  }
+  if (params.email) {
+    query = query.ilike('guest_email', `%${params.email}%`);
+  }
+  if (params.nationality) {
+    query = query.ilike('nationality', `%${params.nationality}%`);
+  }
+  
+  const { data, error } = await query.limit(100);
+  
+  if (error) {
+    console.error('Error searching guests:', error);
+    return { success: false, error: error.message };
+  }
+  
+  // Group by email to get unique guests with booking counts
+  const guestMap = new Map();
+  for (const b of data || []) {
+    const key = b.guest_email || b.guest_name;
+    if (!guestMap.has(key)) {
+      guestMap.set(key, {
+        guest_name: b.guest_name,
+        guest_email: b.guest_email,
+        guest_phone: b.guest_phone,
+        nationality: b.nationality,
+        booking_count: 1
+      });
+    } else {
+      guestMap.get(key).booking_count++;
+    }
+  }
+  
+  const guests = Array.from(guestMap.values()).slice(0, params.limit || 20);
+  return { success: true, data: guests, count: guests.length };
+}
+
+async function executeGetDashboardStats(params: any) {
+  console.log('Executing get_dashboard_stats');
+  
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Count houses
+  const { count: houseCount } = await supabase
+    .from('houses')
+    .select('*', { count: 'exact', head: true })
+    .eq('rental_type', 'tourist');
+  
+  // Count active bookings
+  const { count: activeBookings } = await supabase
+    .from('bookings')
+    .select('*', { count: 'exact', head: true })
+    .gte('check_out', today)
+    .neq('status', 'cancelled');
+  
+  // Count pending tasks
+  const { count: pendingTasks } = await supabase
+    .from('service_tasks')
+    .select('*', { count: 'exact', head: true })
+    .in('status', ['scheduled', 'in_progress']);
+  
+  // Count pending inquiries
+  const { count: pendingInquiries } = await supabase
+    .from('booking_inquiries')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'pending');
+  
+  // Calculate revenue this month
+  const firstOfMonth = new Date();
+  firstOfMonth.setDate(1);
+  const { data: revenueData } = await supabase
+    .from('bookings')
+    .select('booking_amount')
+    .gte('check_in', firstOfMonth.toISOString())
+    .neq('status', 'cancelled');
+  
+  const monthlyRevenue = revenueData?.reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0;
+  
+  return {
+    success: true,
+    data: {
+      houses: houseCount || 0,
+      active_bookings: activeBookings || 0,
+      pending_tasks: pendingTasks || 0,
+      pending_inquiries: pendingInquiries || 0,
+      monthly_revenue: monthlyRevenue
+    }
+  };
+}
+
+async function executeGetLinenOverview(params: any) {
+  console.log('Executing get_linen_overview');
+  
+  const { data: houses, error } = await supabase
+    .from('houses')
+    .select('id, name, linen_stock')
+    .eq('rental_type', 'tourist');
+  
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  
+  const overview = houses?.map(h => ({
+    house_name: h.name,
+    house_id: h.id,
+    stock: h.linen_stock || {},
+    status: 'ok' // Could be enhanced with actual status calculation
+  })) || [];
+  
+  return { success: true, data: overview };
+}
+
+async function executeSearchLinenOrders(params: any) {
+  console.log('Executing search_linen_orders with params:', params);
+  
+  let query = supabase
+    .from('linen_orders')
+    .select('*, houses(name), bookings(guest_name)')
+    .order('order_date', { ascending: false });
+  
+  if (params.status) {
+    query = query.eq('status', params.status);
+  }
+  if (params.house_id) {
+    query = query.eq('house_id', params.house_id);
+  }
+  if (params.date_from) {
+    query = query.gte('delivery_date', params.date_from);
+  }
+  if (params.date_to) {
+    query = query.lte('delivery_date', params.date_to);
+  }
+  
+  const { data, error } = await query.limit(params.limit || 20);
+  
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  
+  return { success: true, data, count: data?.length || 0 };
+}
+
+async function executeGetCalendarEvents(params: any) {
+  console.log('Executing get_calendar_events with params:', params);
+  
+  const dateFrom = params.date_from || new Date().toISOString().split('T')[0];
+  const dateTo = params.date_to || (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().split('T')[0];
+  })();
+  
+  // Get check-ins
+  const { data: checkIns } = await supabase
+    .from('bookings')
+    .select('id, guest_name, check_in, houses(name)')
+    .gte('check_in', dateFrom)
+    .lte('check_in', dateTo)
+    .neq('status', 'cancelled');
+  
+  // Get check-outs
+  const { data: checkOuts } = await supabase
+    .from('bookings')
+    .select('id, guest_name, check_out, houses(name)')
+    .gte('check_out', dateFrom)
+    .lte('check_out', dateTo)
+    .neq('status', 'cancelled');
+  
+  // Get cleanings
+  const { data: cleanings } = await supabase
+    .from('service_tasks')
+    .select('id, scheduled_date, scheduled_time, houses(name), status')
+    .eq('service_type', 'cleaning')
+    .gte('scheduled_date', dateFrom)
+    .lte('scheduled_date', dateTo);
+  
+  return {
+    success: true,
+    data: {
+      check_ins: checkIns || [],
+      check_outs: checkOuts || [],
+      cleanings: cleanings || [],
+      date_range: { from: dateFrom, to: dateTo }
+    }
+  };
+}
+
+// Generic tool execution dispatcher
+async function executeTool(toolName: string, args: any): Promise<any> {
+  console.log(`Executing tool: ${toolName}`, args);
+  
+  switch (toolName) {
+    // Booking Inquiries (NEW!)
+    case 'search_booking_inquiries':
+      return await executeSearchBookingInquiries(args);
+    case 'accept_booking_inquiry':
+      return await executeAcceptBookingInquiry(args);
+    case 'reject_booking_inquiry':
+      return await executeRejectBookingInquiry(args);
+    
+    // Bulk Actions (NEW!)
+    case 'create_bulk_cleaning_tasks':
+      return await executeCreateBulkCleaningTasks(args);
+    case 'create_bulk_linen_orders':
+      return await executeCreateBulkLinenOrders(args);
+    
+    // Core search tools
+    case 'search_bookings':
+      return await executeSearchBookings(args);
+    case 'search_cleaning_tasks':
+      return await executeSearchCleaningTasks(args);
+    case 'search_houses':
+      return await executeSearchHouses(args);
+    case 'search_guests':
+      return await executeSearchGuests(args);
+    case 'get_dashboard_stats':
+      return await executeGetDashboardStats(args);
+    case 'get_linen_overview':
+      return await executeGetLinenOverview(args);
+    case 'search_linen_orders':
+      return await executeSearchLinenOrders(args);
+    case 'get_calendar_events':
+      return await executeGetCalendarEvents(args);
+    
+    default:
+      console.warn(`Unknown tool: ${toolName}`);
+      return { success: false, error: `Tool ${toolName} nicht implementiert` };
+  }
+}
+
+// ==================== MAIN SERVE FUNCTION ====================
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -34,25 +811,18 @@ serve(async (req) => {
 
     // Aktuelles Datum für zeitbasierte Anfragen
     const now = new Date();
-    const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
-    const currentDateTime = now.toISOString(); // Full ISO timestamp
+    const currentDate = now.toISOString().split('T')[0];
     const berlinTime = new Intl.DateTimeFormat('de-DE', {
       timeZone: 'Europe/Berlin',
       dateStyle: 'full',
       timeStyle: 'short'
     }).format(now);
     
-    // Berechne hilfreiche Datumsreferenzen
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowDate = tomorrow.toISOString().split('T')[0];
-    
-    const nextWeekStart = new Date(now);
-    nextWeekStart.setDate(nextWeekStart.getDate() + 7);
-    const nextWeekEnd = new Date(now);
-    nextWeekEnd.setDate(nextWeekEnd.getDate() + 14);
 
-    // System prompt - CRITICAL: Force tool usage
+    // System prompt
     const systemPrompt = `Du bist ein Datenbank-Assistent für eine Ferienhaus-Verwaltungssoftware.
 
 📅 AKTUELLES DATUM:
@@ -60,603 +830,89 @@ Heute ist: ${berlinTime}
 ISO-Datum: ${currentDate}
 Morgen: ${tomorrowDate}
 
-Nutze dieses Datum für alle zeitbasierten Anfragen:
-- "heute" → ${currentDate}
-- "morgen" → ${tomorrowDate}
-- "nächste Woche" → berechne +7 Tage von ${currentDate}
-- "letzte Woche" → berechne -7 Tage von ${currentDate}
-- Relative Begriffe wie "nächste Buchung", "kommende Events" beziehen sich auf Daten >= ${currentDate}
-
-🏠 WICHTIG - OBJEKTTYPEN:
-- Es gibt ZWEI Arten von Objekten: "Touristische Vermietungen" (rental_type = 'tourist') und "Festvermietungen" (rental_type = 'long_term')
-- **Touristische Objekte**: Kurzzeitmiete mit wechselnden Gästen → Buchungen, Reinigung, Wäsche, Umsatz
-- **Festvermietungen**: Langzeitmiete mit festem Mieter → Mietvertrag, monatliche Zahlungen
-
-ALLE Tools (außer Mieter-Management) berücksichtigen NUR touristische Vermietungen!
-Bei Fragen zu "Häusern", "Buchungen", "Reinigung", "Wäsche" oder "Umsatz" werden automatisch nur touristische Objekte einbezogen.
-
-Für Festvermietungen verwende AUSSCHLIESSLICH diese Tools:
-- search_tenant_payments
-- get_tenant_info
-- get_tenant_analytics
-
 ⛔ KRITISCHE REGEL ⛔
 Du MUSST für JEDE Anfrage ein Tool verwenden! 
 Du darfst NIEMALS direkt antworten ohne Tool-Call!
-Antworte NIEMALS mit Text wie "ABSOLUTE REGEL" - nutze stattdessen die Tools!
 
-WORKFLOW (ZWINGEND!):
-1. User stellt Frage → DU MUSST SOFORT EIN TOOL AUFRUFEN
-2. Du erhältst Tool-Ergebnis → DU DARFST JETZT antworten
-3. Formatiere die Antwort basierend auf dem Tool-Ergebnis
+🔍 TOOL-AUSWAHL:
 
-🔍 TOOL-AUSWAHL (Wähle SOFORT das richtige Tool!):
-
-📥 BUCHUNGSANFRAGEN (NEU!):
-- "anfragen" / "offene anfragen" / "buchungsanfragen" / "pending" → search_booking_inquiries
+📥 BUCHUNGSANFRAGEN:
+- "anfragen" / "offene anfragen" / "buchungsanfragen" / "gibt es anfragen" → search_booking_inquiries mit status="pending"
 - "anfrage annehmen" / "bestätigen" + Name/ID → accept_booking_inquiry
 - "anfrage ablehnen" / "stornieren" + Name/ID → reject_booking_inquiry
 
-🔄 BULK-AKTIONEN (NEU!):
+🔄 BULK-AKTIONEN:
 - "erstelle reinigung für alle" / "morgige abreisen" / "check-outs heute" → create_bulk_cleaning_tasks
-  Beispiel: "Erstelle Reinigung für alle morgigen Abreisen" → create_bulk_cleaning_tasks({ for_date: "${tomorrowDate}", trigger: "checkout" })
-- "wäsche für alle buchungen" / "wäschebestellung nächste woche" → create_bulk_linen_orders
+  Beispiel: "Erstelle Reinigung für alle morgigen Abreisen" → create_bulk_cleaning_tasks({ for_date: "tomorrow", trigger: "checkout" })
+- "wäsche für alle buchungen" → create_bulk_linen_orders
 
-📅 BUCHUNGEN MIT FILTER:
-- "buchung" / Gastname / "buchen" → search_bookings
-- "familien" / "buchungen mit kindern" / "kinder dabei" → search_bookings mit has_children=true
-  ⚠️ KRITISCH: Bei JEDER Anfrage mit "Kinder", "Familie", "Familien" → IMMER has_children: true setzen!
-- "wer kommt morgen" / "check-in morgen" → search_bookings mit check_in_date="${tomorrowDate}"
-- "wer checkt morgen aus" / "abreisen morgen" → search_bookings mit check_out_date="${tomorrowDate}"
-- "kommende buchungen" / "ab morgen" → search_bookings mit upcoming_only=true
+📅 BUCHUNGEN:
+- "buchung" / Gastname → search_bookings
+- "familien" / "mit kindern" → search_bookings mit has_children=true (WICHTIG!)
+- "wer kommt morgen" → search_bookings mit check_in_date="${tomorrowDate}"
+- "wer checkt morgen aus" → search_bookings mit check_out_date="${tomorrowDate}"
+- "kommende buchungen" → search_bookings mit upcoming_only=true
+
+🧹 REINIGUNG: "reinigung" / "putzen" → search_cleaning_tasks
+🏠 HÄUSER: "haus" / "chalet" → search_houses
+👥 GÄSTE: "gast" / "gäste" → search_guests
+🧺 WÄSCHE: "wäsche" / "linen" → get_linen_overview oder search_linen_orders
+📊 STATISTIKEN: "übersicht" / "dashboard" → get_dashboard_stats
+📅 KALENDER: "kalender" / "termine" → get_calendar_events
 
 💡 KRITISCHE FILTER-KOMBINATIONEN:
 Beispiel: "Haben wir nächste Woche Buchungen mit Kindern?"
-✅ KORREKT: search_bookings({ "has_children": true, "date_from": "[nächster Montag]", "date_to": "[nächster Sonntag]" })
+✅ KORREKT: search_bookings({ "has_children": true, "date_from": "[Montag]", "date_to": "[Sonntag]" })
 ❌ FALSCH: search_bookings ohne has_children Parameter
-
-Beispiel: "Familien im Dezember"
-✅ KORREKT: search_bookings({ "has_children": true, "date_from": "2026-12-01", "date_to": "2026-12-31" })
-
-🧹 REINIGUNG:
-- "reinigung" / "putzen" / "cleaning" → search_cleaning_tasks  
-
-🏠 HÄUSER & GÄSTE:
-- "haus" / "chalet" / "objekt" → search_houses
-- "gast" / "gäste" / "kunde" → search_guests
-
-🧺 WÄSCHE:
-- "wäsche" / "bettwäsche" / "linen" / "bestellung" → search_linen_orders
-- "wäschestatus" / "linen status" → get_linen_overview
-- "wieviel wäsche" / "wäsche für [Hausname]" → ERST search_houses, DANN get_house_linen_status
-- Bei get_house_linen_status: Priorisiere KI-Daten (confidence >= 60%, <7 Tage alt), sonst Fallback-Berechnung
-
-📍 LÜCKEN-ANALYSE:
-- "lücken" / "freie zeiträume" / "vacancies" / "frei" / "noch verfügbar" / "wann ist frei" / "freie Termine" → get_vacancies
-  ⚠️ WICHTIG - ZEITANGABEN UMWANDELN:
-  • "nächster Monat" / "1 Monat" / "im nächsten Monat" → months_ahead: 1
-  • "nächste 2 Monate" / "2 Monate" → months_ahead: 2
-  • "nächste 3 Monate" / "3 Monate" / "Quartal" → months_ahead: 3
-  • "nächstes halbes Jahr" / "6 Monate" → months_ahead: 6 (default)
-  • "nächstes Jahr" / "12 Monate" → months_ahead: 12
-  • Keine Zeitangabe → months_ahead: 6 (default)
-  📝 BEISPIELE:
-  • "Zeige Lücken für nächsten Monat" → get_vacancies({ months_ahead: 1 })
-  • "Welche Lücken gibt es in den nächsten 3 Monaten?" → get_vacancies({ months_ahead: 3 })
-  • "Lücken fürs Wald Chalet im nächsten Monat" → get_vacancies({ house_id: "...", months_ahead: 1 })
-  • "Wo ist im Quartal noch Platz?" → get_vacancies({ months_ahead: 3 })
-- "analysiere lücke" / "ki analyse" / "lücke analysieren" / "buchungswahrscheinlichkeit" → analyze_vacancy_with_ai
-
-📊 STATISTIKEN:
-- "übersicht" / "dashboard" / "statistik" → get_dashboard_stats
-- "kalender" / "termine" / "events" → get_calendar_events
-- UUID erwähnt → get_*_details Tools
-- "dienstleister" / "anbieter" / "service provider" → search_service_providers
-- "reinigungskraft" / "putzkraft" / "personal" / "wer ist [Name]" → search_cleaning_staff
-- "was ist los in [Haus]?" / "wer kommt als nächstes?" / "ist [Haus] belegt?" → get_house_bookings_summary
-- "nächste buchung" / "kommende buchung" → search_bookings mit upcoming_only=true, limit 1
-- "heute eingecheckt" / "wer ist da" → search_bookings mit check_in_date=${currentDate}
-- "wer checkt heute aus" → search_bookings mit check_out_date=${currentDate}
-- "aktuell eingecheckt" / "wer ist gerade da" / "heute belegt" → search_bookings mit date_from=heute, date_to=heute (nutzt Overlap-Detection!)
-- "kommende buchungen" / "nächste woche" / "ab morgen" → search_bookings mit upcoming_only=true
-- "vergangene buchungen" / "letzte woche" / "bis gestern" → search_bookings mit date_to=bis_datum
-- "umsatz" / "revenue" / "einnahmen" → get_revenue_stats
-- "auslastung" / "occupancy" / "belegung" → get_occupancy_stats
-- "gast statistik" / "stammkunden" / "gäste analyse" → get_guest_statistics
-- "mietzahlungen" / "miete" / "tenant payment" → search_tenant_payments
-- "mieter info" / "mieter von [Haus]" → get_tenant_info
-- "mieter statistik" / "mieteinnahmen" → get_tenant_analytics
-- "bestellung erstellen" / "wäsche bestellen" → create_linen_order (mit Bestätigung!)
-- "bestellung bestätigen" / "status ändern" → update_linen_order_status (mit Bestätigung!)
-- "reinigung ändern" / "reinigung verschieben" → update_cleaning_task (mit Bestätigung!)
-- "personal zuweisen" / "reinigungskraft zuweisen" → assign_cleaning_staff (mit Bestätigung!)
-- "marketing" / "aktion" / "kindergeschenk" / "welche aktionen" / "was muss ich vorbereiten" → get_marketing_reminders
-- "bewertungen" / "rating" / "bewertung fehlt" / "bewertungen nachtragen" / "bewertung eintragen" / "marketing auswertung" → get_rating_reminders
-
-BEISPIELE:
-❌ FALSCH: "ABSOLUTE REGEL: Du darfst nicht..."
-✅ RICHTIG: [Tool-Call: search_linen_orders mit house_id]
-
-WICHTIG: Zeige ALLE gefundenen Daten, auch mit Status "cancelled"!
 
 ANTWORT-FORMATE:
 
-**Buchungsanfragen (NEU!):**
+**Buchungsanfragen:**
 "📥 Ich habe [X] offene Buchungsanfrage(n) gefunden:
 
 📝 ANFRAGE 1:
-• Gast: [name] ([email], [phone])
+• Gast: [name] ([email])
 • Haus: [house_name]
 • Zeitraum: [check_in] - [check_out]
-• Gäste: [number] Personen ([adults] Erwachsene, [children] Kinder)
+• Gäste: [number] Personen
 • Geschätzter Betrag: [amount] EUR
-• Eingegangen: [created_at]
 • Nachricht: [message]
 
 Möchtest du diese Anfrage bestätigen oder ablehnen?"
 
-**Bulk-Aktion Ergebnis (NEU!):**
+**Bulk-Aktion:**
 "✅ Bulk-Aktion ausgeführt!
 
 📋 REINIGUNGEN ERSTELLT: [X]
-• [Haus 1]: Reinigung am [Datum] für [Gast]
-• [Haus 2]: Reinigung am [Datum] für [Gast]
-...
+• [Haus]: Reinigung am [Datum] für [Gast]
 
-⏭️ ÜBERSPRUNGEN: [Y]
-• [Haus 3]: Bereits Reinigung vorhanden
-
-Alle Aufträge wurden mit Status 'scheduled' angelegt."
+⏭️ ÜBERSPRUNGEN: [Y] (bereits vorhanden)"
 
 **Buchungen:**
-- Beginne mit einer klaren Zusammenfassung (z.B. "Ich habe 1 Buchung gefunden:")
-- Liste alle relevanten Details auf:
-  • Gast: [Name]
-  • Check-in: [Datum]
-  • Check-out: [Datum]
-  • Anzahl Gäste: [Zahl] - WENN Kinder dabei: "👨‍👩‍👧‍👦 Familie! ([X] Erwachsene, [Y] Kinder)"
-  • Status: [Status] ⚠️ (IMMER anzeigen, auch bei "storniert"!)
-  • Haus: [Hausname]
-  • Betrag: [Betrag]
-- Wenn Status "cancelled": Weise explizit darauf hin!
-- 💡 WENN number_of_children > 0: Füge am Ende IMMER diesen Hinweis hinzu:
-  "💡 HINWEIS: Familie mit [X] Kind(ern) - Spielzeug/Kinderbett bereitstellen!"
-
-**Reinigungsaufträge:**
-"Ich habe [Anzahl] Reinigungsauftrag/-aufträge gefunden:
-
-• Haus: [house_name]
-• Datum: [scheduled_date] um [scheduled_time] Uhr
-• Status: [status mit Icon: scheduled=📅, in_progress=🧹, completed=✅, cancelled=❌]
-• Reinigungskraft: [staff_name] (falls zugewiesen)
-• Buchung: [guest_name] (falls vorhanden)
-• Zahlungsstatus: [payment_status mit Icon: paid=✅, unpaid=❌, pending=⏳] (falls vorhanden)
-• Notizen: [notes]"
-
-**Gäste:**
-"Ich habe [Anzahl] Gast/Gäste gefunden:
-• Name: [guest_name]
-• Email: [guest_email]
-• Telefon: [guest_phone]
-• Nationalität: [nationality]
-• Anzahl Buchungen: [booking_count]
-• Letzte Buchung: [last_booking_date]"
-
-**Wäschestatus für Haus:**
-[Falls source === 'ai_optimization']
-"🧺 Wäsche-Status für [Hausname]:
-🤖 KI-ANALYSE (Konfidenz: [confidence_score]%)
-Letzte Analyse: [last_analysis]
-
-📦 AKTUELLER BESTAND:
-• Bettbezüge: [stock] Stück (+ [ordered] bestellt)
-• Große Handtücher: [stock] Stück (+ [ordered] bestellt)
-... (für alle Wäsche-Typen)
-
-📊 KI-EMPFOHLENER BESTAND:
-• Bettbezüge: [recommended] Stück [✅ Erfüllt / ⚠️ [X] Stück unter Empfehlung]
-• Große Handtücher: [recommended] Stück [Status]
-... (für alle Wäsche-Typen)
-
-📅 PROGNOSTIZIERTER BEDARF (KI-berechnet):
-• Bettbezüge: [demand] Stück
-• Große Handtücher: [demand] Stück
-... (für alle Wäsche-Typen)
-
-⚖️ BILANZ:
-[Für jeden Item: ✅ Surplus / ⚠️ Knapp / ❌ Shortage anzeigen]
-
-💡 KI-INSIGHTS:
-[ai_insights als Bullet Points, falls vorhanden]
-
-🛒 BESTELLVORSCHLAG:
-[order_suggestion.items mit Mengen und Preisen]
-Gesamt: [order_suggestion.total_cost] EUR
-Priorität: [order_suggestion.priority]"
-
-[Falls source === 'simple_calculation']
-"🧺 Wäsche-Status für [Hausname]:
-📊 EINFACHE BERECHNUNG
-(Keine aktuellen KI-Daten verfügbar - Basierend auf kommenden Buchungen)
-
-📦 AKTUELLER BESTAND:
-• Bettbezüge: [stock] Stück (+ [ordered] bestellt)
-• Große Handtücher: [stock] Stück (+ [ordered] bestellt)
-... (für alle Wäsche-Typen)
-
-📅 BEDARF (nächste 30 Tage):
-[X] Buchungen geplant
-• Bettbezüge benötigt: [demand] Stück
-• Große Handtücher benötigt: [demand] Stück
-... (für alle Wäsche-Typen)
-
-⚖️ BILANZ:
-✅ Ausreichend: [items mit surplus > 3]
-⚠️ Knapp: [items mit surplus 0-3]
-❌ KRITISCH: [items mit shortage] → [X] Stück fehlen!
-
-💡 HINWEIS:
-Für genauere Empfehlungen mit KI-Analyse führe eine Optimierung im Wäscheverwaltungs-Modul durch."
-
-**Wäschestatus-Übersicht:**
-"Wäsche-Übersicht:
-🟢 [X] Häuser: Optimal versorgt
-🟡 [Y] Häuser: Niedrige Bestände
-🔴 [Z] Häuser: Kritische Bestände
-
-Kritische Häuser:
-• [Haus 1]: [kritische Items]
-• [Haus 2]: [kritische Items]"
-
-**Offene Bestellungen:**
-"🔔 Ich habe [X] offene Bestellung(en) gefunden, die noch bestätigt werden müssen:
-
-• Haus: [house_name]
-• Gast: [guest_name] (falls vorhanden)
-• Lieferdatum: [delivery_date]
-• Bestelldatum: [order_date]
-• Menge: [Anzahl Items]
-• Status: Offen 📝
-
-💡 HINWEIS:
-Diese Bestellungen wurden automatisch erstellt und müssen noch bestätigt werden, bevor sie an die Wäscherei gesendet werden."
-
-**Dashboard:**
-"Übersicht:
-🏠 Häuser: [Anzahl]
-📅 Aktive Buchungen: [Anzahl]
-🧹 Offene Aufgaben: [Anzahl]
-💰 Umsatz: [Betrag]"
-
-**Kalender:**
-"Termine vom [von] bis [bis]:
-📅 Check-ins: [Anzahl]
-🧹 Reinigungen: [Anzahl]
-🧺 Wäsche-Lieferungen: [Anzahl]
-
-Details:
-• [Datum] [Zeit]: [Event-Typ] - [Details]"
-
-**Lücken (Freie Zeiträume):**
-"🔍 Lücken-Übersicht für [Hausname / Alle Häuser]:
-
-📅 LÜCKE 1 ([Hausname]):
-• Zeitraum: [start] - [end] ([X] Tage)
-• Dringlichkeit: [🔴 HOCH / 🟡 MITTEL / 🟢 NIEDRIG]
-• Saison: [🔥 Hochsaison / 📅 Übergangssaison / 🌿 Nebensaison]
-• Status: In [X] Tagen - [Sofort handeln! / Zeitnah planen / Planbar]
-
-📅 LÜCKE 2 ([Hausname]):
-..."
-
-**KI-Lücken-Analyse:**
-"🤖 KI-ANALYSE für [Hausname] ([start] - [end], [X] Tage):
-
-📊 BUCHUNGSWAHRSCHEINLICHKEIT: [X]%
-[████░░░░░░] [Hoch/Mittel/Niedrig]
-
-💰 PREISEMPFEHLUNG: 
-   • Pro Nacht: €[min] - €[max]
-   • Pro Woche (7 Nächte): €[min*7] - €[max*7]
-
-🎯 DRINGLICHKEIT: [HOCH/MITTEL/NIEDRIG]
-⏰ DEADLINE: Bis spätestens [deadline]
-
-💭 BEGRÜNDUNG:
-[AI reasoning text with seasonal patterns, lead time, nationality trends]
-
-📋 EMPFOHLENE MAßNAHMEN:
-1️⃣ [Prio 1] [action]
-   → [reason]
-
-2️⃣ [Prio 2] [action]
-   → [reason]
-
-3️⃣ [Prio 3] [action]
-   → [reason]"
-
-**Dienstleister:**
-"Ich habe [Anzahl] Dienstleister gefunden:
-
-• Name: [name]
-• Service-Typ: [service_type mit Icon: cleaning=🧹, laundry=🧺, maintenance=🔧, other=📋]
-• Status: [is_active ? Aktiv ✅ : Inaktiv ❌]
-• Kontakt: [contact_email], [contact_phone]
-• Portal-Zugang: [has_portal ? Ja ✅ : Nein ❌]
-• Notizen: [notes]"
-
-**Umsatz-Statistiken (PHASE 1):**
-"💰 Umsatz-Statistik ([period]):
-
-📊 GESAMT:
-• Gesamtumsatz: [total_revenue] EUR
-• Anzahl Buchungen: [booking_count]
-• Durchschnittsumsatz: [average_revenue] EUR
-
-🏠 PRO HAUS:
-• [Haus 1]: [total] EUR ([bookings] Buchungen)
-• [Haus 2]: [total] EUR ([bookings] Buchungen)
-
-📅 PRO MONAT:
-• [Monat 1]: [total] EUR ([bookings] Buchungen)
-• [Monat 2]: [total] EUR ([bookings] Buchungen)"
-
-**Auslastungs-Statistiken (PHASE 1):**
-"📈 Auslastungs-Statistik ([period]):
-
-🏠 [Hausname]:
-• Gesamttage: [total_days]
-• Belegte Tage: [occupied_days]
-• Leerstand: [vacant_days] Tage
-• Auslastung: [occupancy_rate]%
-• Buchungen: [booking_count]"
-
-**Gäste-Statistiken (PHASE 1):**
-"👥 Gäste-Statistik ([period]):
-
-📊 ÜBERSICHT:
-• Gesamt Gäste: [total_guests]
-• Neue Gäste: [new_guests]
-• Stammkunden: [returning_guests]
-• Rückkehrrate: [return_rate]%
-• Buchungen: [total_bookings]
-• Ø Aufenthaltsdauer: [avg_stay_duration] Nächte
-
-🌍 NACH NATIONALITÄT:
-• [Land 1]: [Anzahl] Gäste
-• [Land 2]: [Anzahl] Gäste"
-
-**Mietzahlungen (PHASE 2):**
-"💳 Mietzahlungen:
-
-• Haus: [house_name]
-• Mieter: [tenant_name]
-• Fällig am: [due_date]
-• Betrag: [amount] EUR
-• Status: [status mit Icon: paid=✅, pending=⏳, overdue=⚠️, cancelled=❌]
-• Zahlungsmethode: [payment_method]"
-
-**Mieter-Info (PHASE 2):**
-"🏘️ Mieter-Informationen für [Hausname]:
-
-👤 MIETER:
-• Name: [tenant_name]
-• Email: [tenant_email]
-• Telefon: [tenant_phone]
-
-📝 VERTRAG:
-• Beginn: [contract_start]
-• Ende: [contract_end oder 'Unbefristet']
-• Monatliche Miete: [monthly_rent] EUR
-• Kaution: [deposit_amount] EUR
-• Zahlungstag: [payment_day]. des Monats
-• Zahlungsmethode: [payment_method]"
-
-**Mieter-Statistiken (PHASE 2):**
-"📊 Mieter-Statistik ([period]):
-
-💰 ÜBERSICHT:
-• Mieteinnahmen: [total_revenue] EUR
-• Ausstehend: [pending_amount] EUR
-• Überfällig: [overdue_amount] EUR
-• Zahlungen: [payment_count]
-
-🏠 PRO HAUS:
-• [Haus 1]: [total] EUR (paid: [paid], pending: [pending], overdue: [overdue])"
-
-**Bestellung erstellt (PHASE 3):**
-"✅ Wäschebestellung erfolgreich erstellt!
-
-📦 DETAILS:
-• Haus: [house_name]
-• Lieferdatum: [delivery_date]
-• Status: Offen 📝
-• Items: [Anzahl verschiedene Items]
-
-💡 HINWEIS:
-Die Bestellung muss noch bestätigt werden, bevor sie an die Wäscherei gesendet wird."
-
-**Status geändert (PHASE 3):**
-"✅ Status erfolgreich geändert!
-
-🔄 ÄNDERUNG:
-• Typ: [Bestellung/Reinigung]
-• Alter Status: [old_status]
-• Neuer Status: [new_status]
-
-💡 Die Änderung wurde in der Datenbank gespeichert."
-
-**Reinigungspersonal:**
-"Ich habe [Anzahl] Reinigungskräfte gefunden:
-
-• Name: [name]
-• Status: [is_active ? Aktiv ✅ : Inaktiv ❌]
-• Email: [email]
-• Telefon: [phone]
-• Stundensatz: [hourly_rate] EUR/Std
-• Bewertung: [quality_rating]/5 ⭐
-• Verfügbarkeit: [availability_days als Liste: Mo, Di, Mi, etc.]
-• Einsätze gesamt: [total_assignments] (davon [completed_assignments] abgeschlossen)
-• Erfolgsquote: [Prozentsatz] %
-• Kommende Einsätze: [upcoming_tasks.length] Aufträge"
-
-**Haus-Übersicht:**
-"📊 Übersicht für [Hausname]:
-
-👥 AKTUELL EINGECHECKT:
-[falls current_booking existiert:]
-• Gast: [guest_name]
-• Check-in: [check_in_datum]
-• Check-out: [check_out_datum] (noch X Tage)
-• Anzahl Gäste: [number_of_guests]
-• Buchungsbetrag: [booking_amount] EUR
-[sonst:]
-✅ Aktuell frei
-
-📅 NÄCHSTE BUCHUNG:
-[falls next_booking existiert:]
-• Gast: [guest_name]
-• Check-in: [check_in_datum] (in X Tagen)
-• Check-out: [check_out_datum]
-• Anzahl Gäste: [number_of_guests]
-• Buchungsbetrag: [booking_amount] EUR
-[sonst:]
-Keine kommenden Buchungen
-
-📈 STATISTIK:
-• Gesamt Buchungen: [total]
-• Aktuelle: [current]
-• Kommende: [upcoming]
-• Vergangene: [past]"
-
-TOOLS - KRITISCHE REGELN:
-1. Bei "reinigung von [Gastname]" → IMMER search_cleaning_tasks mit guest_name Parameter!
-2. Bei "reinigung von [Reinigungskraft]" / "Amelas Reinigungen" → search_cleaning_tasks mit staff_name Parameter!
-3. Bei "unbezahlte Reinigungen" / "offene Zahlungen" → search_cleaning_tasks mit payment_status="unpaid"!
-4. Bei nur einem Namen → ERST search_bookings, DANN bei Bedarf search_cleaning_tasks
-5. Bei "haus" / "chalet" → search_houses
-6. Bei "gast" / "gäste" → search_guests
-7. Bei "wäsche" / "linen" → get_linen_overview
-8. Bei "müssen wir wäsche bestellen" / "offene bestellungen" / "zu bestätigen" → search_linen_orders mit status="offen"
-9. Bei "wäschebestellungen prüfen" / "bestellstatus" → search_linen_orders ohne Status-Filter
-10. Bei "statistik" / "übersicht" → get_dashboard_stats
-11. Bei "kalender" / "termine" → get_calendar_events
-12. Bei UUID → entsprechendes get_*_details Tool
-13. Bei "familien" / "buchungen mit kindern" / "kinder dabei" → search_bookings mit has_children=true
-14. Bei "offene anfragen" / "buchungsanfragen" → search_booking_inquiries
-15. Bei "erstelle reinigung für alle" / "bulk reinigung" → create_bulk_cleaning_tasks
-
-📋 BEISPIELE FÜR TOOL-CALLS:
-
-Beispiel 1:
-User: "Zeige mir die Reinigung von Lukas"
-✅ Tool: search_cleaning_tasks({"guest_name": "Lukas"})
-✅ Zeigt: Alle Reinigungsaufträge für Buchungen von Gästen mit "Lukas" im Namen
-
-Beispiel 2:
-User: "Zeige mir die Buchung von Lukas Frankenhauser"
-✅ Tool: search_bookings({"guest_name": "Lukas Frankenhauser"})
-✅ Zeigt: Buchungsdetails mit Status (auch wenn storniert!)
-
-Beispiel 3:
-User: "Welche Reinigungen sind heute geplant?"
-✅ Tool: search_cleaning_tasks({"status": "scheduled", "date_from": "${currentDate}", "date_to": "${currentDate}"})
-
-Beispiel 4:
-User: "Zeige mir alle Gäste aus Deutschland"
-✅ Tool: search_guests({"nationality": "Deutschland"})
-
-Beispiel 5:
-User: "Wie ist der Wäschestatus?"
-✅ Tool: get_linen_overview()
-
-Beispiel 6:
-User: "Was passiert nächste Woche?"
-✅ Tool: get_calendar_events({"date_from": "[nächster Montag]", "date_to": "[nächster Sonntag]"})
-
-Beispiel 7:
-User: "Welche Buchungen wurden heute geändert?"
-✅ Tool: search_bookings({"updated_from": "${currentDate}T00:00:00Z", "updated_to": "${currentDate}T23:59:59Z"})
-
-Beispiel 8 (Familien-Buchungen - KRITISCH!):
-User: "Zeige mir alle Familien" / "Welche Buchungen haben Kinder?"
-✅ Tool: search_bookings({"has_children": true})
-✅ Zeigt: Alle Buchungen mit Kindern (number_of_children > 0) mit Familien-Hinweis
-
-Beispiel 9 (Familien in bestimmtem Zeitraum - KRITISCH!):
-User: "Gibt es nächste Woche Familien?" / "Familien im Dezember"
-✅ Tool: search_bookings({"has_children": true, "date_from": "[Startdatum]", "date_to": "[Enddatum]"})
-
-Beispiel 10 (Wer kommt/geht morgen):
-User: "Wer kommt morgen?"
-✅ Tool: search_bookings({"check_in_date": "${tomorrowDate}"})
-
-User: "Wer checkt morgen aus?"
-✅ Tool: search_bookings({"check_out_date": "${tomorrowDate}"})
-
-Beispiel 11 (Buchungsanfragen - NEU!):
-User: "Gibt es offene Buchungsanfragen?"
-✅ Tool: search_booking_inquiries({"status": "pending"})
-
-Beispiel 12 (Bulk-Reinigung - NEU!):
-User: "Erstelle Reinigung für alle morgigen Abreisen"
-✅ Tool: create_bulk_cleaning_tasks({"for_date": "${tomorrowDate}", "trigger": "checkout"})
-
-HEUTE ist: ${currentDate}
-ZEITZONE: Europe/Berlin (UTC+2 Sommerzeit, UTC+1 Winterzeit)
-
-WICHTIG für Datumsberechnungen:
-- Wenn der User "heute", "gestern", "diese Woche" sagt, meint er IMMER deutsche Zeit (Europe/Berlin)
-- Konvertiere relative Zeitangaben IMMER in UTC für Datenbankabfragen
-- Berücksichtige die Zeitverschiebung: Im Oktober (Sommerzeit) ist Berlin UTC+2
-
-WICHTIG - Wäschebestellungen:
-- "Was brauche ich für [Buchung]?" → generate_booking_linen_order
-- "Wieviel Wäsche für Dr. Mirtschink?" → 
-  1. ERST search_bookings (Buchungs-ID finden)
-  2. DANN generate_booking_linen_order mit booking_id
-
-- "Wie ist mein Buffer?" / "Buffer-Status?" → get_house_linen_status
-  → Zeige buffer_status aus Optimierungsergebnis falls vorhanden
-
-ANTWORT-FORMAT für Buchungs-Bestellungen:
-"🧺 Wäschebestellung für [Gast] ([X] Personen):
-
-📦 BESTELLUNG:
-• [X]x Bettwäsche (je [Preis] EUR)
-• [X]x Große Handtücher (je [Preis] EUR)
-• [X]x Kleine Handtücher (je [Preis] EUR)
-...
-
-💶 KOSTEN:
-Gesamt: [X] EUR
-
-💡 HINWEIS:
-Dies ist nur für diese Buchung berechnet.
-Dein Safety Buffer im Inventar bleibt unberührt und muss separat verwaltet werden."
-
-Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
+"Ich habe [X] Buchung(en) gefunden:
+• Gast: [Name]
+• Check-in: [Datum]
+• Check-out: [Datum]
+• Gäste: [Anzahl] 
+• Status: [Status]
+• Haus: [Hausname]"
+
+Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
 
     // Define available tools
     const tools = [
-      // ==================== BOOKING INQUIRIES (NEU!) ====================
+      // Booking Inquiries
       {
         type: "function",
         function: {
           name: "search_booking_inquiries",
-          description: "Sucht offene Buchungsanfragen von der Steinbock Chalets Buchungsapp",
+          description: "Sucht Buchungsanfragen. Für 'offene Anfragen' oder 'gibt es Anfragen' nutze status='pending'",
           parameters: {
             type: "object",
             properties: {
-              status: { 
-                type: "string", 
-                enum: ["pending", "accepted", "rejected"],
-                description: "Status der Anfrage (default: pending)" 
-              },
+              status: { type: "string", enum: ["pending", "confirmed", "rejected"], description: "Status der Anfrage. Für offene Anfragen: 'pending'" },
               house_id: { type: "string", description: "UUID des Hauses" },
-              date_from: { type: "string", description: "Check-in ab diesem Datum (ISO 8601)" },
-              date_to: { type: "string", description: "Check-in bis zu diesem Datum (ISO 8601)" },
-              guest_name: { type: "string", description: "Name des Gastes (Teilstring-Suche)" }
+              guest_name: { type: "string", description: "Name des Gastes" }
             }
           }
         }
@@ -665,11 +921,11 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         type: "function",
         function: {
           name: "accept_booking_inquiry",
-          description: "Bestätigt eine Buchungsanfrage und erstellt daraus eine Buchung + Reinigungsauftrag. WICHTIG: Frage immer nach Bestätigung!",
+          description: "Bestätigt eine Buchungsanfrage und erstellt Buchung + Reinigung",
           parameters: {
             type: "object",
             properties: {
-              inquiry_id: { type: "string", description: "UUID der Buchungsanfrage" }
+              inquiry_id: { type: "string", description: "UUID der Anfrage" }
             },
             required: ["inquiry_id"]
           }
@@ -679,4 +935,281 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tools aufrufen, DANN antworten!`;
         type: "function",
         function: {
           name: "reject_booking_inquiry",
-          description: "Lehnt eine Buchungs
+          description: "Lehnt eine Buchungsanfrage ab",
+          parameters: {
+            type: "object",
+            properties: {
+              inquiry_id: { type: "string", description: "UUID der Anfrage" },
+              reason: { type: "string", description: "Ablehnungsgrund" }
+            },
+            required: ["inquiry_id"]
+          }
+        }
+      },
+      // Bulk Actions
+      {
+        type: "function",
+        function: {
+          name: "create_bulk_cleaning_tasks",
+          description: "Erstellt Reinigungsaufträge für alle Buchungen an einem Datum. Für 'morgige Abreisen' nutze for_date='tomorrow' und trigger='checkout'",
+          parameters: {
+            type: "object",
+            properties: {
+              for_date: { type: "string", description: "Datum: 'today', 'tomorrow' oder ISO-Datum" },
+              trigger: { type: "string", enum: ["checkout", "checkin"], description: "checkout=Abreisen, checkin=Ankünfte" },
+              house_id: { type: "string", description: "Optional: nur für dieses Haus" }
+            },
+            required: ["for_date", "trigger"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "create_bulk_linen_orders",
+          description: "Erstellt Wäschebestellungen für alle Buchungen in einem Zeitraum",
+          parameters: {
+            type: "object",
+            properties: {
+              date_from: { type: "string", description: "Start-Datum (ISO)" },
+              date_to: { type: "string", description: "End-Datum (ISO)" },
+              house_id: { type: "string", description: "Optional: nur für dieses Haus" }
+            },
+            required: ["date_from", "date_to"]
+          }
+        }
+      },
+      // Core Search Tools
+      {
+        type: "function",
+        function: {
+          name: "search_bookings",
+          description: "Sucht Buchungen. WICHTIG: Bei 'Familien' oder 'mit Kindern' IMMER has_children=true setzen!",
+          parameters: {
+            type: "object",
+            properties: {
+              guest_name: { type: "string", description: "Name des Gastes" },
+              status: { type: "string", enum: ["confirmed", "cancelled", "completed"], description: "Buchungsstatus" },
+              house_id: { type: "string", description: "UUID des Hauses" },
+              has_children: { type: "boolean", description: "NUR Familien mit Kindern (number_of_children > 0)" },
+              date_from: { type: "string", description: "Check-in ab Datum (ISO)" },
+              date_to: { type: "string", description: "Check-in bis Datum (ISO)" },
+              check_in_date: { type: "string", description: "Exakter Check-in Tag (ISO)" },
+              check_out_date: { type: "string", description: "Exakter Check-out Tag (ISO)" },
+              upcoming_only: { type: "boolean", description: "Nur zukünftige Buchungen" },
+              exclude_cancelled: { type: "boolean", description: "Stornierte ausschließen (default: true)" },
+              limit: { type: "number", description: "Max Ergebnisse" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_cleaning_tasks",
+          description: "Sucht Reinigungsaufträge",
+          parameters: {
+            type: "object",
+            properties: {
+              status: { type: "string", enum: ["scheduled", "in_progress", "completed", "cancelled"] },
+              house_id: { type: "string" },
+              date_from: { type: "string" },
+              date_to: { type: "string" },
+              guest_name: { type: "string" },
+              staff_name: { type: "string" },
+              payment_status: { type: "string", enum: ["paid", "unpaid", "pending"] }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_houses",
+          description: "Sucht Häuser/Chalets",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "Hausname" },
+              address: { type: "string", description: "Adresse" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_guests",
+          description: "Sucht Gäste",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              email: { type: "string" },
+              nationality: { type: "string" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_dashboard_stats",
+          description: "Holt Dashboard-Statistiken (Häuser, Buchungen, Aufgaben, Umsatz)",
+          parameters: { type: "object", properties: {} }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_linen_overview",
+          description: "Holt Wäsche-Übersicht aller Häuser",
+          parameters: { type: "object", properties: {} }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "search_linen_orders",
+          description: "Sucht Wäschebestellungen",
+          parameters: {
+            type: "object",
+            properties: {
+              status: { type: "string", enum: ["offen", "bestätigt", "geliefert", "storniert"] },
+              house_id: { type: "string" },
+              date_from: { type: "string" },
+              date_to: { type: "string" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_calendar_events",
+          description: "Holt Kalender-Events (Check-ins, Check-outs, Reinigungen)",
+          parameters: {
+            type: "object",
+            properties: {
+              date_from: { type: "string" },
+              date_to: { type: "string" }
+            }
+          }
+        }
+      }
+    ];
+
+    // Build messages for API
+    const apiMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.map((m: any) => ({ role: m.role, content: m.content }))
+    ];
+
+    // Tool-calling loop
+    let iteration = 0;
+    const maxIterations = 5;
+    let toolResults: any[] = [];
+    
+    while (iteration < maxIterations) {
+      iteration++;
+      console.log(`Tool-calling iteration ${iteration}`);
+      
+      // Call AI
+      const response = await fetch('https://api.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: apiMessages,
+          tools,
+          tool_choice: iteration === 1 ? 'required' : 'auto'
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('AI API error:', errorText);
+        throw new Error(`AI API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const assistantMessage = data.choices[0].message;
+      
+      console.log('AI response:', { 
+        finish_reason: data.choices[0].finish_reason,
+        has_tool_calls: !!assistantMessage.tool_calls,
+        tool_count: assistantMessage.tool_calls?.length || 0
+      });
+
+      // If no tool calls, we're done
+      if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
+        if (iteration === 1) {
+          // Force tool usage on first iteration
+          console.log('AI tried to answer without tool call in first iteration - forcing tool usage');
+          apiMessages.push({
+            role: 'user',
+            content: 'Du MUSST ein Tool verwenden um diese Frage zu beantworten. Bitte rufe das passende Tool auf.'
+          });
+          continue;
+        }
+        
+        // Return final response
+        console.log('No more tool calls, preparing final response');
+        const finalContent = assistantMessage.content || 'Ich konnte keine passende Antwort generieren.';
+        console.log('Final response received:', { textLength: finalContent.length });
+        
+        return new Response(
+          JSON.stringify({ response: finalContent, toolResults }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Process tool calls
+      apiMessages.push(assistantMessage);
+      
+      console.log('Processing tool calls:', assistantMessage.tool_calls.map((t: any) => t.function.name));
+      
+      for (const toolCall of assistantMessage.tool_calls) {
+        const toolName = toolCall.function.name;
+        const args = JSON.parse(toolCall.function.arguments || '{}');
+        
+        console.log(`Executing tool: ${toolName}`, args);
+        
+        const result = await executeTool(toolName, args);
+        
+        console.log(`Tool result for ${toolName}:`, { 
+          success: result.success, 
+          dataCount: result.data?.length || result.count || 0,
+          error: result.error
+        });
+        
+        toolResults.push({ tool: toolName, args, result });
+        
+        apiMessages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: JSON.stringify(result)
+        });
+      }
+    }
+
+    // Max iterations reached
+    return new Response(
+      JSON.stringify({ 
+        response: 'Die Anfrage konnte nicht vollständig bearbeitet werden. Bitte versuche es erneut.',
+        toolResults 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Chat assistant error:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
