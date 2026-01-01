@@ -9,11 +9,19 @@ interface TimeRangeTabsProps {
 export function TimeRangeTabs({ value, onChange }: TimeRangeTabsProps) {
   return (
     <Tabs value={value} onValueChange={(v) => onChange(v as TimeRange)}>
-      <TabsList className="grid w-full grid-cols-4">
-        <TabsTrigger value="this_week">Diese Woche</TabsTrigger>
-        <TabsTrigger value="next_week">Nächste Woche</TabsTrigger>
-        <TabsTrigger value="month">Dieser Monat</TabsTrigger>
-        <TabsTrigger value="year">Dieses Jahr</TabsTrigger>
+      <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto sm:h-10 gap-1">
+        <TabsTrigger value="this_week" className="text-xs sm:text-sm py-2 sm:py-1.5">
+          Diese Woche
+        </TabsTrigger>
+        <TabsTrigger value="next_week" className="text-xs sm:text-sm py-2 sm:py-1.5">
+          Nächste Woche
+        </TabsTrigger>
+        <TabsTrigger value="month" className="text-xs sm:text-sm py-2 sm:py-1.5">
+          Dieser Monat
+        </TabsTrigger>
+        <TabsTrigger value="year" className="text-xs sm:text-sm py-2 sm:py-1.5">
+          Dieses Jahr
+        </TabsTrigger>
       </TabsList>
     </Tabs>
   );
