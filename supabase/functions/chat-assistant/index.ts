@@ -834,31 +834,81 @@ Morgen: ${tomorrowDate}
 Du MUSST für JEDE Anfrage ein Tool verwenden! 
 Du darfst NIEMALS direkt antworten ohne Tool-Call!
 
-🔍 TOOL-AUSWAHL:
+🔍 TOOL-AUSWAHL MIT SYNONYMEN:
 
-📥 BUCHUNGSANFRAGEN:
-- "anfragen" / "offene anfragen" / "buchungsanfragen" / "gibt es anfragen" → search_booking_inquiries mit status="pending"
+📥 BUCHUNGSANFRAGEN (search_booking_inquiries):
+Trigger: anfragen, anfrage, buchungsanfragen, reservierungsanfragen, neue anfragen, offene anfragen, 
+gibt es anfragen, haben wir anfragen, requests, pending, unbearbeitet, warten auf bestätigung,
+was liegt an, gibt's was neues, neue reservierungen
+- "anfragen" / "offene anfragen" → search_booking_inquiries mit status="pending"
 - "anfrage annehmen" / "bestätigen" + Name/ID → accept_booking_inquiry
 - "anfrage ablehnen" / "stornieren" + Name/ID → reject_booking_inquiry
 
-🔄 BULK-AKTIONEN:
-- "erstelle reinigung für alle" / "morgige abreisen" / "check-outs heute" → create_bulk_cleaning_tasks
-  Beispiel: "Erstelle Reinigung für alle morgigen Abreisen" → create_bulk_cleaning_tasks({ for_date: "tomorrow", trigger: "checkout" })
+🔄 BULK-AKTIONEN (create_bulk_cleaning_tasks / create_bulk_linen_orders):
+Trigger: alle reinigungen erstellen, für alle, bulk, massenbearbeitung, alle abreisen, 
+alle check-outs, gesammelt, sammeln, komplett
+- "erstelle reinigung für alle" / "morgige abreisen" → create_bulk_cleaning_tasks
 - "wäsche für alle buchungen" → create_bulk_linen_orders
 
-📅 BUCHUNGEN:
-- "buchung" / Gastname → search_bookings
-- "familien" / "mit kindern" → search_bookings mit has_children=true (WICHTIG!)
+📅 BUCHUNGEN (search_bookings):
+Trigger: buchung, buchungen, reservierung, reservierungen, gäste, besucher, wer kommt, 
+wer reist an, anreisen, abreisen, check-in, check-out, checkin, checkout, einchecken, 
+auschecken, übernachtung, aufenthalt, belegung, auslastung, wer ist da, wer wohnt,
+aktuell, derzeit, momentan, diese woche, nächste woche, am wochenende
+- "familien" / "mit kindern" / "kinder" / "kids" → search_bookings mit has_children=true
 - "wer kommt morgen" → search_bookings mit check_in_date="${tomorrowDate}"
 - "wer checkt morgen aus" → search_bookings mit check_out_date="${tomorrowDate}"
 - "kommende buchungen" → search_bookings mit upcoming_only=true
 
-🧹 REINIGUNG: "reinigung" / "putzen" → search_cleaning_tasks
-🏠 HÄUSER: "haus" / "chalet" → search_houses
-👥 GÄSTE: "gast" / "gäste" → search_guests
-🧺 WÄSCHE: "wäsche" / "linen" → get_linen_overview oder search_linen_orders
-📊 STATISTIKEN: "übersicht" / "dashboard" → get_dashboard_stats
-📅 KALENDER: "kalender" / "termine" → get_calendar_events
+🧹 REINIGUNG (search_cleaning_tasks):
+Trigger: reinigung, reinigungen, putzen, sauber machen, cleaning, putzplan, reinigungsplan, 
+wer putzt, was muss geputzt werden, housekeeping, zimmerservice, endreinigung, zwischenreinigung,
+sauberkeit, aufräumen, heute putzen, morgen putzen
+
+🏠 HÄUSER (search_houses):
+Trigger: haus, häuser, objekt, objekte, ferienhaus, ferienhäuser, chalet, chalets, 
+unterkunft, unterkünfte, immobilie, property, properties, wohnung, apartment, ferienwohnung,
+welche objekte, unsere häuser, alle häuser
+
+👥 GÄSTE (search_guests):
+Trigger: gast, gäste, kunde, kunden, besucher, mieter, gäste-liste, kontakt, kontakte, 
+stammdaten, gästeprofil, guest, guests, wer hat gebucht, stammkunden, wiederkehrende
+
+🧺 WÄSCHE (get_linen_overview / search_linen_orders):
+Trigger: wäsche, wäschebestellung, linen, handtücher, bettwäsche, textilien, bestellung, 
+wäschestatus, wäschebestand, inventory, was brauchen wir, was fehlt, nachbestellen,
+bestand, lager, vorrat, handtuch, bettzeug, lakens
+
+📊 STATISTIKEN (get_dashboard_stats):
+Trigger: übersicht, dashboard, statistik, statistiken, stats, kennzahlen, auswertung, 
+zusammenfassung, report, bericht, wie läuft es, wie ist der stand, status, zahlen,
+wie läuft der laden, alles klar, performance, leistung
+
+📅 KALENDER (get_calendar_events):
+Trigger: kalender, termine, terminplan, schedule, was steht an, nächste tage, diese woche, 
+events, veranstaltungen, planung, zeitplan, agenda, anstehend
+
+💬 NATÜRLICHSPRACHLICHE BEISPIELE:
+"Haben wir was neues?" → search_booking_inquiries
+"Gibt's Anfragen?" → search_booking_inquiries  
+"Was liegt an?" → get_dashboard_stats oder search_booking_inquiries
+"Wer ist gerade da?" → search_bookings mit aktuellem Datum
+"Was muss heute geputzt werden?" → search_cleaning_tasks mit scheduled_date=heute
+"Wie läuft der Laden?" → get_dashboard_stats
+"Zeig mir alle Chalets" → search_houses
+"Brauchen wir Handtücher?" → get_linen_overview
+
+🗣️ UMGANGSSPRACHE VERSTEHEN:
+Verkürzte Formen bearbeiten:
+- "Buchungen?" → search_bookings
+- "Reinigungen heute?" → search_cleaning_tasks mit heute
+- "Wäsche Status?" → get_linen_overview
+- "Morgen Anreisen?" → search_bookings mit check_in_date=morgen
+
+Höflichkeitsfloskeln ignorieren und direkt handeln:
+- "Könntest du mal..." → Aktion ausführen
+- "Wäre es möglich..." → Aktion ausführen
+- "Ich bräuchte..." → entsprechendes Tool
 
 💡 KRITISCHE FILTER-KOMBINATIONEN:
 Beispiel: "Haben wir nächste Woche Buchungen mit Kindern?"
