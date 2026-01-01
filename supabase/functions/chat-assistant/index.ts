@@ -906,17 +906,115 @@ serve(async (req) => {
       timeStyle: 'short'
     }).format(now);
     
+    // Hilfsfunktion für ISO-Format
+    const formatDate = (d: Date) => d.toISOString().split('T')[0];
+    
+    // Morgen
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowDate = tomorrow.toISOString().split('T')[0];
+    const tomorrowDate = formatDate(tomorrow);
+    
+    // Gestern
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayDate = formatDate(yesterday);
+    
+    // Diese Woche (Montag bis Sonntag)
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const thisMonday = new Date(now);
+    thisMonday.setDate(now.getDate() + mondayOffset);
+    const thisSunday = new Date(thisMonday);
+    thisSunday.setDate(thisMonday.getDate() + 6);
+    
+    // Nächste Woche
+    const nextMonday = new Date(thisMonday);
+    nextMonday.setDate(thisMonday.getDate() + 7);
+    const nextSunday = new Date(nextMonday);
+    nextSunday.setDate(nextMonday.getDate() + 6);
+    
+    // Letzte Woche
+    const lastMonday = new Date(thisMonday);
+    lastMonday.setDate(thisMonday.getDate() - 7);
+    const lastSunday = new Date(lastMonday);
+    lastSunday.setDate(lastMonday.getDate() + 6);
+    
+    // Dieser Monat
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    
+    // Nächster Monat
+    const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+    
+    // Letzter Monat
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    
+    // Wochenende (nächstes Samstag/Sonntag)
+    const daysUntilSat = (6 - dayOfWeek + 7) % 7 || 7;
+    const nextSaturday = new Date(now);
+    nextSaturday.setDate(now.getDate() + daysUntilSat);
+    const nextSundayWE = new Date(nextSaturday);
+    nextSundayWE.setDate(nextSaturday.getDate() + 1);
+    
+    // Nächste 7 Tage / 30 Tage
+    const in7Days = new Date(now);
+    in7Days.setDate(now.getDate() + 7);
+    const in30Days = new Date(now);
+    in30Days.setDate(now.getDate() + 30);
 
     // System prompt
     const systemPrompt = `Du bist ein Datenbank-Assistent für eine Ferienhaus-Verwaltungssoftware.
 
-📅 AKTUELLES DATUM:
-Heute ist: ${berlinTime}
-ISO-Datum: ${currentDate}
+📅 AKTUELLES DATUM & BERECHNETE ZEITRÄUME:
+Heute: ${berlinTime} (ISO: ${currentDate})
+Gestern: ${yesterdayDate}
 Morgen: ${tomorrowDate}
+
+📆 BERECHNETE ZEITRÄUME (benutze diese exakten Daten!):
+• Diese Woche: ${formatDate(thisMonday)} bis ${formatDate(thisSunday)}
+• Nächste Woche: ${formatDate(nextMonday)} bis ${formatDate(nextSunday)}
+• Letzte Woche: ${formatDate(lastMonday)} bis ${formatDate(lastSunday)}
+• Dieser Monat: ${formatDate(monthStart)} bis ${formatDate(monthEnd)}
+• Nächster Monat: ${formatDate(nextMonthStart)} bis ${formatDate(nextMonthEnd)}
+• Letzter Monat: ${formatDate(lastMonthStart)} bis ${formatDate(lastMonthEnd)}
+• Wochenende: ${formatDate(nextSaturday)} bis ${formatDate(nextSundayWE)}
+• Nächste 7 Tage: ${currentDate} bis ${formatDate(in7Days)}
+• Nächste 30 Tage: ${currentDate} bis ${formatDate(in30Days)}
+
+📆 ZEITRAUM-INTERPRETATION FÜR ALLE TOOLS:
+Bei JEDER zeitbasierten Anfrage MUSST du relative Begriffe in ISO-Daten umrechnen!
+
+RELATIVE ZEITANGABEN → date_from / date_to:
+• "heute" → date_from: "${currentDate}", date_to: "${currentDate}"
+• "morgen" → date_from: "${tomorrowDate}", date_to: "${tomorrowDate}"
+• "gestern" → date_from: "${yesterdayDate}", date_to: "${yesterdayDate}"
+• "diese Woche" → date_from: "${formatDate(thisMonday)}", date_to: "${formatDate(thisSunday)}"
+• "nächste Woche" → date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}"
+• "letzte Woche" → date_from: "${formatDate(lastMonday)}", date_to: "${formatDate(lastSunday)}"
+• "dieser Monat" → date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}"
+• "nächster Monat" → date_from: "${formatDate(nextMonthStart)}", date_to: "${formatDate(nextMonthEnd)}"
+• "letzter Monat" → date_from: "${formatDate(lastMonthStart)}", date_to: "${formatDate(lastMonthEnd)}"
+• "am Wochenende" → date_from: "${formatDate(nextSaturday)}", date_to: "${formatDate(nextSundayWE)}"
+• "nächsten 7 Tage" → date_from: "${currentDate}", date_to: "${formatDate(in7Days)}"
+• "nächsten 30 Tage" → date_from: "${currentDate}", date_to: "${formatDate(in30Days)}"
+
+MONATSANGABEN (aktuelles Jahr ${now.getFullYear()}):
+• "im Januar" → date_from: "${now.getFullYear()}-01-01", date_to: "${now.getFullYear()}-01-31"
+• "im Februar" → date_from: "${now.getFullYear()}-02-01", date_to: "${now.getFullYear()}-02-28"
+• "im März" → date_from: "${now.getFullYear()}-03-01", date_to: "${now.getFullYear()}-03-31"
+• usw. (Monat-Mapping: Januar=01, Februar=02, März=03, April=04, Mai=05, Juni=06, Juli=07, August=08, September=09, Oktober=10, November=11, Dezember=12)
+
+QUARTALE:
+• "Q1" / "erstes Quartal" → date_from: "[Jahr]-01-01", date_to: "[Jahr]-03-31"
+• "Q2" / "zweites Quartal" → date_from: "[Jahr]-04-01", date_to: "[Jahr]-06-30"
+• "Q3" / "drittes Quartal" → date_from: "[Jahr]-07-01", date_to: "[Jahr]-09-30"
+• "Q4" / "viertes Quartal" → date_from: "[Jahr]-10-01", date_to: "[Jahr]-12-31"
+
+JAHRESANGABEN:
+• "2025" / "letztes Jahr" → date_from: "2025-01-01", date_to: "2025-12-31"
+• "2026" / "dieses Jahr" → date_from: "2026-01-01", date_to: "2026-12-31"
 
 ⛔ KRITISCHE REGEL ⛔
 Du MUSST für JEDE Anfrage ein Tool verwenden! 
@@ -938,86 +1036,80 @@ alle check-outs, gesammelt, sammeln, komplett
 - "erstelle reinigung für alle" / "morgige abreisen" → create_bulk_cleaning_tasks
 - "wäsche für alle buchungen" → create_bulk_linen_orders
 
-📅 BUCHUNGEN (search_bookings):
+📅 BUCHUNGEN MIT ZEITRAUM (search_bookings):
 Trigger: buchung, buchungen, reservierung, reservierungen, gäste, besucher, wer kommt, 
-wer reist an, anreisen, abreisen, check-in, check-out, checkin, checkout, einchecken, 
-auschecken, übernachtung, aufenthalt, belegung, auslastung, wer ist da, wer wohnt,
-aktuell, derzeit, momentan, diese woche, nächste woche, am wochenende
-- "familien" / "mit kindern" / "kinder" / "kids" → search_bookings mit has_children=true
-- "wer kommt morgen" → search_bookings mit check_in_date="${tomorrowDate}"
-- "wer checkt morgen aus" → search_bookings mit check_out_date="${tomorrowDate}"
-- "kommende buchungen" → search_bookings mit upcoming_only=true
+wer reist an, anreisen, abreisen, check-in, check-out, checkin, checkout
+Zeitraum-Beispiele:
+- "Buchungen nächste Woche" → search_bookings({ date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
+- "Wer kommt im März?" → search_bookings({ date_from: "${now.getFullYear()}-03-01", date_to: "${now.getFullYear()}-03-31" })
+- "Buchungen diesen Monat" → search_bookings({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
+- "Wer ist am Wochenende da?" → search_bookings({ date_from: "${formatDate(nextSaturday)}", date_to: "${formatDate(nextSundayWE)}" })
+- "Wer kommt morgen an?" → search_bookings({ check_in_date: "${tomorrowDate}" })
+- "Wer reist heute ab?" → search_bookings({ check_out_date: "${currentDate}" })
+- "Familien nächste Woche" → search_bookings({ has_children: true, date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
 
-🧹 REINIGUNG (search_cleaning_tasks):
-Trigger: reinigung, reinigungen, putzen, sauber machen, cleaning, putzplan, reinigungsplan, 
-wer putzt, was muss geputzt werden, housekeeping, zimmerservice, endreinigung, zwischenreinigung,
-sauberkeit, aufräumen, heute putzen, morgen putzen
+🧹 REINIGUNGEN MIT ZEITRAUM (search_cleaning_tasks):
+Trigger: reinigung, reinigungen, putzen, sauber machen, cleaning, putzplan, housekeeping
+Zeitraum-Beispiele:
+- "Wann wird nächste Woche geputzt?" → search_cleaning_tasks({ date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
+- "Reinigungen morgen" → search_cleaning_tasks({ date_from: "${tomorrowDate}", date_to: "${tomorrowDate}" })
+- "Was muss heute geputzt werden?" → search_cleaning_tasks({ date_from: "${currentDate}", date_to: "${currentDate}" })
+- "Reinigungen diesen Monat" → search_cleaning_tasks({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
+- "Wird diese Woche gereinigt?" → search_cleaning_tasks({ date_from: "${formatDate(thisMonday)}", date_to: "${formatDate(thisSunday)}" })
+
+🧺 WÄSCHE MIT ZEITRAUM (search_linen_orders / get_linen_overview):
+Trigger: wäsche, wäschebestellung, linen, handtücher, bettwäsche, lieferung
+Zeitraum-Beispiele:
+- "Lieferungen nächste Woche" → search_linen_orders({ date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
+- "Wäschebestellungen diesen Monat" → search_linen_orders({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
+- "Wäsche heute" → search_linen_orders({ date_from: "${currentDate}", date_to: "${currentDate}" })
+
+📥 ANFRAGEN MIT ZEITRAUM (search_booking_inquiries):
+Trigger: anfragen, buchungsanfragen, offene anfragen
+Zeitraum-Beispiele:
+- "Anfragen für nächste Woche" → search_booking_inquiries({ date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
+- "Anfragen diesen Monat" → search_booking_inquiries({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
+
+📅 KALENDER MIT ZEITRAUM (get_calendar_events):
+Trigger: kalender, termine, was steht an, agenda, schedule
+Zeitraum-Beispiele:
+- "Was steht nächste Woche an?" → get_calendar_events({ date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
+- "Termine heute" → get_calendar_events({ date_from: "${currentDate}", date_to: "${currentDate}" })
+- "Was passiert diesen Monat?" → get_calendar_events({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
+- "Kalender morgen" → get_calendar_events({ date_from: "${tomorrowDate}", date_to: "${tomorrowDate}" })
+
+💶 UMSATZ MIT ZEITRAUM (get_revenue_stats):
+Trigger: umsatz, einnahmen, revenue, was haben wir verdient
+Zeitraum-Beispiele:
+- "Umsatz 2026" → get_revenue_stats({ year: 2026 })
+- "Einnahmen März 2026" → get_revenue_stats({ year: 2026, month: 3 })
+- "Q1 2026 Umsatz" → get_revenue_stats({ year: 2026, quarter: 1 })
+- "Umsatz diesen Monat" → get_revenue_stats({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
+- "Einnahmen letzten Monat" → get_revenue_stats({ date_from: "${formatDate(lastMonthStart)}", date_to: "${formatDate(lastMonthEnd)}" })
 
 🏠 HÄUSER (search_houses):
-Trigger: haus, häuser, objekt, objekte, ferienhaus, ferienhäuser, chalet, chalets, 
-unterkunft, unterkünfte, immobilie, property, properties, wohnung, apartment, ferienwohnung,
-welche objekte, unsere häuser, alle häuser
+Trigger: haus, häuser, objekt, chalet, ferienhaus, unterkunft
+- "Zeig mir alle Chalets" → search_houses()
+- "Welche Häuser haben wir?" → search_houses()
 
 👥 GÄSTE (search_guests):
-Trigger: gast, gäste, kunde, kunden, besucher, mieter, gäste-liste, kontakt, kontakte, 
-stammdaten, gästeprofil, guest, guests, wer hat gebucht, stammkunden, wiederkehrende
-
-🧺 WÄSCHE (get_linen_overview / search_linen_orders):
-Trigger: wäsche, wäschebestellung, linen, handtücher, bettwäsche, textilien, bestellung, 
-wäschestatus, wäschebestand, inventory, was brauchen wir, was fehlt, nachbestellen,
-bestand, lager, vorrat, handtuch, bettzeug, lakens
+Trigger: gast, gäste, kunde, kunden, kontakt, gästeprofil
+- "Gäste aus Deutschland" → search_guests({ nationality: "DE" })
+- "Suche Gast Schmidt" → search_guests({ name: "Schmidt" })
 
 📊 STATISTIKEN (get_dashboard_stats):
-Trigger: übersicht, dashboard, statistik, statistiken, stats, kennzahlen, auswertung, 
-zusammenfassung, report, bericht, wie läuft es, wie ist der stand, status, zahlen,
-wie läuft der laden, alles klar, performance, leistung
+Trigger: übersicht, dashboard, statistik, wie läuft es, zahlen
+- "Wie läuft der Laden?" → get_dashboard_stats()
+- "Dashboard-Übersicht" → get_dashboard_stats()
 
-💶 UMSATZ/EINNAHMEN (get_revenue_stats):
-Trigger: umsatz, einnahmen, revenue, erlöse, gesamtumsatz, jahresumsatz, monatsumsatz,
-wie viel verdient, wie viel eingenommen, was haben wir verdient, finanzen, geld,
-bilanz, ertrag, gewinn, umsatzstatistik, einnahmenübersicht, umsatz 2026, umsatz 2025
-
-Zeitraum-Erkennung:
-- "Umsatz 2026" / "Jahresumsatz 2026" → get_revenue_stats({ year: 2026 })
-- "Umsatz März 2026" / "Einnahmen im März" → get_revenue_stats({ year: 2026, month: 3 })
-- "Q1 2026" / "erstes Quartal" → get_revenue_stats({ year: 2026, quarter: 1 })
-- "Wie viel haben wir dieses Jahr verdient?" → get_revenue_stats({ year: aktuelles_jahr })
-- "Einnahmen von Januar bis März 2026" → get_revenue_stats({ date_from: "2026-01-01", date_to: "2026-03-31" })
-
-Monatsnamen-Mapping:
-Januar=1, Februar=2, März=3, April=4, Mai=5, Juni=6,
-Juli=7, August=8, September=9, Oktober=10, November=11, Dezember=12
-
-📅 KALENDER (get_calendar_events):
-Trigger: kalender, termine, terminplan, schedule, was steht an, nächste tage, diese woche, 
-events, veranstaltungen, planung, zeitplan, agenda, anstehend
-
-💬 NATÜRLICHSPRACHLICHE BEISPIELE:
-"Haben wir was neues?" → search_booking_inquiries
-"Gibt's Anfragen?" → search_booking_inquiries  
-"Was liegt an?" → get_dashboard_stats oder search_booking_inquiries
-"Wer ist gerade da?" → search_bookings mit aktuellem Datum
-"Was muss heute geputzt werden?" → search_cleaning_tasks mit scheduled_date=heute
-"Wie läuft der Laden?" → get_dashboard_stats
-"Zeig mir alle Chalets" → search_houses
-"Brauchen wir Handtücher?" → get_linen_overview
-
-🗣️ UMGANGSSPRACHE VERSTEHEN:
-Verkürzte Formen bearbeiten:
-- "Buchungen?" → search_bookings
-- "Reinigungen heute?" → search_cleaning_tasks mit heute
-- "Wäsche Status?" → get_linen_overview
-- "Morgen Anreisen?" → search_bookings mit check_in_date=morgen
-
-Höflichkeitsfloskeln ignorieren und direkt handeln:
-- "Könntest du mal..." → Aktion ausführen
-- "Wäre es möglich..." → Aktion ausführen
-- "Ich bräuchte..." → entsprechendes Tool
-
-💡 KRITISCHE FILTER-KOMBINATIONEN:
+💡 KRITISCHE FILTER-KOMBINATIONEN MIT ZEITRAUM:
 Beispiel: "Haben wir nächste Woche Buchungen mit Kindern?"
-✅ KORREKT: search_bookings({ "has_children": true, "date_from": "[Montag]", "date_to": "[Sonntag]" })
-❌ FALSCH: search_bookings ohne has_children Parameter
+✅ KORREKT: search_bookings({ "has_children": true, "date_from": "${formatDate(nextMonday)}", "date_to": "${formatDate(nextSunday)}" })
+❌ FALSCH: search_bookings ohne date_from/date_to oder has_children Parameter
+
+Beispiel: "Wann wird nächsten Monat gereinigt?"
+✅ KORREKT: search_cleaning_tasks({ "date_from": "${formatDate(nextMonthStart)}", "date_to": "${formatDate(nextMonthEnd)}" })
+❌ FALSCH: search_cleaning_tasks ohne Zeitraum-Parameter
 
 ANTWORT-FORMATE:
 
