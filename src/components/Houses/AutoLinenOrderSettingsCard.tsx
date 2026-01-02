@@ -317,8 +317,8 @@ const AutoLinenOrderSettingsCard = () => {
           <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md border border-blue-200 dark:border-blue-800">
             <p className="text-sm text-blue-800 dark:text-blue-200">
               <strong>Wie funktioniert die Automatisierung?</strong><br />
-              Täglich um 6:00 Uhr prüft das System die nächsten <strong>{localLookaheadBookings} Buchungen</strong> pro Haus. 
-              Wenn keine Wäschebestellung existiert und der Check-in mindestens <strong>{localMinAdvanceDays} Tage</strong> entfernt ist, 
+              Täglich um 6:00 Uhr hält das System maximal <strong>{localLookaheadBookings} offene Bestellungen</strong> pro Haus vor. 
+              Wenn der Check-in mindestens <strong>{localMinAdvanceDays} Tage</strong> entfernt ist, 
               wird automatisch eine Bestellung mit Status "offen" erstellt. 
               Der Liefertermin wird auf <strong>{localDeliveryAdvanceDays} Tage vor Check-in</strong> gesetzt.
             </p>
