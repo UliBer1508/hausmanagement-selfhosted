@@ -96,9 +96,18 @@ serve(async (req) => {
           .order('check_in', { ascending: true })
           .limit(settings.lookahead_bookings);
           
-        // Add all as skipped with reason "max_reached"
+        // Add all as skipped - query existing order for each to get status
         for (const booking of bookingsForDetails || []) {
           const guestName = (booking as any).guests?.name || booking.guest_name;
+          
+          // Query existing order for this booking to get status
+          const { data: existingOrder } = await supabase
+            .from('linen_orders')
+            .select('id, status')
+            .eq('booking_id', booking.id)
+            .neq('status', 'cancelled')
+            .maybeSingle();
+          
           totalSkipped++;
           details.push({
             booking_id: booking.id,
@@ -106,7 +115,8 @@ serve(async (req) => {
             house: house.name,
             check_in: booking.check_in,
             action: 'skipped',
-            reason: 'max_reached',
+            reason: existingOrder ? 'order_exists' : 'max_reached',
+            existing_status: existingOrder?.status || null,
             current_open: currentOpenCount,
             max_allowed: settings.lookahead_bookings
           });
