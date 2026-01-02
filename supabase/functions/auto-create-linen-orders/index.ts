@@ -250,7 +250,8 @@ serve(async (req) => {
             house_id: house.id,
             booking_id: booking.id,
             items: orderData.order_items,
-            item_variants: orderData.item_variants, // NEU: Farbvarianten aus Regeln
+            item_variants: orderData.item_variants,
+            linen_color: orderData.linen_color || 'white_striped', // NEU: Haupt-Wäschefarbe aus Regeln
             total_items: orderData.total_items,
             status: 'offen',
             order_source: 'auto_booking_lookahead',

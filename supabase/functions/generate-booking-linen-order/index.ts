@@ -195,6 +195,15 @@ serve(async (req) => {
 
     console.log('🎨 Item variants (colors):', itemVariants);
 
+    // Bestimme die Haupt-Wäschefarbe aus der Bettwäsche-Regel
+    let linenColor = 'white_striped'; // Fallback
+    if (itemVariants.bedding) {
+      linenColor = itemVariants.bedding;
+    } else if (itemVariants.pillow_cases) {
+      linenColor = itemVariants.pillow_cases;
+    }
+    console.log('🎨 Main linen color:', linenColor);
+
     return new Response(JSON.stringify({
       success: true,
       booking: {
@@ -206,10 +215,11 @@ serve(async (req) => {
         house: booking.houses
       },
       order_items: orderItems,
-      item_variants: itemVariants, // NEU: Farbvarianten pro Artikel
+      item_variants: itemVariants,
+      linen_color: linenColor, // NEU: Haupt-Wäschefarbe für die Bestellung
       item_details: itemDetails,
       total_items: totalItems,
-      estimated_cost: Math.round(totalCost * 100) / 100, // Round to 2 decimals
+      estimated_cost: Math.round(totalCost * 100) / 100,
       currency: 'EUR',
       note: 'Bestellung NUR für diese Buchung - Safety Buffer im Inventar bleibt unberührt'
     }), {
