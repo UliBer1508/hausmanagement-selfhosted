@@ -51,7 +51,9 @@ const CreatePaymentDialog = ({ open, onOpenChange }: CreatePaymentDialogProps) =
               setValue('house_id', value);
               const house = longTermRentals.find(h => h.id === value);
               if (house?.tenant_info) {
-                setValue('amount', (house.tenant_info as any).monthly_rent || 0);
+                const kaltmiete = (house.tenant_info as any).monthly_rent || 0;
+                const nebenkosten = (house.tenant_info as any).additional_costs || 0;
+                setValue('amount', kaltmiete + nebenkosten); // Warmmiete
               }
             }}>
               <SelectTrigger>
@@ -76,8 +78,8 @@ const CreatePaymentDialog = ({ open, onOpenChange }: CreatePaymentDialogProps) =
           </div>
 
           <div>
-            <Label>Betrag (€)</Label>
-            <Input type="number" step="0.01" {...register('amount', { required: true })} />
+            <Label>Warmmiete (€)</Label>
+            <Input type="number" step="0.01" {...register('amount', { required: true, valueAsNumber: true })} />
           </div>
 
           <div>

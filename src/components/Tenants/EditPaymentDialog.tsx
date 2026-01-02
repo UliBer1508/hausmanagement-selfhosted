@@ -23,6 +23,7 @@ const EditPaymentDialog = ({ payment, open, onOpenChange }: EditPaymentDialogPro
 
   useEffect(() => {
     setValue('status', payment.status);
+    setValue('amount', payment.amount);
     setValue('payment_date', payment.payment_date || '');
     setValue('payment_method', payment.payment_method || '');
     setValue('reference_number', payment.reference_number || '');
@@ -59,6 +60,11 @@ const EditPaymentDialog = ({ payment, open, onOpenChange }: EditPaymentDialogPro
                 <SelectItem value="cancelled">Storniert</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <Label>Betrag (€)</Label>
+            <Input type="number" step="0.01" {...register('amount', { valueAsNumber: true })} />
           </div>
 
           <div>
