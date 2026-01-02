@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Save, Settings, Link2, AlertTriangle, Play, CheckCircle, Info, XCircle } from 'lucide-react';
+import { Loader2, Save, Settings, Link2, AlertTriangle, Play, CheckCircle, Info, Package } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
 import { useExternalArticleMapping } from '@/hooks/useExternalArticleMapping';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -400,7 +401,7 @@ const AutoLinenOrderSettingsCard = () => {
                     {lastCheckResult.details.filter(d => d.action === 'skipped').length > 0 && (
                       <div>
                         <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-2">
-                          <XCircle className="h-3 w-3" /> Übersprungen
+                          <Package className="h-3 w-3" /> Bestehende Bestellungen
                         </p>
                         <Table>
                           <TableHeader>
@@ -408,7 +409,7 @@ const AutoLinenOrderSettingsCard = () => {
                               <TableHead className="text-xs h-8">Gast</TableHead>
                               <TableHead className="text-xs h-8">Haus</TableHead>
                               <TableHead className="text-xs h-8">Check-in</TableHead>
-                              <TableHead className="text-xs h-8">Grund</TableHead>
+                              <TableHead className="text-xs h-8">Status</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -418,18 +419,25 @@ const AutoLinenOrderSettingsCard = () => {
                                 const date = new Date(dateStr);
                                 return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }).replace(/\.$/, '') + '.';
                               };
-                              const getReason = () => {
-                                if (d.reason === 'order_exists') return `Bestellung existiert${d.existing_status ? ` (${d.existing_status})` : ''}`;
-                                if (d.reason === 'too_close') return `Zu nah (${d.days_until}/${d.min_required} Tage)`;
-                                if (d.reason === 'max_reached') return `Maximum erreicht (${d.current_open}/${d.max_allowed})`;
-                                return d.reason || '-';
+                              const getStatusBadge = () => {
+                                const status = d.existing_status?.toLowerCase();
+                                if (status === 'delivered') {
+                                  return <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">Geliefert</Badge>;
+                                }
+                                if (status === 'pending') {
+                                  return <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs">Bestellt</Badge>;
+                                }
+                                if (status === 'offen') {
+                                  return <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs">Offen</Badge>;
+                                }
+                                return <Badge variant="secondary" className="text-xs">-</Badge>;
                               };
                               return (
                                 <TableRow key={`skipped-${i}`}>
                                   <TableCell className="py-2 text-xs">{d.guest}</TableCell>
                                   <TableCell className="py-2 text-xs">{d.house}</TableCell>
                                   <TableCell className="py-2 text-xs">{formatDate(d.check_in)}</TableCell>
-                                  <TableCell className="py-2 text-xs text-muted-foreground">{getReason()}</TableCell>
+                                  <TableCell className="py-2 text-xs">{getStatusBadge()}</TableCell>
                                 </TableRow>
                               );
                             })}
