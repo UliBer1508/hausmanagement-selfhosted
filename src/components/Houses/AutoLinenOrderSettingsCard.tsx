@@ -424,11 +424,17 @@ const AutoLinenOrderSettingsCard = () => {
                                 if (status === 'delivered') {
                                   return <Badge className="bg-green-500 hover:bg-green-600 text-white text-xs">Geliefert</Badge>;
                                 }
-                                if (status === 'pending') {
+                                if (status === 'ausstehend') {
+                                  return <Badge className="bg-purple-500 hover:bg-purple-600 text-white text-xs">Ausstehend</Badge>;
+                                }
+                                if (status === 'bestellt') {
                                   return <Badge className="bg-blue-500 hover:bg-blue-600 text-white text-xs">Bestellt</Badge>;
                                 }
                                 if (status === 'offen') {
                                   return <Badge className="bg-amber-500 hover:bg-amber-600 text-white text-xs">Offen</Badge>;
+                                }
+                                if (status === 'cancelled') {
+                                  return <Badge className="bg-red-500 hover:bg-red-600 text-white text-xs">Storniert</Badge>;
                                 }
                                 return <Badge variant="secondary" className="text-xs">-</Badge>;
                               };
