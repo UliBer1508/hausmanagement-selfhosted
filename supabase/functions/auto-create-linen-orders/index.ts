@@ -66,8 +66,29 @@ serve(async (req) => {
     for (const house of houses || []) {
       console.log(`\n🏠 Processing house: ${house.name}`);
 
-      // FIX: Load MORE bookings (e.g., 15) to find those without orders
-      // Previously we only loaded `lookahead_bookings` which caused the bug
+      // FIX: First count EXISTING open orders for this house
+      const { data: existingOpenOrders, error: openOrdersError } = await supabase
+        .from('linen_orders')
+        .select('id')
+        .eq('house_id', house.id)
+        .in('status', ['offen', 'pending']);
+
+      if (openOrdersError) {
+        console.error(`❌ Failed to count open orders for ${house.name}:`, openOrdersError);
+        continue;
+      }
+
+      const currentOpenCount = existingOpenOrders?.length || 0;
+      const slotsAvailable = Math.max(0, settings.lookahead_bookings - currentOpenCount);
+
+      console.log(`  📊 Offene Bestellungen: ${currentOpenCount}/${settings.lookahead_bookings}, Slots frei: ${slotsAvailable}`);
+
+      if (slotsAvailable === 0) {
+        console.log(`  ⏭️ Maximum erreicht - keine neuen Bestellungen nötig`);
+        continue;
+      }
+
+      // Load bookings to find those without orders
       const maxBookingsToCheck = 15;
       
       const { data: bookings, error: bookingsError } = await supabase
@@ -84,15 +105,15 @@ serve(async (req) => {
         continue;
       }
 
-      console.log(`  📅 Found ${bookings?.length || 0} upcoming bookings (checking up to ${maxBookingsToCheck})`);
+      console.log(`  📅 Found ${bookings?.length || 0} upcoming bookings`);
 
-      // FIX: Counter for NEW orders created per house
+      // Counter for NEW orders created per house
       let newOrdersCreatedForHouse = 0;
 
       for (const booking of bookings || []) {
-        // Stop if we've created enough new orders for this house
-        if (newOrdersCreatedForHouse >= settings.lookahead_bookings) {
-          console.log(`  ✅ Reached lookahead limit (${settings.lookahead_bookings} new orders), stopping for this house`);
+        // Stop if we've filled all available slots
+        if (newOrdersCreatedForHouse >= slotsAvailable) {
+          console.log(`  ✅ Alle ${slotsAvailable} freien Slots gefüllt`);
           break;
         }
 
@@ -223,7 +244,7 @@ serve(async (req) => {
             delivery_date: deliveryDateStr,
             items_count: orderData.total_items
           });
-          console.log(`  ✅ Created order with status "offen" (${newOrdersCreatedForHouse}/${settings.lookahead_bookings} for this house)`);
+          console.log(`  ✅ Created order with status "offen" (${newOrdersCreatedForHouse}/${slotsAvailable} slots filled)`);
         }
       }
     }
