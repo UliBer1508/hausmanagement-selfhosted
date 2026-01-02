@@ -68,6 +68,7 @@ serve(async (req) => {
     // 3. Calculate order items (WITHOUT safety buffer, ONLY for this booking)
     // Prefer the new flexible custom_categories config if available
     const orderItems: Record<string, number> = {};
+    const itemVariants: Record<string, string> = {}; // NEU: Farbvarianten speichern
 
     const customCategories = (rules as any).custom_categories as
       | Record<string, any>
@@ -110,6 +111,10 @@ serve(async (req) => {
 
         if (qty > 0) {
           orderItems[key] = qty;
+          // NEU: Farbe aus Regeln extrahieren
+          if ((config as any).color) {
+            itemVariants[key] = (config as any).color;
+          }
         }
       }
     } else {
@@ -188,6 +193,8 @@ serve(async (req) => {
       total_cost: totalCost
     });
 
+    console.log('🎨 Item variants (colors):', itemVariants);
+
     return new Response(JSON.stringify({
       success: true,
       booking: {
@@ -199,6 +206,7 @@ serve(async (req) => {
         house: booking.houses
       },
       order_items: orderItems,
+      item_variants: itemVariants, // NEU: Farbvarianten pro Artikel
       item_details: itemDetails,
       total_items: totalItems,
       estimated_cost: Math.round(totalCost * 100) / 100, // Round to 2 decimals
