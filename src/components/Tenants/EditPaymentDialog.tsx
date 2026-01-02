@@ -23,6 +23,7 @@ const EditPaymentDialog = ({ payment, open, onOpenChange }: EditPaymentDialogPro
 
   useEffect(() => {
     setValue('status', payment.status);
+    setValue('due_date', payment.due_date || '');
     setValue('amount', payment.amount);
     setValue('payment_date', payment.payment_date || '');
     setValue('payment_method', payment.payment_method || '');
@@ -60,6 +61,11 @@ const EditPaymentDialog = ({ payment, open, onOpenChange }: EditPaymentDialogPro
                 <SelectItem value="cancelled">Storniert</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div>
+            <Label>Fälligkeitsdatum</Label>
+            <Input type="date" {...register('due_date', { required: true })} />
           </div>
 
           <div>
