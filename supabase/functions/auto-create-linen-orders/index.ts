@@ -84,7 +84,33 @@ serve(async (req) => {
       console.log(`  📊 Offene Bestellungen: ${currentOpenCount}/${settings.lookahead_bookings}, Slots frei: ${slotsAvailable}`);
 
       if (slotsAvailable === 0) {
-        console.log(`  ⏭️ Maximum erreicht - keine neuen Bestellungen nötig`);
+        console.log(`  ⏭️ Maximum erreicht - zeige Buchungen als übersprungen`);
+        
+        // Load bookings anyway to show them in details
+        const { data: bookingsForDetails } = await supabase
+          .from('bookings')
+          .select('id, guest_name, check_in, guests!bookings_guest_id_fkey(name)')
+          .eq('house_id', house.id)
+          .eq('status', 'confirmed')
+          .gte('check_in', new Date().toISOString())
+          .order('check_in', { ascending: true })
+          .limit(settings.lookahead_bookings);
+          
+        // Add all as skipped with reason "max_reached"
+        for (const booking of bookingsForDetails || []) {
+          const guestName = (booking as any).guests?.name || booking.guest_name;
+          totalSkipped++;
+          details.push({
+            booking_id: booking.id,
+            guest: guestName,
+            house: house.name,
+            check_in: booking.check_in,
+            action: 'skipped',
+            reason: 'max_reached',
+            current_open: currentOpenCount,
+            max_allowed: settings.lookahead_bookings
+          });
+        }
         continue;
       }
 
