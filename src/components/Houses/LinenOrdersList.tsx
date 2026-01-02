@@ -85,13 +85,13 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
     },
   });
 
-  // Confirm order mutation (offen → pending)
+  // Confirm order mutation (offen → bestellt)
   const confirmOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
       const { error } = await supabase
         .from('linen_orders')
         .update({ 
-          status: 'pending',
+          status: 'bestellt',
           status_changed_by: 'Admin',
           status_changed_at: new Date().toISOString()
         })
@@ -102,7 +102,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
       queryClient.invalidateQueries({ queryKey: ['linen-orders-list'] });
       toast({
         title: "✅ Bestellung bestätigt",
-        description: "Status wurde auf 'Ausstehend' gesetzt."
+        description: "Status wurde auf 'Bestellt' gesetzt."
       });
     },
     onError: (error) => {
@@ -191,9 +191,8 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
               <SelectContent>
                 <SelectItem value="all">Alle Status</SelectItem>
                 <SelectItem value="offen">📝 Offen</SelectItem>
-                <SelectItem value="pending">⏳ Ausstehend</SelectItem>
-                <SelectItem value="in_progress">🔄 In Bearbeitung</SelectItem>
-                <SelectItem value="completed">✅ Abgeschlossen</SelectItem>
+                <SelectItem value="bestellt">📤 Bestellt</SelectItem>
+                <SelectItem value="ausstehend">⏳ Ausstehend</SelectItem>
                 <SelectItem value="delivered">📦 Geliefert</SelectItem>
                 <SelectItem value="cancelled">❌ Storniert</SelectItem>
               </SelectContent>

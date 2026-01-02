@@ -134,7 +134,7 @@ interface LinenOrderDialogProps {
     booking_id?: string;
     orderType?: 'standard' | 'exceptional';
     exceptionReason?: string;
-    status?: 'offen' | 'pending' | 'in-progress' | 'completed' | 'delivered';
+    status?: 'offen' | 'bestellt' | 'ausstehend' | 'delivered' | 'cancelled';
     sendEmail?: boolean;
     linenColor?: LinenColor;
     itemColors?: Record<string, ItemColor | LinenColor>;
@@ -146,7 +146,7 @@ interface LinenOrderDialogProps {
     deliveryDate?: string;
     deliveryType?: 'delivery' | 'pickup';
     notes?: string;
-    status?: 'offen' | 'pending' | 'in-progress' | 'completed' | 'delivered';
+    status?: 'offen' | 'bestellt' | 'ausstehend' | 'delivered' | 'cancelled';
     linenColor?: LinenColor;
     item_variants?: Record<string, ItemColor | LinenColor>;
   };
@@ -281,8 +281,8 @@ const LinenOrderDialog = ({
     initialData?.deliveryType || 'delivery'
   );
   const [notes, setNotes] = useState(initialData?.notes || '');
-  const [status, setStatus] = useState<'offen' | 'pending' | 'in-progress' | 'completed' | 'delivered'>(
-    initialData?.status || 'pending'
+  const [status, setStatus] = useState<'offen' | 'bestellt' | 'ausstehend' | 'delivered' | 'cancelled'>(
+    initialData?.status || 'offen'
   );
   const [sendToTeuni, setSendToTeuni] = useState(false);
 
@@ -299,12 +299,12 @@ const LinenOrderDialog = ({
     enabled: open && mode === 'create' && !initialData?.status,
   });
 
-  // Dynamic default status: if open orders exist, default to 'offen' as reminder
+  // Dynamic default status: always default to 'offen' for new orders
   useEffect(() => {
-    if (open && mode === 'create' && !initialData?.status && openOrdersCount !== undefined) {
-      setStatus(openOrdersCount > 0 ? 'offen' : 'pending');
+    if (open && mode === 'create' && !initialData?.status) {
+      setStatus('offen');
     }
-  }, [open, mode, openOrdersCount, initialData?.status]);
+  }, [open, mode, initialData?.status]);
   const [editableItems, setEditableItems] = useState(orderItems);
   const [orderType, setOrderType] = useState<'standard' | 'exceptional'>(
     selectedBooking ? 'standard' : 'exceptional'
@@ -527,7 +527,7 @@ const LinenOrderDialog = ({
       setNotes('');
       setDeliveryDate(addDays(new Date(), 2));
       setDeliveryType('delivery');
-      setStatus('pending');
+      setStatus('offen');
       setEditableItems(orderItems);
       setOrderType(selectedBooking ? 'standard' : 'exceptional');
       onOpenChange(false);
@@ -982,28 +982,34 @@ const LinenOrderDialog = ({
                   <SelectValue placeholder="Status wählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pending">
+                  <SelectItem value="offen">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                      <span>Ausstehend</span>
+                      <div className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span>Offen</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="in-progress">
+                  <SelectItem value="bestellt">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-blue-500" />
-                      <span>In Bearbeitung</span>
+                      <span>Bestellt</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="completed">
+                  <SelectItem value="ausstehend">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-green-500" />
-                      <span>Abgeschlossen</span>
+                      <div className="w-2 h-2 rounded-full bg-purple-500" />
+                      <span>Ausstehend</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="delivered">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <div className="w-2 h-2 rounded-full bg-green-500" />
                       <span>Geliefert</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="cancelled">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-red-500" />
+                      <span>Storniert</span>
                     </div>
                   </SelectItem>
                 </SelectContent>
