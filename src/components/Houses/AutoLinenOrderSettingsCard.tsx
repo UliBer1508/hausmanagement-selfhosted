@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, Save, Settings, Link2, AlertTriangle, Play, CheckCircle, Info, XCircle } from 'lucide-react';
 import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
 import { useExternalArticleMapping } from '@/hooks/useExternalArticleMapping';
@@ -348,59 +349,89 @@ const AutoLinenOrderSettingsCard = () => {
                   <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground font-medium">
                     Details anzeigen ({lastCheckResult.details.length})
                   </summary>
-                  <div className="mt-3 space-y-3 max-h-64 overflow-y-auto">
-                    {/* Erstellte Bestellungen */}
+                  <div className="mt-3 space-y-4 max-h-80 overflow-y-auto">
+                    {/* Erstellte Bestellungen - Tabelle */}
                     {lastCheckResult.details.filter(d => d.action === 'created').length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
+                      <div>
+                        <p className="text-xs font-semibold text-green-700 dark:text-green-400 flex items-center gap-1 mb-2">
                           <CheckCircle className="h-3 w-3" /> Erstellt
                         </p>
-                        {lastCheckResult.details.filter(d => d.action === 'created').map((d, i) => (
-                          <div key={`created-${i}`} className="bg-green-50 dark:bg-green-950/30 rounded-md p-2 text-xs">
-                            <div className="flex items-center gap-2 font-medium text-green-800 dark:text-green-300">
-                              <CheckCircle className="h-3.5 w-3.5" />
-                              <span>{d.guest}</span>
-                              <span className="text-green-600 dark:text-green-400">({d.house})</span>
-                            </div>
-                            <div className="mt-1 ml-5 text-green-700 dark:text-green-400 flex flex-wrap gap-x-3 gap-y-1">
-                              {d.check_in && <span>Check-in: {new Date(d.check_in).toLocaleDateString('de-DE')}</span>}
-                              {d.delivery_date && <span>Lieferung: {new Date(d.delivery_date).toLocaleDateString('de-DE')}</span>}
-                              {d.items_count && <span>{d.items_count} Artikel</span>}
-                            </div>
-                          </div>
-                        ))}
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs h-8">Gast</TableHead>
+                              <TableHead className="text-xs h-8">Haus</TableHead>
+                              <TableHead className="text-xs h-8">Check-in</TableHead>
+                              <TableHead className="text-xs h-8">Lieferung</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {lastCheckResult.details.filter(d => d.action === 'created').map((d, i) => {
+                              const formatDate = (dateStr?: string) => {
+                                if (!dateStr) return '-';
+                                const date = new Date(dateStr);
+                                return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }).replace(/\.$/, '') + '.';
+                              };
+                              return (
+                                <TableRow key={`created-${i}`}>
+                                  <TableCell className="py-2">
+                                    <span className={i === 0 ? "bg-primary text-primary-foreground px-2 py-0.5 rounded text-xs font-medium" : "text-xs"}>
+                                      {d.guest}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="py-2">
+                                    <span className={i === 0 ? "bg-primary text-primary-foreground px-2 py-0.5 rounded text-xs font-medium" : "text-xs"}>
+                                      {d.house}
+                                    </span>
+                                  </TableCell>
+                                  <TableCell className="py-2 text-xs">{formatDate(d.check_in)}</TableCell>
+                                  <TableCell className="py-2 text-xs">{formatDate(d.delivery_date)}</TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
                       </div>
                     )}
 
-                    {/* Übersprungene Buchungen */}
+                    {/* Übersprungene Buchungen - Tabelle */}
                     {lastCheckResult.details.filter(d => d.action === 'skipped').length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-2">
                           <XCircle className="h-3 w-3" /> Übersprungen
                         </p>
-                        {lastCheckResult.details.filter(d => d.action === 'skipped').map((d, i) => (
-                          <div key={`skipped-${i}`} className="bg-muted/50 rounded-md p-2 text-xs">
-                            <div className="flex items-center gap-2 font-medium">
-                              <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span>{d.guest}</span>
-                              <span className="text-muted-foreground">({d.house})</span>
-                            </div>
-                            <div className="mt-1 ml-5 text-muted-foreground">
-                              {d.reason === 'order_exists' && (
-                                <span>Bestellung existiert bereits{d.existing_status && ` (Status: ${d.existing_status})`}</span>
-                              )}
-                              {d.reason === 'too_close' && (
-                                <span>Zu nah am Check-in ({d.days_until} Tage, min. {d.min_required} erforderlich)</span>
-                              )}
-                              {d.reason && d.reason !== 'order_exists' && d.reason !== 'too_close' && (
-                                <span>{d.reason}</span>
-                              )}
-                              {d.check_in && (
-                                <span className="ml-2">(Check-in: {new Date(d.check_in).toLocaleDateString('de-DE')})</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs h-8">Gast</TableHead>
+                              <TableHead className="text-xs h-8">Haus</TableHead>
+                              <TableHead className="text-xs h-8">Check-in</TableHead>
+                              <TableHead className="text-xs h-8">Grund</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {lastCheckResult.details.filter(d => d.action === 'skipped').map((d, i) => {
+                              const formatDate = (dateStr?: string) => {
+                                if (!dateStr) return '-';
+                                const date = new Date(dateStr);
+                                return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }).replace(/\.$/, '') + '.';
+                              };
+                              const getReason = () => {
+                                if (d.reason === 'order_exists') return `Bestellung existiert${d.existing_status ? ` (${d.existing_status})` : ''}`;
+                                if (d.reason === 'too_close') return `Zu nah (${d.days_until}/${d.min_required} Tage)`;
+                                return d.reason || '-';
+                              };
+                              return (
+                                <TableRow key={`skipped-${i}`}>
+                                  <TableCell className="py-2 text-xs">{d.guest}</TableCell>
+                                  <TableCell className="py-2 text-xs">{d.house}</TableCell>
+                                  <TableCell className="py-2 text-xs">{formatDate(d.check_in)}</TableCell>
+                                  <TableCell className="py-2 text-xs text-muted-foreground">{getReason()}</TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
                       </div>
                     )}
                   </div>
