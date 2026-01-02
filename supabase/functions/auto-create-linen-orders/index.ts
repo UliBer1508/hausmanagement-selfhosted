@@ -60,13 +60,16 @@ serve(async (req) => {
 
     let totalCreated = 0;
     let totalSkipped = 0;
-    const details = [];
+    const details: any[] = [];
 
     // 3. Process each house
     for (const house of houses || []) {
       console.log(`\n🏠 Processing house: ${house.name}`);
 
-      // Load next X bookings with guests relation
+      // FIX: Load MORE bookings (e.g., 15) to find those without orders
+      // Previously we only loaded `lookahead_bookings` which caused the bug
+      const maxBookingsToCheck = 15;
+      
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
         .select('id, guest_name, check_in, number_of_guests, guests!bookings_guest_id_fkey(name)')
@@ -74,16 +77,25 @@ serve(async (req) => {
         .eq('status', 'confirmed')
         .gte('check_in', new Date().toISOString())
         .order('check_in', { ascending: true })
-        .limit(settings.lookahead_bookings);
+        .limit(maxBookingsToCheck);
 
       if (bookingsError) {
         console.error(`❌ Failed to load bookings for ${house.name}:`, bookingsError);
         continue;
       }
 
-      console.log(`  📅 Found ${bookings?.length || 0} upcoming bookings`);
+      console.log(`  📅 Found ${bookings?.length || 0} upcoming bookings (checking up to ${maxBookingsToCheck})`);
+
+      // FIX: Counter for NEW orders created per house
+      let newOrdersCreatedForHouse = 0;
 
       for (const booking of bookings || []) {
+        // Stop if we've created enough new orders for this house
+        if (newOrdersCreatedForHouse >= settings.lookahead_bookings) {
+          console.log(`  ✅ Reached lookahead limit (${settings.lookahead_bookings} new orders), stopping for this house`);
+          break;
+        }
+
         // Nutze guests-Relation falls verfügbar, sonst Legacy-Feld
         const guestName = (booking as any).guests?.name || booking.guest_name;
         console.log(`\n  📋 Checking booking: ${guestName} (${booking.id.substring(0, 8)}...)`);
@@ -111,6 +123,7 @@ serve(async (req) => {
             reason: 'order_exists',
             existing_status: existingOrders[0].status
           });
+          // FIX: Don't count towards lookahead limit, just skip
           continue;
         }
 
@@ -136,6 +149,7 @@ serve(async (req) => {
             days_until: daysUntil,
             min_required: settings.min_advance_days
           });
+          // FIX: Don't count towards lookahead limit, just skip
           continue;
         }
 
@@ -199,6 +213,7 @@ serve(async (req) => {
           });
         } else {
           totalCreated++;
+          newOrdersCreatedForHouse++; // FIX: Count towards per-house limit
           details.push({
             booking_id: booking.id,
             guest: guestName,
@@ -208,7 +223,7 @@ serve(async (req) => {
             delivery_date: deliveryDateStr,
             items_count: orderData.total_items
           });
-          console.log(`  ✅ Created order with status "offen"`);
+          console.log(`  ✅ Created order with status "offen" (${newOrdersCreatedForHouse}/${settings.lookahead_bookings} for this house)`);
         }
       }
     }
