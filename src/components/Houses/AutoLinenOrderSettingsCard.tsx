@@ -30,6 +30,8 @@ interface CheckResult {
     existing_status?: string;
     days_until?: number;
     min_required?: number;
+    current_open?: number;
+    max_allowed?: number;
   }>;
 }
 
@@ -419,6 +421,7 @@ const AutoLinenOrderSettingsCard = () => {
                               const getReason = () => {
                                 if (d.reason === 'order_exists') return `Bestellung existiert${d.existing_status ? ` (${d.existing_status})` : ''}`;
                                 if (d.reason === 'too_close') return `Zu nah (${d.days_until}/${d.min_required} Tage)`;
+                                if (d.reason === 'max_reached') return `Maximum erreicht (${d.current_open}/${d.max_allowed})`;
                                 return d.reason || '-';
                               };
                               return (
