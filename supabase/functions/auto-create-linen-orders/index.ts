@@ -166,6 +166,7 @@ serve(async (req) => {
             booking_id: booking.id,
             guest: guestName,
             house: house.name,
+            check_in: booking.check_in,
             action: 'skipped',
             reason: 'order_exists',
             existing_status: existingOrders[0].status
@@ -191,6 +192,7 @@ serve(async (req) => {
             booking_id: booking.id,
             guest: guestName,
             house: house.name,
+            check_in: booking.check_in,
             action: 'skipped',
             reason: 'too_close',
             days_until: daysUntil,
@@ -214,6 +216,7 @@ serve(async (req) => {
             booking_id: booking.id,
             guest: guestName,
             house: house.name,
+            check_in: booking.check_in,
             action: 'skipped',
             reason: 'generation_failed',
             error: genError?.message
@@ -255,6 +258,7 @@ serve(async (req) => {
             booking_id: booking.id,
             guest: guestName,
             house: house.name,
+            check_in: booking.check_in,
             action: 'skipped',
             reason: 'insert_failed',
             error: insertError.message
