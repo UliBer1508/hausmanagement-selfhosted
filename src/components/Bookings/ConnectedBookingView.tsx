@@ -15,6 +15,7 @@ import LinenOrderDialog from '../Houses/LinenOrderDialog';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { useExternalSync } from '@/hooks/useExternalSync';
 import { getGuestName } from '@/lib/guestHelpers';
+import { LINEN_ORDER_STATUSES } from '@/lib/linenOrderHelpers';
 
 const ConnectedBookingView = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -299,7 +300,7 @@ const ConnectedBookingView = () => {
             notes: orderData.notes,
             delivery_date: orderData.deliveryDate,
             delivery_type: orderData.deliveryType || 'delivery',
-            status: 'pending', // Set to pending when editing
+            status: LINEN_ORDER_STATUSES.AUSSTEHEND,
             updated_at: new Date().toISOString()
           })
           .eq('id', editingOrderId);
