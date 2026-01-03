@@ -15,6 +15,7 @@ import { de } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { cn } from '@/lib/utils';
+import { LINEN_ORDER_STATUSES } from '@/lib/linenOrderHelpers';
 import LinenInventoryDialog from './LinenInventoryDialog';
 import LinenOrderDialog from './LinenOrderDialog';
 import LinenOrdersList from './LinenOrdersList';
@@ -213,12 +214,12 @@ const LinenDashboard = () => {
     criticalHouses: houseStatuses.filter(h => h.status === 'critical').length,
   };
 
-  // Confirm order mutation (offen → pending)
+  // Confirm order mutation (offen → ausstehend)
   const confirmOrderMutation = useMutation({
     mutationFn: async (orderId: string) => {
       const { error } = await supabase
         .from('linen_orders')
-        .update({ status: 'pending' })
+        .update({ status: LINEN_ORDER_STATUSES.AUSSTEHEND })
         .eq('id', orderId);
       if (error) throw error;
     },
