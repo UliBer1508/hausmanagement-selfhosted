@@ -71,7 +71,7 @@ serve(async (req) => {
         .from('linen_orders')
         .select('id')
         .eq('house_id', house.id)
-        .in('status', ['offen', 'pending']);
+        .in('status', ['offen', 'ausstehend']);
 
       if (openOrdersError) {
         console.error(`❌ Failed to count open orders for ${house.name}:`, openOrdersError);

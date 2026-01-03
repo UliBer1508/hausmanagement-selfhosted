@@ -134,7 +134,7 @@ interface LinenOrderDialogProps {
     booking_id?: string;
     orderType?: 'standard' | 'exceptional';
     exceptionReason?: string;
-    status?: 'offen' | 'bestellt' | 'ausstehend' | 'delivered' | 'cancelled';
+    status?: 'offen' | 'ausstehend' | 'delivered' | 'cancelled';
     sendEmail?: boolean;
     linenColor?: LinenColor;
     itemColors?: Record<string, ItemColor | LinenColor>;
@@ -146,7 +146,7 @@ interface LinenOrderDialogProps {
     deliveryDate?: string;
     deliveryType?: 'delivery' | 'pickup';
     notes?: string;
-    status?: 'offen' | 'bestellt' | 'ausstehend' | 'delivered' | 'cancelled';
+    status?: 'offen' | 'ausstehend' | 'delivered' | 'cancelled';
     linenColor?: LinenColor;
     item_variants?: Record<string, ItemColor | LinenColor>;
   };
@@ -281,7 +281,7 @@ const LinenOrderDialog = ({
     initialData?.deliveryType || 'delivery'
   );
   const [notes, setNotes] = useState(initialData?.notes || '');
-  const [status, setStatus] = useState<'offen' | 'bestellt' | 'ausstehend' | 'delivered' | 'cancelled'>(
+  const [status, setStatus] = useState<'offen' | 'ausstehend' | 'delivered' | 'cancelled'>(
     initialData?.status || 'offen'
   );
   const [sendToTeuni, setSendToTeuni] = useState(false);
@@ -988,15 +988,9 @@ const LinenOrderDialog = ({
                       <span>Offen</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="bestellt">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-blue-500" />
-                      <span>Bestellt</span>
-                    </div>
-                  </SelectItem>
                   <SelectItem value="ausstehend">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-purple-500" />
+                      <div className="w-2 h-2 rounded-full bg-yellow-500" />
                       <span>Ausstehend</span>
                     </div>
                   </SelectItem>

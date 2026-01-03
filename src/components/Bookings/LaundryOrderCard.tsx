@@ -83,15 +83,8 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
     switch (status) {
       case 'offen':
         return <Badge className="bg-amber-100 text-amber-800 border-amber-300">📝 Offen</Badge>;
-      case 'pending':
+      case 'ausstehend':
         return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">⏳ Ausstehend</Badge>;
-      case 'assigned':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-300">👤 Zugewiesen</Badge>;
-      case 'in_progress':
-      case 'in-progress':
-        return <Badge className="bg-orange-100 text-orange-800 border-orange-300">🔄 In Bearbeitung</Badge>;
-      case 'completed':
-        return <Badge className="bg-green-100 text-green-800 border-green-300">✅ Abgeschlossen</Badge>;
       case 'delivered':
         return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">📦 Geliefert</Badge>;
       case 'cancelled':
@@ -306,8 +299,8 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
         {/* Action Buttons - Top Right */}
         {!isPending && (onEdit || onDelete || onSync || (onConfirm && order.status === 'offen')) && (
           <div className="absolute top-2 right-2 flex gap-1 z-10">
-            {/* Sync Button - nur für pending status und noch nicht synchronisiert */}
-            {onSync && externalSyncEnabled && !order.external_bestellnummer && order.status === 'pending' && (
+            {/* Sync Button - nur für ausstehend status und noch nicht synchronisiert */}
+            {onSync && externalSyncEnabled && !order.external_bestellnummer && order.status === 'ausstehend' && (
               <Button
                 size="sm"
                 variant="outline"
