@@ -506,7 +506,7 @@ const AutoLinenOrderSettingsCard = () => {
                 <div className="p-3 bg-amber-50 dark:bg-amber-950/30 rounded-md border border-amber-200 dark:border-amber-800">
                   <p className="text-sm text-amber-800 dark:text-amber-200">
                     <strong>Hinweis:</strong> Wenn aktiviert, werden Bestellungen automatisch an das externe 
-                    Wäscheportal gesendet, sobald der Status auf "pending" gesetzt wird. 
+                    Wäscheportal gesendet, sobald der Status auf "Ausstehend" gesetzt wird. 
                     Stellen Sie sicher, dass alle Artikel und Hausobjekte korrekt zugeordnet sind.
                   </p>
                 </div>

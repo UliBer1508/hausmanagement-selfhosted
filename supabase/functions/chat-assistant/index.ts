@@ -7,6 +7,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+/**
+ * LINEN ORDER STATUS STANDARD (gespiegelt von src/lib/linenOrderHelpers.ts)
+ * NIEMALS 'pending', 'bestellt' oder 'assigned' verwenden!
+ */
+const LINEN_ORDER_STATUSES = {
+  OFFEN: 'offen',
+  AUSSTEHEND: 'ausstehend',
+  DELIVERED: 'delivered',
+  CANCELLED: 'cancelled'
+} as const;
+
 // Initialize Supabase client with service role key for full access
 const supabaseUrl = Deno.env.get('SUPABASE_URL');
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');

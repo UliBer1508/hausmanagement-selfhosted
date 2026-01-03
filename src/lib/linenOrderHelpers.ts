@@ -1,5 +1,23 @@
 /**
- * Helper functions for linen order management
+ * ============================================================
+ * LINEN ORDER STATUS STANDARD - VERBINDLICH FÜR GESAMTES SYSTEM
+ * ============================================================
+ * 
+ * Diese Datei definiert den einzigen Wahrheitspunkt für 
+ * Wäschebestellungs-Status im gesamten System.
+ * 
+ * WORKFLOW:
+ * 1. Bestellung erstellt → Status: OFFEN
+ * 2. Benutzer bestätigt → Status: AUSSTEHEND  
+ * 3. Lieferung erfolgt → Status: DELIVERED
+ * 4. (Optional) Stornierung → Status: CANCELLED
+ * 
+ * NIEMALS VERWENDEN (Legacy-Werte):
+ * - 'pending' (ersetzt durch 'ausstehend')
+ * - 'bestellt' (ersetzt durch 'ausstehend')
+ * - 'assigned' (nicht mehr verwendet)
+ * 
+ * @module linenOrderHelpers
  */
 
 /**
@@ -99,20 +117,52 @@ export const formatCurrency = (amount: number, currency: string = 'EUR'): string
 };
 
 /**
- * Standardized linen order statuses
- * - offen: Must be confirmed by user
- * - ausstehend: Confirmed, awaiting delivery
- * - delivered: Has been delivered
- * - cancelled: Order was cancelled
+ * ============================================================
+ * STANDARDISIERTE LINEN ORDER STATUS - VERBINDLICH
+ * ============================================================
+ * 
+ * WICHTIG: Immer diese Konstanten verwenden, niemals Strings hardcoden!
+ * 
+ * @example
+ * import { LINEN_ORDER_STATUSES } from '@/lib/linenOrderHelpers';
+ * 
+ * // Richtig:
+ * if (order.status === LINEN_ORDER_STATUSES.OFFEN) { ... }
+ * 
+ * // Falsch:
+ * if (order.status === 'offen') { ... }
  */
 export const LINEN_ORDER_STATUSES = {
+  /** Muss vom Benutzer bestätigt werden (Farbe: Amber/Orange) */
   OFFEN: 'offen',
+  /** Bestätigt, wartet auf Lieferung (Farbe: Gelb) */
   AUSSTEHEND: 'ausstehend',
+  /** Wurde geliefert (Farbe: Grün) */
   DELIVERED: 'delivered',
+  /** Bestellung wurde storniert (Farbe: Rot) */
   CANCELLED: 'cancelled'
 } as const;
 
+/** Type für gültige Linen Order Status */
 export type LinenOrderStatus = typeof LINEN_ORDER_STATUSES[keyof typeof LINEN_ORDER_STATUSES];
+
+/** Array aller gültigen Status (für .in() Queries) */
+export const ALL_LINEN_ORDER_STATUSES: LinenOrderStatus[] = Object.values(LINEN_ORDER_STATUSES);
+
+/** Aktive (nicht abgeschlossene) Status */
+export const ACTIVE_LINEN_ORDER_STATUSES: LinenOrderStatus[] = [
+  LINEN_ORDER_STATUSES.OFFEN,
+  LINEN_ORDER_STATUSES.AUSSTEHEND
+];
+
+/** 
+ * Prüft ob ein Status ein gültiger LinenOrderStatus ist
+ * @param status - Der zu prüfende Status-String
+ * @returns true wenn gültiger Status
+ */
+export const isValidLinenOrderStatus = (status: string): status is LinenOrderStatus => {
+  return ALL_LINEN_ORDER_STATUSES.includes(status as LinenOrderStatus);
+};
 
 /**
  * Translates linen order status to German

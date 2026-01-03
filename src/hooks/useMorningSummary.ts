@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, differenceInDays, subDays } from "date-fns";
 import { de } from "date-fns/locale";
 import { useRatingReminderSettings, DEFAULT_RATING_REMINDER_SETTINGS } from "@/hooks/useSystemSettings";
+import { ACTIVE_LINEN_ORDER_STATUSES, LINEN_ORDER_STATUSES, translateLinenOrderStatus } from "@/lib/linenOrderHelpers";
 
 interface MarketingAction {
   id: string;
@@ -221,7 +222,7 @@ export const useMorningSummary = () => {
       const { data, error } = await supabase
         .from('linen_orders')
         .select('*, houses!linen_orders_house_id_fkey(name), bookings!linen_orders_booking_id_fkey(guest_name, check_in)')
-        .in('status', ['offen', 'pending', 'assigned'])
+        .in('status', ACTIVE_LINEN_ORDER_STATUSES)
         .order('delivery_date');
       
       if (error) throw error;
@@ -354,7 +355,7 @@ export const useMorningSummary = () => {
     }
     
     // OFFENE WÄSCHEBESTELLUNGEN
-    const openOrders = linenOrders.filter(o => o.status === 'offen');
+    const openOrders = linenOrders.filter(o => o.status === LINEN_ORDER_STATUSES.OFFEN);
     if (openOrders.length > 0) {
       message += `🔔 **${openOrders.length} Wäschebestellung(en) zu bestätigen**\n`;
       openOrders.forEach(o => {
@@ -409,14 +410,14 @@ export const useMorningSummary = () => {
       }
     }
     
-    // BESTÄTIGTE LIEFERUNGEN (pending, assigned)
-    const confirmedDeliveries = linenOrders.filter(o => o.status !== 'offen');
+    // BESTÄTIGTE LIEFERUNGEN (ausstehend)
+    const confirmedDeliveries = linenOrders.filter(o => o.status === LINEN_ORDER_STATUSES.AUSSTEHEND);
     if (confirmedDeliveries.length > 0) {
       message += `🧺 **Bestätigte Wäsche-Lieferungen (${confirmedDeliveries.length})**\n`;
       confirmedDeliveries.slice(0, 5).forEach(o => {
         const houseName = o.houses?.name || 'Unbekanntes Haus';
         const deliveryDate = o.delivery_date ? format(new Date(o.delivery_date), 'dd.MM.yyyy') : 'Kein Datum';
-        const statusText = o.status === 'pending' ? 'Ausstehend' : o.status === 'assigned' ? 'Zugewiesen' : 'Bestätigt';
+        const statusText = translateLinenOrderStatus(o.status);
         message += `• ${houseName} - ${deliveryDate} (${statusText})\n`;
       });
       message += '\n';

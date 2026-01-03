@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { externalLaundryClient } from '@/integrations/externalLaundry/client';
 import { toast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
+import { LINEN_ORDER_STATUSES } from '@/lib/linenOrderHelpers';
 
 interface SyncResult {
   success: boolean;
@@ -61,8 +62,8 @@ export const useExternalSync = () => {
         throw new Error('Bestellung nicht gefunden');
       }
 
-      // Nur Bestellungen mit Status 'pending' können synchronisiert werden
-      if (order.status !== 'pending') {
+      // Nur Bestellungen mit Status 'ausstehend' können synchronisiert werden
+      if (order.status !== LINEN_ORDER_STATUSES.AUSSTEHEND) {
         throw new Error('Nur Bestellungen mit Status "Ausstehend" können synchronisiert werden. Bitte erst bestätigen.');
       }
 

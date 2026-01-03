@@ -3744,6 +3744,60 @@ export type Database = {
         }
         Relationships: []
       }
+      system_status_config: {
+        Row: {
+          color_bg: string | null
+          color_border: string | null
+          color_hex: string | null
+          color_text: string | null
+          created_at: string | null
+          description: string | null
+          emoji: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          label: string
+          sort_order: number | null
+          status_key: string
+          status_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          color_bg?: string | null
+          color_border?: string | null
+          color_hex?: string | null
+          color_text?: string | null
+          created_at?: string | null
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          label: string
+          sort_order?: number | null
+          status_key: string
+          status_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          color_bg?: string | null
+          color_border?: string | null
+          color_hex?: string | null
+          color_text?: string | null
+          created_at?: string | null
+          description?: string | null
+          emoji?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          label?: string
+          sort_order?: number | null
+          status_key?: string
+          status_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       tenant_payments: {
         Row: {
           amount: number
