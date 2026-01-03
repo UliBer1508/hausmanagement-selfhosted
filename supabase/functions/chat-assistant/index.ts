@@ -801,6 +801,89 @@ async function executeGetRevenueStats(params: any) {
   };
 }
 
+async function executeGetDailyOverview(params: any) {
+  console.log('Executing get_daily_overview with params:', params);
+  
+  const targetDate = params.date || new Date().toISOString().split('T')[0];
+  
+  // 1. Reinigungen heute
+  const { data: cleanings, error: cleaningError } = await supabase
+    .from('service_tasks')
+    .select(`
+      id, scheduled_date, scheduled_time, status, notes,
+      houses(name),
+      bookings(guest_name, guest_email),
+      service_providers!service_tasks_provider_id_fkey(name)
+    `)
+    .eq('service_type', 'cleaning')
+    .eq('scheduled_date', targetDate)
+    .neq('status', 'cancelled')
+    .order('scheduled_time', { ascending: true });
+  
+  if (cleaningError) {
+    console.error('Error fetching cleanings:', cleaningError);
+  }
+  
+  // 2. Check-ins heute (neue Gäste)
+  const { data: checkIns, error: checkInError } = await supabase
+    .from('bookings')
+    .select('id, guest_name, check_in, number_of_guests, number_of_adults, number_of_children, houses(name)')
+    .gte('check_in', `${targetDate}T00:00:00`)
+    .lt('check_in', `${targetDate}T23:59:59`)
+    .neq('status', 'cancelled')
+    .order('check_in', { ascending: true });
+  
+  if (checkInError) {
+    console.error('Error fetching check-ins:', checkInError);
+  }
+  
+  // 3. Check-outs heute (abreisende Gäste)
+  const { data: checkOuts, error: checkOutError } = await supabase
+    .from('bookings')
+    .select('id, guest_name, check_out, houses(name)')
+    .gte('check_out', `${targetDate}T00:00:00`)
+    .lt('check_out', `${targetDate}T23:59:59`)
+    .neq('status', 'cancelled')
+    .order('check_out', { ascending: true });
+  
+  if (checkOutError) {
+    console.error('Error fetching check-outs:', checkOutError);
+  }
+  
+  // 4. Gästewechsel identifizieren (Check-out + Check-in am selben Haus)
+  const guestChanges: any[] = [];
+  if (checkOuts && checkIns) {
+    for (const co of checkOuts) {
+      const matchingCheckIn = checkIns.find(ci => ci.houses?.name === co.houses?.name);
+      if (matchingCheckIn) {
+        guestChanges.push({
+          house_name: co.houses?.name,
+          departing_guest: co.guest_name,
+          arriving_guest: matchingCheckIn.guest_name,
+          arriving_guests_count: matchingCheckIn.number_of_guests
+        });
+      }
+    }
+  }
+  
+  return {
+    success: true,
+    data: {
+      date: targetDate,
+      cleanings: cleanings || [],
+      check_ins: checkIns || [],
+      check_outs: checkOuts || [],
+      guest_changes: guestChanges,
+      summary: {
+        cleaning_count: cleanings?.length || 0,
+        check_in_count: checkIns?.length || 0,
+        check_out_count: checkOuts?.length || 0,
+        guest_change_count: guestChanges.length
+      }
+    }
+  };
+}
+
 async function executeGetCalendarEvents(params: any) {
   console.log('Executing get_calendar_events with params:', params);
   
@@ -884,6 +967,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeGetCalendarEvents(args);
     case 'get_revenue_stats':
       return await executeGetRevenueStats(args);
+    case 'get_daily_overview':
+      return await executeGetDailyOverview(args);
     
     default:
       console.warn(`Unknown tool: ${toolName}`);
@@ -1046,6 +1131,17 @@ Trigger: alle reinigungen erstellen, für alle, bulk, massenbearbeitung, alle ab
 alle check-outs, gesammelt, sammeln, komplett
 - "erstelle reinigung für alle" / "morgige abreisen" → create_bulk_cleaning_tasks
 - "wäsche für alle buchungen" → create_bulk_linen_orders
+
+📅 TAGESÜBERSICHT (get_daily_overview) - BEVORZUGTES TOOL FÜR TAGESFRAGEN:
+Trigger: was passiert heute, tagesplan, wo wird gereinigt, wer kommt heute, wer reist ab,
+gästewechsel, check-ins heute, check-outs heute, abreisen heute, ankünfte heute, neue gäste,
+was steht an, überblick, tagesansicht, was ist los
+- "Was passiert heute?" → get_daily_overview({ date: "${currentDate}" })
+- "Wo wird heute gereinigt?" → get_daily_overview({ date: "${currentDate}" })
+- "Kommen heute neue Gäste?" → get_daily_overview({ date: "${currentDate}" })
+- "Wer reist heute ab?" → get_daily_overview({ date: "${currentDate}" })
+- "Gibt es heute Gästewechsel?" → get_daily_overview({ date: "${currentDate}" })
+- "Was passiert morgen?" → get_daily_overview({ date: "${tomorrowDate}" })
 
 📅 BUCHUNGEN MIT ZEITRAUM (search_bookings):
 Trigger: buchung, buchungen, reservierung, reservierungen, gäste, besucher, wer kommt, 
@@ -1367,6 +1463,19 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
               quarter: { type: "number", description: "Quartal 1-4 (z.B. 1 für Q1). Optional, zusammen mit year" },
               date_from: { type: "string", description: "Start-Datum ISO (z.B. 2026-01-01) für beliebige Zeiträume" },
               date_to: { type: "string", description: "End-Datum ISO (z.B. 2026-03-31) für beliebige Zeiträume" }
+            }
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "get_daily_overview",
+          description: "Tagesübersicht: Zeigt alle Reinigungen, Check-ins, Check-outs und Gästewechsel für einen Tag. Ideal für 'Was passiert heute?', 'Wo wird heute gereinigt?', 'Kommen heute Gäste?', 'Wer reist ab?'",
+          parameters: {
+            type: "object",
+            properties: {
+              date: { type: "string", description: "Datum im ISO-Format (YYYY-MM-DD). Default: heute" }
             }
           }
         }
