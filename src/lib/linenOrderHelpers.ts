@@ -99,16 +99,48 @@ export const formatCurrency = (amount: number, currency: string = 'EUR'): string
 };
 
 /**
+ * Standardized linen order statuses
+ * - offen: Must be confirmed by user
+ * - ausstehend: Confirmed, awaiting delivery
+ * - delivered: Has been delivered
+ * - cancelled: Order was cancelled
+ */
+export const LINEN_ORDER_STATUSES = {
+  OFFEN: 'offen',
+  AUSSTEHEND: 'ausstehend',
+  DELIVERED: 'delivered',
+  CANCELLED: 'cancelled'
+} as const;
+
+export type LinenOrderStatus = typeof LINEN_ORDER_STATUSES[keyof typeof LINEN_ORDER_STATUSES];
+
+/**
  * Translates linen order status to German
  */
 export const translateLinenOrderStatus = (status: string): string => {
   const translations: Record<string, string> = {
     offen: 'Offen',
-    pending: 'Ausstehend',
-    assigned: 'Zugewiesen',
-    confirmed: 'Bestätigt',
+    ausstehend: 'Ausstehend',
     delivered: 'Geliefert',
     cancelled: 'Storniert',
   };
   return translations[status] || status;
+};
+
+/**
+ * Gets badge variant for linen order status
+ */
+export const getLinenStatusBadge = (status: string): { className: string; icon: string; label: string } => {
+  switch (status) {
+    case 'offen':
+      return { className: 'bg-amber-100 text-amber-800 border-amber-300', icon: '📝', label: 'Offen' };
+    case 'ausstehend':
+      return { className: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: '⏳', label: 'Ausstehend' };
+    case 'delivered':
+      return { className: 'bg-emerald-100 text-emerald-800 border-emerald-300', icon: '📦', label: 'Geliefert' };
+    case 'cancelled':
+      return { className: 'bg-red-100 text-red-800 border-red-300', icon: '❌', label: 'Storniert' };
+    default:
+      return { className: 'bg-gray-100 text-gray-800 border-gray-300', icon: '❓', label: status };
+  }
 };

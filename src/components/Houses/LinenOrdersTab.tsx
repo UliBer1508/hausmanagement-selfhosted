@@ -342,8 +342,7 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'offen': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'bestellt': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'ausstehend': return 'bg-purple-100 text-purple-800 border-purple-200';
+      case 'ausstehend': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       case 'delivered': return 'bg-green-100 text-green-800 border-green-200';
       case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -353,8 +352,7 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'offen': return <Clock className="w-4 h-4" />;
-      case 'bestellt': return <Package className="w-4 h-4" />;
-      case 'ausstehend': return <CheckCircle className="w-4 h-4" />;
+      case 'ausstehend': return <Package className="w-4 h-4" />;
       case 'delivered': return <CheckCircle className="w-4 h-4" />;
       case 'cancelled': return <AlertTriangle className="w-4 h-4" />;
       default: return <Package className="w-4 h-4" />;
@@ -364,7 +362,6 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'offen': return 'Offen';
-      case 'bestellt': return 'Bestellt';
       case 'ausstehend': return 'Ausstehend';
       case 'delivered': return 'Geliefert';
       case 'cancelled': return 'Storniert';
@@ -373,7 +370,7 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
   };
 
   const activeOrders = linenOrders?.filter(order => 
-    ['offen', 'bestellt', 'ausstehend'].includes(order.status)
+    ['offen', 'ausstehend'].includes(order.status)
   ) || [];
 
   const completedOrders = linenOrders?.filter(order => 
