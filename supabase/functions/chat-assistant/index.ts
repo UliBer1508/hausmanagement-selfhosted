@@ -494,7 +494,7 @@ async function executeSearchCleaningTasks(params: any) {
       *,
       houses(name),
       bookings(guest_name, guest_email, guest_phone),
-      cleaning_staff(name, email, phone)
+      service_providers!service_tasks_provider_id_fkey(id, name, contact_email, contact_phone)
     `)
     .eq('service_type', 'cleaning')
     .order('scheduled_date', { ascending: true });
@@ -529,9 +529,9 @@ async function executeSearchCleaningTasks(params: any) {
       t.bookings?.guest_name?.toLowerCase().includes(params.guest_name.toLowerCase())
     );
   }
-  if (params.staff_name) {
+  if (params.provider_name) {
     filteredData = filteredData.filter(t => 
-      t.cleaning_staff?.name?.toLowerCase().includes(params.staff_name.toLowerCase())
+      t.service_providers?.name?.toLowerCase().includes(params.provider_name.toLowerCase())
     );
   }
   
@@ -1273,7 +1273,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
               date_from: { type: "string" },
               date_to: { type: "string" },
               guest_name: { type: "string" },
-              staff_name: { type: "string" },
+              provider_name: { type: "string", description: "Name des verantwortlichen Providers (z.B. Amela)" },
               payment_status: { type: "string", enum: ["paid", "unpaid", "pending"] }
             }
           }
