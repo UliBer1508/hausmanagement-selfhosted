@@ -485,10 +485,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         return;
       }
 
-      // Phase II: Gast erstellen oder finden
+      // Phase II: Gast erstellen oder finden (verbesserte Duplikat-Erkennung)
       let guestId: string | null = null;
       
-      // Prüfe ob ein Gast mit dieser Email existiert
+      // Strategie 1: Suche nach Email (falls vorhanden)
       if (data.guest_email) {
         const { data: existingGuest } = await supabase
           .from('guests')
@@ -497,20 +497,68 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           .maybeSingle();
         
         if (existingGuest) {
-          console.log('✅ Existierender Gast gefunden:', existingGuest.id);
+          console.log('✅ Gast per Email gefunden:', existingGuest.id);
           guestId = existingGuest.id;
-          
-          // Aktualisiere Gast-Daten falls vorhanden
-          await supabase
-            .from('guests')
-            .update({
-              name: data.guest_name.trim(),
-              phone: data.guest_phone || null,
-              nationality: (data.nationality && data.nationality !== 'none' && data.nationality !== '') ? data.nationality : null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', existingGuest.id);
         }
+      }
+      
+      // Strategie 2: Suche nach Name + Telefonnummer (falls keine Email-Übereinstimmung)
+      if (!guestId && data.guest_phone) {
+        const normalizedPhone = data.guest_phone.replace(/\s+/g, '');
+        const { data: existingGuests } = await supabase
+          .from('guests')
+          .select('id, phone')
+          .ilike('name', data.guest_name.trim());
+        
+        // Prüfe ob Telefonnummer ähnlich ist (normalisiert)
+        if (existingGuests && existingGuests.length > 0) {
+          for (const guest of existingGuests) {
+            if (guest.phone) {
+              const existingPhone = guest.phone.replace(/\s+/g, '');
+              // Vergleiche die letzten 9 Ziffern (ohne Ländervorwahl-Varianten)
+              if (existingPhone === normalizedPhone || 
+                  existingPhone.slice(-9) === normalizedPhone.slice(-9)) {
+                console.log('✅ Gast per Name + Telefon gefunden:', guest.id);
+                guestId = guest.id;
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // Strategie 3: Suche nach exaktem Namen + Nationalität (als Fallback)
+      if (!guestId && data.nationality && data.nationality !== 'none' && data.nationality !== '') {
+        const { data: existingGuest } = await supabase
+          .from('guests')
+          .select('id')
+          .ilike('name', data.guest_name.trim())
+          .eq('nationality', data.nationality)
+          .maybeSingle();
+        
+        if (existingGuest) {
+          console.log('✅ Gast per Name + Nationalität gefunden:', existingGuest.id);
+          guestId = existingGuest.id;
+        }
+      }
+      
+      // Aktualisiere gefundenen Gast mit neuen/besseren Daten
+      if (guestId) {
+        const updateData: Record<string, unknown> = {
+          name: data.guest_name.trim(),
+          updated_at: new Date().toISOString(),
+        };
+        // Nur setzen wenn vorhanden (nicht überschreiben mit null)
+        if (data.guest_email) updateData.email = data.guest_email;
+        if (data.guest_phone) updateData.phone = data.guest_phone;
+        if (data.nationality && data.nationality !== 'none' && data.nationality !== '') {
+          updateData.nationality = data.nationality;
+        }
+        
+        await supabase
+          .from('guests')
+          .update(updateData)
+          .eq('id', guestId);
       }
       
       // Erstelle neuen Gast falls nicht gefunden
@@ -529,7 +577,6 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         
         if (guestError) {
           console.error('Fehler beim Erstellen des Gastes:', guestError);
-          // Fortfahren ohne guest_id - Fallback auf Legacy-Felder
         } else {
           guestId = newGuest.id;
           console.log('✅ Neuer Gast erstellt:', guestId);
