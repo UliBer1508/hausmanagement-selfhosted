@@ -65,7 +65,7 @@ const GuestStats = () => {
           <CardContent>
             <div className="text-2xl font-bold">{stats?.returningRate || 0}%</div>
             <p className="text-xs text-muted-foreground">
-              {stats?.returningGuests || 0} Stammgäste
+              {stats?.returningGuests || 0} Stammgäste (2+ Buchungen)
             </p>
           </CardContent>
         </Card>
