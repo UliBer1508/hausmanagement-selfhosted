@@ -21,12 +21,10 @@ import { checkHolidayPeriod, type HolidayMatch } from '@/lib/holidayCalendar';
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
 // Helper function to get correct platform label
-const getPlatformLabel = (platform: string | null, source: string | null): string => {
-  if (platform === 'manual') return 'Direktbuchung';
-  if (platform) return platform;
-  // platform is NULL
-  if (source === 'excel_import') return 'Unbekannt (Import)';
-  return 'Nicht angegeben';
+const getPlatformLabel = (platform: string | null): string => {
+  if (platform === 'direct' || platform === 'manual') return 'Direktbuchung';
+  if (platform && platform !== 'unknown') return platform;
+  return 'Unbekannt';
 };
 
 // Types
@@ -158,7 +156,7 @@ const findMatchingHistoricalBooking = (
     return {
       guestName: b.guest_name,
       pricePerNight: realPricePerNight,
-      platform: getPlatformLabel(b.platform, b.source),
+      platform: getPlatformLabel(b.platform),
       nationality: b.nationality || 'N/A',
       leadDays,
       nights,
@@ -203,7 +201,7 @@ const getMonthlyStats = (
   
   // Platform distribution
   const platforms = monthBookings.reduce((acc, b) => {
-    const p = getPlatformLabel(b.platform, b.source);
+    const p = getPlatformLabel(b.platform);
     acc[p] = (acc[p] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
@@ -419,7 +417,7 @@ const getBestChannel = (
   });
   
   const byPlatform = monthBookings.reduce((acc, b) => {
-    const p = getPlatformLabel(b.platform, b.source);
+    const p = getPlatformLabel(b.platform);
     if (!acc[p]) acc[p] = { count: 0, revenue: 0 };
     acc[p].count++;
     acc[p].revenue += b.booking_amount || 0;
@@ -769,7 +767,7 @@ const GuestAnalytics = () => {
 
       // Platform distribution - using activeBookings
       const platformCount = activeBookings.reduce((acc, booking) => {
-        const platform = getPlatformLabel(booking.platform, booking.source);
+        const platform = getPlatformLabel(booking.platform);
         if (!acc[platform]) {
           acc[platform] = { count: 0, revenue: 0 };
         }
