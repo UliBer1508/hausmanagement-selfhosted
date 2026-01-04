@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { GitMerge } from 'lucide-react';
 
 import { supabase } from '@/integrations/supabase/client';
 import GuestOverview from './GuestOverview';
@@ -8,9 +10,15 @@ import GuestAnalytics from './GuestAnalytics';
 import GuestCommunication from './GuestCommunication';
 import GuestSegments from './GuestSegments';
 import MarketingActions from './MarketingActions';
+import { GuestDuplicatesDialog } from './GuestDuplicatesDialog';
+import { useGuestDuplicates } from '@/hooks/useGuestDuplicates';
 
 const GuestManagement = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [duplicatesDialogOpen, setDuplicatesDialogOpen] = useState(false);
+  
+  const { data: duplicateGroups } = useGuestDuplicates();
+  const duplicateCount = duplicateGroups?.reduce((sum, g) => sum + g.guests.length, 0) || 0;
 
   const handleExportCSV = async () => {
     try {
@@ -121,10 +129,28 @@ const GuestManagement = () => {
           <h1 className="text-2xl font-bold">Gäste-Management</h1>
           <p className="text-muted-foreground">Verwalten Sie Ihre Gäste und deren Buchungshistorie</p>
         </div>
-        <Button onClick={handleExportCSV} variant="outline">
-          <span className="mr-2">📥</span>
-          Export CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setDuplicatesDialogOpen(true)} 
+            variant="outline"
+            className="relative"
+          >
+            <GitMerge className="h-4 w-4 mr-2" />
+            Duplikate prüfen
+            {duplicateCount > 0 && (
+              <Badge 
+                variant="destructive" 
+                className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs"
+              >
+                {duplicateCount}
+              </Badge>
+            )}
+          </Button>
+          <Button onClick={handleExportCSV} variant="outline">
+            <span className="mr-2">📥</span>
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -171,6 +197,11 @@ const GuestManagement = () => {
           <MarketingActions />
         </TabsContent>
       </Tabs>
+
+      <GuestDuplicatesDialog
+        open={duplicatesDialogOpen}
+        onOpenChange={setDuplicatesDialogOpen}
+      />
     </div>
   );
 };
