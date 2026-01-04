@@ -529,16 +529,32 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
       
       // Strategie 3: Suche nach exaktem Namen + Nationalität (als Fallback)
       if (!guestId && data.nationality && data.nationality !== 'none' && data.nationality !== '') {
-        const { data: existingGuest } = await supabase
+        const { data: existingGuests } = await supabase
           .from('guests')
           .select('id')
           .ilike('name', data.guest_name.trim())
           .eq('nationality', data.nationality)
-          .maybeSingle();
+          .order('created_at', { ascending: true })
+          .limit(1);
         
-        if (existingGuest) {
-          console.log('✅ Gast per Name + Nationalität gefunden:', existingGuest.id);
-          guestId = existingGuest.id;
+        if (existingGuests && existingGuests.length > 0) {
+          console.log('✅ Gast per Name + Nationalität gefunden:', existingGuests[0].id);
+          guestId = existingGuests[0].id;
+        }
+      }
+      
+      // Strategie 4: Suche NUR nach exaktem Namen (letzter Fallback)
+      if (!guestId) {
+        const { data: existingGuests } = await supabase
+          .from('guests')
+          .select('id')
+          .ilike('name', data.guest_name.trim())
+          .order('created_at', { ascending: true })
+          .limit(1);
+        
+        if (existingGuests && existingGuests.length > 0) {
+          console.log('✅ Gast per Name (exakt) gefunden:', existingGuests[0].id);
+          guestId = existingGuests[0].id;
         }
       }
       
