@@ -150,20 +150,30 @@ export const useGuestStatsWithYear = (selectedYear?: number) => {
   return useQuery({
     queryKey: ['guest-stats-by-year', selectedYear],
     queryFn: async () => {
-      // Load all bookings to determine available years
-      const { data: allBookingsForYears, error: yearsError } = await supabase
+      // Load ALL bookings to determine available years and TOTAL bookings per guest (for returning rate)
+      const { data: allBookings, error: allBookingsError } = await supabase
         .from('bookings')
-        .select('check_in, houses!bookings_house_id_fkey!inner(rental_type)')
+        .select('id, guest_id, check_in, houses!bookings_house_id_fkey!inner(rental_type)')
         .eq('houses.rental_type', 'tourist')
-        .not('check_in', 'is', null);
+        .neq('status', 'cancelled')
+        .not('guest_id', 'is', null);
 
-      if (yearsError) throw yearsError;
+      if (allBookingsError) throw allBookingsError;
 
+      // Extract available years
       const availableYears = [...new Set(
-        allBookingsForYears?.map(b => new Date(b.check_in).getFullYear()) || []
+        allBookings?.map(b => new Date(b.check_in).getFullYear()) || []
       )].sort((a, b) => b - a);
 
-      // Build query for bookings with optional year filter
+      // Count TOTAL bookings per guest across ALL years (for returning rate calculation)
+      const totalBookingsPerGuest = new Map<string, number>();
+      allBookings?.forEach(b => {
+        if (b.guest_id) {
+          totalBookingsPerGuest.set(b.guest_id, (totalBookingsPerGuest.get(b.guest_id) || 0) + 1);
+        }
+      });
+
+      // Build query for bookings with optional year filter (for year-specific stats)
       let query = supabase
         .from('bookings')
         .select(`
@@ -183,20 +193,16 @@ export const useGuestStatsWithYear = (selectedYear?: number) => {
       const { data: bookings, error: bookingsError } = await query;
       if (bookingsError) throw bookingsError;
 
-      // Calculate statistics from filtered bookings
-      const guestIds = new Set(bookings?.map(b => b.guest_id).filter(Boolean));
-      const totalGuests = guestIds.size;
+      // Get unique guests in the selected year
+      const guestIdsInYear = new Set(bookings?.map(b => b.guest_id).filter(Boolean));
+      const totalGuests = guestIdsInYear.size;
 
-      // Count bookings per guest for returning rate
-      const bookingsPerGuest = new Map<string, number>();
-      bookings?.forEach(b => {
-        if (b.guest_id) {
-          bookingsPerGuest.set(b.guest_id, (bookingsPerGuest.get(b.guest_id) || 0) + 1);
-        }
-      });
-      const returningGuests = [...bookingsPerGuest.values()].filter(count => count >= 2).length;
+      // Returning guests: From guests in selected year, how many have 2+ bookings TOTAL (across all years)?
+      const returningGuests = [...guestIdsInYear].filter(
+        guestId => (totalBookingsPerGuest.get(guestId as string) || 0) >= 2
+      ).length;
 
-      // Revenue and stay duration
+      // Revenue and stay duration for selected year
       let totalRevenue = 0;
       let totalNights = 0;
       bookings?.forEach(b => {
