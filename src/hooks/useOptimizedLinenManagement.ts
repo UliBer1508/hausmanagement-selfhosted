@@ -365,6 +365,31 @@ export const useOptimizedLinenManagement = () => {
         throw new Error('Gesamtanzahl der Artikel ist 0');
       }
 
+      // NEU: Fallback - Wenn keine Farben übergeben, aus DB laden
+      let itemVariants = orderData.itemVariants;
+      let linenColor = orderData.linenColor;
+      
+      if (!itemVariants || Object.keys(itemVariants).length === 0) {
+        console.log('⚠️ Keine itemVariants übergeben, lade aus linen_set_definitions...');
+        const { data: linenDef } = await supabase
+          .from('linen_set_definitions')
+          .select('custom_categories')
+          .eq('house_id', orderData.houseId)
+          .maybeSingle();
+        
+        if (linenDef?.custom_categories) {
+          itemVariants = {};
+          Object.entries(linenDef.custom_categories).forEach(([key, config]: [string, any]) => {
+            if (config?.color) {
+              itemVariants![key] = config.color;
+            }
+          });
+          // Hauptfarbe aus bedding ableiten
+          linenColor = linenColor || (linenDef.custom_categories as any).bedding?.color || null;
+          console.log('✅ itemVariants aus DB geladen:', itemVariants);
+        }
+      }
+
       console.log('📤 Bestellung an Supabase senden...');
       
       const insertData = {
@@ -377,8 +402,8 @@ export const useOptimizedLinenManagement = () => {
         order_date: format(new Date(), 'yyyy-MM-dd'),
         delivery_date: orderData.deliveryDate || format(addDays(new Date(), orderData.priority === 'urgent' ? 1 : 2), 'yyyy-MM-dd'),
         notes: orderData.notes || 'Automatische Bestellung basierend auf prädiktiver Analyse',
-        linen_color: orderData.linenColor || null,        // NEU: Hauptfarbe speichern
-        item_variants: orderData.itemVariants || null,    // NEU: Artikelfarben speichern
+        linen_color: linenColor || null,
+        item_variants: itemVariants || null,
       };
 
       console.log('💾 INSERT Daten:', insertData);
