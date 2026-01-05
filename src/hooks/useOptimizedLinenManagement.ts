@@ -151,11 +151,12 @@ export const useOptimizedLinenManagement = () => {
       
       if (housesError) throw housesError;
 
-      // Filter bookings to upcoming only
+      // Filter bookings to active and upcoming (check_out >= today, status confirmed or checked_in)
       const housesWithFilteredBookings = houses?.map(house => ({
         ...house,
         bookings: house.bookings?.filter((booking: any) => 
-          new Date(booking.check_in) >= new Date() && booking.status === 'confirmed'
+          new Date(booking.check_out) >= new Date() && 
+          ['confirmed', 'checked_in'].includes(booking.status)
         ).sort((a: any, b: any) => 
           new Date(a.check_in).getTime() - new Date(b.check_in).getTime()
         ) || []
