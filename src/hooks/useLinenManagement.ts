@@ -162,6 +162,7 @@ export const useLinenManagement = (houseId: string) => {
       notes?: string;
       deliveryDate?: string;
       linenColor?: string;
+      itemVariants?: Record<string, string>;  // NEU: Artikelfarben pro Typ
     }) => {
       const totalItems = Object.values(orderData.orderItems).reduce((sum, count) => sum + count, 0);
       
@@ -176,7 +177,8 @@ export const useLinenManagement = (houseId: string) => {
           order_date: format(new Date(), 'yyyy-MM-dd'),
           delivery_date: orderData.deliveryDate || format(addDays(new Date(), 2), 'yyyy-MM-dd'),
           notes: orderData.notes || 'Automatische Bestellung basierend auf Bedarfsanalyse',
-          linen_color: orderData.linenColor || null, // Aus Datenbank - kein Fallback
+          linen_color: orderData.linenColor || null,
+          item_variants: orderData.itemVariants || null,  // NEU: Artikelfarben speichern
         })
         .select()
         .single();

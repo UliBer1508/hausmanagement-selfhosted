@@ -339,6 +339,8 @@ export const useOptimizedLinenManagement = () => {
       deliveryDate?: string;
       priority?: 'normal' | 'urgent';
       bookingId?: string;
+      linenColor?: string;                        // NEU: Hauptfarbe
+      itemVariants?: Record<string, string>;      // NEU: Artikelfarben
     }) => {
       console.log('🔍 Bestelldaten validieren:', {
         houseId: orderData.houseId,
@@ -374,7 +376,9 @@ export const useOptimizedLinenManagement = () => {
         status: LINEN_ORDER_STATUSES.OFFEN,
         order_date: format(new Date(), 'yyyy-MM-dd'),
         delivery_date: orderData.deliveryDate || format(addDays(new Date(), orderData.priority === 'urgent' ? 1 : 2), 'yyyy-MM-dd'),
-        notes: orderData.notes || 'Automatische Bestellung basierend auf prädiktiver Analyse'
+        notes: orderData.notes || 'Automatische Bestellung basierend auf prädiktiver Analyse',
+        linen_color: orderData.linenColor || null,        // NEU: Hauptfarbe speichern
+        item_variants: orderData.itemVariants || null,    // NEU: Artikelfarben speichern
       };
 
       console.log('💾 INSERT Daten:', insertData);

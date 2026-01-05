@@ -118,7 +118,8 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     const result = await createOrderFromData({
       bookingId: selectedBookingForOrder.booking_id,
       generatedData: generatedOrderData,
-      userOverrides: orderData
+      userOverrides: orderData,
+      customCategories: linenSetDefinition?.custom_categories as Record<string, any> | undefined  // Cast für Type-Kompatibilität
     });
 
     setOrderDialogOpen(false);
