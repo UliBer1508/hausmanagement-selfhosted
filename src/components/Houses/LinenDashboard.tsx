@@ -137,7 +137,7 @@ const LinenDashboard = () => {
           bookings!linen_orders_booking_id_fkey(guest_name, check_in)
         `)
         .eq('houses.rental_type', 'tourist')
-        .eq('status', 'pending')
+        .eq('status', 'offen')
         .order('delivery_date', { ascending: true });
       
       if (error) throw error;

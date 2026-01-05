@@ -369,7 +369,7 @@ const OriginalDashboard = () => {
     setEditingOrderId(order.id);
     setEditingOrderData({
       ...fullOrder,
-      status: fullOrder.status || 'pending'
+      status: fullOrder.status || 'offen'
     });
     setShowLinenOrderDialog(true);
     
@@ -392,7 +392,7 @@ const OriginalDashboard = () => {
           delivery_time: '09:00:00' as const,
           delivery_type: orderData.deliveryType || 'delivery',
           notes: orderData.notes,
-          status: orderData.status || 'pending',
+          status: orderData.status || 'offen',
           updated_at: new Date().toISOString(),
           status_changed_by: 'Admin',
           status_changed_at: new Date().toISOString()
@@ -422,7 +422,7 @@ const OriginalDashboard = () => {
           delivery_time: '09:00:00' as const,
           delivery_type: orderData.deliveryType || 'delivery',
           notes: orderData.notes,
-          status: 'pending' as const
+          status: 'offen' as const
         };
 
         console.log('➕ Insert Payload:', insertPayload);
