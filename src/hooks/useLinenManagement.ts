@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { format, addDays } from 'date-fns';
+import { LINEN_ORDER_STATUSES } from '@/lib/linenOrderHelpers';
 
 export interface LinenDemandAnalysis {
   itemType: string;
@@ -171,7 +172,7 @@ export const useLinenManagement = (houseId: string) => {
           provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c', // Default laundry provider
           items: orderData.orderItems,
           total_items: totalItems,
-          status: 'pending',
+          status: LINEN_ORDER_STATUSES.OFFEN,
           order_date: format(new Date(), 'yyyy-MM-dd'),
           delivery_date: orderData.deliveryDate || format(addDays(new Date(), 2), 'yyyy-MM-dd'),
           notes: orderData.notes || 'Automatische Bestellung basierend auf Bedarfsanalyse',

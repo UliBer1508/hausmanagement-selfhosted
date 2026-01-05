@@ -196,7 +196,7 @@ export const useLinenAI = () => {
       delivery_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // +2 Tage
       items: orderItems,
       total_items: optimization.order_suggestion.total_items,
-      status: 'pending',
+      status: 'offen',
       notes: `KI-generierte Bestellung - Vertrauen: ${(optimization.confidence_score * 100).toFixed(0)}%`,
       delivery_type: 'delivery'
     };
