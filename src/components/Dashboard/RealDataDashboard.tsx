@@ -7,6 +7,7 @@ import { useDashboardData } from '@/hooks/useDashboard';
 import { format, parseISO, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { CalendarIcon, Home, Users, Building } from 'lucide-react';
+import LinenApprovalAlertBanner from './LinenApprovalAlertBanner';
 
 const RealDataDashboard = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -89,6 +90,9 @@ const RealDataDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Alert Banner für ausstehende Wäsche-Genehmigungen */}
+      <LinenApprovalAlertBanner />
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>

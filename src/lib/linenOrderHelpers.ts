@@ -194,3 +194,58 @@ export const getLinenStatusBadge = (status: string): { className: string; icon: 
       return { className: 'bg-gray-100 text-gray-800 border-gray-300', icon: '❓', label: status };
   }
 };
+
+/**
+ * ============================================================
+ * VALIDIERUNGSFUNKTION FÜR WÄSCHEBESTELLUNGEN
+ * ============================================================
+ * 
+ * Prüft ob alle erforderlichen Felder vorhanden sind bevor
+ * eine Bestellung gespeichert wird.
+ */
+export interface LinenOrderValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+export const validateLinenOrderData = (orderData: {
+  items: Record<string, number>;
+  item_variants?: Record<string, string> | null;
+  linen_color?: string | null;
+  house_id: string;
+}): LinenOrderValidationResult => {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  
+  // Pflichtfelder prüfen
+  if (!orderData.items || Object.keys(orderData.items).length === 0) {
+    errors.push('Keine Bestellartikel angegeben');
+  }
+  
+  if (!orderData.house_id) {
+    errors.push('Keine Haus-ID angegeben');
+  }
+  
+  // Warnung wenn item_variants fehlen (nicht kritisch, wird aus DB geladen)
+  if (!orderData.item_variants || Object.keys(orderData.item_variants).length === 0) {
+    warnings.push('Keine Artikelfarben angegeben - werden aus Haus-Definition geladen');
+    console.warn('⚠️ Wäsche-Bestellung ohne item_variants - wird aus Definition geladen');
+  }
+  
+  // Prüfen ob alle Items auch Farben haben
+  if (orderData.items && orderData.item_variants) {
+    const itemsWithoutColor = Object.keys(orderData.items).filter(
+      key => !orderData.item_variants?.[key]
+    );
+    if (itemsWithoutColor.length > 0) {
+      warnings.push(`Fehlende Farben für: ${itemsWithoutColor.join(', ')}`);
+    }
+  }
+  
+  return { 
+    valid: errors.length === 0, 
+    errors,
+    warnings
+  };
+};
