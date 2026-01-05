@@ -301,7 +301,9 @@ const ConnectedBookingView = () => {
             delivery_date: orderData.deliveryDate,
             delivery_type: orderData.deliveryType || 'delivery',
             status: LINEN_ORDER_STATUSES.AUSSTEHEND,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            linen_color: orderData.linenColor || null,      // NEU: Hauptfarbe
+            item_variants: orderData.itemColors || null,    // NEU: Artikelfarben
           })
           .eq('id', editingOrderId);
         
@@ -312,14 +314,16 @@ const ConnectedBookingView = () => {
           description: `Wäschebestellung für ${getGuestName(selectedBookingForOrder)} wurde aktualisiert.`,
         });
       } else {
-        // CREATE new order
+        // CREATE new order - MIT Farben
         await createOptimizedOrderMutation.mutateAsync({
           houseId: selectedBookingForOrder.house_id,
           bookingId: selectedBookingForOrder.id,
           orderItems: orderData.orderItems,
           notes: orderData.notes,
           deliveryDate: orderData.deliveryDate,
-          priority: 'normal'
+          priority: 'normal',
+          linenColor: orderData.linenColor || null,        // NEU: Hauptfarbe
+          itemVariants: orderData.itemColors || null,      // NEU: Artikelfarben
         });
         
         toast({

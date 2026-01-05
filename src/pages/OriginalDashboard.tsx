@@ -395,7 +395,9 @@ const OriginalDashboard = () => {
           status: orderData.status || 'offen',
           updated_at: new Date().toISOString(),
           status_changed_by: 'Admin',
-          status_changed_at: new Date().toISOString()
+          status_changed_at: new Date().toISOString(),
+          linen_color: orderData.linenColor || null,      // NEU: Hauptfarbe
+          item_variants: orderData.itemColors || null,    // NEU: Artikelfarben
         };
 
         console.log('📝 Update Payload:', updatePayload);
@@ -422,7 +424,9 @@ const OriginalDashboard = () => {
           delivery_time: '09:00:00' as const,
           delivery_type: orderData.deliveryType || 'delivery',
           notes: orderData.notes,
-          status: 'offen' as const
+          status: 'offen' as const,
+          linen_color: orderData.linenColor || null,      // NEU: Hauptfarbe
+          item_variants: orderData.itemColors || null,    // NEU: Artikelfarben
         };
 
         console.log('➕ Insert Payload:', insertPayload);

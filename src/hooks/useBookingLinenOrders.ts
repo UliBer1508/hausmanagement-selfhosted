@@ -44,7 +44,8 @@ interface OrderStatusResponse {
 }
 
 // Helper function to build default item variants from database custom_categories
-const buildDefaultItemVariants = (
+// EXPORTED: Wird auch von anderen Hooks verwendet
+export const buildDefaultItemVariants = (
   orderItems: Record<string, number>,
   customCategories?: Record<string, any>
 ): Record<string, string> => {
@@ -271,7 +272,7 @@ export const useBookingLinenOrders = (houseId: string) => {
 
       console.log('[createOrder] Generated order data:', orderData);
 
-      // 2. Insert linen_order into DB
+      // 2. Insert linen_order into DB - MIT item_variants und linen_color von Edge Function
       const { data, error } = await supabase
         .from('linen_orders')
         .insert({
@@ -286,6 +287,8 @@ export const useBookingLinenOrders = (houseId: string) => {
           delivery_date: calculateDeliveryDate(orderData.booking.check_in),
           delivery_type: 'delivery',
           notes: 'Automatische Bestellung basierend auf prädiktiver Analyse',
+          linen_color: orderData.linen_color || null,      // Von Edge Function
+          item_variants: orderData.item_variants || null,  // Von Edge Function
         })
         .select()
         .single();
