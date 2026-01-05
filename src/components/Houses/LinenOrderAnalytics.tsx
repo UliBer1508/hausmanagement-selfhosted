@@ -84,7 +84,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
         .from('bookings')
         .select('*')
         .eq('house_id', house.id)
-        .gte('check_in', format(new Date(), 'yyyy-MM-dd'))
+        .gte('check_out', format(new Date(), 'yyyy-MM-dd'))
         .lte('check_in', format(addDays(new Date(), 30), 'yyyy-MM-dd'))
         .in('status', ['confirmed', 'checked_in'])
         .order('check_in', { ascending: true });

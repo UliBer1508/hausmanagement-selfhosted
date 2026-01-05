@@ -88,7 +88,7 @@ const LinenDashboard = () => {
       const { data, error } = await supabase
         .from('bookings')
         .select('*, linen_orders!linen_orders_booking_id_fkey(id)')
-        .gte('check_in', format(new Date(), 'yyyy-MM-dd'))
+        .gte('check_out', format(new Date(), 'yyyy-MM-dd'))
         .eq('status', 'confirmed')
         .order('check_in', { ascending: true });
       
