@@ -192,41 +192,47 @@ const calculateBookingLinenOrder = (
   const guests = booking.number_of_guests || 0;
   const items: Record<string, number> = {};
   
-  // Per-Guest Items
-  if (linenDef?.bedding_per_guest) {
-    items.bedding = guests * linenDef.bedding_per_guest;
-  }
-  if (linenDef?.large_towels_per_guest) {
-    items.large_towels = guests * linenDef.large_towels_per_guest;
-  }
-  if (linenDef?.small_towels_per_guest) {
-    items.small_towels = guests * linenDef.small_towels_per_guest;
-  }
-  if (linenDef?.sauna_towels_per_guest) {
-    items.sauna_towels = guests * linenDef.sauna_towels_per_guest;
-  }
-  if (linenDef?.pillow_cases_per_guest) {
-    items.pillow_cases = guests * linenDef.pillow_cases_per_guest;
-  }
-  if (linenDef?.blankets_per_guest) {
-    items.blankets = guests * linenDef.blankets_per_guest;
-  }
-  
-  // Per-Booking Items
-  if (linenDef?.bath_mats_per_booking) {
-    items.bath_mats = linenDef.bath_mats_per_booking;
-  }
-  if (linenDef?.sink_towels_per_booking) {
-    items.sink_towels = linenDef.sink_towels_per_booking;
-  }
-  if (linenDef?.kitchen_towels_per_booking) {
-    items.kitchen_towels = linenDef.kitchen_towels_per_booking;
+  // PRIO 1: Neue custom_categories Struktur (JSONB)
+  if (linenDef?.custom_categories && Object.keys(linenDef.custom_categories).length > 0) {
+    Object.entries(linenDef.custom_categories).forEach(([key, config]: [string, any]) => {
+      if (config?.active !== false && config?.quantity > 0) {
+        const quantity = config.quantity || 0;
+        
+        // Saisonale Verfügbarkeit prüfen
+        if (config.availability === 'seasonal') {
+          const currentMonth = new Date().getMonth() + 1;
+          const isWinter = currentMonth >= 10 || currentMonth <= 3;
+          if (config.season === 'winter' && !isWinter) return;
+          if (config.season === 'summer' && isWinter) return;
+        }
+        
+        // Berechnung basierend auf calculation_type
+        if (config.calculation_type === 'per_guest') {
+          items[key] = guests * quantity;
+        } else if (config.calculation_type === 'per_booking') {
+          items[key] = quantity;
+        }
+      }
+    });
+    
+    // Wenn custom_categories Artikel gefunden wurden, diese zurückgeben
+    if (Object.keys(items).length > 0) {
+      return items;
+    }
   }
   
-  // Remove items with 0 quantity
-  return Object.fromEntries(
-    Object.entries(items).filter(([_, qty]) => qty > 0)
-  );
+  // PRIO 2: Fallback auf alte Spalten (Abwärtskompatibilität)
+  if (linenDef?.bedding_per_guest) items.bedding = guests * linenDef.bedding_per_guest;
+  if (linenDef?.pillow_cases_per_guest) items.pillow_cases = guests * linenDef.pillow_cases_per_guest;
+  if (linenDef?.large_towels_per_guest) items.large_towels = guests * linenDef.large_towels_per_guest;
+  if (linenDef?.small_towels_per_guest) items.small_towels = guests * linenDef.small_towels_per_guest;
+  if (linenDef?.sauna_towels_per_guest) items.sauna_towels = guests * linenDef.sauna_towels_per_guest;
+  if (linenDef?.blankets_per_guest) items.blankets = guests * linenDef.blankets_per_guest;
+  if (linenDef?.bath_mats_per_booking) items.bath_mats = linenDef.bath_mats_per_booking;
+  if (linenDef?.sink_towels_per_booking) items.sink_towels = linenDef.sink_towels_per_booking;
+  if (linenDef?.kitchen_towels_per_booking) items.kitchen_towels = linenDef.kitchen_towels_per_booking;
+  
+  return Object.fromEntries(Object.entries(items).filter(([_, qty]) => qty > 0));
 };
 
 const LinenOrderDialog = ({
