@@ -57,13 +57,13 @@ export interface LinenItem {
   id: string;
   type: string;
   count: number;
-  status: 'pending' | 'in-progress';
+  status: 'offen' | 'ausstehend';
   icon?: string;
 }
 
 export interface LinenOrder {
   id: string;
-  status: 'pending' | 'in-progress' | 'delivered' | 'cancelled';
+  status: 'offen' | 'ausstehend' | 'delivered' | 'cancelled';
   provider_id?: string;
   house_id?: string;
   booking_id?: string;

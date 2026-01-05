@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { format, addDays } from 'date-fns';
 import { useMemo } from 'react';
+import { LINEN_ORDER_STATUSES } from '@/lib/linenOrderHelpers';
 
 export interface LinenDemandAnalysis {
   itemType: string;
@@ -370,7 +371,7 @@ export const useOptimizedLinenManagement = () => {
         provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c',
         items: orderData.orderItems,
         total_items: totalItems,
-        status: orderData.priority === 'urgent' ? 'urgent' : 'pending',
+        status: LINEN_ORDER_STATUSES.OFFEN,
         order_date: format(new Date(), 'yyyy-MM-dd'),
         delivery_date: orderData.deliveryDate || format(addDays(new Date(), orderData.priority === 'urgent' ? 1 : 2), 'yyyy-MM-dd'),
         notes: orderData.notes || 'Automatische Bestellung basierend auf prädiktiver Analyse'

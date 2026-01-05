@@ -279,7 +279,7 @@ export const useBookingLinenOrders = (houseId: string) => {
           booking_id: bookingId,
           items: orderData.order_items,
           total_items: orderData.total_items,
-          status: 'pending',
+          status: 'offen',
           order_source: 'booking_required',
           suggested_at: new Date().toISOString(),
           order_date: new Date().toISOString().split('T')[0],

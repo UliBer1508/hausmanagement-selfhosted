@@ -137,29 +137,29 @@ export const mockCleaningTasks: ServiceTask[] = [
 export const mockLinenOrders: LinenOrder[] = [
   {
     id: '1',
-    status: 'pending',
+    status: 'offen',
     provider_id: '2',
     house_id: '1',
     booking_id: '1',
     order_date: '2024-09-23',
     delivery_date: '2024-09-24',
     items: [
-      { id: '1', type: 'Bettwäsche', count: 4, status: 'pending' },
-      { id: '2', type: 'Handtücher', count: 8, status: 'pending' },
-      { id: '3', type: 'Geschirrtücher', count: 6, status: 'pending' }
+      { id: '1', type: 'Bettwäsche', count: 4, status: 'offen' },
+      { id: '2', type: 'Handtücher', count: 8, status: 'offen' },
+      { id: '3', type: 'Geschirrtücher', count: 6, status: 'offen' }
     ]
   },
   {
     id: '2',
-    status: 'in-progress',
+    status: 'ausstehend',
     provider_id: '2',
     house_id: '2',
     booking_id: '2',
     order_date: '2024-09-22',
     delivery_date: '2024-09-25',
     items: [
-      { id: '4', type: 'Bettwäsche', count: 3, status: 'in-progress' },
-      { id: '5', type: 'Handtücher', count: 6, status: 'in-progress' }
+      { id: '4', type: 'Bettwäsche', count: 3, status: 'ausstehend' },
+      { id: '5', type: 'Handtücher', count: 6, status: 'ausstehend' }
     ]
   }
 ];
