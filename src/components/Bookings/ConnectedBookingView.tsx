@@ -26,6 +26,7 @@ const ConnectedBookingView = () => {
   const [calculatedOrderItems, setCalculatedOrderItems] = useState<Record<string, number>>({});
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [editingOrderData, setEditingOrderData] = useState<any>(null);
   
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -191,6 +192,18 @@ const ConnectedBookingView = () => {
     },
   });
 
+  // Fetch linen set definitions for all houses
+  const { data: linenSetDefinitions } = useQuery({
+    queryKey: ['linen-set-definitions-all'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_set_definitions')
+        .select('*');
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Filter bookings
   const filteredBookings = bookingsData?.filter(booking => {
     if (searchTerm) {
@@ -272,6 +285,17 @@ const ConnectedBookingView = () => {
       guestName: getGuestName(booking),
       houseName: booking.houses?.name,
       itemsCount: Object.keys(order.items || {}).length
+    });
+    
+    // NEU: Speichere die komplette Order-Data inkl. item_variants
+    setEditingOrderData({
+      items: order.items,
+      item_variants: order.item_variants,
+      linen_color: order.linen_color,
+      notes: order.notes,
+      deliveryDate: order.delivery_date,
+      deliveryType: order.delivery_type,
+      status: order.status,
     });
     
     // Open dialog with existing data
@@ -530,12 +554,17 @@ const ConnectedBookingView = () => {
               setCalculatedOrderItems({});
               setEditingOrderId(null);
               setIsEditMode(false);
+              setEditingOrderData(null);
             }
           }}
           orderItems={calculatedOrderItems}
           houseName={selectedBookingForOrder.houses?.name || 'Unbekannt'}
           houseId={selectedBookingForOrder.house_id}
           selectedBooking={selectedBookingForOrder}
+          linenSetDefinition={linenSetDefinitions?.find(
+            (d) => d.house_id === selectedBookingForOrder.house_id
+          )}
+          initialData={isEditMode ? editingOrderData : undefined}
           onCreateOrder={handleOrderCreation}
           isCreating={createOptimizedOrderMutation.isPending}
           mode={isEditMode ? 'edit' : 'create'}
