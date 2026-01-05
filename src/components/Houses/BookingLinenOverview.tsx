@@ -176,41 +176,21 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     }
   };
 
-  // Berechne Bestellitems basierend auf linen_set_definition
+  // Berechne Bestellitems basierend auf linen_set_definition (zentrale Funktion)
   const calculateOrderItems = (booking: any) => {
     if (!linenSetDefinition) return {};
     
-    const guests = booking.number_of_guests || 0;
-    const items: Record<string, number> = {};
+    // Verwende zentrale Berechnungsfunktion
+    const { calculateLinenOrderFromDefinition } = require('@/lib/linenCalculation');
+    const checkInDate = booking.check_in ? new Date(booking.check_in) : undefined;
     
-    // Per-Guest Items
-    if (linenSetDefinition.bedding_per_guest) {
-      items.bedding = guests * linenSetDefinition.bedding_per_guest;
-    }
-    if (linenSetDefinition.large_towels_per_guest) {
-      items.large_towels = guests * linenSetDefinition.large_towels_per_guest;
-    }
-    if (linenSetDefinition.small_towels_per_guest) {
-      items.small_towels = guests * linenSetDefinition.small_towels_per_guest;
-    }
-    if (linenSetDefinition.sauna_towels_per_guest) {
-      items.sauna_towels = guests * linenSetDefinition.sauna_towels_per_guest;
-    }
-    
-    // Per-Booking Items
-    if (linenSetDefinition.bath_mats_per_booking) {
-      items.bath_mats = linenSetDefinition.bath_mats_per_booking;
-    }
-    if (linenSetDefinition.sink_towels_per_booking) {
-      items.sink_towels = linenSetDefinition.sink_towels_per_booking;
-    }
-    if (linenSetDefinition.kitchen_towels_per_booking) {
-      items.kitchen_towels = linenSetDefinition.kitchen_towels_per_booking;
-    }
-    
-    return Object.fromEntries(
-      Object.entries(items).filter(([_, qty]) => qty > 0)
+    const result = calculateLinenOrderFromDefinition(
+      linenSetDefinition,
+      booking.number_of_guests || 0,
+      checkInDate
     );
+    
+    return result.orderItems;
   };
 
   if (isLoading) {
