@@ -1,3 +1,11 @@
+/**
+ * LaundryOrdersOverview - Zeigt Wäschebestellungen die zu WÄSCHE OBERPINZGAU synchronisiert wurden
+ * 
+ * WICHTIG: Diese Komponente zeigt NUR extern synchronisierte Bestellungen (external_bestellnummer != null).
+ * Das Oberpinzgau-Portal hat eine eigene Supabase-Datenbank und erfordert manuelle Synchronisation.
+ * 
+ * Für das Teuni Portal (interne DB, keine Sync) siehe: TeuniOrdersOverview.tsx
+ */
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function LaundryOrdersOverview() {
@@ -94,9 +102,15 @@ export function LaundryOrdersOverview() {
     <div className="space-y-4">
       {/* Header with refresh */}
       <div className="flex justify-between items-center">
-        <p className="text-sm text-muted-foreground">
-          Wäschebestellungen im externen Portal
-        </p>
+        <div>
+          <p className="text-sm text-muted-foreground">
+            <ExternalLink className="h-3 w-3 inline mr-1" />
+            Wäsche Oberpinzgau - Synchronisierte Bestellungen
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Zeigt nur Bestellungen die zur externen Oberpinzgau-Datenbank synchronisiert wurden
+          </p>
+        </div>
         <Button variant="outline" size="sm" onClick={() => refetch()}>
           <RefreshCw className="h-4 w-4 mr-2" />
           Aktualisieren

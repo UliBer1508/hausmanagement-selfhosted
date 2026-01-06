@@ -457,15 +457,15 @@ const AutoLinenOrderSettingsCard = () => {
             </div>
           )}
 
-          {/* Externe Synchronisation */}
+          {/* Wäsche Oberpinzgau Synchronisation */}
           <div className="border-t pt-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Link2 className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <h4 className="font-medium">Externe Synchronisation</h4>
+                  <h4 className="font-medium">Wäsche Oberpinzgau Sync</h4>
                   <p className="text-xs text-muted-foreground">
-                    Bestellungen automatisch an Wäsche Oberpinzgau senden
+                    Bestellungen zur externen Oberpinzgau-Datenbank synchronisieren (nicht Teuni)
                   </p>
                 </div>
               </div>
