@@ -1,23 +1,27 @@
-# Externe Wäscherei-Synchronisation (Teuni Portal)
+# Wäsche Oberpinzgau - Externe Synchronisation
+
+> ⚠️ **WICHTIG**: Dies ist die Dokumentation für **Wäsche Oberpinzgau** (externe Datenbank).  
+> Für das **Teuni Portal** (interne DB, kein Sync) siehe: `docs/Waesche-Systeme-Uebersicht.md`
 
 ## Übersicht
 
-Die externe Wäscherei-Synchronisation ermöglicht das Übertragen von Wäschebestellungen aus dem internen System (Logik) an das externe Teuni Portal (Wäsche Oberpinzgau). Die Synchronisation erfolgt über eine **direkte Supabase-Datenbankverbindung** ohne Edge Function.
+Die Wäsche Oberpinzgau Synchronisation ermöglicht das Übertragen von Wäschebestellungen aus dem internen System (Logik) an das **externe Wäsche Oberpinzgau Portal**. Die Synchronisation erfolgt über eine **direkte Supabase-Datenbankverbindung** zur externen Datenbank.
 
 ## Architektur
 
 ```
-┌─────────────────────┐         ┌─────────────────────┐
-│   INTERNE SUPABASE  │         │  EXTERNE SUPABASE   │
-│   (Logik App)       │         │  (Teuni Portal)     │
-├─────────────────────┤         ├─────────────────────┤
-│ linen_orders        │────────▶│ waeschebestellungen │
-│ linen_order_items   │────────▶│ bestellpositionen   │
-│ houses              │         │ kunden              │
-│ bookings            │         │ objekte             │
-│ external_article_   │         │ waescheartikel      │
-│   mapping           │         │                     │
-└─────────────────────┘         └─────────────────────┘
+┌─────────────────────┐         ┌─────────────────────────────┐
+│   INTERNE SUPABASE  │         │  EXTERNE SUPABASE           │
+│   (Logik App)       │         │  (Wäsche Oberpinzgau)       │
+│   usblrulkcgucxtkh  │         │  pkpnowevagxmhyqlawng       │
+├─────────────────────┤         ├─────────────────────────────┤
+│ linen_orders        │────────▶│ waeschebestellungen         │
+│ linen_order_items   │────────▶│ bestellpositionen           │
+│ houses              │         │ kunden                      │
+│ bookings            │         │ objekte                     │
+│ external_article_   │         │ waescheartikel              │
+│   mapping           │         │                             │
+└─────────────────────┘         └─────────────────────────────┘
         │                               │
         │     useExternalSync.ts        │
         └───────────────────────────────┘

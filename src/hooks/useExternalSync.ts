@@ -1,3 +1,18 @@
+/**
+ * useExternalSync - Synchronisation zu WÄSCHE OBERPINZGAU (externe Supabase-Datenbank)
+ * 
+ * WICHTIG: Dieser Hook synchronisiert Bestellungen zur EXTERNEN Oberpinzgau-Datenbank.
+ * Das Oberpinzgau-Portal hat eine eigene Supabase-Instanz (pkpnowevagxmhyqlawng.supabase.co).
+ * 
+ * Dies ist NICHT das Teuni Portal! Teuni liest direkt aus der internen Datenbank.
+ * 
+ * Workflow:
+ * 1. Bestellung in interner DB erstellen
+ * 2. syncOrder() aufrufen → kopiert Daten zur externen DB
+ * 3. external_bestellnummer wird in interner DB gespeichert
+ * 
+ * Siehe auch: docs/Waesche-Oberpinzgau-Sync.md
+ */
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { externalLaundryClient } from '@/integrations/externalLaundry/client';
