@@ -220,6 +220,7 @@ export const useBookingLinenOrders = (houseId: string) => {
         .insert({
           house_id: generatedData.booking.house.id,
           booking_id: bookingId,
+          provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c', // Teuni Provider
           items: generatedData.order_items,
           total_items: generatedData.total_items,
           status: 'offen',
@@ -278,6 +279,7 @@ export const useBookingLinenOrders = (houseId: string) => {
         .insert({
           house_id: orderData.booking.house.id,
           booking_id: bookingId,
+          provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c', // Teuni Provider
           items: orderData.order_items,
           total_items: orderData.total_items,
           status: 'offen',

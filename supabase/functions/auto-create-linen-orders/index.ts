@@ -249,6 +249,7 @@ serve(async (req) => {
           .insert({
             house_id: house.id,
             booking_id: booking.id,
+            provider_id: 'd8110105-8ac9-45e3-ad32-aaf42393744c', // Teuni Provider
             items: orderData.order_items,
             item_variants: orderData.item_variants,
             linen_color: orderData.linen_color || 'white_striped', // NEU: Haupt-Wäschefarbe aus Regeln
