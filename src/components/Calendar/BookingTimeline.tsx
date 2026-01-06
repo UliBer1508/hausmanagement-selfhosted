@@ -159,12 +159,12 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
       <div className="overflow-x-auto">
         {/* Header mit Tagen */}
         <div className="flex border-b sticky top-0 bg-card z-10">
-          {/* Haus-Spalte */}
-          <div className="w-40 shrink-0 p-3 font-medium border-r bg-muted/50 text-foreground">
+          {/* Haus-Spalte - sticky für horizontales Scrollen */}
+          <div className="w-32 md:w-40 shrink-0 p-2 md:p-3 font-medium border-r bg-muted/50 text-foreground sticky left-0 z-20">
             Objekt
           </div>
-          {/* Tages-Header */}
-          <div className="flex flex-1">
+          {/* Tages-Header mit fester Mindestbreite */}
+          <div className="flex" style={{ minWidth: `${daysInMonth * 28}px` }}>
             {Array.from({ length: daysInMonth }, (_, i) => {
               const date = addDays(startDate, i);
               const isToday = isSameDay(date, new Date());
@@ -174,7 +174,7 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
                 <div 
                   key={i} 
                   className={`
-                    flex-1 min-w-[32px] text-center text-xs p-1 border-r
+                    flex-1 min-w-[28px] md:min-w-[32px] text-center text-xs p-1 border-r
                     ${isToday ? 'bg-primary/20 font-bold' : ''}
                     ${isWeekend ? 'bg-muted/30' : ''}
                   `}
@@ -203,8 +203,8 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
               key={house.id} 
               className={`flex relative ${houseIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}
             >
-              {/* Haus-Name */}
-              <div className="w-40 shrink-0 p-3 font-medium border-r flex items-center gap-2 bg-muted/30">
+              {/* Haus-Name - sticky für horizontales Scrollen */}
+              <div className="w-32 md:w-40 shrink-0 p-2 md:p-3 font-medium border-r flex items-center gap-2 bg-muted/30 sticky left-0 z-10">
                 <span className="text-lg">{getHouseIcon(house.name)}</span>
                 <span className="text-sm text-foreground truncate">
                   {house.name.replace(' Chalet', '')}
@@ -213,11 +213,11 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
               
               {/* Timeline-Bereich mit Buchungs-Balken */}
               <div 
-                className="flex-1 relative"
-                style={{ height: `${containerHeight}px`, minHeight: '64px' }}
+                className="relative"
+                style={{ height: `${containerHeight}px`, minHeight: '64px', minWidth: `${daysInMonth * 28}px` }}
               >
                 {/* Hintergrund-Raster */}
-                <div className="absolute inset-0 flex">
+                <div className="absolute inset-0 flex" style={{ minWidth: `${daysInMonth * 28}px` }}>
                   {Array.from({ length: daysInMonth }, (_, i) => {
                     const date = addDays(startDate, i);
                     const isToday = isSameDay(date, new Date());
@@ -227,7 +227,7 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
                       <div 
                         key={i}
                         className={`
-                          flex-1 min-w-[32px] border-r border-border/50
+                          flex-1 min-w-[28px] md:min-w-[32px] border-r border-border/50
                           ${isToday ? 'bg-primary/10' : ''}
                           ${isWeekend && !isToday ? 'bg-muted/20' : ''}
                         `}
@@ -255,7 +255,7 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
                       style={{ 
                         left: style.left, 
                         width: style.width,
-                        minWidth: '60px',
+                        minWidth: '45px',
                         top: `${8 + verticalOffset}px`
                       }}
                       onClick={() => onBookingClick(booking)}
