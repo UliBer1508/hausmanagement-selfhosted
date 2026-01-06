@@ -256,7 +256,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                         <TableHead className="w-[80px]">Anzahl</TableHead>
                         <TableHead className="w-[120px]">Berechnung</TableHead>
                         <TableHead className="w-[120px]">Verfügbarkeit</TableHead>
-                        {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich') && (
+                        {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich' || category === 'Küchenbereich') && (
                           <TableHead className="w-[100px]">Farbe</TableHead>
                         )}
                         <TableHead className="w-[80px]">Winter</TableHead>
@@ -317,7 +317,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich') && (
+                          {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich' || category === 'Küchenbereich') && (
                             <TableCell>
                               <Select
                                 value={item.color || ''}
@@ -365,7 +365,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                           </TableCell>
                           <TableCell>
                             {/* Externe Artikelnummer - für farbbasierte Items */}
-                            {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich') ? (
+                            {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich' || category === 'Küchenbereich') ? (
                               <Input
                                 placeholder={category === 'Schlafbereich' ? 'WA001/WA005' : 'WA008'}
                                 value={(() => {
