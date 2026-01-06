@@ -37,7 +37,7 @@ const hasLinenColorByCategory = (itemType: string, linenDef: any): boolean => {
 // Badbereich/Wellness-Artikel: ITEM_COLORS (weiß, grau)
 const hasItemColorByCategory = (itemType: string, linenDef: any): boolean => {
   const category = getItemCategory(itemType, linenDef);
-  return category === 'Badbereich' || category === 'Wellness';
+  return category === 'Badbereich' || category === 'Wellness' || category === 'Küchenbereich';
 };
 
 // Fallback Kategorien-Definition (wenn keine custom_categories vorhanden)
