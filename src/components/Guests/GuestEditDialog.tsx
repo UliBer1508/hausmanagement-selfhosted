@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,24 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
     guest_birth_date: guest.guest_birth_date || '',
     guest_travel_document: guest.guest_travel_document || '',
   });
+
+  // Sync formData when dialog opens or guest changes
+  useEffect(() => {
+    if (open) {
+      setFormData({
+        guest_name: guest.guest_name || '',
+        guest_email: guest.guest_email || '',
+        guest_phone: guest.guest_phone || '',
+        nationality: guest.nationality || '',
+        guest_notes: guest.guest_notes || '',
+        guest_street: guest.guest_street || '',
+        guest_city: guest.guest_city || '',
+        guest_postal_code: guest.guest_postal_code || '',
+        guest_birth_date: guest.guest_birth_date || '',
+        guest_travel_document: guest.guest_travel_document || '',
+      });
+    }
+  }, [open, guest]);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
