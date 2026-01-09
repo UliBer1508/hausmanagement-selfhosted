@@ -369,10 +369,42 @@ supabase/functions/
 
 ## 9. Externe Integrationen
 
-### Teuni Portal (Wäscherei)
-- API-Sync für Wäschebestellungen
-- Artikel-Mapping: `external_article_mapping` Tabelle
-- Kundennummer in `linen_automation_settings.external_kundennummer`
+### Zwei Wäscherei-Systeme
+
+Das System unterstützt **zwei verschiedene Wäsche-Provider** mit unterschiedlichen Integrationen:
+
+#### Teuni Portal (Direkte DB-Integration)
+- **Provider-ID:** `d8110105-8ac9-45e3-ad32-aaf42393744c`
+- Kein externer Sync nötig - direkte DB-Zugriffe
+- Komponente: `TeuniOrdersOverview.tsx`
+- Service-Portal mit Token-Authentifizierung
+
+#### Wäsche Oberpinzgau (Externe Synchronisation)
+- **Externe Supabase:** `https://pkpnowevagxmhyqlawng.supabase.co`
+- **Client:** `src/integrations/externalLaundry/client.ts`
+- **Secrets:** `EXTERNAL_LAUNDRY_API_KEY`, `EXTERNAL_LAUNDRY_ANON_KEY`
+- **Identifikation:** `linen_orders.external_bestellnummer IS NOT NULL`
+- **Sync-Hook:** `useExternalSync.ts`
+- **Kundennummer:** In `linen_automation_settings.external_kundennummer`
+
+#### Unterscheidungstabelle
+
+| Merkmal | Teuni | Oberpinzgau |
+|---------|-------|-------------|
+| Identifikation | `provider_id = 'd811...'` | `external_bestellnummer IS NOT NULL` |
+| Integration | Direkte DB | Externe Supabase Sync |
+| Artikel-Mapping | Nicht nötig | `external_article_mapping` Tabelle |
+| Farbvarianten | Standard | `itemKey__color` Format (z.B. `bedding__grey_striped`) |
+
+### Externe Artikel-Mapping (für Oberpinzgau)
+
+Tabelle `external_article_mapping`:
+```
+internal_item_key: 'bedding__grey_striped'  -> external_artikelnummer: 'WA001'
+internal_item_key: 'large_towels'           -> external_artikelnummer: 'WA003'
+```
+
+**Mapping-Key Format:** `itemKey__color` (doppelter Unterstrich für Farbvarianten)
 
 ### Gmail
 - Edge Function `send-gmail`
@@ -395,7 +427,56 @@ Das Dashboard zeigt Alert-Banner für:
 
 ---
 
-## 11. ER-Diagramm (Tabellenbeziehungen)
+## 11. Rating-Reminder-System
+
+### Datenbank-Felder in `bookings`
+- `external_rating` - Original-Bewertung von Plattform (1-5 oder 1-10)
+- `normalized_rating` - Normalisiert auf 0-10 Skala
+- `rating_not_expected` - Boolean: Manuell markiert, keine Bewertung erwartet
+
+### Komponenten
+- `RatingReminderBanner.tsx` - Dashboard-Alert
+- `useRatingReminders.ts` - Hook für Abfrage
+
+### Workflow
+```
+1. Dashboard zeigt Banner für Buchungen:
+   - status = 'completed'
+   - external_rating IS NULL
+   - rating_not_expected != true
+   - check_out < heute
+2. User klickt "Eintragen"
+3. EditBookingDialog öffnet sich
+4. User trägt Bewertung ein ODER markiert "Keine Bewertung erwartet"
+```
+
+---
+
+## 12. Gäste-Buchungs-Trennung (Aktueller Stand)
+
+### Implementierter Status (Phase 1 abgeschlossen)
+- ✅ `guests` Tabelle existiert
+- ✅ `bookings.guest_id` Fremdschlüssel vorhanden
+- ✅ Trigger `sync_guest_from_booking` synchronisiert automatisch
+- ✅ Alte `guest_*` Spalten noch in bookings (Übergangsphase)
+
+### Fallback-Logik in UI-Komponenten
+```typescript
+// Immer beide Quellen prüfen:
+const guestName = booking.guests?.name || booking.guest_name;
+const guestEmail = booking.guests?.email || booking.guest_email;
+```
+
+### Gäste-Matching Prioritäten (im Trigger)
+1. Name + Email (exakt)
+2. Name + Telefon (normalisiert)
+3. Name + Nationalität + Stadt
+4. Name + Geburtsdatum
+5. Name + seltene Nationalität (nicht DE, AT, CH)
+
+---
+
+## 13. ER-Diagramm (Tabellenbeziehungen)
 
 ```mermaid
 erDiagram
@@ -429,7 +510,48 @@ erDiagram
 
 ---
 
-## 12. Kompakte Kurzreferenz
+## 14. Helper-Dateien (src/lib/)
+
+| Datei | Funktion |
+|-------|----------|
+| `linenOrderHelpers.ts` | Status-Konstanten, Badge-Styles, Validierung |
+| `linenCalculation.ts` | Wäsche-Bedarfsberechnung pro Buchung |
+| `guestHelpers.ts` | Gast-Daten Normalisierung |
+| `ratingHelpers.ts` | Rating-Konvertierung (Plattform -> normalisiert) |
+| `nameNormalization.ts` | Namen-Matching für Duplikat-Erkennung |
+| `holidayCalendar.ts` | Feiertags-Berechnung für Preise |
+
+---
+
+## 15. Secrets-Übersicht
+
+| Secret | Verwendung |
+|--------|------------|
+| `LOVABLE_API_KEY` | AI Services (Chat-Assistent, Personalisierung) |
+| `GMAIL_APP_PASSWORD` | Email-Versand via Gmail |
+| `EXTERNAL_LAUNDRY_API_KEY` | Oberpinzgau Service Role Key |
+| `EXTERNAL_LAUNDRY_ANON_KEY` | Oberpinzgau Anon Key |
+| `GOOGLE_PLACES_API_KEY` | Aktivitäten-Suche |
+| `OPENWEATHER_API_KEY` | Wetter-Daten |
+
+---
+
+## 16. Automatisierungs-Jobs (Cron)
+
+### auto-create-linen-orders
+- **Trigger:** Täglich oder manuell
+- **Prüft:** `linen_automation_settings.is_enabled`
+- **Erstellt:** Bestellungen für Buchungen in `lookahead_bookings` Tagen
+- **Status:** `offen`
+- **Order Source:** `auto_booking_lookahead`
+
+### check-booking-linen-orders
+- **Prüft:** Buchungen ohne zugehörige Wäschebestellung
+- **Alert:** Zeigt fehlende Bestellungen im Dashboard
+
+---
+
+## 17. Kompakte Kurzreferenz
 
 ### Schnell-Übersicht für häufige Aktionen
 
@@ -455,6 +577,9 @@ const { data: tasks } = useServiceTasks();
 
 // Wäschebestellungen laden
 const { linenOrders } = useLinenManagement(houseId);
+
+// Externe Sync
+const { syncOrder } = useExternalSync();
 ```
 
 ### Edge Function Aufrufe
@@ -468,6 +593,11 @@ const response = await supabase.functions.invoke('generate-booking-linen-order',
 // Chat-Assistent
 const response = await supabase.functions.invoke('chat-assistant', {
   body: { messages: [...], context: 'bookings' }
+});
+
+// Externe Sync
+const response = await supabase.functions.invoke('sync-linen-order-external', {
+  body: { order_id: 'uuid' }
 });
 ```
 
