@@ -195,6 +195,19 @@ const [searchTerm, setSearchTerm] = useState('');
     return checkOutYear === selectedYear;
   }) || [];
 
+  // DEBUG: Log filtering results
+  console.log('DEBUG 2026 Filter:', {
+    selectedYear,
+    totalBookings: bookingsData?.length,
+    yearFilteredCount: yearFilteredBookings.length,
+    completedCount: yearFilteredBookings.filter(b => b.status === 'completed').length,
+    completedBookings: yearFilteredBookings.filter(b => b.status === 'completed').map(b => ({
+      guest: b.guest_name,
+      checkOut: b.check_out,
+      status: b.status
+    }))
+  });
+
   // Statistics for year-filtered bookings
   const yearStats = {
     total: yearFilteredBookings.length,
