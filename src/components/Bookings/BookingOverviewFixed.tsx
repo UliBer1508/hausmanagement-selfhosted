@@ -373,8 +373,8 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
   // Buchungen nach Jahr filtern für Statistiken
   const yearFilteredBookings = useMemo(() => {
     return bookingsData?.filter(b => {
-      const checkIn = new Date(b.check_in);
-      return checkIn.getFullYear() === selectedYear;
+      const checkOutDate = new Date(b.check_out);
+      return checkOutDate.getFullYear() === selectedYear;
     }) || [];
   }, [bookingsData, selectedYear]);
 
