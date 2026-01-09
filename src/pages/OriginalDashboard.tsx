@@ -78,12 +78,18 @@ const OriginalDashboard = () => {
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState('Übersicht');
+  const [editBookingIdFromState, setEditBookingIdFromState] = useState<string | null>(null);
   
-  // Tab-Aktivierung über Navigation State
+  // Tab-Aktivierung und Buchungs-Edit über Navigation State
   useEffect(() => {
     if (location.state?.activeTab) {
       setActiveTab(location.state.activeTab);
-      // State zurücksetzen nach Navigation
+    }
+    if (location.state?.editBookingId) {
+      setEditBookingIdFromState(location.state.editBookingId);
+    }
+    // State zurücksetzen nach Navigation
+    if (location.state?.activeTab || location.state?.editBookingId) {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
@@ -1651,7 +1657,12 @@ const OriginalDashboard = () => {
       case 'Kalender':
         return renderCalendarView();
       case 'Buchungen':
-        return <BookingOverviewFixed />;
+        return (
+          <BookingOverviewFixed 
+            autoOpenBookingId={editBookingIdFromState}
+            onBookingOpened={() => setEditBookingIdFromState(null)}
+          />
+        );
       case 'Gäste':
         return <GuestManagement />;
       case 'Mieter':
