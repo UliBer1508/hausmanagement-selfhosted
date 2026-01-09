@@ -106,9 +106,10 @@ const getFullCountryName = (code: string | undefined) => {
 
 interface BookingOverviewFixedProps {
   autoOpenBookingId?: string | null;
+  onBookingOpened?: () => void;
 }
 
-const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) => {
+const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOverviewFixedProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('confirmed');
   const [houseFilter, setHouseFilter] = useState('all');
@@ -244,9 +245,10 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
       const booking = bookingsData.find(b => b.id === autoOpenBookingId);
       if (booking) {
         setSelectedBookingForEdit(booking);
+        onBookingOpened?.();
       }
     }
-  }, [autoOpenBookingId, bookingsData]);
+  }, [autoOpenBookingId, bookingsData, onBookingOpened]);
 
   // Enhanced time filtering logic
   const getTimeFilterDates = () => {
