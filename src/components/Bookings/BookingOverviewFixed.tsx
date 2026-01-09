@@ -378,6 +378,13 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
     }) || [];
   }, [bookingsData, selectedYear]);
 
+  // DEBUG v2: Verify check_out filter is active
+  console.log('🔄 CHECK_OUT FILTER AKTIV - v2', {
+    selectedYear,
+    yearFilteredCount: yearFilteredBookings.length,
+    completedCount: yearFilteredBookings.filter(b => b.status === 'completed').length
+  });
+
   // Statistics for selected year - for display in cards
   const yearStats = {
     total: yearFilteredBookings.length,
@@ -463,7 +470,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId }: BookingOverviewFixedProps) 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Buchungsübersicht</h1>
+          <h1 className="text-2xl font-bold text-foreground">Buchungsübersicht (v2)</h1>
           <p className="text-muted-foreground">Alle Buchungen verwalten und bearbeiten</p>
         </div>
         <div className="flex items-center gap-4 sm:ml-auto">
