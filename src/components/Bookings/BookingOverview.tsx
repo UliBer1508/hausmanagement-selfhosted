@@ -188,10 +188,11 @@ const [searchTerm, setSearchTerm] = useState('');
     return true;
   }) || [];
 
-  // Filter bookings by selected year (based on check-out date)
+  // Filter bookings by selected year (based on check-out date for correct year attribution)
   const yearFilteredBookings = bookingsData?.filter(b => {
-    const checkOut = new Date(b.check_out);
-    return checkOut.getFullYear() === selectedYear;
+    const checkOutDate = new Date(b.check_out);
+    const checkOutYear = checkOutDate.getFullYear();
+    return checkOutYear === selectedYear;
   }) || [];
 
   // Statistics for year-filtered bookings
