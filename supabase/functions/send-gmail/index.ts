@@ -129,6 +129,7 @@ const handler = async (req: Request): Promise<Response> => {
       try {
         const info = await transporter.sendMail({
           from: `"${displayName}" <${emailAddress}>`,
+          replyTo: emailAddress,
           to: recipient,
           subject: subject,
           text: html ? undefined : emailContent,
