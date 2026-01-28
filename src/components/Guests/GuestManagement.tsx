@@ -10,6 +10,7 @@ import GuestAnalytics from './GuestAnalytics';
 import GuestCommunication from './GuestCommunication';
 import GuestSegments from './GuestSegments';
 import MarketingActions from './MarketingActions';
+import { GuestAppTracking } from './GuestAppTracking';
 import { GuestDuplicatesDialog } from './GuestDuplicatesDialog';
 import { useGuestDuplicates } from '@/hooks/useGuestDuplicates';
 
@@ -154,7 +155,7 @@ const GuestManagement = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto gap-1">
+        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 h-auto gap-1">
           <TabsTrigger value="overview" className="flex-col h-auto py-2 gap-1">
             <span className="text-base">📋</span>
             <span className="text-xs">Übersicht</span>
@@ -174,6 +175,10 @@ const GuestManagement = () => {
           <TabsTrigger value="marketing" className="flex-col h-auto py-2 gap-1">
             <span className="text-base">🎁</span>
             <span className="text-xs">Marketing</span>
+          </TabsTrigger>
+          <TabsTrigger value="tracking" className="flex-col h-auto py-2 gap-1">
+            <span className="text-base">📱</span>
+            <span className="text-xs">App Tracking</span>
           </TabsTrigger>
         </TabsList>
 
@@ -195,6 +200,10 @@ const GuestManagement = () => {
 
         <TabsContent value="marketing" className="space-y-6">
           <MarketingActions />
+        </TabsContent>
+
+        <TabsContent value="tracking" className="space-y-6">
+          <GuestAppTracking selectedHouseId="" />
         </TabsContent>
       </Tabs>
 
