@@ -73,7 +73,7 @@ export const AppReviewsSection = ({ selectedHouseId }: AppReviewsSectionProps) =
         `)
         .order('created_at', { ascending: false });
       
-      if (selectedHouseId !== 'all') {
+      if (selectedHouseId && selectedHouseId !== 'all') {
         query = query.eq('bookings.house_id', selectedHouseId);
       }
       
@@ -92,7 +92,7 @@ export const AppReviewsSection = ({ selectedHouseId }: AppReviewsSectionProps) =
         .from('bookings')
         .select('id', { count: 'exact', head: true });
       
-      if (selectedHouseId !== 'all') {
+      if (selectedHouseId && selectedHouseId !== 'all') {
         query = query.eq('house_id', selectedHouseId);
       }
       
