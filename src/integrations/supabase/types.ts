@@ -1798,6 +1798,109 @@ export type Database = {
         }
         Relationships: []
       }
+      guest_app_events: {
+        Row: {
+          booking_id: string | null
+          created_at: string | null
+          event_data: Json | null
+          event_name: string
+          event_type: string
+          id: string
+          page_path: string | null
+          session_id: string
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string | null
+          event_data?: Json | null
+          event_name: string
+          event_type: string
+          id?: string
+          page_path?: string | null
+          session_id: string
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string | null
+          event_data?: Json | null
+          event_name?: string
+          event_type?: string
+          id?: string
+          page_path?: string | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_app_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      guest_app_sessions: {
+        Row: {
+          booking_id: string | null
+          completed_onboarding: boolean | null
+          created_at: string | null
+          device_type: string | null
+          furthest_step: string | null
+          guest_email: string | null
+          guest_name: string | null
+          id: string
+          language: string | null
+          last_activity_at: string | null
+          referrer: string | null
+          session_id: string
+          started_at: string | null
+          updated_at: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          completed_onboarding?: boolean | null
+          created_at?: string | null
+          device_type?: string | null
+          furthest_step?: string | null
+          guest_email?: string | null
+          guest_name?: string | null
+          id?: string
+          language?: string | null
+          last_activity_at?: string | null
+          referrer?: string | null
+          session_id: string
+          started_at?: string | null
+          updated_at?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          completed_onboarding?: boolean | null
+          created_at?: string | null
+          device_type?: string | null
+          furthest_step?: string | null
+          guest_email?: string | null
+          guest_name?: string | null
+          id?: string
+          language?: string | null
+          last_activity_at?: string | null
+          referrer?: string | null
+          session_id?: string
+          started_at?: string | null
+          updated_at?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_app_sessions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guest_preference_responses: {
         Row: {
           booking_id: string | null
