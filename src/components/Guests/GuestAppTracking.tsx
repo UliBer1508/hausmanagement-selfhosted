@@ -27,6 +27,7 @@ import {
   type GuestAppSession,
 } from '@/hooks/useGuestAppTracking';
 import { GuestSessionDetail } from './GuestSessionDetail';
+import { AppReviewsSection } from './AppReviewsSection';
 
 interface GuestAppTrackingProps {
   selectedHouseId: string;
@@ -315,6 +316,9 @@ export const GuestAppTracking = ({ selectedHouseId }: GuestAppTrackingProps) => 
           )}
         </CardContent>
       </Card>
+
+      {/* App Reviews Section */}
+      <AppReviewsSection selectedHouseId={filters.houseId === 'all' ? '' : filters.houseId} />
     </div>
   );
 };
