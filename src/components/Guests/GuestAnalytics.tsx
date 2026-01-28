@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { AppReviewsSection } from './AppReviewsSection';
-import { GuestAppTracking } from './GuestAppTracking';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, AreaChart, Area } from 'recharts';
 import { TrendingUp, Users, Calendar, Euro, MapPin, Clock, AlertTriangle, Settings, ChevronRight, Loader2 } from 'lucide-react';
 import { format, subMonths, startOfMonth, endOfMonth, addMonths, differenceInDays, max, min, parseISO } from 'date-fns';
@@ -1525,9 +1524,6 @@ const GuestAnalytics = () => {
 
     {/* App Reviews Section */}
     <AppReviewsSection selectedHouseId={selectedHouseId} />
-
-    {/* Guest App Tracking Dashboard */}
-    <GuestAppTracking selectedHouseId={selectedHouseId} />
   </div>
   );
 };
