@@ -1,155 +1,220 @@
 
-# Migration zu kostenloser Google Gemini API
+# Anpassung Guest App Tracking: Email nur über Relationen
 
 ## Zusammenfassung
 
-Umstellung aller Edge Functions von Lovable AI Gateway auf die kostenlose Google Gemini API, um wiederkehrende Kosten zu eliminieren.
+Die Email-Daten werden aktuell redundant in mehreren Tabellen gespeichert (`guest_app_sessions`, `guest_saved_activities`, `app_reviews`, etc.). Die Anpassung soll die Email ausschließlich aus der `guests`-Tabelle über die Beziehungskette laden.
 
 ---
 
-## Betroffene Edge Functions
+## Aktuelle Situation
 
-| Function | Lovable AI | Migration erforderlich |
-|----------|-----------|------------------------|
-| `chat-assistant` | Ja | Ja (komplexeste) |
-| `analyze-vacancy` | Ja | Ja |
-| `generate-personalized-email` | Ja | Ja |
-| `generate-guest-profile` | Nein | Nein |
-| `optimize-linen-inventory` | Nein | Nein |
+### Datenbank-Analyse
 
----
+| Tabelle | Hat guest_email | Hat booking_id | Kann über Relation laden |
+|---------|-----------------|----------------|-------------------------|
+| `guest_app_sessions` | Ja (redundant) | Ja | Ja - via bookings.guest_id → guests.email |
+| `guest_saved_activities` | Ja (NOT NULL) | Ja | Ja - via booking_id |
+| `app_reviews` | Ja (NOT NULL) | Ja (NOT NULL) | Ja - via booking_id |
+| `guest_preference_responses` | Ja (NOT NULL) | Ja | Ja - via booking_id |
 
-## Google Gemini Free Tier Limits
-
-| Modell | Anfragen/Minute | Anfragen/Tag | Tokens/Minute |
-|--------|-----------------|--------------|---------------|
-| Gemini 1.5 Flash | 15 | 1.500 | 1.000.000 |
-| Gemini 2.0 Flash | 10 | 1.000 | 500.000 |
-| Gemini 1.5 Pro | 2 | 50 | 32.000 |
-
-**Empfehlung:** Gemini 1.5 Flash (beste Balance aus Speed und Limits)
-
----
-
-## Voraussetzung: API-Key erstellen
-
-1. Gehe zu [Google AI Studio](https://aistudio.google.com/apikey)
-2. Klicke auf "Create API Key"
-3. Kopiere den API-Key
-4. Speichere ihn als Supabase Secret `GEMINI_API_KEY`
-
----
-
-## Technische Anderungen
-
-### 1. API-Endpoint andern
-
-**Alt (Lovable AI):**
+### Beziehungskette
 ```text
-https://ai.gateway.lovable.dev/v1/chat/completions
+guest_app_sessions.booking_id
+     ↓
+  bookings.guest_id
+     ↓
+  guests.email (authoritative)
 ```
 
-**Neu (Google Gemini):**
-```text
-https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+### Beispiel aus der Datenbank
+Die Query zeigt, dass die Email über die Relation verfügbar ist:
+- Session mit `booking_id` hat Zugriff auf `guests.email` via `bookings.guest_id`
+
+---
+
+## Geplante Änderungen
+
+### 1. useGuestAppTracking.ts - Sessions Query erweitern
+
+**Datei:** `src/hooks/useGuestAppTracking.ts`
+
+**Änderung:** Die `useGuestAppSessions` Query erweitern, um die Email über die guests-Tabelle zu laden:
+
+```typescript
+// VORHER (Zeile 112-125):
+.select(`
+  *,
+  bookings:booking_id (
+    guest_name,
+    check_in,
+    check_out,
+    house_id,
+    houses:house_id (
+      name
+    )
+  )
+`)
+
+// NACHHER:
+.select(`
+  *,
+  bookings:booking_id (
+    guest_name,
+    guest_email,
+    check_in,
+    check_out,
+    house_id,
+    guest_id,
+    houses:house_id (
+      name
+    ),
+    guests:guest_id (
+      name,
+      email
+    )
+  )
+`)
 ```
 
-### 2. Request-Format andern
+### 2. GuestAppSession Interface erweitern
 
-**Alt (OpenAI-kompatibel):**
-```text
-{
-  "model": "google/gemini-2.5-flash",
-  "messages": [
-    {"role": "system", "content": "..."},
-    {"role": "user", "content": "..."}
-  ],
-  "tools": [...],
-  "tool_choice": "auto"
+**Datei:** `src/hooks/useGuestAppTracking.ts`
+
+```typescript
+// Interface erweitern (Zeile 5-25):
+export interface GuestAppSession {
+  // ... bestehende Felder
+  
+  // Neue Felder aus der Relation
+  booking_guest_email?: string;  // aus bookings.guest_email (Fallback)
+  guest_table_email?: string;    // aus guests.email (authoritative)
+  guest_table_name?: string;     // aus guests.name
 }
 ```
 
-**Neu (Google Gemini nativ):**
-```text
-{
-  "contents": [
-    {"role": "user", "parts": [{"text": "..."}]}
-  ],
-  "systemInstruction": {"parts": [{"text": "..."}]},
-  "tools": [{"functionDeclarations": [...]}],
-  "toolConfig": {"functionCallingConfig": {"mode": "AUTO"}}
-}
+### 3. Daten-Transformation anpassen
+
+**Datei:** `src/hooks/useGuestAppTracking.ts`
+
+Die Transformation erweitern, um die Email bevorzugt aus der guests-Tabelle zu laden:
+
+```typescript
+// Zeile 156-169 anpassen:
+const sessions = (data || []).map((session: Record<string, unknown>) => {
+  const booking = session.bookings as Record<string, unknown> | null;
+  const house = booking?.houses as Record<string, string> | null;
+  const guest = booking?.guests as Record<string, string> | null;
+  
+  // Email-Priorität: guests-Tabelle > bookings > session (legacy)
+  const resolvedEmail = guest?.email || 
+                        (booking?.guest_email as string) || 
+                        (session.guest_email as string);
+  
+  // Name-Priorität: guests-Tabelle > bookings > session (legacy)
+  const resolvedName = guest?.name || 
+                       (booking?.guest_name as string) || 
+                       (session.guest_name as string);
+  
+  return {
+    ...session,
+    // Überschreibe die Session-Email mit der autoritativen Quelle
+    guest_email: resolvedEmail,
+    guest_name: resolvedName,
+    booking_guest_name: booking?.guest_name as string | undefined,
+    booking_guest_email: booking?.guest_email as string | undefined,
+    guest_table_email: guest?.email,
+    guest_table_name: guest?.name,
+    check_in: booking?.check_in as string | undefined,
+    check_out: booking?.check_out as string | undefined,
+    house_id: booking?.house_id as string | undefined,
+    house_name: house?.name,
+  } as GuestAppSession;
+});
 ```
 
-### 3. Response-Format andern
+### 4. Stats-Query anpassen
 
-**Alt (OpenAI):**
-```text
-data.choices[0].message.content
-data.choices[0].message.tool_calls[0].function
+**Datei:** `src/hooks/useGuestAppTracking.ts`
+
+Die Stats-Query muss angepasst werden, um "identifizierte Gäste" über die Relation zu zählen:
+
+```typescript
+// Zeile 313-316 ändern:
+// VORHER:
+let sessionsQuery = supabase
+  .from('guest_app_sessions')
+  .select('user_agent, guest_email, completed_onboarding');
+
+// NACHHER:
+let sessionsQuery = supabase
+  .from('guest_app_sessions')
+  .select(`
+    user_agent, 
+    guest_email, 
+    completed_onboarding,
+    booking_id,
+    bookings:booking_id (
+      guest_id,
+      guests:guest_id (
+        email
+      )
+    )
+  `);
+
+// Zeile 330 anpassen:
+// VORHER:
+const identifiedGuests = sessions.filter(s => s.guest_email !== null).length;
+
+// NACHHER:
+const identifiedGuests = sessions.filter(s => {
+  const guestEmail = (s.bookings as any)?.guests?.email || s.guest_email;
+  return guestEmail !== null;
+}).length;
 ```
 
-**Neu (Google):**
-```text
-data.candidates[0].content.parts[0].text
-data.candidates[0].content.parts[0].functionCall
-```
+---
+
+## Keine Änderungen erforderlich
+
+Die folgenden Komponenten benötigen **keine direkten Änderungen**, da sie die Daten aus dem Hook erhalten:
+
+- `GuestSessionDetail.tsx` - Nutzt bereits `session.guest_email` (wird jetzt aus Relation befüllt)
+- `GuestAppTracking.tsx` - Zeigt Sessions an (keine Email-Anzeige in der Liste)
 
 ---
 
-## Implementierungsplan
+## Technische Details
 
-### Schritt 1: Gemini API-Key als Secret hinzufugen
-- Neues Secret `GEMINI_API_KEY` in Supabase erstellen
+### Fallback-Strategie
 
-### Schritt 2: Helper-Modul erstellen
-Erstelle `supabase/functions/_shared/gemini.ts`:
-- Konvertierung von OpenAI zu Gemini Format
-- Tool-Call-Handling
-- Error-Handling fur Rate Limits
+Da alte Sessions möglicherweise keine `booking_id` haben, implementieren wir eine Fallback-Kette:
 
-### Schritt 3: generate-personalized-email migrieren (einfachste)
-- Einfache Chat-Completion ohne Tools
-- Guter Testfall fur die Migration
+1. **Priorität 1:** `guests.email` (über `bookings.guest_id`)
+2. **Priorität 2:** `bookings.guest_email` (Legacy-Feld)
+3. **Priorität 3:** `guest_app_sessions.guest_email` (historische Daten)
 
-### Schritt 4: analyze-vacancy migrieren
-- Enthalt Tool-Calling (structured output)
-- Mittlere Komplexitat
+### Datenkonsistenz
 
-### Schritt 5: chat-assistant migrieren (komplexeste)
-- Multi-Turn Tool-Calling Loop
-- 15+ Tools
-- Erfordert sorgfaltige Anpassung
-
-### Schritt 6: LOVABLE_API_KEY entfernen (optional)
-- Nach erfolgreicher Migration nicht mehr benotigt
+Die bestehenden redundanten Daten in `guest_app_sessions` werden **nicht gelöscht**, aber:
+- Neue Daten werden bevorzugt aus der `guests`-Tabelle geladen
+- Bei Änderungen am Gast (z.B. Email-Korrektur) wird automatisch die richtige Email angezeigt
 
 ---
 
-## Dateiänderungen
+## Betroffene Dateien
 
-| Datei | Aktion |
-|-------|--------|
-| `supabase/functions/_shared/gemini.ts` | NEU: Helper-Modul |
-| `supabase/functions/generate-personalized-email/index.ts` | BEARBEITEN |
-| `supabase/functions/analyze-vacancy/index.ts` | BEARBEITEN |
-| `supabase/functions/chat-assistant/index.ts` | BEARBEITEN |
+| Datei | Änderung |
+|-------|----------|
+| `src/hooks/useGuestAppTracking.ts` | Query erweitern, Interface anpassen, Transformation mit Fallback |
 
 ---
 
-## Risiken und Fallbacks
+## Separate Aufgabe: Guest App (andere App)
 
-| Risiko | Losung |
-|--------|--------|
-| Rate Limit (15/min) | Request-Queuing implementieren |
-| Tool-Calling Unterschiede | Format-Konverter im Helper-Modul |
-| Modell-Qualitat | Bei Bedarf auf Gemini 1.5 Pro wechseln |
+Die eigentliche Datenerfassung findet in der **Guest App** statt. Dort muss ebenfalls angepasst werden:
+- Beim Session-Upsert: `guest_email` nicht mehr direkt speichern
+- Stattdessen nur `booking_id` setzen
+- Die Email über die Relation laden
 
----
-
-## Vorteile nach Migration
-
-- Keine monatlichen Kosten fur AI-Nutzung
-- Direkter Zugang zu neuesten Gemini-Modellen
-- Keine Abhangigkeit von Lovable AI Gateway
-- 1.500 kostenlose Anfragen pro Tag
+Der Prompt für die Guest App wurde bereits im vorherigen Chat erstellt.
