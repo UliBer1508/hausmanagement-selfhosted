@@ -1,100 +1,155 @@
 
-# Bot-Filter für App Tracking Dashboard
+# Migration zu kostenloser Google Gemini API
 
-## Ziel
-Sessions von bekannten Bots und Crawlern (Chrome 119, LikeWise Crawler) standardmäßig ausblenden, um nur echte Gäste-Interaktionen anzuzeigen.
+## Zusammenfassung
+
+Umstellung aller Edge Functions von Lovable AI Gateway auf die kostenlose Google Gemini API, um wiederkehrende Kosten zu eliminieren.
 
 ---
 
-## Technische Umsetzung
+## Betroffene Edge Functions
 
-### 1. Bot-Erkennungslogik erstellen
+| Function | Lovable AI | Migration erforderlich |
+|----------|-----------|------------------------|
+| `chat-assistant` | Ja | Ja (komplexeste) |
+| `analyze-vacancy` | Ja | Ja |
+| `generate-personalized-email` | Ja | Ja |
+| `generate-guest-profile` | Nein | Nein |
+| `optimize-linen-inventory` | Nein | Nein |
 
-Neue Hilfsfunktion zur Bot-Erkennung basierend auf User-Agent Patterns:
+---
 
+## Google Gemini Free Tier Limits
+
+| Modell | Anfragen/Minute | Anfragen/Tag | Tokens/Minute |
+|--------|-----------------|--------------|---------------|
+| Gemini 1.5 Flash | 15 | 1.500 | 1.000.000 |
+| Gemini 2.0 Flash | 10 | 1.000 | 500.000 |
+| Gemini 1.5 Pro | 2 | 50 | 32.000 |
+
+**Empfehlung:** Gemini 1.5 Flash (beste Balance aus Speed und Limits)
+
+---
+
+## Voraussetzung: API-Key erstellen
+
+1. Gehe zu [Google AI Studio](https://aistudio.google.com/apikey)
+2. Klicke auf "Create API Key"
+3. Kopiere den API-Key
+4. Speichere ihn als Supabase Secret `GEMINI_API_KEY`
+
+---
+
+## Technische Anderungen
+
+### 1. API-Endpoint andern
+
+**Alt (Lovable AI):**
 ```text
-Bot-Patterns:
-- "Chrome/119" → Veralteter Chrome-Bot (Desktop-Crawler)
-- "LikeWise" → LikeWise Crawler
-- "bot" → Generische Bot-Erkennung
-- "crawler" → Generische Crawler
-- "spider" → Suchmaschinen-Spider
+https://ai.gateway.lovable.dev/v1/chat/completions
 ```
 
-### 2. SessionFilters Interface erweitern
-
-**Datei:** `src/hooks/useGuestAppTracking.ts`
-
+**Neu (Google Gemini):**
 ```text
-SessionFilters erweitern:
-- excludeBots: boolean (Standard: true)
+https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
 ```
 
-### 3. Client-Side Bot-Filterung implementieren
+### 2. Request-Format andern
 
-**Datei:** `src/hooks/useGuestAppTracking.ts`
-
-Die Filterung erfolgt client-side nach dem Datenabruf, da Supabase keine komplexen Pattern-Matching-Queries unterstützt:
-
+**Alt (OpenAI-kompatibel):**
 ```text
-Ablauf in useGuestAppSessions:
-1. Daten von Supabase abrufen
-2. Sessions transformieren (bestehende Logik)
-3. NEU: Bot-Sessions filtern wenn excludeBots = true
-4. Haus-Filter anwenden
-5. Ergebnis zurückgeben
+{
+  "model": "google/gemini-2.5-flash",
+  "messages": [
+    {"role": "system", "content": "..."},
+    {"role": "user", "content": "..."}
+  ],
+  "tools": [...],
+  "tool_choice": "auto"
+}
 ```
 
-### 4. UI-Toggle für Bot-Filter hinzufügen
+**Neu (Google Gemini nativ):**
+```text
+{
+  "contents": [
+    {"role": "user", "parts": [{"text": "..."}]}
+  ],
+  "systemInstruction": {"parts": [{"text": "..."}]},
+  "tools": [{"functionDeclarations": [...]}],
+  "toolConfig": {"functionCallingConfig": {"mode": "AUTO"}}
+}
+```
 
-**Datei:** `src/components/Guests/GuestAppTracking.tsx`
+### 3. Response-Format andern
 
-Neuer Toggle-Switch in der Filter-Leiste:
-- Label: "Nur echte Nutzer"
-- Tooltip: "Bots und Crawler ausblenden"
-- Standard: aktiviert (Bots ausgeblendet)
+**Alt (OpenAI):**
+```text
+data.choices[0].message.content
+data.choices[0].message.tool_calls[0].function
+```
 
-### 5. Stats-Berechnung anpassen
+**Neu (Google):**
+```text
+data.candidates[0].content.parts[0].text
+data.candidates[0].content.parts[0].functionCall
+```
 
-**Datei:** `src/hooks/useGuestAppTracking.ts`
+---
 
-Die Statistiken müssen ebenfalls gefiltert werden, damit sie konsistent mit der Tabelle sind:
-- Alle Stats-Queries laden user_agent mit
-- Client-side Bot-Filter anwenden
+## Implementierungsplan
+
+### Schritt 1: Gemini API-Key als Secret hinzufugen
+- Neues Secret `GEMINI_API_KEY` in Supabase erstellen
+
+### Schritt 2: Helper-Modul erstellen
+Erstelle `supabase/functions/_shared/gemini.ts`:
+- Konvertierung von OpenAI zu Gemini Format
+- Tool-Call-Handling
+- Error-Handling fur Rate Limits
+
+### Schritt 3: generate-personalized-email migrieren (einfachste)
+- Einfache Chat-Completion ohne Tools
+- Guter Testfall fur die Migration
+
+### Schritt 4: analyze-vacancy migrieren
+- Enthalt Tool-Calling (structured output)
+- Mittlere Komplexitat
+
+### Schritt 5: chat-assistant migrieren (komplexeste)
+- Multi-Turn Tool-Calling Loop
+- 15+ Tools
+- Erfordert sorgfaltige Anpassung
+
+### Schritt 6: LOVABLE_API_KEY entfernen (optional)
+- Nach erfolgreicher Migration nicht mehr benotigt
 
 ---
 
 ## Dateiänderungen
 
-| Datei | Änderung |
-|-------|----------|
-| `src/hooks/useGuestAppTracking.ts` | Bot-Erkennung, Filter-Logik, Interface-Erweiterung |
-| `src/components/Guests/GuestAppTracking.tsx` | Toggle-Switch für Bot-Filter, State-Initialisierung |
+| Datei | Aktion |
+|-------|--------|
+| `supabase/functions/_shared/gemini.ts` | NEU: Helper-Modul |
+| `supabase/functions/generate-personalized-email/index.ts` | BEARBEITEN |
+| `supabase/functions/analyze-vacancy/index.ts` | BEARBEITEN |
+| `supabase/functions/chat-assistant/index.ts` | BEARBEITEN |
 
 ---
 
-## Benutzer-Erfahrung
+## Risiken und Fallbacks
 
-**Standardverhalten:**
-- Bot-Sessions werden standardmäßig ausgeblendet
-- Stats zeigen nur echte Nutzer
-
-**Mit Toggle deaktiviert:**
-- Alle Sessions sichtbar (inkl. Bots)
-- Nützlich für technische Analyse
+| Risiko | Losung |
+|--------|--------|
+| Rate Limit (15/min) | Request-Queuing implementieren |
+| Tool-Calling Unterschiede | Format-Konverter im Helper-Modul |
+| Modell-Qualitat | Bei Bedarf auf Gemini 1.5 Pro wechseln |
 
 ---
 
-## Erkannte Bot-Patterns
+## Vorteile nach Migration
 
-Die folgenden User-Agent-Muster werden als Bots erkannt:
-
-| Pattern | Beschreibung |
-|---------|--------------|
-| `Chrome/119` | Veralteter Chrome-Bot (häufigster Bot in den Daten) |
-| `LikeWise` | LikeWise Crawler |
-| `bot` | Generische Bot-Erkennung |
-| `crawler` | Web-Crawler |
-| `spider` | Suchmaschinen-Spider |
-| `HeadlessChrome` | Automatisierte Browser |
-
+- Keine monatlichen Kosten fur AI-Nutzung
+- Direkter Zugang zu neuesten Gemini-Modellen
+- Keine Abhangigkeit von Lovable AI Gateway
+- 1.500 kostenlose Anfragen pro Tag
