@@ -17,7 +17,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Users, UserCheck, CheckCircle2, Star } from 'lucide-react';
+import { Users, UserCheck, CheckCircle2, Star, Bot } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useHouses } from '@/hooks/useHouses';
 import {
   useGuestAppSessions,
@@ -85,6 +93,7 @@ export const GuestAppTracking = ({ selectedHouseId }: GuestAppTrackingProps) => 
     timeRange: 'all',
     houseId: selectedHouseId || 'all',
     status: 'all',
+    excludeBots: true,
   });
   const [selectedSession, setSelectedSession] = useState<GuestAppSession | null>(null);
 
@@ -242,6 +251,30 @@ export const GuestAppTracking = ({ selectedHouseId }: GuestAppTrackingProps) => 
             <SelectItem value="completed">Abgeschlossen</SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Bot Filter Toggle */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-2 ml-auto">
+                <Bot className="h-4 w-4 text-muted-foreground" />
+                <Switch
+                  id="bot-filter"
+                  checked={filters.excludeBots}
+                  onCheckedChange={(checked) =>
+                    setFilters((prev) => ({ ...prev, excludeBots: checked }))
+                  }
+                />
+                <Label htmlFor="bot-filter" className="text-sm cursor-pointer">
+                  Nur echte Nutzer
+                </Label>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Bots und Crawler ausblenden (Chrome 119, LikeWise, etc.)</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       {/* Sessions Table */}

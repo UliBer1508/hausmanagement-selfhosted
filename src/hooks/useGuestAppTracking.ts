@@ -79,7 +79,30 @@ export interface SessionFilters {
   timeRange: 'today' | '7days' | '30days' | 'all';
   houseId: string;
   status: 'all' | 'identified' | 'completed';
+  excludeBots: boolean;
 }
+
+// Bot detection patterns
+const BOT_PATTERNS = [
+  'Chrome/119',      // Outdated Chrome bot
+  'LikeWise',        // LikeWise Crawler
+  'HeadlessChrome',  // Automated browsers
+  /\bbot\b/i,        // Generic bot
+  /\bcrawler\b/i,    // Web crawlers
+  /\bspider\b/i,     // Search spiders
+];
+
+// Check if a user agent matches known bot patterns
+export const isBot = (userAgent: string | null): boolean => {
+  if (!userAgent) return false;
+  
+  return BOT_PATTERNS.some(pattern => {
+    if (typeof pattern === 'string') {
+      return userAgent.includes(pattern);
+    }
+    return pattern.test(userAgent);
+  });
+};
 
 // Hook for sessions list
 export const useGuestAppSessions = (filters: SessionFilters) => {
@@ -145,12 +168,18 @@ export const useGuestAppSessions = (filters: SessionFilters) => {
         } as GuestAppSession;
       });
 
-      // House filter (client-side since it's a nested join)
-      if (filters.houseId && filters.houseId !== 'all') {
-        return sessions.filter(s => s.house_id === filters.houseId);
+      // Bot filter (client-side)
+      let filteredSessions = sessions;
+      if (filters.excludeBots) {
+        filteredSessions = filteredSessions.filter(s => !isBot(s.user_agent));
       }
 
-      return sessions;
+      // House filter (client-side since it's a nested join)
+      if (filters.houseId && filters.houseId !== 'all') {
+        filteredSessions = filteredSessions.filter(s => s.house_id === filters.houseId);
+      }
+
+      return filteredSessions;
     },
   });
 };
@@ -281,42 +310,27 @@ export const useGuestAppStats = (filters: SessionFilters) => {
         timeFilter = startDate.toISOString();
       }
 
-      // Total sessions
+      // Fetch all sessions with user_agent for bot filtering
       let sessionsQuery = supabase
         .from('guest_app_sessions')
-        .select('*', { count: 'exact', head: true });
+        .select('user_agent, guest_email, completed_onboarding');
       
       if (timeFilter) {
         sessionsQuery = sessionsQuery.gte('started_at', timeFilter);
       }
       
-      const { count: totalSessions } = await sessionsQuery;
+      const { data: allSessions } = await sessionsQuery;
+      
+      // Apply bot filter client-side
+      const sessions = filters.excludeBots 
+        ? (allSessions || []).filter(s => !isBot(s.user_agent))
+        : (allSessions || []);
 
-      // Identified guests
-      let identifiedQuery = supabase
-        .from('guest_app_sessions')
-        .select('*', { count: 'exact', head: true })
-        .not('guest_email', 'is', null);
-      
-      if (timeFilter) {
-        identifiedQuery = identifiedQuery.gte('started_at', timeFilter);
-      }
-      
-      const { count: identifiedGuests } = await identifiedQuery;
+      const totalSessions = sessions.length;
+      const identifiedGuests = sessions.filter(s => s.guest_email !== null).length;
+      const completedOnboarding = sessions.filter(s => s.completed_onboarding === true).length;
 
-      // Completed onboarding
-      let completedQuery = supabase
-        .from('guest_app_sessions')
-        .select('*', { count: 'exact', head: true })
-        .eq('completed_onboarding', true);
-      
-      if (timeFilter) {
-        completedQuery = completedQuery.gte('started_at', timeFilter);
-      }
-      
-      const { count: completedOnboarding } = await completedQuery;
-
-      // Average rating
+      // Average rating (not affected by bot filter)
       const { data: reviews } = await supabase
         .from('app_reviews')
         .select('rating');
@@ -326,9 +340,9 @@ export const useGuestAppStats = (filters: SessionFilters) => {
         : null;
 
       return {
-        totalSessions: totalSessions || 0,
-        identifiedGuests: identifiedGuests || 0,
-        completedOnboarding: completedOnboarding || 0,
+        totalSessions,
+        identifiedGuests,
+        completedOnboarding,
         averageRating: averageRating ? Math.round(averageRating * 10) / 10 : null,
       };
     },
