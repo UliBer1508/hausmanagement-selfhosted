@@ -1,7 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { geminiTextCompletion, GeminiRateLimitError } from "../_shared/gemini.ts";
 
-const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,73 +18,48 @@ serve(async (req) => {
   try {
     const { messageType, selectedSegment, segmentAnalysis, sampleGuests } = await req.json();
 
-    if (!lovableApiKey) {
-      throw new Error('Lovable API key not configured');
+    if (!geminiApiKey) {
+      throw new Error('Google Gemini API key not configured');
     }
 
     // Create personalized prompt based on segment and guest data
     const prompt = createPersonalizationPrompt(messageType, selectedSegment, segmentAnalysis, sampleGuests);
 
-    console.log('Generating personalized email with prompt:', prompt);
+    console.log('Generating personalized email with Gemini API');
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `Du bist ein Experte für personalisierte Gästekommunikation für Steinbock Chalets, ein Premium-Chalet-Unternehmen in den Alpen. 
+    const systemPrompt = `Du bist ein Experte für personalisierte Gästekommunikation für Steinbock Chalets, ein Premium-Chalet-Unternehmen in den Alpen. 
             
-            Erstelle hochwertige, personalisierte E-Mail-Inhalte, die:
-            - Warm und einladend sind
-            - Spezifisch auf das Gästesegment zugeschnitten sind
-            - Emotionale Verbindungen schaffen
-            - Konkrete Mehrwerte bieten
-            - Professional aber persönlich klingen
-            - Deutsche Sprache verwenden
-            
-            Verwende Platzhalter wie {GUEST_NAME}, {HOUSE_NAME}, {CHECK_IN}, {CHECK_OUT} für personalisierte Felder.
-            
-            Antworte IMMER im JSON-Format: {"subject": "Betreff hier", "content": "E-Mail-Inhalt hier"}`
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        max_completion_tokens: 1000
-      }),
-    });
+Erstelle hochwertige, personalisierte E-Mail-Inhalte, die:
+- Warm und einladend sind
+- Spezifisch auf das Gästesegment zugeschnitten sind
+- Emotionale Verbindungen schaffen
+- Konkrete Mehrwerte bieten
+- Professional aber persönlich klingen
+- Deutsche Sprache verwenden
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Lovable AI Gateway error:', error);
-      
-      if (response.status === 429) {
-        throw new Error('Rate Limit erreicht. Bitte versuchen Sie es in ein paar Minuten erneut.');
-      }
-      
-      if (response.status === 402) {
-        throw new Error('Lovable AI Credits aufgebraucht. Bitte Guthaben aufladen unter Settings → Workspace → Usage.');
-      }
-      
-      throw new Error(`Lovable AI Gateway error: ${response.status}`);
-    }
+Verwende Platzhalter wie {GUEST_NAME}, {HOUSE_NAME}, {CHECK_IN}, {CHECK_OUT} für personalisierte Felder.
 
-    const data = await response.json();
-    const generatedText = data.choices[0].message.content;
+Antworte IMMER im JSON-Format: {"subject": "Betreff hier", "content": "E-Mail-Inhalt hier"}`;
+
+    const generatedText = await geminiTextCompletion(
+      geminiApiKey,
+      systemPrompt,
+      prompt,
+      { maxTokens: 1000 }
+    );
 
     console.log('Generated content:', generatedText);
 
     // Parse the JSON response
     let parsedContent;
     try {
-      parsedContent = JSON.parse(generatedText);
+      // Try to extract JSON from the response (might be wrapped in markdown code blocks)
+      const jsonMatch = generatedText.match(/\{[\s\S]*"subject"[\s\S]*"content"[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedContent = JSON.parse(jsonMatch[0]);
+      } else {
+        parsedContent = JSON.parse(generatedText);
+      }
     } catch (e) {
       console.error('Failed to parse JSON:', generatedText);
       // Fallback parsing
@@ -99,6 +75,19 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in generate-personalized-email function:', error);
+    
+    // Handle rate limits
+    if (error instanceof GeminiRateLimitError) {
+      return new Response(JSON.stringify({ 
+        error: 'Rate Limit erreicht. Bitte versuchen Sie es in ein paar Minuten erneut.',
+        subject: 'Nachricht von Steinbock Chalets',
+        content: 'Es gab einen Fehler beim Generieren der personalisierten Nachricht. Bitte versuchen Sie es erneut.'
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : 'Unknown error',
       subject: 'Nachricht von Steinbock Chalets',

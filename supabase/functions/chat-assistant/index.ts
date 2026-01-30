@@ -1,6 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { 
+  callGemini, 
+  extractTextFromResponse, 
+  extractFunctionCalls,
+  hasFunctionCalls,
+  convertToolsToGemini,
+  GeminiContent,
+  GeminiPart
+} from "../_shared/gemini.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -976,6 +985,238 @@ async function executeTool(toolName: string, args: any): Promise<any> {
   }
 }
 
+// Define available tools in OpenAI format (will be converted to Gemini format)
+function getToolDefinitions() {
+  return [
+    // Booking Inquiries
+    {
+      type: "function",
+      function: {
+        name: "search_booking_inquiries",
+        description: "Sucht Buchungsanfragen. Für 'offene Anfragen' oder 'gibt es Anfragen' nutze status='pending'",
+        parameters: {
+          type: "object",
+          properties: {
+            status: { type: "string", enum: ["pending", "confirmed", "rejected"], description: "Status der Anfrage. Für offene Anfragen: 'pending'" },
+            house_id: { type: "string", description: "UUID des Hauses" },
+            guest_name: { type: "string", description: "Name des Gastes" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "accept_booking_inquiry",
+        description: "Bestätigt eine Buchungsanfrage und erstellt Buchung + Reinigung",
+        parameters: {
+          type: "object",
+          properties: {
+            inquiry_id: { type: "string", description: "UUID der Anfrage" }
+          },
+          required: ["inquiry_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "reject_booking_inquiry",
+        description: "Lehnt eine Buchungsanfrage ab",
+        parameters: {
+          type: "object",
+          properties: {
+            inquiry_id: { type: "string", description: "UUID der Anfrage" },
+            reason: { type: "string", description: "Ablehnungsgrund" }
+          },
+          required: ["inquiry_id"]
+        }
+      }
+    },
+    // Bulk Actions
+    {
+      type: "function",
+      function: {
+        name: "create_bulk_cleaning_tasks",
+        description: "Erstellt Reinigungsaufträge für alle Buchungen an einem Datum. Für 'morgige Abreisen' nutze for_date='tomorrow' und trigger='checkout'",
+        parameters: {
+          type: "object",
+          properties: {
+            for_date: { type: "string", description: "Datum: 'today', 'tomorrow' oder ISO-Datum" },
+            trigger: { type: "string", enum: ["checkout", "checkin"], description: "checkout=Abreisen, checkin=Ankünfte" },
+            house_id: { type: "string", description: "Optional: nur für dieses Haus" }
+          },
+          required: ["for_date", "trigger"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "create_bulk_linen_orders",
+        description: "Erstellt Wäschebestellungen für alle Buchungen in einem Zeitraum",
+        parameters: {
+          type: "object",
+          properties: {
+            date_from: { type: "string", description: "Start-Datum (ISO)" },
+            date_to: { type: "string", description: "End-Datum (ISO)" },
+            house_id: { type: "string", description: "Optional: nur für dieses Haus" }
+          },
+          required: ["date_from", "date_to"]
+        }
+      }
+    },
+    // Core Search Tools
+    {
+      type: "function",
+      function: {
+        name: "search_bookings",
+        description: "Sucht Buchungen. WICHTIG: Bei 'Familien' oder 'mit Kindern' IMMER has_children=true setzen!",
+        parameters: {
+          type: "object",
+          properties: {
+            guest_name: { type: "string", description: "Name des Gastes" },
+            status: { type: "string", enum: ["confirmed", "cancelled", "completed"], description: "Buchungsstatus" },
+            house_id: { type: "string", description: "UUID des Hauses" },
+            has_children: { type: "boolean", description: "NUR Familien mit Kindern (number_of_children > 0)" },
+            date_from: { type: "string", description: "Check-in ab Datum (ISO)" },
+            date_to: { type: "string", description: "Check-in bis Datum (ISO)" },
+            check_in_date: { type: "string", description: "Exakter Check-in Tag (ISO)" },
+            check_out_date: { type: "string", description: "Exakter Check-out Tag (ISO)" },
+            upcoming_only: { type: "boolean", description: "Nur zukünftige Buchungen" },
+            exclude_cancelled: { type: "boolean", description: "Stornierte ausschließen (default: true)" },
+            limit: { type: "number", description: "Max Ergebnisse" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "search_cleaning_tasks",
+        description: "Sucht Reinigungsaufträge",
+        parameters: {
+          type: "object",
+          properties: {
+            status: { type: "string", enum: ["scheduled", "in_progress", "completed", "cancelled"] },
+            house_id: { type: "string" },
+            date_from: { type: "string" },
+            date_to: { type: "string" },
+            guest_name: { type: "string" },
+            provider_name: { type: "string", description: "Name des verantwortlichen Providers (z.B. Amela)" },
+            payment_status: { type: "string", enum: ["paid", "unpaid", "pending"] }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "search_houses",
+        description: "Sucht Häuser/Chalets",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Hausname" },
+            address: { type: "string", description: "Adresse" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "search_guests",
+        description: "Sucht Gäste",
+        parameters: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            email: { type: "string" },
+            nationality: { type: "string" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_dashboard_stats",
+        description: "Holt Dashboard-Statistiken (Häuser, Buchungen, Aufgaben, Umsatz)",
+        parameters: { type: "object", properties: {} }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_linen_overview",
+        description: "Holt Wäsche-Übersicht aller Häuser",
+        parameters: { type: "object", properties: {} }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "search_linen_orders",
+        description: "Sucht Wäschebestellungen",
+        parameters: {
+          type: "object",
+          properties: {
+            status: { type: "string", enum: ["offen", "bestätigt", "geliefert", "storniert"] },
+            house_id: { type: "string" },
+            date_from: { type: "string" },
+            date_to: { type: "string" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_calendar_events",
+        description: "Holt Kalender-Events (Check-ins, Check-outs, Reinigungen)",
+        parameters: {
+          type: "object",
+          properties: {
+            date_from: { type: "string" },
+            date_to: { type: "string" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_revenue_stats",
+        description: "Berechnet Umsatzstatistiken für flexible Zeiträume: Jahr, Monat, Quartal oder beliebige Datumsbereiche. Nutze für 'Umsatz 2026', 'Einnahmen März 2026', 'Q1 2026' etc.",
+        parameters: {
+          type: "object",
+          properties: {
+            year: { type: "number", description: "Jahr (z.B. 2026). Pflicht für Jahr/Monat/Quartal-Abfragen" },
+            month: { type: "number", description: "Monat 1-12 (z.B. 3 für März). Optional, zusammen mit year" },
+            quarter: { type: "number", description: "Quartal 1-4 (z.B. 1 für Q1). Optional, zusammen mit year" },
+            date_from: { type: "string", description: "Start-Datum ISO (z.B. 2026-01-01) für beliebige Zeiträume" },
+            date_to: { type: "string", description: "End-Datum ISO (z.B. 2026-03-31) für beliebige Zeiträume" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_daily_overview",
+        description: "Tagesübersicht: Zeigt alle Reinigungen, Check-ins, Check-outs und Gästewechsel für einen Tag. Ideal für 'Was passiert heute?', 'Wo wird heute gereinigt?', 'Kommen heute Gäste?', 'Wer reist ab?'",
+        parameters: {
+          type: "object",
+          properties: {
+            date: { type: "string", description: "Datum im ISO-Format (YYYY-MM-DD). Default: heute" }
+          }
+        }
+      }
+    }
+  ];
+}
+
 // ==================== MAIN SERVE FUNCTION ====================
 
 serve(async (req) => {
@@ -985,10 +1226,10 @@ serve(async (req) => {
 
   try {
     const { messages, context } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    if (!GEMINI_API_KEY) {
+      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
     }
 
     console.log('Chat request received:', { messageCount: messages.length, context });
@@ -1079,414 +1320,44 @@ Morgen: ${tomorrowDate}
 • Nächste 7 Tage: ${currentDate} bis ${formatDate(in7Days)}
 • Nächste 30 Tage: ${currentDate} bis ${formatDate(in30Days)}
 
-📆 ZEITRAUM-INTERPRETATION FÜR ALLE TOOLS:
-Bei JEDER zeitbasierten Anfrage MUSST du relative Begriffe in ISO-Daten umrechnen!
-
-RELATIVE ZEITANGABEN → date_from / date_to:
-• "heute" → date_from: "${currentDate}", date_to: "${currentDate}"
-• "morgen" → date_from: "${tomorrowDate}", date_to: "${tomorrowDate}"
-• "gestern" → date_from: "${yesterdayDate}", date_to: "${yesterdayDate}"
-• "diese Woche" → date_from: "${formatDate(thisMonday)}", date_to: "${formatDate(thisSunday)}"
-• "nächste Woche" → date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}"
-• "letzte Woche" → date_from: "${formatDate(lastMonday)}", date_to: "${formatDate(lastSunday)}"
-• "dieser Monat" → date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}"
-• "nächster Monat" → date_from: "${formatDate(nextMonthStart)}", date_to: "${formatDate(nextMonthEnd)}"
-• "letzter Monat" → date_from: "${formatDate(lastMonthStart)}", date_to: "${formatDate(lastMonthEnd)}"
-• "am Wochenende" → date_from: "${formatDate(nextSaturday)}", date_to: "${formatDate(nextSundayWE)}"
-• "nächsten 7 Tage" → date_from: "${currentDate}", date_to: "${formatDate(in7Days)}"
-• "nächsten 30 Tage" → date_from: "${currentDate}", date_to: "${formatDate(in30Days)}"
-
-MONATSANGABEN (aktuelles Jahr ${now.getFullYear()}):
-• "im Januar" → date_from: "${now.getFullYear()}-01-01", date_to: "${now.getFullYear()}-01-31"
-• "im Februar" → date_from: "${now.getFullYear()}-02-01", date_to: "${now.getFullYear()}-02-28"
-• "im März" → date_from: "${now.getFullYear()}-03-01", date_to: "${now.getFullYear()}-03-31"
-• usw. (Monat-Mapping: Januar=01, Februar=02, März=03, April=04, Mai=05, Juni=06, Juli=07, August=08, September=09, Oktober=10, November=11, Dezember=12)
-
-QUARTALE:
-• "Q1" / "erstes Quartal" → date_from: "[Jahr]-01-01", date_to: "[Jahr]-03-31"
-• "Q2" / "zweites Quartal" → date_from: "[Jahr]-04-01", date_to: "[Jahr]-06-30"
-• "Q3" / "drittes Quartal" → date_from: "[Jahr]-07-01", date_to: "[Jahr]-09-30"
-• "Q4" / "viertes Quartal" → date_from: "[Jahr]-10-01", date_to: "[Jahr]-12-31"
-
-JAHRESANGABEN:
-• "2025" / "letztes Jahr" → date_from: "2025-01-01", date_to: "2025-12-31"
-• "2026" / "dieses Jahr" → date_from: "2026-01-01", date_to: "2026-12-31"
-
 ⛔ KRITISCHE REGEL ⛔
 Du MUSST für JEDE Anfrage ein Tool verwenden! 
 Du darfst NIEMALS direkt antworten ohne Tool-Call!
 
-🔍 TOOL-AUSWAHL MIT SYNONYMEN:
-
-📥 BUCHUNGSANFRAGEN (search_booking_inquiries):
-Trigger: anfragen, anfrage, buchungsanfragen, reservierungsanfragen, neue anfragen, offene anfragen, 
-gibt es anfragen, haben wir anfragen, requests, pending, unbearbeitet, warten auf bestätigung,
-was liegt an, gibt's was neues, neue reservierungen
-- "anfragen" / "offene anfragen" → search_booking_inquiries mit status="pending"
-- "anfrage annehmen" / "bestätigen" + Name/ID → accept_booking_inquiry
-- "anfrage ablehnen" / "stornieren" + Name/ID → reject_booking_inquiry
-
-🔄 BULK-AKTIONEN (create_bulk_cleaning_tasks / create_bulk_linen_orders):
-Trigger: alle reinigungen erstellen, für alle, bulk, massenbearbeitung, alle abreisen, 
-alle check-outs, gesammelt, sammeln, komplett
-- "erstelle reinigung für alle" / "morgige abreisen" → create_bulk_cleaning_tasks
-- "wäsche für alle buchungen" → create_bulk_linen_orders
-
-📅 TAGESÜBERSICHT (get_daily_overview) - BEVORZUGTES TOOL FÜR TAGESFRAGEN:
-Trigger: was passiert heute, tagesplan, wo wird gereinigt, wer kommt heute, wer reist ab,
-gästewechsel, check-ins heute, check-outs heute, abreisen heute, ankünfte heute, neue gäste,
-was steht an, überblick, tagesansicht, was ist los
-- "Was passiert heute?" → get_daily_overview({ date: "${currentDate}" })
-- "Wo wird heute gereinigt?" → get_daily_overview({ date: "${currentDate}" })
-- "Kommen heute neue Gäste?" → get_daily_overview({ date: "${currentDate}" })
-- "Wer reist heute ab?" → get_daily_overview({ date: "${currentDate}" })
-- "Gibt es heute Gästewechsel?" → get_daily_overview({ date: "${currentDate}" })
-- "Was passiert morgen?" → get_daily_overview({ date: "${tomorrowDate}" })
-
-📅 BUCHUNGEN MIT ZEITRAUM (search_bookings):
-Trigger: buchung, buchungen, reservierung, reservierungen, gäste, besucher, wer kommt, 
-wer reist an, anreisen, abreisen, check-in, check-out, checkin, checkout
-Zeitraum-Beispiele:
-- "Buchungen nächste Woche" → search_bookings({ date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
-- "Wer kommt im März?" → search_bookings({ date_from: "${now.getFullYear()}-03-01", date_to: "${now.getFullYear()}-03-31" })
-- "Buchungen diesen Monat" → search_bookings({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
-- "Wer ist am Wochenende da?" → search_bookings({ date_from: "${formatDate(nextSaturday)}", date_to: "${formatDate(nextSundayWE)}" })
-- "Wer kommt morgen an?" → search_bookings({ check_in_date: "${tomorrowDate}" })
-- "Wer reist heute ab?" → search_bookings({ check_out_date: "${currentDate}" })
-- "Familien nächste Woche" → search_bookings({ has_children: true, date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
-
-🧹 REINIGUNGEN MIT ZEITRAUM (search_cleaning_tasks):
-Trigger: reinigung, reinigungen, putzen, sauber machen, cleaning, putzplan, housekeeping
-Zeitraum-Beispiele:
-- "Wann wird nächste Woche geputzt?" → search_cleaning_tasks({ date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
-- "Reinigungen morgen" → search_cleaning_tasks({ date_from: "${tomorrowDate}", date_to: "${tomorrowDate}" })
-- "Was muss heute geputzt werden?" → search_cleaning_tasks({ date_from: "${currentDate}", date_to: "${currentDate}" })
-- "Reinigungen diesen Monat" → search_cleaning_tasks({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
-- "Wird diese Woche gereinigt?" → search_cleaning_tasks({ date_from: "${formatDate(thisMonday)}", date_to: "${formatDate(thisSunday)}" })
-
-🧺 WÄSCHE MIT ZEITRAUM (search_linen_orders / get_linen_overview):
-Trigger: wäsche, wäschebestellung, linen, handtücher, bettwäsche, lieferung
-Zeitraum-Beispiele:
-- "Lieferungen nächste Woche" → search_linen_orders({ date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
-- "Wäschebestellungen diesen Monat" → search_linen_orders({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
-- "Wäsche heute" → search_linen_orders({ date_from: "${currentDate}", date_to: "${currentDate}" })
-
-📥 ANFRAGEN MIT ZEITRAUM (search_booking_inquiries):
-Trigger: anfragen, buchungsanfragen, offene anfragen
-Zeitraum-Beispiele:
-- "Anfragen für nächste Woche" → search_booking_inquiries({ date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
-- "Anfragen diesen Monat" → search_booking_inquiries({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
-
-📅 KALENDER MIT ZEITRAUM (get_calendar_events):
-Trigger: kalender, termine, was steht an, agenda, schedule
-Zeitraum-Beispiele:
-- "Was steht nächste Woche an?" → get_calendar_events({ date_from: "${formatDate(nextMonday)}", date_to: "${formatDate(nextSunday)}" })
-- "Termine heute" → get_calendar_events({ date_from: "${currentDate}", date_to: "${currentDate}" })
-- "Was passiert diesen Monat?" → get_calendar_events({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
-- "Kalender morgen" → get_calendar_events({ date_from: "${tomorrowDate}", date_to: "${tomorrowDate}" })
-
-💶 UMSATZ MIT ZEITRAUM (get_revenue_stats):
-Trigger: umsatz, einnahmen, revenue, was haben wir verdient
-Zeitraum-Beispiele:
-- "Umsatz 2026" → get_revenue_stats({ year: 2026 })
-- "Einnahmen März 2026" → get_revenue_stats({ year: 2026, month: 3 })
-- "Q1 2026 Umsatz" → get_revenue_stats({ year: 2026, quarter: 1 })
-- "Umsatz diesen Monat" → get_revenue_stats({ date_from: "${formatDate(monthStart)}", date_to: "${formatDate(monthEnd)}" })
-- "Einnahmen letzten Monat" → get_revenue_stats({ date_from: "${formatDate(lastMonthStart)}", date_to: "${formatDate(lastMonthEnd)}" })
-
-🏠 HÄUSER (search_houses):
-Trigger: haus, häuser, objekt, chalet, ferienhaus, unterkunft
-- "Zeig mir alle Chalets" → search_houses()
-- "Welche Häuser haben wir?" → search_houses()
-
-👥 GÄSTE (search_guests):
-Trigger: gast, gäste, kunde, kunden, kontakt, gästeprofil
-- "Gäste aus Deutschland" → search_guests({ nationality: "DE" })
-- "Suche Gast Schmidt" → search_guests({ name: "Schmidt" })
-
-📊 STATISTIKEN (get_dashboard_stats):
-Trigger: übersicht, dashboard, statistik, wie läuft es, zahlen
-- "Wie läuft der Laden?" → get_dashboard_stats()
-- "Dashboard-Übersicht" → get_dashboard_stats()
-
-💡 KRITISCHE FILTER-KOMBINATIONEN MIT ZEITRAUM:
-Beispiel: "Haben wir nächste Woche Buchungen mit Kindern?"
-✅ KORREKT: search_bookings({ "has_children": true, "date_from": "${formatDate(nextMonday)}", "date_to": "${formatDate(nextSunday)}" })
-❌ FALSCH: search_bookings ohne date_from/date_to oder has_children Parameter
-
-Beispiel: "Wann wird nächsten Monat gereinigt?"
-✅ KORREKT: search_cleaning_tasks({ "date_from": "${formatDate(nextMonthStart)}", "date_to": "${formatDate(nextMonthEnd)}" })
-❌ FALSCH: search_cleaning_tasks ohne Zeitraum-Parameter
-
-ANTWORT-FORMATE:
-
-**Buchungsanfragen:**
-"📥 Ich habe [X] offene Buchungsanfrage(n) gefunden:
-
-📝 ANFRAGE 1:
-• Gast: [name] ([email])
-• Haus: [house_name]
-• Zeitraum: [check_in] - [check_out]
-• Gäste: [number] Personen
-• Geschätzter Betrag: [amount] EUR
-• Nachricht: [message]
-
-Möchtest du diese Anfrage bestätigen oder ablehnen?"
-
-**Bulk-Aktion:**
-"✅ Bulk-Aktion ausgeführt!
-
-📋 REINIGUNGEN ERSTELLT: [X]
-• [Haus]: Reinigung am [Datum] für [Gast]
-
-⏭️ ÜBERSPRUNGEN: [Y] (bereits vorhanden)"
-
-**Buchungen:**
-"Ich habe [X] Buchung(en) gefunden:
-• Gast: [Name]
-• Check-in: [Datum]
-• Check-out: [Datum]
-• Gäste: [Anzahl] 
-• Status: [Status]
-• Haus: [Hausname]"
+🔍 TOOL-AUSWAHL:
+- Buchungen/Reservierungen → search_bookings
+- Reinigungen → search_cleaning_tasks  
+- Häuser/Chalets → search_houses
+- Gäste → search_guests
+- Statistiken → get_dashboard_stats
+- Wäsche → get_linen_overview oder search_linen_orders
+- Kalender → get_calendar_events
+- Umsatz → get_revenue_stats
+- Tagesübersicht → get_daily_overview
+- Buchungsanfragen → search_booking_inquiries
+- Bulk Reinigungen → create_bulk_cleaning_tasks
+- Bulk Wäsche → create_bulk_linen_orders
 
 Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
 
-    // Define available tools
-    const tools = [
-      // Booking Inquiries
-      {
-        type: "function",
-        function: {
-          name: "search_booking_inquiries",
-          description: "Sucht Buchungsanfragen. Für 'offene Anfragen' oder 'gibt es Anfragen' nutze status='pending'",
-          parameters: {
-            type: "object",
-            properties: {
-              status: { type: "string", enum: ["pending", "confirmed", "rejected"], description: "Status der Anfrage. Für offene Anfragen: 'pending'" },
-              house_id: { type: "string", description: "UUID des Hauses" },
-              guest_name: { type: "string", description: "Name des Gastes" }
-            }
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "accept_booking_inquiry",
-          description: "Bestätigt eine Buchungsanfrage und erstellt Buchung + Reinigung",
-          parameters: {
-            type: "object",
-            properties: {
-              inquiry_id: { type: "string", description: "UUID der Anfrage" }
-            },
-            required: ["inquiry_id"]
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "reject_booking_inquiry",
-          description: "Lehnt eine Buchungsanfrage ab",
-          parameters: {
-            type: "object",
-            properties: {
-              inquiry_id: { type: "string", description: "UUID der Anfrage" },
-              reason: { type: "string", description: "Ablehnungsgrund" }
-            },
-            required: ["inquiry_id"]
-          }
-        }
-      },
-      // Bulk Actions
-      {
-        type: "function",
-        function: {
-          name: "create_bulk_cleaning_tasks",
-          description: "Erstellt Reinigungsaufträge für alle Buchungen an einem Datum. Für 'morgige Abreisen' nutze for_date='tomorrow' und trigger='checkout'",
-          parameters: {
-            type: "object",
-            properties: {
-              for_date: { type: "string", description: "Datum: 'today', 'tomorrow' oder ISO-Datum" },
-              trigger: { type: "string", enum: ["checkout", "checkin"], description: "checkout=Abreisen, checkin=Ankünfte" },
-              house_id: { type: "string", description: "Optional: nur für dieses Haus" }
-            },
-            required: ["for_date", "trigger"]
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "create_bulk_linen_orders",
-          description: "Erstellt Wäschebestellungen für alle Buchungen in einem Zeitraum",
-          parameters: {
-            type: "object",
-            properties: {
-              date_from: { type: "string", description: "Start-Datum (ISO)" },
-              date_to: { type: "string", description: "End-Datum (ISO)" },
-              house_id: { type: "string", description: "Optional: nur für dieses Haus" }
-            },
-            required: ["date_from", "date_to"]
-          }
-        }
-      },
-      // Core Search Tools
-      {
-        type: "function",
-        function: {
-          name: "search_bookings",
-          description: "Sucht Buchungen. WICHTIG: Bei 'Familien' oder 'mit Kindern' IMMER has_children=true setzen!",
-          parameters: {
-            type: "object",
-            properties: {
-              guest_name: { type: "string", description: "Name des Gastes" },
-              status: { type: "string", enum: ["confirmed", "cancelled", "completed"], description: "Buchungsstatus" },
-              house_id: { type: "string", description: "UUID des Hauses" },
-              has_children: { type: "boolean", description: "NUR Familien mit Kindern (number_of_children > 0)" },
-              date_from: { type: "string", description: "Check-in ab Datum (ISO)" },
-              date_to: { type: "string", description: "Check-in bis Datum (ISO)" },
-              check_in_date: { type: "string", description: "Exakter Check-in Tag (ISO)" },
-              check_out_date: { type: "string", description: "Exakter Check-out Tag (ISO)" },
-              upcoming_only: { type: "boolean", description: "Nur zukünftige Buchungen" },
-              exclude_cancelled: { type: "boolean", description: "Stornierte ausschließen (default: true)" },
-              limit: { type: "number", description: "Max Ergebnisse" }
-            }
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "search_cleaning_tasks",
-          description: "Sucht Reinigungsaufträge",
-          parameters: {
-            type: "object",
-            properties: {
-              status: { type: "string", enum: ["scheduled", "in_progress", "completed", "cancelled"] },
-              house_id: { type: "string" },
-              date_from: { type: "string" },
-              date_to: { type: "string" },
-              guest_name: { type: "string" },
-              provider_name: { type: "string", description: "Name des verantwortlichen Providers (z.B. Amela)" },
-              payment_status: { type: "string", enum: ["paid", "unpaid", "pending"] }
-            }
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "search_houses",
-          description: "Sucht Häuser/Chalets",
-          parameters: {
-            type: "object",
-            properties: {
-              name: { type: "string", description: "Hausname" },
-              address: { type: "string", description: "Adresse" }
-            }
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "search_guests",
-          description: "Sucht Gäste",
-          parameters: {
-            type: "object",
-            properties: {
-              name: { type: "string" },
-              email: { type: "string" },
-              nationality: { type: "string" }
-            }
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "get_dashboard_stats",
-          description: "Holt Dashboard-Statistiken (Häuser, Buchungen, Aufgaben, Umsatz)",
-          parameters: { type: "object", properties: {} }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "get_linen_overview",
-          description: "Holt Wäsche-Übersicht aller Häuser",
-          parameters: { type: "object", properties: {} }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "search_linen_orders",
-          description: "Sucht Wäschebestellungen",
-          parameters: {
-            type: "object",
-            properties: {
-              status: { type: "string", enum: ["offen", "bestätigt", "geliefert", "storniert"] },
-              house_id: { type: "string" },
-              date_from: { type: "string" },
-              date_to: { type: "string" }
-            }
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "get_calendar_events",
-          description: "Holt Kalender-Events (Check-ins, Check-outs, Reinigungen)",
-          parameters: {
-            type: "object",
-            properties: {
-              date_from: { type: "string" },
-              date_to: { type: "string" }
-            }
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "get_revenue_stats",
-          description: "Berechnet Umsatzstatistiken für flexible Zeiträume: Jahr, Monat, Quartal oder beliebige Datumsbereiche. Nutze für 'Umsatz 2026', 'Einnahmen März 2026', 'Q1 2026' etc.",
-          parameters: {
-            type: "object",
-            properties: {
-              year: { type: "number", description: "Jahr (z.B. 2026). Pflicht für Jahr/Monat/Quartal-Abfragen" },
-              month: { type: "number", description: "Monat 1-12 (z.B. 3 für März). Optional, zusammen mit year" },
-              quarter: { type: "number", description: "Quartal 1-4 (z.B. 1 für Q1). Optional, zusammen mit year" },
-              date_from: { type: "string", description: "Start-Datum ISO (z.B. 2026-01-01) für beliebige Zeiträume" },
-              date_to: { type: "string", description: "End-Datum ISO (z.B. 2026-03-31) für beliebige Zeiträume" }
-            }
-          }
-        }
-      },
-      {
-        type: "function",
-        function: {
-          name: "get_daily_overview",
-          description: "Tagesübersicht: Zeigt alle Reinigungen, Check-ins, Check-outs und Gästewechsel für einen Tag. Ideal für 'Was passiert heute?', 'Wo wird heute gereinigt?', 'Kommen heute Gäste?', 'Wer reist ab?'",
-          parameters: {
-            type: "object",
-            properties: {
-              date: { type: "string", description: "Datum im ISO-Format (YYYY-MM-DD). Default: heute" }
-            }
-          }
-        }
-      }
-    ];
+    const tools = getToolDefinitions();
 
-    // Build messages for API
-    const apiMessages = [
-      { role: 'system', content: systemPrompt },
-      ...messages.map((m: any) => ({ role: m.role, content: m.content }))
-    ];
+    // Build Gemini-compatible contents
+    const contents: GeminiContent[] = [];
+    
+    for (const m of messages) {
+      if (m.role === 'user') {
+        contents.push({
+          role: 'user',
+          parts: [{ text: m.content }]
+        });
+      } else if (m.role === 'assistant') {
+        contents.push({
+          role: 'model',
+          parts: [{ text: m.content }]
+        });
+      }
+    }
 
     // Tool-calling loop
     let iteration = 0;
@@ -1497,51 +1368,75 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
       iteration++;
       console.log(`Tool-calling iteration ${iteration}`);
       
-      // Call AI
-      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
+      // Build request for Gemini
+      const geminiTools = convertToolsToGemini(tools);
+      
+      const requestBody = {
+        contents,
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        tools: geminiTools,
+        toolConfig: { 
+          functionCallingConfig: { 
+            mode: iteration === 1 ? 'ANY' : 'AUTO'  // Force tool call on first iteration
+          } 
         },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: apiMessages,
-          tools,
-          tool_choice: iteration === 1 ? 'required' : 'auto'
-        }),
-      });
+        generationConfig: {
+          maxOutputTokens: 2048,
+          temperature: 0.7
+        }
+      };
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+        }
+      );
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('AI API error:', errorText);
-        throw new Error(`AI API error: ${response.status}`);
+        console.error('Gemini API error:', response.status, errorText);
+        
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: 'Rate limit erreicht. Bitte versuche es später erneut.' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        throw new Error(`Gemini API error: ${response.status}`);
       }
 
       const data = await response.json();
-      const assistantMessage = data.choices[0].message;
+      const candidate = data.candidates?.[0];
+      const parts = candidate?.content?.parts || [];
       
-      console.log('AI response:', { 
-        finish_reason: data.choices[0].finish_reason,
-        has_tool_calls: !!assistantMessage.tool_calls,
-        tool_count: assistantMessage.tool_calls?.length || 0
+      console.log('Gemini response:', { 
+        finishReason: candidate?.finishReason,
+        partsCount: parts.length,
+        hasFunctionCall: parts.some((p: GeminiPart) => p.functionCall)
       });
 
-      // If no tool calls, we're done
-      if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
+      // Check for function calls
+      const functionCalls = parts.filter((p: GeminiPart) => p.functionCall);
+      
+      if (functionCalls.length === 0) {
+        // No function calls - return text response
+        const textPart = parts.find((p: GeminiPart) => p.text);
+        const finalContent = textPart?.text || 'Ich konnte keine passende Antwort generieren.';
+        
         if (iteration === 1) {
           // Force tool usage on first iteration
           console.log('AI tried to answer without tool call in first iteration - forcing tool usage');
-          apiMessages.push({
+          contents.push({
             role: 'user',
-            content: 'Du MUSST ein Tool verwenden um diese Frage zu beantworten. Bitte rufe das passende Tool auf.'
+            parts: [{ text: 'Du MUSST ein Tool verwenden um diese Frage zu beantworten. Bitte rufe das passende Tool auf.' }]
           });
           continue;
         }
         
-        // Return final response
-        console.log('No more tool calls, preparing final response');
-        const finalContent = assistantMessage.content || 'Ich konnte keine passende Antwort generieren.';
         console.log('Final response received:', { textLength: finalContent.length });
         
         return new Response(
@@ -1550,14 +1445,20 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
         );
       }
 
-      // Process tool calls
-      apiMessages.push(assistantMessage);
+      // Process function calls
+      // Add model response to contents
+      contents.push({
+        role: 'model',
+        parts: parts
+      });
       
-      console.log('Processing tool calls:', assistantMessage.tool_calls.map((t: any) => t.function.name));
+      console.log('Processing function calls:', functionCalls.map((fc: any) => fc.functionCall.name));
       
-      for (const toolCall of assistantMessage.tool_calls) {
-        const toolName = toolCall.function.name;
-        const args = JSON.parse(toolCall.function.arguments || '{}');
+      const functionResponses: GeminiPart[] = [];
+      
+      for (const fc of functionCalls) {
+        const toolName = fc.functionCall.name;
+        const args = fc.functionCall.args || {};
         
         console.log(`Executing tool: ${toolName}`, args);
         
@@ -1571,12 +1472,19 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
         
         toolResults.push({ tool: toolName, args, result });
         
-        apiMessages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          content: JSON.stringify(result)
+        functionResponses.push({
+          functionResponse: {
+            name: toolName,
+            response: result
+          }
         });
       }
+      
+      // Add function responses as user message
+      contents.push({
+        role: 'user',
+        parts: functionResponses
+      });
     }
 
     // Max iterations reached
