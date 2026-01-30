@@ -1,68 +1,100 @@
 
+# Bot-Filter für App Tracking Dashboard
 
-## Plan: App-Bewertungen Filterlogik korrigieren
+## Ziel
+Sessions von bekannten Bots und Crawlern (Chrome 119, LikeWise Crawler) standardmäßig ausblenden, um nur echte Gäste-Interaktionen anzuzeigen.
 
-### Problem-Analyse
+---
 
-Die App-Bewertungen werden nicht angezeigt, weil die Filterlogik in `AppReviewsSection.tsx` fehlerhaft ist:
+## Technische Umsetzung
 
-**Aktuelle Situation:**
-- `GuestAppTracking.tsx` uebergibt: `selectedHouseId={filters.houseId === 'all' ? '' : filters.houseId}`
-- Das bedeutet: Wenn "Alle Haeuser" gewaehlt ist, wird ein **leerer String** `''` uebergeben
+### 1. Bot-Erkennungslogik erstellen
 
-**Fehlerhafte Logik in AppReviewsSection.tsx:**
-```typescript
-if (selectedHouseId !== 'all') {
-  query = query.eq('bookings.house_id', selectedHouseId);
-}
+Neue Hilfsfunktion zur Bot-Erkennung basierend auf User-Agent Patterns:
+
+```text
+Bot-Patterns:
+- "Chrome/119" → Veralteter Chrome-Bot (Desktop-Crawler)
+- "LikeWise" → LikeWise Crawler
+- "bot" → Generische Bot-Erkennung
+- "crawler" → Generische Crawler
+- "spider" → Suchmaschinen-Spider
 ```
 
-**Problem:**
-- `'' !== 'all'` ergibt `true`
-- Die Query filtert dann nach `house_id = ''`
-- Das liefert keine Ergebnisse!
+### 2. SessionFilters Interface erweitern
 
-### Loesung
+**Datei:** `src/hooks/useGuestAppTracking.ts`
 
-In `AppReviewsSection.tsx` beide Query-Filter korrigieren:
-
-**Aenderung 1 - Zeile 76-78 (App Reviews Query):**
-```typescript
-// Von:
-if (selectedHouseId !== 'all') {
-  query = query.eq('bookings.house_id', selectedHouseId);
-}
-
-// Zu:
-if (selectedHouseId && selectedHouseId !== 'all') {
-  query = query.eq('bookings.house_id', selectedHouseId);
-}
+```text
+SessionFilters erweitern:
+- excludeBots: boolean (Standard: true)
 ```
 
-**Aenderung 2 - Zeile 95-97 (Total Bookings Count Query):**
-```typescript
-// Von:
-if (selectedHouseId !== 'all') {
-  query = query.eq('house_id', selectedHouseId);
-}
+### 3. Client-Side Bot-Filterung implementieren
 
-// Zu:
-if (selectedHouseId && selectedHouseId !== 'all') {
-  query = query.eq('house_id', selectedHouseId);
-}
+**Datei:** `src/hooks/useGuestAppTracking.ts`
+
+Die Filterung erfolgt client-side nach dem Datenabruf, da Supabase keine komplexen Pattern-Matching-Queries unterstützt:
+
+```text
+Ablauf in useGuestAppSessions:
+1. Daten von Supabase abrufen
+2. Sessions transformieren (bestehende Logik)
+3. NEU: Bot-Sessions filtern wenn excludeBots = true
+4. Haus-Filter anwenden
+5. Ergebnis zurückgeben
 ```
 
-### Technische Details
+### 4. UI-Toggle für Bot-Filter hinzufügen
 
-| Datei | Zeilen | Aenderung |
-|-------|--------|-----------|
-| `src/components/Guests/AppReviewsSection.tsx` | 76-78 | `selectedHouseId &&` vor Filterung hinzufuegen |
-| `src/components/Guests/AppReviewsSection.tsx` | 95-97 | `selectedHouseId &&` vor Filterung hinzufuegen |
+**Datei:** `src/components/Guests/GuestAppTracking.tsx`
 
-### Ergebnis
+Neuer Toggle-Switch in der Filter-Leiste:
+- Label: "Nur echte Nutzer"
+- Tooltip: "Bots und Crawler ausblenden"
+- Standard: aktiviert (Bots ausgeblendet)
 
-Nach der Korrektur:
-- Leerer String `''` oder `'all'` = Keine Filterung, alle Bewertungen werden angezeigt
-- UUID = Nur Bewertungen fuer das spezifische Haus
-- Die vorhandene Bewertung (5 Sterne von Test Gast) wird korrekt angezeigt
+### 5. Stats-Berechnung anpassen
+
+**Datei:** `src/hooks/useGuestAppTracking.ts`
+
+Die Statistiken müssen ebenfalls gefiltert werden, damit sie konsistent mit der Tabelle sind:
+- Alle Stats-Queries laden user_agent mit
+- Client-side Bot-Filter anwenden
+
+---
+
+## Dateiänderungen
+
+| Datei | Änderung |
+|-------|----------|
+| `src/hooks/useGuestAppTracking.ts` | Bot-Erkennung, Filter-Logik, Interface-Erweiterung |
+| `src/components/Guests/GuestAppTracking.tsx` | Toggle-Switch für Bot-Filter, State-Initialisierung |
+
+---
+
+## Benutzer-Erfahrung
+
+**Standardverhalten:**
+- Bot-Sessions werden standardmäßig ausgeblendet
+- Stats zeigen nur echte Nutzer
+
+**Mit Toggle deaktiviert:**
+- Alle Sessions sichtbar (inkl. Bots)
+- Nützlich für technische Analyse
+
+---
+
+## Erkannte Bot-Patterns
+
+Die folgenden User-Agent-Muster werden als Bots erkannt:
+
+| Pattern | Beschreibung |
+|---------|--------------|
+| `Chrome/119` | Veralteter Chrome-Bot (häufigster Bot in den Daten) |
+| `LikeWise` | LikeWise Crawler |
+| `bot` | Generische Bot-Erkennung |
+| `crawler` | Web-Crawler |
+| `spider` | Suchmaschinen-Spider |
+| `HeadlessChrome` | Automatisierte Browser |
 
