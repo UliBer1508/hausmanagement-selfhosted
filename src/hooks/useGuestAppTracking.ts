@@ -18,10 +18,14 @@ export interface GuestAppSession {
   referrer: string | null;
   // Joined data
   booking_guest_name?: string;
+  booking_guest_email?: string;
   check_in?: string;
   check_out?: string;
   house_name?: string;
   house_id?: string;
+  // New fields from guests relation
+  guest_table_email?: string;
+  guest_table_name?: string;
 }
 
 export interface GuestAppEvent {
@@ -115,11 +119,17 @@ export const useGuestAppSessions = (filters: SessionFilters) => {
           *,
           bookings:booking_id (
             guest_name,
+            guest_email,
             check_in,
             check_out,
             house_id,
+            guest_id,
             houses:house_id (
               name
+            ),
+            guests:guest_id (
+              name,
+              email
             )
           )
         `)
@@ -157,10 +167,27 @@ export const useGuestAppSessions = (filters: SessionFilters) => {
       const sessions = (data || []).map((session: Record<string, unknown>) => {
         const booking = session.bookings as Record<string, unknown> | null;
         const house = booking?.houses as Record<string, string> | null;
+        const guest = booking?.guests as Record<string, string> | null;
+        
+        // Email priority: guests table > bookings > session (legacy)
+        const resolvedEmail = guest?.email || 
+                              (booking?.guest_email as string) || 
+                              (session.guest_email as string);
+        
+        // Name priority: guests table > bookings > session (legacy)
+        const resolvedName = guest?.name || 
+                             (booking?.guest_name as string) || 
+                             (session.guest_name as string);
         
         return {
           ...session,
+          // Override session email/name with authoritative source
+          guest_email: resolvedEmail,
+          guest_name: resolvedName,
           booking_guest_name: booking?.guest_name as string | undefined,
+          booking_guest_email: booking?.guest_email as string | undefined,
+          guest_table_email: guest?.email,
+          guest_table_name: guest?.name,
           check_in: booking?.check_in as string | undefined,
           check_out: booking?.check_out as string | undefined,
           house_id: booking?.house_id as string | undefined,
@@ -310,10 +337,21 @@ export const useGuestAppStats = (filters: SessionFilters) => {
         timeFilter = startDate.toISOString();
       }
 
-      // Fetch all sessions with user_agent for bot filtering
+      // Fetch all sessions with user_agent for bot filtering, including guests relation
       let sessionsQuery = supabase
         .from('guest_app_sessions')
-        .select('user_agent, guest_email, completed_onboarding');
+        .select(`
+          user_agent, 
+          guest_email, 
+          completed_onboarding,
+          booking_id,
+          bookings:booking_id (
+            guest_id,
+            guests:guest_id (
+              email
+            )
+          )
+        `);
       
       if (timeFilter) {
         sessionsQuery = sessionsQuery.gte('started_at', timeFilter);
@@ -327,7 +365,13 @@ export const useGuestAppStats = (filters: SessionFilters) => {
         : (allSessions || []);
 
       const totalSessions = sessions.length;
-      const identifiedGuests = sessions.filter(s => s.guest_email !== null).length;
+      // Check for identified guests via relation or legacy field
+      const identifiedGuests = sessions.filter(s => {
+        const booking = s.bookings as Record<string, unknown> | null;
+        const guest = booking?.guests as Record<string, string> | null;
+        const guestEmail = guest?.email || s.guest_email;
+        return guestEmail !== null;
+      }).length;
       const completedOnboarding = sessions.filter(s => s.completed_onboarding === true).length;
 
       // Average rating (not affected by bot filter)
