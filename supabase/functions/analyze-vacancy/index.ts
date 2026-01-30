@@ -1,11 +1,26 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { geminiStructuredOutput, GeminiRateLimitError, GeminiAPIError } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+interface VacancyAnalysis {
+  bookingProbability: number;
+  suggestedPriceMin: number;
+  suggestedPriceMax: number;
+  reasoning: string;
+  actions: Array<{
+    priority: number;
+    action: string;
+    reason: string;
+  }>;
+  urgency: 'niedrig' | 'mittel' | 'hoch' | 'kritisch';
+  deadline: string;
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -21,10 +36,10 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 
-    if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    if (!geminiApiKey) {
+      throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -97,19 +112,7 @@ serve(async (req) => {
       },
     };
 
-    // Call Lovable AI Gateway
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `Du bist ein KI-Assistent für Ferienhaus-Vermietung in der österreichischen Ski-Region. 
+    const systemPrompt = `Du bist ein KI-Assistent für Ferienhaus-Vermietung in der österreichischen Ski-Region. 
             
 Deine Aufgabe: Analysiere freie Zeiträume (Lücken) und gib konkrete, priorisierte Handlungsempfehlungen.
 
@@ -125,117 +128,84 @@ ANALYSE-KRITERIEN:
 3. Historische Daten: Monatliche Buchungsraten und Preise
 4. Aktuelle Trends: Letzte Buchungen als Indikator
 
-AUSGABE: Nutze das bereitgestellte Tool für strukturierte Antworten mit:
+Liefere eine strukturierte Analyse mit:
 - Buchungswahrscheinlichkeit (0-100%)
 - Empfohlener Preisspanne
 - Natürlichsprachliche Begründung
 - 3-5 konkrete, priorisierte Maßnahmen
 - Dringlichkeitsstufe (niedrig/mittel/hoch/kritisch)
-- Deadline bis wann gehandelt werden sollte`
+- Deadline bis wann gehandelt werden sollte`;
+
+    const userPrompt = `Analysiere diese Buchungslücke:\n\n${JSON.stringify(context, null, 2)}\n\nGib eine fundierte Empfehlung basierend auf den historischen Daten.`;
+
+    const tool = {
+      name: 'provide_vacancy_analysis',
+      description: 'Liefert eine strukturierte Analyse der Buchungslücke mit Wahrscheinlichkeit, Preisempfehlung und konkreten Maßnahmen',
+      parameters: {
+        type: 'object',
+        properties: {
+          bookingProbability: {
+            type: 'number',
+            description: 'Wahrscheinlichkeit einer Buchung in Prozent (0-100)',
           },
-          {
-            role: 'user',
-            content: `Analysiere diese Buchungslücke:\n\n${JSON.stringify(context, null, 2)}\n\nGib eine fundierte Empfehlung basierend auf den historischen Daten.`
-          }
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'provide_vacancy_analysis',
-              description: 'Liefert eine strukturierte Analyse der Buchungslücke mit Wahrscheinlichkeit, Preisempfehlung und konkreten Maßnahmen',
-              parameters: {
-                type: 'object',
-                properties: {
-                  bookingProbability: {
-                    type: 'number',
-                    description: 'Wahrscheinlichkeit einer Buchung in Prozent (0-100)',
-                  },
-                  suggestedPriceMin: {
-                    type: 'number',
-                    description: 'Empfohlener Mindestpreis in EUR',
-                  },
-                  suggestedPriceMax: {
-                    type: 'number',
-                    description: 'Empfohlener Maximalpreis in EUR',
-                  },
-                  reasoning: {
-                    type: 'string',
-                    description: 'Ausführliche natürlichsprachliche Begründung der Analyse (2-4 Sätze)',
-                  },
-                  actions: {
-                    type: 'array',
-                    description: 'Liste von 3-5 konkreten, priorisierten Maßnahmen',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        priority: {
-                          type: 'number',
-                          description: 'Priorität (1 = höchste)',
-                        },
-                        action: {
-                          type: 'string',
-                          description: 'Konkrete Handlungsempfehlung',
-                        },
-                        reason: {
-                          type: 'string',
-                          description: 'Kurze Begründung warum diese Maßnahme wichtig ist',
-                        },
-                      },
-                      required: ['priority', 'action', 'reason'],
-                    },
-                  },
-                  urgency: {
-                    type: 'string',
-                    enum: ['niedrig', 'mittel', 'hoch', 'kritisch'],
-                    description: 'Dringlichkeitsstufe',
-                  },
-                  deadline: {
-                    type: 'string',
-                    description: 'Empfohlene Deadline im Format YYYY-MM-DD',
-                  },
+          suggestedPriceMin: {
+            type: 'number',
+            description: 'Empfohlener Mindestpreis in EUR',
+          },
+          suggestedPriceMax: {
+            type: 'number',
+            description: 'Empfohlener Maximalpreis in EUR',
+          },
+          reasoning: {
+            type: 'string',
+            description: 'Ausführliche natürlichsprachliche Begründung der Analyse (2-4 Sätze)',
+          },
+          actions: {
+            type: 'array',
+            description: 'Liste von 3-5 konkreten, priorisierten Maßnahmen',
+            items: {
+              type: 'object',
+              properties: {
+                priority: {
+                  type: 'number',
+                  description: 'Priorität (1 = höchste)',
                 },
-                required: ['bookingProbability', 'suggestedPriceMin', 'suggestedPriceMax', 'reasoning', 'actions', 'urgency', 'deadline'],
+                action: {
+                  type: 'string',
+                  description: 'Konkrete Handlungsempfehlung',
+                },
+                reason: {
+                  type: 'string',
+                  description: 'Kurze Begründung warum diese Maßnahme wichtig ist',
+                },
               },
+              required: ['priority', 'action', 'reason'],
             },
           },
-        ],
-        tool_choice: { type: 'function', function: { name: 'provide_vacancy_analysis' } },
-      }),
-    });
+          urgency: {
+            type: 'string',
+            enum: ['niedrig', 'mittel', 'hoch', 'kritisch'],
+            description: 'Dringlichkeitsstufe',
+          },
+          deadline: {
+            type: 'string',
+            description: 'Empfohlene Deadline im Format YYYY-MM-DD',
+          },
+        },
+        required: ['bookingProbability', 'suggestedPriceMin', 'suggestedPriceMax', 'reasoning', 'actions', 'urgency', 'deadline'],
+      },
+    };
 
-    if (!aiResponse.ok) {
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ 
-          error: 'Rate limit exceeded. Please try again later.' 
-        }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ 
-          error: 'Insufficient credits. Please add funds to your Lovable AI workspace.' 
-        }), {
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const errorText = await aiResponse.text();
-      console.error('AI Gateway error:', aiResponse.status, errorText);
-      throw new Error(`AI Gateway error: ${aiResponse.status}`);
-    }
+    console.log('Calling Gemini API for vacancy analysis');
+    
+    const analysis = await geminiStructuredOutput<VacancyAnalysis>(
+      geminiApiKey,
+      systemPrompt,
+      userPrompt,
+      tool
+    );
 
-    const aiData = await aiResponse.json();
-    console.log('AI Response:', JSON.stringify(aiData, null, 2));
-
-    // Extract tool call result
-    const toolCall = aiData.choices[0]?.message?.tool_calls?.[0];
-    if (!toolCall) {
-      throw new Error('No tool call in AI response');
-    }
-
-    const analysis = JSON.parse(toolCall.function.arguments);
+    console.log('Vacancy analysis completed:', analysis);
 
     return new Response(JSON.stringify({
       success: true,
@@ -246,6 +216,16 @@ AUSGABE: Nutze das bereitgestellte Tool für strukturierte Antworten mit:
 
   } catch (error) {
     console.error('Error in analyze-vacancy:', error);
+    
+    if (error instanceof GeminiRateLimitError) {
+      return new Response(JSON.stringify({ 
+        error: 'Rate limit exceeded. Please try again later.' 
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : 'Unknown error' 
     }), {
