@@ -108,4 +108,3 @@ export const useSessionValidation = () => {
 ## Keine Änderungen in diesem Projekt
 
 Da die Logik komplett in der **Guest App** implementiert wird, sind hier keine Code-Änderungen erforderlich. Der Plan dient als Dokumentation und Prompt für die Guest App.
-
