@@ -1,41 +1,42 @@
+# Guest App: Buchungs-Identifikation für alle aktiven Status
 
+## Anforderung
 
-# Datenkorrektur: Anonyme Session mit Buchung verknüpfen
+Die Guest App muss Gäste korrekt identifizieren können, unabhängig davon ob:
+1. **Check-in noch bevorsteht** (`status = 'confirmed'`) - Gast gibt Check-in Datum an
+2. **Gast bereits eingecheckt ist** (`status = 'checked_in'`)
+3. **Aufenthalt abgeschlossen** (`status = 'completed'`) - für Bewertungen/Historie
 
-## Problem
+## Aktuelle Situation
 
-Die Guest App Session `guest-1769938619117-guchy7x` ist anonym, obwohl sie zu Oliver Grandt's aktiver Buchung gehört.
+Die Identifikationslogik in der Guest App sucht möglicherweise nur nach `status = 'confirmed'`, was dazu führt dass eingecheckte Gäste (`checked_in`) nicht erkannt werden.
 
-## Zu korrigierende Daten
+## Erforderliche Änderung (Guest App)
 
-**Tabelle:** `guest_app_sessions`
+```typescript
+// In der Guest App Identifikationslogik ändern:
 
-| Feld | Aktuell | Korrektur |
-|------|---------|-----------|
-| `booking_id` | `NULL` | `6566bff6-d6bd-4beb-9f68-eb21e2242459` |
-| `guest_name` | `NULL` | `Oliver Grandt` |
-| `guest_email` | `NULL` | `Vicielisa97@icloud.com` |
+// VON (einschränkend):
+.eq('status', 'confirmed')
 
-## SQL Update
-
-```sql
-UPDATE guest_app_sessions
-SET 
-  booking_id = '6566bff6-d6bd-4beb-9f68-eb21e2242459',
-  guest_name = 'Oliver Grandt',
-  guest_email = 'Vicielisa97@icloud.com',
-  updated_at = now()
-WHERE session_id = 'guest-1769938619117-guchy7x';
+// ZU (alle aktiven Buchungen):
+.in('status', ['confirmed', 'checked_in', 'completed'])
 ```
 
-## Erwartetes Ergebnis
+## Matching-Kriterien
 
-Nach der Korrektur:
-- Die Session erscheint in der Gäste-Tracking-Liste als "Oliver Grandt" statt "Anonym"
-- Der Gast kann die Guest App normal nutzen
-- Die Aktivitäten werden korrekt mit der Buchung verknüpft
+Die Identifikation sollte matchen wenn:
+- `check_in` Datum übereinstimmt mit der Angabe des Gastes
+- ODER `guest_email` übereinstimmt (falls Gast Email eingibt)
+- UND `status` IN ('confirmed', 'checked_in', 'completed')
 
-## Wichtiger Hinweis
+## Datenbankstruktur
 
-Dies ist eine einmalige Datenkorrektur. Die Ursache (Guest App sucht nur nach `status = 'confirmed'`) muss separat in der Guest App behoben werden, damit zukünftige Identifikationen für `checked_in` Buchungen funktionieren.
+Die `guest_app_sessions` Tabelle speichert nach erfolgreicher Identifikation:
+- `booking_id` → Link zur Buchung
+- `guest_name` → Name des Gastes  
+- `guest_email` → Email des Gastes
 
+## Hinweis
+
+Diese Änderung muss in der **separaten Guest App** implementiert werden, nicht im Management-System.
