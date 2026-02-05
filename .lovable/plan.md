@@ -1,70 +1,41 @@
 
 
-# Fix: Guest App Buchungssuche muss auch `checked_in` Status berücksichtigen
+# Datenkorrektur: Anonyme Session mit Buchung verknüpfen
 
 ## Problem
 
-Oliver Grandt kann sich nicht identifizieren, weil:
-1. Seine Buchung hat Status `checked_in` (bereits eingecheckt)
-2. Die Guest App sucht wahrscheinlich nur nach `status = 'confirmed'`
-3. Ergebnis: Keine passende Buchung gefunden → Identifikation schlägt fehl
+Die Guest App Session `guest-1769938619117-guchy7x` ist anonym, obwohl sie zu Oliver Grandt's aktiver Buchung gehört.
 
-## Betroffene Buchungs-Status
+## Zu korrigierende Daten
 
-| Status | Anzahl | Soll identifizierbar sein? |
-|--------|--------|---------------------------|
-| `confirmed` | 21 | ✓ Ja |
-| `checked_in` | 2 | ✓ Ja (Oliver Grandt!) |
-| `completed` | 79 | ✓ Ja (laut Session-Policy) |
-| `cancelled` | 7 | ✗ Nein |
+**Tabelle:** `guest_app_sessions`
 
-## Lösung für Guest App
+| Feld | Aktuell | Korrektur |
+|------|---------|-----------|
+| `booking_id` | `NULL` | `6566bff6-d6bd-4beb-9f68-eb21e2242459` |
+| `guest_name` | `NULL` | `Oliver Grandt` |
+| `guest_email` | `NULL` | `Vicielisa97@icloud.com` |
 
-Die Buchungssuche in der Guest App muss angepasst werden:
+## SQL Update
 
-### Aktuell (vermutlich)
-```typescript
-.eq('status', 'confirmed')
+```sql
+UPDATE guest_app_sessions
+SET 
+  booking_id = '6566bff6-d6bd-4beb-9f68-eb21e2242459',
+  guest_name = 'Oliver Grandt',
+  guest_email = 'Vicielisa97@icloud.com',
+  updated_at = now()
+WHERE session_id = 'guest-1769938619117-guchy7x';
 ```
 
-### Korrigiert
-```typescript
-.in('status', ['confirmed', 'checked_in', 'completed'])
-```
+## Erwartetes Ergebnis
 
-Oder alternativ:
-```typescript
-.neq('status', 'cancelled')
-```
+Nach der Korrektur:
+- Die Session erscheint in der Gäste-Tracking-Liste als "Oliver Grandt" statt "Anonym"
+- Der Gast kann die Guest App normal nutzen
+- Die Aktivitäten werden korrekt mit der Buchung verknüpft
 
-## Prompt für Guest App
+## Wichtiger Hinweis
 
-Die Gast-Identifikation muss alle aktiven Buchungsstatus berücksichtigen:
-
-```typescript
-// Bei der Buchungssuche für Identifikation:
-const { data: bookings } = await supabase
-  .from('bookings')
-  .select(`
-    id,
-    guest_name,
-    guest_email,
-    check_in,
-    check_out,
-    house_id,
-    houses:house_id (name)
-  `)
-  .in('status', ['confirmed', 'checked_in', 'completed']) // NICHT nur 'confirmed'!
-  .gte('check_out', new Date().toISOString()) // Noch nicht abgereist
-  // ... weitere Filter (Name/Email-Match)
-```
-
-## Zusammenfassung
-
-| Änderung | Ort |
-|----------|-----|
-| Buchungsstatus-Filter erweitern | Guest App - Identifikationslogik |
-| Keine Änderungen | Management App (dieses Projekt) |
-
-Die Änderung muss in der **Guest App** erfolgen, nicht hier.
+Dies ist eine einmalige Datenkorrektur. Die Ursache (Guest App sucht nur nach `status = 'confirmed'`) muss separat in der Guest App behoben werden, damit zukünftige Identifikationen für `checked_in` Buchungen funktionieren.
 
