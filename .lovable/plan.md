@@ -1,110 +1,70 @@
 
 
-# Guest App: Zugriff für identifizierte Gäste auch nach Checkout
+# Fix: Guest App Buchungssuche muss auch `checked_in` Status berücksichtigen
 
-## Anforderung
+## Problem
 
-Gäste sollen auch nach dem Checkout weiterhin auf die Guest App zugreifen können, aber NUR wenn:
-1. Die Session eine verknüpfte Buchung hat (`booking_id`)
-2. Der Gast eine Email-Adresse hat (in der `guests`-Tabelle)
+Oliver Grandt kann sich nicht identifizieren, weil:
+1. Seine Buchung hat Status `checked_in` (bereits eingecheckt)
+2. Die Guest App sucht wahrscheinlich nur nach `status = 'confirmed'`
+3. Ergebnis: Keine passende Buchung gefunden → Identifikation schlägt fehl
 
-## Logik
+## Betroffene Buchungs-Status
 
-```text
-Session-Validierung:
+| Status | Anzahl | Soll identifizierbar sein? |
+|--------|--------|---------------------------|
+| `confirmed` | 21 | ✓ Ja |
+| `checked_in` | 2 | ✓ Ja (Oliver Grandt!) |
+| `completed` | 79 | ✓ Ja (laut Session-Policy) |
+| `cancelled` | 7 | ✗ Nein |
 
-Session vorhanden?
-     ↓ Ja
-booking_id vorhanden?
-     ↓ Ja
-Email in guests-Tabelle?
-     ↓ Ja
-✅ ZUGRIFF ERLAUBT (auch nach Checkout)
+## Lösung für Guest App
 
-Ansonsten:
-❌ Session ungültig → Willkommensseite
+Die Buchungssuche in der Guest App muss angepasst werden:
+
+### Aktuell (vermutlich)
+```typescript
+.eq('status', 'confirmed')
 ```
 
-## Änderungen für dieses Projekt (Management-App)
+### Korrigiert
+```typescript
+.in('status', ['confirmed', 'checked_in', 'completed'])
+```
 
-**Keine Änderungen nötig** - Die Management-App zeigt Sessions korrekt an. Das "Abgelaufen"-Badge ist optional und nicht mehr notwendig, da der Zugriff bewusst erlaubt wird.
+Oder alternativ:
+```typescript
+.neq('status', 'cancelled')
+```
 
-## Prompt für die Guest App
+## Prompt für Guest App
 
-Die Session-Validierung in der Guest App muss angepasst werden:
+Die Gast-Identifikation muss alle aktiven Buchungsstatus berücksichtigen:
 
 ```typescript
-// useSessionValidation.ts - Aktualisierte Logik
-
-import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-
-export const useSessionValidation = () => {
-  const [isValid, setIsValid] = useState<boolean | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const validate = async () => {
-      const sessionId = localStorage.getItem('guest_session_id');
-      
-      if (!sessionId) {
-        setIsValid(false);
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const { data } = await supabase
-          .from('guest_app_sessions')
-          .select(`
-            booking_id,
-            bookings:booking_id (
-              guest_id,
-              guests:guest_id (
-                email
-              )
-            )
-          `)
-          .eq('session_id', sessionId)
-          .maybeSingle();
-
-        // Validierung: booking_id UND email müssen existieren
-        const hasBooking = !!data?.booking_id;
-        const guestEmail = data?.bookings?.guests?.email;
-        const hasEmail = !!guestEmail;
-
-        if (hasBooking && hasEmail) {
-          // ✅ Identifizierter Gast → Zugriff erlauben (auch nach Checkout)
-          setIsValid(true);
-        } else {
-          // ❌ Nicht identifiziert → Session ungültig
-          localStorage.removeItem('guest_session_id');
-          setIsValid(false);
-        }
-      } catch (error) {
-        console.error('Session validation error:', error);
-        setIsValid(false);
-      }
-      
-      setIsLoading(false);
-    };
-
-    validate();
-  }, []);
-
-  return { isValid, isLoading };
-};
+// Bei der Buchungssuche für Identifikation:
+const { data: bookings } = await supabase
+  .from('bookings')
+  .select(`
+    id,
+    guest_name,
+    guest_email,
+    check_in,
+    check_out,
+    house_id,
+    houses:house_id (name)
+  `)
+  .in('status', ['confirmed', 'checked_in', 'completed']) // NICHT nur 'confirmed'!
+  .gte('check_out', new Date().toISOString()) // Noch nicht abgereist
+  // ... weitere Filter (Name/Email-Match)
 ```
 
 ## Zusammenfassung
 
-| Bedingung | Zugriff |
-|-----------|---------|
-| Keine Session | ❌ Willkommensseite |
-| Session ohne booking_id | ❌ Session löschen, Willkommensseite |
-| Session mit booking_id, aber ohne Email | ❌ Session löschen, Willkommensseite |
-| Session mit booking_id UND Email | ✅ Zugriff (auch nach Checkout) |
+| Änderung | Ort |
+|----------|-----|
+| Buchungsstatus-Filter erweitern | Guest App - Identifikationslogik |
+| Keine Änderungen | Management App (dieses Projekt) |
 
-## Keine Änderungen in diesem Projekt
+Die Änderung muss in der **Guest App** erfolgen, nicht hier.
 
-Da die Logik komplett in der **Guest App** implementiert wird, sind hier keine Code-Änderungen erforderlich. Der Plan dient als Dokumentation und Prompt für die Guest App.
