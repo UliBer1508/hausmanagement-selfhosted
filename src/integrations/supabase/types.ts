@@ -1848,6 +1848,7 @@ export type Database = {
           furthest_step: string | null
           guest_email: string | null
           guest_name: string | null
+          house_id: string | null
           id: string
           language: string | null
           last_activity_at: string | null
@@ -1865,6 +1866,7 @@ export type Database = {
           furthest_step?: string | null
           guest_email?: string | null
           guest_name?: string | null
+          house_id?: string | null
           id?: string
           language?: string | null
           last_activity_at?: string | null
@@ -1882,6 +1884,7 @@ export type Database = {
           furthest_step?: string | null
           guest_email?: string | null
           guest_name?: string | null
+          house_id?: string | null
           id?: string
           language?: string | null
           last_activity_at?: string | null
@@ -1897,6 +1900,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_app_sessions_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
             referencedColumns: ["id"]
           },
         ]
