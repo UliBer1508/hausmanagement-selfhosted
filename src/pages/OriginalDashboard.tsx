@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Calendar } from '@/components/ui/calendar';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useQuery } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -101,6 +102,7 @@ const OriginalDashboard = () => {
   // Filter states for overview
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('confirmed');
+  const [includeCheckedIn, setIncludeCheckedIn] = useState(false);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   
   // Settings from database
@@ -611,9 +613,16 @@ const OriginalDashboard = () => {
         if (!matchesGuest && !matchesHouse) return false;
       }
       
-      // Status filter
-      if (statusFilter !== 'all' && booking.status !== statusFilter) {
-        return false;
+      // Status filter - erweitert um Checkbox-Logik für eingecheckte Buchungen
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'confirmed' && includeCheckedIn) {
+          // Zeige confirmed UND checked_in
+          if (booking.status !== 'confirmed' && booking.status !== 'checked_in') {
+            return false;
+          }
+        } else if (booking.status !== statusFilter) {
+          return false;
+        }
       }
       
       // House filter
@@ -644,7 +653,7 @@ const OriginalDashboard = () => {
       
       return true;
     });
-  }, [bookingsData, searchTerm, statusFilter, houseFilter, timePeriodFilter]);
+  }, [bookingsData, searchTerm, statusFilter, houseFilter, timePeriodFilter, includeCheckedIn]);
 
   // Service type filter - applied to tasks
   const getFilteredTasksByService = useCallback((tasks: any[]) => {
@@ -2323,6 +2332,17 @@ const OriginalDashboard = () => {
                     </option>
                   ))}
                 </select>
+
+                {/* Checkbox: Auch eingecheckte Buchungen */}
+                {statusFilter === 'confirmed' && (
+                  <label className="flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap cursor-pointer">
+                    <Checkbox 
+                      checked={includeCheckedIn}
+                      onCheckedChange={(checked) => setIncludeCheckedIn(checked === true)}
+                    />
+                    <span>auch eingecheckte</span>
+                  </label>
+                )}
               </div>
             </div>
           </div>
