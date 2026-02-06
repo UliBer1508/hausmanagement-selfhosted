@@ -102,7 +102,7 @@ const OriginalDashboard = () => {
   // Filter states for overview
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('confirmed');
-  const [includeCheckedIn, setIncludeCheckedIn] = useState(false);
+  const [includeCheckedIn, setIncludeCheckedIn] = useState(true);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   
   // Settings from database
