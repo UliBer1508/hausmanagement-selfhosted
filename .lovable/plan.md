@@ -1,107 +1,88 @@
 
-# Checkbox "auch eingecheckte Buchungen" hinzufügen
+# Bug-Fix: "Belegt"-Status berücksichtigt Status `completed` nicht
 
-## Ziel
+## Problem
 
-Eine Checkbox rechts neben der "Alle Zeiträume"-Dropdown hinzufügen, die es ermöglicht, eingecheckte Buchungen zusätzlich zu den bestätigten Buchungen anzuzeigen.
+Das Dashboard zeigt **Wald Chalet als "Belegt"** (rot) an, obwohl die Buchung bereits abgeschlossen ist.
 
-## Aktuelles Verhalten
+### Root Cause
 
-- Der Status-Filter steht standardmäßig auf "Bestätigt"
-- Es werden nur Buchungen mit dem gewählten Status angezeigt
-- Um eingecheckte Buchungen zu sehen, muss man den Status-Filter auf "Eingecheckt" oder "Alle Status" umstellen
+Die aktuelle Buchung für Wald Chalet:
+- **Gast**: Oliver Grandt
+- **Check-in**: 01.02.2026 14:00
+- **Check-out**: 08.02.2026 09:00 UTC
+- **Status**: `completed` (bereits abgeschlossen)
 
-## Neues Verhalten
-
-- Neue Checkbox "auch eingecheckte Buchungen" rechts neben "Alle Zeiträume"
-- Wenn aktiviert: Zeigt sowohl `confirmed` als auch `checked_in` Buchungen an
-- Die Checkbox ist nur sichtbar/relevant, wenn Status-Filter auf "Bestätigt" steht
-
-## Technische Umsetzung
-
-### 1. Neue State-Variable
-
-**Datei:** `src/pages/OriginalDashboard.tsx`
+**Problem**: Die Belegungslogik in der Funktion `housesWithStatus` (Zeile ~794) prüft:
 
 ```typescript
-// Bei den anderen Filter-States (ca. Zeile 103)
-const [includeCheckedIn, setIncludeCheckedIn] = useState(false);
+booking.status !== 'cancelled' &&
+new Date(booking.check_in) <= now &&
+new Date(booking.check_out) >= now
 ```
 
-### 2. Filter-Logik anpassen
+Der Status `completed` wird **nicht ausgeschlossen**. Eine abgeschlossene Buchung zählt weiterhin als "belegt", solange die Checkout-Zeit noch nicht überschritten ist (aktuell 07:58 UTC, Checkout 09:00 UTC).
 
-**Datei:** `src/pages/OriginalDashboard.tsx`
+## Geschäftslogik-Erklärung
 
+- **confirmed**: Buchung bestätigt, im Zeitraum → **belegt**
+- **checked_in**: Gast aktiv vor Ort → **belegt**
+- **completed**: Gast ist ausgecheckt → **NICHT belegt** ❌ (wurde übersehen)
+- **cancelled**: Storniert → **nicht belegt**
+
+## Lösung
+
+Die Belegungsprüfung muss nur **aktive Buchungen** (`confirmed` oder `checked_in`) berücksichtigen und explizit `completed` ausschließen.
+
+### Änderungen
+
+**Datei: `src/pages/OriginalDashboard.tsx`**
+
+**Stelle 1 - Funktion `housesWithStatus` (Zeile ~794-798)**
+
+Aktuell:
 ```typescript
-// Im filteredBookings useMemo (ca. Zeile 614-617)
-// Status filter - erweitert um Checkbox-Logik
-if (statusFilter !== 'all') {
-  if (statusFilter === 'confirmed' && includeCheckedIn) {
-    // Zeige confirmed UND checked_in
-    if (booking.status !== 'confirmed' && booking.status !== 'checked_in') {
-      return false;
-    }
-  } else if (booking.status !== statusFilter) {
-    return false;
-  }
-}
+const activeBooking = bookingsData.find(booking => 
+  booking.houses?.id === house.id &&
+  booking.status !== 'cancelled' &&
+  new Date(booking.check_in) <= now &&
+  new Date(booking.check_out) >= now
+);
 ```
 
-Dependency-Array erweitern:
+Neu:
 ```typescript
-}, [bookingsData, searchTerm, statusFilter, houseFilter, timePeriodFilter, includeCheckedIn]);
+const activeBooking = bookingsData.find(booking => 
+  booking.houses?.id === house.id &&
+  (booking.status === 'confirmed' || booking.status === 'checked_in') &&
+  new Date(booking.check_in) <= now &&
+  new Date(booking.check_out) >= now
+);
 ```
 
-### 3. Checkbox zur Filter-UI hinzufügen
+**Stelle 2 - Kalender-Events (Zeile ~1118-1128)**
 
-**Datei:** `src/pages/OriginalDashboard.tsx`
+Überprüfen, dass auch die roten "Belegt"-Events nur für aktive Buchungen gezeichnet werden:
 
-Rechts neben dem Time Period Filter (nach Zeile 2325):
-
+Aktuell:
 ```typescript
-{/* Time Period Filter */}
-<select 
-  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-  value={timePeriodFilter}
-  onChange={(e) => setTimePeriodFilter(e.target.value)}
->
-  {timePeriods.map(period => (
-    <option key={period.value} value={period.value}>
-      {period.label}
-    </option>
-  ))}
-</select>
-
-{/* Checkbox: Auch eingecheckte Buchungen */}
-{statusFilter === 'confirmed' && (
-  <label className="flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap">
-    <Checkbox 
-      checked={includeCheckedIn}
-      onCheckedChange={(checked) => setIncludeCheckedIn(checked === true)}
-    />
-    <span>auch eingecheckte</span>
-  </label>
-)}
+realBookings.forEach(booking => {
+  if (booking.status === 'cancelled') return;
+  // ... Kalender-Event erstellen
 ```
 
-### 4. Checkbox-Import hinzufügen
-
-**Datei:** `src/pages/OriginalDashboard.tsx`
-
+Sollte sein:
 ```typescript
-import { Checkbox } from '@/components/ui/checkbox';
+realBookings.forEach(booking => {
+  if (booking.status === 'cancelled' || booking.status === 'completed') return;
+  // ... Kalender-Event erstellen
 ```
 
 ## Ergebnis
 
-| Aktion | Ergebnis |
-|--------|----------|
-| Status = "Bestätigt", Checkbox aus | Nur bestätigte Buchungen |
-| Status = "Bestätigt", Checkbox an | Bestätigte + eingecheckte Buchungen |
-| Status = anderer Wert | Checkbox nicht sichtbar, normales Verhalten |
+Nach dieser Änderung wird:
+- ✅ Wald Chalet als "Frei" angezeigt (da `completed`)
+- ✅ Venediersiedlung Chalet als "Frei" angezeigt (keine aktiven Buchungen)
+- ✅ Zukünftige Buchungen werden weiterhin korrekt als "belegt" gezeigt
+- ✅ Stornierte Buchungen bleiben "frei"
 
-## Änderungen
-
-| Datei | Änderung |
-|-------|----------|
-| `src/pages/OriginalDashboard.tsx` | Import + State + Filter-Logik + Checkbox-UI |
