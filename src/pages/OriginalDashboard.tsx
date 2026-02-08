@@ -793,7 +793,7 @@ const OriginalDashboard = () => {
       const now = new Date();
       const activeBooking = bookingsData.find(booking => 
         booking.houses?.id === house.id &&
-        booking.status !== 'cancelled' &&
+        (booking.status === 'confirmed' || booking.status === 'checked_in') &&
         new Date(booking.check_in) <= now &&
         new Date(booking.check_out) >= now
       );
@@ -1117,7 +1117,7 @@ const OriginalDashboard = () => {
     
     // Belegt-Zeitraum (zwischen Check-in und Check-out)
     realBookings.forEach(booking => {
-      if (booking.status === 'cancelled') return;
+      if (booking.status === 'cancelled' || booking.status === 'completed') return;
       
       const checkIn = parseISO(booking.check_in);
       const checkOut = parseISO(booking.check_out);
