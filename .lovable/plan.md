@@ -1,61 +1,66 @@
 
-
-# Sortierrichtung in der Buchungsuebersicht
+# Problem-Gast Markierung mit Warnung bei Neubuchung
 
 ## Was wird gemacht
 
-Ein Sortier-Button wird **rechts neben dem Zeitraum-Filter** platziert. Er gilt fuer **alle Status-Auswahlen** (nicht nur fuer einen bestimmten Status). Per Klick wechselt er zwischen aufsteigend und absteigend (nach Check-in-Datum).
+1. **Neues Feld `is_flagged`** in der `guests`-Tabelle (Boolean, Default: false)
+2. **Checkbox im Gast-Bearbeitungsdialog** zum Setzen/Entfernen der Markierung
+3. **Visuelles Flag in der Gästeliste** (rotes Warnsymbol bei markierten Gästen)
+4. **Warnung bei Buchungserstellung**, wenn ein markierter Gast aus den Vorschlägen ausgewählt wird
 
-## Umsetzung
+## Aenderungen
 
-### Datei: `src/pages/OriginalDashboard.tsx`
+### 1. Datenbank-Migration
 
-**1. Neuer State (bei Zeile ~106, neben den anderen Filter-States)**
+Neue Spalte `is_flagged` (boolean, default false) in der `guests`-Tabelle:
 
-```typescript
-const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+```sql
+ALTER TABLE guests ADD COLUMN is_flagged boolean DEFAULT false;
 ```
 
-**2. Sortierung in `filteredBookings` einbauen (Zeile ~599-656)**
+### 2. Datei: `src/components/Guests/GuestEditDialog.tsx`
 
-Am Ende des `useMemo`, nach dem `.filter()`, wird `.sort()` angehaengt:
+- Neues Feld `is_flagged` im `formData`-State (Boolean)
+- Checkbox im Formular unter den Notizen mit Label "Problem-Gast markieren" und Beschreibung "Warnung bei zukuenftigen Buchungen dieses Gastes"
+- Beim Speichern wird `is_flagged` in die `guests`-Tabelle geschrieben
 
-```typescript
-return bookingsData.filter(booking => {
-  // ... bestehende Filter-Logik ...
-}).sort((a, b) => {
-  const dateA = new Date(a.check_in).getTime();
-  const dateB = new Date(b.check_in).getTime();
-  return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
-});
-```
+### 3. Datei: `src/components/Guests/GuestList.tsx`
 
-`sortDirection` wird zur Dependency-Liste hinzugefuegt.
+- Rotes Warn-Badge neben dem Gastnamen, wenn `is_flagged === true`
+- Text: "Problematischer Gast" als visueller Hinweis
 
-**3. Sortier-Button in der Filterleiste (nach Zeile ~2334, direkt nach dem Zeitraum-Select)**
+### 4. Datei: `src/components/Bookings/GuestSuggestions.tsx`
 
-Ein kompakter Button rechts neben "Alle Zeitraeume":
+- `is_flagged` Feld in der Supabase-Abfrage mitlesen
+- Bei markierten Gaesten: rotes Warn-Badge in der Vorschlagsliste anzeigen (aehnlich wie "Aehnlicher Name", aber in Rot mit Warnsymbol)
 
-```tsx
-{/* Sort Direction Toggle */}
-<button
-  className="px-3 py-2 border border-gray-300 rounded-md text-sm flex items-center gap-1 hover:bg-gray-50"
-  onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-  title={sortDirection === 'asc' ? 'Aufsteigend (aelteste zuerst)' : 'Absteigend (neueste zuerst)'}
->
-  {sortDirection === 'asc' ? (
-    <ChevronUp className="w-4 h-4" />
-  ) : (
-    <ChevronDown className="w-4 h-4" />
-  )}
-  {sortDirection === 'asc' ? '↑ Aufsteigend' : '↓ Absteigend'}
-</button>
+### 5. Datei: `src/components/Bookings/CreateBookingForm.tsx`
+
+- Wenn ein Gast aus den Vorschlaegen ausgewaehlt wird und `is_flagged === true`:
+  - AlertDialog anzeigen mit Warnung: "Dieser Gast wurde als problematisch markiert. Moechten Sie trotzdem fortfahren?"
+  - Optionen: "Abbrechen" (Gastdaten werden nicht uebernommen) und "Trotzdem uebernehmen" (Gastdaten werden eingefuellt)
+
+### 6. Datei: `src/types/guest.ts`
+
+- `is_flagged` Feld zum `GuestWithBookings` Interface hinzufuegen
+
+## Ablauf
+
+```text
+Gast bearbeiten -> Checkbox "Problem-Gast" aktivieren -> Speichern
+                                    |
+                                    v
+Neue Buchung erstellen -> Gastname eingeben -> Vorschlag erscheint mit Warnsymbol
+                                    |
+                                    v
+                        Gast auswaehlen -> AlertDialog: "Problematischer Gast!"
+                                    |
+                        "Trotzdem uebernehmen" oder "Abbrechen"
 ```
 
 ## Ergebnis
 
-- Der Sortier-Button erscheint **rechts neben dem Zeitraum-Filter** in der Filterleiste
-- Funktioniert mit **allen Status-Filtern** (Bestaetigt, Eingecheckt, Abgeschlossen, Storniert, Alle)
-- Default: Aufsteigend (aelteste Buchung zuerst)
-- Per Klick umschalten auf Absteigend (neueste zuerst)
-
+- Gaeste koennen als "problematisch" markiert werden
+- Bei jeder zukuenftigen Buchung erscheint eine Warnung
+- Die Markierung ist jederzeit wieder entfernbar
+- Kein Gast wird blockiert, nur gewarnt
