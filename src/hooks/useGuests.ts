@@ -76,6 +76,7 @@ export const useGuests = (filters: GuestFilters = {}) => {
           travel_document: guest.travel_document,
           created_at: guest.created_at,
           updated_at: guest.updated_at,
+          is_flagged: guest.is_flagged || false,
           
           // Aggregated data
           bookings: guestBookings,

@@ -165,6 +165,8 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   // Guest suggestions state
   const [showGuestSuggestions, setShowGuestSuggestions] = useState(false);
   const [selectedGuestId, setSelectedGuestId] = useState<string | null>(initialData?.guest_id || null);
+  const [showFlaggedGuestWarning, setShowFlaggedGuestWarning] = useState(false);
+  const [pendingFlaggedGuest, setPendingFlaggedGuest] = useState<any>(null);
 
   // Helper function to set standard time on date
   const setTimeOnDate = (date: Date, hours: number, minutes: number = 0): Date => {
@@ -1073,13 +1075,18 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
                   isOpen={showGuestSuggestions && mode === 'create'}
                   onClose={() => setShowGuestSuggestions(false)}
                   onSelect={(guest) => {
-                    // Fill in guest data
-                    form.setValue('guest_name', guest.name);
-                    if (guest.email) form.setValue('guest_email', guest.email);
-                    if (guest.phone) form.setValue('guest_phone', guest.phone);
-                    if (guest.nationality) form.setValue('nationality', guest.nationality);
-                    setSelectedGuestId(guest.id);
-                    setShowGuestSuggestions(false);
+                    if (guest.is_flagged) {
+                      setPendingFlaggedGuest(guest);
+                      setShowFlaggedGuestWarning(true);
+                      setShowGuestSuggestions(false);
+                    } else {
+                      form.setValue('guest_name', guest.name);
+                      if (guest.email) form.setValue('guest_email', guest.email);
+                      if (guest.phone) form.setValue('guest_phone', guest.phone);
+                      if (guest.nationality) form.setValue('nationality', guest.nationality);
+                      setSelectedGuestId(guest.id);
+                      setShowGuestSuggestions(false);
+                    }
                   }}
                 />
                 <FormMessage />
@@ -1457,6 +1464,42 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
             </Button>
             <AlertDialogAction onClick={handleCancelCleaningTasks}>
               Ja, stornieren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog für Problem-Gast Warnung */}
+      <AlertDialog open={showFlaggedGuestWarning} onOpenChange={setShowFlaggedGuestWarning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              ⚠️ Problem-Gast erkannt
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{pendingFlaggedGuest?.name}</strong> wurde als problematischer Gast markiert. 
+              Möchten Sie trotzdem mit diesem Gast fortfahren?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setShowFlaggedGuestWarning(false);
+              setPendingFlaggedGuest(null);
+            }}>
+              Abbrechen
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (pendingFlaggedGuest) {
+                form.setValue('guest_name', pendingFlaggedGuest.name);
+                if (pendingFlaggedGuest.email) form.setValue('guest_email', pendingFlaggedGuest.email);
+                if (pendingFlaggedGuest.phone) form.setValue('guest_phone', pendingFlaggedGuest.phone);
+                if (pendingFlaggedGuest.nationality) form.setValue('nationality', pendingFlaggedGuest.nationality);
+                setSelectedGuestId(pendingFlaggedGuest.id);
+              }
+              setShowFlaggedGuestWarning(false);
+              setPendingFlaggedGuest(null);
+            }}>
+              Trotzdem übernehmen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

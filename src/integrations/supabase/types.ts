@@ -2107,6 +2107,7 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          is_flagged: boolean | null
           name: string
           nationality: string | null
           notes: string | null
@@ -2122,6 +2123,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          is_flagged?: boolean | null
           name: string
           nationality?: string | null
           notes?: string | null
@@ -2137,6 +2139,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          is_flagged?: boolean | null
           name?: string
           nationality?: string | null
           notes?: string | null

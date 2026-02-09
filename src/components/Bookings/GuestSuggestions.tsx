@@ -12,6 +12,7 @@ interface Guest {
   phone: string | null;
   nationality: string | null;
   city: string | null;
+  is_flagged: boolean | null;
 }
 
 interface GuestSuggestionsProps {
@@ -38,7 +39,7 @@ export const GuestSuggestions = ({ searchTerm, onSelect, isOpen, onClose }: Gues
       for (const variant of nameVariants) {
         const { data, error } = await supabase
           .from('guests')
-          .select('id, name, email, phone, nationality, city')
+          .select('id, name, email, phone, nationality, city, is_flagged')
           .ilike('name', `%${variant}%`)
           .order('updated_at', { ascending: false })
           .limit(10);
@@ -166,6 +167,12 @@ export const GuestSuggestions = ({ searchTerm, onSelect, isOpen, onClose }: Gues
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-primary" />
                 <span className="font-medium">{guest.name}</span>
+                {guest.is_flagged && (
+                  <span className="flex items-center gap-1 text-xs text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/40 px-1.5 py-0.5 rounded font-semibold">
+                    <AlertCircle className="h-3 w-3" />
+                    ⚠️ Problem-Gast
+                  </span>
+                )}
                 {similar && (
                   <span className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/40 px-1.5 py-0.5 rounded">
                     <AlertCircle className="h-3 w-3" />

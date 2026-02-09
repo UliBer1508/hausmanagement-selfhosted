@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { User, Mail, Phone, MapPin, Loader2, FileText, Home, Calendar, CreditCard } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Loader2, FileText, Home, Calendar, CreditCard, AlertTriangle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface Guest {
   id?: string;              // ID aus guests-Tabelle (optional für Legacy-Kompatibilität)
@@ -16,6 +17,7 @@ interface Guest {
   guest_phone?: string;
   nationality?: string;
   guest_notes?: string;
+  is_flagged?: boolean;
   guest_street?: string;
   guest_city?: string;
   guest_postal_code?: string;
@@ -47,6 +49,7 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
     guest_postal_code: guest.guest_postal_code || '',
     guest_birth_date: guest.guest_birth_date || '',
     guest_travel_document: guest.guest_travel_document || '',
+    is_flagged: guest.is_flagged || false,
   });
 
   // Sync formData when dialog opens or guest changes
@@ -58,6 +61,7 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
         guest_phone: guest.guest_phone || '',
         nationality: guest.nationality || '',
         guest_notes: guest.guest_notes || '',
+        is_flagged: guest.is_flagged || false,
         guest_street: guest.guest_street || '',
         guest_city: guest.guest_city || '',
         guest_postal_code: guest.guest_postal_code || '',
@@ -87,6 +91,7 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
             postal_code: data.guest_postal_code || null,
             birth_date: data.guest_birth_date || null,
             travel_document: data.guest_travel_document || null,
+            is_flagged: data.is_flagged || false,
           })
           .eq('id', guest.id);
 
@@ -342,6 +347,26 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
               />
             </div>
           </div>
+
+          {/* Problem-Gast Markierung */}
+          {guest.id && (
+            <div className="flex items-start gap-3 p-3 border border-destructive/30 rounded-lg bg-destructive/5">
+              <Checkbox
+                id="is_flagged"
+                checked={formData.is_flagged}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_flagged: !!checked }))}
+              />
+              <div className="space-y-1">
+                <Label htmlFor="is_flagged" className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                  <AlertTriangle className="w-4 h-4 text-destructive" />
+                  Problem-Gast markieren
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Warnung bei zukünftigen Buchungen dieses Gastes
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-4">
             <Button

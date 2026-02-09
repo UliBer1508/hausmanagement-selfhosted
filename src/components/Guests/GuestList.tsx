@@ -6,6 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { AlertTriangle } from 'lucide-react';
 
 import GuestDetailsDialog from './GuestDetailsDialog';
 import GuestEmailDialog from './GuestEmailDialog';
@@ -17,6 +18,7 @@ interface Guest {
   guest_email?: string;
   guest_phone?: string;
   nationality?: string;
+  is_flagged?: boolean;
   bookings: any[];
   total_revenue: number;
   last_booking?: any;
@@ -110,7 +112,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
               <div className="flex flex-col gap-4">
                 {/* Header with name and badge */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="font-semibold text-lg">
+                   <h4 className="font-semibold text-lg">
                     {guest.guest_name}
                     {getCountryCode(guest.nationality) && (
                       <span className="ml-2 text-sm text-muted-foreground">
@@ -118,6 +120,12 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                       </span>
                     )}
                   </h4>
+                  {guest.is_flagged && (
+                    <Badge variant="destructive" className="flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      Problem-Gast
+                    </Badge>
+                  )}
                   {getCategoryBadge(guest.category)}
                 </div>
 
