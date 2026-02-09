@@ -1,0 +1,1 @@
+ALTER TABLE public.guests ADD COLUMN is_flagged boolean DEFAULT false;

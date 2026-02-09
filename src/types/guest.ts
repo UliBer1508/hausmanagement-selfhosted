@@ -31,6 +31,7 @@ export interface GuestWithBookings {
   travel_document: string | null;
   created_at: string;
   updated_at: string;
+  is_flagged: boolean;
   
   // Aggregierte Daten aus bookings
   bookings: BookingInfo[];
