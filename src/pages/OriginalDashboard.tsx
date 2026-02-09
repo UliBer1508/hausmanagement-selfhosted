@@ -104,6 +104,7 @@ const OriginalDashboard = () => {
   const [statusFilter, setStatusFilter] = useState('confirmed');
   const [includeCheckedIn, setIncludeCheckedIn] = useState(true);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // Settings from database
   const { data: emailSettingsData, saveSettings: saveEmailSettings, isSaving: isSavingEmail } = useEmailSettings();
@@ -652,8 +653,12 @@ const OriginalDashboard = () => {
       }
       
       return true;
+    }).sort((a, b) => {
+      const dateA = new Date(a.check_in).getTime();
+      const dateB = new Date(b.check_in).getTime();
+      return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
     });
-  }, [bookingsData, searchTerm, statusFilter, houseFilter, timePeriodFilter, includeCheckedIn]);
+  }, [bookingsData, searchTerm, statusFilter, houseFilter, timePeriodFilter, includeCheckedIn, sortDirection]);
 
   // Service type filter - applied to tasks
   const getFilteredTasksByService = useCallback((tasks: any[]) => {
@@ -2332,6 +2337,20 @@ const OriginalDashboard = () => {
                     </option>
                   ))}
                 </select>
+
+                {/* Sort Direction Toggle */}
+                <button
+                  className="px-3 py-2 border border-input rounded-md text-sm flex items-center gap-1 hover:bg-accent"
+                  onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  title={sortDirection === 'asc' ? 'Aufsteigend (älteste zuerst)' : 'Absteigend (neueste zuerst)'}
+                >
+                  {sortDirection === 'asc' ? (
+                    <ChevronUp className="w-4 h-4" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4" />
+                  )}
+                  {sortDirection === 'asc' ? 'Aufsteigend' : 'Absteigend'}
+                </button>
 
                 {/* Checkbox: Auch eingecheckte Buchungen */}
                 {statusFilter === 'confirmed' && (
