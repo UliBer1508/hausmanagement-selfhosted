@@ -1,88 +1,61 @@
 
-# Bug-Fix: "Belegt"-Status berücksichtigt Status `completed` nicht
 
-## Problem
+# Sortierrichtung in der Buchungsuebersicht
 
-Das Dashboard zeigt **Wald Chalet als "Belegt"** (rot) an, obwohl die Buchung bereits abgeschlossen ist.
+## Was wird gemacht
 
-### Root Cause
+Ein Sortier-Button wird **rechts neben dem Zeitraum-Filter** platziert. Er gilt fuer **alle Status-Auswahlen** (nicht nur fuer einen bestimmten Status). Per Klick wechselt er zwischen aufsteigend und absteigend (nach Check-in-Datum).
 
-Die aktuelle Buchung für Wald Chalet:
-- **Gast**: Oliver Grandt
-- **Check-in**: 01.02.2026 14:00
-- **Check-out**: 08.02.2026 09:00 UTC
-- **Status**: `completed` (bereits abgeschlossen)
+## Umsetzung
 
-**Problem**: Die Belegungslogik in der Funktion `housesWithStatus` (Zeile ~794) prüft:
+### Datei: `src/pages/OriginalDashboard.tsx`
+
+**1. Neuer State (bei Zeile ~106, neben den anderen Filter-States)**
 
 ```typescript
-booking.status !== 'cancelled' &&
-new Date(booking.check_in) <= now &&
-new Date(booking.check_out) >= now
+const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 ```
 
-Der Status `completed` wird **nicht ausgeschlossen**. Eine abgeschlossene Buchung zählt weiterhin als "belegt", solange die Checkout-Zeit noch nicht überschritten ist (aktuell 07:58 UTC, Checkout 09:00 UTC).
+**2. Sortierung in `filteredBookings` einbauen (Zeile ~599-656)**
 
-## Geschäftslogik-Erklärung
+Am Ende des `useMemo`, nach dem `.filter()`, wird `.sort()` angehaengt:
 
-- **confirmed**: Buchung bestätigt, im Zeitraum → **belegt**
-- **checked_in**: Gast aktiv vor Ort → **belegt**
-- **completed**: Gast ist ausgecheckt → **NICHT belegt** ❌ (wurde übersehen)
-- **cancelled**: Storniert → **nicht belegt**
-
-## Lösung
-
-Die Belegungsprüfung muss nur **aktive Buchungen** (`confirmed` oder `checked_in`) berücksichtigen und explizit `completed` ausschließen.
-
-### Änderungen
-
-**Datei: `src/pages/OriginalDashboard.tsx`**
-
-**Stelle 1 - Funktion `housesWithStatus` (Zeile ~794-798)**
-
-Aktuell:
 ```typescript
-const activeBooking = bookingsData.find(booking => 
-  booking.houses?.id === house.id &&
-  booking.status !== 'cancelled' &&
-  new Date(booking.check_in) <= now &&
-  new Date(booking.check_out) >= now
-);
+return bookingsData.filter(booking => {
+  // ... bestehende Filter-Logik ...
+}).sort((a, b) => {
+  const dateA = new Date(a.check_in).getTime();
+  const dateB = new Date(b.check_in).getTime();
+  return sortDirection === 'asc' ? dateA - dateB : dateB - dateA;
+});
 ```
 
-Neu:
-```typescript
-const activeBooking = bookingsData.find(booking => 
-  booking.houses?.id === house.id &&
-  (booking.status === 'confirmed' || booking.status === 'checked_in') &&
-  new Date(booking.check_in) <= now &&
-  new Date(booking.check_out) >= now
-);
-```
+`sortDirection` wird zur Dependency-Liste hinzugefuegt.
 
-**Stelle 2 - Kalender-Events (Zeile ~1118-1128)**
+**3. Sortier-Button in der Filterleiste (nach Zeile ~2334, direkt nach dem Zeitraum-Select)**
 
-Überprüfen, dass auch die roten "Belegt"-Events nur für aktive Buchungen gezeichnet werden:
+Ein kompakter Button rechts neben "Alle Zeitraeume":
 
-Aktuell:
-```typescript
-realBookings.forEach(booking => {
-  if (booking.status === 'cancelled') return;
-  // ... Kalender-Event erstellen
-```
-
-Sollte sein:
-```typescript
-realBookings.forEach(booking => {
-  if (booking.status === 'cancelled' || booking.status === 'completed') return;
-  // ... Kalender-Event erstellen
+```tsx
+{/* Sort Direction Toggle */}
+<button
+  className="px-3 py-2 border border-gray-300 rounded-md text-sm flex items-center gap-1 hover:bg-gray-50"
+  onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+  title={sortDirection === 'asc' ? 'Aufsteigend (aelteste zuerst)' : 'Absteigend (neueste zuerst)'}
+>
+  {sortDirection === 'asc' ? (
+    <ChevronUp className="w-4 h-4" />
+  ) : (
+    <ChevronDown className="w-4 h-4" />
+  )}
+  {sortDirection === 'asc' ? '↑ Aufsteigend' : '↓ Absteigend'}
+</button>
 ```
 
 ## Ergebnis
 
-Nach dieser Änderung wird:
-- ✅ Wald Chalet als "Frei" angezeigt (da `completed`)
-- ✅ Venediersiedlung Chalet als "Frei" angezeigt (keine aktiven Buchungen)
-- ✅ Zukünftige Buchungen werden weiterhin korrekt als "belegt" gezeigt
-- ✅ Stornierte Buchungen bleiben "frei"
+- Der Sortier-Button erscheint **rechts neben dem Zeitraum-Filter** in der Filterleiste
+- Funktioniert mit **allen Status-Filtern** (Bestaetigt, Eingecheckt, Abgeschlossen, Storniert, Alle)
+- Default: Aufsteigend (aelteste Buchung zuerst)
+- Per Klick umschalten auf Absteigend (neueste zuerst)
 
