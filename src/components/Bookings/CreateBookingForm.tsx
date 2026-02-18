@@ -262,12 +262,16 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     }
     // Prefill data from booking inquiry
     if (prefillData) {
+      // Apply standard check-in/check-out times to prefill dates
+      // Check-in: 15:00, Check-out: 10:00 (same as calendar picker defaults)
+      const prefillCheckIn = setTimeOnDate(prefillData.check_in, 15);
+      const prefillCheckOut = setTimeOnDate(prefillData.check_out, 10);
       return {
         house_id: prefillData.house_id,
         number_of_adults: prefillData.number_of_adults ?? prefillData.number_of_guests,
         number_of_children: prefillData.number_of_children ?? 0,
-        check_in: prefillData.check_in,
-        check_out: prefillData.check_out,
+        check_in: prefillCheckIn,
+        check_out: prefillCheckOut,
         guest_name: prefillData.guest_name,
         guest_email: prefillData.guest_email || '',
         guest_phone: prefillData.guest_phone || '',
