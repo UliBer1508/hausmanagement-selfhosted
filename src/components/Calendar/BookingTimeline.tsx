@@ -56,6 +56,8 @@ const HOUSE_COLORS: Record<string, { bg: string; border: string; text: string }>
   }
 };
 
+const DAY_WIDTH = 28; // px — identisch zu w-7 (7 × 4px = 28px), muss mit Grid übereinstimmen
+
 const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: BookingTimelineProps) => {
   const startDate = startOfMonth(selectedDate);
   const daysInMonth = getDaysInMonth(selectedDate);
@@ -102,8 +104,7 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
     return maxOverlaps;
   };
 
-  // Berechne Position und Breite des Buchungs-Balkens
-  // Halbe-Tage-Logik: Check-in 15:00 = Nachmittag (+0.5), Check-out 10:00 = Vormittag (+0.5)
+  // Berechne Position und Breite des Buchungs-Balkens — Pixel-basiert (exakt zum Raster)
   const getBarStyle = (booking: Booking) => {
     const checkIn = parseLocalDate(booking.check_in);
     const checkOut = parseLocalDate(booking.check_out);
@@ -115,31 +116,13 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
     const barStart = checkIn < monthStart ? monthStart : checkIn;
     const barEnd = checkOut > monthEnd ? monthEnd : checkOut;
     
-    // Berechne Offset vom Monatsanfang
+    // Pixel-Positionierung: 1 Tag = DAY_WIDTH px (identisch zum Grid)
     const startOffset = differenceInDays(barStart, monthStart);
     const duration = differenceInDays(barEnd, barStart);
     
-    // Prozentuale Position (jeder Tag = 100/daysInMonth %)
-    const dayWidth = 100 / daysInMonth;
-    
-    // Halbe-Tag-Logik:
-    // - Check-in um 15:00 = Balken startet bei halber Tag (+0.5)
-    // - Check-out um 10:00 = Balken endet bei halber Tag (+0.5 statt +1)
-    const isCheckInInMonth = checkIn >= monthStart && checkIn <= monthEnd;
-    const isCheckOutInMonth = checkOut >= monthStart && checkOut <= monthEnd;
-    
-    // Start: +0.5 wenn Check-in im sichtbaren Monat (15:00 = Nachmittag)
-    const adjustedStart = startOffset + (isCheckInInMonth ? 0.5 : 0);
-    
-    // Breite: Duration + 0.5 für Check-out (10:00 = Vormittag endet halben Tag)
-    const adjustedDuration = duration + (isCheckOutInMonth ? 0.5 : 1) - (isCheckInInMonth ? 0.5 : 0);
-    
-    const left = adjustedStart * dayWidth;
-    const width = Math.max(adjustedDuration * dayWidth, dayWidth * 0.5); // Mindestens halber Tag
-    
     return {
-      left: `${left}%`,
-      width: `${width}%`
+      left: `${startOffset * DAY_WIDTH}px`,
+      width: `${Math.max(duration * DAY_WIDTH, DAY_WIDTH * 0.5)}px`
     };
   };
 
@@ -182,7 +165,7 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
                 <div 
                   key={i} 
                   className={`
-                    flex-1 min-w-[28px] md:min-w-[32px] text-center text-xs p-1 border-r
+                    w-7 shrink-0 text-center text-xs p-1 border-r
                     ${isToday ? 'bg-primary/20 font-bold' : ''}
                     ${isWeekend ? 'bg-muted/30' : ''}
                   `}
@@ -235,7 +218,7 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
                       <div 
                         key={i}
                         className={`
-                          flex-1 min-w-[28px] md:min-w-[32px] border-r border-border/50
+                          w-7 shrink-0 border-r border-border/50
                           ${isToday ? 'bg-primary/10' : ''}
                           ${isWeekend && !isToday ? 'bg-muted/20' : ''}
                         `}
