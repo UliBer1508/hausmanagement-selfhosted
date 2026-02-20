@@ -104,25 +104,31 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
     return maxOverlaps;
   };
 
-  // Berechne Position und Breite des Buchungs-Balkens — Pixel-basiert (exakt zum Raster)
+  // Berechne Position und Breite des Buchungs-Balkens — Pixel-basiert mit Halbtag-Logik
+  // Check-in 15:00 → Balken startet in der Mitte des Tages (+0.5)
+  // Check-out 10:00 → Balken endet in der Mitte des Tages (+0.5)
   const getBarStyle = (booking: Booking) => {
     const checkIn = parseLocalDate(booking.check_in);
     const checkOut = parseLocalDate(booking.check_out);
     const monthStart = new Date(format(startDate, 'yyyy-MM-dd') + 'T00:00:00');
-    // monthEnd = Anfang des nächsten Monats = Ende des letzten Tages
     const monthEnd = new Date(format(addDays(startDate, daysInMonth), 'yyyy-MM-dd') + 'T00:00:00');
-    
-    // Clamp to month boundaries
+
     const barStart = checkIn < monthStart ? monthStart : checkIn;
     const barEnd = checkOut > monthEnd ? monthEnd : checkOut;
-    
-    // Pixel-Positionierung: 1 Tag = DAY_WIDTH px (identisch zum Grid)
-    const startOffset = differenceInDays(barStart, monthStart);
-    const duration = differenceInDays(barEnd, barStart);
-    
+
+    // +0.5 nur wenn check_in/out innerhalb des sichtbaren Monats liegt (nicht geclampt)
+    const isCheckInInMonth = checkIn >= monthStart && checkIn < monthEnd;
+    const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+
+    const startOffsetDays = differenceInDays(barStart, monthStart);
+    const endOffsetDays = differenceInDays(barEnd, monthStart);
+
+    const startPx = (startOffsetDays + (isCheckInInMonth ? 0.5 : 0)) * DAY_WIDTH;
+    const endPx = (endOffsetDays + (isCheckOutInMonth ? 0.5 : 0)) * DAY_WIDTH;
+
     return {
-      left: `${startOffset * DAY_WIDTH}px`,
-      width: `${Math.max(duration * DAY_WIDTH, DAY_WIDTH * 0.5)}px`
+      left: `${startPx}px`,
+      width: `${Math.max(endPx - startPx, DAY_WIDTH * 0.5)}px`
     };
   };
 
