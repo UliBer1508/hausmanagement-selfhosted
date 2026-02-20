@@ -1,73 +1,45 @@
 
-# Bug-Fix: Gantt-Kalender — Falsche Balken-Positionierung
+# Fix: Halbtagslogik in Pixeln für Check-in 15:00 / Check-out 10:00
 
-## Wurzel des Problems (100% identifiziert)
+## Das eigentliche Problem
 
-### Problem 1: `flex-1` macht Spalten breiter als 28px
+Der User hat Recht: Der 22. Feb ist für Lea der Check-out Tag um 10:00 Uhr. Die neuen Gäste (Maximilian) checken um 15:00 Uhr ein. Der Balken soll das visuell darstellen:
 
-Das Grid-Header verwendet:
-```html
-<div class="flex-1 min-w-[28px] md:min-w-[32px]">
+- **Lea (18.Feb 15:00 → 22.Feb 10:00)**:  
+  Balken startet in der **Mitte von Tag 18** (15:00 = Nachmittag) und endet in der **Mitte von Tag 22** (10:00 ≈ Vormittag)
+- **Maximilian (22.Feb 15:00 → 01.März)**:  
+  Balken startet in der **Mitte von Tag 22** (15:00) und geht bis Monatsende
+
+Die alte Implementierung hatte diese Idee, aber verwendete **Prozent** statt **Pixel** → Misalignment mit dem Grid.  
+Der letzte Fix hat die Halbtagslogik komplett entfernt → Balken starten jetzt am Tagesbeginn statt um 15:00.
+
+## Korrekte Berechnung mit Pixeln
+
+```
+DAY_WIDTH = 28px (pro Tag)
+
+Check-in im sichtbaren Monat → +0.5 * DAY_WIDTH = +14px (15:00 Uhr)
+Check-out im sichtbaren Monat → +0.5 * DAY_WIDTH = +14px (10:00 Uhr)
 ```
 
-`flex-1` bedeutet: Jede Spalte wächst gleichmäßig um den verfügbaren Platz zu füllen. Auf einem 1200px Desktop:
+### Für Lea (18.Feb–22.Feb):
+- `startOffset = 17` (Tage von Monatsanfang bis 18.Feb)
+- Check-in im Monat → `startPx = (17 + 0.5) * 28 = 490px` → Mitte von Tag 18 ✅
+- `endOffset = 21` (Tage von Monatsanfang bis 22.Feb)
+- Check-out im Monat → `endPx = (21 + 0.5) * 28 = 602px` → Mitte von Tag 22 ✅
+- `width = 602 - 490 = 112px = 4 Tage` ✅
 
-```
-Container = 1200px - 160px (Haus-Spalte) = 1040px
-Spaltenbreite = 1040px / 28 Tage = 37.1px pro Tag (NICHT 28px!)
-```
+### Für Maximilian (22.Feb–01.März):
+- Check-in im Monat → `startPx = (21 + 0.5) * 28 = 602px` → Mitte von Tag 22 ✅
+- Check-out = 01.März = monthEnd (Monatsgrenze) → KEIN +0.5 (Balken geht bis Monatsende)
+- `endPx = 28 * 28 = 784px` → Ende von Feb ✅
+- `width = 784 - 602 = 182px` ✅
 
-Aber `getBarStyle` rechnet mit `dayWidth = 100 / 28 = 3.571%`:
-- `left = 17.5 × 3.571% = 62.5%`
-- 62.5% von 1040px = **650px**
-- Korrekte Position von Tag 18: `17 × 37.1px = 631px`
+### Für Buchungen die den Monat überschreiten (Eintritt vor Monat):
+- barStart = monthStart, checkIn liegt VOR dem Monat → KEIN +0.5 (Balken beginnt am Monatsanfang)
+- `startPx = 0 * 28 = 0px` ✅
 
-Das ergibt einen **Versatz von 19px** — das entspricht fast einem halben Tag-Fehler.
-
-Und mit der zusätzlichen `+0.5` Halbe-Tag-Verschiebung wird es noch schlimmer.
-
-### Problem 2: Halbe-Tag-Logik addiert einen falschen Versatz
-
-```typescript
-const adjustedStart = startOffset + (isCheckInInMonth ? 0.5 : 0);
-```
-
-Für Lea Wolf (check_in = 18. Feb):
-- `startOffset = 17`
-- `adjustedStart = 17 + 0.5 = 17.5` ← falsch, soll genau bei Tag 18 starten
-- `left = 17.5 × 3.571% = 62.5%`
-
-Statt 17 × 3.571% = 60.71% (= Anfang Tag 18). Der Balken startet sichtbar bei **Tag 19** statt Tag 18.
-
-### Warum Lea als 16.–19. erscheint
-
-Mit beiden Fehlern zusammen:
-- `flex-1` Spalten sind breiter als 28px (z.B. 37px)
-- `+0.5 Tag` Offset verschiebt nach rechts
-- Prozentwert stimmt nicht mit der tatsächlichen Spaltenbreite überein
-
-Kombiniert: Der Balken erscheint 2 Tage zu spät und hat falsche Breite.
-
-## Die Lösung: Prozent statt `flex` + kein Halbtag-Offset
-
-### Ansatz 1 (bevorzugt): Grid auf feste Pixelbreite umstellen
-
-Statt `flex-1` (wächst) → feste Breite `w-7` (= 28px) für jede Spalte. Dann stimmt die Pixel-Positionierung exakt:
-
-**Header-Spalten:** `flex-1 min-w-[28px]` → `w-7 shrink-0` (= genau 28px)
-**Hintergrund-Raster:** gleiche Änderung
-**Container:** `minWidth: daysInMonth * 28` bleibt gleich (scroll funktioniert weiter)
-**Balken:** `left = startOffset * 28 + "px"`, `width = duration * 28 + "px"`
-
-### Konkrete Änderungen in `BookingTimeline.tsx`
-
-#### 1. Konstante `DAY_WIDTH = 28` hinzufügen
-
-```typescript
-const DAY_WIDTH = 28; // px — identisch zu w-7 (7 × 4px = 28px)
-```
-
-#### 2. `getBarStyle` — vereinfacht, kein Halbtag, Pixel statt Prozent
+## Neue `getBarStyle` Logik
 
 ```typescript
 const getBarStyle = (booking: Booking) => {
@@ -79,71 +51,50 @@ const getBarStyle = (booking: Booking) => {
   const barStart = checkIn < monthStart ? monthStart : checkIn;
   const barEnd = checkOut > monthEnd ? monthEnd : checkOut;
   
-  const startOffset = differenceInDays(barStart, monthStart);
-  const duration = differenceInDays(barEnd, barStart);
+  // +0.5 nur wenn check_in/out im sichtbaren Monat liegt (nicht geclampt)
+  // → check_in im Monat = Check-in um 15:00 Nachmittag
+  // → check_out im Monat (vor Monatsgrenze) = Check-out um 10:00 Vormittag
+  const isCheckInInMonth = checkIn >= monthStart && checkIn < monthEnd;
+  const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+  
+  const startOffsetDays = differenceInDays(barStart, monthStart);
+  const endOffsetDays = differenceInDays(barEnd, monthStart);
+  
+  const startPx = (startOffsetDays + (isCheckInInMonth ? 0.5 : 0)) * DAY_WIDTH;
+  const endPx = (endOffsetDays + (isCheckOutInMonth ? 0.5 : 0)) * DAY_WIDTH;
   
   return {
-    left: `${startOffset * DAY_WIDTH}px`,
-    width: `${Math.max(duration * DAY_WIDTH, DAY_WIDTH * 0.5)}px`
+    left: `${startPx}px`,
+    width: `${Math.max(endPx - startPx, DAY_WIDTH * 0.5)}px`
   };
 };
 ```
 
-**Ergebnis für Lea Wolf (18.–22. Feb):**
-- `startOffset = diff(18.Feb, 01.Feb) = 17`
-- `left = 17 × 28 = 476px` → Exakt Anfang der Spalte für Tag 18 ✅
-- `duration = diff(22.Feb, 18.Feb) = 4`
-- `width = 4 × 28 = 112px` → Exakt 4 Tages-Spalten breit ✅
+## Entscheidende Unterschiede zur alten (fehlerhaften) Logik
 
-**Ergebnis für Maximilian (22.Feb – 01.März):**
-- `startOffset = 21` → `left = 21 × 28 = 588px` = Anfang Tag 22 ✅
-- `duration = diff(01.März, 22.Feb) = 7` → `width = 7 × 28 = 196px` ✅
+| Problem | Alt (Prozent) | Neu (Pixel) |
+|---------|--------------|-------------|
+| Positionierungstyp | `%` → skaliert mit Container | `px` → exakt wie Grid `w-7` |
+| Halbtag-Check-in | `isCheckInInMonth = checkIn <= monthEnd` (zu weit) | `checkIn < monthEnd` (strikt) |
+| Halbtag-Check-out | `isCheckOutInMonth = checkOut <= monthEnd` | `checkOut < monthEnd` (strikt, schließt Monatsgrenze aus) |
+| Berechnung | `adjustedStart` + `adjustedDuration` (fehleranfällig) | `startPx` + `endPx` (direkt und klar) |
 
-#### 3. Header-Spalten: `flex-1 min-w-[28px]` → `w-7 shrink-0`
+## Visuelles Ergebnis für Februar 2026
 
-```tsx
-// Vorher:
-<div className="flex-1 min-w-[28px] md:min-w-[32px] text-center text-xs ...">
-
-// Nachher:
-<div className="w-7 shrink-0 text-center text-xs ...">
+```
+Tag:    18        19        20        21        22
+        |----✗----|---------|---------|----✗----|
+             Lea (15:00)              (10:00)
+                                          |----|
+                                     Maximilian (15:00→)
 ```
 
-#### 4. Hintergrund-Raster: gleiche Änderung
+- Lea's Balken beginnt in der Mitte von Tag 18 und endet in der Mitte von Tag 22 ✅
+- Maximilian's Balken beginnt in der Mitte von Tag 22 ✅
+- Zwischen 10:00 (Lea checkout) und 15:00 (Maximilian checkin) am 22. Feb ist eine sichtbare Lücke ✅
 
-```tsx
-// Vorher:
-<div className="flex-1 min-w-[28px] md:min-w-[32px] border-r border-border/50 ...">
+## Datei
 
-// Nachher:
-<div className="w-7 shrink-0 border-r border-border/50 ...">
-```
+Nur eine Datei zu ändern: `src/components/Calendar/BookingTimeline.tsx`
 
-#### 5. Balken-Element: `minWidth` anpassen
-
-```tsx
-style={{ 
-  left: style.left,   // jetzt px statt %
-  width: style.width, // jetzt px statt %
-  top: `${8 + verticalOffset}px`
-  // minWidth: '45px' kann bleiben oder entfernt werden
-}}
-```
-
-## Verifikation der Berechnung
-
-| Buchung | DB check_in | startOffset | left (px) | duration | width (px) | Korrekt? |
-|---------|-------------|-------------|-----------|----------|------------|---------|
-| Oliver | 01.Feb | 0 | 0px | 7 | 196px | ✅ Tag 1–8 |
-| Peter | 14.Feb | 13 | 364px | 4 | 112px | ✅ Tag 14–18 |
-| Lea Wolf | 18.Feb | 17 | 476px | 4 | 112px | ✅ Tag 18–22 |
-| Maximilian | 22.Feb | 21 | 588px | 7 | 196px | ✅ Tag 22–01.März |
-| L.R. Prins | 21.Feb | 20 | 560px | 7 | 196px | ✅ Tag 21–28 |
-
-## Dateien
-
-- `src/components/Calendar/BookingTimeline.tsx` — alle Änderungen in einer Datei:
-  1. `DAY_WIDTH = 28` Konstante hinzufügen
-  2. `getBarStyle` vereinfachen (Pixel, kein Halbtag)
-  3. Header-Spalten: `flex-1 min-w-[28px]` → `w-7 shrink-0`
-  4. Raster-Spalten: gleiche Änderung
+Einzige Änderung: Die `getBarStyle` Funktion (ca. Zeilen 108–127) ersetzen mit der neuen Pixel+Halbtag-Logik.
