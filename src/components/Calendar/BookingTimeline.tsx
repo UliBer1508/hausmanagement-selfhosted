@@ -1,5 +1,12 @@
 import { useMemo } from 'react';
-import { format, parseISO, differenceInDays, addDays, startOfMonth, getDaysInMonth, isSameDay, isWithinInterval, startOfDay } from 'date-fns';
+import { format, differenceInDays, addDays, startOfMonth, getDaysInMonth, isSameDay } from 'date-fns';
+
+// Extrahiert lokales Datum aus ISO-String, ignoriert Zeitzone
+// "2026-02-22 09:00:00+00" → new Date("2026-02-22T00:00:00") = lokale Mitternacht
+const parseLocalDate = (isoString: string): Date => {
+  const datePart = isoString.substring(0, 10);
+  return new Date(datePart + 'T00:00:00');
+};
 import { de } from 'date-fns/locale';
 import { getHouseIcon } from '@/lib/utils';
 
@@ -67,10 +74,10 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
 
   // Prüfe ob zwei Buchungen sich überlappen
   const bookingsOverlap = (a: Booking, b: Booking) => {
-    const aStart = startOfDay(parseISO(a.check_in));
-    const aEnd = startOfDay(parseISO(a.check_out));
-    const bStart = startOfDay(parseISO(b.check_in));
-    const bEnd = startOfDay(parseISO(b.check_out));
+    const aStart = parseLocalDate(a.check_in);
+    const aEnd = parseLocalDate(a.check_out);
+    const bStart = parseLocalDate(b.check_in);
+    const bEnd = parseLocalDate(b.check_out);
     return aStart < bEnd && bStart < aEnd;
   };
 
@@ -98,10 +105,10 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
   // Berechne Position und Breite des Buchungs-Balkens
   // Halbe-Tage-Logik: Check-in 15:00 = Nachmittag (+0.5), Check-out 10:00 = Vormittag (+0.5)
   const getBarStyle = (booking: Booking) => {
-    const checkIn = startOfDay(parseISO(booking.check_in));
-    const checkOut = startOfDay(parseISO(booking.check_out));
-    const monthStart = startOfDay(startDate);
-    const monthEnd = startOfDay(addDays(startDate, daysInMonth - 1));
+    const checkIn = parseLocalDate(booking.check_in);
+    const checkOut = parseLocalDate(booking.check_out);
+    const monthStart = parseLocalDate(startDate.toISOString());
+    const monthEnd = parseLocalDate(addDays(startDate, daysInMonth - 1).toISOString());
     
     // Clamp to month boundaries
     const barStart = checkIn < monthStart ? monthStart : checkIn;
@@ -124,7 +131,6 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
     const adjustedStart = startOffset + (isCheckInInMonth ? 0.5 : 0);
     
     // Breite: Duration + 0.5 für Check-out (10:00 = Vormittag endet halben Tag)
-    // Wenn Check-in auch im Monat ist, haben wir bereits 0.5 vom Start abgezogen
     const adjustedDuration = duration + (isCheckOutInMonth ? 0.5 : 1) - (isCheckInInMonth ? 0.5 : 0);
     
     const left = adjustedStart * dayWidth;
@@ -138,10 +144,10 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
 
   // Prüfe ob Buchung in diesem Monat sichtbar ist
   const isBookingVisible = (booking: Booking) => {
-    const checkIn = startOfDay(parseISO(booking.check_in));
-    const checkOut = startOfDay(parseISO(booking.check_out));
-    const monthStart = startOfDay(startDate);
-    const monthEnd = startOfDay(addDays(startDate, daysInMonth - 1));
+    const checkIn = parseLocalDate(booking.check_in);
+    const checkOut = parseLocalDate(booking.check_out);
+    const monthStart = parseLocalDate(startDate.toISOString());
+    const monthEnd = parseLocalDate(addDays(startDate, daysInMonth - 1).toISOString());
     
     // Buchung ist sichtbar wenn sie den Monat überlappt
     return checkIn <= monthEnd && checkOut >= monthStart;
@@ -149,8 +155,8 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
 
   // Berechne Anzahl Nächte
   const getNights = (booking: Booking) => {
-    const checkIn = parseISO(booking.check_in);
-    const checkOut = parseISO(booking.check_out);
+    const checkIn = parseLocalDate(booking.check_in);
+    const checkOut = parseLocalDate(booking.check_out);
     return differenceInDays(checkOut, checkIn);
   };
 
@@ -193,7 +199,7 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
         {touristHouses.map((house, houseIndex) => {
           const houseBookings = activeBookings
             .filter(b => (b.house_id === house.id || b.houses?.id === house.id) && isBookingVisible(b))
-            .sort((a, b) => parseISO(a.check_in).getTime() - parseISO(b.check_in).getTime());
+            .sort((a, b) => parseLocalDate(a.check_in).getTime() - parseLocalDate(b.check_in).getTime());
           const colors = HOUSE_COLORS[house.name] || HOUSE_COLORS.default;
           const maxOverlaps = getMaxOverlaps(houseBookings);
           const containerHeight = 64 + maxOverlaps; // Basis 64px + Überlappungen
