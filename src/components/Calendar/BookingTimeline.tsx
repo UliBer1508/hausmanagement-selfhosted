@@ -107,8 +107,8 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
   const getBarStyle = (booking: Booking) => {
     const checkIn = parseLocalDate(booking.check_in);
     const checkOut = parseLocalDate(booking.check_out);
-    const monthStart = parseLocalDate(startDate.toISOString());
-    const monthEnd = parseLocalDate(addDays(startDate, daysInMonth - 1).toISOString());
+    const monthStart = new Date(format(startDate, 'yyyy-MM-dd') + 'T00:00:00');
+    const monthEnd = new Date(format(addDays(startDate, daysInMonth - 1), 'yyyy-MM-dd') + 'T00:00:00');
     
     // Clamp to month boundaries
     const barStart = checkIn < monthStart ? monthStart : checkIn;
@@ -146,8 +146,8 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
   const isBookingVisible = (booking: Booking) => {
     const checkIn = parseLocalDate(booking.check_in);
     const checkOut = parseLocalDate(booking.check_out);
-    const monthStart = parseLocalDate(startDate.toISOString());
-    const monthEnd = parseLocalDate(addDays(startDate, daysInMonth - 1).toISOString());
+    const monthStart = new Date(format(startDate, 'yyyy-MM-dd') + 'T00:00:00');
+    const monthEnd = new Date(format(addDays(startDate, daysInMonth - 1), 'yyyy-MM-dd') + 'T00:00:00');
     
     // Buchung ist sichtbar wenn sie den Monat überlappt
     return checkIn <= monthEnd && checkOut >= monthStart;
