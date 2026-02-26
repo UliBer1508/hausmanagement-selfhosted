@@ -123,8 +123,8 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
     const startOffsetDays = differenceInDays(barStart, monthStart);
     const endOffsetDays = differenceInDays(barEnd, monthStart);
 
-    const startPx = (startOffsetDays + (isCheckInInMonth ? 0.5 : 0)) * DAY_WIDTH;
-    const endPx = (endOffsetDays + (isCheckOutInMonth ? 0.5 : 0)) * DAY_WIDTH;
+    const startPx = (startOffsetDays + (isCheckInInMonth ? 0.5 : 0)) * DAY_WIDTH + (isCheckInInMonth ? 2 : 0);
+    const endPx = (endOffsetDays + (isCheckOutInMonth ? 0.5 : 0)) * DAY_WIDTH - (isCheckOutInMonth ? 2 : 0);
 
     return {
       left: `${startPx}px`,
