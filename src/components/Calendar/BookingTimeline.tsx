@@ -118,7 +118,7 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
 
     // +0.5 nur wenn check_in/out innerhalb des sichtbaren Monats liegt (nicht geclampt)
     const isCheckInInMonth = checkIn >= monthStart && checkIn < monthEnd;
-    const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+    const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
 
     const startOffsetDays = differenceInDays(barStart, monthStart);
     const endOffsetDays = differenceInDays(barEnd, monthStart);
