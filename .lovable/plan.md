@@ -1,33 +1,32 @@
 
 
-# Test User "Test User" und Buchung löschen
+# Fix: Visuelle Überlagerung bei Buchungs-Übergaben am selben Tag
 
-## Gefundene Daten
+## Problem
+Wenn eine Buchung am selben Tag endet, an dem die nächste beginnt (z.B. Maximilian check-out 01.03. / Martin check-in 01.03.), treffen sich beide Balken exakt am selben Pixel. Durch die `border-2` Eigenschaft (2px pro Seite) überlappen sich die Ränder visuell um 4px.
 
-| Typ | ID | Details |
-|-----|-----|---------|
-| Guest | `aec3f0aa-26d4-48ad-bc2e-1865e1afc279` | Name: "Test User" |
-| Booking | `35006594-9daf-421b-abfb-1faf73f5003f` | 24.02.–01.03.2026, Status: confirmed |
-| Guest App Session | `b9cb3801-9bd1-4536-aaa2-e0cce950dad2` | Leere Session (keine Events) |
+## Ursache
+- Maximilian endet bei Pixel `(0 + 0.5) * 28 = 14px`
+- Martin beginnt bei Pixel `(0 + 0.5) * 28 = 14px`
+- Gleicher Startpunkt + 2px Border auf jeder Seite = sichtbare Überlappung
 
-Keine weiteren verknüpften Daten (keine service_tasks, linen_orders, app_reviews).
+## Lösung
+In `BookingTimeline.tsx` die `getBarStyle`-Funktion anpassen: einen kleinen Pixel-Abstand (2px) bei Check-in und Check-out einfügen, damit die Borders nicht kollidieren.
 
-## Lösch-Reihenfolge (wegen Foreign Keys)
+- Check-in-Balken: `startPx + 2px` (Balken beginnt 2px später)
+- Check-out-Balken: `endPx - 2px` (Balken endet 2px früher)
 
-1. **Guest App Session** -- referenziert booking_id
-2. **Booking** -- referenziert guest_id
-3. **Guest** -- kann zuletzt gelöscht werden
+Dies erzeugt eine sichtbare 4px Lücke zwischen aufeinanderfolgenden Buchungen, die die Übergabe klar darstellt.
 
-## SQL
+## Technische Änderung
 
-```sql
--- 1. Leere Guest App Session löschen
-DELETE FROM guest_app_sessions WHERE id = 'b9cb3801-9bd1-4536-aaa2-e0cce950dad2';
+**Datei:** `src/components/Calendar/BookingTimeline.tsx`
 
--- 2. Test-Buchung löschen
-DELETE FROM bookings WHERE id = '35006594-9daf-421b-abfb-1faf73f5003f';
+In der `getBarStyle`-Funktion die Pixel-Berechnung anpassen:
 
--- 3. Test-Guest löschen
-DELETE FROM guests WHERE id = 'aec3f0aa-26d4-48ad-bc2e-1865e1afc279';
+```typescript
+const startPx = (startOffsetDays + (isCheckInInMonth ? 0.5 : 0)) * DAY_WIDTH + (isCheckInInMonth ? 2 : 0);
+const endPx = (endOffsetDays + (isCheckOutInMonth ? 0.5 : 0)) * DAY_WIDTH - (isCheckOutInMonth ? 2 : 0);
 ```
 
+Eine minimale Änderung in einer Datei, zwei Zeilen.
