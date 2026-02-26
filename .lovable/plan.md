@@ -1,37 +1,33 @@
 
 
-# Test-User "Loveable" und Buchung löschen
+# Test User "Test User" und Buchung löschen
 
 ## Gefundene Daten
 
 | Typ | ID | Details |
 |-----|-----|---------|
-| Guest | `cf76c1d9-9b81-4ccd-9b5f-4dd3d26599c1` | Name: "Loveable", Email: uli.berresheim@hotmail.de |
-| Booking | `358dc9ca-9a9c-411b-8427-e266780537e7` | 15.–17.01.2024, Status: completed, Test-Buchung |
-| App Review | `188bc85f-1e3a-466c-84a6-65552b62412d` | Verknüpft mit der Buchung |
+| Guest | `aec3f0aa-26d4-48ad-bc2e-1865e1afc279` | Name: "Test User" |
+| Booking | `35006594-9daf-421b-abfb-1faf73f5003f` | 24.02.–01.03.2026, Status: confirmed |
+| Guest App Session | `b9cb3801-9bd1-4536-aaa2-e0cce950dad2` | Leere Session (keine Events) |
 
-Keine verknüpften service_tasks, linen_orders oder guest_app_sessions vorhanden. Der Guest hat nur diese eine Buchung.
+Keine weiteren verknüpften Daten (keine service_tasks, linen_orders, app_reviews).
 
 ## Lösch-Reihenfolge (wegen Foreign Keys)
 
-1. **App Review** -- `booking_id` referenziert die Buchung, muss zuerst gelöscht werden
-2. **Booking** -- `guest_id` referenziert den Guest
+1. **Guest App Session** -- referenziert booking_id
+2. **Booking** -- referenziert guest_id
 3. **Guest** -- kann zuletzt gelöscht werden
 
-## Technische Umsetzung
-
-Eine SQL-Migration mit drei DELETE-Statements:
+## SQL
 
 ```sql
--- 1. App Review löschen (referenziert booking)
-DELETE FROM app_reviews WHERE booking_id = '358dc9ca-9a9c-411b-8427-e266780537e7';
+-- 1. Leere Guest App Session löschen
+DELETE FROM guest_app_sessions WHERE id = 'b9cb3801-9bd1-4536-aaa2-e0cce950dad2';
 
 -- 2. Test-Buchung löschen
-DELETE FROM bookings WHERE id = '358dc9ca-9a9c-411b-8427-e266780537e7';
+DELETE FROM bookings WHERE id = '35006594-9daf-421b-abfb-1faf73f5003f';
 
 -- 3. Test-Guest löschen
-DELETE FROM guests WHERE id = 'cf76c1d9-9b81-4ccd-9b5f-4dd3d26599c1';
+DELETE FROM guests WHERE id = 'aec3f0aa-26d4-48ad-bc2e-1865e1afc279';
 ```
-
-Zusatzlich wird die Edge Function `create-loveable-test-booking` gelöscht, da sie nicht mehr gebraucht wird.
 
