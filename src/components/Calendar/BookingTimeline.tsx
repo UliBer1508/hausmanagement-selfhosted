@@ -126,9 +126,13 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
     const startPx = (startOffsetDays + (isCheckInInMonth ? 0.5 : 0)) * DAY_WIDTH + (isCheckInInMonth ? 2 : 0);
     const endPx = (endOffsetDays + (isCheckOutInMonth ? 0.5 : 0)) * DAY_WIDTH - (isCheckOutInMonth ? 2 : 0);
 
+    // Buchung ist "geclampt" wenn sie über den Monatsrand hinausragt
+    const isClamped = checkIn < monthStart || checkOut > monthEnd;
+
     return {
       left: `${startPx}px`,
-      width: `${Math.max(endPx - startPx, DAY_WIDTH * 0.5)}px`
+      width: `${Math.max(endPx - startPx, DAY_WIDTH * 0.5)}px`,
+      isClamped
     };
   };
 
@@ -252,7 +256,7 @@ const BookingTimeline = ({ bookings, houses, selectedDate, onBookingClick }: Boo
                       style={{ 
                         left: style.left, 
                         width: style.width,
-                        minWidth: '45px',
+                        ...(style.isClamped ? {} : { minWidth: '45px' }),
                         top: `${8 + verticalOffset}px`
                       }}
                       onClick={() => onBookingClick(booking)}
