@@ -1,32 +1,32 @@
 
 
-# Fix: Visuelle Überlagerung bei Buchungs-Übergaben am selben Tag
+# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
 
 ## Problem
-Wenn eine Buchung am selben Tag endet, an dem die nächste beginnt (z.B. Maximilian check-out 01.03. / Martin check-in 01.03.), treffen sich beide Balken exakt am selben Pixel. Durch die `border-2` Eigenschaft (2px pro Seite) überlappen sich die Ränder visuell um 4px.
+Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
 
-## Ursache
-- Maximilian endet bei Pixel `(0 + 0.5) * 28 = 14px`
-- Martin beginnt bei Pixel `(0 + 0.5) * 28 = 14px`
-- Gleicher Startpunkt + 2px Border auf jeder Seite = sichtbare Überlappung
+Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
 
 ## Lösung
-In `BookingTimeline.tsx` die `getBarStyle`-Funktion anpassen: einen kleinen Pixel-Abstand (2px) bei Check-in und Check-out einfügen, damit die Borders nicht kollidieren.
 
-- Check-in-Balken: `startPx + 2px` (Balken beginnt 2px später)
-- Check-out-Balken: `endPx - 2px` (Balken endet 2px früher)
+**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
 
-Dies erzeugt eine sichtbare 4px Lücke zwischen aufeinanderfolgenden Buchungen, die die Übergabe klar darstellt.
-
-## Technische Änderung
-
-**Datei:** `src/components/Calendar/BookingTimeline.tsx`
-
-In der `getBarStyle`-Funktion die Pixel-Berechnung anpassen:
+Änderung von `>` zu `>=`:
 
 ```typescript
-const startPx = (startOffsetDays + (isCheckInInMonth ? 0.5 : 0)) * DAY_WIDTH + (isCheckInInMonth ? 2 : 0);
-const endPx = (endOffsetDays + (isCheckOutInMonth ? 0.5 : 0)) * DAY_WIDTH - (isCheckOutInMonth ? 2 : 0);
+// Vorher:
+const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+
+// Nachher:
+const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
 ```
 
-Eine minimale Änderung in einer Datei, zwei Zeilen.
+Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
+
+## Auswirkung
+- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
+- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
+- Checkout am Monatsende / außerhalb: Keine Änderung
+
+Eine Zeile, ein Zeichen.
+
