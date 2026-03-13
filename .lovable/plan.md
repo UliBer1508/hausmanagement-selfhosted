@@ -1,26 +1,32 @@
 
 
-# Freie Datumseingabe für Buchungsfilter
+# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
 
 ## Problem
-Die benutzerdefinierten Datumsfelder ("Von Datum" / "Bis Datum") erlauben nur Auswahl per Kalender-Popup. Der Nutzer möchte auch direkt ein Datum eintippen können (z.B. "15.03.2026").
+Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
+
+Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
 
 ## Lösung
-Die Popover-Buttons durch eine Kombination aus **Text-Input + Kalender-Icon-Button** ersetzen. Das Input-Feld akzeptiert Freitext im Format `dd.MM.yyyy`, das Kalender-Icon öffnet weiterhin den Kalender-Picker.
 
-## Technische Änderung
+**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
 
-**Datei:** `src/components/Bookings/BookingOverviewFixed.tsx`
+Änderung von `>` zu `>=`:
 
-Für beide Datumsfelder (Von/Bis):
+```typescript
+// Vorher:
+const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
 
-1. Input-Feld mit `type="text"` und Placeholder `TT.MM.JJJJ` hinzufügen
-2. Bei Eingabe wird `parse(value, 'dd.MM.yyyy', new Date())` aus `date-fns` verwendet um den String zu parsen
-3. Kalender-Icon als Button daneben, der den Popover-Kalender öffnet
-4. Wenn ein gültiges Datum per Kalender gewählt wird, wird das Input-Feld aktualisiert
-5. Layout: Input + Kalender-Button nebeneinander in einer Gruppe (`flex` mit `relative`)
+// Nachher:
+const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
+```
 
-Import hinzufügen: `parse` aus `date-fns`.
+Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
 
-Keine neuen Komponenten nötig, nur Umbau der bestehenden Zeilen 641-698.
+## Auswirkung
+- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
+- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
+- Checkout am Monatsende / außerhalb: Keine Änderung
+
+Eine Zeile, ein Zeichen.
 

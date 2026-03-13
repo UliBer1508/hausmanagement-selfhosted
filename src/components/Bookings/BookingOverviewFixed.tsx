@@ -38,7 +38,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Plus, Search, Edit, Trash2, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { format, parseISO, isAfter, isBefore, startOfDay, endOfDay, addMonths, startOfYear, endOfYear } from 'date-fns';
+import { format, parse, parseISO, isAfter, isBefore, isValid, startOfDay, endOfDay, addMonths, startOfYear, endOfYear } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useDeleteBooking } from '@/hooks/useBookings';
@@ -642,57 +642,81 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-muted/30 rounded-lg">
                   <div>
                     <label className="text-sm font-medium mb-2 block">Von Datum</label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !customDateFrom && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {customDateFrom ? format(customDateFrom, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-background border shadow-md z-50" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={customDateFrom}
-                          onSelect={setCustomDateFrom}
-                          locale={de}
-                          className="pointer-events-auto"
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <div className="flex gap-1">
+                      <Input
+                        type="text"
+                        placeholder="TT.MM.JJJJ"
+                        value={customDateFrom ? format(customDateFrom, "dd.MM.yyyy", { locale: de }) : ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            setCustomDateFrom(undefined);
+                            return;
+                          }
+                          const parsed = parse(val, 'dd.MM.yyyy', new Date());
+                          if (isValid(parsed) && val.length === 10) {
+                            setCustomDateFrom(parsed);
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="icon" className="shrink-0">
+                            <CalendarIcon className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-background border shadow-md z-50" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={customDateFrom}
+                            onSelect={setCustomDateFrom}
+                            locale={de}
+                            className="pointer-events-auto"
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
 
                   <div>
                     <label className="text-sm font-medium mb-2 block">Bis Datum</label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !customDateTo && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {customDateTo ? format(customDateTo, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-background border shadow-md z-50" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={customDateTo}
-                          onSelect={setCustomDateTo}
-                          locale={de}
-                          className="pointer-events-auto"
-                          disabled={(date) => customDateFrom ? date < customDateFrom : false}
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <div className="flex gap-1">
+                      <Input
+                        type="text"
+                        placeholder="TT.MM.JJJJ"
+                        value={customDateTo ? format(customDateTo, "dd.MM.yyyy", { locale: de }) : ""}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === "") {
+                            setCustomDateTo(undefined);
+                            return;
+                          }
+                          const parsed = parse(val, 'dd.MM.yyyy', new Date());
+                          if (isValid(parsed) && val.length === 10) {
+                            setCustomDateTo(parsed);
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="icon" className="shrink-0">
+                            <CalendarIcon className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-background border shadow-md z-50" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={customDateTo}
+                            onSelect={setCustomDateTo}
+                            locale={de}
+                            className="pointer-events-auto"
+                            disabled={(date) => customDateFrom ? date < customDateFrom : false}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
                 </div>
               )}
