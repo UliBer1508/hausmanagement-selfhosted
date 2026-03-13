@@ -692,15 +692,17 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                       <Input
                         type="text"
                         placeholder="TT.MM.JJJJ"
-                        value={customDateTo ? format(customDateTo, "dd.MM.yyyy", { locale: de }) : ""}
+                        value={customDateToText}
                         onChange={(e) => {
                           const val = e.target.value;
+                          setCustomDateToText(val);
                           if (val === "") {
                             setCustomDateTo(undefined);
                             return;
                           }
                           const parsed = parse(val, 'dd.MM.yyyy', new Date());
                           if (isValid(parsed) && val.length === 10) {
+                            setTimeFilter('custom');
                             setCustomDateTo(parsed);
                           }
                         }}
