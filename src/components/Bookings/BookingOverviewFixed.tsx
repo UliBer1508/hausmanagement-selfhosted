@@ -116,6 +116,8 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
   const [timeFilter, setTimeFilter] = useState('all');
   const [customDateFrom, setCustomDateFrom] = useState<Date | undefined>();
   const [customDateTo, setCustomDateTo] = useState<Date | undefined>();
+  const [customDateFromText, setCustomDateFromText] = useState("");
+  const [customDateToText, setCustomDateToText] = useState("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false);
   const [sortOption, setSortOption] = useState('check_in_asc');
@@ -646,15 +648,17 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                       <Input
                         type="text"
                         placeholder="TT.MM.JJJJ"
-                        value={customDateFrom ? format(customDateFrom, "dd.MM.yyyy", { locale: de }) : ""}
+                        value={customDateFromText}
                         onChange={(e) => {
                           const val = e.target.value;
+                          setCustomDateFromText(val);
                           if (val === "") {
                             setCustomDateFrom(undefined);
                             return;
                           }
                           const parsed = parse(val, 'dd.MM.yyyy', new Date());
                           if (isValid(parsed) && val.length === 10) {
+                            setTimeFilter('custom');
                             setCustomDateFrom(parsed);
                           }
                         }}
@@ -670,7 +674,10 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                           <Calendar
                             mode="single"
                             selected={customDateFrom}
-                            onSelect={setCustomDateFrom}
+                            onSelect={(date) => {
+                              setCustomDateFrom(date);
+                              setCustomDateFromText(date ? format(date, "dd.MM.yyyy", { locale: de }) : "");
+                            }}
                             locale={de}
                             className="pointer-events-auto"
                           />
@@ -685,15 +692,17 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                       <Input
                         type="text"
                         placeholder="TT.MM.JJJJ"
-                        value={customDateTo ? format(customDateTo, "dd.MM.yyyy", { locale: de }) : ""}
+                        value={customDateToText}
                         onChange={(e) => {
                           const val = e.target.value;
+                          setCustomDateToText(val);
                           if (val === "") {
                             setCustomDateTo(undefined);
                             return;
                           }
                           const parsed = parse(val, 'dd.MM.yyyy', new Date());
                           if (isValid(parsed) && val.length === 10) {
+                            setTimeFilter('custom');
                             setCustomDateTo(parsed);
                           }
                         }}
@@ -709,7 +718,10 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                           <Calendar
                             mode="single"
                             selected={customDateTo}
-                            onSelect={setCustomDateTo}
+                            onSelect={(date) => {
+                              setCustomDateTo(date);
+                              setCustomDateToText(date ? format(date, "dd.MM.yyyy", { locale: de }) : "");
+                            }}
                             locale={de}
                             className="pointer-events-auto"
                             disabled={(date) => customDateFrom ? date < customDateFrom : false}
