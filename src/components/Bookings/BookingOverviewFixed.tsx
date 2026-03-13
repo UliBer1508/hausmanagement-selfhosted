@@ -38,7 +38,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Plus, Search, Edit, Trash2, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { format, parseISO, isAfter, isBefore, startOfDay, endOfDay, addMonths, startOfYear, endOfYear } from 'date-fns';
+import { format, parse, parseISO, isAfter, isBefore, isValid, startOfDay, endOfDay, addMonths, startOfYear, endOfYear } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useDeleteBooking } from '@/hooks/useBookings';
