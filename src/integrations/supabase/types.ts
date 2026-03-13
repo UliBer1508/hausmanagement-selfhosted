@@ -1668,11 +1668,11 @@ export type Database = {
           id: string
           image_url: string | null
           last_data_refresh: string | null
-          planned_duration: unknown
+          planned_duration: string | null
           rating: number | null
           route_cache_id: string | null
-          travel_time_from: unknown
-          travel_time_to: unknown
+          travel_time_from: string | null
+          travel_time_to: string | null
           trip_date: string
           trip_plan_id: string | null
           updated_at: string | null
@@ -1688,11 +1688,11 @@ export type Database = {
           id?: string
           image_url?: string | null
           last_data_refresh?: string | null
-          planned_duration?: unknown
+          planned_duration?: string | null
           rating?: number | null
           route_cache_id?: string | null
-          travel_time_from?: unknown
-          travel_time_to?: unknown
+          travel_time_from?: string | null
+          travel_time_to?: string | null
           trip_date: string
           trip_plan_id?: string | null
           updated_at?: string | null
@@ -1708,11 +1708,11 @@ export type Database = {
           id?: string
           image_url?: string | null
           last_data_refresh?: string | null
-          planned_duration?: unknown
+          planned_duration?: string | null
           rating?: number | null
           route_cache_id?: string | null
-          travel_time_from?: unknown
-          travel_time_to?: unknown
+          travel_time_from?: string | null
+          travel_time_to?: string | null
           trip_date?: string
           trip_plan_id?: string | null
           updated_at?: string | null
