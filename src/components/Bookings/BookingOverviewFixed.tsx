@@ -674,7 +674,10 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                           <Calendar
                             mode="single"
                             selected={customDateFrom}
-                            onSelect={setCustomDateFrom}
+                            onSelect={(date) => {
+                              setCustomDateFrom(date);
+                              setCustomDateFromText(date ? format(date, "dd.MM.yyyy", { locale: de }) : "");
+                            }}
                             locale={de}
                             className="pointer-events-auto"
                           />
