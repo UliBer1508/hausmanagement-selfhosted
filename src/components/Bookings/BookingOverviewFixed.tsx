@@ -241,6 +241,18 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
     },
   });
 
+  // Fetch linen orders for bookings
+  const { data: linenOrders } = useQuery({
+    queryKey: ['linen-orders-overview'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .select('id, booking_id, status');
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Auto-Open Booking Dialog wenn via Chat navigiert
   useEffect(() => {
     if (autoOpenBookingId && bookingsData) {
