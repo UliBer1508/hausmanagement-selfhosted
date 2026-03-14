@@ -787,6 +787,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                 <TableHead>Zahlung</TableHead>
                 <TableHead>Betrag</TableHead>
                 <TableHead>Services</TableHead>
+                <TableHead>Wäsche</TableHead>
                 <TableHead>Aktionen</TableHead>
               </TableRow>
             </TableHeader>
