@@ -454,6 +454,28 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
     ));
   };
 
+  const getLinenInfo = (bookingId: string) => {
+    if (!linenOrders) return <span className="text-muted-foreground">-</span>;
+    
+    const orders = linenOrders.filter(o => o.booking_id === bookingId);
+    if (orders.length === 0) return <span className="text-muted-foreground">-</span>;
+
+    return orders.map(order => {
+      const config: Record<string, { bg: string; text: string; label: string; icon: string }> = {
+        offen: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'offen', icon: '📝' },
+        ausstehend: { bg: 'bg-yellow-50', text: 'text-yellow-700', label: 'ausstehend', icon: '⏳' },
+        delivered: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'geliefert', icon: '📦' },
+        cancelled: { bg: 'bg-red-50', text: 'text-red-700', label: 'storniert', icon: '❌' },
+      };
+      const c = config[order.status] || { bg: 'bg-muted', text: 'text-muted-foreground', label: order.status, icon: '❓' };
+      return (
+        <div key={order.id} className={`text-xs ${c.text} ${c.bg} px-2 py-1 rounded`}>
+          {c.icon} {c.label}
+        </div>
+      );
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
