@@ -1,35 +1,32 @@
 
 
-# Wäsche-Spalte in Buchungsübersicht (rechts neben Services)
+# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
 
-## Änderung
+## Problem
+Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
 
-**Datei:** `src/components/Bookings/BookingOverviewFixed.tsx`
+Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
 
-### 1. Neue Query für Wäschebestellungen
-Analog zur bestehenden `serviceTasks`-Query eine neue `useQuery` für `linen_orders` hinzufügen:
+## Lösung
+
+**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
+
+Änderung von `>` zu `>=`:
+
 ```typescript
-const { data: linenOrders } = useQuery({
-  queryKey: ['linen-orders-overview'],
-  queryFn: async () => {
-    const { data, error } = await supabase
-      .from('linen_orders')
-      .select('id, booking_id, status, items, total_items');
-    if (error) throw error;
-    return data;
-  },
-});
+// Vorher:
+const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+
+// Nachher:
+const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
 ```
 
-### 2. Helper-Funktion `getLinenInfo`
-Filtert Wäschebestellungen nach `booking_id` und zeigt Status-Badge:
-- `offen` → 🟠 "offen"
-- `ausstehend` → 🟡 "ausstehend"  
-- `delivered` → 🟢 "geliefert"
-- `cancelled` → 🔴 "storniert"
-- Keine Bestellung → `-`
+Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
 
-### 3. Spalte einfügen
-- **Header:** Neue `<TableHead>Wäsche</TableHead>` zwischen "Services" und "Aktionen" (nach Zeile 755)
-- **Body:** Neue `<TableCell>` mit `getLinenInfo(booking.id)` zwischen Services-Cell und Aktionen-Cell (nach Zeile 810)
+## Auswirkung
+- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
+- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
+- Checkout am Monatsende / außerhalb: Keine Änderung
+
+Eine Zeile, ein Zeichen.
 
