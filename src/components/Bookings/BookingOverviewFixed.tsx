@@ -844,6 +844,11 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                     </div>
                   </TableCell>
                   <TableCell>
+                    <div className="space-y-1">
+                      {getLinenInfo(booking.id)}
+                    </div>
+                  </TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-1">
                       <EditBookingDialog 
                         booking={booking}
