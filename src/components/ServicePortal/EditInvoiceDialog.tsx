@@ -206,7 +206,7 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
           </div>
 
           {/* Draft merge section - only show when editing a draft and other drafts exist */}
-          {isDraft && otherDrafts.length > 0 && (
+          {otherDrafts.length > 0 && (
             <div className="border-t pt-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium">
                 <Merge className="h-4 w-4" />
