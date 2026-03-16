@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge, ListChecks, Search } from 'lucide-react';
+import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge, ListChecks, Search, CalendarIcon, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
