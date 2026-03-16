@@ -1,32 +1,54 @@
 
 
-# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
+# Automatische Rechnungs-Erstellung bei Wäschebestellungen
 
-## Problem
-Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
+## Übersicht
+Wenn eine Wäschebestellung erstellt wird, soll automatisch ein Rechnungs-Platzhalter in `laundry_invoices` angelegt werden. Die Rechnung enthält zunächst nur die Bestelldaten (Haus, Datum, Positionen). Sobald die echte Rechnung von Teuni kommt, füllt der Nutzer Rechnungsnummer, Beträge und Zahlungsdatum aus.
 
-Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
+## Datenbank-Änderungen
 
-## Lösung
+### 1. Neue Spalte `linen_order_id` in `laundry_invoices`
+- `linen_order_id UUID REFERENCES linen_orders(id)` (nullable, unique)
+- Verknüpft eine Rechnung eindeutig mit einer Wäschebestellung
 
-**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
+### 2. Datenbank-Trigger auf `linen_orders` INSERT
+Ein `AFTER INSERT` Trigger auf `linen_orders` erstellt automatisch einen Rechnungs-Platzhalter:
+- `external_rechnung_id`: generierte UUID (Pflichtfeld)
+- `rechnungsnummer`: `'ENTWURF-' || LEFT(NEW.id::text, 8)` 
+- `rechnungsdatum`: `NEW.order_date`
+- `bruttobetrag`: `0` (wird später ausgefüllt)
+- `status`: `'offen'`
+- `linen_order_id`: `NEW.id`
+- `notes`: Haus-Name und Buchungsinfo als Referenz
 
-Änderung von `>` zu `>=`:
+## Frontend-Änderungen
 
-```typescript
-// Vorher:
-const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+### 3. Rechnungsliste anpassen (`LaundryInvoicesList.tsx`)
+- Entwurf-Rechnungen visuell kennzeichnen (z.B. Badge "📝 Entwurf" wenn `bruttobetrag = 0` und `rechnungsnummer` mit "ENTWURF" beginnt)
+- Bearbeitungs-Button prominenter machen für Entwürfe
 
-// Nachher:
-const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
+### 4. Rechnungs-Bearbeitung erweitern
+- Bestehenden `InvoiceDetailsDialog` um Bearbeitungsmodus erweitern oder einen Edit-Dialog erstellen
+- Felder: Rechnungsnummer, Rechnungsdatum, Nettobetrag, MwSt, Bruttobetrag, Fälligkeitsdatum
+- Beim Speichern werden die Platzhalter-Werte mit den echten Rechnungsdaten überschrieben
+
+### 5. Wäsche-Spalte in Buchungsübersicht
+- Optional: Link von der Wäsche-Bestellung zur zugehörigen Rechnung
+
+## Technischer Ablauf
+```text
+Wäschebestellung erstellt (egal wo: UI, Automation, Edge Function)
+        │
+        ▼
+DB Trigger: AFTER INSERT ON linen_orders
+        │
+        ▼
+INSERT INTO laundry_invoices (Platzhalter mit bruttobetrag=0)
+        │
+        ▼
+Nutzer sieht "ENTWURF" Rechnung in der Rechnungsliste
+        │
+        ▼
+Teuni schickt echte Rechnung → Nutzer füllt Daten aus
 ```
-
-Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
-
-## Auswirkung
-- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
-- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
-- Checkout am Monatsende / außerhalb: Keine Änderung
-
-Eine Zeile, ein Zeichen.
 
