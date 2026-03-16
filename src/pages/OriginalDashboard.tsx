@@ -43,7 +43,8 @@ import {
   FileBarChart,
   Mail,
   Send,
-  CheckCircle
+  CheckCircle,
+  FileSpreadsheet
 } from 'lucide-react';
 import { format, isSameDay, parseISO, addDays, addMonths, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -59,6 +60,7 @@ import GuestManagement from '@/components/Guests/GuestManagement';
 import TenantManagement from '@/components/Tenants/TenantManagement';
 import LinenDashboard from '@/components/Houses/LinenDashboard';
 import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderManagementDialog';
+import { ProviderBillingDialog } from '@/components/ServicePortal/ProviderBillingDialog';
 import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
 import { UsageReportDialog } from '@/components/Dashboard/UsageReportDialog';
 import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBanner';
@@ -98,6 +100,7 @@ const OriginalDashboard = () => {
   const [calendarView, setCalendarView] = useState<'month' | 'week' | 'timeline'>('month');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [openPopoverDate, setOpenPopoverDate] = useState<string | null>(null);
+  const [selectedProviderForBilling, setSelectedProviderForBilling] = useState<any>(null);
   
   // Filter states for overview
   const [searchTerm, setSearchTerm] = useState('');
@@ -1740,6 +1743,14 @@ const OriginalDashboard = () => {
                       >
                         Portal öffnen
                       </Button>
+                      <Button 
+                        variant="outline"
+                        className="w-full" 
+                        onClick={() => setSelectedProviderForBilling(provider)}
+                      >
+                        <FileSpreadsheet className="mr-2 h-4 w-4" />
+                        Abrechnung
+                      </Button>
                     </CardContent>
                   </Card>
                 );
@@ -2693,6 +2704,12 @@ const OriginalDashboard = () => {
           } : undefined}
         />
       )}
+
+      <ProviderBillingDialog
+        provider={selectedProviderForBilling}
+        open={!!selectedProviderForBilling}
+        onOpenChange={(open) => !open && setSelectedProviderForBilling(null)}
+      />
     </div>
   );
 };
