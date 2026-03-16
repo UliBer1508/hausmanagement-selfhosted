@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Pencil } from 'lucide-react';
-import { LaundryInvoice, useUpdateLaundryInvoice } from '@/hooks/useLaundryInvoices';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Pencil, Merge } from 'lucide-react';
+import { LaundryInvoice, useDraftInvoices, useUpdateInvoiceAndMerge } from '@/hooks/useLaundryInvoices';
 
 interface EditInvoiceDialogProps {
   invoice: LaundryInvoice | null;
@@ -14,7 +15,8 @@ interface EditInvoiceDialogProps {
 }
 
 export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDialogProps) => {
-  const updateMutation = useUpdateLaundryInvoice();
+  const updateAndMergeMutation = useUpdateInvoiceAndMerge();
+  const { data: allDrafts } = useDraftInvoices();
 
   const [form, setForm] = useState({
     rechnungsnummer: '',
@@ -26,6 +28,8 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
     bruttobetrag: '',
     notes: '',
   });
+
+  const [mergeIds, setMergeIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (invoice) {
@@ -39,6 +43,7 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
         bruttobetrag: invoice.bruttobetrag?.toString() || '0',
         notes: invoice.notes || '',
       });
+      setMergeIds(new Set());
     }
   }, [invoice]);
 
@@ -46,8 +51,20 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
 
   const isDraft = invoice.rechnungsnummer?.startsWith('ENTWURF');
 
+  // Other drafts (exclude current invoice)
+  const otherDrafts = (allDrafts || []).filter(d => d.id !== invoice.id);
+
+  const toggleMergeId = (id: string) => {
+    setMergeIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleSave = () => {
-    updateMutation.mutate({
+    updateAndMergeMutation.mutate({
       invoiceId: invoice.id,
       data: {
         rechnungsnummer: form.rechnungsnummer,
@@ -59,6 +76,7 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
         bruttobetrag: form.bruttobetrag ? parseFloat(form.bruttobetrag) : 0,
         notes: form.notes || null,
       },
+      mergeDraftIds: mergeIds.size > 0 ? Array.from(mergeIds) : undefined,
     }, {
       onSuccess: () => onOpenChange(false),
     });
@@ -95,7 +113,7 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Pencil className="h-5 w-5" />
@@ -186,12 +204,52 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
               rows={2}
             />
           </div>
+
+          {/* Draft merge section - only show when editing a draft and other drafts exist */}
+          {isDraft && otherDrafts.length > 0 && (
+            <div className="border-t pt-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <Merge className="h-4 w-4" />
+                Weitere Entwürfe dieser Rechnung zuordnen
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Die Bestellungen der ausgewählten Entwürfe werden dieser Rechnung zugeordnet und die leeren Entwürfe gelöscht.
+              </p>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {otherDrafts.map(draft => (
+                  <label
+                    key={draft.id}
+                    className="flex items-center gap-3 p-2 rounded-md border cursor-pointer hover:bg-accent/50 transition-colors"
+                  >
+                    <Checkbox
+                      checked={mergeIds.has(draft.id)}
+                      onCheckedChange={() => toggleMergeId(draft.id)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{draft.rechnungsnummer}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {draft.linkedOrder
+                          ? `${(draft.linkedOrder as any).houses?.name || 'Unbekannt'} · ${new Date(draft.rechnungsdatum).toLocaleDateString('de-DE')}`
+                          : new Date(draft.rechnungsdatum).toLocaleDateString('de-DE')
+                        }
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              {mergeIds.size > 0 && (
+                <p className="text-xs text-primary font-medium">
+                  {mergeIds.size} Entwurf/Entwürfe werden zugeordnet
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-          <Button onClick={handleSave} disabled={updateMutation.isPending}>
-            {updateMutation.isPending ? 'Speichert...' : 'Speichern'}
+          <Button onClick={handleSave} disabled={updateAndMergeMutation.isPending}>
+            {updateAndMergeMutation.isPending ? 'Speichert...' : 'Speichern'}
           </Button>
         </DialogFooter>
       </DialogContent>
