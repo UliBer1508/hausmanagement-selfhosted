@@ -1743,6 +1743,14 @@ const OriginalDashboard = () => {
                       >
                         Portal öffnen
                       </Button>
+                      <Button 
+                        variant="outline"
+                        className="w-full" 
+                        onClick={() => setSelectedProviderForBilling(provider)}
+                      >
+                        <FileSpreadsheet className="mr-2 h-4 w-4" />
+                        Abrechnung
+                      </Button>
                     </CardContent>
                   </Card>
                 );
