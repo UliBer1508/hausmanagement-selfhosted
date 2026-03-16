@@ -1,32 +1,36 @@
 
 
-# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
+# Abrechnungs-Button auf Provider-Portal-Cards
 
-## Problem
-Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
+## Ist-Zustand
+- Die Portal-Cards (Amela, Boris, Teuni) in `OriginalDashboard.tsx` (Zeilen 1716-1746) zeigen nur einen "Portal öffnen" Button
+- Die Abrechnungsfunktion (`ProviderBillingDialog`) ist nur über die Provider-Verwaltung erreichbar
+- Der `ProviderBillingDialog` unterscheidet zwischen Reinigung (Task-basierte Abrechnung) und Wäscherei (Rechnungen/Bestellungen via Tabs)
 
-Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
+## Änderungen
 
-## Lösung
+### `src/pages/OriginalDashboard.tsx`
+- State hinzufügen: `selectedProviderForBilling` (wie im ProviderManagementDialog)
+- Import `ProviderBillingDialog` und `FileSpreadsheet` Icon
+- In der Portal-Card (Zeile 1733-1743) einen zweiten Button "Abrechnung" hinzufügen mit dem gleichen Styling wie "Portal öffnen" aber `variant="outline"`
+- Der Button öffnet den `ProviderBillingDialog` mit dem jeweiligen Provider
+- `ProviderBillingDialog` am Ende des JSX rendern
 
-**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
-
-Änderung von `>` zu `>=`:
-
-```typescript
-// Vorher:
-const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
-
-// Nachher:
-const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
+### Button-Layout in der Card
+```text
+┌─────────────────────────┐
+│   ✨ Amela Cleaning     │
+│                         │
+│   Reinigungsaufträge    │
+│   verwalten             │
+│                         │
+│  [  Portal öffnen    ]  │  ← bestehend (blau, primary)
+│  [  Abrechnung       ]  │  ← neu (outline, gleiche Breite)
+└─────────────────────────┘
 ```
 
-Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
-
-## Auswirkung
-- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
-- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
-- Checkout am Monatsende / außerhalb: Keine Änderung
-
-Eine Zeile, ein Zeichen.
+### Technische Details
+- Kein Schema-Änderung nötig
+- `ProviderBillingDialog` wird wiederverwendet — erkennt anhand `service_type` ob Reinigung oder Wäscherei angezeigt wird
+- FileSpreadsheet-Icon vor "Abrechnung" für visuelle Konsistenz
 
