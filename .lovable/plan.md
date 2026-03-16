@@ -1,32 +1,41 @@
 
 
-# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
+# Entwurf bearbeiten und andere Entwürfe zuordnen
 
 ## Problem
-Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
-
-Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
+Aktuell kann man einen Entwurf nur bearbeiten (EditInvoiceDialog) ODER Entwürfe zusammenführen (MergeInvoicesDialog) — aber nicht beides in einem Schritt. Der User möchte einen bestehenden Entwurf nehmen, die Rechnungsdaten ausfüllen, und gleichzeitig andere Entwürfe diesem zuordnen.
 
 ## Lösung
+Den `EditInvoiceDialog` erweitern: Wenn ein Entwurf bearbeitet wird, erscheint unterhalb des Formulars eine Liste aller anderen Entwürfe mit Checkboxen. Beim Speichern werden die Orders der ausgewählten Entwürfe auf diese Rechnung umgelinkt und die leeren Entwürfe gelöscht.
 
-**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
+## Änderungen
 
-Änderung von `>` zu `>=`:
+### `EditInvoiceDialog.tsx`
+- Neuen Query hinzufügen: Alle anderen Draft-Invoices laden (wie `useDraftInvoices`, aber ohne den aktuellen Entwurf)
+- Checkbox-Liste der anderen Entwürfe unterhalb des Formulars anzeigen (nur wenn `isDraft`)
+- State `mergeIds` (Set) für ausgewählte Entwürfe
+- Beim Speichern:
+  1. Rechnungsdaten updaten (wie bisher)
+  2. Falls `mergeIds` nicht leer: Orders der ausgewählten Entwürfe auf diese Rechnung umlinken (`UPDATE linen_orders SET laundry_invoice_id = thisId WHERE laundry_invoice_id IN mergeIds`)
+  3. Leere Entwürfe löschen
 
-```typescript
-// Vorher:
-const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+### `useLaundryInvoices.ts`
+- Neuer Hook `useUpdateInvoiceAndMerge` oder Erweiterung von `useUpdateLaundryInvoice` mit optionalem `mergeDraftIds` Parameter
 
-// Nachher:
-const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
+### Layout im Dialog (nur bei Entwürfen)
+```text
+┌─────────────────────────────────────┐
+│ Rechnungsnummer: [RE-2026-001    ] │
+│ Datum: [__]     Fällig: [__]       │
+│ Netto: [__]     MwSt: [__]        │
+│ MwSt-Betrag: [__]  Brutto: [__]   │
+│ Notizen: [______________]          │
+│─────────────────────────────────────│
+│ Weitere Entwürfe zuordnen:         │
+│ ☑ ENTWURF-xxx | Haus A | 15.03    │
+│ ☐ ENTWURF-yyy | Haus B | 12.03    │
+│ ☑ ENTWURF-zzz | Haus A | 10.03    │
+└─────────────────────────────────────┘
+         [Abbrechen] [Speichern]
 ```
-
-Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
-
-## Auswirkung
-- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
-- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
-- Checkout am Monatsende / außerhalb: Keine Änderung
-
-Eine Zeile, ein Zeichen.
 
