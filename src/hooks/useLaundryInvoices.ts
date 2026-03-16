@@ -7,7 +7,7 @@ export interface LaundryInvoice {
   external_rechnung_id: string;
   external_bestellung_id: string | null;
   external_kunde_id: string | null;
-  linen_order_id: string | null;
+  // linked orders are now on linen_orders.laundry_invoice_id
   rechnungsnummer: string;
   rechnungsdatum: string;
   faelligkeitsdatum: string | null;
