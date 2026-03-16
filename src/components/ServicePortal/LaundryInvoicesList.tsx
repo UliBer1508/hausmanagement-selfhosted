@@ -337,7 +337,8 @@ export const LaundryInvoicesList = () => {
                 Rechnungen synchronisieren
               </Button>
             </div>
-          )}
+          );
+          })()}
         </CardContent>
       </Card>
 
