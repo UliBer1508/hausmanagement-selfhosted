@@ -204,7 +204,7 @@ export const LaundryInvoicesList = () => {
           <div className="relative mb-4">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Rechnungsnummer suchen..."
+              placeholder="Suche nach Rechnungsnr., Datum, Betrag..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-8"
@@ -217,9 +217,22 @@ export const LaundryInvoicesList = () => {
               ))}
             </div>
           ) : (() => {
-            const filteredInvoices = invoices?.filter(inv =>
-              inv.rechnungsnummer?.toLowerCase().includes(searchQuery.toLowerCase())
-            );
+            const q = searchQuery.toLowerCase();
+            const filteredInvoices = invoices?.filter(inv => {
+              if (!q) return true;
+              const rechnungsnummer = inv.rechnungsnummer?.toLowerCase() || '';
+              const datum = inv.rechnungsdatum ? format(new Date(inv.rechnungsdatum), 'dd.MM.yyyy', { locale: de }) : '';
+              const faellig = inv.faelligkeitsdatum ? format(new Date(inv.faelligkeitsdatum), 'dd.MM.yyyy', { locale: de }) : '';
+              const betrag = formatCurrency(inv.bruttobetrag).toLowerCase();
+              const status = inv.status?.toLowerCase() || '';
+              return (
+                rechnungsnummer.includes(q) ||
+                datum.includes(q) ||
+                faellig.includes(q) ||
+                betrag.includes(q) ||
+                status.includes(q)
+              );
+            });
             return filteredInvoices && filteredInvoices.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
