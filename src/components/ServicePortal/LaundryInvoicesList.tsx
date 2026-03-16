@@ -236,15 +236,29 @@ export const LaundryInvoicesList = () => {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           {isDraftInvoice(invoice) ? (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleEditInvoice(invoice)}
-                              title="Rechnungsdaten ausfüllen"
-                            >
-                              <Pencil className="h-4 w-4 mr-1" />
-                              Ausfüllen
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setMergePreselectedId(invoice.id);
+                                  setMergeDialogOpen(true);
+                                }}
+                                title="Mit anderen Entwürfen zusammenführen"
+                              >
+                                <Merge className="h-4 w-4 mr-1" />
+                                Zusammenführen
+                              </Button>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleEditInvoice(invoice)}
+                                title="Rechnungsdaten ausfüllen"
+                              >
+                                <Pencil className="h-4 w-4 mr-1" />
+                                Ausfüllen
+                              </Button>
+                            </div>
                           ) : (
                             <>
                               <Button
