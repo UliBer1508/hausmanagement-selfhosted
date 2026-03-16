@@ -100,6 +100,7 @@ const OriginalDashboard = () => {
   const [calendarView, setCalendarView] = useState<'month' | 'week' | 'timeline'>('month');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
   const [openPopoverDate, setOpenPopoverDate] = useState<string | null>(null);
+  const [selectedProviderForBilling, setSelectedProviderForBilling] = useState<any>(null);
   
   // Filter states for overview
   const [searchTerm, setSearchTerm] = useState('');
