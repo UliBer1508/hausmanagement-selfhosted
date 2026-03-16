@@ -59,6 +59,7 @@ export function TeuniOrdersOverview() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
 
   const { data: linenOrders, isLoading, refetch } = useQuery({
     queryKey: ['teuni-linen-orders'],
