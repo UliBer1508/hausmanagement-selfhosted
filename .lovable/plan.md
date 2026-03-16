@@ -1,32 +1,28 @@
 
+# Entwurfs-Rechnungen für bestehende Bestellungen erstellen
 
-# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
+## Ausgangslage
+- 36 Wäschebestellungen vorhanden, 0 davon haben bereits eine verknüpfte Rechnung
+- Der Trigger greift nur bei neuen Bestellungen, nicht rückwirkend
 
-## Problem
-Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
+## Umsetzung
+Ein einmaliges SQL-INSERT erstellt für alle bestehenden `linen_orders` ohne zugehörige `laundry_invoices` einen Entwurfs-Eintrag:
 
-Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
-
-## Lösung
-
-**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
-
-Änderung von `>` zu `>=`:
-
-```typescript
-// Vorher:
-const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
-
-// Nachher:
-const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
+```sql
+INSERT INTO laundry_invoices (external_rechnung_id, rechnungsnummer, rechnungsdatum, bruttobetrag, status, linen_order_id, kunde_name, notes)
+SELECT 
+  gen_random_uuid(),
+  'ENTWURF-' || LEFT(lo.id::text, 8),
+  lo.order_date,
+  0,
+  'offen',
+  lo.id,
+  'Teuni Wäscheservice',
+  'Auto-erstellt für ' || COALESCE(h.name, 'Unbekannt') || ' - Bestellung vom ' || lo.order_date
+FROM linen_orders lo
+LEFT JOIN houses h ON h.id = lo.house_id
+LEFT JOIN laundry_invoices li ON li.linen_order_id = lo.id
+WHERE li.id IS NULL;
 ```
 
-Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
-
-## Auswirkung
-- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
-- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
-- Checkout am Monatsende / außerhalb: Keine Änderung
-
-Eine Zeile, ein Zeichen.
-
+Dies ist eine reine **Daten-Operation** (INSERT), keine Schema-Änderung. Wird über das Insert-Tool ausgeführt.
