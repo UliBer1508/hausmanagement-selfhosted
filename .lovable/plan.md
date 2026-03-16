@@ -1,32 +1,35 @@
 
 
-# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
+# Rechnung erstellen und Bestellungen zuordnen
 
-## Problem
-Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
+## Konzept
+Der User möchte zuerst eine Rechnung ausfüllen (Rechnungsnummer, Datum, Beträge) und dann in einem zweiten Schritt entscheiden, welche Bestellungen/Entwürfe diese Rechnung abdeckt. Das ist der umgekehrte Workflow zum aktuellen `MergeInvoicesDialog`.
 
-Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
+## Änderungen
 
-## Lösung
+### 1. Neuer Dialog: `AssignOrdersToInvoiceDialog`
+- **Schritt 1 (Rechnungsdaten)**: Formular mit Rechnungsnummer, Datum, Fälligkeit, Netto, MwSt, Brutto, Notizen (wie im bestehenden `CreateInvoiceDialog`)
+- **Schritt 2 (Bestellungen zuordnen)**: Liste aller offenen Bestellungen (aus `linen_orders`) mit Checkboxen, Haus-Filter, Datum-Filter. Zeigt Lieferdatum, Haus, Gast, Artikel-Anzahl
+- Navigation zwischen Schritten via "Weiter"/"Zurück" Buttons
 
-**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
+### 2. Speicher-Logik
+1. Neue `laundry_invoice` erstellen (status: offen, kunde_name: Teuni)
+2. Ausgewählte `linen_orders` auf die neue `laundry_invoice_id` umlinken
+3. Alte Draft-Invoices (ENTWURF-*) der umgelinkten Orders löschen (falls vorhanden)
 
-Änderung von `>` zu `>=`:
+Dazu wird ein neuer Mutation-Hook `useCreateInvoiceWithOrders` in `useLaundryInvoices.ts` erstellt.
 
-```typescript
-// Vorher:
-const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+### 3. Integration in TeuniOrdersOverview
+- "Rechnung erstellen" Button (Zeile 309) öffnet den neuen Dialog
+- Ausgewählte Order-IDs werden als `preselectedOrderIds` übergeben
+- Nach Erfolg: Selection zurücksetzen, Queries invalidieren
 
-// Nachher:
-const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
-```
+### 4. Auch von Rechnungen-Tab erreichbar
+- In `LaundryInvoicesList` einen Button "Neue Rechnung mit Zuordnung" hinzufügen, der denselben Dialog ohne Vorauswahl öffnet
 
-Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
-
-## Auswirkung
-- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
-- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
-- Checkout am Monatsende / außerhalb: Keine Änderung
-
-Eine Zeile, ein Zeichen.
+### Technische Details
+- Der Dialog nutzt `useState` für einen `step` (1=Formular, 2=Zuordnung)
+- Bestellungen werden via `supabase.from('linen_orders').select('id, delivery_date, house_id, status, total_items, laundry_invoice_id, houses(name), bookings(guest_name, check_in)').eq('provider_id', TEUNI_ID)` geladen
+- Nur Bestellungen ohne finale Rechnung (nur ENTWURF- oder ohne Invoice) werden angezeigt
+- Filter: Haus-Dropdown und Datumsbereich (wie in TeuniOrdersOverview)
 
