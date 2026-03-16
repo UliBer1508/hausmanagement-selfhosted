@@ -66,6 +66,11 @@ export const LaundryInvoicesList = () => {
     setDetailsOpen(true);
   };
 
+  const handleEditInvoice = (invoice: LaundryInvoice) => {
+    setSelectedInvoice(invoice);
+    setEditDialogOpen(true);
+  };
+
   const handleMarkPaid = (invoice: LaundryInvoice) => {
     markPaidMutation.mutate({ invoiceId: invoice.id });
   };
