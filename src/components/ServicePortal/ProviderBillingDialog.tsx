@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { LaundryInvoicesList } from './LaundryInvoicesList';
 import { LaundryOrdersOverview } from './LaundryOrdersOverview';
+import { TeuniOrdersOverview } from './TeuniOrdersOverview';
 
 interface ProviderBillingDialogProps {
   provider: any;
