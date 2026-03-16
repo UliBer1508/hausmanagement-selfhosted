@@ -221,25 +221,47 @@ export const LaundryInvoicesList = () => {
                       <TableCell>{getStatusBadge(invoice)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewDetails(invoice)}
-                            title="Details anzeigen"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {invoice.status === 'offen' && (
+                          {isDraftInvoice(invoice) ? (
                             <Button
-                              variant="ghost"
+                              variant="default"
                               size="sm"
-                              onClick={() => handleMarkPaid(invoice)}
-                              disabled={markPaidMutation.isPending}
-                              title="Als bezahlt markieren"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => handleEditInvoice(invoice)}
+                              title="Rechnungsdaten ausfüllen"
                             >
-                              <Check className="h-4 w-4" />
+                              <Pencil className="h-4 w-4 mr-1" />
+                              Ausfüllen
                             </Button>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewDetails(invoice)}
+                                title="Details anzeigen"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditInvoice(invoice)}
+                                title="Bearbeiten"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              {invoice.status === 'offen' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleMarkPaid(invoice)}
+                                  disabled={markPaidMutation.isPending}
+                                  title="Als bezahlt markieren"
+                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       </TableCell>
