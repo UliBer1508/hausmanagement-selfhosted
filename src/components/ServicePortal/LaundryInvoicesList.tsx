@@ -233,7 +233,7 @@ export const LaundryInvoicesList = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {invoices.map((invoice) => (
+                  {filteredInvoices.map((invoice) => (
                     <TableRow key={invoice.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
