@@ -126,7 +126,9 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
             </TabsContent>
           </Tabs>
         ) : (
-          renderTasksContent()
+          <div className="flex-1 overflow-auto">
+            {renderTasksContent()}
+          </div>
         )}
 
         <DialogFooter>
