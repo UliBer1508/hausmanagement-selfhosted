@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil } from 'lucide-react';
+import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { useLaundryInvoices, useSyncLaundryInvoices, useMarkInvoicePaid, useInvo
 import { InvoiceDetailsDialog } from './InvoiceDetailsDialog';
 import { CreateInvoiceDialog } from './CreateInvoiceDialog';
 import { EditInvoiceDialog } from './EditInvoiceDialog';
+import { MergeInvoicesDialog } from './MergeInvoicesDialog';
 
 const isDraftInvoice = (invoice: LaundryInvoice) =>
   invoice.rechnungsnummer?.startsWith('ENTWURF') && invoice.bruttobetrag === 0;
