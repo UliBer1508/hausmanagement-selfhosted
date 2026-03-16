@@ -308,10 +308,17 @@ export function TeuniOrdersOverview() {
           <span className="text-sm font-medium">{selectedOrderIds.size} Bestellung(en) ausgewählt</span>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setSelectedOrderIds(new Set())}>Auswahl aufheben</Button>
-            <Button size="sm">Rechnung erstellen</Button>
+            <Button size="sm" onClick={() => setAssignDialogOpen(true)}>Rechnung erstellen</Button>
           </div>
         </div>
       )}
+
+      <AssignOrdersToInvoiceDialog
+        open={assignDialogOpen}
+        onOpenChange={setAssignDialogOpen}
+        preselectedOrderIds={Array.from(selectedOrderIds)}
+        onSuccess={() => setSelectedOrderIds(new Set())}
+      />
     </div>
   );
 }
