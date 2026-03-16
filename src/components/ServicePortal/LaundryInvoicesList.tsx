@@ -158,6 +158,17 @@ export const LaundryInvoicesList = () => {
                 </SelectContent>
               </Select>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setMergePreselectedId(undefined);
+                  setMergeDialogOpen(true);
+                }}
+              >
+                <Merge className="h-4 w-4 mr-1" />
+                Zusammenführen
+              </Button>
+              <Button
                 variant="default"
                 size="sm"
                 onClick={() => setCreateDialogOpen(true)}
