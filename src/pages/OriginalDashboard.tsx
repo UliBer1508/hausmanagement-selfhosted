@@ -2704,6 +2704,12 @@ const OriginalDashboard = () => {
           } : undefined}
         />
       )}
+
+      <ProviderBillingDialog
+        provider={selectedProviderForBilling}
+        open={!!selectedProviderForBilling}
+        onOpenChange={(open) => !open && setSelectedProviderForBilling(null)}
+      />
     </div>
   );
 };
