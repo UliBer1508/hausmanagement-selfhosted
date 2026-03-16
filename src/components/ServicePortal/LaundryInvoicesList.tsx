@@ -197,7 +197,14 @@ export const LaundryInvoicesList = () => {
                 <TableBody>
                   {invoices.map((invoice) => (
                     <TableRow key={invoice.id}>
-                      <TableCell className="font-medium">{invoice.rechnungsnummer}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {invoice.rechnungsnummer}
+                          {isDraftInvoice(invoice) && (
+                            <Badge variant="outline" className="text-xs border-dashed">📝 Entwurf</Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {format(new Date(invoice.rechnungsdatum), 'dd.MM.yyyy', { locale: de })}
                       </TableCell>
@@ -207,7 +214,9 @@ export const LaundryInvoicesList = () => {
                           : '-'}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {formatCurrency(invoice.bruttobetrag)}
+                        {isDraftInvoice(invoice) ? (
+                          <span className="text-muted-foreground italic">ausstehend</span>
+                        ) : formatCurrency(invoice.bruttobetrag)}
                       </TableCell>
                       <TableCell>{getStatusBadge(invoice)}</TableCell>
                       <TableCell className="text-right">
