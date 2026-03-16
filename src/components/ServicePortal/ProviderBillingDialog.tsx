@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { LaundryInvoicesList } from './LaundryInvoicesList';
 import { LaundryOrdersOverview } from './LaundryOrdersOverview';
+import { TeuniOrdersOverview } from './TeuniOrdersOverview';
 
 interface ProviderBillingDialogProps {
   provider: any;
@@ -97,6 +98,7 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
 
   // Check if this is Teuni (laundry service) - show invoices tab
   const isLaundryProvider = provider?.service_type === 'laundry';
+  const isTeuniProvider = provider?.id === 'd8110105-8ac9-45e3-ad32-aaf42393744c';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -118,7 +120,7 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
             </TabsList>
             
             <TabsContent value="orders" className="flex-1 overflow-auto mt-4">
-              <LaundryOrdersOverview />
+              {isTeuniProvider ? <TeuniOrdersOverview /> : <LaundryOrdersOverview />}
             </TabsContent>
             
             <TabsContent value="invoices" className="flex-1 overflow-auto mt-4">
