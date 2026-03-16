@@ -43,6 +43,27 @@ export const LaundryInvoicesList = () => {
   const syncMutation = useSyncLaundryInvoices();
   const markPaidMutation = useMarkInvoicePaid();
 
+  const filteredInvoices = useMemo(() => {
+    if (!invoices) return [];
+    return invoices.filter(inv => {
+      if (searchQuery && !inv.rechnungsnummer?.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      if (dateFrom && new Date(inv.rechnungsdatum) < dateFrom) return false;
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(inv.rechnungsdatum) > end) return false;
+      }
+      if (amountFilter !== 'all') {
+        const a = inv.bruttobetrag;
+        if (amountFilter === '0-100' && (a < 0 || a > 100)) return false;
+        if (amountFilter === '100-500' && (a < 100 || a > 500)) return false;
+        if (amountFilter === '500-1000' && (a < 500 || a > 1000)) return false;
+        if (amountFilter === '1000+' && a < 1000) return false;
+      }
+      return true;
+    });
+  }, [invoices, searchQuery, dateFrom, dateTo, amountFilter]);
+
   const getStatusBadge = (invoice: LaundryInvoice) => {
     const today = new Date();
     const isOverdue = invoice.status === 'offen' && 
