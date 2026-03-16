@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import { useLaundryInvoices, useSyncLaundryInvoices, useMarkInvoicePaid, useInvoiceStats, LaundryInvoice } from '@/hooks/useLaundryInvoices';
 import { InvoiceDetailsDialog } from './InvoiceDetailsDialog';
 import { CreateInvoiceDialog } from './CreateInvoiceDialog';
