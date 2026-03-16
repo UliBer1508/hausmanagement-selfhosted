@@ -98,6 +98,7 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
 
   // Check if this is Teuni (laundry service) - show invoices tab
   const isLaundryProvider = provider?.service_type === 'laundry';
+  const isTeuniProvider = provider?.id === 'd8110105-8ac9-45e3-ad32-aaf42393744c';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
