@@ -32,6 +32,9 @@ export const LaundryInvoicesList = () => {
   const [mergePreselectedId, setMergePreselectedId] = useState<string | undefined>();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState<Date | undefined>();
+  const [dateTo, setDateTo] = useState<Date | undefined>();
+  const [amountFilter, setAmountFilter] = useState<string>('all');
 
   const { data: invoices, isLoading } = useLaundryInvoices({
     status: statusFilter !== 'all' ? statusFilter : undefined,
