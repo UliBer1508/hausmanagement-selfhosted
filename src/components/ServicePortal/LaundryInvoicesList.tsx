@@ -233,7 +233,7 @@ export const LaundryInvoicesList = () => {
             </div>
 
             {/* Datum Von */}
-            <div className="space-y-1">
+            <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-muted-foreground">Datum von</label>
               <Popover>
                 <PopoverTrigger asChild>
