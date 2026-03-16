@@ -1,32 +1,21 @@
 
 
-# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
+# Fix: Entwürfe-Zuordnung im EditInvoiceDialog immer anzeigen
 
 ## Problem
-Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
+Die Zuordnungs-Sektion ("Weitere Entwürfe zuordnen") wird nur angezeigt wenn `isDraft` true ist (Zeile 209). Diese Prüfung basiert auf `invoice.rechnungsnummer?.startsWith('ENTWURF')`. Sobald der User die Rechnungsnummer ändert (z.B. von "ENTWURF-xxx" zu "1"), verschwindet die Sektion sofort, weil React das Formular neu rendert und `isDraft` auf `false` wechselt.
 
-Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
+Zusätzlich: Auch bei nicht-Entwurf-Rechnungen sollte man weitere Entwürfe zuordnen können.
 
 ## Lösung
 
-**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
+### `EditInvoiceDialog.tsx`
+- Die `isDraft`-Prüfung auf Zeile 209 entfernen bzw. durch eine einmalige Prüfung ersetzen: `wasDraft` wird einmalig beim Öffnen gesetzt (via `useEffect` oder `useMemo` basierend auf dem initialen `invoice`-Prop)
+- Alternativ einfacher: Die Zuordnungs-Sektion **immer** anzeigen wenn `otherDrafts.length > 0`, unabhängig davon ob die aktuelle Rechnung ein Entwurf ist. Das ermöglicht auch das Zuordnen von Entwürfen zu bereits existierenden finalen Rechnungen.
 
-Änderung von `>` zu `>=`:
+### Konkrete Änderung
+- Zeile 209: `{isDraft && otherDrafts.length > 0 && (` ersetzen durch `{otherDrafts.length > 0 && (`
+- Zeile 52 (`isDraft`-Variable) nur noch für den Dialog-Titel verwenden
 
-```typescript
-// Vorher:
-const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
-
-// Nachher:
-const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
-```
-
-Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
-
-## Auswirkung
-- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
-- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
-- Checkout am Monatsende / außerhalb: Keine Änderung
-
-Eine Zeile, ein Zeichen.
+Das ist ein Ein-Zeilen-Fix.
 
