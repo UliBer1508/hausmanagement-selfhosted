@@ -13,6 +13,7 @@ import { InvoiceDetailsDialog } from './InvoiceDetailsDialog';
 import { CreateInvoiceDialog } from './CreateInvoiceDialog';
 import { EditInvoiceDialog } from './EditInvoiceDialog';
 import { MergeInvoicesDialog } from './MergeInvoicesDialog';
+import { AssignOrdersToInvoiceDialog } from './AssignOrdersToInvoiceDialog';
 
 const isDraftInvoice = (invoice: LaundryInvoice) =>
   invoice.rechnungsnummer?.startsWith('ENTWURF') && invoice.bruttobetrag === 0;
