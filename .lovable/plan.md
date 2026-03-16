@@ -1,54 +1,39 @@
 
 
-# Automatische Rechnungs-Erstellung bei Wäschebestellungen
+# Klarstellung: Wir verwenden die bestehende `laundry_invoices` Tabelle
 
-## Übersicht
-Wenn eine Wäschebestellung erstellt wird, soll automatisch ein Rechnungs-Platzhalter in `laundry_invoices` angelegt werden. Die Rechnung enthält zunächst nur die Bestelldaten (Haus, Datum, Positionen). Sobald die echte Rechnung von Teuni kommt, füllt der Nutzer Rechnungsnummer, Beträge und Zahlungsdatum aus.
+Du hast recht – es wird **keine neue Tabelle** erstellt. Der Plan nutzt die **bestehende `laundry_invoices` Tabelle** (die auch im "Rechnungen"-Tab der Abrechnung-Teuni-Dialog angezeigt wird).
 
-## Datenbank-Änderungen
+## Was passiert konkret
 
-### 1. Neue Spalte `linen_order_id` in `laundry_invoices`
-- `linen_order_id UUID REFERENCES linen_orders(id)` (nullable, unique)
-- Verknüpft eine Rechnung eindeutig mit einer Wäschebestellung
+### 1. Kleine Erweiterung der bestehenden Tabelle
+- Neue Spalte `linen_order_id` (UUID, nullable, unique) wird zur **bestehenden** `laundry_invoices` Tabelle hinzugefügt
+- Damit wird jede Rechnung mit ihrer Wäschebestellung verknüpft
 
-### 2. Datenbank-Trigger auf `linen_orders` INSERT
-Ein `AFTER INSERT` Trigger auf `linen_orders` erstellt automatisch einen Rechnungs-Platzhalter:
-- `external_rechnung_id`: generierte UUID (Pflichtfeld)
-- `rechnungsnummer`: `'ENTWURF-' || LEFT(NEW.id::text, 8)` 
-- `rechnungsdatum`: `NEW.order_date`
-- `bruttobetrag`: `0` (wird später ausgefüllt)
-- `status`: `'offen'`
-- `linen_order_id`: `NEW.id`
-- `notes`: Haus-Name und Buchungsinfo als Referenz
+### 2. Datenbank-Trigger
+- Wenn eine Wäschebestellung (`linen_orders`) erstellt wird, wird automatisch ein Platzhalter-Eintrag in `laundry_invoices` eingefügt
+- Status `offen`, Bruttobetrag `0`, Rechnungsnummer `ENTWURF-...`
+- Dieser erscheint dann direkt im bestehenden "Rechnungen"-Tab
 
-## Frontend-Änderungen
+### 3. Frontend: Edit-Funktion für Entwürfe
+- Entwurfs-Rechnungen visuell kennzeichnen (Badge "📝 Entwurf")
+- Edit-Dialog zum Ausfüllen der echten Rechnungsdaten (Nummer, Beträge, Datum) wenn die Teuni-Rechnung kommt
 
-### 3. Rechnungsliste anpassen (`LaundryInvoicesList.tsx`)
-- Entwurf-Rechnungen visuell kennzeichnen (z.B. Badge "📝 Entwurf" wenn `bruttobetrag = 0` und `rechnungsnummer` mit "ENTWURF" beginnt)
-- Bearbeitungs-Button prominenter machen für Entwürfe
-
-### 4. Rechnungs-Bearbeitung erweitern
-- Bestehenden `InvoiceDetailsDialog` um Bearbeitungsmodus erweitern oder einen Edit-Dialog erstellen
-- Felder: Rechnungsnummer, Rechnungsdatum, Nettobetrag, MwSt, Bruttobetrag, Fälligkeitsdatum
-- Beim Speichern werden die Platzhalter-Werte mit den echten Rechnungsdaten überschrieben
-
-### 5. Wäsche-Spalte in Buchungsübersicht
-- Optional: Link von der Wäsche-Bestellung zur zugehörigen Rechnung
-
-## Technischer Ablauf
+### Ablauf
 ```text
-Wäschebestellung erstellt (egal wo: UI, Automation, Edge Function)
+Wäschebestellung erstellt
         │
         ▼
-DB Trigger: AFTER INSERT ON linen_orders
+Trigger: Platzhalter in laundry_invoices (bestehende Tabelle!)
         │
         ▼
-INSERT INTO laundry_invoices (Platzhalter mit bruttobetrag=0)
+Erscheint im "Rechnungen"-Tab als Entwurf
         │
         ▼
-Nutzer sieht "ENTWURF" Rechnung in der Rechnungsliste
-        │
-        ▼
-Teuni schickt echte Rechnung → Nutzer füllt Daten aus
+Teuni-Rechnung kommt → Nutzer füllt echte Daten aus
 ```
+
+**Änderungen in 2 Dateien:**
+- **Migration:** ALTER TABLE `laundry_invoices` ADD COLUMN + Trigger-Funktion
+- **`LaundryInvoicesList.tsx`:** Entwurf-Badge + Edit-Dialog für Rechnungsdaten
 
