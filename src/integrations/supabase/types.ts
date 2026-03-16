@@ -2593,6 +2593,7 @@ export type Database = {
           kunde_ort: string | null
           kunde_plz: string | null
           kunde_strasse: string | null
+          linen_order_id: string | null
           mwst_betrag: number | null
           mwst_satz: number | null
           nettobetrag: number | null
@@ -2620,6 +2621,7 @@ export type Database = {
           kunde_ort?: string | null
           kunde_plz?: string | null
           kunde_strasse?: string | null
+          linen_order_id?: string | null
           mwst_betrag?: number | null
           mwst_satz?: number | null
           nettobetrag?: number | null
@@ -2647,6 +2649,7 @@ export type Database = {
           kunde_ort?: string | null
           kunde_plz?: string | null
           kunde_strasse?: string | null
+          linen_order_id?: string | null
           mwst_betrag?: number | null
           mwst_satz?: number | null
           nettobetrag?: number | null
@@ -2658,7 +2661,15 @@ export type Database = {
           synced_at?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "laundry_invoices_linen_order_id_fkey"
+            columns: ["linen_order_id"]
+            isOneToOne: true
+            referencedRelation: "linen_orders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       laundry_staff: {
         Row: {
