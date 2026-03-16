@@ -353,6 +353,118 @@ export const useDraftInvoices = () => {
   });
 };
 
+// Create invoice and assign orders to it (2-step workflow)
+export const useCreateInvoiceWithOrders = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ invoiceData, orderIds }: {
+      invoiceData: {
+        rechnungsnummer: string;
+        rechnungsdatum: string;
+        faelligkeitsdatum?: string;
+        nettobetrag: number;
+        mwst_satz?: number;
+        mwst_betrag?: number;
+        bruttobetrag: number;
+        notes?: string;
+      };
+      orderIds: string[];
+    }) => {
+      // 1. Create the invoice
+      const { data: newInvoice, error: createError } = await supabase
+        .from('laundry_invoices')
+        .insert({
+          external_rechnung_id: crypto.randomUUID(),
+          rechnungsnummer: invoiceData.rechnungsnummer,
+          rechnungsdatum: invoiceData.rechnungsdatum,
+          faelligkeitsdatum: invoiceData.faelligkeitsdatum || null,
+          nettobetrag: invoiceData.nettobetrag,
+          mwst_satz: invoiceData.mwst_satz || null,
+          mwst_betrag: invoiceData.mwst_betrag || null,
+          bruttobetrag: invoiceData.bruttobetrag,
+          notes: invoiceData.notes || null,
+          status: 'offen',
+          kunde_name: 'Teuni Wäscheservice',
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      if (orderIds.length > 0) {
+        // 2. Get current invoice IDs of these orders (to delete orphaned drafts)
+        const { data: orders } = await supabase
+          .from('linen_orders')
+          .select('laundry_invoice_id')
+          .in('id', orderIds);
+
+        const oldInvoiceIds = [...new Set(
+          (orders || []).map(o => o.laundry_invoice_id).filter(Boolean)
+        )] as string[];
+
+        // 3. Re-link orders to the new invoice
+        const { error: updateError } = await supabase
+          .from('linen_orders')
+          .update({ laundry_invoice_id: newInvoice.id })
+          .in('id', orderIds);
+
+        if (updateError) throw updateError;
+
+        // 4. Delete orphaned draft invoices
+        if (oldInvoiceIds.length > 0) {
+          const { data: oldInvoices } = await supabase
+            .from('laundry_invoices')
+            .select('id, rechnungsnummer, bruttobetrag')
+            .in('id', oldInvoiceIds);
+
+          const draftIds = (oldInvoices || [])
+            .filter(inv => inv.rechnungsnummer?.startsWith('ENTWURF') && inv.bruttobetrag === 0)
+            .map(inv => inv.id);
+
+          if (draftIds.length > 0) {
+            // Check no other orders still reference these drafts
+            const { data: remainingOrders } = await supabase
+              .from('linen_orders')
+              .select('id')
+              .in('laundry_invoice_id', draftIds);
+
+            const orphanedDraftIds = draftIds.filter(dId => 
+              !(remainingOrders || []).some(o => o.id)
+            );
+
+            // Actually check per draft
+            for (const draftId of draftIds) {
+              const { data: stillLinked } = await supabase
+                .from('linen_orders')
+                .select('id')
+                .eq('laundry_invoice_id', draftId)
+                .limit(1);
+              
+              if (!stillLinked || stillLinked.length === 0) {
+                await supabase.from('laundry_invoices').delete().eq('id', draftId);
+              }
+            }
+          }
+        }
+      }
+
+      return newInvoice;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['laundry-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['draft-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['teuni-linen-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['assignable-linen-orders'] });
+      toast.success('Rechnung erstellt und Bestellungen zugeordnet');
+    },
+    onError: (error) => {
+      console.error('Create invoice with orders error:', error);
+      toast.error(`Fehler: ${error.message}`);
+    },
+  });
+};
+
 // Merge multiple draft invoices into one real invoice
 export const useMergeDraftInvoices = () => {
   const queryClient = useQueryClient();
