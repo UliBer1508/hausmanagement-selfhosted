@@ -120,7 +120,7 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
             </TabsList>
             
             <TabsContent value="orders" className="flex-1 overflow-auto mt-4">
-              <LaundryOrdersOverview />
+              {isTeuniProvider ? <TeuniOrdersOverview /> : <LaundryOrdersOverview />}
             </TabsContent>
             
             <TabsContent value="invoices" className="flex-1 overflow-auto mt-4">
