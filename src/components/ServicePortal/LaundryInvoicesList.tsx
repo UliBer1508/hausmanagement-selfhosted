@@ -155,18 +155,6 @@ export const LaundryInvoicesList = () => {
               Rechnungen (Teuni / Wäsche Oberpinzgau)
             </CardTitle>
             <div className="flex items-center gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle</SelectItem>
-                  <SelectItem value="offen">Offen</SelectItem>
-                  <SelectItem value="bezahlt">Bezahlt</SelectItem>
-                  <SelectItem value="mahnung">Mahnung</SelectItem>
-                  <SelectItem value="storniert">Storniert</SelectItem>
-                </SelectContent>
-              </Select>
               <Button
                 variant="outline"
                 size="sm"
@@ -207,39 +195,110 @@ export const LaundryInvoicesList = () => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="relative mb-4">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Suche nach Rechnungsnr., Datum, Betrag..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8"
-            />
+          {/* Filter Row */}
+          <div className="flex flex-wrap gap-3 items-end mb-4">
+            {/* Rechnungsnummer Suche */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Rechnungsnr.</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Suchen..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 w-[160px]"
+                />
+              </div>
+            </div>
+
+            {/* Datum Von */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Datum von</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateFrom ? format(dateFrom, 'dd.MM.yyyy', { locale: de }) : 'Von'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} locale={de} className={cn("p-3 pointer-events-auto")} />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Datum Bis */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Datum bis</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {dateTo ? format(dateTo, 'dd.MM.yyyy', { locale: de }) : 'Bis'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar mode="single" selected={dateTo} onSelect={setDateTo} locale={de} className={cn("p-3 pointer-events-auto")} />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Betrag Filter */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Betrag</label>
+              <Select value={amountFilter} onValueChange={setAmountFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Alle Beträge" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Beträge</SelectItem>
+                  <SelectItem value="0-100">0 – 100 €</SelectItem>
+                  <SelectItem value="100-500">100 – 500 €</SelectItem>
+                  <SelectItem value="500-1000">500 – 1.000 €</SelectItem>
+                  <SelectItem value="1000+">über 1.000 €</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status Filter */}
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="Alle Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Status</SelectItem>
+                  <SelectItem value="offen">Offen</SelectItem>
+                  <SelectItem value="bezahlt">Bezahlt</SelectItem>
+                  <SelectItem value="mahnung">Mahnung</SelectItem>
+                  <SelectItem value="storniert">Storniert</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Reset Filters */}
+            {(searchQuery || dateFrom || dateTo || amountFilter !== 'all' || statusFilter !== 'all') && (
+              <Button variant="ghost" size="sm" onClick={() => {
+                setSearchQuery('');
+                setDateFrom(undefined);
+                setDateTo(undefined);
+                setAmountFilter('all');
+                setStatusFilter('all');
+              }}>
+                <X className="h-4 w-4 mr-1" />
+                Zurücksetzen
+              </Button>
+            )}
           </div>
+
           {isLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
             </div>
-          ) : (() => {
-            const q = searchQuery.toLowerCase();
-            const filteredInvoices = invoices?.filter(inv => {
-              if (!q) return true;
-              const rechnungsnummer = inv.rechnungsnummer?.toLowerCase() || '';
-              const datum = inv.rechnungsdatum ? format(new Date(inv.rechnungsdatum), 'dd.MM.yyyy', { locale: de }) : '';
-              const faellig = inv.faelligkeitsdatum ? format(new Date(inv.faelligkeitsdatum), 'dd.MM.yyyy', { locale: de }) : '';
-              const betrag = formatCurrency(inv.bruttobetrag).toLowerCase();
-              const status = inv.status?.toLowerCase() || '';
-              return (
-                rechnungsnummer.includes(q) ||
-                datum.includes(q) ||
-                faellig.includes(q) ||
-                betrag.includes(q) ||
-                status.includes(q)
-              );
-            });
-            return filteredInvoices && filteredInvoices.length > 0 ? (
+          ) : filteredInvoices && filteredInvoices.length > 0 ? (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -357,8 +416,7 @@ export const LaundryInvoicesList = () => {
                 Rechnungen synchronisieren
               </Button>
             </div>
-          );
-          })()}
+          )}
         </CardContent>
       </Card>
 
