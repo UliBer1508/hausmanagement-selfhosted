@@ -1745,7 +1745,7 @@ const OriginalDashboard = () => {
                       </Button>
                       <Button 
                         variant="outline"
-                        className="w-full" 
+                        className="w-full bg-green-600 text-white border-green-600 hover:bg-green-700 hover:text-white" 
                         onClick={() => setSelectedProviderForBilling(provider)}
                       >
                         <FileSpreadsheet className="mr-2 h-4 w-4" />
