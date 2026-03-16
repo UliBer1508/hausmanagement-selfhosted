@@ -2593,7 +2593,6 @@ export type Database = {
           kunde_ort: string | null
           kunde_plz: string | null
           kunde_strasse: string | null
-          linen_order_id: string | null
           mwst_betrag: number | null
           mwst_satz: number | null
           nettobetrag: number | null
@@ -2621,7 +2620,6 @@ export type Database = {
           kunde_ort?: string | null
           kunde_plz?: string | null
           kunde_strasse?: string | null
-          linen_order_id?: string | null
           mwst_betrag?: number | null
           mwst_satz?: number | null
           nettobetrag?: number | null
@@ -2649,7 +2647,6 @@ export type Database = {
           kunde_ort?: string | null
           kunde_plz?: string | null
           kunde_strasse?: string | null
-          linen_order_id?: string | null
           mwst_betrag?: number | null
           mwst_satz?: number | null
           nettobetrag?: number | null
@@ -2661,15 +2658,7 @@ export type Database = {
           synced_at?: string | null
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "laundry_invoices_linen_order_id_fkey"
-            columns: ["linen_order_id"]
-            isOneToOne: true
-            referencedRelation: "linen_orders"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       laundry_staff: {
         Row: {
@@ -2801,6 +2790,7 @@ export type Database = {
           id: string
           item_variants: Json | null
           items: Json
+          laundry_invoice_id: string | null
           linen_color: string | null
           notes: string | null
           order_date: string
@@ -2827,6 +2817,7 @@ export type Database = {
           id?: string
           item_variants?: Json | null
           items: Json
+          laundry_invoice_id?: string | null
           linen_color?: string | null
           notes?: string | null
           order_date?: string
@@ -2853,6 +2844,7 @@ export type Database = {
           id?: string
           item_variants?: Json | null
           items?: Json
+          laundry_invoice_id?: string | null
           linen_color?: string | null
           notes?: string | null
           order_date?: string
@@ -2885,6 +2877,13 @@ export type Database = {
             columns: ["house_id"]
             isOneToOne: false
             referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "linen_orders_laundry_invoice_id_fkey"
+            columns: ["laundry_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "laundry_invoices"
             referencedColumns: ["id"]
           },
           {

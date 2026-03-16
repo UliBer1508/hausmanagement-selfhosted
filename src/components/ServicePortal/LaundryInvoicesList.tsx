@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil } from 'lucide-react';
+import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { useLaundryInvoices, useSyncLaundryInvoices, useMarkInvoicePaid, useInvo
 import { InvoiceDetailsDialog } from './InvoiceDetailsDialog';
 import { CreateInvoiceDialog } from './CreateInvoiceDialog';
 import { EditInvoiceDialog } from './EditInvoiceDialog';
+import { MergeInvoicesDialog } from './MergeInvoicesDialog';
 
 const isDraftInvoice = (invoice: LaundryInvoice) =>
   invoice.rechnungsnummer?.startsWith('ENTWURF') && invoice.bruttobetrag === 0;
@@ -22,6 +23,8 @@ export const LaundryInvoicesList = () => {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+  const [mergePreselectedId, setMergePreselectedId] = useState<string | undefined>();
 
   const { data: invoices, isLoading } = useLaundryInvoices({
     status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -155,6 +158,17 @@ export const LaundryInvoicesList = () => {
                 </SelectContent>
               </Select>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setMergePreselectedId(undefined);
+                  setMergeDialogOpen(true);
+                }}
+              >
+                <Merge className="h-4 w-4 mr-1" />
+                Zusammenführen
+              </Button>
+              <Button
                 variant="default"
                 size="sm"
                 onClick={() => setCreateDialogOpen(true)}
@@ -222,15 +236,29 @@ export const LaundryInvoicesList = () => {
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           {isDraftInvoice(invoice) ? (
-                            <Button
-                              variant="default"
-                              size="sm"
-                              onClick={() => handleEditInvoice(invoice)}
-                              title="Rechnungsdaten ausfüllen"
-                            >
-                              <Pencil className="h-4 w-4 mr-1" />
-                              Ausfüllen
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setMergePreselectedId(invoice.id);
+                                  setMergeDialogOpen(true);
+                                }}
+                                title="Mit anderen Entwürfen zusammenführen"
+                              >
+                                <Merge className="h-4 w-4 mr-1" />
+                                Zusammenführen
+                              </Button>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleEditInvoice(invoice)}
+                                title="Rechnungsdaten ausfüllen"
+                              >
+                                <Pencil className="h-4 w-4 mr-1" />
+                                Ausfüllen
+                              </Button>
+                            </div>
                           ) : (
                             <>
                               <Button
@@ -306,6 +334,12 @@ export const LaundryInvoicesList = () => {
         invoice={selectedInvoice}
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
+      />
+      {/* Merge Invoices Dialog */}
+      <MergeInvoicesDialog
+        open={mergeDialogOpen}
+        onOpenChange={setMergeDialogOpen}
+        preselectedInvoiceId={mergePreselectedId}
       />
     </div>
   );
