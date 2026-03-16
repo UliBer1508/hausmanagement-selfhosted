@@ -7,6 +7,7 @@ export interface LaundryInvoice {
   external_rechnung_id: string;
   external_bestellung_id: string | null;
   external_kunde_id: string | null;
+  linen_order_id: string | null;
   rechnungsnummer: string;
   rechnungsdatum: string;
   faelligkeitsdatum: string | null;
