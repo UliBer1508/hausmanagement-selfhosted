@@ -26,6 +26,7 @@ export const LaundryInvoicesList = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [mergePreselectedId, setMergePreselectedId] = useState<string | undefined>();
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
 
   const { data: invoices, isLoading } = useLaundryInvoices({
     status: statusFilter !== 'all' ? statusFilter : undefined,
