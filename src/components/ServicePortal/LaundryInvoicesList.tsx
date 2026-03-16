@@ -351,6 +351,11 @@ export const LaundryInvoicesList = () => {
         onOpenChange={setMergeDialogOpen}
         preselectedInvoiceId={mergePreselectedId}
       />
+      {/* Assign Orders to Invoice Dialog */}
+      <AssignOrdersToInvoiceDialog
+        open={assignDialogOpen}
+        onOpenChange={setAssignDialogOpen}
+      />
     </div>
   );
 };
