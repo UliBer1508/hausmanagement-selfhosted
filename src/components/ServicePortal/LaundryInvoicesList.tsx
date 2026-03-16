@@ -11,12 +11,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useLaundryInvoices, useSyncLaundryInvoices, useMarkInvoicePaid, useInvoiceStats, LaundryInvoice } from '@/hooks/useLaundryInvoices';
 import { InvoiceDetailsDialog } from './InvoiceDetailsDialog';
 import { CreateInvoiceDialog } from './CreateInvoiceDialog';
+import { EditInvoiceDialog } from './EditInvoiceDialog';
+
+const isDraftInvoice = (invoice: LaundryInvoice) =>
+  invoice.rechnungsnummer?.startsWith('ENTWURF') && invoice.bruttobetrag === 0;
 
 export const LaundryInvoicesList = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<LaundryInvoice | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const { data: invoices, isLoading } = useLaundryInvoices({
     status: statusFilter !== 'all' ? statusFilter : undefined,
