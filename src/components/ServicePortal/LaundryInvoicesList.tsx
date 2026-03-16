@@ -335,6 +335,12 @@ export const LaundryInvoicesList = () => {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
       />
+      {/* Merge Invoices Dialog */}
+      <MergeInvoicesDialog
+        open={mergeDialogOpen}
+        onOpenChange={setMergeDialogOpen}
+        preselectedInvoiceId={mergePreselectedId}
+      />
     </div>
   );
 };
