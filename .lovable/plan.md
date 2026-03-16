@@ -1,44 +1,32 @@
 
 
-# Filter- und Selektionsfunktion für TeuniOrdersOverview
+# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
 
-## Änderungen in `src/components/ServicePortal/TeuniOrdersOverview.tsx`
+## Problem
+Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
 
-### Neue Filter-Leiste oberhalb der Tabelle
+Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
 
-Drei Filter nebeneinander zwischen den Summary Cards und der Tabelle:
+## Lösung
 
-```text
-[🔍 Haus ▼]  [📅 Lieferdatum von-bis]  [Status ▼]  [Checkboxen in Tabelle]
+**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
+
+Änderung von `>` zu `>=`:
+
+```typescript
+// Vorher:
+const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+
+// Nachher:
+const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
 ```
 
-1. **Haus-Filter**: Select-Dropdown mit allen einzigartigen Hausnamen aus den geladenen Bestellungen. Option "Alle Häuser" als Default.
+Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
 
-2. **Datum-Filter**: Zwei Datepicker (Von/Bis) für den Lieferdatum-Bereich. Filtert `delivery_date` clientseitig.
+## Auswirkung
+- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
+- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
+- Checkout am Monatsende / außerhalb: Keine Änderung
 
-3. **Status-Filter**: Select-Dropdown mit den Status-Werten (Offen, Ausstehend, Bestellt, Geliefert, Storniert). Option "Alle Status" als Default.
-
-4. **Checkboxen**: Checkbox-Spalte in jeder Zeile + Select-All im Header. Aktionsleiste bei Auswahl mit Anzahl und "Rechnung erstellen" Button.
-
-### Technische Details
-
-- States: `houseFilter`, `statusFilter`, `dateFrom`, `dateTo`, `selectedOrderIds` (Set)
-- Hausnamen werden per `useMemo` aus `linenOrders` extrahiert
-- Gefilterte Liste per `useMemo` mit allen Filtern kombiniert
-- Statistik-Cards zeigen weiterhin ungefilterte Gesamtwerte
-- Imports: `Select`, `Input` (oder Datepicker), `Checkbox`, `useState`
-- ColSpan der leeren Zeile wird auf 9 erhöht (neue Checkbox-Spalte)
-
-### Layout
-```text
-┌──────────────┬──────────────────────┬──────────────┐
-│ Haus: [Alle] │ Von: [__] Bis: [__]  │ Status:[Alle]│
-└──────────────┴──────────────────────┴──────────────┘
-┌─────────────────────────────────────────────────────┐
-│ ☐ │ Lieferdatum │ Haus │ Gast │ ... │ Status │ ... │
-│ ☑ │ 15.03.2026  │ Haus1│ ...  │ ... │ Offen  │ ... │
-│ ☐ │ 12.03.2026  │ Haus2│ ...  │ ... │ ...    │ ... │
-└─────────────────────────────────────────────────────┘
-[ 2 ausgewählt ]                    [ Rechnung erstellen ]
-```
+Eine Zeile, ein Zeichen.
 
