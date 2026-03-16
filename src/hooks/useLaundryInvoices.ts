@@ -533,3 +533,65 @@ export const useMergeDraftInvoices = () => {
     },
   });
 };
+
+// Update invoice and optionally merge other drafts into it
+export const useUpdateInvoiceAndMerge = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ invoiceId, data, mergeDraftIds }: {
+      invoiceId: string;
+      data: {
+        rechnungsnummer?: string;
+        rechnungsdatum?: string;
+        faelligkeitsdatum?: string | null;
+        nettobetrag?: number | null;
+        mwst_satz?: number | null;
+        mwst_betrag?: number | null;
+        bruttobetrag?: number;
+        notes?: string | null;
+      };
+      mergeDraftIds?: string[];
+    }) => {
+      // 1. Update invoice data
+      const { error: updateError } = await supabase
+        .from('laundry_invoices')
+        .update(data)
+        .eq('id', invoiceId);
+
+      if (updateError) throw updateError;
+
+      // 2. Re-link orders from merged drafts to this invoice
+      if (mergeDraftIds && mergeDraftIds.length > 0) {
+        const { error: relinkError } = await supabase
+          .from('linen_orders')
+          .update({ laundry_invoice_id: invoiceId })
+          .in('laundry_invoice_id', mergeDraftIds);
+
+        if (relinkError) throw relinkError;
+
+        // 3. Delete the now-empty draft invoices
+        const { error: deleteError } = await supabase
+          .from('laundry_invoices')
+          .delete()
+          .in('id', mergeDraftIds);
+
+        if (deleteError) throw deleteError;
+      }
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['laundry-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['draft-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-linked-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['teuni-linen-orders'] });
+      const merged = variables.mergeDraftIds?.length || 0;
+      toast.success(merged > 0
+        ? `Rechnung aktualisiert und ${merged} Entwurf/Entwürfe zugeordnet`
+        : 'Rechnung aktualisiert');
+    },
+    onError: (error) => {
+      console.error('Update and merge error:', error);
+      toast.error(`Fehler: ${error.message}`);
+    },
+  });
+};
