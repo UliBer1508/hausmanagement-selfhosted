@@ -7,6 +7,7 @@ export interface LaundryInvoice {
   external_rechnung_id: string;
   external_bestellung_id: string | null;
   external_kunde_id: string | null;
+  linen_order_id: string | null;
   rechnungsnummer: string;
   rechnungsdatum: string;
   faelligkeitsdatum: string | null;
@@ -220,6 +221,41 @@ export const useCreateLaundryInvoice = () => {
     onError: (error) => {
       console.error('Error creating invoice:', error);
       toast.error(`Fehler beim Erstellen: ${error.message}`);
+    },
+  });
+};
+
+export const useUpdateLaundryInvoice = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ invoiceId, data }: { 
+      invoiceId: string; 
+      data: {
+        rechnungsnummer?: string;
+        rechnungsdatum?: string;
+        faelligkeitsdatum?: string | null;
+        nettobetrag?: number | null;
+        mwst_satz?: number | null;
+        mwst_betrag?: number | null;
+        bruttobetrag?: number;
+        notes?: string | null;
+      }
+    }) => {
+      const { error } = await supabase
+        .from('laundry_invoices')
+        .update(data)
+        .eq('id', invoiceId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['laundry-invoices'] });
+      toast.success('Rechnung aktualisiert');
+    },
+    onError: (error) => {
+      console.error('Error updating invoice:', error);
+      toast.error('Fehler beim Aktualisieren der Rechnung');
     },
   });
 };

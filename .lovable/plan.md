@@ -1,39 +1,32 @@
 
 
-# Klarstellung: Wir verwenden die bestehende `laundry_invoices` Tabelle
+# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
 
-Du hast recht – es wird **keine neue Tabelle** erstellt. Der Plan nutzt die **bestehende `laundry_invoices` Tabelle** (die auch im "Rechnungen"-Tab der Abrechnung-Teuni-Dialog angezeigt wird).
+## Problem
+Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
 
-## Was passiert konkret
+Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
 
-### 1. Kleine Erweiterung der bestehenden Tabelle
-- Neue Spalte `linen_order_id` (UUID, nullable, unique) wird zur **bestehenden** `laundry_invoices` Tabelle hinzugefügt
-- Damit wird jede Rechnung mit ihrer Wäschebestellung verknüpft
+## Lösung
 
-### 2. Datenbank-Trigger
-- Wenn eine Wäschebestellung (`linen_orders`) erstellt wird, wird automatisch ein Platzhalter-Eintrag in `laundry_invoices` eingefügt
-- Status `offen`, Bruttobetrag `0`, Rechnungsnummer `ENTWURF-...`
-- Dieser erscheint dann direkt im bestehenden "Rechnungen"-Tab
+**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
 
-### 3. Frontend: Edit-Funktion für Entwürfe
-- Entwurfs-Rechnungen visuell kennzeichnen (Badge "📝 Entwurf")
-- Edit-Dialog zum Ausfüllen der echten Rechnungsdaten (Nummer, Beträge, Datum) wenn die Teuni-Rechnung kommt
+Änderung von `>` zu `>=`:
 
-### Ablauf
-```text
-Wäschebestellung erstellt
-        │
-        ▼
-Trigger: Platzhalter in laundry_invoices (bestehende Tabelle!)
-        │
-        ▼
-Erscheint im "Rechnungen"-Tab als Entwurf
-        │
-        ▼
-Teuni-Rechnung kommt → Nutzer füllt echte Daten aus
+```typescript
+// Vorher:
+const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+
+// Nachher:
+const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
 ```
 
-**Änderungen in 2 Dateien:**
-- **Migration:** ALTER TABLE `laundry_invoices` ADD COLUMN + Trigger-Funktion
-- **`LaundryInvoicesList.tsx`:** Entwurf-Badge + Edit-Dialog für Rechnungsdaten
+Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
+
+## Auswirkung
+- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
+- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
+- Checkout am Monatsende / außerhalb: Keine Änderung
+
+Eine Zeile, ein Zeichen.
 

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus } from 'lucide-react';
+import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,12 +11,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useLaundryInvoices, useSyncLaundryInvoices, useMarkInvoicePaid, useInvoiceStats, LaundryInvoice } from '@/hooks/useLaundryInvoices';
 import { InvoiceDetailsDialog } from './InvoiceDetailsDialog';
 import { CreateInvoiceDialog } from './CreateInvoiceDialog';
+import { EditInvoiceDialog } from './EditInvoiceDialog';
+
+const isDraftInvoice = (invoice: LaundryInvoice) =>
+  invoice.rechnungsnummer?.startsWith('ENTWURF') && invoice.bruttobetrag === 0;
 
 export const LaundryInvoicesList = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<LaundryInvoice | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   const { data: invoices, isLoading } = useLaundryInvoices({
     status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -59,6 +64,11 @@ export const LaundryInvoicesList = () => {
   const handleViewDetails = (invoice: LaundryInvoice) => {
     setSelectedInvoice(invoice);
     setDetailsOpen(true);
+  };
+
+  const handleEditInvoice = (invoice: LaundryInvoice) => {
+    setSelectedInvoice(invoice);
+    setEditDialogOpen(true);
   };
 
   const handleMarkPaid = (invoice: LaundryInvoice) => {
@@ -187,7 +197,14 @@ export const LaundryInvoicesList = () => {
                 <TableBody>
                   {invoices.map((invoice) => (
                     <TableRow key={invoice.id}>
-                      <TableCell className="font-medium">{invoice.rechnungsnummer}</TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          {invoice.rechnungsnummer}
+                          {isDraftInvoice(invoice) && (
+                            <Badge variant="outline" className="text-xs border-dashed">📝 Entwurf</Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         {format(new Date(invoice.rechnungsdatum), 'dd.MM.yyyy', { locale: de })}
                       </TableCell>
@@ -197,30 +214,54 @@ export const LaundryInvoicesList = () => {
                           : '-'}
                       </TableCell>
                       <TableCell className="text-right font-medium">
-                        {formatCurrency(invoice.bruttobetrag)}
+                        {isDraftInvoice(invoice) ? (
+                          <span className="text-muted-foreground italic">ausstehend</span>
+                        ) : formatCurrency(invoice.bruttobetrag)}
                       </TableCell>
                       <TableCell>{getStatusBadge(invoice)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewDetails(invoice)}
-                            title="Details anzeigen"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {invoice.status === 'offen' && (
+                          {isDraftInvoice(invoice) ? (
                             <Button
-                              variant="ghost"
+                              variant="default"
                               size="sm"
-                              onClick={() => handleMarkPaid(invoice)}
-                              disabled={markPaidMutation.isPending}
-                              title="Als bezahlt markieren"
-                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => handleEditInvoice(invoice)}
+                              title="Rechnungsdaten ausfüllen"
                             >
-                              <Check className="h-4 w-4" />
+                              <Pencil className="h-4 w-4 mr-1" />
+                              Ausfüllen
                             </Button>
+                          ) : (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewDetails(invoice)}
+                                title="Details anzeigen"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditInvoice(invoice)}
+                                title="Bearbeiten"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              {invoice.status === 'offen' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleMarkPaid(invoice)}
+                                  disabled={markPaidMutation.isPending}
+                                  title="Als bezahlt markieren"
+                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       </TableCell>
@@ -259,6 +300,12 @@ export const LaundryInvoicesList = () => {
       <CreateInvoiceDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
+      />
+      {/* Edit Invoice Dialog */}
+      <EditInvoiceDialog
+        invoice={selectedInvoice}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
       />
     </div>
   );
