@@ -301,6 +301,12 @@ export const LaundryInvoicesList = () => {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
       />
+      {/* Edit Invoice Dialog */}
+      <EditInvoiceDialog
+        invoice={selectedInvoice}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+      />
     </div>
   );
 };
