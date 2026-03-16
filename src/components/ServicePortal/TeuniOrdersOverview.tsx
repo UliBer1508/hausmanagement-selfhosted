@@ -3,6 +3,7 @@
  * Mit Filter (Haus, Datum, Status) und Checkbox-Auswahl
  */
 import React, { useMemo, useState } from 'react';
+import { AssignOrdersToInvoiceDialog } from './AssignOrdersToInvoiceDialog';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -58,6 +59,7 @@ export function TeuniOrdersOverview() {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
 
   const { data: linenOrders, isLoading, refetch } = useQuery({
     queryKey: ['teuni-linen-orders'],
@@ -306,10 +308,17 @@ export function TeuniOrdersOverview() {
           <span className="text-sm font-medium">{selectedOrderIds.size} Bestellung(en) ausgewählt</span>
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={() => setSelectedOrderIds(new Set())}>Auswahl aufheben</Button>
-            <Button size="sm">Rechnung erstellen</Button>
+            <Button size="sm" onClick={() => setAssignDialogOpen(true)}>Rechnung erstellen</Button>
           </div>
         </div>
       )}
+
+      <AssignOrdersToInvoiceDialog
+        open={assignDialogOpen}
+        onOpenChange={setAssignDialogOpen}
+        preselectedOrderIds={Array.from(selectedOrderIds)}
+        onSuccess={() => setSelectedOrderIds(new Set())}
+      />
     </div>
   );
 }
