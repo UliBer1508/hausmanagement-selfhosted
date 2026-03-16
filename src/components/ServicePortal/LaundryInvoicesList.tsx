@@ -171,6 +171,14 @@ export const LaundryInvoicesList = () => {
                 Zusammenführen
               </Button>
               <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAssignDialogOpen(true)}
+              >
+                <ListChecks className="h-4 w-4 mr-1" />
+                Rechnung + Zuordnung
+              </Button>
+              <Button
                 variant="default"
                 size="sm"
                 onClick={() => setCreateDialogOpen(true)}
