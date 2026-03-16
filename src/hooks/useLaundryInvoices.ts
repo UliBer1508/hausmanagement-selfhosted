@@ -304,3 +304,120 @@ export const useInvoiceStats = () => {
 
   return { stats, isLoading };
 };
+
+// Get linked linen orders for an invoice
+export const useInvoiceLinkedOrders = (invoiceId: string | null) => {
+  return useQuery({
+    queryKey: ['invoice-linked-orders', invoiceId],
+    queryFn: async () => {
+      if (!invoiceId) return [];
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .select('id, order_date, house_id, status, houses(name)')
+        .eq('laundry_invoice_id', invoiceId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!invoiceId,
+  });
+};
+
+// Get all draft invoices (for merge selection)
+export const useDraftInvoices = () => {
+  return useQuery({
+    queryKey: ['draft-invoices'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('laundry_invoices')
+        .select('*')
+        .like('rechnungsnummer', 'ENTWURF-%')
+        .eq('bruttobetrag', 0)
+        .order('rechnungsdatum', { ascending: false });
+      if (error) throw error;
+
+      // Get linked orders for each draft
+      const invoiceIds = (data || []).map(d => d.id);
+      const { data: orders } = await supabase
+        .from('linen_orders')
+        .select('id, order_date, house_id, laundry_invoice_id, houses(name)')
+        .in('laundry_invoice_id', invoiceIds);
+
+      return (data || []).map(invoice => ({
+        ...invoice,
+        positionen: Array.isArray(invoice.positionen)
+          ? invoice.positionen as unknown as InvoicePosition[]
+          : null,
+        linkedOrder: (orders || []).find(o => o.laundry_invoice_id === invoice.id),
+      }));
+    },
+  });
+};
+
+// Merge multiple draft invoices into one real invoice
+export const useMergeDraftInvoices = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ draftInvoiceIds, invoiceData }: {
+      draftInvoiceIds: string[];
+      invoiceData: {
+        rechnungsnummer: string;
+        rechnungsdatum: string;
+        faelligkeitsdatum?: string;
+        nettobetrag: number;
+        mwst_satz?: number;
+        mwst_betrag?: number;
+        bruttobetrag: number;
+        notes?: string;
+      };
+    }) => {
+      // 1. Create the real invoice
+      const { data: newInvoice, error: createError } = await supabase
+        .from('laundry_invoices')
+        .insert({
+          external_rechnung_id: crypto.randomUUID(),
+          rechnungsnummer: invoiceData.rechnungsnummer,
+          rechnungsdatum: invoiceData.rechnungsdatum,
+          faelligkeitsdatum: invoiceData.faelligkeitsdatum || null,
+          nettobetrag: invoiceData.nettobetrag,
+          mwst_satz: invoiceData.mwst_satz || null,
+          mwst_betrag: invoiceData.mwst_betrag || null,
+          bruttobetrag: invoiceData.bruttobetrag,
+          notes: invoiceData.notes || null,
+          status: 'offen',
+          kunde_name: 'Teuni Wäscheservice',
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      // 2. Re-link all orders from draft invoices to the new invoice
+      const { error: updateError } = await supabase
+        .from('linen_orders')
+        .update({ laundry_invoice_id: newInvoice.id })
+        .in('laundry_invoice_id', draftInvoiceIds);
+
+      if (updateError) throw updateError;
+
+      // 3. Delete the draft invoices
+      const { error: deleteError } = await supabase
+        .from('laundry_invoices')
+        .delete()
+        .in('id', draftInvoiceIds);
+
+      if (deleteError) throw deleteError;
+
+      return newInvoice;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['laundry-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['draft-invoices'] });
+      toast.success('Entwürfe zu einer Rechnung zusammengeführt');
+    },
+    onError: (error) => {
+      console.error('Merge error:', error);
+      toast.error(`Fehler beim Zusammenführen: ${error.message}`);
+    },
+  });
+};
