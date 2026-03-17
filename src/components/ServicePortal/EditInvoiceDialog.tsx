@@ -17,7 +17,9 @@ interface EditInvoiceDialogProps {
 
 export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDialogProps) => {
   const updateAndMergeMutation = useUpdateInvoiceAndMerge();
+  const deleteMutation = useDeleteLaundryInvoice();
   const { data: allDrafts } = useDraftInvoices();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [form, setForm] = useState({
     rechnungsnummer: '',
