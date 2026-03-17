@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge, ListChecks, Search, CalendarIcon, X } from 'lucide-react';
+import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge, ListChecks, Search, CalendarIcon, X, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,8 +11,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { useLaundryInvoices, useSyncLaundryInvoices, useMarkInvoicePaid, useInvoiceStats, LaundryInvoice } from '@/hooks/useLaundryInvoices';
+import { useLaundryInvoices, useSyncLaundryInvoices, useMarkInvoicePaid, useDeleteLaundryInvoice, useInvoiceStats, LaundryInvoice } from '@/hooks/useLaundryInvoices';
 import { InvoiceDetailsDialog } from './InvoiceDetailsDialog';
 import { CreateInvoiceDialog } from './CreateInvoiceDialog';
 import { EditInvoiceDialog } from './EditInvoiceDialog';
@@ -35,6 +36,7 @@ export const LaundryInvoicesList = () => {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [amountFilter, setAmountFilter] = useState<string>('all');
+  const [deleteInvoice, setDeleteInvoice] = useState<LaundryInvoice | null>(null);
 
   const { data: invoices, isLoading } = useLaundryInvoices({
     status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -42,6 +44,7 @@ export const LaundryInvoicesList = () => {
   const { stats, isLoading: statsLoading } = useInvoiceStats();
   const syncMutation = useSyncLaundryInvoices();
   const markPaidMutation = useMarkInvoicePaid();
+  const deleteMutation = useDeleteLaundryInvoice();
 
   const filteredInvoices = useMemo(() => {
     if (!invoices) return [];
@@ -382,6 +385,15 @@ export const LaundryInvoicesList = () => {
                                 <Pencil className="h-4 w-4 mr-1" />
                                 Ausfüllen
                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeleteInvoice(invoice)}
+                                title="Löschen"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           ) : (
                             <>
@@ -413,6 +425,15 @@ export const LaundryInvoicesList = () => {
                                   <Check className="h-4 w-4" />
                                 </Button>
                               )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeleteInvoice(invoice)}
+                                title="Löschen"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </>
                           )}
                         </div>
@@ -470,6 +491,32 @@ export const LaundryInvoicesList = () => {
         open={assignDialogOpen}
         onOpenChange={setAssignDialogOpen}
       />
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteInvoice} onOpenChange={(open) => !open && setDeleteInvoice(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rechnung löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie die Rechnung <strong>{deleteInvoice?.rechnungsnummer}</strong> wirklich löschen?
+              Verknüpfte Bestellungen werden nicht gelöscht, sondern nur von der Rechnung getrennt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteInvoice) {
+                  deleteMutation.mutate(deleteInvoice.id);
+                  setDeleteInvoice(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

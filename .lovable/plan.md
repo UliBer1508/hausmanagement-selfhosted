@@ -1,34 +1,32 @@
 
 
-# Bugfix: Entwurf-Rechnungsdatum + Löschfunktion
+# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
 
-## Problem 1: Falsches Datum bei automatisch erstellten Rechnungen
+## Problem
+Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
 
-Der Trigger `create_draft_invoice_for_linen_order` setzt `rechnungsdatum` auf `NEW.order_date`. Das Datum `02.01.2026` kommt vermutlich daher, dass alle bestehenden `linen_orders` dieses `order_date` hatten, als der Trigger per Migration nachträglich ausgelöst wurde (oder die Bestellungen tatsächlich alle dasselbe Datum haben).
+Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
 
-**Fix:** Der Trigger selbst ist korrekt (er verwendet das Bestelldatum). Das Problem sind die bereits existierenden fehlerhaften Entwürfe. Diese sollten per SQL-Migration korrigiert werden:
+## Lösung
 
-- Migration: Update aller ENTWURF-Rechnungen, deren `rechnungsdatum` auf das tatsächliche `order_date` der verknüpften `linen_order` gesetzt wird (über `linen_orders.laundry_invoice_id`).
-- Zusätzlich: Trigger anpassen, sodass `rechnungsdatum` auf `CURRENT_DATE` statt `NEW.order_date` gesetzt wird — da das Rechnungsdatum logisch das Erstellungsdatum der Rechnung ist, nicht das Bestelldatum.
+**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
 
-## Problem 2: Löschfunktion für Rechnungen
+Änderung von `>` zu `>=`:
 
-Aktuell gibt es keine Möglichkeit, Rechnungen zu löschen. Folgende Änderungen:
+```typescript
+// Vorher:
+const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
 
-### Hook (`useLaundryInvoices.ts`)
-- Neuer `useDeleteLaundryInvoice` Hook:
-  - Setzt `laundry_invoice_id = null` auf allen verknüpften `linen_orders`
-  - Löscht die Rechnung aus `laundry_invoices`
-  - Invalidiert Queries
-  - Zeigt Toast
+// Nachher:
+const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
+```
 
-### UI (`LaundryInvoicesList.tsx`)
-- Lösch-Button (Trash-Icon) in der Aktionsspalte jeder Zeile
-- Bestätigungsdialog (AlertDialog) vor dem Löschen
-- Für Entwürfe und reguläre Rechnungen verfügbar
+Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
 
-### Zusammenfassung der Dateien
-1. **Neue Migration** — Korrektur der ENTWURF-Daten + Trigger-Anpassung (`rechnungsdatum = CURRENT_DATE`)
-2. **`src/hooks/useLaundryInvoices.ts`** — Neuer `useDeleteLaundryInvoice` Hook
-3. **`src/components/ServicePortal/LaundryInvoicesList.tsx`** — Lösch-Button + Bestätigungsdialog mit AlertDialog
+## Auswirkung
+- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
+- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
+- Checkout am Monatsende / außerhalb: Keine Änderung
+
+Eine Zeile, ein Zeichen.
 
