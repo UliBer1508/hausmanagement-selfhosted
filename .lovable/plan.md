@@ -1,32 +1,38 @@
 
 
-# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
+# Fix: Entwurf-Rechnungsdatum auf Lieferdatum + Löschfunktion prüfen
 
-## Problem
-Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
+## Befund
 
-Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
+1. **Falsches Datum**: Der Trigger `create_draft_invoice_for_linen_order` verwendet aktuell `CURRENT_DATE`. Die letzte Migration hat es von `order_date` auf `CURRENT_DATE` geändert. Der User möchte aber das **Lieferdatum** (`delivery_date`). Aktuell haben 34 Entwürfe ein falsches Datum.
 
-## Lösung
+2. **Löschfunktion**: Der Code für die Löschfunktion (Hook `useDeleteLaundryInvoice`, Trash-Button, AlertDialog) ist bereits im Code vorhanden und korrekt implementiert. Die Buttons sind in der Aktionsspalte sowohl für Entwürfe als auch reguläre Rechnungen sichtbar. Möglicherweise wurde der letzte Build noch nicht vollständig geladen.
 
-**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
+## Änderungen
 
-Änderung von `>` zu `>=`:
+### 1. Neue Migration — Trigger auf `delivery_date` umstellen
+Datei: `supabase/migrations/<timestamp>.sql`
 
-```typescript
-// Vorher:
-const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+```sql
+CREATE OR REPLACE FUNCTION public.create_draft_invoice_for_linen_order()
+  ...
+  -- Statt CURRENT_DATE:
+  COALESCE(NEW.delivery_date::date, CURRENT_DATE),
+  ...
 
-// Nachher:
-const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
+-- Bestehende Entwürfe korrigieren:
+UPDATE laundry_invoices li
+SET rechnungsdatum = lo.delivery_date::date
+FROM linen_orders lo
+WHERE lo.laundry_invoice_id = li.id
+  AND li.rechnungsnummer LIKE 'ENTWURF-%'
+  AND lo.delivery_date IS NOT NULL;
 ```
 
-Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
+### 2. Keine Code-Änderungen nötig
+Die Löschfunktion (`useDeleteLaundryInvoice`, Trash2-Button, AlertDialog) ist bereits vollständig implementiert in:
+- `src/hooks/useLaundryInvoices.ts` (Hook mit unlink + delete)
+- `src/components/ServicePortal/LaundryInvoicesList.tsx` (Button + Dialog)
 
-## Auswirkung
-- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
-- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
-- Checkout am Monatsende / außerhalb: Keine Änderung
-
-Eine Zeile, ein Zeichen.
+Nach dem Deployment sollte die Löschfunktion sichtbar und nutzbar sein.
 
