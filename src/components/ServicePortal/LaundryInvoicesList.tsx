@@ -385,6 +385,15 @@ export const LaundryInvoicesList = () => {
                                 <Pencil className="h-4 w-4 mr-1" />
                                 Ausfüllen
                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeleteInvoice(invoice)}
+                                title="Löschen"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           ) : (
                             <>
