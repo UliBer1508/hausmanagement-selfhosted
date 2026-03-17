@@ -491,6 +491,32 @@ export const LaundryInvoicesList = () => {
         open={assignDialogOpen}
         onOpenChange={setAssignDialogOpen}
       />
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteInvoice} onOpenChange={(open) => !open && setDeleteInvoice(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Rechnung löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie die Rechnung <strong>{deleteInvoice?.rechnungsnummer}</strong> wirklich löschen?
+              Verknüpfte Bestellungen werden nicht gelöscht, sondern nur von der Rechnung getrennt.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteInvoice) {
+                  deleteMutation.mutate(deleteInvoice.id);
+                  setDeleteInvoice(null);
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
