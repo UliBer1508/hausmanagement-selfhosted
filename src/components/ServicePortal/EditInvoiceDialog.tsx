@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Pencil, Merge } from 'lucide-react';
-import { LaundryInvoice, useDraftInvoices, useUpdateInvoiceAndMerge } from '@/hooks/useLaundryInvoices';
+import { Pencil, Merge, Trash2 } from 'lucide-react';
+import { LaundryInvoice, useDraftInvoices, useUpdateInvoiceAndMerge, useDeleteLaundryInvoice } from '@/hooks/useLaundryInvoices';
 
 interface EditInvoiceDialogProps {
   invoice: LaundryInvoice | null;
