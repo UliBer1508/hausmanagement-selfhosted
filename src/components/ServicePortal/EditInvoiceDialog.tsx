@@ -249,7 +249,16 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button
+            variant="destructive"
+            onClick={() => setConfirmDelete(true)}
+            disabled={deleteMutation.isPending}
+            className="sm:mr-auto"
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Löschen
+          </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
           <Button onClick={handleSave} disabled={updateAndMergeMutation.isPending}>
             {updateAndMergeMutation.isPending ? 'Speichert...' : 'Speichern'}
@@ -257,5 +266,36 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Rechnung löschen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Möchten Sie die Rechnung <strong>{invoice?.rechnungsnummer}</strong> wirklich löschen?
+            Verknüpfte Bestellungen werden nicht gelöscht, sondern nur von der Rechnung getrennt.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (invoice) {
+                deleteMutation.mutate(invoice.id, {
+                  onSuccess: () => {
+                    setConfirmDelete(false);
+                    onOpenChange(false);
+                  },
+                });
+              }
+            }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Löschen
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 };
