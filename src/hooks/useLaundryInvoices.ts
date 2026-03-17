@@ -259,6 +259,40 @@ export const useUpdateLaundryInvoice = () => {
     },
   });
 };
+export const useDeleteLaundryInvoice = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (invoiceId: string) => {
+      // 1. Unlink all linen_orders referencing this invoice
+      const { error: unlinkError } = await supabase
+        .from('linen_orders')
+        .update({ laundry_invoice_id: null })
+        .eq('laundry_invoice_id', invoiceId);
+
+      if (unlinkError) throw unlinkError;
+
+      // 2. Delete the invoice
+      const { error: deleteError } = await supabase
+        .from('laundry_invoices')
+        .delete()
+        .eq('id', invoiceId);
+
+      if (deleteError) throw deleteError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['laundry-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['draft-invoices'] });
+      queryClient.invalidateQueries({ queryKey: ['teuni-linen-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['invoice-linked-orders'] });
+      toast.success('Rechnung gelöscht');
+    },
+    onError: (error) => {
+      console.error('Error deleting invoice:', error);
+      toast.error('Fehler beim Löschen der Rechnung');
+    },
+  });
+};
 
 // Computed stats for invoices
 export const useInvoiceStats = () => {
