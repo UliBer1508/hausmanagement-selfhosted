@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge, ListChecks, Search, CalendarIcon, X, Trash2 } from 'lucide-react';
+import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge, ListChecks, Search, CalendarIcon, X, Trash2, MoreHorizontal } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { useLaundryInvoices, useSyncLaundryInvoices, useMarkInvoicePaid, useDeleteLaundryInvoice, useInvoiceStats, LaundryInvoice } from '@/hooks/useLaundryInvoices';
 import { InvoiceDetailsDialog } from './InvoiceDetailsDialog';
@@ -361,82 +362,58 @@ export const LaundryInvoicesList = () => {
                       </TableCell>
                       <TableCell>{getStatusBadge(invoice)}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          {isDraftInvoice(invoice) ? (
-                            <div className="flex gap-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {isDraftInvoice(invoice) ? (
+                              <>
+                                <DropdownMenuItem onClick={() => handleEditInvoice(invoice)}>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Ausfüllen
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
                                   setMergePreselectedId(invoice.id);
                                   setMergeDialogOpen(true);
-                                }}
-                                title="Mit anderen Entwürfen zusammenführen"
-                              >
-                                <Merge className="h-4 w-4 mr-1" />
-                                Zusammenführen
-                              </Button>
-                              <Button
-                                variant="default"
-                                size="sm"
-                                onClick={() => handleEditInvoice(invoice)}
-                                title="Rechnungsdaten ausfüllen"
-                              >
-                                <Pencil className="h-4 w-4 mr-1" />
-                                Ausfüllen
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDeleteInvoice(invoice)}
-                                title="Löschen"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleViewDetails(invoice)}
-                                title="Details anzeigen"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditInvoice(invoice)}
-                                title="Bearbeiten"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              {invoice.status === 'offen' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleMarkPaid(invoice)}
-                                  disabled={markPaidMutation.isPending}
-                                  title="Als bezahlt markieren"
-                                  className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                >
-                                  <Check className="h-4 w-4" />
-                                </Button>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDeleteInvoice(invoice)}
-                                title="Löschen"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                                }}>
+                                  <Merge className="h-4 w-4 mr-2" />
+                                  Zusammenführen
+                                </DropdownMenuItem>
+                              </>
+                            ) : (
+                              <>
+                                <DropdownMenuItem onClick={() => handleViewDetails(invoice)}>
+                                  <Eye className="h-4 w-4 mr-2" />
+                                  Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEditInvoice(invoice)}>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Bearbeiten
+                                </DropdownMenuItem>
+                                {invoice.status === 'offen' && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleMarkPaid(invoice)}
+                                    disabled={markPaidMutation.isPending}
+                                  >
+                                    <Check className="h-4 w-4 mr-2 text-green-600" />
+                                    Als bezahlt markieren
+                                  </DropdownMenuItem>
+                                )}
+                              </>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => setDeleteInvoice(invoice)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Löschen
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}

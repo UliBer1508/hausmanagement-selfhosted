@@ -1,44 +1,32 @@
 
-Ziel: Die Löschfunktion für Rechnungen klar sichtbar und zuverlässig nutzbar machen.
 
-Befund:
-- Die technische Löschlogik ist bereits vorhanden (`useDeleteLaundryInvoice`).
-- Auch ein Delete-Button existiert in `LaundryInvoicesList.tsx`, ist aber in der Praxis leicht „versteckt“ (enge Aktionsspalte, viele Buttons in einer Zeile, horizontales Scrollen im Tabellenbereich).
-- Deshalb wirkt es für Nutzer so, als ob die Funktion fehlt.
+# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
 
-Umsetzungsplan:
+## Problem
+Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
 
-1) Aktionen in der Rechnungsliste robust sichtbar machen
-- Datei: `src/components/ServicePortal/LaundryInvoicesList.tsx`
-- Aktionsspalte umbauen, damit „Löschen“ nicht mehr abgeschnitten ist:
-  - Entweder: kompakte Aktionsdarstellung mit `DropdownMenu` (Einträge: Details/Bearbeiten/Zusammenführen/Als bezahlt/Löschen)
-  - Oder: feste Spaltenbreite + `flex-wrap`, sodass Buttons umbrechen statt abgeschnitten zu werden.
-- „Löschen“ als klaren destruktiven Eintrag mit Text labeln (nicht nur Icon), damit es sofort auffindbar ist.
-- Pending-State berücksichtigen (`deleteMutation.isPending`), um Doppelklicks zu verhindern.
+Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
 
-2) Zweiten, klaren Lösch-Einstieg im Bearbeiten-Dialog ergänzen
-- Datei: `src/components/ServicePortal/EditInvoiceDialog.tsx`
-- Zusätzlich einen roten „Rechnung löschen“-Button im Dialog-Footer einbauen (mit `AlertDialog`-Bestätigung).
-- Vorteil: Auch wenn Tabellenaktion übersehen wird, ist Löschen direkt beim Bearbeiten erreichbar.
+## Lösung
 
-3) Bestehende Mutation weiterverwenden (kein neuer Backend-Code)
-- Datei: `src/hooks/useLaundryInvoices.ts`
-- Vorhandenen Hook `useDeleteLaundryInvoice` weiterverwenden:
-  - zuerst Verknüpfung in `linen_orders` lösen,
-  - dann Rechnung löschen,
-  - danach Query-Invalidierung + Toast.
-- Nur kleine UX-Ergänzung falls nötig (z. B. konsistente Fehlermeldung).
+**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
 
-Technische Details:
-- Primäre Ursache ist UI/Usability, nicht fehlende Lösch-Implementierung.
-- Es sind keine neuen Supabase-Migrationen nötig.
-- Betroffene Komponenten:
-  - `LaundryInvoicesList.tsx` (Sichtbarkeit/Bedienbarkeit)
-  - `EditInvoiceDialog.tsx` (zusätzlicher Zugriffspfad)
-  - optional kleiner Feinschliff in `useLaundryInvoices.ts`
+Änderung von `>` zu `>=`:
 
-Abnahme nach Umsetzung:
-1. In „Rechnungen“ ist pro Zeile eine klar erkennbare Löschoption sichtbar.
-2. Klick auf Löschen öffnet Bestätigungsdialog.
-3. Nach Bestätigung wird Rechnung gelöscht, verknüpfte Bestellungen bleiben erhalten (nur entkoppelt), Liste aktualisiert sich.
-4. Flow funktioniert für Entwurf und normale Rechnung bei aktueller Viewport-Breite (ca. 967px) ohne versteckte Aktion.
+```typescript
+// Vorher:
+const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
+
+// Nachher:
+const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
+```
+
+Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
+
+## Auswirkung
+- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
+- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
+- Checkout am Monatsende / außerhalb: Keine Änderung
+
+Eine Zeile, ein Zeichen.
+

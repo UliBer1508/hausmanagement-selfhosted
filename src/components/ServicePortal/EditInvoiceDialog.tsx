@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Pencil, Merge } from 'lucide-react';
-import { LaundryInvoice, useDraftInvoices, useUpdateInvoiceAndMerge } from '@/hooks/useLaundryInvoices';
+import { Pencil, Merge, Trash2 } from 'lucide-react';
+import { LaundryInvoice, useDraftInvoices, useUpdateInvoiceAndMerge, useDeleteLaundryInvoice } from '@/hooks/useLaundryInvoices';
 
 interface EditInvoiceDialogProps {
   invoice: LaundryInvoice | null;
@@ -16,7 +17,9 @@ interface EditInvoiceDialogProps {
 
 export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDialogProps) => {
   const updateAndMergeMutation = useUpdateInvoiceAndMerge();
+  const deleteMutation = useDeleteLaundryInvoice();
   const { data: allDrafts } = useDraftInvoices();
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [form, setForm] = useState({
     rechnungsnummer: '',
@@ -112,6 +115,7 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -246,7 +250,16 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <Button
+            variant="destructive"
+            onClick={() => setConfirmDelete(true)}
+            disabled={deleteMutation.isPending}
+            className="sm:mr-auto"
+          >
+            <Trash2 className="h-4 w-4 mr-1" />
+            Löschen
+          </Button>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
           <Button onClick={handleSave} disabled={updateAndMergeMutation.isPending}>
             {updateAndMergeMutation.isPending ? 'Speichert...' : 'Speichern'}
@@ -254,5 +267,36 @@ export const EditInvoiceDialog = ({ invoice, open, onOpenChange }: EditInvoiceDi
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Rechnung löschen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Möchten Sie die Rechnung <strong>{invoice?.rechnungsnummer}</strong> wirklich löschen?
+            Verknüpfte Bestellungen werden nicht gelöscht, sondern nur von der Rechnung getrennt.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (invoice) {
+                deleteMutation.mutate(invoice.id, {
+                  onSuccess: () => {
+                    setConfirmDelete(false);
+                    onOpenChange(false);
+                  },
+                });
+              }
+            }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Löschen
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 };
