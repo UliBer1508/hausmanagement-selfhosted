@@ -36,6 +36,7 @@ export const LaundryInvoicesList = () => {
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [amountFilter, setAmountFilter] = useState<string>('all');
+  const [deleteInvoice, setDeleteInvoice] = useState<LaundryInvoice | null>(null);
 
   const { data: invoices, isLoading } = useLaundryInvoices({
     status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -43,6 +44,7 @@ export const LaundryInvoicesList = () => {
   const { stats, isLoading: statsLoading } = useInvoiceStats();
   const syncMutation = useSyncLaundryInvoices();
   const markPaidMutation = useMarkInvoicePaid();
+  const deleteMutation = useDeleteLaundryInvoice();
 
   const filteredInvoices = useMemo(() => {
     if (!invoices) return [];
