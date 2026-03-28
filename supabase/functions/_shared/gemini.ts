@@ -272,15 +272,29 @@ export async function geminiStructuredOutput<T>(
     systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
     tools: [{ type: 'function', function: tool }],
-    toolChoice: { type: 'function', function: { name: tool.name } }
+    toolChoice: { type: 'function', function: { name: tool.name } },
+    maxTokens: 4096
   });
 
   const functionCalls = extractFunctionCalls(response);
-  if (!functionCalls || functionCalls.length === 0) {
-    throw new GeminiAPIError('No function call in response', 500, 'NO_FUNCTION_CALL');
+  if (functionCalls && functionCalls.length > 0) {
+    return functionCalls[0].args as T;
   }
 
-  return functionCalls[0].args as T;
+  // Fallback: try to parse JSON from text response
+  const text = extractTextFromResponse(response);
+  if (text) {
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]) as T;
+      }
+    } catch (e) {
+      console.error('Failed to parse fallback JSON from text:', e);
+    }
+  }
+
+  throw new GeminiAPIError('No function call in response', 500, 'NO_FUNCTION_CALL');
 }
 
 // Custom error classes
