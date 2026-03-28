@@ -345,19 +345,23 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
       const checkIn = parseISO(booking.check_in);
       const checkOut = parseISO(booking.check_out);
       
-      // Show booking if it overlaps with the time filter range
-      if (start && end) {
-        // Booking must end after filter start AND start before filter end
+      // For year filters, only check if check-in falls within the range
+      const isYearFilter = ['current-year', 'next-year', 'last-year'].includes(timeFilter);
+      
+      if (isYearFilter && start && end) {
+        if (isBefore(checkIn, start) || isAfter(checkIn, end)) {
+          return false;
+        }
+      } else if (start && end) {
+        // Overlap logic for other filters
         if (isBefore(checkOut, start) || isAfter(checkIn, end)) {
           return false;
         }
       } else if (start) {
-        // Only start date specified - booking must end after start
         if (isBefore(checkOut, start)) {
           return false;
         }
       } else if (end) {
-        // Only end date specified - booking must start before end
         if (isAfter(checkIn, end)) {
           return false;
         }

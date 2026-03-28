@@ -74,7 +74,7 @@ const CleaningManagement = () => {
 
   // Fetch bookings without cleaning tasks
   const { data: bookingsWithoutCleaning, isLoading: loadingBookings } = useQuery({
-    queryKey: ['bookings-without-cleaning', searchTerm, selectedHouse, timeFilter, providerFilter, bookingFilter],
+    queryKey: ['bookings-without-cleaning', searchTerm, selectedHouse, timeFilter, providerFilter, bookingFilter, statusFilter],
     queryFn: async () => {
       let query = supabase
         .from('bookings')
@@ -88,12 +88,14 @@ const CleaningManagement = () => {
         .neq('status', 'completed') // Exclude completed bookings
         .gte('check_out', new Date().toISOString()); // Only future or current bookings
 
-      if (searchTerm) {
-        query = query.or(`guest_name.ilike.%${searchTerm}%, houses.name.ilike.%${searchTerm}%`);
-      }
+      // Search filtering is done client-side after fetch (supports house name search)
 
       if (selectedHouse !== 'all') {
         query = query.eq('house_id', selectedHouse);
+      }
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter as any);
       }
 
       // Apply time filter
@@ -120,29 +122,33 @@ const CleaningManagement = () => {
 
       const { data } = await query;
 
-      if (bookingFilter === 'without_cleaning') {
-        // Filter for bookings without ANY cleaning tasks
-        return data?.filter(booking => {
-          const cleaningTasks = booking.service_tasks?.filter(
-            task => task.service_type === 'cleaning'
-          ) || [];
-          
-          // Return true only if there are NO cleaning tasks at all
-          return cleaningTasks.length === 0;
-        }) || [];
-      } else if (bookingFilter === 'with_cleaning') {
-        // Filter for bookings with ANY cleaning tasks
-        return data?.filter(booking => {
-          const cleaningTasks = booking.service_tasks?.filter(
-            task => task.service_type === 'cleaning'
-          ) || [];
-          
-          // Return true if there are ANY cleaning tasks
-          return cleaningTasks.length > 0;
-        }) || [];
+      // Client-side house name filter (PostgREST doesn't support joined table filters in .or())
+      let filtered = data || [];
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filtered = filtered.filter(booking => 
+          booking.guest_name?.toLowerCase().includes(term) ||
+          (booking.houses as any)?.name?.toLowerCase().includes(term)
+        );
       }
 
-      return data || [];
+      if (bookingFilter === 'without_cleaning') {
+        return filtered.filter(booking => {
+          const cleaningTasks = booking.service_tasks?.filter(
+            task => task.service_type === 'cleaning'
+          ) || [];
+          return cleaningTasks.length === 0;
+        });
+      } else if (bookingFilter === 'with_cleaning') {
+        return filtered.filter(booking => {
+          const cleaningTasks = booking.service_tasks?.filter(
+            task => task.service_type === 'cleaning'
+          ) || [];
+          return cleaningTasks.length > 0;
+        });
+      }
+
+      return filtered;
     },
     enabled: showBookingResults,
     refetchOnWindowFocus: false,
@@ -158,7 +164,7 @@ const CleaningManagement = () => {
 
   // Fetch all cleaning tasks
   const { data: cleaningTasks, isLoading: loadingTasks } = useQuery({
-    queryKey: ['cleaning-tasks', taskSearchTerm, taskProviderFilter, taskHouseFilter, taskTimeFilter, taskStatusFilter],
+    queryKey: ['cleaning-tasks', taskSearchTerm, taskProviderFilter, taskHouseFilter, taskStatusFilter],
     queryFn: async () => {
       let query = supabase
         .from('service_tasks')
