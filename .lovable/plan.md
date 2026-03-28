@@ -1,63 +1,27 @@
 
 
-# Buchungs-Widgets umstrukturieren
+# Fix: Reinigungskosten-Berechnung zu hoch
 
-## Aktuell (4 Widgets)
-1. Buchungen gesamt
-2. Bestätigt
-3. Abgeschlossen
-4. Gesamtumsatz (mit Gezahlt/Offen)
+## Befund
 
-## Neu (4 Widgets)
+Die `cleaningCostsForYear`-Berechnung in `BookingOverviewFixed.tsx` (Zeile 411-421) summiert **alle** `service_tasks` mit `service_type === 'cleaning'` im gewählten Jahr — ohne stornierte (`cancelled`) Aufträge auszuschließen.
 
-### Widget 1: Buchungsübersicht (3 Zähler kombiniert)
-```text
-┌────────────────────────────────┐
-│ 📊 Buchungen 2026              │
-│ 32 Gesamt                      │
-│ 11 Bestätigt · 16 Abgeschlossen│
-└────────────────────────────────┘
-```
+Das bedeutet: Stornierte Buchungen mit Reinigungsaufträgen, die ebenfalls storniert wurden, fließen trotzdem in die Kostensumme ein.
 
-### Widget 2: Reinigungskosten
-Summe `cleaning_cost` aus `service_tasks` (gefiltert nach `scheduled_date` im gewählten Jahr, `service_type = 'cleaning'`).
-```text
-┌────────────────────────────────┐
-│ 🧹 Reinigungskosten 2026       │
-│ 3.450 EUR                      │
-│ ✅ Bezahlt: 2.100 EUR          │
-│ ⚠️ Offen:  1.350 EUR           │
-└────────────────────────────────┘
-```
-Bezahlt/Offen über `payment_status` in `service_tasks`.
-
-### Widget 3: Wäschekosten
-Summe `bruttobetrag` aus `laundry_invoices` (gefiltert nach `rechnungsdatum` im gewählten Jahr).
-```text
-┌────────────────────────────────┐
-│ 👕 Wäschekosten 2026            │
-│ 5.230 EUR                      │
-│ ✅ Bezahlt: 3.800 EUR          │
-│ ⚠️ Offen:  1.430 EUR           │
-└────────────────────────────────┘
-```
-Bezahlt/Offen über `status` der Rechnungen (`bezahlt` vs. Rest).
-
-### Widget 4: Gesamtumsatz (bleibt exakt wie bisher)
-
-## Technische Umsetzung
+## Fix
 
 **Datei:** `src/components/Bookings/BookingOverviewFixed.tsx`
 
-1. **Zwei neue Queries** hinzufügen (neben dem bestehenden `bookings-overview` Query):
-   - `service_tasks` → `cleaning_cost`, `payment_status`, `scheduled_date`, `service_type`
-   - `laundry_invoices` → `bruttobetrag`, `status`, `rechnungsdatum`
+Eine zusätzliche Filterbedingung in der `cleaningCostsForYear`-Berechnung:
 
-2. **`yearStats` erweitern** um berechnete Felder:
-   - `cleaningCostsTotal` / `cleaningCostsPaid`
-   - `laundryCostsTotal` / `laundryCostsPaid`
+```typescript
+const yearTasks = serviceTasks.filter(t => 
+  t.service_type === 'cleaning' && 
+  t.scheduled_date && 
+  t.status !== 'cancelled' &&   // ← NEU: Stornierte ausschließen
+  new Date(t.scheduled_date).getFullYear() === selectedYear
+);
+```
 
-3. **Widget-Grid anpassen**: Erstes Widget zeigt alle 3 Zähler, Widgets 2+3 werden Reinigungs-/Wäschekosten, Widget 4 bleibt unverändert.
-
-Keine neuen Dateien oder Migrationen nötig.
+Nur diese eine Zeile wird ergänzt. Keine weiteren Änderungen nötig.
 
