@@ -413,6 +413,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
     const yearTasks = serviceTasks.filter(t => 
       t.service_type === 'cleaning' && 
       t.scheduled_date && 
+      t.status !== 'cancelled' &&
       new Date(t.scheduled_date).getFullYear() === selectedYear
     );
     const total = yearTasks.reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
