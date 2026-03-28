@@ -253,6 +253,18 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
     },
   });
 
+  // Fetch laundry invoices for cost widget
+  const { data: laundryInvoices } = useQuery({
+    queryKey: ['laundry-invoices-overview'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('laundry_invoices')
+        .select('id, bruttobetrag, status, rechnungsdatum');
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Auto-Open Booking Dialog wenn via Chat navigiert
   useEffect(() => {
     if (autoOpenBookingId && bookingsData) {
