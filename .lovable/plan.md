@@ -1,27 +1,28 @@
 
 
-# Fix: Reinigungskosten-Berechnung zu hoch
+# Fix: KI-Analyse fehlgeschlagen — "No function call in response"
 
 ## Befund
 
-Die `cleaningCostsForYear`-Berechnung in `BookingOverviewFixed.tsx` (Zeile 411-421) summiert **alle** `service_tasks` mit `service_type === 'cleaning'` im gewählten Jahr — ohne stornierte (`cancelled`) Aufträge auszuschließen.
-
-Das bedeutet: Stornierte Buchungen mit Reinigungsaufträgen, die ebenfalls storniert wurden, fließen trotzdem in die Kostensumme ein.
+Die Edge Function `analyze-vacancy` nutzt `geminiStructuredOutput()` aus `_shared/gemini.ts`. Diese Funktion erzwingt eine Gemini Function-Call-Antwort (`mode: ANY`). Gemini 2.5 Flash ignoriert dies manchmal und antwortet stattdessen mit reinem Text (JSON im Freitext). Die Funktion wirft dann den Fehler `"No function call in response"`.
 
 ## Fix
 
-**Datei:** `src/components/Bookings/BookingOverviewFixed.tsx`
+**Datei:** `supabase/functions/_shared/gemini.ts` — Funktion `geminiStructuredOutput` (Zeile 265-284)
 
-Eine zusätzliche Filterbedingung in der `cleaningCostsForYear`-Berechnung:
+Fallback-Logik einbauen: Wenn kein Function Call zurückkommt, aber Text vorhanden ist, versuche den Text als JSON zu parsen und die erwarteten Felder zu extrahieren.
 
-```typescript
-const yearTasks = serviceTasks.filter(t => 
-  t.service_type === 'cleaning' && 
-  t.scheduled_date && 
-  t.status !== 'cancelled' &&   // ← NEU: Stornierte ausschließen
-  new Date(t.scheduled_date).getFullYear() === selectedYear
-);
+```text
+geminiStructuredOutput():
+  1. API aufrufen (wie bisher)
+  2. Function Call vorhanden? → args zurückgeben (wie bisher)
+  3. NEU: Kein Function Call? → Text-Antwort prüfen
+     a. JSON aus Text extrahieren (regex für {...})
+     b. Erfolgreich? → geparstes Objekt zurückgeben
+     c. Fehlgeschlagen? → bisherigen Fehler werfen
 ```
 
-Nur diese eine Zeile wird ergänzt. Keine weiteren Änderungen nötig.
+Zusätzlich: `maxOutputTokens` auf 4096 erhöhen (aktuell Default 2048), da die Analyse-Antwort komplex ist und abgeschnittene Antworten ebenfalls zu fehlenden Function Calls führen können.
+
+Keine weiteren Dateien betroffen. Keine Migration nötig.
 
