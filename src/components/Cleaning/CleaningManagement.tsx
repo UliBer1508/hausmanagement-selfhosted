@@ -88,9 +88,7 @@ const CleaningManagement = () => {
         .neq('status', 'completed') // Exclude completed bookings
         .gte('check_out', new Date().toISOString()); // Only future or current bookings
 
-      if (searchTerm) {
-        query = query.ilike('guest_name', `%${searchTerm}%`);
-      }
+      // Search filtering is done client-side after fetch (supports house name search)
 
       if (selectedHouse !== 'all') {
         query = query.eq('house_id', selectedHouse);
