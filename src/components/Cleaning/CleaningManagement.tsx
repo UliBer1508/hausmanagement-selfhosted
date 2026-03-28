@@ -124,29 +124,33 @@ const CleaningManagement = () => {
 
       const { data } = await query;
 
-      if (bookingFilter === 'without_cleaning') {
-        // Filter for bookings without ANY cleaning tasks
-        return data?.filter(booking => {
-          const cleaningTasks = booking.service_tasks?.filter(
-            task => task.service_type === 'cleaning'
-          ) || [];
-          
-          // Return true only if there are NO cleaning tasks at all
-          return cleaningTasks.length === 0;
-        }) || [];
-      } else if (bookingFilter === 'with_cleaning') {
-        // Filter for bookings with ANY cleaning tasks
-        return data?.filter(booking => {
-          const cleaningTasks = booking.service_tasks?.filter(
-            task => task.service_type === 'cleaning'
-          ) || [];
-          
-          // Return true if there are ANY cleaning tasks
-          return cleaningTasks.length > 0;
-        }) || [];
+      // Client-side house name filter (PostgREST doesn't support joined table filters in .or())
+      let filtered = data || [];
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filtered = filtered.filter(booking => 
+          booking.guest_name?.toLowerCase().includes(term) ||
+          (booking.houses as any)?.name?.toLowerCase().includes(term)
+        );
       }
 
-      return data || [];
+      if (bookingFilter === 'without_cleaning') {
+        return filtered.filter(booking => {
+          const cleaningTasks = booking.service_tasks?.filter(
+            task => task.service_type === 'cleaning'
+          ) || [];
+          return cleaningTasks.length === 0;
+        });
+      } else if (bookingFilter === 'with_cleaning') {
+        return filtered.filter(booking => {
+          const cleaningTasks = booking.service_tasks?.filter(
+            task => task.service_type === 'cleaning'
+          ) || [];
+          return cleaningTasks.length > 0;
+        });
+      }
+
+      return filtered;
     },
     enabled: showBookingResults,
     refetchOnWindowFocus: false,
