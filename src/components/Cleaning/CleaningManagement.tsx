@@ -74,7 +74,7 @@ const CleaningManagement = () => {
 
   // Fetch bookings without cleaning tasks
   const { data: bookingsWithoutCleaning, isLoading: loadingBookings } = useQuery({
-    queryKey: ['bookings-without-cleaning', searchTerm, selectedHouse, timeFilter, providerFilter, bookingFilter],
+    queryKey: ['bookings-without-cleaning', searchTerm, selectedHouse, timeFilter, providerFilter, bookingFilter, statusFilter],
     queryFn: async () => {
       let query = supabase
         .from('bookings')
@@ -89,7 +89,7 @@ const CleaningManagement = () => {
         .gte('check_out', new Date().toISOString()); // Only future or current bookings
 
       if (searchTerm) {
-        query = query.or(`guest_name.ilike.%${searchTerm}%, houses.name.ilike.%${searchTerm}%`);
+        query = query.ilike('guest_name', `%${searchTerm}%`);
       }
 
       if (selectedHouse !== 'all') {
@@ -158,7 +158,7 @@ const CleaningManagement = () => {
 
   // Fetch all cleaning tasks
   const { data: cleaningTasks, isLoading: loadingTasks } = useQuery({
-    queryKey: ['cleaning-tasks', taskSearchTerm, taskProviderFilter, taskHouseFilter, taskTimeFilter, taskStatusFilter],
+    queryKey: ['cleaning-tasks', taskSearchTerm, taskProviderFilter, taskHouseFilter, taskStatusFilter],
     queryFn: async () => {
       let query = supabase
         .from('service_tasks')
