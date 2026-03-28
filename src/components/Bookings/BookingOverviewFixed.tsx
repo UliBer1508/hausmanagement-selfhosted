@@ -558,6 +558,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
 
       {/* Statistics - Shows selected year bookings */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Widget 1: Buchungsübersicht (kombiniert) */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
@@ -565,26 +566,66 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
             </div>
             <div className="text-2xl font-bold">{yearStats.total}</div>
             <p className="text-xs text-muted-foreground">Buchungen {selectedYear}</p>
+            <div className="mt-2 pt-2 border-t space-y-1 text-xs">
+              <p className="text-green-600 flex justify-between">
+                <span>✅ Bestätigt:</span>
+                <span className="font-medium">{yearStats.confirmed}</span>
+              </p>
+              <p className="text-blue-600 flex justify-between">
+                <span>✔️ Abgeschlossen:</span>
+                <span className="font-medium">{yearStats.completed}</span>
+              </p>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Widget 2: Reinigungskosten */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">✅</span>
+              <span className="text-2xl">🧹</span>
             </div>
-            <div className="text-2xl font-bold text-green-600">{yearStats.confirmed}</div>
-            <p className="text-xs text-muted-foreground">Bestätigt {selectedYear}</p>
+            <div className="text-2xl font-bold">
+              {cleaningCostsForYear.total.toLocaleString('de-DE')} EUR
+            </div>
+            <p className="text-xs text-muted-foreground">Reinigungskosten {selectedYear}</p>
+            <div className="mt-2 pt-2 border-t space-y-1 text-xs">
+              <p className="text-green-600 flex justify-between">
+                <span>✅ Bezahlt:</span>
+                <span className="font-medium">{cleaningCostsForYear.paid.toLocaleString('de-DE')} EUR</span>
+              </p>
+              <p className="text-orange-600 flex justify-between">
+                <span>⚠️ Offen:</span>
+                <span className="font-medium">{(cleaningCostsForYear.total - cleaningCostsForYear.paid).toLocaleString('de-DE')} EUR</span>
+              </p>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Widget 3: Wäschekosten */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">✔️</span>
+              <span className="text-2xl">👕</span>
             </div>
-            <div className="text-2xl font-bold text-blue-600">{yearStats.completed}</div>
-            <p className="text-xs text-muted-foreground">Abgeschlossen {selectedYear}</p>
+            <div className="text-2xl font-bold">
+              {laundryCostsForYear.total.toLocaleString('de-DE')} EUR
+            </div>
+            <p className="text-xs text-muted-foreground">Wäschekosten {selectedYear}</p>
+            <div className="mt-2 pt-2 border-t space-y-1 text-xs">
+              <p className="text-green-600 flex justify-between">
+                <span>✅ Bezahlt:</span>
+                <span className="font-medium">{laundryCostsForYear.paid.toLocaleString('de-DE')} EUR</span>
+              </p>
+              <p className="text-orange-600 flex justify-between">
+                <span>⚠️ Offen:</span>
+                <span className="font-medium">{(laundryCostsForYear.total - laundryCostsForYear.paid).toLocaleString('de-DE')} EUR</span>
+              </p>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Widget 4: Gesamtumsatz (unverändert) */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
