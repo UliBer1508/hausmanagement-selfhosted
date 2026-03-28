@@ -423,17 +423,28 @@ const getBestChannel = (
     return acc;
   }, {} as Record<string, { count: number; revenue: number }>);
   
-  // High season: Priority on revenue (Booking.com)
-  // Low season: Priority on volume (Belvilla)
-  if (isHighSeason) {
-    return { 
-      channel: 'Booking.com', 
-      reason: 'Höhere Durchschnittspreise in Hochsaison (Ø €3.200+)' 
+  const platforms = Object.entries(byPlatform).map(([name, stats]) => ({
+    name,
+    count: stats.count,
+    revenue: stats.revenue,
+    avg: stats.count > 0 ? Math.round(stats.revenue / stats.count) : 0
+  }));
+
+  if (platforms.length === 0) {
+    return {
+      channel: 'Keine Daten',
+      reason: 'Keine historischen Buchungen für diesen Monat vorhanden'
     };
   }
-  return { 
-    channel: 'Belvilla + Airbnb', 
-    reason: 'Mehr Volumen in Nebensaison, breitere Reichweite' 
+
+  // High season: platform with highest revenue; Low season: highest booking count
+  const best = isHighSeason
+    ? platforms.reduce((a, b) => a.revenue > b.revenue ? a : b)
+    : platforms.reduce((a, b) => a.count > b.count ? a : b);
+
+  return {
+    channel: best.name,
+    reason: `${best.count} Buchung${best.count !== 1 ? 'en' : ''}, Ø ${best.avg.toLocaleString('de-DE')} EUR`
   };
 };
 
