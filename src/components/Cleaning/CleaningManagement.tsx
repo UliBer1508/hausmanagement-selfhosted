@@ -96,6 +96,10 @@ const CleaningManagement = () => {
         query = query.eq('house_id', selectedHouse);
       }
 
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
+
       // Apply time filter
       const now = new Date();
       let endDate = new Date();
