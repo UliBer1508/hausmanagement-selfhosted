@@ -97,7 +97,7 @@ const CleaningManagement = () => {
       }
 
       if (statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
+        query = query.eq('status', statusFilter as any);
       }
 
       // Apply time filter
