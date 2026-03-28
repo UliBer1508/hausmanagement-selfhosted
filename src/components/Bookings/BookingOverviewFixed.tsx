@@ -407,6 +407,31 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
   }, [bookingsData, selectedYear]);
 
   // Statistics for selected year - for display in cards
+  // Reinigungskosten für gewähltes Jahr
+  const cleaningCostsForYear = useMemo(() => {
+    if (!serviceTasks) return { total: 0, paid: 0 };
+    const yearTasks = serviceTasks.filter(t => 
+      t.service_type === 'cleaning' && 
+      t.scheduled_date && 
+      new Date(t.scheduled_date).getFullYear() === selectedYear
+    );
+    const total = yearTasks.reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
+    const paid = yearTasks.filter(t => t.payment_status === 'paid').reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
+    return { total, paid };
+  }, [serviceTasks, selectedYear]);
+
+  // Wäschekosten für gewähltes Jahr
+  const laundryCostsForYear = useMemo(() => {
+    if (!laundryInvoices) return { total: 0, paid: 0 };
+    const yearInvoices = laundryInvoices.filter(i => 
+      i.rechnungsdatum && 
+      new Date(i.rechnungsdatum).getFullYear() === selectedYear
+    );
+    const total = yearInvoices.reduce((sum, i) => sum + (i.bruttobetrag || 0), 0);
+    const paid = yearInvoices.filter(i => i.status === 'bezahlt').reduce((sum, i) => sum + (i.bruttobetrag || 0), 0);
+    return { total, paid };
+  }, [laundryInvoices, selectedYear]);
+
   const yearStats = {
     total: yearFilteredBookings.length,
     confirmed: yearFilteredBookings.filter(b => b.status === 'confirmed').length,
