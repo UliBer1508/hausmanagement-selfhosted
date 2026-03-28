@@ -423,7 +423,7 @@ const getBestChannel = (
     return acc;
   }, {} as Record<string, { count: number; revenue: number }>);
   
-  const platforms = Object.entries(byPlatform).map(([name, stats]) => ({
+  const platforms = Object.entries(byPlatform).map(([name, stats]: [string, { count: number; revenue: number }]) => ({
     name,
     count: stats.count,
     revenue: stats.revenue,
