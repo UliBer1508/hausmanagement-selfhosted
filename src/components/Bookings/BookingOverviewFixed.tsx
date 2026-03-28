@@ -253,6 +253,18 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
     },
   });
 
+  // Fetch laundry invoices for cost widget
+  const { data: laundryInvoices } = useQuery({
+    queryKey: ['laundry-invoices-overview'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('laundry_invoices')
+        .select('id, bruttobetrag, status, rechnungsdatum');
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Auto-Open Booking Dialog wenn via Chat navigiert
   useEffect(() => {
     if (autoOpenBookingId && bookingsData) {
@@ -395,6 +407,31 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
   }, [bookingsData, selectedYear]);
 
   // Statistics for selected year - for display in cards
+  // Reinigungskosten für gewähltes Jahr
+  const cleaningCostsForYear = useMemo(() => {
+    if (!serviceTasks) return { total: 0, paid: 0 };
+    const yearTasks = serviceTasks.filter(t => 
+      t.service_type === 'cleaning' && 
+      t.scheduled_date && 
+      new Date(t.scheduled_date).getFullYear() === selectedYear
+    );
+    const total = yearTasks.reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
+    const paid = yearTasks.filter(t => t.payment_status === 'paid').reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
+    return { total, paid };
+  }, [serviceTasks, selectedYear]);
+
+  // Wäschekosten für gewähltes Jahr
+  const laundryCostsForYear = useMemo(() => {
+    if (!laundryInvoices) return { total: 0, paid: 0 };
+    const yearInvoices = laundryInvoices.filter(i => 
+      i.rechnungsdatum && 
+      new Date(i.rechnungsdatum).getFullYear() === selectedYear
+    );
+    const total = yearInvoices.reduce((sum, i) => sum + (i.bruttobetrag || 0), 0);
+    const paid = yearInvoices.filter(i => i.status === 'bezahlt').reduce((sum, i) => sum + (i.bruttobetrag || 0), 0);
+    return { total, paid };
+  }, [laundryInvoices, selectedYear]);
+
   const yearStats = {
     total: yearFilteredBookings.length,
     confirmed: yearFilteredBookings.filter(b => b.status === 'confirmed').length,
@@ -521,6 +558,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
 
       {/* Statistics - Shows selected year bookings */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Widget 1: Buchungsübersicht (kombiniert) */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
@@ -528,26 +566,66 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
             </div>
             <div className="text-2xl font-bold">{yearStats.total}</div>
             <p className="text-xs text-muted-foreground">Buchungen {selectedYear}</p>
+            <div className="mt-2 pt-2 border-t space-y-1 text-xs">
+              <p className="text-green-600 flex justify-between">
+                <span>✅ Bestätigt:</span>
+                <span className="font-medium">{yearStats.confirmed}</span>
+              </p>
+              <p className="text-blue-600 flex justify-between">
+                <span>✔️ Abgeschlossen:</span>
+                <span className="font-medium">{yearStats.completed}</span>
+              </p>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Widget 2: Reinigungskosten */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">✅</span>
+              <span className="text-2xl">🧹</span>
             </div>
-            <div className="text-2xl font-bold text-green-600">{yearStats.confirmed}</div>
-            <p className="text-xs text-muted-foreground">Bestätigt {selectedYear}</p>
+            <div className="text-2xl font-bold">
+              {cleaningCostsForYear.total.toLocaleString('de-DE')} EUR
+            </div>
+            <p className="text-xs text-muted-foreground">Reinigungskosten {selectedYear}</p>
+            <div className="mt-2 pt-2 border-t space-y-1 text-xs">
+              <p className="text-green-600 flex justify-between">
+                <span>✅ Bezahlt:</span>
+                <span className="font-medium">{cleaningCostsForYear.paid.toLocaleString('de-DE')} EUR</span>
+              </p>
+              <p className="text-orange-600 flex justify-between">
+                <span>⚠️ Offen:</span>
+                <span className="font-medium">{(cleaningCostsForYear.total - cleaningCostsForYear.paid).toLocaleString('de-DE')} EUR</span>
+              </p>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Widget 3: Wäschekosten */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">✔️</span>
+              <span className="text-2xl">👕</span>
             </div>
-            <div className="text-2xl font-bold text-blue-600">{yearStats.completed}</div>
-            <p className="text-xs text-muted-foreground">Abgeschlossen {selectedYear}</p>
+            <div className="text-2xl font-bold">
+              {laundryCostsForYear.total.toLocaleString('de-DE')} EUR
+            </div>
+            <p className="text-xs text-muted-foreground">Wäschekosten {selectedYear}</p>
+            <div className="mt-2 pt-2 border-t space-y-1 text-xs">
+              <p className="text-green-600 flex justify-between">
+                <span>✅ Bezahlt:</span>
+                <span className="font-medium">{laundryCostsForYear.paid.toLocaleString('de-DE')} EUR</span>
+              </p>
+              <p className="text-orange-600 flex justify-between">
+                <span>⚠️ Offen:</span>
+                <span className="font-medium">{(laundryCostsForYear.total - laundryCostsForYear.paid).toLocaleString('de-DE')} EUR</span>
+              </p>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Widget 4: Gesamtumsatz (unverändert) */}
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
