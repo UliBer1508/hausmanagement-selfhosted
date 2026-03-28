@@ -1,33 +1,68 @@
 
 
-# Fix: "Bester Kanal" zeigt falsche Plattformen
+# Fix: Such- und Filterfunktionen pruefen und korrigieren
 
-## Problem
+## Gefundene Probleme
 
-Die Funktion `getBestChannel` in `src/components/Guests/GuestAnalytics.tsx` (Zeile 405-438) ist **hardcoded**:
-- Hochsaison → gibt immer "Booking.com" zurück
-- Nebensaison → gibt immer "Belvilla + Airbnb" zurück
+### 1. Buchungen: Jahresfilter zeigt Buchungen aus naechstem Jahr
+**Datei:** `src/components/Bookings/BookingOverviewFixed.tsx` (Zeile 348-364)
 
-Die tatsächlichen Buchungsdaten (`byPlatform`) werden zwar berechnet (Zeile 418-424), aber **nie verwendet**. Deshalb bekommt "Venedigersiedlung" fälschlicherweise "Belvilla" empfohlen, obwohl es dort gar nicht gelistet ist.
+Die Overlap-Logik zeigt Buchungen, die den Jahreswechsel ueberspannen, in beiden Jahren an. Bei Jahresfiltern (`current-year`, `next-year`, `last-year`) sollte nur der **Check-in** geprueft werden, nicht der Overlap.
 
-## Fix
+**Fix:** Fuer Jahresfilter pruefen ob `checkIn >= start && checkIn <= end` statt Overlap.
 
-**Datei:** `src/components/Guests/GuestAnalytics.tsx` — Funktion `getBestChannel` (Zeile 405-438)
+---
 
-Die hardcoded Rückgabewerte ersetzen durch echte Analyse der `byPlatform`-Daten:
+### 2. Reinigung Buchungssuche: Hausname-Suche funktioniert nicht
+**Datei:** `src/components/Cleaning/CleaningManagement.tsx` (Zeile 92)
 
-1. `byPlatform` wird bereits korrekt berechnet (Buchungen des gleichen Monats, gruppiert nach Plattform)
-2. Statt hardcoded Werte: die Plattform mit dem höchsten Umsatz (Hochsaison) bzw. höchster Anzahl (Nebensaison) aus den **tatsächlichen Buchungsdaten des Hauses** zurückgeben
-3. Fallback wenn keine historischen Daten: "Direktbuchung" mit Hinweis "Keine historischen Daten für diesen Monat"
-
-```text
-Logik:
-  1. byPlatform berechnen (wie bisher)
-  2. Keine Daten? → Fallback "Keine Daten"
-  3. Hochsaison? → Plattform mit höchstem Umsatz wählen
-  4. Nebensaison? → Plattform mit meisten Buchungen wählen
-  5. Reason dynamisch: "X Buchungen, Ø Y EUR"
+```typescript
+query = query.or(`guest_name.ilike.%${searchTerm}%, houses.name.ilike.%${searchTerm}%`);
 ```
 
-Nur diese eine Funktion wird geändert. Keine weiteren Dateien betroffen.
+Supabase PostgREST unterstuetzt **keine** Filter auf verbundene Tabellen innerhalb von `.or()`. Die Suche nach Hausnamen schlaegt fehl oder wird ignoriert.
+
+**Fix:** Hausname-Suche auf Client-Seite durchfuehren (wie bereits bei den Reinigungsauftraegen gemacht wird).
+
+---
+
+### 3. Reinigung Buchungssuche: Statusfilter wird nicht angewendet
+**Datei:** `src/components/Cleaning/CleaningManagement.tsx` (Zeile 76-146)
+
+Der `statusFilter` ist im UI vorhanden (Zeile 384-394), aber:
+- Nicht im `queryKey` enthalten
+- Nicht in der Query-Funktion angewendet
+
+**Fix:** `statusFilter` zum queryKey hinzufuegen und in der Query anwenden:
+```typescript
+if (statusFilter !== 'all') {
+  query = query.eq('status', statusFilter);
+}
+```
+
+---
+
+### 4. Reinigungsauftraege: Zeitfilter nicht angewendet
+**Datei:** `src/components/Cleaning/CleaningManagement.tsx` (Zeile 160-236)
+
+`taskTimeFilter` ist als State definiert (Zeile 32) und im queryKey (Zeile 161), aber:
+- Kein UI-Dropdown fuer den Zeitfilter in der Auftrags-Sektion
+- Keine Filterlogik in der Query-Funktion
+
+Der Zeitfilter ist nur fuer die obere "Buchungen pruefen"-Sektion relevant. Er wird unnoetig im queryKey der Auftraege mitgefuehrt, was bei Aenderung des Zeitfilters die Auftraege unnoetig neu laedt.
+
+**Fix:** `taskTimeFilter` aus dem queryKey der Reinigungsauftraege entfernen.
+
+---
+
+## Zusammenfassung der Aenderungen
+
+| Datei | Aenderung |
+|-------|-----------|
+| `BookingOverviewFixed.tsx` | Jahresfilter: Check-in statt Overlap |
+| `CleaningManagement.tsx` | Buchungssuche: Hausname client-seitig filtern |
+| `CleaningManagement.tsx` | Buchungssuche: StatusFilter anwenden + queryKey |
+| `CleaningManagement.tsx` | Auftraege: `taskTimeFilter` aus queryKey entfernen |
+
+Keine neuen Dateien oder Migrationen noetig.
 
