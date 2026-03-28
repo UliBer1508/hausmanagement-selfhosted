@@ -1,28 +1,33 @@
 
 
-# Fix: KI-Analyse fehlgeschlagen — "No function call in response"
+# Fix: "Bester Kanal" zeigt falsche Plattformen
 
-## Befund
+## Problem
 
-Die Edge Function `analyze-vacancy` nutzt `geminiStructuredOutput()` aus `_shared/gemini.ts`. Diese Funktion erzwingt eine Gemini Function-Call-Antwort (`mode: ANY`). Gemini 2.5 Flash ignoriert dies manchmal und antwortet stattdessen mit reinem Text (JSON im Freitext). Die Funktion wirft dann den Fehler `"No function call in response"`.
+Die Funktion `getBestChannel` in `src/components/Guests/GuestAnalytics.tsx` (Zeile 405-438) ist **hardcoded**:
+- Hochsaison → gibt immer "Booking.com" zurück
+- Nebensaison → gibt immer "Belvilla + Airbnb" zurück
+
+Die tatsächlichen Buchungsdaten (`byPlatform`) werden zwar berechnet (Zeile 418-424), aber **nie verwendet**. Deshalb bekommt "Venedigersiedlung" fälschlicherweise "Belvilla" empfohlen, obwohl es dort gar nicht gelistet ist.
 
 ## Fix
 
-**Datei:** `supabase/functions/_shared/gemini.ts` — Funktion `geminiStructuredOutput` (Zeile 265-284)
+**Datei:** `src/components/Guests/GuestAnalytics.tsx` — Funktion `getBestChannel` (Zeile 405-438)
 
-Fallback-Logik einbauen: Wenn kein Function Call zurückkommt, aber Text vorhanden ist, versuche den Text als JSON zu parsen und die erwarteten Felder zu extrahieren.
+Die hardcoded Rückgabewerte ersetzen durch echte Analyse der `byPlatform`-Daten:
+
+1. `byPlatform` wird bereits korrekt berechnet (Buchungen des gleichen Monats, gruppiert nach Plattform)
+2. Statt hardcoded Werte: die Plattform mit dem höchsten Umsatz (Hochsaison) bzw. höchster Anzahl (Nebensaison) aus den **tatsächlichen Buchungsdaten des Hauses** zurückgeben
+3. Fallback wenn keine historischen Daten: "Direktbuchung" mit Hinweis "Keine historischen Daten für diesen Monat"
 
 ```text
-geminiStructuredOutput():
-  1. API aufrufen (wie bisher)
-  2. Function Call vorhanden? → args zurückgeben (wie bisher)
-  3. NEU: Kein Function Call? → Text-Antwort prüfen
-     a. JSON aus Text extrahieren (regex für {...})
-     b. Erfolgreich? → geparstes Objekt zurückgeben
-     c. Fehlgeschlagen? → bisherigen Fehler werfen
+Logik:
+  1. byPlatform berechnen (wie bisher)
+  2. Keine Daten? → Fallback "Keine Daten"
+  3. Hochsaison? → Plattform mit höchstem Umsatz wählen
+  4. Nebensaison? → Plattform mit meisten Buchungen wählen
+  5. Reason dynamisch: "X Buchungen, Ø Y EUR"
 ```
 
-Zusätzlich: `maxOutputTokens` auf 4096 erhöhen (aktuell Default 2048), da die Analyse-Antwort komplex ist und abgeschnittene Antworten ebenfalls zu fehlenden Function Calls führen können.
-
-Keine weiteren Dateien betroffen. Keine Migration nötig.
+Nur diese eine Funktion wird geändert. Keine weiteren Dateien betroffen.
 
