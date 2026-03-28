@@ -1,32 +1,63 @@
 
 
-# Fix: Checkout am Monatsanfang bekommt keinen Halbtag-Versatz
+# Buchungs-Widgets umstrukturieren
 
-## Problem
-Maximilian checkt am 1. März aus, Martin checkt am 1. März ein. Beim Betrachten von **März** wird `isCheckOutInMonth` für Maximilian zu `false`, weil die Bedingung `checkOut > monthStart` bei `1. März > 1. März` fehlschlägt (strict greater). Der Balken endet daher bei Pixel 0 statt bei 14px (Tagesmitte), und es gibt keine sichtbare Lücke zu Martins Balken.
+## Aktuell (4 Widgets)
+1. Buchungen gesamt
+2. Bestätigt
+3. Abgeschlossen
+4. Gesamtumsatz (mit Gezahlt/Offen)
 
-Image 2 (Peter/Lea/Maximilian) zeigt das korrekte Verhalten bei Übergaben **innerhalb** eines Monats -- dort funktioniert die Halbtag-Logik bereits.
+## Neu (4 Widgets)
 
-## Lösung
-
-**Datei:** `src/components/Calendar/BookingTimeline.tsx`, Zeile 121
-
-Änderung von `>` zu `>=`:
-
-```typescript
-// Vorher:
-const isCheckOutInMonth = checkOut > monthStart && checkOut < monthEnd;
-
-// Nachher:
-const isCheckOutInMonth = checkOut >= monthStart && checkOut < monthEnd;
+### Widget 1: Buchungsübersicht (3 Zähler kombiniert)
+```text
+┌────────────────────────────────┐
+│ 📊 Buchungen 2026              │
+│ 32 Gesamt                      │
+│ 11 Bestätigt · 16 Abgeschlossen│
+└────────────────────────────────┘
 ```
 
-Damit wird ein Checkout am 1. Tag des Monats korrekt als "im Monat sichtbar" erkannt und bekommt den Halbtag-Versatz (+0.5 Tage = 14px). In Kombination mit dem 2px-Buffer ergibt sich eine saubere 4px-Lücke zwischen Maximilian und Martin.
+### Widget 2: Reinigungskosten
+Summe `cleaning_cost` aus `service_tasks` (gefiltert nach `scheduled_date` im gewählten Jahr, `service_type = 'cleaning'`).
+```text
+┌────────────────────────────────┐
+│ 🧹 Reinigungskosten 2026       │
+│ 3.450 EUR                      │
+│ ✅ Bezahlt: 2.100 EUR          │
+│ ⚠️ Offen:  1.350 EUR           │
+└────────────────────────────────┘
+```
+Bezahlt/Offen über `payment_status` in `service_tasks`.
 
-## Auswirkung
-- Checkout am Monatsanfang: Balken endet nun bei ~12px statt 0px
-- Checkout mitten im Monat: Keine Änderung (war schon korrekt)
-- Checkout am Monatsende / außerhalb: Keine Änderung
+### Widget 3: Wäschekosten
+Summe `bruttobetrag` aus `laundry_invoices` (gefiltert nach `rechnungsdatum` im gewählten Jahr).
+```text
+┌────────────────────────────────┐
+│ 👕 Wäschekosten 2026            │
+│ 5.230 EUR                      │
+│ ✅ Bezahlt: 3.800 EUR          │
+│ ⚠️ Offen:  1.430 EUR           │
+└────────────────────────────────┘
+```
+Bezahlt/Offen über `status` der Rechnungen (`bezahlt` vs. Rest).
 
-Eine Zeile, ein Zeichen.
+### Widget 4: Gesamtumsatz (bleibt exakt wie bisher)
+
+## Technische Umsetzung
+
+**Datei:** `src/components/Bookings/BookingOverviewFixed.tsx`
+
+1. **Zwei neue Queries** hinzufügen (neben dem bestehenden `bookings-overview` Query):
+   - `service_tasks` → `cleaning_cost`, `payment_status`, `scheduled_date`, `service_type`
+   - `laundry_invoices` → `bruttobetrag`, `status`, `rechnungsdatum`
+
+2. **`yearStats` erweitern** um berechnete Felder:
+   - `cleaningCostsTotal` / `cleaningCostsPaid`
+   - `laundryCostsTotal` / `laundryCostsPaid`
+
+3. **Widget-Grid anpassen**: Erstes Widget zeigt alle 3 Zähler, Widgets 2+3 werden Reinigungs-/Wäschekosten, Widget 4 bleibt unverändert.
+
+Keine neuen Dateien oder Migrationen nötig.
 
