@@ -79,7 +79,7 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
       "year_built": 2005,
       "features": ["Balkon", "Einbauküche", "Keller", "Aufzug"],
       "available_from": "01.07.2026",
-      "listing_url": "https://www.immobilienscout24.de/expose/..."
+      "listing_url": "https://www.immobilienscout24.de/expose/12345678"
     }
   ]
 
@@ -90,7 +90,7 @@ WICHTIG für comparables:
 - year_built: Baujahr wenn bekannt
 - features: Array mit Ausstattungsmerkmalen (Balkon, Einbauküche, Keller, Aufzug, Garten, Stellplatz, etc.)
 - available_from: Verfügbar ab Datum wenn bekannt
-- listing_url: URL zum Inserat wenn vorhanden
+- listing_url: Die EXAKTE URL zum Originalinserat aus deinen Suchergebnissen. KEINE Platzhalter-URLs wie "expose/..." -- nur echte, funktionierende Links. Wenn du keine echte URL hast, setze den Wert auf null.
 }
       `;
 
