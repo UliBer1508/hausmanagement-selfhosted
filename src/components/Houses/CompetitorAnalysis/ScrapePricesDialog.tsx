@@ -43,14 +43,25 @@ const RENTAL_PLATFORMS = [
   { id: 'wg-gesucht', label: 'WG-gesucht' },
 ];
 
-interface ScrapeResult {
-  property?: string;
-  success: boolean;
-  price?: number;
+interface PriceEntry {
+  total_price?: number;
+  price_per_night?: number;
   check_in?: string;
   check_out?: string;
   nights?: number;
-  platform_source?: string;
+  guests?: number;
+  platform?: string;
+  type?: string; // exact, seasonal, range, per_night
+  notes?: string;
+}
+
+interface ScrapeResult {
+  property?: string;
+  success: boolean;
+  found?: boolean;
+  prices?: PriceEntry[];
+  general_info?: string;
+  best_price?: number;
   attempts?: number;
   error?: string;
   errors?: string[];
@@ -90,8 +101,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   const [checkInFrom, setCheckInFrom] = useState<Date>(now);
   const [checkInTo, setCheckInTo] = useState<Date>(endOfMonth);
   const [minNights, setMinNights] = useState(7);
-  const [guestsAdults, setGuestsAdults] = useState(2);
-  const [guestsChildren, setGuestsChildren] = useState(0);
+  const [maxGuests, setMaxGuests] = useState(6);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['alle']);
   
   // Rental-specific fields
@@ -166,12 +176,11 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
         body.check_in_from = format(checkInFrom, 'yyyy-MM-dd');
         body.check_in_to = format(checkInTo, 'yyyy-MM-dd');
         body.min_nights = minNights;
-        body.guests_adults = guestsAdults;
-        body.guests_children = guestsChildren;
+        body.max_guests = maxGuests;
 
         toast({
           title: "Scraping gestartet",
-          description: `Suche ${minNights}-Nächte-Preise (${guestsAdults} Erw.${guestsChildren > 0 ? `, ${guestsChildren} Kinder` : ''})...`,
+          description: `Suche Preise für bis zu ${maxGuests} Personen...`,
         });
       }
 
@@ -292,18 +301,14 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Min. Nächte</Label>
                     <Input type="number" min={1} max={30} value={minNights} onChange={(e) => setMinNights(parseInt(e.target.value) || 7)} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Erwachsene</Label>
-                    <Input type="number" min={1} max={20} value={guestsAdults} onChange={(e) => setGuestsAdults(parseInt(e.target.value) || 2)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Kinder</Label>
-                    <Input type="number" min={0} max={10} value={guestsChildren} onChange={(e) => setGuestsChildren(parseInt(e.target.value) || 0)} />
+                    <Label>Max. Personen</Label>
+                    <Input type="number" min={1} max={20} value={maxGuests} onChange={(e) => setMaxGuests(parseInt(e.target.value) || 6)} />
                   </div>
                 </div>
               </>
@@ -370,16 +375,18 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
             {results && (
               <div className="space-y-3">
                 <Label className="text-base font-semibold">Ergebnisse</Label>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {results.map((r, i) => (
-                    <div key={i} className="border rounded-lg p-3 space-y-1">
+                    <div key={i} className="border rounded-lg p-3 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">{r.property || selectedHouse?.name}</span>
-                        {r.success ? (
-                          <Badge variant="default" className="bg-green-600">
+                        {r.success && r.found ? (
+                          <Badge variant="default" className="bg-primary">
                             <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Gefunden
+                            {r.prices?.length || 0} Preise
                           </Badge>
+                        ) : r.success && !r.found ? (
+                          <Badge variant="secondary">Keine Preise</Badge>
                         ) : (
                           <Badge variant="destructive">
                             <XCircle className="w-3 h-3 mr-1" />
@@ -387,17 +394,33 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                           </Badge>
                         )}
                       </div>
-                      {r.success && !isRental && r.price ? (
-                        <div className="text-sm text-muted-foreground space-y-0.5">
-                          <div className="flex justify-between">
-                            <span>€{r.price.toLocaleString('de-DE')}</span>
-                            {r.platform_source && <span className="text-xs">{r.platform_source}</span>}
-                          </div>
-                          <div className="text-xs">
-                            {r.check_in} → {r.check_out} ({r.nights || minNights}N)
-                          </div>
+
+                      {r.success && !isRental && r.prices && r.prices.length > 0 && (
+                        <div className="space-y-1.5">
+                          {r.prices.map((p, j) => (
+                            <div key={j} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
+                              <div className="flex items-center gap-2">
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  {p.type === 'exact' ? 'Exakt' : p.type === 'seasonal' ? 'Saison' : p.type === 'range' ? 'Spanne' : p.type === 'per_night' ? '/Nacht' : p.type || '?'}
+                                </Badge>
+                                <span className="font-medium">
+                                  {p.total_price ? `€${p.total_price.toLocaleString('de-DE')}` : p.price_per_night ? `€${p.price_per_night}/N` : '–'}
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground text-right">
+                                {p.platform && <span className="block">{p.platform}</span>}
+                                {p.check_in && p.nights && <span className="block">{p.check_in} • {p.nights}N</span>}
+                                {p.notes && <span className="block italic">{p.notes}</span>}
+                              </div>
+                            </div>
+                          ))}
+                          {r.general_info && (
+                            <p className="text-xs text-muted-foreground mt-1 italic">{r.general_info}</p>
+                          )}
                         </div>
-                      ) : r.success && isRental ? (
+                      )}
+
+                      {r.success && isRental && (
                         <div className="text-sm text-muted-foreground space-y-1">
                           {r.avg_rent && (
                             <div className="flex justify-between">
@@ -421,7 +444,9 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                             <div className="text-xs">{r.comparable_count} Vergleichsobjekte</div>
                           )}
                         </div>
-                      ) : (
+                      )}
+
+                      {!r.success && (
                         <p className="text-xs text-destructive">
                           {r.errors?.join(', ') || r.error || 'Unbekannter Fehler'}
                         </p>
