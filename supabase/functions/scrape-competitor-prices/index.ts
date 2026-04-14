@@ -27,7 +27,7 @@ PERSONEN: ${guests}
 
 AUFGABE:
 - Finde konkrete Inserate auf booking.com fuer diesen Zeitraum und diese Personenzahl
-- Suche auch auf Aggregatoren die booking.com-Preise anzeigen: Trivago, Google Hotels, HolidayCheck, Kayak
+- Suche NUR auf booking.com direkt
 - Der Preis soll der ENDPREIS sein (inkl. Steuern, Gebuehren, Reinigung)
 - Booking.com nutzt ein Bewertungssystem von 1-10 Punkten
 
@@ -79,6 +79,7 @@ REGELN:
       max_tokens: 4000,
       return_images: false,
       return_related_questions: false,
+      search_domain_filter: ['booking.com'],
     }),
   });
 
@@ -114,7 +115,7 @@ GAESTE: ${guests}
 
 AUFGABE:
 - Finde konkrete Inserate auf airbnb.com oder airbnb.de fuer diesen Zeitraum
-- Suche auch auf Aggregatoren die Airbnb-Preise anzeigen: Holidu, HomeToGo, Casamundo, Google
+- Suche NUR auf airbnb.com bzw. airbnb.de direkt
 - Der Preis soll der GESAMTPREIS sein (Basis + Service-Gebuehr + Reinigungsgebuehr)
 - Airbnb nutzt Sterne-Bewertungen (1-5) und hat "Superhost"-Status
 
@@ -170,6 +171,7 @@ REGELN:
       max_tokens: 4000,
       return_images: false,
       return_related_questions: false,
+      search_domain_filter: ['airbnb.com', 'airbnb.de'],
     }),
   });
 
@@ -248,9 +250,7 @@ function enrichListingsWithCitations(listings: any[], citations: string[], porta
 
   const relevantCitations = citations.filter((url: string) => {
     const lower = url.toLowerCase();
-    return domains.some(d => lower.includes(d)) || 
-      lower.includes('holidu') || lower.includes('trivago') || 
-      lower.includes('google') || lower.includes('holidaycheck');
+    return domains.some(d => lower.includes(d));
   });
 
   return listings.map((listing: any, idx: number) => {
