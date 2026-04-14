@@ -1,0 +1,1 @@
+ALTER TABLE public.houses ADD COLUMN IF NOT EXISTS scrape_search_params JSONB DEFAULT NULL;

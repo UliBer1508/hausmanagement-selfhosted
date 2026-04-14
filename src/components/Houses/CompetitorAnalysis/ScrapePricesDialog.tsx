@@ -115,7 +115,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
-        .select('id, name, rental_type, address, living_area_sqm, bedrooms, max_guests, tenant_info')
+        .select('id, name, rental_type, address, living_area_sqm, bedrooms, max_guests, tenant_info, scrape_search_params')
         .order('name');
       if (error) throw error;
       return data;
@@ -145,18 +145,29 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   const [expandedResults, setExpandedResults] = useState<Set<number>>(new Set());
   const [expandedComparables, setExpandedComparables] = useState<Set<string>>(new Set());
 
-  // Update rental fields when house changes
+  // Update fields when house changes
   const handleHouseChange = (houseId: string) => {
     setSelectedHouseId(houseId);
     setResults(null);
     const house = houses?.find(h => h.id === houseId);
     if (house) {
+      const saved = house.scrape_search_params as any;
       if (house.rental_type === 'long_term') {
         setSqm(house.living_area_sqm || 60);
         setRooms(house.bedrooms || 2);
-        setSelectedPlatforms(['alle']);
+        setRadiusKm(saved?.radius_km || 10);
+        setSelectedPlatforms(saved?.platforms || ['alle']);
       } else {
-        setSelectedPlatforms(['alle']);
+        // Load saved tourist params
+        if (saved) {
+          setMinNights(saved.min_nights || 7);
+          setMaxGuests(saved.max_guests || house.max_guests || 6);
+          setSelectedPlatforms(saved.platforms || ['alle']);
+        } else {
+          setMinNights(7);
+          setMaxGuests(house.max_guests || 6);
+          setSelectedPlatforms(['alle']);
+        }
       }
     }
   };
@@ -346,6 +357,34 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                     <Input type="number" min={1} max={20} value={maxGuests} onChange={(e) => setMaxGuests(parseInt(e.target.value) || 6)} />
                   </div>
                 </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={async () => {
+                    if (!selectedHouseId) return;
+                    const params = {
+                      min_nights: minNights,
+                      max_guests: maxGuests,
+                      platforms: selectedPlatforms,
+                    };
+                    const { error } = await supabase
+                      .from('houses')
+                      .update({ scrape_search_params: params } as any)
+                      .eq('id', selectedHouseId);
+                    if (error) {
+                      toast({ title: "Fehler beim Speichern", variant: "destructive" });
+                    } else {
+                      queryClient.invalidateQueries({ queryKey: ['houses'] });
+                      queryClient.invalidateQueries({ queryKey: ['houses-for-scrape'] });
+                      toast({ title: "✅ Suchparameter gespeichert" });
+                    }
+                  }}
+                >
+                  💾 Suchparameter speichern
+                </Button>
               </>
             )}
 
