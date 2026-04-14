@@ -1,38 +1,31 @@
 
 
-# Fix: Perplexity findet keine Objekte
+# Fix: Parameter-Speicherung und Inserat-Suche
 
-## Problem
-- `search_domain_filter` beschränkt auf booking.com, airbnb.com etc.
-- Diese Portale rendern Preise per JavaScript -- Perplexity kann sie nicht scrapen
-- Das Modell gibt auf mit "kein Echtzeit-Zugriff"
-- 0 Ergebnisse, 0 Citations
+## Problem 1: Houses-Query schlaegt fehl
+Die Query auf Zeile 108 selektiert `living_area_sqm`, aber diese Spalte existiert NICHT in der `houses`-Tabelle. Dadurch schlaegt die gesamte Query fehl, `houses` bleibt `undefined`, und nichts funktioniert -- weder Haus-Auswahl noch Parameter-Speicherung.
 
-## Lösung
+## Problem 2: Inkonsistente Ergebnisse
+Die Logs zeigen, dass Perplexity manchmal 6+ Listings zurueckgibt und manchmal 0. Der Prompt ist zu strikt:
+- "Erfinde KEINE Preise" veranlasst das Modell, lieber nichts zurueckzugeben
+- Es werden exakte Gesamtpreise verlangt, obwohl Portale oft nur Nachtpreise anzeigen
+- Das Modell gibt auf wenn es keine "buchbaren Inserate mit direkten Preisen" findet
 
-### Edge Function (`scrape-competitor-prices/index.ts`)
+## Loesung
 
-**3 Änderungen:**
+### 1. ScrapePricesDialog.tsx
+- **Zeile 108**: `living_area_sqm` aus der Select-Query entfernen (existiert nicht in DB)
+- **Zeile 159**: Fallback auf geschaetzten Wert oder Konstante statt `house.living_area_sqm`
 
-1. **Domain-Filter entfernen**: Statt `search_domain_filter` auf Buchungsportale zu beschränken, Perplexity frei suchen lassen. Es findet dann Preise über Aggregatoren (Holidu, Trivago), Blogs, Vergleichsseiten und gecachte Portal-Einträge.
+### 2. Edge Function (scrape-competitor-prices/index.ts)
+- **Prompt anpassen**: Nachtpreise explizit akzeptieren, Regel lockern von "Erfinde KEINE Preise" zu "Gib an was du findest, auch Nachtpreise oder Preisspannen"
+- **Fallback-Logik**: Wenn `found: false` und `listings: []`, aber `search_summary` Nachtpreise erwaehnt, zweiten Versuch mit lockerem Prompt machen
+- **System-Prompt ergaenzen**: "Wenn du keine exakten Gesamtpreise findest, gib Nachtpreise an und setze price_total auf null"
 
-2. **Prompt umformulieren**: Statt "suche verfügbare Unterkünfte auf Portalen" --> "Finde Ferienwohnungen und deren Preise in [Ort] für [Zeitraum]". Weniger restriktiv, damit das Modell alle verfügbaren Webquellen nutzt.
+### Dateien
 
-3. **Modell auf `sonar-pro` upgraden**: Bessere Multi-Step-Suche mit 2x mehr Citations, findet mehr Ergebnisse.
-
-### Konkrete Code-Änderungen
-
-| Stelle | Vorher | Nachher |
-|--------|--------|---------|
-| Zeile 352-363 | `search_domain_filter: [booking.com, airbnb.com, ...]` | Kein Domain-Filter |
-| Zeile 353 | `model: 'sonar'` | `model: 'sonar-pro'` |
-| Zeile 355 | System: "Du durchsuchst Buchungsportale..." | System: "Du bist ein Reise-Recherche-Experte. Finde Unterkünfte mit Preisen aus allen verfügbaren Quellen." |
-| Zeile 298-343 | Prompt fordert Portal-spezifische Suche | Prompt fragt allgemeiner nach Preisen in der Region, erwähnt Portale nur als bevorzugte Quellen |
-
-### Warum das funktioniert
-Perplexity `sonar-pro` durchsucht das Web frei und findet Preise über:
-- Aggregator-Seiten (Holidu, Trivago, Google Hotels)
-- Gecachte Booking.com/Airbnb-Listings in Suchmaschinen
-- Reise-Blogs und Vergleichsartikel
-- Die Citations liefern dann die Links zu den Inseraten
+| Datei | Aenderung |
+|-------|-----------|
+| `ScrapePricesDialog.tsx` | `living_area_sqm` aus Query entfernen |
+| `scrape-competitor-prices/index.ts` | Prompt lockern, Nachtpreise akzeptieren |
 
