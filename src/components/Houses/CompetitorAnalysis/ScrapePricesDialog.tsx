@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, CheckCircle2, XCircle, Search, TrendingUp } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Search, TrendingUp, ChevronDown, ChevronUp, MapPin, Users, BedDouble, Bath, Star, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface ScrapePricesDialogProps {
   house_id?: string;
@@ -55,6 +56,19 @@ interface PriceEntry {
   notes?: string;
 }
 
+interface PropertyDetails {
+  description?: string;
+  max_guests?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  size_sqm?: number;
+  rating?: number;
+  review_count?: number;
+  amenities?: string[];
+  address?: string;
+  highlights?: string[];
+}
+
 interface ScrapeResult {
   property?: string;
   success: boolean;
@@ -65,6 +79,7 @@ interface ScrapeResult {
   attempts?: number;
   error?: string;
   errors?: string[];
+  property_details?: PropertyDetails;
   // rental fields
   avg_rent?: number;
   min_rent?: number;
@@ -117,6 +132,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<ScrapeResult[] | null>(null);
+  const [expandedResults, setExpandedResults] = useState<Set<number>>(new Set());
 
   // Update rental fields when house changes
   const handleHouseChange = (houseId: string) => {
@@ -383,105 +399,203 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
               <div className="space-y-3">
                 <Label className="text-base font-semibold">Ergebnisse</Label>
                 <div className="space-y-3">
-                  {results.map((r, i) => (
-                    <div key={i} className="border rounded-lg p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm">{r.property || selectedHouse?.name}</span>
-                        {r.success && r.found ? (
-                          <Badge variant="default" className="bg-primary">
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            {r.prices?.length || 0} Preise
-                          </Badge>
-                        ) : r.success && !r.found ? (
-                          <Badge variant="secondary">Keine Preise</Badge>
-                        ) : (
-                          <Badge variant="destructive">
-                            <XCircle className="w-3 h-3 mr-1" />
-                            Fehler
-                          </Badge>
-                        )}
-                      </div>
+                  {results.map((r, i) => {
+                    const isExpanded = expandedResults.has(i);
+                    const hasDetails = r.property_details && Object.keys(r.property_details).length > 0;
+                    const details = r.property_details;
 
-                      {r.success && !isRental && r.prices && r.prices.length > 0 && (
-                        <div className="space-y-1.5">
-                          {r.prices.map((p, j) => (
-                            <div key={j} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
-                              <div className="flex items-center gap-2">
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                  {p.type === 'exact' ? 'Exakt' : p.type === 'seasonal' ? 'Saison' : p.type === 'range' ? 'Spanne' : p.type === 'per_night' ? '/Nacht' : p.type || '?'}
-                                </Badge>
-                                <span className="font-medium">
-                                  {p.total_price ? `€${p.total_price.toLocaleString('de-DE')}` : p.price_per_night ? `€${p.price_per_night}/N` : '–'}
-                                </span>
-                              </div>
-                              <div className="text-xs text-muted-foreground text-right">
-                                {p.platform && <span className="block">{p.platform}</span>}
-                                {p.check_in && p.nights && <span className="block">{p.check_in} • {p.nights}N</span>}
-                                {p.notes && <span className="block italic">{p.notes}</span>}
-                              </div>
+                    return (
+                    <Collapsible key={i} open={isExpanded} onOpenChange={(open) => {
+                      setExpandedResults(prev => {
+                        const next = new Set(prev);
+                        if (open) next.add(i); else next.delete(i);
+                        return next;
+                      });
+                    }}>
+                      <div className={cn("border rounded-lg p-3 space-y-2 transition-colors", hasDetails && "cursor-pointer hover:border-primary/50")}>
+                        <CollapsibleTrigger asChild>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {hasDetails && (isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />)}
+                              <span className="font-medium text-sm">{r.property || selectedHouse?.name}</span>
                             </div>
-                          ))}
-                          {r.general_info && (
-                            <p className="text-xs text-muted-foreground mt-1 italic">{r.general_info}</p>
-                          )}
-                        </div>
-                      )}
+                            {r.success && r.found ? (
+                              <Badge variant="default" className="bg-primary">
+                                <CheckCircle2 className="w-3 h-3 mr-1" />
+                                {r.prices?.length || 0} Preise
+                              </Badge>
+                            ) : r.success && !r.found ? (
+                              <Badge variant="secondary">Keine Preise</Badge>
+                            ) : (
+                              <Badge variant="destructive">
+                                <XCircle className="w-3 h-3 mr-1" />
+                                Fehler
+                              </Badge>
+                            )}
+                          </div>
+                        </CollapsibleTrigger>
 
-                      {r.success && isRental && (
-                        <div className="text-sm text-muted-foreground space-y-1">
-                          {r.avg_rent && (
-                            <div className="flex justify-between">
-                              <span>Ø Kaltmiete:</span>
-                              <span className="font-medium">€{r.avg_rent.toLocaleString('de-DE')}</span>
-                            </div>
-                          )}
-                          {r.price_per_sqm && (
-                            <div className="flex justify-between">
-                              <span>Ø €/qm:</span>
-                              <span className="font-medium">€{r.price_per_sqm.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                          )}
-                          {(r.min_rent || r.max_rent) && (
-                            <div className="flex justify-between text-xs">
-                              <span>Spanne:</span>
-                              <span>€{r.min_rent?.toLocaleString('de-DE')} – €{r.max_rent?.toLocaleString('de-DE')}</span>
-                            </div>
-                          )}
-                          {r.comparable_count && (
-                            <div className="text-xs">{r.comparable_count} Vergleichsobjekte gefunden</div>
-                          )}
-                          {r.comparables && r.comparables.length > 0 && (
-                            <div className="mt-2 space-y-1.5">
-                              <div className="text-xs font-medium text-foreground">Gefundene Objekte:</div>
-                              {r.comparables.map((c, ci) => (
-                                <div key={ci} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
-                                  <div>
-                                    <span className="font-medium">{c.address || 'Unbekannt'}</span>
-                                    <div className="text-xs text-muted-foreground">
-                                      {c.sqm && <span>{c.sqm} qm</span>}
-                                      {c.rooms && <span> • {c.rooms} Zi.</span>}
-                                      {c.source && <span> • {c.source}</span>}
-                                    </div>
+                        {/* Expandable Property Details */}
+                        <CollapsibleContent>
+                          {hasDetails && details && (
+                            <div className="mt-3 pt-3 border-t space-y-3">
+                              {details.description && (
+                                <p className="text-sm text-muted-foreground">{details.description}</p>
+                              )}
+
+                              {/* Specs row */}
+                              <div className="flex flex-wrap gap-3 text-sm">
+                                {details.max_guests && (
+                                  <div className="flex items-center gap-1 text-muted-foreground">
+                                    <Users className="w-3.5 h-3.5" />
+                                    <span>{details.max_guests} Gäste</span>
                                   </div>
-                                  {c.rent && (
-                                    <span className="font-semibold text-primary whitespace-nowrap ml-2">
-                                      €{c.rent.toLocaleString('de-DE')}/M
-                                    </span>
+                                )}
+                                {details.bedrooms && (
+                                  <div className="flex items-center gap-1 text-muted-foreground">
+                                    <BedDouble className="w-3.5 h-3.5" />
+                                    <span>{details.bedrooms} Schlafz.</span>
+                                  </div>
+                                )}
+                                {details.bathrooms && (
+                                  <div className="flex items-center gap-1 text-muted-foreground">
+                                    <Bath className="w-3.5 h-3.5" />
+                                    <span>{details.bathrooms} Bäder</span>
+                                  </div>
+                                )}
+                                {details.size_sqm && (
+                                  <span className="text-muted-foreground">{details.size_sqm} m²</span>
+                                )}
+                              </div>
+
+                              {/* Rating */}
+                              {details.rating && (
+                                <div className="flex items-center gap-1.5 text-sm">
+                                  <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                                  <span className="font-medium">{details.rating}</span>
+                                  {details.review_count && (
+                                    <span className="text-muted-foreground">({details.review_count} Bewertungen)</span>
                                   )}
                                 </div>
-                              ))}
+                              )}
+
+                              {/* Address */}
+                              {details.address && (
+                                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                                  <MapPin className="w-3.5 h-3.5" />
+                                  <span>{details.address}</span>
+                                </div>
+                              )}
+
+                              {/* Amenities */}
+                              {details.amenities && details.amenities.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {details.amenities.map((a, ai) => (
+                                    <Badge key={ai} variant="secondary" className="text-[10px] px-1.5 py-0">
+                                      {a}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Highlights */}
+                              {details.highlights && details.highlights.length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {details.highlights.map((h, hi) => (
+                                    <Badge key={hi} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/30 text-primary">
+                                      {h}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
-                        </div>
-                      )}
+                        </CollapsibleContent>
 
-                      {!r.success && (
-                        <p className="text-xs text-destructive">
-                          {r.errors?.join(', ') || r.error || 'Unbekannter Fehler'}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                        {/* Tourist prices */}
+                        {r.success && !isRental && r.prices && r.prices.length > 0 && (
+                          <div className="space-y-1.5">
+                            {r.prices.map((p, j) => (
+                              <div key={j} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                    {p.type === 'exact' ? 'Exakt' : p.type === 'seasonal' ? 'Saison' : p.type === 'range' ? 'Spanne' : p.type === 'per_night' ? '/Nacht' : p.type || '?'}
+                                  </Badge>
+                                  <span className="font-medium">
+                                    {p.total_price ? `€${p.total_price.toLocaleString('de-DE')}` : p.price_per_night ? `€${p.price_per_night}/N` : '–'}
+                                  </span>
+                                </div>
+                                <div className="text-xs text-muted-foreground text-right">
+                                  {p.platform && <span className="block">{p.platform}</span>}
+                                  {p.check_in && p.nights && <span className="block">{p.check_in} • {p.nights}N</span>}
+                                  {p.notes && <span className="block italic">{p.notes}</span>}
+                                </div>
+                              </div>
+                            ))}
+                            {r.general_info && (
+                              <p className="text-xs text-muted-foreground mt-1 italic">{r.general_info}</p>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Rental results */}
+                        {r.success && isRental && (
+                          <div className="text-sm text-muted-foreground space-y-1">
+                            {r.avg_rent && (
+                              <div className="flex justify-between">
+                                <span>Ø Kaltmiete:</span>
+                                <span className="font-medium">€{r.avg_rent.toLocaleString('de-DE')}</span>
+                              </div>
+                            )}
+                            {r.price_per_sqm && (
+                              <div className="flex justify-between">
+                                <span>Ø €/qm:</span>
+                                <span className="font-medium">€{r.price_per_sqm.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            {(r.min_rent || r.max_rent) && (
+                              <div className="flex justify-between text-xs">
+                                <span>Spanne:</span>
+                                <span>€{r.min_rent?.toLocaleString('de-DE')} – €{r.max_rent?.toLocaleString('de-DE')}</span>
+                              </div>
+                            )}
+                            {r.comparable_count && (
+                              <div className="text-xs">{r.comparable_count} Vergleichsobjekte gefunden</div>
+                            )}
+                            {r.comparables && r.comparables.length > 0 && (
+                              <div className="mt-2 space-y-1.5">
+                                <div className="text-xs font-medium text-foreground">Gefundene Objekte:</div>
+                                {r.comparables.map((c, ci) => (
+                                  <div key={ci} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
+                                    <div>
+                                      <span className="font-medium">{c.address || 'Unbekannt'}</span>
+                                      <div className="text-xs text-muted-foreground">
+                                        {c.sqm && <span>{c.sqm} qm</span>}
+                                        {c.rooms && <span> • {c.rooms} Zi.</span>}
+                                        {c.source && <span> • {c.source}</span>}
+                                      </div>
+                                    </div>
+                                    {c.rent && (
+                                      <span className="font-semibold text-primary whitespace-nowrap ml-2">
+                                        €{c.rent.toLocaleString('de-DE')}/M
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {!r.success && (
+                          <p className="text-xs text-destructive">
+                            {r.errors?.join(', ') || r.error || 'Unbekannter Fehler'}
+                          </p>
+                        )}
+                      </div>
+                    </Collapsible>
+                    );
+                  })}
                 </div>
               </div>
             )}
