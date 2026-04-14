@@ -473,8 +473,8 @@ REGELN:
 
           // Save best price to monthly_pricing
           if (found) {
-            // Support both new (price_total) and legacy (total_price) field names
-            const getTotal = (p: any) => p.price_total || p.total_price || (p.price_per_night && p.nights ? p.price_per_night * p.nights : null);
+            // Support new (price), medium (price_total) and legacy (total_price) field names
+            const getTotal = (p: any) => p.price || p.price_total || p.total_price || (p.price_per_night && p.nights ? p.price_per_night * p.nights : null);
             const pricesWithTotal = prices.filter((p: any) => getTotal(p));
             const bestPrice = pricesWithTotal.length > 0
               ? pricesWithTotal.reduce((min: any, p: any) => (getTotal(p) < getTotal(min)) ? p : min, pricesWithTotal[0])
