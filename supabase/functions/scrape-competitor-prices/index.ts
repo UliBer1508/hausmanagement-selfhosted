@@ -329,21 +329,23 @@ WICHTIG für comparables:
 
         try {
         const priceQuery = `
-Suche den aktuellen Mietpreis fuer diese Ferienunterkunft auf Buchungsportalen.
+Finde das Inserat dieser Ferienunterkunft auf den genannten Buchungsportalen und lies den dort aktuell angezeigten Preis ab.
 
 UNTERKUNFT: "${property.property_name}"
-${property.property_url ? `WEBSEITE: ${property.property_url}` : ''}
+${property.property_url ? `BEKANNTE URL: ${property.property_url}` : ''}
 
-SUCHE AUF DIESEN PORTALEN: ${platformText}
-SUCHKRITERIEN: ${checkInFrom} bis ${checkInTo}, ${minNights} Naechte, ${maxGuests} Personen
+SUCHE AUF: ${platformText}
 
-Suche das Inserat dieser Unterkunft auf den genannten Portalen und gib den dort angezeigten Gesamtpreis an -- so wie ihn ein Gast beim Buchen sieht (z.B. "1.338 EUR fuer 1 Woche, 6 Erwachsene, inkl. Steuern und Gebuehren").
+AUFGABE:
+1. Finde das Inserat dieser Unterkunft auf den Portalen
+2. Lies den dort angezeigten Preis ab (egal fuer welchen Zeitraum)
+3. Notiere fuer welchen Zeitraum/Personen der Preis gilt (wenn sichtbar)
 
 ANTWORT NUR ALS JSON:
 {
   "found": true/false,
   "property_details": {
-    "description": "Kurzbeschreibung",
+    "description": "Kurzbeschreibung aus dem Inserat",
     "max_guests": 6,
     "bedrooms": 3,
     "bathrooms": 2,
@@ -356,24 +358,20 @@ ANTWORT NUR ALS JSON:
   },
   "prices": [
     {
-      "price_per_night": 191,
-      "price_total": 1338,
-      "nights": 7,
-      "guests": 6,
-      "check_in": "2026-07-01",
-      "platform": "booking.com",
-      "includes": "inkl. Steuern, Endreinigung"
+      "price": 1338,
+      "price_info": "1 Woche, 6 Erwachsene, inkl. Steuern und Gebuehren",
+      "platform": "Booking.com"
     }
   ],
-  "general_info": "Zusaetzliche Infos"
+  "general_info": "Zusaetzliche Infos zum Inserat"
 }
 
 REGELN:
-- Gib NUR Preise an die du tatsaechlich auf einem Portal gefunden hast
-- price_total = Gesamtpreis wie auf dem Portal angezeigt
-- price_per_night = price_total / nights (oder wie auf Portal angegeben)
+- "price" = der Preis wie er im Inserat angezeigt wird (Gesamtpreis oder Nachtpreis)
+- "price_info" = Kontext zum Preis (Zeitraum, Personenzahl, was enthalten ist) -- genau so wie im Inserat steht
 - Mehrere Eintraege wenn auf verschiedenen Portalen gefunden
-- Wenn nichts gefunden: found=false, prices=[]
+- Wenn kein Inserat gefunden: found=false, prices=[]
+- Erfinde KEINE Preise! Nur was tatsaechlich im Inserat steht
           `;
 
           const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -432,35 +430,51 @@ REGELN:
 
           let prices = Array.isArray(priceData.prices) ? priceData.prices : [];
           
-          // If no prices but general_info contains price hints, create synthetic entry
-          if (prices.length === 0 && priceData.general_info) {
-            const info = priceData.general_info;
-            // Try to extract price ranges like "236-456€" or "200€/Nacht"
-            const rangeMatch = info.match(/(\d+)\s*[-–]\s*(\d+)\s*€/);
-            const singleMatch = info.match(/(\d+)\s*€\s*\/\s*Nacht/i);
-            if (rangeMatch) {
-              const min = parseInt(rangeMatch[1]);
-              const max = parseInt(rangeMatch[2]);
-              prices.push({
-                price_per_night: Math.round((min + max) / 2),
-                includes: `Spanne: ${min}-${max}€/Nacht`,
-                platform: 'diverse',
-              });
-            } else if (singleMatch) {
-              prices.push({
-                price_per_night: parseInt(singleMatch[1]),
-                includes: `Richtwert`,
-                platform: 'diverse',
-              });
-            }
-          }
-          
+          // Extract citations from Perplexity response
+          const citations: string[] = data.citations || [];
+          console.log(`[scrape-prices] 📎 Citations for ${property.property_name}:`, JSON.stringify(citations));
+
+          // Find best citation URL matching the portal domains
+          const portalDomains = ['booking.com', 'airbnb.com', 'airbnb.de', 'vrbo.com', 'fewo-direkt.de', 'belvilla.de', 'holidu.com', 'traum-ferienwohnungen.de'];
+          const relevantCitations = citations.filter((url: string) => {
+            const lower = url.toLowerCase();
+            return portalDomains.some(d => lower.includes(d));
+          });
+          const bestCitationUrl = relevantCitations[0] || null;
+          console.log(`[scrape-prices] 🔗 Best citation URL: ${bestCitationUrl}`);
+
+          // Assign listing_url to each price entry from citations
+          prices = prices.map((p: any) => {
+            const platformLower = (p.platform || '').toLowerCase();
+            const matchedCitation = relevantCitations.find((url: string) => {
+              const urlLower = url.toLowerCase();
+              if (platformLower.includes('booking')) return urlLower.includes('booking.com');
+              if (platformLower.includes('airbnb')) return urlLower.includes('airbnb');
+              if (platformLower.includes('vrbo')) return urlLower.includes('vrbo');
+              if (platformLower.includes('fewo')) return urlLower.includes('fewo-direkt');
+              if (platformLower.includes('belvilla')) return urlLower.includes('belvilla');
+              if (platformLower.includes('holidu')) return urlLower.includes('holidu');
+              return false;
+            });
+            return { ...p, listing_url: matchedCitation || bestCitationUrl || null };
+          });
+
           const found = priceData.found !== false || prices.length > 0;
+
+          // Update competitor_properties.property_url if missing and we found a citation
+          if (bestCitationUrl && !property.property_url) {
+            const { error: urlUpdateError } = await supabase
+              .from('competitor_properties')
+              .update({ property_url: bestCitationUrl, updated_at: new Date().toISOString() })
+              .eq('id', property.id);
+            if (urlUpdateError) console.error(`[scrape-prices] ❌ URL update error:`, urlUpdateError);
+            else console.log(`[scrape-prices] ✅ Saved property_url: ${bestCitationUrl}`);
+          }
 
           // Save best price to monthly_pricing
           if (found) {
-            // Support both new (price_total) and legacy (total_price) field names
-            const getTotal = (p: any) => p.price_total || p.total_price || (p.price_per_night && p.nights ? p.price_per_night * p.nights : null);
+            // Support new (price), medium (price_total) and legacy (total_price) field names
+            const getTotal = (p: any) => p.price || p.price_total || p.total_price || (p.price_per_night && p.nights ? p.price_per_night * p.nights : null);
             const pricesWithTotal = prices.filter((p: any) => getTotal(p));
             const bestPrice = pricesWithTotal.length > 0
               ? pricesWithTotal.reduce((min: any, p: any) => (getTotal(p) < getTotal(min)) ? p : min, pricesWithTotal[0])
@@ -535,7 +549,8 @@ REGELN:
             prices,
             property_details: details || null,
             general_info: priceData.general_info || null,
-            best_price: prices.find((p: any) => p.total_price)?.total_price || null,
+            listing_url: bestCitationUrl || property.property_url || null,
+            citations: relevantCitations,
             attempts: retryCount,
           });
 

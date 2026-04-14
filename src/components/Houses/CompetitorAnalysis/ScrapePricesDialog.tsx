@@ -45,13 +45,17 @@ const RENTAL_PLATFORMS = [
 ];
 
 interface PriceEntry {
+  price?: number;
   price_per_night?: number;
   price_total?: number;
+  price_info?: string;
   check_in?: string;
   nights?: number;
   guests?: number;
   platform?: string;
   includes?: string;
+  listing_url?: string;
+  evidence_url?: string;
   // legacy fields for backward compat
   total_price?: number;
   type?: string;
@@ -77,6 +81,8 @@ interface ScrapeResult {
   found?: boolean;
   prices?: PriceEntry[];
   general_info?: string;
+  listing_url?: string;
+  citations?: string[];
   best_price?: number;
   attempts?: number;
   error?: string;
@@ -600,26 +606,31 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                         {r.success && !isRental && r.prices && r.prices.length > 0 && (
                           <div className="space-y-1.5">
                             {r.prices.map((p, j) => {
-                              const nightPrice = p.price_per_night || (p.total_price && p.nights ? Math.round(p.total_price / p.nights) : null);
-                              const totalPrice = p.price_total || p.total_price || null;
-                              const includesText = p.includes || p.notes || null;
+                              const displayPrice = p.price || p.price_per_night || p.price_total || p.total_price || null;
+                              const priceInfo = p.price_info || p.includes || p.notes || null;
+                              const listingUrl = p.listing_url || p.evidence_url || null;
 
                               return (
                                 <div key={j} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
                                   <div className="flex items-center gap-2">
                                     <span className="font-semibold text-primary">
-                                      {nightPrice ? `€${nightPrice}/N` : totalPrice ? `€${totalPrice.toLocaleString('de-DE')}` : '–'}
+                                      {displayPrice ? `€${displayPrice.toLocaleString('de-DE')}` : '–'}
                                     </span>
-                                    {nightPrice && totalPrice && (
-                                      <span className="text-xs text-muted-foreground">
-                                        (€{totalPrice.toLocaleString('de-DE')} ges.)
-                                      </span>
+                                    {listingUrl && (
+                                      <a
+                                        href={listingUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                        Angebot
+                                      </a>
                                     )}
                                   </div>
                                   <div className="text-xs text-muted-foreground text-right max-w-[55%]">
                                     {p.platform && <span className="block">{p.platform}</span>}
-                                    {p.check_in && p.nights && <span className="block">{p.check_in} • {p.nights}N{p.guests ? ` • ${p.guests}P` : ''}</span>}
-                                    {includesText && <span className="block italic truncate">{includesText}</span>}
+                                    {priceInfo && <span className="block italic truncate">{priceInfo}</span>}
                                   </div>
                                 </div>
                               );
@@ -630,10 +641,24 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                           </div>
                         )}
 
-                        {/* General info fallback when no prices */}
-                        {r.success && !isRental && (!r.prices || r.prices.length === 0) && r.general_info && (
-                          <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2">
-                            <p className="text-xs text-amber-800 italic">{r.general_info}</p>
+                        {/* Fallback when no prices but listing URL or general info available */}
+                        {r.success && !isRental && (!r.prices || r.prices.length === 0) && (
+                          <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2 space-y-1">
+                            {r.general_info && <p className="text-xs text-amber-800 italic">{r.general_info}</p>}
+                            {r.listing_url && (
+                              <a
+                                href={r.listing_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                                Inserat öffnen
+                              </a>
+                            )}
+                            {!r.general_info && !r.listing_url && (
+                              <p className="text-xs text-amber-800">Keine Preise gefunden</p>
+                            )}
                           </div>
                         )}
 
