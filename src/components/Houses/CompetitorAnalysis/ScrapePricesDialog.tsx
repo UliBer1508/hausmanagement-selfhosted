@@ -43,14 +43,25 @@ const RENTAL_PLATFORMS = [
   { id: 'wg-gesucht', label: 'WG-gesucht' },
 ];
 
-interface ScrapeResult {
-  property?: string;
-  success: boolean;
-  price?: number;
+interface PriceEntry {
+  total_price?: number;
+  price_per_night?: number;
   check_in?: string;
   check_out?: string;
   nights?: number;
-  platform_source?: string;
+  guests?: number;
+  platform?: string;
+  type?: string; // exact, seasonal, range, per_night
+  notes?: string;
+}
+
+interface ScrapeResult {
+  property?: string;
+  success: boolean;
+  found?: boolean;
+  prices?: PriceEntry[];
+  general_info?: string;
+  best_price?: number;
   attempts?: number;
   error?: string;
   errors?: string[];
@@ -90,8 +101,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   const [checkInFrom, setCheckInFrom] = useState<Date>(now);
   const [checkInTo, setCheckInTo] = useState<Date>(endOfMonth);
   const [minNights, setMinNights] = useState(7);
-  const [guestsAdults, setGuestsAdults] = useState(2);
-  const [guestsChildren, setGuestsChildren] = useState(0);
+  const [maxGuests, setMaxGuests] = useState(6);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['alle']);
   
   // Rental-specific fields
@@ -166,12 +176,11 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
         body.check_in_from = format(checkInFrom, 'yyyy-MM-dd');
         body.check_in_to = format(checkInTo, 'yyyy-MM-dd');
         body.min_nights = minNights;
-        body.guests_adults = guestsAdults;
-        body.guests_children = guestsChildren;
+        body.max_guests = maxGuests;
 
         toast({
           title: "Scraping gestartet",
-          description: `Suche ${minNights}-Nächte-Preise (${guestsAdults} Erw.${guestsChildren > 0 ? `, ${guestsChildren} Kinder` : ''})...`,
+          description: `Suche Preise für bis zu ${maxGuests} Personen...`,
         });
       }
 
@@ -292,18 +301,14 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Min. Nächte</Label>
                     <Input type="number" min={1} max={30} value={minNights} onChange={(e) => setMinNights(parseInt(e.target.value) || 7)} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Erwachsene</Label>
-                    <Input type="number" min={1} max={20} value={guestsAdults} onChange={(e) => setGuestsAdults(parseInt(e.target.value) || 2)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Kinder</Label>
-                    <Input type="number" min={0} max={10} value={guestsChildren} onChange={(e) => setGuestsChildren(parseInt(e.target.value) || 0)} />
+                    <Label>Max. Personen</Label>
+                    <Input type="number" min={1} max={20} value={maxGuests} onChange={(e) => setMaxGuests(parseInt(e.target.value) || 6)} />
                   </div>
                 </div>
               </>
