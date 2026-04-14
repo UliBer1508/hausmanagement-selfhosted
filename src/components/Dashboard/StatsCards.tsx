@@ -18,7 +18,7 @@ const StatsCards = ({ stats }: StatsCardsProps) => {
 
   const statItems = [
     {
-      title: 'Ferienhäuser',
+      title: 'Ferienhäuser & Mietobjekte',
       value: stats.totalHouses,
       emoji: '🏠',
       bgColor: 'bg-primary-blue/10'
