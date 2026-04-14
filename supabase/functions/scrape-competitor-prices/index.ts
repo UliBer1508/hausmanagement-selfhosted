@@ -79,7 +79,7 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
       "year_built": 2005,
       "features": ["Balkon", "Einbauküche", "Keller", "Aufzug"],
       "available_from": "01.07.2026",
-      "listing_url": "https://www.immobilienscout24.de/expose/..."
+      "listing_url": "https://www.immobilienscout24.de/expose/12345678"
     }
   ]
 
@@ -90,7 +90,7 @@ WICHTIG für comparables:
 - year_built: Baujahr wenn bekannt
 - features: Array mit Ausstattungsmerkmalen (Balkon, Einbauküche, Keller, Aufzug, Garten, Stellplatz, etc.)
 - available_from: Verfügbar ab Datum wenn bekannt
-- listing_url: URL zum Inserat wenn vorhanden
+- listing_url: Die EXAKTE URL zum Originalinserat aus deinen Suchergebnissen. KEINE Platzhalter-URLs wie "expose/..." -- nur echte, funktionierende Links. Wenn du keine echte URL hast, setze den Wert auf null.
 }
       `;
 
@@ -121,7 +121,9 @@ WICHTIG für comparables:
 
       const data = await response.json();
       const content = data.choices[0].message.content;
+      const rentalCitations = data.citations || [];
       console.log('[scrape-prices] 📥 Rental analysis response:', content);
+      console.log('[scrape-prices] 📎 Citations:', JSON.stringify(rentalCitations));
 
       // Parse JSON
       let rentalData;
@@ -162,11 +164,32 @@ WICHTIG für comparables:
         }
       }
 
+      // Enrich comparables with citation URLs as fallback
+      const comparables = (rentalData.comparables || []).map((c: any, idx: number) => {
+        const url = c.listing_url;
+        const isPlaceholder = !url || url.includes('...') || url.includes('expose/1') || url.length < 20;
+        if (isPlaceholder && rentalCitations.length > 0) {
+          // Try to match citation by source platform name
+          const sourceLower = (c.source || '').toLowerCase();
+          const matched = rentalCitations.find((cit: string) => {
+            const citLower = cit.toLowerCase();
+            if (sourceLower.includes('immoscout') || sourceLower.includes('immobilienscout')) return citLower.includes('immobilienscout24');
+            if (sourceLower.includes('immowelt')) return citLower.includes('immowelt');
+            if (sourceLower.includes('ebay')) return citLower.includes('ebay');
+            if (sourceLower.includes('wg-gesucht')) return citLower.includes('wg-gesucht');
+            return false;
+          });
+          return { ...c, listing_url: matched || (rentalCitations[idx] ?? null) };
+        }
+        return c;
+      });
+
       return new Response(
         JSON.stringify({
           success: true,
           manual,
           analysis_type: 'rental',
+          citations: rentalCitations,
           results: [{
             success: true,
             property: body.house_name || address,
@@ -176,7 +199,7 @@ WICHTIG für comparables:
             price_per_sqm: rentalData.price_per_sqm,
             comparable_count: rentalData.comparable_count,
             sources: rentalData.sources,
-            comparables: rentalData.comparables || [],
+            comparables,
           }],
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
