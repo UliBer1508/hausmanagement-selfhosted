@@ -281,10 +281,9 @@ WICHTIG für comparables:
       'holidu': 'holidu.com',
       'traum-ferienwohnungen': 'traum-ferienwohnungen.de',
     };
-    const searchDomainFilter: string[] = platforms.includes('alle')
-      ? Object.values(domainMap)
-      : platforms.map(p => domainMap[p]).filter(Boolean);
-    console.log(`[scrape-prices] Domain filter: ${searchDomainFilter.join(', ')}`);
+    // Domain-Filter deaktiviert - Perplexity soll frei suchen können
+    // (Buchungsportale rendern Preise per JS, Perplexity kann sie nicht direkt lesen)
+    console.log(`[scrape-prices] Freie Suche (kein Domain-Filter), bevorzugte Portale: ${platformText}`);
 
     // Format dates for display in prompt
     const formatDateDE = (dateStr: string) => {
