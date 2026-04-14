@@ -1,28 +1,40 @@
 
 
-# Fix: Echte Inserat-URLs statt Platzhalter
+# Prompt-Optimierung: Portal-Endpreise gezielter finden
 
 ## Problem
 
-Perplexity liefert in seinem API-Response ein `citations`-Array mit den echten Quell-URLs. Der aktuelle Code ignoriert dieses Array. Stattdessen wird im Prompt nach `listing_url` gefragt, aber Perplexity generiert dort nur Platzhalter-URLs (z.B. "https://www.immobilienscout24.de/expose/...") statt der echten Links.
+Der aktuelle Prompt ist inhaltlich korrekt, aber Perplexity findet trotzdem oft keine Preise. Das liegt daran, dass:
+1. Perplexity ohne `search_domain_filter` zu breit sucht
+2. Der Prompt zu viele Optionen anbietet ("Preislisten, Saisontabellen sind willkommen") -- das lenkt ab
+3. Kein gezielter Suchfokus auf die konkreten Buchungsportale gesetzt wird
 
 ## Loesung
 
-### 1. Edge Function (`scrape-competitor-prices/index.ts`)
+### Edge Function (`scrape-competitor-prices/index.ts`)
 
-- **Prompt anpassen**: Instruktion ergaenzen, dass Perplexity fuer `listing_url` die exakte Quell-URL aus den eigenen Suchergebnissen verwenden soll, NICHT eine Beispiel-URL. Zusaetzlich: "Wenn du keine exakte URL hast, setze listing_url auf null."
-- **Citations extrahieren**: Nach dem API-Call `data.citations` auslesen und als Fallback verwenden. Wenn ein `comparable` keine gueltige `listing_url` hat (oder eine Platzhalter-URL wie "..."), versuche die passende Citation zuzuordnen.
-- **Citations im Response mitsenden**: Das `citations`-Array an das Frontend zurueckgeben, damit es als Fallback-Quelle dient.
+**A) Perplexity `search_domain_filter` nutzen**
 
-### 2. Frontend (`ScrapePricesDialog.tsx`)
+Wenn der User bestimmte Plattformen auswaehlt, diese als Domain-Filter an die API uebergeben. Das zwingt Perplexity, NUR auf diesen Portalen zu suchen:
 
-- **Citations empfangen**: Das `citations`-Array aus der Response speichern.
-- **URL-Fallback-Logik**: Beim "Inserat ansehen"-Link pruefen: Wenn `listing_url` fehlt oder ein Platzhalter ist, die passende Citation-URL verwenden (basierend auf Plattform-Name im Source-Feld).
+```text
+search_domain_filter: ["booking.com", "airbnb.com", "fewo-direkt.de", ...]
+```
 
-## Zusammenfassung
+**B) Prompt schaerfen**
+
+- Zeile "Auch Preise aus Preislisten oder Saisontabellen sind willkommen" entfernen
+- Stattdessen klar machen: "Suche auf Booking.com / Airbnb nach dem Inserat und gib den angezeigten Gesamtpreis an"
+- Den Unterkunftsnamen + Ort explizit als Suchbegriff formulieren
+- Beispiel aus dem Screenshot als Orientierung geben: "z.B. 1.338 EUR fuer 1 Woche, 6 Erwachsene"
+
+**C) System-Prompt anpassen**
+
+Klarer formulieren: "Du durchsuchst Buchungsportale nach aktuellen Mietpreisen fuer Ferienunterkuenfte. Gib NUR Preise zurueck die du tatsaechlich auf den Portalen findest."
+
+### Zusammenfassung der Aenderungen
 
 | Datei | Aenderung |
 |-------|-----------|
-| `scrape-competitor-prices/index.ts` | Prompt: echte URLs fordern; `data.citations` extrahieren und mitsenden |
-| `ScrapePricesDialog.tsx` | Citations als Fallback fuer Inserat-Links verwenden |
+| `scrape-competitor-prices/index.ts` | Domain-Filter hinzufuegen, Prompt schaerfen (Portal-Fokus statt Saisontabellen), System-Prompt praezisieren |
 
