@@ -1,44 +1,98 @@
 
 
-# Fix: Plattform-ID-Mapping reparieren + Prompt fokussieren
+# Fix: Einfach den Inseratspreis auslesen + Link zum Angebot
 
 ## Problem
 
-Der Hauptgrund warum Perplexity keine brauchbaren Portalpreise findet:
+Perplexity findet bei 4 von 5 Objekten keine Preise, weil der Prompt zu spezifische Suchkriterien verlangt (exakter Zeitraum, exakte Gästeanzahl, exakte Nächte). Booking.com zeigt Preise dynamisch -- Perplexity findet diese selten für den exakten Zeitraum. Zusätzlich werden die Perplexity-Citations (= direkte Links zum Inserat) komplett ignoriert.
 
-**Die UI sendet Plattform-IDs** (z.B. `booking.com`, `airbnb`, `fewo-direkt`), aber die Edge Function erwartet **Labels** (z.B. `Booking.com`, `Airbnb`, `FeWo-direkt`) im `domainMap`. Dadurch greift der `search_domain_filter` nie -- Perplexity sucht ueberall statt nur auf den gewaehlten Portalen.
+## Lösung
 
-Zusaetzlich: Der Prompt koennte staerker auf den konkreten Portal-Endpreis (Gesamtpreis fuer X Naechte, Y Personen) fokussiert werden.
+Den Prompt radikal vereinfachen: Nur den aktuell im Inserat sichtbaren Preis auslesen, egal für welchen Zeitraum. Und den Inseratslink aus den Perplexity-Citations zurückgeben.
 
-## Aenderungen
+## Änderungen
 
-### Edge Function (`supabase/functions/scrape-competitor-prices/index.ts`)
+### 1. Edge Function (`supabase/functions/scrape-competitor-prices/index.ts`)
 
-**1) Plattform-Mapping fixen (Tourist-Modus, Zeile 285-296)**
+**A) Prompt vereinfachen (Zeile 331-377)**
 
-Das `domainMap` muss die IDs akzeptieren die die UI tatsaechlich sendet:
+Statt komplexer Datums-/Personen-Anforderungen nur fragen:
+- "Finde das Inserat von [Name] auf [Portalen]"
+- "Lies den dort angezeigten Preis ab"
+- "Gib an, für welchen Zeitraum/Personen dieser Preis gilt (wenn sichtbar)"
 
-```text
-Aktuell (falsch):           Neu (korrekt):
-'Booking.com' -> booking    'booking.com' -> booking.com
-'Airbnb' -> airbnb.com      'airbnb' -> airbnb.com
-'FeWo-direkt' -> fewo...    'fewo-direkt' -> fewo-direkt.de
-...                          + Label-Varianten als Fallback
+Neues JSON-Schema (vereinfacht):
+```json
+{
+  "found": true,
+  "prices": [{
+    "price": 1338,
+    "price_info": "1 Woche, 6 Erwachsene, inkl. Steuern",
+    "platform": "Booking.com"
+  }],
+  "property_details": { ... },
+  "general_info": "..."
+}
 ```
 
-**2) Plattform-Mapping fixen (Rental-Modus, Zeile 46-55)**
+Keine harte Anforderung mehr an `check_in`, `nights`, `guests` etc. -- nur was im Inserat steht.
 
-Gleicher Bug: UI sendet `immoscout24`, `immowelt`, `ebay-kleinanzeigen` -- Map erwartet `ImmoScout24`, `Immowelt`, `eBay Kleinanzeigen`.
+**B) Citations auslesen und als `listing_url` zurückgeben (nach Zeile 408)**
 
-**3) platformText ebenfalls normalisieren**
+Perplexity liefert `data.citations` als Array von URLs. Diese werden:
+- Geloggt
+- Nach Portal gefiltert (booking.com, airbnb.com etc.)
+- Pro Preis-Eintrag als `listing_url` zugeordnet
+- Im Result-Objekt mitgegeben
 
-Der `platformText` im Prompt nutzt aktuell die rohen IDs. Er sollte die lesbaren Portal-Namen verwenden (z.B. "Booking.com" statt "booking.com"), damit Perplexity die Portale besser erkennt.
+**C) Synthetische Preis-Heuristiken entfernen (Zeile 436-456)**
+
+Die Logik die aus `general_info` Preise schätzt (Regex für "236-456€") wird entfernt. Wenn kein Preis im Inserat steht, dann `found: false`.
+
+**D) Result-Objekt um `listing_url` und `property_url` erweitern (Zeile 531-540)**
+
+```typescript
+results.push({
+  ...bisherige Felder,
+  listing_url: bestCitationUrl || property.property_url || null,
+  citations: relevantCitations,
+});
+```
+
+**E) `competitor_properties.property_url` aktualisieren**
+
+Wenn eine brauchbare Citation-URL gefunden wird und `property.property_url` fehlt, wird sie automatisch gespeichert.
+
+### 2. Dialog (`src/components/Houses/CompetitorAnalysis/ScrapePricesDialog.tsx`)
+
+**A) Preis-Anzeige um "Angebot öffnen"-Button erweitern (Zeile 600-630)**
+
+Pro Preis-Eintrag: Wenn `listing_url` oder `evidence_url` vorhanden, einen klickbaren Link-Button anzeigen ("Angebot ansehen" mit ExternalLink-Icon), der das Inserat in neuem Tab öffnet.
+
+**B) Fallback-Bereich erweitern (Zeile 634-638)**
+
+Auch wenn keine Preise gefunden wurden, aber ein `listing_url` existiert, einen Button "Inserat öffnen" anzeigen.
 
 ### Zusammenfassung
 
-| Datei | Aenderung |
-|-------|-----------|
-| `scrape-competitor-prices/index.ts` | domainMap-Keys auf UI-IDs umstellen (Tourist + Rental), platformText aus Labels generieren |
+| Datei | Änderung |
+|---|---|
+| `scrape-competitor-prices/index.ts` | Prompt vereinfachen (nur sichtbaren Preis lesen), Citations als Links nutzen, Heuristiken entfernen, property_url updaten |
+| `ScrapePricesDialog.tsx` | "Angebot ansehen"-Button pro Preis-Eintrag mit Link zum Inserat |
 
-Dies ist ein reiner Bug-Fix -- der Domain-Filter existiert bereits, wird aber wegen falscher Keys nie angewendet. Nach dem Fix sucht Perplexity gezielt nur auf z.B. booking.com und findet den konkreten Endpreis wie im Screenshot.
+### Technischer Ablauf (neu)
+
+```text
+Perplexity sucht Inserat auf booking.com
+  → liest sichtbaren Preis ab (z.B. "€1.338")
+  → liest Preis-Info ab (z.B. "1 Woche, 6 Erwachsene")
+  → liefert Citations (URLs zum Inserat)
+Edge Function:
+  → nimmt Preis + Citation-URL
+  → speichert in monthly_pricing
+  → gibt listing_url zurück
+UI:
+  → zeigt Preis + "Angebot ansehen" Button
+  → Klick öffnet Booking.com-Inserat direkt
+```
 
