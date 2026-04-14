@@ -1,63 +1,55 @@
 
 
-# Wettbewerber-Details in Tourist-Suchergebnissen anzeigen
+# Fix: Perplexity-Prompt toleranter fuer Preisfindung
 
 ## Problem
 
-Die Tourist-Preissuche zeigt pro Wettbewerber nur gefundene Preise, aber keine Objektdetails (Ausstattung, Lage, Groesse, Bewertungen). Der User kann nicht auf ein Ergebnis klicken, um mehr zu erfahren. Die Perplexity-Suche fragt diese Infos auch nicht ab.
+Perplexity findet Objektdetails, aber keine Preise, weil:
+- Der Zeitraum (April-Oktober 2026) zu weit in der Zukunft liegt
+- Der Prompt nur nach buchbaren Preisen fuer exakte Daten fragt
+- Preisinformationen aus general_info (z.B. "236-456€/Nacht") nicht als Preise extrahiert werden
 
-## Aenderungen
+## Loesung
 
-### 1. Perplexity-Prompt erweitern (Edge Function)
+### 1. Prompt ueberarbeiten (Edge Function)
 
 **Datei:** `supabase/functions/scrape-competitor-prices/index.ts`
 
-Den Tourist-Prompt so erweitern, dass Perplexity zusaetzlich zu Preisen auch Objektdaten zurueckgibt:
+Den Prompt so aendern, dass Perplexity breiter sucht:
 
-```json
-{
-  "found": true,
-  "property_details": {
-    "description": "Modernes Chalet mit Panoramablick...",
-    "max_guests": 6,
-    "bedrooms": 3,
-    "bathrooms": 2,
-    "size_sqm": 120,
-    "rating": 9.2,
-    "review_count": 48,
-    "amenities": ["Sauna", "Whirlpool", "WLAN"],
-    "address": "Bramberg am Wildkogel",
-    "platform_url": "https://..."
-  },
-  "prices": [...]
-}
+- **Auch vergangene/aktuelle Preislisten akzeptieren** ("Was kostet die Unterkunft generell?")
+- **Preistabellen von der eigenen Website** suchen (viele Chalets haben Saisonpreislisten)
+- **Explizit nach Preislisten, Ratenblättern, Saisonpreisen fragen** -- nicht nur buchbare Daten
+- **Zeitraum weglassen oder optional machen**: "Finde alle bekannten Preise, egal fuer welchen Zeitraum"
+- Neuen Preis-Typ `"list"` ergaenzen fuer Preistabellen-Eintraege
+
+Neuer Prompt-Kern:
+```
+AUFGABE: Finde ALLE bekannten Preise fuer diese Ferienunterkunft.
+
+WICHTIG - BREITE SUCHE:
+- Suche auf der eigenen Website nach Preislisten/Ratenblättern
+- Suche auf Buchungsportalen nach aktuellen oder vergangenen Preisen
+- Auch Preise aus vergangenen Saisons sind relevant
+- Saisonpreise, Wochenpreise, Nachtpreise -- ALLES ist relevant
+- Wenn keine exakten Preise: Gib Preisspannen oder Richtwerte an
+- Endreinigungskosten, Nebenkosten separat auflisten
 ```
 
-Die `property_details` werden im Result-Objekt an das Frontend durchgereicht.
+### 2. general_info als Fallback-Preis parsen
 
-### 2. Frontend: Klickbare Ergebnis-Cards mit Detail-Dialog
+Wenn `prices` leer ist aber `general_info` Preisangaben enthaelt (z.B. "200-350€/Nacht"), einen synthetischen Preis-Eintrag vom Typ `"info"` erzeugen, damit das Frontend "Keine Preise" nicht anzeigt.
+
+### 3. Frontend: "Keine Preise" durch general_info ersetzen
 
 **Datei:** `src/components/Houses/CompetitorAnalysis/ScrapePricesDialog.tsx`
 
-- `ScrapeResult`-Interface um `property_details` erweitern
-- Jede Ergebnis-Card bekommt `cursor-pointer` und einen Expand/Collapse-Mechanismus
-- Bei Klick zeigt sich ein Detail-Bereich mit:
-  - Beschreibung
-  - Gaeste/Schlafzimmer/Badezimmer/Groesse
-  - Bewertung + Anzahl
-  - Ausstattungs-Badges
-  - Adresse/Lage
-  - Link zum Portal
-- Preise bleiben wie bisher unterhalb der Details sichtbar
-
-### 3. Bestehende Wettbewerber-Daten aktualisieren
-
-Wenn `property_details` zurueckkommen und der Wettbewerber in `competitor_properties` existiert, werden fehlende Felder (amenities, rating, review_count, max_guests, bedrooms, bathrooms, address) mit den neu gefundenen Daten ergaenzt (nur wenn bisher NULL).
+Wenn `r.found === false` aber `r.general_info` existiert, zeige statt "Keine Preise" den Badge "Info" und darunter den `general_info` Text. So sieht der User zumindest die gefundenen Preisinformationen.
 
 ## Zusammenfassung
 
 | Datei | Aenderung |
 |-------|-----------|
-| `scrape-competitor-prices/index.ts` | Prompt um property_details erweitern, Details durchreichen + in DB updaten |
-| `ScrapePricesDialog.tsx` | Interface + klickbare Detail-Ansicht pro Ergebnis |
+| `scrape-competitor-prices/index.ts` | Prompt breiter (keine Zeitraum-Pflicht, Preislisten suchen, neuer Typ "list"/"info") + general_info Fallback |
+| `ScrapePricesDialog.tsx` | general_info anzeigen wenn keine Preise, Badge "Info" statt "Keine Preise" |
 
