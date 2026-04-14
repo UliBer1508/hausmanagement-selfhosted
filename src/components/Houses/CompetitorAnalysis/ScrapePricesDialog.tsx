@@ -419,11 +419,13 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                               {hasDetails && (isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />)}
                               <span className="font-medium text-sm">{r.property || selectedHouse?.name}</span>
                             </div>
-                            {r.success && r.found ? (
+                            {r.success && r.found && r.prices && r.prices.length > 0 ? (
                               <Badge variant="default" className="bg-primary">
                                 <CheckCircle2 className="w-3 h-3 mr-1" />
-                                {r.prices?.length || 0} Preise
+                                {r.prices.length} Preise
                               </Badge>
+                            ) : r.success && r.general_info ? (
+                              <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300">Info</Badge>
                             ) : r.success && !r.found ? (
                               <Badge variant="secondary">Keine Preise</Badge>
                             ) : (
@@ -519,7 +521,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                               <div key={j} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                    {p.type === 'exact' ? 'Exakt' : p.type === 'seasonal' ? 'Saison' : p.type === 'range' ? 'Spanne' : p.type === 'per_night' ? '/Nacht' : p.type || '?'}
+                                    {p.type === 'exact' ? 'Exakt' : p.type === 'seasonal' ? 'Saison' : p.type === 'range' ? 'Spanne' : p.type === 'per_night' ? '/Nacht' : p.type === 'list' ? 'Liste' : p.type || '?'}
                                   </Badge>
                                   <span className="font-medium">
                                     {p.total_price ? `€${p.total_price.toLocaleString('de-DE')}` : p.price_per_night ? `€${p.price_per_night}/N` : '–'}
@@ -535,6 +537,13 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                             {r.general_info && (
                               <p className="text-xs text-muted-foreground mt-1 italic">{r.general_info}</p>
                             )}
+                          </div>
+                        )}
+
+                        {/* General info fallback when no prices */}
+                        {r.success && !isRental && (!r.prices || r.prices.length === 0) && r.general_info && (
+                          <div className="bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                            <p className="text-xs text-amber-800 italic">{r.general_info}</p>
                           </div>
                         )}
 
