@@ -72,6 +72,13 @@ interface ScrapeResult {
   price_per_sqm?: number;
   comparable_count?: number;
   sources?: string[];
+  comparables?: Array<{
+    address?: string;
+    sqm?: number;
+    rooms?: number;
+    rent?: number;
+    source?: string;
+  }>;
 }
 
 const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesDialogProps) => {
@@ -441,7 +448,29 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                             </div>
                           )}
                           {r.comparable_count && (
-                            <div className="text-xs">{r.comparable_count} Vergleichsobjekte</div>
+                            <div className="text-xs">{r.comparable_count} Vergleichsobjekte gefunden</div>
+                          )}
+                          {r.comparables && r.comparables.length > 0 && (
+                            <div className="mt-2 space-y-1.5">
+                              <div className="text-xs font-medium text-foreground">Gefundene Objekte:</div>
+                              {r.comparables.map((c, ci) => (
+                                <div key={ci} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
+                                  <div>
+                                    <span className="font-medium">{c.address || 'Unbekannt'}</span>
+                                    <div className="text-xs text-muted-foreground">
+                                      {c.sqm && <span>{c.sqm} qm</span>}
+                                      {c.rooms && <span> • {c.rooms} Zi.</span>}
+                                      {c.source && <span> • {c.source}</span>}
+                                    </div>
+                                  </div>
+                                  {c.rent && (
+                                    <span className="font-semibold text-primary whitespace-nowrap ml-2">
+                                      €{c.rent.toLocaleString('de-DE')}/M
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
                       )}
