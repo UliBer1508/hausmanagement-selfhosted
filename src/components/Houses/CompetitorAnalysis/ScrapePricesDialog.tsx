@@ -93,6 +93,12 @@ interface ScrapeResult {
     rooms?: number;
     rent?: number;
     source?: string;
+    description?: string;
+    floor?: string;
+    year_built?: number;
+    features?: string[];
+    available_from?: string;
+    listing_url?: string;
   }>;
 }
 

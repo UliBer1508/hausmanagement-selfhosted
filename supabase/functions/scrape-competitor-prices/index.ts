@@ -67,9 +67,29 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
   "currency": "EUR",
   "sources": ["ImmoScout24", "Immowelt"],
   "comparables": [
-    {"address": "Beispielstr. 1", "sqm": 65, "rooms": 2, "rent": 800, "source": "ImmoScout24"},
-    {"address": "Musterweg 5", "sqm": 58, "rooms": 2, "rent": 750, "source": "Immowelt"}
+    {
+      "address": "Beispielstr. 1, 14612 Falkensee",
+      "sqm": 65,
+      "rooms": 2,
+      "rent": 800,
+      "source": "ImmoScout24",
+      "description": "Helle 2-Zimmer-Wohnung mit Balkon und Einbauküche...",
+      "floor": "2. OG",
+      "year_built": 2005,
+      "features": ["Balkon", "Einbauküche", "Keller", "Aufzug"],
+      "available_from": "01.07.2026",
+      "listing_url": "https://www.immobilienscout24.de/expose/..."
+    }
   ]
+
+WICHTIG für comparables:
+- Gib so viele Details wie möglich pro Objekt an
+- description: Kurzbeschreibung aus dem Inserat (1-2 Sätze)
+- floor: Etage/Stockwerk wenn bekannt
+- year_built: Baujahr wenn bekannt
+- features: Array mit Ausstattungsmerkmalen (Balkon, Einbauküche, Keller, Aufzug, Garten, Stellplatz, etc.)
+- available_from: Verfügbar ab Datum wenn bekannt
+- listing_url: URL zum Inserat wenn vorhanden
 }
       `;
 
