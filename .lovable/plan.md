@@ -1,24 +1,28 @@
 
 
-# Mietpreisanalyse: Umkreis-Parameter + Zimmeranzahl speichern
+# Fix: Echte Inserat-URLs statt Platzhalter
 
-## Aenderungen
+## Problem
 
-### 1. Frontend (`ScrapePricesDialog.tsx`)
+Perplexity liefert in seinem API-Response ein `citations`-Array mit den echten Quell-URLs. Der aktuelle Code ignoriert dieses Array. Stattdessen wird im Prompt nach `listing_url` gefragt, aber Perplexity generiert dort nur Platzhalter-URLs (z.B. "https://www.immobilienscout24.de/expose/...") statt der echten Links.
 
-- **Neues Feld "Umkreis (km)"**: Input-Feld (Typ number, default 10, min 1, max 50) neben den bestehenden Feldern Wohnflaeche und Zimmeranzahl im Rental-Modus. Dreispaltiges Grid statt zweispaltiges.
-- **Zimmeranzahl speichern**: Button neben dem Zimmeranzahl-Feld oder automatisches Speichern bei Aenderung. Beim Aendern der Zimmeranzahl wird `houses.bedrooms` via Supabase-Update aktualisiert und der Query-Cache invalidiert.
-- **Umkreis an Edge Function senden**: `body.radius_km` wird im Request mitgeschickt.
+## Loesung
 
-### 2. Edge Function (`scrape-competitor-prices/index.ts`)
+### 1. Edge Function (`scrape-competitor-prices/index.ts`)
 
-- **`radius_km` Parameter**: Aus `body.radius_km` lesen (default 10).
-- **Prompt anpassen**: Zeile 58 aendern von hardcoded "10 km" zu dynamischem Wert: `Berücksichtige Wohnungen im Umkreis von ${radiusKm} km`.
+- **Prompt anpassen**: Instruktion ergaenzen, dass Perplexity fuer `listing_url` die exakte Quell-URL aus den eigenen Suchergebnissen verwenden soll, NICHT eine Beispiel-URL. Zusaetzlich: "Wenn du keine exakte URL hast, setze listing_url auf null."
+- **Citations extrahieren**: Nach dem API-Call `data.citations` auslesen und als Fallback verwenden. Wenn ein `comparable` keine gueltige `listing_url` hat (oder eine Platzhalter-URL wie "..."), versuche die passende Citation zuzuordnen.
+- **Citations im Response mitsenden**: Das `citations`-Array an das Frontend zurueckgeben, damit es als Fallback-Quelle dient.
+
+### 2. Frontend (`ScrapePricesDialog.tsx`)
+
+- **Citations empfangen**: Das `citations`-Array aus der Response speichern.
+- **URL-Fallback-Logik**: Beim "Inserat ansehen"-Link pruefen: Wenn `listing_url` fehlt oder ein Platzhalter ist, die passende Citation-URL verwenden (basierend auf Plattform-Name im Source-Feld).
 
 ## Zusammenfassung
 
 | Datei | Aenderung |
 |-------|-----------|
-| `ScrapePricesDialog.tsx` | Umkreis-Input hinzufuegen, Zimmeranzahl in DB speichern, radius_km mitsenden |
-| `scrape-competitor-prices/index.ts` | radius_km Parameter lesen, im Prompt verwenden |
+| `scrape-competitor-prices/index.ts` | Prompt: echte URLs fordern; `data.citations` extrahieren und mitsenden |
+| `ScrapePricesDialog.tsx` | Citations als Fallback fuer Inserat-Links verwenden |
 
