@@ -1,24 +1,44 @@
 
 
-# Fix: Rental-Modus zeigt Mietspiegel statt Inserate
+# Fix: Plattform-ID-Mapping reparieren + Prompt fokussieren
 
 ## Problem
 
-Im Rental-Modus wird kein `search_domain_filter` an Perplexity gesendet. Dadurch sucht Perplexity breit und die Citations verweisen oft auf Mietspiegel-Seiten statt auf konkrete Inserate. Die Fallback-Logik ersetzt dann fehlende `listing_url`s mit diesen unbrauchbaren Links.
+Der Hauptgrund warum Perplexity keine brauchbaren Portalpreise findet:
 
-## Loesung
+**Die UI sendet Plattform-IDs** (z.B. `booking.com`, `airbnb`, `fewo-direkt`), aber die Edge Function erwartet **Labels** (z.B. `Booking.com`, `Airbnb`, `FeWo-direkt`) im `domainMap`. Dadurch greift der `search_domain_filter` nie -- Perplexity sucht ueberall statt nur auf den gewaehlten Portalen.
 
-### Edge Function (`scrape-competitor-prices/index.ts`)
+Zusaetzlich: Der Prompt koennte staerker auf den konkreten Portal-Endpreis (Gesamtpreis fuer X Naechte, Y Personen) fokussiert werden.
 
-1. **Domain-Filter fuer Rental-Modus**: Analog zum Tourist-Modus einen `search_domain_filter` basierend auf den ausgewaehlten Plattformen setzen (immobilienscout24.de, immowelt.de, ebay-kleinanzeigen.de, wg-gesucht.de, wohnungsboerse.net).
+## Aenderungen
 
-2. **Prompt verschaerfen**: Im Rental-Prompt explizit fordern, dass `listing_url` die direkte URL zum spezifischen Inserat sein muss (z.B. `/expose/12345678`), nicht zur Startseite oder einem Mietspiegel.
+### Edge Function (`supabase/functions/scrape-competitor-prices/index.ts`)
 
-3. **Citation-Mapping verbessern**: Beim Fallback nur Citations verwenden, die wie Inserat-URLs aussehen (z.B. `/expose/`, `/angebot/`, `/wohnung/` im Pfad). Allgemeine Seiten (Startseite, Mietspiegel, Suchseiten) herausfiltern.
+**1) Plattform-Mapping fixen (Tourist-Modus, Zeile 285-296)**
 
-### Aenderungen
+Das `domainMap` muss die IDs akzeptieren die die UI tatsaechlich sendet:
+
+```text
+Aktuell (falsch):           Neu (korrekt):
+'Booking.com' -> booking    'booking.com' -> booking.com
+'Airbnb' -> airbnb.com      'airbnb' -> airbnb.com
+'FeWo-direkt' -> fewo...    'fewo-direkt' -> fewo-direkt.de
+...                          + Label-Varianten als Fallback
+```
+
+**2) Plattform-Mapping fixen (Rental-Modus, Zeile 46-55)**
+
+Gleicher Bug: UI sendet `immoscout24`, `immowelt`, `ebay-kleinanzeigen` -- Map erwartet `ImmoScout24`, `Immowelt`, `eBay Kleinanzeigen`.
+
+**3) platformText ebenfalls normalisieren**
+
+Der `platformText` im Prompt nutzt aktuell die rohen IDs. Er sollte die lesbaren Portal-Namen verwenden (z.B. "Booking.com" statt "booking.com"), damit Perplexity die Portale besser erkennt.
+
+### Zusammenfassung
 
 | Datei | Aenderung |
 |-------|-----------|
-| `scrape-competitor-prices/index.ts` | Domain-Filter fuer Rental, Prompt-Verschaerfung fuer URLs, Citation-Filter-Logik |
+| `scrape-competitor-prices/index.ts` | domainMap-Keys auf UI-IDs umstellen (Tourist + Rental), platformText aus Labels generieren |
+
+Dies ist ein reiner Bug-Fix -- der Domain-Filter existiert bereits, wird aber wegen falscher Keys nie angewendet. Nach dem Fix sucht Perplexity gezielt nur auf z.B. booking.com und findet den konkreten Endpreis wie im Screenshot.
 
