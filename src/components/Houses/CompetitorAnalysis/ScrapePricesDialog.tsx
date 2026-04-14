@@ -499,65 +499,105 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
               )}
             </div>
 
-            {/* Tourist Mode */}
+            {/* Tourist Mode - Booking.com Style Search Bar */}
             {!isRental && selectedHouseId && (
               <>
-                <div className="space-y-2">
-                  <Label>Ort / Region</Label>
-                  <Input 
-                    value={location} 
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="z.B. Neukirchen am Großvenediger"
-                  />
-                </div>
+                <div className="bg-[#003580] rounded-xl p-3 space-y-3">
+                  {/* Search Bar Row */}
+                  <div className="flex gap-1.5 items-stretch">
+                    {/* Location */}
+                    <div className="flex-[2] relative">
+                      <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground z-10">
+                        <BedDouble className="w-4 h-4" />
+                      </div>
+                      <Input
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        placeholder="Wohin möchten Sie?"
+                        className="pl-10 h-12 bg-white border-2 border-[#febb02] rounded-lg text-sm font-medium focus-visible:ring-[#febb02]"
+                      />
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Check-in (Sa)</Label>
+                    {/* Date Range */}
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(checkIn, "dd.MM.yyyy", { locale: de })}
+                        <Button variant="outline" className="flex-[1.5] h-12 justify-start text-left font-normal bg-white border-2 border-[#febb02] rounded-lg hover:bg-gray-50 text-sm">
+                          <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="truncate">
+                            {format(checkIn, "EE, dd. MMM.", { locale: de })} — {format(checkOut, "EE, dd. MMM.", { locale: de })}
+                          </span>
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={checkIn} onSelect={(d) => {
-                          if (d) { setCheckIn(d); setCheckOut(addDays(d, 7)); }
-                        }} initialFocus className="p-3 pointer-events-auto" />
+                        <div className="p-3 space-y-3">
+                          <div className="text-sm font-medium">Check-in</div>
+                          <Calendar mode="single" selected={checkIn} onSelect={(d) => {
+                            if (d) { setCheckIn(d); setCheckOut(addDays(d, nightsCount)); }
+                          }} initialFocus className="pointer-events-auto" />
+                          <div className="text-sm font-medium">Check-out</div>
+                          <Calendar mode="single" selected={checkOut} onSelect={(d) => d && setCheckOut(d)} initialFocus className="pointer-events-auto" />
+                        </div>
                       </PopoverContent>
                     </Popover>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Check-out (Sa)</Label>
+
+                    {/* Guests */}
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal")}>
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {format(checkOut, "dd.MM.yyyy", { locale: de })}
+                        <Button variant="outline" className="flex-[1.2] h-12 justify-start text-left font-normal bg-white border-2 border-[#febb02] rounded-lg hover:bg-gray-50 text-sm">
+                          <Users className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="truncate">{guests} Erw. · {nightsCount} N.</span>
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={checkOut} onSelect={(d) => d && setCheckOut(d)} initialFocus className="p-3 pointer-events-auto" />
+                      <PopoverContent className="w-56" align="end">
+                        <div className="space-y-3">
+                          <div className="space-y-2">
+                            <Label className="text-xs">Personen</Label>
+                            <Input type="number" min={1} max={20} value={guests} onChange={(e) => setGuests(parseInt(e.target.value) || 6)} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs">Nächte</Label>
+                            <Input type="number" min={1} max={30} value={nightsCount} onChange={(e) => {
+                              const n = parseInt(e.target.value) || 7;
+                              setCheckOut(addDays(checkIn, n));
+                            }} />
+                          </div>
+                        </div>
                       </PopoverContent>
                     </Popover>
+
+                    {/* Search Button */}
+                    <Button
+                      onClick={handleScrape}
+                      disabled={isLoading || disabled || !selectedHouseId || !location}
+                      className="h-12 px-6 bg-[#0071c2] hover:bg-[#005999] text-white font-bold rounded-lg text-base shrink-0"
+                    >
+                      {isLoading ? (
+                        <RefreshCw className="h-5 w-5 animate-spin" />
+                      ) : (
+                        <>Suche</>
+                      )}
+                    </Button>
+                  </div>
+
+                  {/* Platform Toggles Row */}
+                  <div className="flex items-center gap-3 px-1">
+                    {platformOptions.map((platform) => (
+                      <div key={platform.id} className="flex items-center space-x-1.5">
+                        <Checkbox
+                          id={`platform-bar-${platform.id}`}
+                          checked={selectedPlatforms.includes(platform.id)}
+                          onCheckedChange={() => togglePlatform(platform.id)}
+                          className="border-white/60 data-[state=checked]:bg-[#febb02] data-[state=checked]:border-[#febb02]"
+                        />
+                        <label htmlFor={`platform-bar-${platform.id}`} className="text-xs cursor-pointer text-white/90">
+                          {platform.label}
+                        </label>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <div className="space-y-2 flex-1">
-                    <Label>Personen</Label>
-                    <Input type="number" min={1} max={20} value={guests} onChange={(e) => setGuests(parseInt(e.target.value) || 6)} />
-                  </div>
-                  <div className="space-y-2 w-24">
-                    <Label>Nächte</Label>
-                    <Input type="number" min={1} max={30} value={nightsCount} onChange={(e) => {
-                      const n = parseInt(e.target.value) || 7;
-                      setCheckOut(addDays(checkIn, n));
-                    }} />
-                  </div>
-                </div>
-
+                {/* Save params button */}
                 <Button
                   type="button"
                   variant="outline"
@@ -602,49 +642,46 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
               </div>
             )}
 
-            {/* Platform Selection */}
-            {selectedHouseId && (
-              <div className="space-y-2">
-                <Label>{isRental ? 'Immobilienportale' : 'Portale'}</Label>
-                <div className="flex gap-3">
-                  {platformOptions.map((platform) => (
-                    <div key={platform.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`platform-${platform.id}`}
-                        checked={selectedPlatforms.includes(platform.id)}
-                        onCheckedChange={() => togglePlatform(platform.id)}
-                      />
-                      <label htmlFor={`platform-${platform.id}`} className="text-sm cursor-pointer">
-                        {platform.label}
-                      </label>
-                    </div>
-                  ))}
+            {/* Rental Platform Selection & Search */}
+            {isRental && selectedHouseId && (
+              <>
+                <div className="space-y-2">
+                  <Label>Immobilienportale</Label>
+                  <div className="flex gap-3">
+                    {platformOptions.map((platform) => (
+                      <div key={platform.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`platform-${platform.id}`}
+                          checked={selectedPlatforms.includes(platform.id)}
+                          onCheckedChange={() => togglePlatform(platform.id)}
+                        />
+                        <label htmlFor={`platform-${platform.id}`} className="text-sm cursor-pointer">
+                          {platform.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+                <Button
+                  onClick={handleScrape}
+                  disabled={isLoading || disabled || !selectedHouseId}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isLoading ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Analyse läuft...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-4 w-4" />
+                      Mietpreise analysieren
+                    </>
+                  )}
+                </Button>
+              </>
             )}
-
-            {/* Search Button */}
-            {selectedHouseId && (
-              <Button
-                onClick={handleScrape}
-                disabled={isLoading || disabled || !selectedHouseId || (!isRental && !location)}
-                className="w-full"
-                size="lg"
-              >
-                {isLoading ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    {isRental ? 'Analyse läuft...' : 'Suche läuft...'}
-                  </>
-                ) : (
-                  <>
-                    <Search className="mr-2 h-4 w-4" />
-                    {isRental ? 'Mietpreise analysieren' : `Angebote in ${location || '...'} suchen`}
-                  </>
-                )}
-              </Button>
-            )}
-
             {/* Tourist Results with Tabs */}
             {touristResults && (
               <div className="space-y-3">
