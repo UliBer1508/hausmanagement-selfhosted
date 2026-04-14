@@ -302,10 +302,10 @@ CHECK-OUT: ${checkOutDE} (${nightsCount} Naechte)
 PERSONEN: ${guests}
 
 AUFGABE:
-1. Suche nach verfuegbaren Unterkuenften in ${location} fuer diesen Zeitraum und diese Personenanzahl
-2. Bevorzugte Quellen: ${platformText}, aber auch Aggregatoren wie Holidu, Trivago, Google Hotels, HolidayCheck
-3. Fuer jedes gefundene Angebot lies den angezeigten Gesamtpreis ab
-4. Sammle alle relevanten Details
+1. Suche nach Unterkuenften in ${location} die fuer ${guests} Personen geeignet sind
+2. Bevorzugte Quellen: ${platformText}, aber auch Aggregatoren wie Holidu, Trivago, Google Hotels, HolidayCheck, Casamundo, HomeToGo
+3. Sammle alle relevanten Details und Preise die du finden kannst
+4. Auch Nachtpreise, Wochenpreise oder Preisspannen sind wertvoll
 
 ANTWORT NUR ALS JSON:
 {
@@ -315,7 +315,7 @@ ANTWORT NUR ALS JSON:
       "name": "Name der Unterkunft",
       "price_total": 1338,
       "price_per_night": 191,
-      "price_info": "Gesamtpreis fuer ${nightsCount} Naechte, ${guests} Personen, inkl. Steuern",
+      "price_info": "z.B. 'ab 191 EUR/Nacht' oder 'Gesamtpreis 1338 EUR fuer 7 Naechte'",
       "platform": "Booking.com",
       "description": "Kurzbeschreibung der Unterkunft",
       "max_guests": 6,
@@ -335,11 +335,12 @@ ANTWORT NUR ALS JSON:
 
 REGELN:
 - Gib ALLE gefundenen Angebote zurueck, nicht nur die guenstigsten
-- "price_total" = Gesamtpreis fuer den gesamten Zeitraum wie im Portal angezeigt
-- "price_per_night" = Preis pro Nacht wenn separat angegeben
-- "listing_url" = Die direkte URL zum Inserat auf dem Buchungsportal. KEINE Suchseiten oder Startseiten.
-- Wenn du keinen Preis findest, setze price_total auf null
-- Erfinde KEINE Preise! Nur was tatsaechlich auf den Webseiten angezeigt wird
+- "price_total" = Gesamtpreis wenn bekannt, sonst null
+- "price_per_night" = Nachtpreis wenn bekannt (auch aus Preisspannen wie "ab 150 EUR/Nacht")
+- Wenn nur ein Nachtpreis bekannt ist, berechne price_total = price_per_night * ${nightsCount}
+- "listing_url" = Die direkte URL zum Inserat. KEINE Suchseiten oder Startseiten.
+- Es ist OK Preise von Aggregatoren oder Vergleichsseiten zu verwenden
+- Gib lieber Ergebnisse mit Nachtpreisen zurueck als gar keine Ergebnisse
 - Sortiere nach Preis aufsteigend
     `;
 
@@ -352,7 +353,7 @@ REGELN:
       body: JSON.stringify({
         model: 'sonar-pro',
         messages: [
-          { role: 'system', content: 'Du bist ein Reise-Recherche-Experte. Finde Ferienunterkuenfte mit Preisen aus allen verfuegbaren Webquellen - Buchungsportale, Aggregatoren, Vergleichsseiten und gecachte Inserate. Antworte ausschliesslich mit validem JSON.' },
+          { role: 'system', content: 'Du bist ein Reise-Recherche-Experte. Finde Ferienunterkuenfte mit Preisen aus allen verfuegbaren Webquellen. Auch Nachtpreise oder Preisspannen von Aggregatoren und Vergleichsseiten sind wertvolle Ergebnisse. Gib lieber Ergebnisse mit ungefaehren Preisen zurueck als eine leere Liste. Antworte ausschliesslich mit validem JSON.' },
           { role: 'user', content: searchPrompt }
         ],
         temperature: 0.0,

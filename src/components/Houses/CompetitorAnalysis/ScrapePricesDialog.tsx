@@ -105,7 +105,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
-        .select('id, name, rental_type, address, living_area_sqm, bedrooms, max_guests, tenant_info, scrape_search_params')
+        .select('id, name, rental_type, address, bedrooms, max_guests, tenant_info, scrape_search_params')
         .order('name');
       if (error) throw error;
       return data;
@@ -156,7 +156,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
 
       const saved = house.scrape_search_params as any;
       if (house.rental_type === 'long_term') {
-        setSqm(house.living_area_sqm || 60);
+        setSqm(saved?.sqm || 60);
         setRooms(house.bedrooms || 2);
         setRadiusKm(saved?.radius_km || 10);
         setSelectedPlatforms(saved?.platforms || ['alle']);
