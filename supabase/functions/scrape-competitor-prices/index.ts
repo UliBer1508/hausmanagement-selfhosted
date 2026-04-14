@@ -369,18 +369,14 @@ Falls GAR KEINE Preisinformationen gefunden werden:
               const min = parseInt(rangeMatch[1]);
               const max = parseInt(rangeMatch[2]);
               prices.push({
-                total_price: null,
                 price_per_night: Math.round((min + max) / 2),
-                type: 'range',
-                notes: `Spanne: ${min}-${max}€/Nacht (aus allg. Info)`,
+                includes: `Spanne: ${min}-${max}€/Nacht`,
                 platform: 'diverse',
               });
             } else if (singleMatch) {
               prices.push({
-                total_price: null,
                 price_per_night: parseInt(singleMatch[1]),
-                type: 'per_night',
-                notes: `Richtwert aus allg. Info`,
+                includes: `Richtwert`,
                 platform: 'diverse',
               });
             }
