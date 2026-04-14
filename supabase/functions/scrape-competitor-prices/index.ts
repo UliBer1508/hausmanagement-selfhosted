@@ -79,7 +79,7 @@ REGELN:
       max_tokens: 4000,
       return_images: false,
       return_related_questions: false,
-      search_domain_filter: ['booking.com'],
+      
     }),
   });
 
@@ -171,7 +171,7 @@ REGELN:
       max_tokens: 4000,
       return_images: false,
       return_related_questions: false,
-      search_domain_filter: ['airbnb.com', 'airbnb.de'],
+      
     }),
   });
 
