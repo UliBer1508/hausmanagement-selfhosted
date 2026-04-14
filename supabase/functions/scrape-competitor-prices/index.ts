@@ -219,26 +219,25 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
 
         try {
           const priceQuery = `
-AUFGABE: Recherchiere ALLE verfügbaren Preise UND Objektdetails für diese Ferienunterkunft.
+AUFGABE: Finde ALLE bekannten Preise UND Objektdetails für diese Ferienunterkunft.
 
 NAME: ${property.property_name}
 URL: ${property.property_url || 'Keine URL vorhanden'}
 
-SUCHPARAMETER:
-- Zeitraum: ${checkInFrom} bis ${checkInTo}
-- Personen: bis zu ${maxGuests}
-- Mindestaufenthalt: ${minNights} Nächte
-- Suche auf: ${platformText}
+REFERENZ-ZEITRAUM (optional): ${checkInFrom} bis ${checkInTo}
+Personen: bis zu ${maxGuests}, Mindestaufenthalt: ${minNights} Nächte
+Suche auf: ${platformText}
 
-WICHTIG:
-- Gib ALLE Preise zurück die du für diesen Zeitraum findest
-- Auch Preise für kürzere oder längere Aufenthalte sind relevant
-- Auch Preise für weniger Gäste
-- Auch allgemeine Preislisten, Saisonpreise oder Preisbereiche
+WICHTIG - BREITE SUCHE:
+- Suche zuerst auf der eigenen Website (URL) nach Preislisten, Ratenblättern, Saisonpreistabellen
+- Suche auf Buchungsportalen nach aktuellen ODER vergangenen Preisen
+- Auch Preise aus vergangenen Saisons oder anderen Jahren sind relevant
+- Saisonpreise, Wochenpreise, Nachtpreise -- ALLES ist relevant
+- Wenn keine exakten Preise: Gib Preisspannen oder Richtwerte als Preis-Einträge an
+- Endreinigungskosten, Nebenkosten, Kurtaxe separat als "notes" auflisten
 - Klassifiziere jeden gefundenen Preis nach Typ
-- Falls die URL zu einem Portal gehört, suche dort zuerst
-- Suche auch auf anderen Portalen nach Preisen
 - Recherchiere zusätzlich ALLE verfügbaren Objektdetails
+- SETZE "found" auf true sobald IRGENDEINE Preisinformation gefunden wurde (auch Spannen oder Richtwerte)
 
 ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
 {
@@ -268,16 +267,20 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
       "notes": "Sommerpreis inkl. Endreinigung"
     }
   ],
-  "general_info": "Preisbereich 200-350 EUR/Nacht je nach Saison"
+  "general_info": "Zusätzliche Preis-Infos, Nebenkosten, Inklusivleistungen"
 }
 
 type kann sein:
 - "exact" = exakter buchbarer Preis für bestimmte Daten
-- "seasonal" = Saisonpreis (z.B. Sommer/Winter)
-- "range" = Preisspanne (min-max)
+- "seasonal" = Saisonpreis (z.B. Sommer 200€/N, Winter 350€/N)
+- "range" = Preisspanne (min-max), nutze price_per_night für den Durchschnitt
 - "per_night" = nur Nachtpreis bekannt, kein Gesamtpreis
+- "list" = Preis aus einer Preisliste/Ratentabelle der Website
 
-Falls KEINE Preise gefunden werden:
+WICHTIG: Wenn du Preisspannen findest (z.B. "236-456€/Nacht"), erstelle einen Preis-Eintrag vom Typ "range" mit price_per_night = Durchschnitt der Spanne und notes = "Spanne: 236-456€/Nacht".
+Wenn du nur allgemeine Infos wie "ab 200€/Nacht" findest, erstelle einen Eintrag vom Typ "per_night" mit price_per_night = 200.
+
+Falls GAR KEINE Preisinformationen gefunden werden:
 {
   "found": false,
   "property_details": { ... trotzdem ausfüllen wenn möglich ... },
@@ -339,8 +342,36 @@ Falls KEINE Preise gefunden werden:
             }
           }
 
-          const prices = Array.isArray(priceData.prices) ? priceData.prices : [];
-          const found = priceData.found !== false && prices.length > 0;
+          let prices = Array.isArray(priceData.prices) ? priceData.prices : [];
+          
+          // If no prices but general_info contains price hints, create synthetic entry
+          if (prices.length === 0 && priceData.general_info) {
+            const info = priceData.general_info;
+            // Try to extract price ranges like "236-456€" or "200€/Nacht"
+            const rangeMatch = info.match(/(\d+)\s*[-–]\s*(\d+)\s*€/);
+            const singleMatch = info.match(/(\d+)\s*€\s*\/\s*Nacht/i);
+            if (rangeMatch) {
+              const min = parseInt(rangeMatch[1]);
+              const max = parseInt(rangeMatch[2]);
+              prices.push({
+                total_price: null,
+                price_per_night: Math.round((min + max) / 2),
+                type: 'range',
+                notes: `Spanne: ${min}-${max}€/Nacht (aus allg. Info)`,
+                platform: 'diverse',
+              });
+            } else if (singleMatch) {
+              prices.push({
+                total_price: null,
+                price_per_night: parseInt(singleMatch[1]),
+                type: 'per_night',
+                notes: `Richtwert aus allg. Info`,
+                platform: 'diverse',
+              });
+            }
+          }
+          
+          const found = priceData.found !== false || prices.length > 0;
 
           // Save best exact price to monthly_pricing
           if (found) {
