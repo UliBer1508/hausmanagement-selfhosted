@@ -34,6 +34,7 @@ serve(async (req) => {
       const address = body.address || '';
       const sqm = body.sqm || 60;
       const rooms = body.rooms || 2;
+      const radiusKm = body.radius_km || 10;
       const currentRent = body.current_rent || null;
       const platforms: string[] = body.platforms ?? ['alle'];
 
@@ -55,7 +56,7 @@ ${currentRentText}
 SUCHPARAMETER:
 - Suche auf: ${platformText}
 - Suche Kaltmieten für Wohnungen mit ähnlicher Größe (±15 qm) und Zimmeranzahl in der gleichen Region
-- Berücksichtige Wohnungen im Umkreis von 10 km
+- Berücksichtige Wohnungen im Umkreis von ${radiusKm} km
 
 ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
 {
