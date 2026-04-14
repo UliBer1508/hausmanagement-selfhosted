@@ -42,6 +42,19 @@ serve(async (req) => {
         ? 'ImmoScout24, Immowelt, eBay Kleinanzeigen, WG-gesucht'
         : platforms.join(', ');
 
+      // Build domain filter for rental search
+      const rentalDomainMap: Record<string, string> = {
+        'ImmoScout24': 'immobilienscout24.de',
+        'Immowelt': 'immowelt.de',
+        'eBay Kleinanzeigen': 'kleinanzeigen.de',
+        'WG-gesucht': 'wg-gesucht.de',
+        'Wohnungsbörse': 'wohnungsboerse.net',
+      };
+      const rentalDomainFilter: string[] = platforms.includes('alle')
+        ? Object.values(rentalDomainMap)
+        : platforms.map(p => rentalDomainMap[p]).filter(Boolean);
+      console.log(`[scrape-prices] Rental domain filter: ${rentalDomainFilter.join(', ')}`);
+
       const currentRentText = currentRent ? `Die aktuelle Miete beträgt ${currentRent} EUR/Monat.` : '';
 
       const rentalPrompt = `
@@ -90,7 +103,7 @@ WICHTIG für comparables:
 - year_built: Baujahr wenn bekannt
 - features: Array mit Ausstattungsmerkmalen (Balkon, Einbauküche, Keller, Aufzug, Garten, Stellplatz, etc.)
 - available_from: Verfügbar ab Datum wenn bekannt
-- listing_url: Die EXAKTE URL zum Originalinserat aus deinen Suchergebnissen. KEINE Platzhalter-URLs wie "expose/..." -- nur echte, funktionierende Links. Wenn du keine echte URL hast, setze den Wert auf null.
+- listing_url: Die direkte URL zum spezifischen Inserat (z.B. https://www.immobilienscout24.de/expose/12345678 oder https://www.immowelt.de/expose/abcde). KEINE Startseiten, KEINE Mietspiegel-Seiten, KEINE Suchergebnis-Seiten. NUR die URL die direkt zum einzelnen Wohnungsinserat fuehrt. Wenn du keine echte Inserat-URL hast, setze den Wert auf null.
 }
       `;
 
@@ -103,13 +116,14 @@ WICHTIG für comparables:
         body: JSON.stringify({
           model: 'sonar',
           messages: [
-            { role: 'system', content: 'Du bist ein Mietpreis-Analyse-Assistent. Recherchiere aktuelle Mietpreise auf Immobilienportalen und antworte AUSSCHLIESSLICH mit validem JSON. Keine zusätzlichen Erklärungen.' },
+            { role: 'system', content: 'Du durchsuchst Immobilienportale nach konkreten Mietinseraten. Gib NUR Daten zurueck die du in echten Inseraten auf den Portalen findest. Antworte ausschliesslich mit validem JSON. Keine Mietspiegel oder Statistikseiten.' },
             { role: 'user', content: rentalPrompt }
           ],
           temperature: 0.0,
           max_tokens: 2000,
           return_images: false,
           return_related_questions: false,
+          ...(rentalDomainFilter.length > 0 ? { search_domain_filter: rentalDomainFilter } : {}),
         }),
       });
 
@@ -164,22 +178,41 @@ WICHTIG für comparables:
         }
       }
 
+      // Helper: check if a URL looks like a specific listing (not a homepage/search/mietspiegel)
+      const isListingUrl = (url: string): boolean => {
+        const lower = url.toLowerCase();
+        // Reject generic pages
+        if (lower.match(/\/(mietspiegel|mietpreise|statistik|ratgeber|suche|search|ergebnisse|results|blog|magazin|news)\b/)) return false;
+        // Reject homepages (path is just / or empty after domain)
+        try {
+          const parsed = new URL(url);
+          if (parsed.pathname === '/' || parsed.pathname === '') return false;
+        } catch { return false; }
+        // Accept known listing patterns
+        if (lower.includes('/expose/') || lower.includes('/angebot/') || lower.includes('/wohnung/') || lower.includes('/objekt/') || lower.includes('/d/details/') || lower.includes('/anzeige/')) return true;
+        // Accept if path has numeric ID segment (likely a listing)
+        if (lower.match(/\/\d{5,}/)) return true;
+        return false;
+      };
+
       // Enrich comparables with citation URLs as fallback
       const comparables = (rentalData.comparables || []).map((c: any, idx: number) => {
         const url = c.listing_url;
         const isPlaceholder = !url || url.includes('...') || url.includes('expose/1') || url.length < 20;
         if (isPlaceholder && rentalCitations.length > 0) {
-          // Try to match citation by source platform name
+          // Only use citations that look like actual listings
+          const listingCitations = rentalCitations.filter((cit: string) => isListingUrl(cit));
+          
           const sourceLower = (c.source || '').toLowerCase();
-          const matched = rentalCitations.find((cit: string) => {
+          const matched = listingCitations.find((cit: string) => {
             const citLower = cit.toLowerCase();
             if (sourceLower.includes('immoscout') || sourceLower.includes('immobilienscout')) return citLower.includes('immobilienscout24');
             if (sourceLower.includes('immowelt')) return citLower.includes('immowelt');
-            if (sourceLower.includes('ebay')) return citLower.includes('ebay');
+            if (sourceLower.includes('ebay') || sourceLower.includes('kleinanzeigen')) return citLower.includes('kleinanzeigen');
             if (sourceLower.includes('wg-gesucht')) return citLower.includes('wg-gesucht');
             return false;
           });
-          return { ...c, listing_url: matched || (rentalCitations[idx] ?? null) };
+          return { ...c, listing_url: matched || (listingCitations[idx] ?? null) };
         }
         return c;
       });
