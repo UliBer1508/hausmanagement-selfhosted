@@ -270,7 +270,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   const nightsCount = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
 
   const defaultTrigger = (
-    <Button variant="outline" disabled={disabled}>
+    <Button variant="outline" disabled={disabled} className="bg-green-600 text-white hover:bg-green-700 border-green-600">
       <TrendingUp className="w-4 h-4 mr-2" />
       Preisanalyse
     </Button>
