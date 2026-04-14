@@ -1,40 +1,24 @@
 
 
-# Prompt-Optimierung: Portal-Endpreise gezielter finden
+# Fix: Rental-Modus zeigt Mietspiegel statt Inserate
 
 ## Problem
 
-Der aktuelle Prompt ist inhaltlich korrekt, aber Perplexity findet trotzdem oft keine Preise. Das liegt daran, dass:
-1. Perplexity ohne `search_domain_filter` zu breit sucht
-2. Der Prompt zu viele Optionen anbietet ("Preislisten, Saisontabellen sind willkommen") -- das lenkt ab
-3. Kein gezielter Suchfokus auf die konkreten Buchungsportale gesetzt wird
+Im Rental-Modus wird kein `search_domain_filter` an Perplexity gesendet. Dadurch sucht Perplexity breit und die Citations verweisen oft auf Mietspiegel-Seiten statt auf konkrete Inserate. Die Fallback-Logik ersetzt dann fehlende `listing_url`s mit diesen unbrauchbaren Links.
 
 ## Loesung
 
 ### Edge Function (`scrape-competitor-prices/index.ts`)
 
-**A) Perplexity `search_domain_filter` nutzen**
+1. **Domain-Filter fuer Rental-Modus**: Analog zum Tourist-Modus einen `search_domain_filter` basierend auf den ausgewaehlten Plattformen setzen (immobilienscout24.de, immowelt.de, ebay-kleinanzeigen.de, wg-gesucht.de, wohnungsboerse.net).
 
-Wenn der User bestimmte Plattformen auswaehlt, diese als Domain-Filter an die API uebergeben. Das zwingt Perplexity, NUR auf diesen Portalen zu suchen:
+2. **Prompt verschaerfen**: Im Rental-Prompt explizit fordern, dass `listing_url` die direkte URL zum spezifischen Inserat sein muss (z.B. `/expose/12345678`), nicht zur Startseite oder einem Mietspiegel.
 
-```text
-search_domain_filter: ["booking.com", "airbnb.com", "fewo-direkt.de", ...]
-```
+3. **Citation-Mapping verbessern**: Beim Fallback nur Citations verwenden, die wie Inserat-URLs aussehen (z.B. `/expose/`, `/angebot/`, `/wohnung/` im Pfad). Allgemeine Seiten (Startseite, Mietspiegel, Suchseiten) herausfiltern.
 
-**B) Prompt schaerfen**
-
-- Zeile "Auch Preise aus Preislisten oder Saisontabellen sind willkommen" entfernen
-- Stattdessen klar machen: "Suche auf Booking.com / Airbnb nach dem Inserat und gib den angezeigten Gesamtpreis an"
-- Den Unterkunftsnamen + Ort explizit als Suchbegriff formulieren
-- Beispiel aus dem Screenshot als Orientierung geben: "z.B. 1.338 EUR fuer 1 Woche, 6 Erwachsene"
-
-**C) System-Prompt anpassen**
-
-Klarer formulieren: "Du durchsuchst Buchungsportale nach aktuellen Mietpreisen fuer Ferienunterkuenfte. Gib NUR Preise zurueck die du tatsaechlich auf den Portalen findest."
-
-### Zusammenfassung der Aenderungen
+### Aenderungen
 
 | Datei | Aenderung |
 |-------|-----------|
-| `scrape-competitor-prices/index.ts` | Domain-Filter hinzufuegen, Prompt schaerfen (Portal-Fokus statt Saisontabellen), System-Prompt praezisieren |
+| `scrape-competitor-prices/index.ts` | Domain-Filter fuer Rental, Prompt-Verschaerfung fuer URLs, Citation-Filter-Logik |
 
