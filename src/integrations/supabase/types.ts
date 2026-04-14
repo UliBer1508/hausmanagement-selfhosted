@@ -3530,6 +3530,59 @@ export type Database = {
         }
         Relationships: []
       }
+      rental_price_analysis: {
+        Row: {
+          analysis_date: string
+          avg_rent: number | null
+          comparable_count: number | null
+          created_at: string
+          house_id: string
+          id: string
+          max_rent: number | null
+          min_rent: number | null
+          price_per_sqm: number | null
+          search_params: Json | null
+          sources: Json | null
+          updated_at: string
+        }
+        Insert: {
+          analysis_date?: string
+          avg_rent?: number | null
+          comparable_count?: number | null
+          created_at?: string
+          house_id: string
+          id?: string
+          max_rent?: number | null
+          min_rent?: number | null
+          price_per_sqm?: number | null
+          search_params?: Json | null
+          sources?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          analysis_date?: string
+          avg_rent?: number | null
+          comparable_count?: number | null
+          created_at?: string
+          house_id?: string
+          id?: string
+          max_rent?: number | null
+          min_rent?: number | null
+          price_per_sqm?: number | null
+          search_params?: Json | null
+          sources?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rental_price_analysis_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       route_cache: {
         Row: {
           created_at: string | null

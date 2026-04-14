@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, Zap, CheckCircle2, XCircle, Search } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RefreshCw, CheckCircle2, XCircle, Search, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -17,11 +19,12 @@ import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ScrapePricesDialogProps {
-  house_id: string;
+  house_id?: string;
   disabled?: boolean;
+  triggerButton?: React.ReactNode;
 }
 
-const PLATFORMS = [
+const TOURIST_PLATFORMS = [
   { id: 'alle', label: 'Alle Portale' },
   { id: 'booking.com', label: 'Booking.com' },
   { id: 'airbnb', label: 'Airbnb' },
@@ -32,8 +35,16 @@ const PLATFORMS = [
   { id: 'traum-ferienwohnungen', label: 'Traum-Ferienwohnungen' },
 ];
 
+const RENTAL_PLATFORMS = [
+  { id: 'alle', label: 'Alle Portale' },
+  { id: 'immoscout24', label: 'ImmoScout24' },
+  { id: 'immowelt', label: 'Immowelt' },
+  { id: 'ebay-kleinanzeigen', label: 'eBay Kleinanzeigen' },
+  { id: 'wg-gesucht', label: 'WG-gesucht' },
+];
+
 interface ScrapeResult {
-  property: string;
+  property?: string;
   success: boolean;
   price?: number;
   check_in?: string;
@@ -43,11 +54,35 @@ interface ScrapeResult {
   attempts?: number;
   error?: string;
   errors?: string[];
+  // rental fields
+  avg_rent?: number;
+  min_rent?: number;
+  max_rent?: number;
+  price_per_sqm?: number;
+  comparable_count?: number;
+  sources?: string[];
 }
 
-const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => {
+const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesDialogProps) => {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
+
+  // Load all houses for selection
+  const { data: houses } = useQuery({
+    queryKey: ['houses-for-scrape'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('houses')
+        .select('id, name, rental_type, address, living_area_sqm, bedrooms, max_guests, tenant_info')
+        .order('name');
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [selectedHouseId, setSelectedHouseId] = useState<string>(house_id || '');
+  const selectedHouse = houses?.find(h => h.id === selectedHouseId);
+  const isRental = selectedHouse?.rental_type === 'long_term';
 
   const now = new Date();
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -58,8 +93,31 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
   const [guestsAdults, setGuestsAdults] = useState(2);
   const [guestsChildren, setGuestsChildren] = useState(0);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['alle']);
+  
+  // Rental-specific fields
+  const [sqm, setSqm] = useState(selectedHouse?.living_area_sqm || 60);
+  const [rooms, setRooms] = useState(selectedHouse?.bedrooms || 2);
+  
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<ScrapeResult[] | null>(null);
+
+  // Update rental fields when house changes
+  const handleHouseChange = (houseId: string) => {
+    setSelectedHouseId(houseId);
+    setResults(null);
+    const house = houses?.find(h => h.id === houseId);
+    if (house) {
+      if (house.rental_type === 'long_term') {
+        setSqm(house.living_area_sqm || 60);
+        setRooms(house.bedrooms || 2);
+        setSelectedPlatforms(['alle']);
+      } else {
+        setSelectedPlatforms(['alle']);
+      }
+    }
+  };
+
+  const platforms = isRental ? RENTAL_PLATFORMS : TOURIST_PLATFORMS;
 
   const togglePlatform = (platformId: string) => {
     if (platformId === 'alle') {
@@ -77,42 +135,65 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
   };
 
   const handleScrape = async () => {
+    if (!selectedHouseId) {
+      toast({ title: "Bitte wähle ein Haus aus", variant: "destructive" });
+      return;
+    }
+
     setIsLoading(true);
     setResults(null);
 
     try {
-      toast({
-        title: "Scraping gestartet",
-        description: `Suche ${minNights}-Nächte-Preise (${guestsAdults} Erw.${guestsChildren > 0 ? `, ${guestsChildren} Kinder` : ''})...`,
-      });
+      const body: Record<string, any> = {
+        manual: true,
+        house_id: selectedHouseId,
+        platforms: selectedPlatforms,
+      };
 
-      const { data, error } = await supabase.functions.invoke('scrape-competitor-prices', {
-        body: { 
-          manual: true,
-          check_in_from: format(checkInFrom, 'yyyy-MM-dd'),
-          check_in_to: format(checkInTo, 'yyyy-MM-dd'),
-          min_nights: minNights,
-          guests_adults: guestsAdults,
-          guests_children: guestsChildren,
-          platforms: selectedPlatforms,
-        }
-      });
+      if (isRental) {
+        body.analysis_type = 'rental';
+        body.address = selectedHouse?.address || '';
+        body.sqm = sqm;
+        body.rooms = rooms;
+        body.current_rent = (selectedHouse?.tenant_info as any)?.monthly_rent || null;
+
+        toast({
+          title: "Mietpreisanalyse gestartet",
+          description: `Suche Vergleichsmieten für ${sqm} qm, ${rooms} Zimmer...`,
+        });
+      } else {
+        body.analysis_type = 'tourist';
+        body.check_in_from = format(checkInFrom, 'yyyy-MM-dd');
+        body.check_in_to = format(checkInTo, 'yyyy-MM-dd');
+        body.min_nights = minNights;
+        body.guests_adults = guestsAdults;
+        body.guests_children = guestsChildren;
+
+        toast({
+          title: "Scraping gestartet",
+          description: `Suche ${minNights}-Nächte-Preise (${guestsAdults} Erw.${guestsChildren > 0 ? `, ${guestsChildren} Kinder` : ''})...`,
+        });
+      }
+
+      const { data, error } = await supabase.functions.invoke('scrape-competitor-prices', { body });
 
       if (error) throw error;
 
       if (data?.success) {
         setResults(data.results || []);
         toast({
-          title: "✅ Scraping abgeschlossen",
-          description: `${data.successful_properties || 0} von ${data.total_properties} erfolgreich`,
+          title: "✅ Analyse abgeschlossen",
+          description: isRental
+            ? `Mietpreisanalyse für ${selectedHouse?.name} abgeschlossen`
+            : `${data.successful_properties || 0} von ${data.total_properties} erfolgreich`,
         });
       } else {
-        throw new Error(data?.error || 'Scraping fehlgeschlagen');
+        throw new Error(data?.error || 'Analyse fehlgeschlagen');
       }
     } catch (error) {
       console.error('Scraping error:', error);
       toast({
-        title: "Fehler beim Scraping",
+        title: "Fehler bei der Analyse",
         description: error instanceof Error ? error.message : 'Unbekannter Fehler',
         variant: "destructive"
       });
@@ -126,110 +207,164 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
     setOpen(false);
   };
 
+  const defaultTrigger = (
+    <Button variant="outline" disabled={disabled}>
+      <TrendingUp className="w-4 h-4 mr-2" />
+      Preisanalyse
+    </Button>
+  );
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) resetAndClose(); else setOpen(true); }}>
       <DialogTrigger asChild>
-        <Button variant="outline" disabled={disabled}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Preise aktualisieren
-        </Button>
+        {triggerButton || defaultTrigger}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh]">
         <DialogHeader>
-          <DialogTitle>Wettbewerber-Preise scrapen</DialogTitle>
+          <DialogTitle>{isRental ? 'Mietpreisanalyse' : 'Wettbewerber-Preise scrapen'}</DialogTitle>
           <DialogDescription>
-            Konfiguriere die Suchparameter für das Preis-Scraping über Perplexity AI.
+            {isRental 
+              ? 'Suche Vergleichsmieten in der Region über Perplexity AI.'
+              : 'Konfiguriere die Suchparameter für das Preis-Scraping über Perplexity AI.'}
           </DialogDescription>
         </DialogHeader>
 
         <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-5 py-2">
-            {/* Date Range */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Check-in von</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !checkInFrom && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {checkInFrom ? format(checkInFrom, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={checkInFrom} onSelect={(d) => d && setCheckInFrom(d)} initialFocus className="p-3 pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div className="space-y-2">
-                <Label>Check-in bis</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !checkInTo && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {checkInTo ? format(checkInTo, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={checkInTo} onSelect={(d) => d && setCheckInTo(d)} initialFocus className="p-3 pointer-events-auto" />
-                  </PopoverContent>
-                </Popover>
-              </div>
+            {/* House Selection */}
+            <div className="space-y-2">
+              <Label>Haus / Objekt</Label>
+              <Select value={selectedHouseId} onValueChange={handleHouseChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Haus auswählen..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {houses?.map((house) => (
+                    <SelectItem key={house.id} value={house.id}>
+                      <span className="flex items-center gap-2">
+                        {house.rental_type === 'long_term' ? '🏘️' : '🏖️'}
+                        {house.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedHouse && (
+                <p className="text-xs text-muted-foreground">
+                  {selectedHouse.address}
+                  {isRental ? ` • Festvermietung` : ` • Touristisch`}
+                  {selectedHouse.living_area_sqm ? ` • ${selectedHouse.living_area_sqm} qm` : ''}
+                </p>
+              )}
             </div>
 
-            {/* Nights & Guests */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Min. Nächte</Label>
-                <Input type="number" min={1} max={30} value={minNights} onChange={(e) => setMinNights(parseInt(e.target.value) || 7)} />
+            {/* Tourist Mode: Date Range, Nights, Guests */}
+            {!isRental && selectedHouseId && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Check-in von</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !checkInFrom && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {checkInFrom ? format(checkInFrom, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={checkInFrom} onSelect={(d) => d && setCheckInFrom(d)} initialFocus className="p-3 pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Check-in bis</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !checkInTo && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {checkInTo ? format(checkInTo, "dd.MM.yyyy", { locale: de }) : "Datum wählen"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={checkInTo} onSelect={(d) => d && setCheckInTo(d)} initialFocus className="p-3 pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Min. Nächte</Label>
+                    <Input type="number" min={1} max={30} value={minNights} onChange={(e) => setMinNights(parseInt(e.target.value) || 7)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Erwachsene</Label>
+                    <Input type="number" min={1} max={20} value={guestsAdults} onChange={(e) => setGuestsAdults(parseInt(e.target.value) || 2)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Kinder</Label>
+                    <Input type="number" min={0} max={10} value={guestsChildren} onChange={(e) => setGuestsChildren(parseInt(e.target.value) || 0)} />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Rental Mode: sqm, rooms */}
+            {isRental && selectedHouseId && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Wohnfläche (qm)</Label>
+                  <Input type="number" min={10} max={500} value={sqm} onChange={(e) => setSqm(parseInt(e.target.value) || 60)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Zimmeranzahl</Label>
+                  <Input type="number" min={1} max={10} value={rooms} onChange={(e) => setRooms(parseInt(e.target.value) || 2)} />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Erwachsene</Label>
-                <Input type="number" min={1} max={20} value={guestsAdults} onChange={(e) => setGuestsAdults(parseInt(e.target.value) || 2)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Kinder</Label>
-                <Input type="number" min={0} max={10} value={guestsChildren} onChange={(e) => setGuestsChildren(parseInt(e.target.value) || 0)} />
-              </div>
-            </div>
+            )}
 
             {/* Platform Selection */}
-            <div className="space-y-2">
-              <Label>Portale durchsuchen</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {PLATFORMS.map((platform) => (
-                  <div key={platform.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`platform-${platform.id}`}
-                      checked={selectedPlatforms.includes(platform.id)}
-                      onCheckedChange={() => togglePlatform(platform.id)}
-                    />
-                    <label htmlFor={`platform-${platform.id}`} className="text-sm cursor-pointer">
-                      {platform.label}
-                    </label>
-                  </div>
-                ))}
+            {selectedHouseId && (
+              <div className="space-y-2">
+                <Label>{isRental ? 'Immobilienportale' : 'Portale durchsuchen'}</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {platforms.map((platform) => (
+                    <div key={platform.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`platform-${platform.id}`}
+                        checked={selectedPlatforms.includes(platform.id)}
+                        onCheckedChange={() => togglePlatform(platform.id)}
+                      />
+                      <label htmlFor={`platform-${platform.id}`} className="text-sm cursor-pointer">
+                        {platform.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Scrape Button */}
-            <Button
-              onClick={handleScrape}
-              disabled={isLoading || disabled}
-              className="w-full"
-              size="lg"
-            >
-              {isLoading ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Scraping läuft...
-                </>
-              ) : (
-                <>
-                  <Search className="mr-2 h-4 w-4" />
-                  Jetzt scrapen
-                </>
-              )}
-            </Button>
+            {selectedHouseId && (
+              <Button
+                onClick={handleScrape}
+                disabled={isLoading || disabled || !selectedHouseId}
+                className="w-full"
+                size="lg"
+              >
+                {isLoading ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    {isRental ? 'Analyse läuft...' : 'Scraping läuft...'}
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    {isRental ? 'Mietpreise analysieren' : 'Jetzt scrapen'}
+                  </>
+                )}
+              </Button>
+            )}
 
             {/* Results */}
             {results && (
@@ -239,7 +374,7 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
                   {results.map((r, i) => (
                     <div key={i} className="border rounded-lg p-3 space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm">{r.property}</span>
+                        <span className="font-medium text-sm">{r.property || selectedHouse?.name}</span>
                         {r.success ? (
                           <Badge variant="default" className="bg-green-600">
                             <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -252,7 +387,7 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
                           </Badge>
                         )}
                       </div>
-                      {r.success && r.price ? (
+                      {r.success && !isRental && r.price ? (
                         <div className="text-sm text-muted-foreground space-y-0.5">
                           <div className="flex justify-between">
                             <span>€{r.price.toLocaleString('de-DE')}</span>
@@ -261,6 +396,30 @@ const ScrapePricesDialog = ({ house_id, disabled }: ScrapePricesDialogProps) => 
                           <div className="text-xs">
                             {r.check_in} → {r.check_out} ({r.nights || minNights}N)
                           </div>
+                        </div>
+                      ) : r.success && isRental ? (
+                        <div className="text-sm text-muted-foreground space-y-1">
+                          {r.avg_rent && (
+                            <div className="flex justify-between">
+                              <span>Ø Kaltmiete:</span>
+                              <span className="font-medium">€{r.avg_rent.toLocaleString('de-DE')}</span>
+                            </div>
+                          )}
+                          {r.price_per_sqm && (
+                            <div className="flex justify-between">
+                              <span>Ø €/qm:</span>
+                              <span className="font-medium">€{r.price_per_sqm.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
+                          {(r.min_rent || r.max_rent) && (
+                            <div className="flex justify-between text-xs">
+                              <span>Spanne:</span>
+                              <span>€{r.min_rent?.toLocaleString('de-DE')} – €{r.max_rent?.toLocaleString('de-DE')}</span>
+                            </div>
+                          )}
+                          {r.comparable_count && (
+                            <div className="text-xs">{r.comparable_count} Vergleichsobjekte</div>
+                          )}
                         </div>
                       ) : (
                         <p className="text-xs text-destructive">
