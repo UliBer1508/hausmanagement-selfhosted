@@ -2524,7 +2524,7 @@ const OriginalDashboard = () => {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center">
                 <span className="text-lg flex-shrink-0 mr-2">🏠</span>
-                <span className="truncate">Ferienhäuser ({housesWithStatus.length})</span>
+                <span className="truncate">Ferienhäuser & Mietobjekte ({housesWithStatus.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
