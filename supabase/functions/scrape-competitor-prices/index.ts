@@ -6,13 +6,272 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ---- Portal-specific search logic ----
+
+interface PortalSearchParams {
+  location: string;
+  checkInDE: string;
+  checkOutDE: string;
+  nightsCount: number;
+  guests: number;
+}
+
+async function searchBookingCom(params: PortalSearchParams, perplexityKey: string) {
+  const { location, checkInDE, checkOutDE, nightsCount, guests } = params;
+
+  const prompt = `
+Suche Ferienwohnungen und Ferienhaeuser auf booking.com in ${location}.
+
+ZEITRAUM: ${checkInDE} bis ${checkOutDE} (${nightsCount} Naechte)
+PERSONEN: ${guests}
+
+AUFGABE:
+- Finde konkrete Inserate auf booking.com fuer diesen Zeitraum und diese Personenzahl
+- Suche auch auf Aggregatoren die booking.com-Preise anzeigen: Trivago, Google Hotels, HolidayCheck, Kayak
+- Der Preis soll der ENDPREIS sein (inkl. Steuern, Gebuehren, Reinigung)
+- Booking.com nutzt ein Bewertungssystem von 1-10 Punkten
+
+ANTWORT NUR ALS JSON:
+{
+  "listings": [
+    {
+      "name": "Name der Unterkunft",
+      "price_total": 1338,
+      "price_per_night": 191,
+      "price_info": "Endpreis inkl. Steuern und Gebuehren fuer ${nightsCount} Naechte",
+      "description": "Kurzbeschreibung",
+      "max_guests": 6,
+      "bedrooms": 3,
+      "bathrooms": 2,
+      "size_sqm": 120,
+      "rating": 8.9,
+      "review_count": 48,
+      "amenities": ["Sauna", "WLAN", "Parkplatz"],
+      "address": "Ortsteil oder Adresse",
+      "highlights": ["Panoramablick", "Ski-in/Ski-out"],
+      "listing_url": "Direkte URL zum Inserat"
+    }
+  ]
+}
+
+REGELN:
+- Gib ALLE gefundenen Angebote zurueck
+- "rating" ist die Booking.com-Punktzahl (1-10), NICHT Sterne
+- Wenn nur ein Nachtpreis bekannt ist: price_total = price_per_night * ${nightsCount}
+- listing_url = direkte URL zum Inserat, KEINE Suchseiten
+- Auch ungefaehre Preise oder Preisspannen sind OK
+- Sortiere nach Preis aufsteigend
+`;
+
+  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${perplexityKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'sonar-pro',
+      messages: [
+        { role: 'system', content: 'Du bist ein Reise-Recherche-Experte spezialisiert auf Booking.com. Finde Ferienunterkuenfte mit Endpreisen inkl. aller Gebuehren. Antworte ausschliesslich mit validem JSON.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.0,
+      max_tokens: 4000,
+      return_images: false,
+      return_related_questions: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(`[booking.com] API error ${response.status}:`, errorBody);
+    return { listings: [], citations: [], error: `API error ${response.status}` };
+  }
+
+  const data = await response.json();
+  const content = data.choices[0].message.content;
+  const citations: string[] = data.citations || [];
+  console.log(`[booking.com] Response received, ${citations.length} citations`);
+
+  const parsed = parseJsonResponse(content);
+  const listings = (parsed?.listings || []).map((l: any) => ({
+    ...normalizeListingFields(l),
+    platform: 'Booking.com',
+    booking_rating_score: l.rating || null,
+  }));
+
+  return { listings: enrichListingsWithCitations(listings, citations, 'booking.com'), citations };
+}
+
+async function searchAirbnb(params: PortalSearchParams, perplexityKey: string) {
+  const { location, checkInDE, checkOutDE, nightsCount, guests } = params;
+
+  const prompt = `
+Suche Ferienwohnungen und Ferienhaeuser auf Airbnb in ${location}.
+
+ZEITRAUM: ${checkInDE} bis ${checkOutDE} (${nightsCount} Naechte)
+GAESTE: ${guests}
+
+AUFGABE:
+- Finde konkrete Inserate auf airbnb.com oder airbnb.de fuer diesen Zeitraum
+- Suche auch auf Aggregatoren die Airbnb-Preise anzeigen: Holidu, HomeToGo, Casamundo, Google
+- Der Preis soll der GESAMTPREIS sein (Basis + Service-Gebuehr + Reinigungsgebuehr)
+- Airbnb nutzt Sterne-Bewertungen (1-5) und hat "Superhost"-Status
+
+ANTWORT NUR ALS JSON:
+{
+  "listings": [
+    {
+      "name": "Name der Unterkunft",
+      "price_total": 1200,
+      "price_per_night": 171,
+      "price_info": "Gesamtpreis inkl. Service- und Reinigungsgebuehr fuer ${nightsCount} Naechte",
+      "description": "Kurzbeschreibung",
+      "max_guests": 6,
+      "bedrooms": 3,
+      "bathrooms": 2,
+      "size_sqm": 100,
+      "rating": 4.8,
+      "review_count": 32,
+      "superhost": true,
+      "cleaning_fee": 80,
+      "service_fee": 120,
+      "amenities": ["Pool", "WLAN", "Kueche"],
+      "address": "Ortsteil oder Adresse",
+      "highlights": ["Superhost", "Selbst-Check-in"],
+      "listing_url": "Direkte URL zum Inserat"
+    }
+  ]
+}
+
+REGELN:
+- Gib ALLE gefundenen Angebote zurueck
+- "rating" ist die Airbnb-Sternebewertung (1-5), NICHT Booking-Punkte
+- "superhost" = true wenn der Gastgeber Superhost ist
+- Wenn nur ein Nachtpreis bekannt ist: price_total = price_per_night * ${nightsCount}
+- listing_url = direkte URL zum Inserat, KEINE Suchseiten
+- Auch ungefaehre Preise oder Preisspannen sind OK
+- Sortiere nach Preis aufsteigend
+`;
+
+  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${perplexityKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'sonar-pro',
+      messages: [
+        { role: 'system', content: 'Du bist ein Reise-Recherche-Experte spezialisiert auf Airbnb. Finde Ferienunterkuenfte mit Gesamtpreisen inkl. Service- und Reinigungsgebuehren. Antworte ausschliesslich mit validem JSON.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.0,
+      max_tokens: 4000,
+      return_images: false,
+      return_related_questions: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error(`[airbnb] API error ${response.status}:`, errorBody);
+    return { listings: [], citations: [], error: `API error ${response.status}` };
+  }
+
+  const data = await response.json();
+  const content = data.choices[0].message.content;
+  const citations: string[] = data.citations || [];
+  console.log(`[airbnb] Response received, ${citations.length} citations`);
+
+  const parsed = parseJsonResponse(content);
+  const listings = (parsed?.listings || []).map((l: any) => ({
+    ...normalizeListingFields(l),
+    platform: 'Airbnb',
+    superhost: l.superhost || false,
+    cleaning_fee: l.cleaning_fee || null,
+    service_fee: l.service_fee || null,
+  }));
+
+  return { listings: enrichListingsWithCitations(listings, citations, 'airbnb'), citations };
+}
+
+// ---- Helpers ----
+
+function parseJsonResponse(content: string): any {
+  try {
+    return JSON.parse(content);
+  } catch {
+    let cleaned = content.trim();
+    const codeBlock = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlock) cleaned = codeBlock[1].trim();
+    const jsonStart = cleaned.indexOf('{');
+    if (jsonStart >= 0) cleaned = cleaned.substring(jsonStart);
+    const jsonEnd = cleaned.lastIndexOf('}');
+    if (jsonEnd >= 0) cleaned = cleaned.substring(0, jsonEnd + 1);
+    try {
+      return JSON.parse(cleaned);
+    } catch {
+      console.error('[parse] JSON parse failed');
+      return null;
+    }
+  }
+}
+
+function normalizeListingFields(l: any) {
+  return {
+    name: l.name || 'Unbekannte Unterkunft',
+    price_total: l.price_total || null,
+    price_per_night: l.price_per_night || null,
+    price_info: l.price_info || null,
+    platform: l.platform || null,
+    description: l.description || null,
+    max_guests: l.max_guests || null,
+    bedrooms: l.bedrooms || null,
+    bathrooms: l.bathrooms || null,
+    size_sqm: l.size_sqm || null,
+    rating: l.rating || null,
+    review_count: l.review_count || null,
+    amenities: l.amenities || [],
+    address: l.address || null,
+    highlights: l.highlights || [],
+    listing_url: l.listing_url || null,
+  };
+}
+
+function enrichListingsWithCitations(listings: any[], citations: string[], portalKey: string) {
+  const portalDomains: Record<string, string[]> = {
+    'booking.com': ['booking.com'],
+    'airbnb': ['airbnb.com', 'airbnb.de'],
+  };
+  const domains = portalDomains[portalKey] || [];
+
+  const relevantCitations = citations.filter((url: string) => {
+    const lower = url.toLowerCase();
+    return domains.some(d => lower.includes(d)) || 
+      lower.includes('holidu') || lower.includes('trivago') || 
+      lower.includes('google') || lower.includes('holidaycheck');
+  });
+
+  return listings.map((listing: any, idx: number) => {
+    const aiUrl = listing.listing_url;
+    const isValidUrl = aiUrl && aiUrl.startsWith('http') && aiUrl.length > 20 && !aiUrl.includes('...');
+    if (!isValidUrl && relevantCitations.length > 0) {
+      return { ...listing, listing_url: relevantCitations[idx] || relevantCitations[0] || null };
+    }
+    return listing;
+  });
+}
+
+// ---- Main handler ----
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('[scrape-prices] Starting price analysis...');
+    console.log('[scrape-prices] Starting...');
     
     const body = await req.json().catch(() => ({}));
     const manual = body.manual ?? false;
@@ -38,7 +297,6 @@ serve(async (req) => {
       const currentRent = body.current_rent || null;
       const platforms: string[] = body.platforms ?? ['alle'];
 
-      // Map UI IDs to readable labels for the prompt
       const rentalLabelMap: Record<string, string> = {
         'immoscout24': 'ImmoScout24',
         'immowelt': 'Immowelt',
@@ -50,7 +308,6 @@ serve(async (req) => {
         ? 'ImmoScout24, Immowelt, eBay Kleinanzeigen, WG-gesucht'
         : platforms.map(p => rentalLabelMap[p] || p).join(', ');
 
-      // Build domain filter for rental search (keys = UI IDs)
       const rentalDomainMap: Record<string, string> = {
         'immoscout24': 'immobilienscout24.de',
         'immowelt': 'immowelt.de',
@@ -61,7 +318,6 @@ serve(async (req) => {
       const rentalDomainFilter: string[] = platforms.includes('alle')
         ? Object.values(rentalDomainMap)
         : platforms.map(p => rentalDomainMap[p]).filter(Boolean);
-      console.log(`[scrape-prices] Rental domain filter: ${rentalDomainFilter.join(', ')}`);
 
       const currentRentText = currentRent ? `Die aktuelle Miete beträgt ${currentRent} EUR/Monat.` : '';
 
@@ -103,15 +359,6 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
       "listing_url": "https://www.immobilienscout24.de/expose/12345678"
     }
   ]
-
-WICHTIG für comparables:
-- Gib so viele Details wie möglich pro Objekt an
-- description: Kurzbeschreibung aus dem Inserat (1-2 Sätze)
-- floor: Etage/Stockwerk wenn bekannt
-- year_built: Baujahr wenn bekannt
-- features: Array mit Ausstattungsmerkmalen (Balkon, Einbauküche, Keller, Aufzug, Garten, Stellplatz, etc.)
-- available_from: Verfügbar ab Datum wenn bekannt
-- listing_url: Die direkte URL zum spezifischen Inserat (z.B. https://www.immobilienscout24.de/expose/12345678 oder https://www.immowelt.de/expose/abcde). KEINE Startseiten, KEINE Mietspiegel-Seiten, KEINE Suchergebnis-Seiten. NUR die URL die direkt zum einzelnen Wohnungsinserat fuehrt. Wenn du keine echte Inserat-URL hast, setze den Wert auf null.
 }
       `;
 
@@ -124,7 +371,7 @@ WICHTIG für comparables:
         body: JSON.stringify({
           model: 'sonar',
           messages: [
-            { role: 'system', content: 'Du durchsuchst Immobilienportale nach konkreten Mietinseraten. Gib NUR Daten zurueck die du in echten Inseraten auf den Portalen findest. Antworte ausschliesslich mit validem JSON. Keine Mietspiegel oder Statistikseiten.' },
+            { role: 'system', content: 'Du durchsuchst Immobilienportale nach konkreten Mietinseraten. Antworte ausschliesslich mit validem JSON.' },
             { role: 'user', content: rentalPrompt }
           ],
           temperature: 0.0,
@@ -137,79 +384,47 @@ WICHTIG für comparables:
 
       if (!response.ok) {
         const errorBody = await response.text();
-        console.error(`[scrape-prices] ❌ API error ${response.status}:`, errorBody);
         throw new Error(`Perplexity API error ${response.status}`);
       }
 
       const data = await response.json();
       const content = data.choices[0].message.content;
       const rentalCitations = data.citations || [];
-      console.log('[scrape-prices] 📥 Rental analysis response:', content);
-      console.log('[scrape-prices] 📎 Citations:', JSON.stringify(rentalCitations));
 
-      // Parse JSON
-      let rentalData;
-      try {
-        rentalData = JSON.parse(content);
-      } catch {
-        let cleaned = content.trim();
-        const codeBlock = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (codeBlock) cleaned = codeBlock[1].trim();
-        const jsonStart = cleaned.indexOf('{');
-        if (jsonStart >= 0) cleaned = cleaned.substring(jsonStart);
-        const jsonEnd = cleaned.lastIndexOf('}');
-        if (jsonEnd >= 0) cleaned = cleaned.substring(0, jsonEnd + 1);
-        try {
-          rentalData = JSON.parse(cleaned);
-        } catch {
-          throw new Error('JSON parse failed for rental analysis');
-        }
-      }
+      const rentalData = parseJsonResponse(content);
+      if (!rentalData) throw new Error('JSON parse failed for rental analysis');
 
-      // Save to rental_price_analysis
       if (houseId) {
-        const { error: insertError } = await supabase
-          .from('rental_price_analysis')
-          .insert({
-            house_id: houseId,
-            avg_rent: rentalData.avg_rent || null,
-            min_rent: rentalData.min_rent || null,
-            max_rent: rentalData.max_rent || null,
-            price_per_sqm: rentalData.price_per_sqm || null,
-            comparable_count: rentalData.comparable_count || 0,
-            sources: rentalData.sources || [],
-            search_params: { address, sqm, rooms, platforms, current_rent: currentRent },
-          });
-
-        if (insertError) {
-          console.error('[scrape-prices] ❌ Insert error:', insertError);
-        }
+        await supabase.from('rental_price_analysis').insert({
+          house_id: houseId,
+          avg_rent: rentalData.avg_rent || null,
+          min_rent: rentalData.min_rent || null,
+          max_rent: rentalData.max_rent || null,
+          price_per_sqm: rentalData.price_per_sqm || null,
+          comparable_count: rentalData.comparable_count || 0,
+          sources: rentalData.sources || [],
+          search_params: { address, sqm, rooms, platforms, current_rent: currentRent },
+        });
       }
 
-      // Helper: check if a URL looks like a specific listing
       const isListingUrl = (url: string): boolean => {
         const lower = url.toLowerCase();
         if (lower.match(/\/(mietspiegel|mietpreise|statistik|ratgeber|suche|search|ergebnisse|results|blog|magazin|news)\b/)) return false;
-        try {
-          const parsed = new URL(url);
-          if (parsed.pathname === '/' || parsed.pathname === '') return false;
-        } catch { return false; }
+        try { const parsed = new URL(url); if (parsed.pathname === '/' || parsed.pathname === '') return false; } catch { return false; }
         if (lower.includes('/expose/') || lower.includes('/angebot/') || lower.includes('/wohnung/') || lower.includes('/objekt/') || lower.includes('/d/details/') || lower.includes('/anzeige/')) return true;
         if (lower.match(/\/\d{5,}/)) return true;
         return false;
       };
 
-      // Enrich comparables with citation URLs as fallback
       const comparables = (rentalData.comparables || []).map((c: any, idx: number) => {
         const url = c.listing_url;
         const isPlaceholder = !url || url.includes('...') || url.includes('expose/1') || url.length < 20;
         if (isPlaceholder && rentalCitations.length > 0) {
           const listingCitations = rentalCitations.filter((cit: string) => isListingUrl(cit));
-          
           const sourceLower = (c.source || '').toLowerCase();
           const matched = listingCitations.find((cit: string) => {
             const citLower = cit.toLowerCase();
-            if (sourceLower.includes('immoscout') || sourceLower.includes('immobilienscout')) return citLower.includes('immobilienscout24');
+            if (sourceLower.includes('immoscout')) return citLower.includes('immobilienscout24');
             if (sourceLower.includes('immowelt')) return citLower.includes('immowelt');
             if (sourceLower.includes('ebay') || sourceLower.includes('kleinanzeigen')) return citLower.includes('kleinanzeigen');
             if (sourceLower.includes('wg-gesucht')) return citLower.includes('wg-gesucht');
@@ -222,28 +437,21 @@ WICHTIG für comparables:
 
       return new Response(
         JSON.stringify({
-          success: true,
-          manual,
-          analysis_type: 'rental',
-          citations: rentalCitations,
+          success: true, manual, analysis_type: 'rental', citations: rentalCitations,
           results: [{
             success: true,
             property: body.house_name || address,
-            avg_rent: rentalData.avg_rent,
-            min_rent: rentalData.min_rent,
-            max_rent: rentalData.max_rent,
-            price_per_sqm: rentalData.price_per_sqm,
-            comparable_count: rentalData.comparable_count,
-            sources: rentalData.sources,
-            comparables,
+            avg_rent: rentalData.avg_rent, min_rent: rentalData.min_rent, max_rent: rentalData.max_rent,
+            price_per_sqm: rentalData.price_per_sqm, comparable_count: rentalData.comparable_count,
+            sources: rentalData.sources, comparables,
           }],
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // ===================== TOURIST MODE (Location-based search) =====================
-    console.log('[scrape-prices] Running tourist location-based search...');
+    // ===================== TOURIST MODE =====================
+    console.log('[scrape-prices] Running tourist search...');
     
     const location = body.location || '';
     const checkIn = body.check_in || '';
@@ -251,41 +459,8 @@ WICHTIG für comparables:
     const guests = body.guests ?? 6;
     const platforms: string[] = body.platforms ?? ['alle'];
     
-    if (!location) {
-      throw new Error('Kein Ort angegeben');
-    }
-    
-    console.log(`[scrape-prices] Location search: "${location}", ${checkIn} - ${checkOut}, ${guests} guests, platforms: ${platforms.join(', ')}`);
+    if (!location) throw new Error('Kein Ort angegeben');
 
-    // Map UI IDs to readable labels for the prompt
-    const touristLabelMap: Record<string, string> = {
-      'booking.com': 'Booking.com',
-      'airbnb': 'Airbnb',
-      'vrbo': 'VRBO',
-      'belvilla': 'Belvilla',
-      'fewo-direkt': 'FeWo-direkt',
-      'holidu': 'Holidu',
-      'traum-ferienwohnungen': 'Traum-Ferienwohnungen',
-    };
-    const platformText = platforms.includes('alle') 
-      ? 'Booking.com, Airbnb, VRBO, Belvilla, FeWo-direkt, Holidu, Traum-Ferienwohnungen'
-      : platforms.map(p => touristLabelMap[p] || p).join(', ');
-
-    // Build domain filter for Perplexity search
-    const domainMap: Record<string, string> = {
-      'booking.com': 'booking.com',
-      'airbnb': 'airbnb.com',
-      'vrbo': 'vrbo.com',
-      'belvilla': 'belvilla.de',
-      'fewo-direkt': 'fewo-direkt.de',
-      'holidu': 'holidu.com',
-      'traum-ferienwohnungen': 'traum-ferienwohnungen.de',
-    };
-    // Domain-Filter deaktiviert - Perplexity soll frei suchen können
-    // (Buchungsportale rendern Preise per JS, Perplexity kann sie nicht direkt lesen)
-    console.log(`[scrape-prices] Freie Suche (kein Domain-Filter), bevorzugte Portale: ${platformText}`);
-
-    // Format dates for display in prompt
     const formatDateDE = (dateStr: string) => {
       const d = new Date(dateStr);
       return `${d.getDate().toString().padStart(2, '0')}.${(d.getMonth() + 1).toString().padStart(2, '0')}.${d.getFullYear()}`;
@@ -294,174 +469,60 @@ WICHTIG für comparables:
     const checkOutDE = checkOut ? formatDateDE(checkOut) : '';
     const nightsCount = checkIn && checkOut ? Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)) : 7;
 
-    const searchPrompt = `
-Finde Ferienwohnungen, Chalets und Ferienhaeuser zur Miete in ${location} fuer folgenden Zeitraum:
+    const searchParams: PortalSearchParams = { location, checkInDE, checkOutDE, nightsCount, guests };
 
-CHECK-IN: ${checkInDE}
-CHECK-OUT: ${checkOutDE} (${nightsCount} Naechte)
-PERSONEN: ${guests}
+    // Determine which portals to search
+    const searchBooking = platforms.includes('alle') || platforms.includes('booking.com');
+    const searchAirbnbPortal = platforms.includes('alle') || platforms.includes('airbnb');
 
-AUFGABE:
-1. Suche nach Unterkuenften in ${location} die fuer ${guests} Personen geeignet sind
-2. Bevorzugte Quellen: ${platformText}, aber auch Aggregatoren wie Holidu, Trivago, Google Hotels, HolidayCheck, Casamundo, HomeToGo
-3. Sammle alle relevanten Details und Preise die du finden kannst
-4. Auch Nachtpreise, Wochenpreise oder Preisspannen sind wertvoll
+    console.log(`[scrape-prices] Searching: Booking=${searchBooking}, Airbnb=${searchAirbnbPortal}`);
 
-ANTWORT NUR ALS JSON:
-{
-  "found": true,
-  "listings": [
-    {
-      "name": "Name der Unterkunft",
-      "price_total": 1338,
-      "price_per_night": 191,
-      "price_info": "z.B. 'ab 191 EUR/Nacht' oder 'Gesamtpreis 1338 EUR fuer 7 Naechte'",
-      "platform": "Booking.com",
-      "description": "Kurzbeschreibung der Unterkunft",
-      "max_guests": 6,
-      "bedrooms": 3,
-      "bathrooms": 2,
-      "size_sqm": 120,
-      "rating": 9.2,
-      "review_count": 48,
-      "amenities": ["Sauna", "WLAN", "Parkplatz"],
-      "address": "Genaue Adresse oder Ortsteil",
-      "highlights": ["Panoramablick", "Ski-in/Ski-out"],
-      "listing_url": "Direkte URL zum Inserat auf dem Portal"
+    // Run portal searches in parallel
+    const searchPromises: Promise<{ listings: any[]; citations: string[]; error?: string }>[] = [];
+    const portalKeys: string[] = [];
+
+    if (searchBooking) {
+      searchPromises.push(searchBookingCom(searchParams, perplexityKey));
+      portalKeys.push('booking.com');
     }
-  ],
-  "search_summary": "Zusammenfassung der Suchergebnisse"
-}
-
-REGELN:
-- Gib ALLE gefundenen Angebote zurueck, nicht nur die guenstigsten
-- "price_total" = Gesamtpreis wenn bekannt, sonst null
-- "price_per_night" = Nachtpreis wenn bekannt (auch aus Preisspannen wie "ab 150 EUR/Nacht")
-- Wenn nur ein Nachtpreis bekannt ist, berechne price_total = price_per_night * ${nightsCount}
-- "listing_url" = Die direkte URL zum Inserat. KEINE Suchseiten oder Startseiten.
-- Es ist OK Preise von Aggregatoren oder Vergleichsseiten zu verwenden
-- Gib lieber Ergebnisse mit Nachtpreisen zurueck als gar keine Ergebnisse
-- Sortiere nach Preis aufsteigend
-    `;
-
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${perplexityKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [
-          { role: 'system', content: 'Du bist ein Reise-Recherche-Experte. Finde Ferienunterkuenfte mit Preisen aus allen verfuegbaren Webquellen. Auch Nachtpreise oder Preisspannen von Aggregatoren und Vergleichsseiten sind wertvolle Ergebnisse. Gib lieber Ergebnisse mit ungefaehren Preisen zurueck als eine leere Liste. Antworte ausschliesslich mit validem JSON.' },
-          { role: 'user', content: searchPrompt }
-        ],
-        temperature: 0.0,
-        max_tokens: 4000,
-        return_images: false,
-        return_related_questions: false,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(`[scrape-prices] ❌ API error ${response.status}:`, errorBody);
-      throw new Error(`Perplexity API error ${response.status}`);
+    if (searchAirbnbPortal) {
+      searchPromises.push(searchAirbnb(searchParams, perplexityKey));
+      portalKeys.push('airbnb');
     }
 
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-    const citations: string[] = data.citations || [];
-    
-    console.log(`[scrape-prices] 📥 RAW RESPONSE:`);
-    console.log(content);
-    console.log(`[scrape-prices] 📎 Citations:`, JSON.stringify(citations));
+    const portalResults = await Promise.all(searchPromises);
 
-    // Parse JSON response
-    let searchData;
-    try {
-      searchData = JSON.parse(content);
-    } catch {
-      let cleaned = content.trim();
-      const codeBlock = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (codeBlock) cleaned = codeBlock[1].trim();
-      const jsonStart = cleaned.indexOf('{');
-      if (jsonStart >= 0) cleaned = cleaned.substring(jsonStart);
-      const jsonEnd = cleaned.lastIndexOf('}');
-      if (jsonEnd >= 0) cleaned = cleaned.substring(0, jsonEnd + 1);
-      try {
-        searchData = JSON.parse(cleaned);
-      } catch {
-        console.error(`[scrape-prices] ❌ JSON parse failed`);
-        throw new Error('JSON parse failed');
-      }
-    }
+    // Build results_by_platform
+    const resultsByPlatform: Record<string, { listings: any[]; citations: string[] }> = {};
+    const allListings: any[] = [];
+    const allCitations: string[] = [];
 
-    const listings = Array.isArray(searchData.listings) ? searchData.listings : [];
-    console.log(`[scrape-prices] Found ${listings.length} listings`);
-
-    // Map portal domains for citation matching
-    const portalDomains = ['booking.com', 'airbnb.com', 'airbnb.de', 'vrbo.com', 'fewo-direkt.de', 'belvilla.de', 'holidu.com', 'traum-ferienwohnungen.de'];
-    const relevantCitations = citations.filter((url: string) => {
-      const lower = url.toLowerCase();
-      return portalDomains.some(d => lower.includes(d));
-    });
-    console.log(`[scrape-prices] 🔗 Relevant citations: ${relevantCitations.length}`);
-
-    // Enrich listings with citation URLs
-    const enrichedListings = listings.map((listing: any, idx: number) => {
-      const platformLower = (listing.platform || '').toLowerCase();
-      
-      // Try to match citation to platform
-      let matchedCitation = relevantCitations.find((url: string) => {
-        const urlLower = url.toLowerCase();
-        if (platformLower.includes('booking')) return urlLower.includes('booking.com');
-        if (platformLower.includes('airbnb')) return urlLower.includes('airbnb');
-        if (platformLower.includes('vrbo')) return urlLower.includes('vrbo');
-        if (platformLower.includes('fewo')) return urlLower.includes('fewo-direkt');
-        if (platformLower.includes('belvilla')) return urlLower.includes('belvilla');
-        if (platformLower.includes('holidu')) return urlLower.includes('holidu');
-        return false;
-      });
-
-      // Validate the listing_url from AI response
-      const aiUrl = listing.listing_url;
-      const isValidUrl = aiUrl && aiUrl.startsWith('http') && aiUrl.length > 20 && !aiUrl.includes('...');
-      
-      const finalUrl = isValidUrl ? aiUrl : (matchedCitation || relevantCitations[idx] || null);
-
-      return {
-        name: listing.name || 'Unbekannte Unterkunft',
-        price_total: listing.price_total || null,
-        price_per_night: listing.price_per_night || null,
-        price_info: listing.price_info || null,
-        platform: listing.platform || null,
-        description: listing.description || null,
-        max_guests: listing.max_guests || null,
-        bedrooms: listing.bedrooms || null,
-        bathrooms: listing.bathrooms || null,
-        size_sqm: listing.size_sqm || null,
-        rating: listing.rating || null,
-        review_count: listing.review_count || null,
-        amenities: listing.amenities || [],
-        address: listing.address || null,
-        highlights: listing.highlights || [],
-        listing_url: finalUrl,
-      };
+    portalKeys.forEach((key, i) => {
+      const result = portalResults[i];
+      resultsByPlatform[key] = { listings: result.listings, citations: result.citations };
+      allListings.push(...result.listings);
+      allCitations.push(...result.citations);
     });
 
-    console.log('[scrape-prices] ✅ Search complete');
+    // Sort all listings by price
+    allListings.sort((a, b) => {
+      const priceA = a.price_total || (a.price_per_night ? a.price_per_night * nightsCount : Infinity);
+      const priceB = b.price_total || (b.price_per_night ? b.price_per_night * nightsCount : Infinity);
+      return priceA - priceB;
+    });
+
+    console.log(`[scrape-prices] ✅ Total: ${allListings.length} listings from ${portalKeys.length} portals`);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        results: enrichedListings,
+        results: allListings,
+        results_by_platform: resultsByPlatform,
         manual,
         analysis_type: 'tourist',
         search_params: { location, check_in: checkIn, check_out: checkOut, guests, platforms },
-        total_listings: enrichedListings.length,
-        search_summary: searchData.search_summary || null,
-        citations: relevantCitations,
+        total_listings: allListings.length,
+        citations: allCitations,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

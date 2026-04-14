@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, CheckCircle2, XCircle, Search, TrendingUp, ChevronDown, ChevronUp, MapPin, Users, BedDouble, Bath, Star, ExternalLink } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RefreshCw, CheckCircle2, XCircle, Search, TrendingUp, ChevronDown, ChevronUp, MapPin, Users, BedDouble, Bath, Star, ExternalLink, Award } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, nextSaturday } from "date-fns";
@@ -26,14 +27,9 @@ interface ScrapePricesDialogProps {
 }
 
 const TOURIST_PLATFORMS = [
-  { id: 'alle', label: 'Alle Portale' },
-  { id: 'booking.com', label: 'Booking.com' },
-  { id: 'airbnb', label: 'Airbnb' },
-  { id: 'vrbo', label: 'VRBO' },
-  { id: 'belvilla', label: 'Belvilla' },
-  { id: 'fewo-direkt', label: 'FeWo-direkt' },
-  { id: 'holidu', label: 'Holidu' },
-  { id: 'traum-ferienwohnungen', label: 'Traum-Ferienwohnungen' },
+  { id: 'alle', label: 'Beide Portale' },
+  { id: 'booking.com', label: 'Booking.com', color: 'bg-blue-600' },
+  { id: 'airbnb', label: 'Airbnb', color: 'bg-rose-500' },
 ];
 
 const RENTAL_PLATFORMS = [
@@ -61,6 +57,10 @@ interface ListingResult {
   address?: string | null;
   highlights?: string[];
   listing_url?: string | null;
+  superhost?: boolean;
+  cleaning_fee?: number | null;
+  service_fee?: number | null;
+  booking_rating_score?: number | null;
 }
 
 interface RentalResult {
@@ -87,12 +87,162 @@ interface RentalResult {
   }>;
 }
 
-// Helper to compute next Saturday from today
 const getNextSaturday = () => {
   const now = new Date();
-  const day = now.getDay(); // 0=Sun, 6=Sat
-  if (day === 6) return addDays(now, 7); // if today is Sat, next Sat
+  const day = now.getDay();
+  if (day === 6) return addDays(now, 7);
   return nextSaturday(now);
+};
+
+// Listing Card component
+const ListingCard = ({ listing, index, isExpanded, onToggle }: {
+  listing: ListingResult;
+  index: number;
+  isExpanded: boolean;
+  onToggle: (open: boolean) => void;
+}) => {
+  const hasDetails = !!(listing.description || listing.amenities?.length || listing.highlights?.length);
+  const isBooking = listing.platform === 'Booking.com';
+  const isAirbnb = listing.platform === 'Airbnb';
+
+  return (
+    <Collapsible open={isExpanded} onOpenChange={onToggle}>
+      <div className="border rounded-lg p-3 space-y-2 hover:border-primary/50 transition-colors">
+        <CollapsibleTrigger asChild>
+          <div className="flex items-start justify-between cursor-pointer">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                {hasDetails && (isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />)}
+                <span className="font-medium text-sm truncate">{listing.name}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-1 ml-6">
+                {/* Portal Badge */}
+                {isBooking && (
+                  <Badge className="text-[10px] bg-blue-600 hover:bg-blue-700 text-white">Booking.com</Badge>
+                )}
+                {isAirbnb && (
+                  <Badge className="text-[10px] bg-rose-500 hover:bg-rose-600 text-white">Airbnb</Badge>
+                )}
+                {!isBooking && !isAirbnb && listing.platform && (
+                  <Badge variant="outline" className="text-[10px]">{listing.platform}</Badge>
+                )}
+
+                {/* Rating */}
+                {listing.rating && (
+                  <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                    {isBooking ? (
+                      <span className="bg-blue-700 text-white text-[10px] font-bold px-1 py-0.5 rounded">{listing.rating}</span>
+                    ) : (
+                      <>
+                        <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
+                        {listing.rating}
+                      </>
+                    )}
+                    {listing.review_count && <span className="text-muted-foreground">({listing.review_count})</span>}
+                  </span>
+                )}
+
+                {/* Superhost */}
+                {isAirbnb && listing.superhost && (
+                  <Badge variant="outline" className="text-[10px] border-rose-300 text-rose-600">
+                    <Award className="w-3 h-3 mr-0.5" />Superhost
+                  </Badge>
+                )}
+
+                {listing.max_guests && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                    <Users className="w-3 h-3" />{listing.max_guests}
+                  </span>
+                )}
+                {listing.bedrooms && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-0.5">
+                    <BedDouble className="w-3 h-3" />{listing.bedrooms}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="text-right shrink-0 ml-3">
+              {listing.price_total ? (
+                <span className="font-bold text-primary text-base">€{listing.price_total.toLocaleString('de-DE')}</span>
+              ) : listing.price_per_night ? (
+                <span className="font-bold text-primary text-base">€{listing.price_per_night.toLocaleString('de-DE')}/N</span>
+              ) : (
+                <Badge variant="secondary">Kein Preis</Badge>
+              )}
+              {listing.price_per_night && listing.price_total && (
+                <div className="text-[10px] text-muted-foreground">€{listing.price_per_night}/Nacht</div>
+              )}
+            </div>
+          </div>
+        </CollapsibleTrigger>
+
+        {listing.price_info && (
+          <p className="text-[11px] text-muted-foreground italic ml-6">{listing.price_info}</p>
+        )}
+
+        {/* Fee breakdown for Airbnb */}
+        {isAirbnb && (listing.cleaning_fee || listing.service_fee) && (
+          <div className="flex gap-3 ml-6 text-[10px] text-muted-foreground">
+            {listing.cleaning_fee && <span>Reinigung: €{listing.cleaning_fee}</span>}
+            {listing.service_fee && <span>Service: €{listing.service_fee}</span>}
+          </div>
+        )}
+
+        <div className="flex gap-2 ml-6">
+          {listing.listing_url && (
+            <a
+              href={listing.listing_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "inline-flex items-center gap-1 text-xs hover:underline",
+                isBooking ? "text-blue-600 hover:text-blue-800" : isAirbnb ? "text-rose-600 hover:text-rose-800" : "text-blue-600 hover:text-blue-800"
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ExternalLink className="h-3 w-3" />
+              Angebot ansehen
+            </a>
+          )}
+        </div>
+
+        <CollapsibleContent>
+          <div className="mt-2 pt-2 border-t space-y-2 ml-6">
+            {listing.description && (
+              <p className="text-xs text-muted-foreground">{listing.description}</p>
+            )}
+            <div className="flex flex-wrap gap-3 text-xs">
+              {listing.bathrooms && (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Bath className="w-3 h-3" />{listing.bathrooms} Bäder
+                </span>
+              )}
+              {listing.size_sqm && <span className="text-muted-foreground">{listing.size_sqm} m²</span>}
+              {listing.address && (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <MapPin className="w-3 h-3" />{listing.address}
+                </span>
+              )}
+            </div>
+            {listing.amenities && listing.amenities.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {listing.amenities.map((a, ai) => (
+                  <Badge key={ai} variant="secondary" className="text-[10px] px-1.5 py-0">{a}</Badge>
+                ))}
+              </div>
+            )}
+            {listing.highlights && listing.highlights.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {listing.highlights.map((h, hi) => (
+                  <Badge key={hi} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/30 text-primary">{h}</Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
 };
 
 const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesDialogProps) => {
@@ -116,7 +266,6 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   const selectedHouse = houses?.find(h => h.id === selectedHouseId);
   const isRental = selectedHouse?.rental_type === 'long_term';
 
-  // Tourist mode: location-based search
   const defaultCheckIn = useMemo(() => getNextSaturday(), []);
   const defaultCheckOut = useMemo(() => addDays(defaultCheckIn, 7), [defaultCheckIn]);
 
@@ -126,30 +275,28 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   const [guests, setGuests] = useState(6);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['alle']);
   
-  // Rental-specific fields
   const [sqm, setSqm] = useState(60);
   const [rooms, setRooms] = useState(2);
   const [radiusKm, setRadiusKm] = useState(10);
   
   const [isLoading, setIsLoading] = useState(false);
-  // Tourist results are now a flat list of listings
   const [touristResults, setTouristResults] = useState<ListingResult[] | null>(null);
+  const [resultsByPlatform, setResultsByPlatform] = useState<Record<string, { listings: ListingResult[]; citations: string[] }> | null>(null);
   const [rentalResults, setRentalResults] = useState<RentalResult[] | null>(null);
   const [searchSummary, setSearchSummary] = useState<string | null>(null);
   const [expandedListings, setExpandedListings] = useState<Set<number>>(new Set());
   const [expandedComparables, setExpandedComparables] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState('alle');
 
-  // Update fields when house changes
   const handleHouseChange = (houseId: string) => {
     setSelectedHouseId(houseId);
     setTouristResults(null);
+    setResultsByPlatform(null);
     setRentalResults(null);
     setSearchSummary(null);
     const house = houses?.find(h => h.id === houseId);
     if (house) {
-      // Extract location from address (take city part)
       const addr = house.address || '';
-      // Try to extract city from address - typically last part after comma
       const parts = addr.split(',').map(s => s.trim());
       const city = parts.length > 1 ? parts[parts.length - 1] : addr;
       setLocation(city);
@@ -193,6 +340,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
 
     setIsLoading(true);
     setTouristResults(null);
+    setResultsByPlatform(null);
     setRentalResults(null);
     setSearchSummary(null);
 
@@ -210,11 +358,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
         body.rooms = rooms;
         body.radius_km = radiusKm;
         body.current_rent = (selectedHouse?.tenant_info as any)?.monthly_rent || null;
-
-        toast({
-          title: "Mietpreisanalyse gestartet",
-          description: `Suche Vergleichsmieten für ${sqm} qm, ${rooms} Zimmer...`,
-        });
+        toast({ title: "Mietpreisanalyse gestartet", description: `Suche Vergleichsmieten für ${sqm} qm, ${rooms} Zimmer...` });
       } else {
         body.analysis_type = 'tourist';
         body.location = location;
@@ -222,14 +366,13 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
         body.check_out = format(checkOut, 'yyyy-MM-dd');
         body.guests = guests;
 
-        toast({
-          title: "Suche gestartet",
-          description: `Suche Angebote in ${location} für ${guests} Personen...`,
-        });
+        const portalNames = selectedPlatforms.includes('alle') 
+          ? 'Booking.com & Airbnb' 
+          : selectedPlatforms.map(p => TOURIST_PLATFORMS.find(t => t.id === p)?.label || p).join(' & ');
+        toast({ title: "Suche gestartet", description: `Suche auf ${portalNames} in ${location}...` });
       }
 
       const { data, error } = await supabase.functions.invoke('scrape-competitor-prices', { body });
-
       if (error) throw error;
 
       if (data?.success) {
@@ -237,7 +380,9 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
           setRentalResults(data.results || []);
         } else {
           setTouristResults(data.results || []);
+          setResultsByPlatform(data.results_by_platform || null);
           setSearchSummary(data.search_summary || null);
+          setActiveTab('alle');
         }
         toast({
           title: "✅ Suche abgeschlossen",
@@ -250,11 +395,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
       }
     } catch (error) {
       console.error('Scraping error:', error);
-      toast({
-        title: "Fehler bei der Suche",
-        description: error instanceof Error ? error.message : 'Unbekannter Fehler',
-        variant: "destructive"
-      });
+      toast({ title: "Fehler bei der Suche", description: error instanceof Error ? error.message : 'Unbekannter Fehler', variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
@@ -262,6 +403,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
 
   const resetAndClose = () => {
     setTouristResults(null);
+    setResultsByPlatform(null);
     setRentalResults(null);
     setSearchSummary(null);
     setOpen(false);
@@ -269,11 +411,49 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
 
   const nightsCount = Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24));
 
+  const bookingListings = resultsByPlatform?.['booking.com']?.listings || [];
+  const airbnbListings = resultsByPlatform?.['airbnb']?.listings || [];
+
+  const getTabListings = (tab: string): ListingResult[] => {
+    if (tab === 'booking.com') return bookingListings;
+    if (tab === 'airbnb') return airbnbListings;
+    return touristResults || [];
+  };
+
   const defaultTrigger = (
     <Button variant="outline" disabled={disabled} className="bg-green-600 text-white hover:bg-green-700 border-green-600">
       <TrendingUp className="w-4 h-4 mr-2" />
       Preisanalyse
     </Button>
+  );
+
+  const renderListings = (listings: ListingResult[]) => (
+    <div className="space-y-2">
+      {listings.map((listing, i) => {
+        const globalIdx = touristResults?.indexOf(listing) ?? i;
+        return (
+          <ListingCard
+            key={`${listing.platform}-${i}`}
+            listing={listing}
+            index={i}
+            isExpanded={expandedListings.has(globalIdx)}
+            onToggle={(open) => {
+              setExpandedListings(prev => {
+                const next = new Set(prev);
+                if (open) next.add(globalIdx); else next.delete(globalIdx);
+                return next;
+              });
+            }}
+          />
+        );
+      })}
+      {listings.length === 0 && (
+        <div className="text-center py-6 text-muted-foreground">
+          <p>Keine Angebote gefunden.</p>
+          <p className="text-sm mt-1">Versuche einen anderen Ort oder Zeitraum.</p>
+        </div>
+      )}
+    </div>
   );
 
   return (
@@ -287,7 +467,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
           <DialogDescription>
             {isRental 
               ? 'Suche Vergleichsmieten in der Region über Perplexity AI.'
-              : 'Suche verfügbare Unterkünfte mit Preisen auf Buchungsportalen.'}
+              : 'Suche auf Booking.com und Airbnb nach Unterkünften mit Preisen.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -319,7 +499,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
               )}
             </div>
 
-            {/* Tourist Mode: Location + Check-in/out + Guests */}
+            {/* Tourist Mode */}
             {!isRental && selectedHouseId && (
               <>
                 <div className="space-y-2">
@@ -343,10 +523,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start">
                         <Calendar mode="single" selected={checkIn} onSelect={(d) => {
-                          if (d) {
-                            setCheckIn(d);
-                            setCheckOut(addDays(d, 7));
-                          }
+                          if (d) { setCheckIn(d); setCheckOut(addDays(d, 7)); }
                         }} initialFocus className="p-3 pointer-events-auto" />
                       </PopoverContent>
                     </Popover>
@@ -388,11 +565,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                   className="w-full text-xs"
                   onClick={async () => {
                     if (!selectedHouseId) return;
-                    const params = {
-                      location,
-                      guests,
-                      platforms: selectedPlatforms,
-                    };
+                    const params = { location, guests, platforms: selectedPlatforms };
                     const { error } = await supabase
                       .from('houses')
                       .update({ scrape_search_params: params } as any)
@@ -411,7 +584,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
               </>
             )}
 
-            {/* Rental Mode: sqm, rooms, radius */}
+            {/* Rental Mode */}
             {isRental && selectedHouseId && (
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
@@ -432,8 +605,8 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
             {/* Platform Selection */}
             {selectedHouseId && (
               <div className="space-y-2">
-                <Label>{isRental ? 'Immobilienportale' : 'Portale durchsuchen'}</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <Label>{isRental ? 'Immobilienportale' : 'Portale'}</Label>
+                <div className="flex gap-3">
                   {platformOptions.map((platform) => (
                     <div key={platform.id} className="flex items-center space-x-2">
                       <Checkbox
@@ -472,7 +645,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
               </Button>
             )}
 
-            {/* Tourist Results - Listing Cards */}
+            {/* Tourist Results with Tabs */}
             {touristResults && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
@@ -486,136 +659,37 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                 {searchSummary && (
                   <p className="text-xs text-muted-foreground italic">{searchSummary}</p>
                 )}
-                <div className="space-y-2">
-                  {touristResults.map((listing, i) => {
-                    const isExpanded = expandedListings.has(i);
-                    const hasDetails = !!(listing.description || listing.amenities?.length || listing.highlights?.length);
 
-                    return (
-                      <Collapsible key={i} open={isExpanded} onOpenChange={(open) => {
-                        setExpandedListings(prev => {
-                          const next = new Set(prev);
-                          if (open) next.add(i); else next.delete(i);
-                          return next;
-                        });
-                      }}>
-                        <div className="border rounded-lg p-3 space-y-2 hover:border-primary/50 transition-colors">
-                          <CollapsibleTrigger asChild>
-                            <div className="flex items-start justify-between cursor-pointer">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  {hasDetails && (isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />)}
-                                  <span className="font-medium text-sm truncate">{listing.name}</span>
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2 mt-1 ml-6">
-                                  {listing.platform && <Badge variant="outline" className="text-[10px]">{listing.platform}</Badge>}
-                                  {listing.rating && (
-                                    <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
-                                      <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                                      {listing.rating}
-                                      {listing.review_count && <span>({listing.review_count})</span>}
-                                    </span>
-                                  )}
-                                  {listing.max_guests && (
-                                    <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-                                      <Users className="w-3 h-3" />{listing.max_guests}
-                                    </span>
-                                  )}
-                                  {listing.bedrooms && (
-                                    <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-                                      <BedDouble className="w-3 h-3" />{listing.bedrooms}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="text-right shrink-0 ml-3">
-                                {listing.price_total ? (
-                                  <span className="font-bold text-primary text-base">€{listing.price_total.toLocaleString('de-DE')}</span>
-                                ) : listing.price_per_night ? (
-                                  <span className="font-bold text-primary text-base">€{listing.price_per_night.toLocaleString('de-DE')}/N</span>
-                                ) : (
-                                  <Badge variant="secondary">Kein Preis</Badge>
-                                )}
-                                {listing.price_per_night && listing.price_total && (
-                                  <div className="text-[10px] text-muted-foreground">€{listing.price_per_night}/Nacht</div>
-                                )}
-                              </div>
-                            </div>
-                          </CollapsibleTrigger>
-
-                          {/* Price info line */}
-                          {listing.price_info && (
-                            <p className="text-[11px] text-muted-foreground italic ml-6">{listing.price_info}</p>
-                          )}
-
-                          {/* Action buttons */}
-                          <div className="flex gap-2 ml-6">
-                            {listing.listing_url && (
-                              <a
-                                href={listing.listing_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                                Angebot ansehen
-                              </a>
-                            )}
-                          </div>
-
-                          {/* Expandable Details */}
-                          <CollapsibleContent>
-                            <div className="mt-2 pt-2 border-t space-y-2 ml-6">
-                              {listing.description && (
-                                <p className="text-xs text-muted-foreground">{listing.description}</p>
-                              )}
-
-                              <div className="flex flex-wrap gap-3 text-xs">
-                                {listing.bathrooms && (
-                                  <span className="flex items-center gap-1 text-muted-foreground">
-                                    <Bath className="w-3 h-3" />{listing.bathrooms} Bäder
-                                  </span>
-                                )}
-                                {listing.size_sqm && (
-                                  <span className="text-muted-foreground">{listing.size_sqm} m²</span>
-                                )}
-                                {listing.address && (
-                                  <span className="flex items-center gap-1 text-muted-foreground">
-                                    <MapPin className="w-3 h-3" />{listing.address}
-                                  </span>
-                                )}
-                              </div>
-
-                              {listing.amenities && listing.amenities.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                  {listing.amenities.map((a, ai) => (
-                                    <Badge key={ai} variant="secondary" className="text-[10px] px-1.5 py-0">{a}</Badge>
-                                  ))}
-                                </div>
-                              )}
-
-                              {listing.highlights && listing.highlights.length > 0 && (
-                                <div className="flex flex-wrap gap-1">
-                                  {listing.highlights.map((h, hi) => (
-                                    <Badge key={hi} variant="outline" className="text-[10px] px-1.5 py-0 border-primary/30 text-primary">{h}</Badge>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </CollapsibleContent>
-                        </div>
-                      </Collapsible>
-                    );
-                  })}
-                </div>
-
-                {touristResults.length === 0 && (
-                  <div className="text-center py-6 text-muted-foreground">
-                    <p>Keine Angebote gefunden.</p>
-                    <p className="text-sm mt-1">Versuche einen anderen Ort oder Zeitraum.</p>
-                  </div>
+                {/* Tabs for portal filtering */}
+                {resultsByPlatform && (
+                  <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList className="w-full grid grid-cols-3">
+                      <TabsTrigger value="alle" className="text-xs">
+                        Alle ({touristResults.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="booking.com" className="text-xs">
+                        <span className="w-2 h-2 rounded-full bg-blue-600 mr-1.5 inline-block"></span>
+                        Booking ({bookingListings.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="airbnb" className="text-xs">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 mr-1.5 inline-block"></span>
+                        Airbnb ({airbnbListings.length})
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="alle" className="mt-3">
+                      {renderListings(touristResults)}
+                    </TabsContent>
+                    <TabsContent value="booking.com" className="mt-3">
+                      {renderListings(bookingListings)}
+                    </TabsContent>
+                    <TabsContent value="airbnb" className="mt-3">
+                      {renderListings(airbnbListings)}
+                    </TabsContent>
+                  </Tabs>
                 )}
+
+                {/* Fallback if no results_by_platform */}
+                {!resultsByPlatform && renderListings(touristResults)}
               </div>
             )}
 
@@ -683,13 +757,10 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                                   )}
                                 </div>
                               </CollapsibleTrigger>
-
                               <CollapsibleContent>
                                 {hasCompDetails && (
                                   <div className="px-3 pb-2.5 pt-1 border-t space-y-2">
-                                    {c.description && (
-                                      <p className="text-xs text-muted-foreground">{c.description}</p>
-                                    )}
+                                    {c.description && <p className="text-xs text-muted-foreground">{c.description}</p>}
                                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                                       {c.floor && <span>📍 {c.floor}</span>}
                                       {c.year_built && <span>🏗️ Baujahr {c.year_built}</span>}
