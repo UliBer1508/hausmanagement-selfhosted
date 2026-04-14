@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Search } from 'lucide-react';
 import HouseCard from './HouseCard';
 import CreateHouseDialog from './CreateHouseDialog';
+import ScrapePricesDialog from './CompetitorAnalysis/ScrapePricesDialog';
 
 const HouseManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -85,10 +86,13 @@ const HouseManagement = () => {
             Verwalten Sie Ihre Immobilien und deren Inventar
           </p>
         </div>
-        <Button onClick={() => setIsCreateDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Haus hinzufügen
-        </Button>
+        <div className="flex gap-2">
+          <ScrapePricesDialog />
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Haus hinzufügen
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
