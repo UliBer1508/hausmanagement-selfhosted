@@ -45,13 +45,17 @@ const RENTAL_PLATFORMS = [
 ];
 
 interface PriceEntry {
+  price?: number;
   price_per_night?: number;
   price_total?: number;
+  price_info?: string;
   check_in?: string;
   nights?: number;
   guests?: number;
   platform?: string;
   includes?: string;
+  listing_url?: string;
+  evidence_url?: string;
   // legacy fields for backward compat
   total_price?: number;
   type?: string;
@@ -77,6 +81,8 @@ interface ScrapeResult {
   found?: boolean;
   prices?: PriceEntry[];
   general_info?: string;
+  listing_url?: string;
+  citations?: string[];
   best_price?: number;
   attempts?: number;
   error?: string;
