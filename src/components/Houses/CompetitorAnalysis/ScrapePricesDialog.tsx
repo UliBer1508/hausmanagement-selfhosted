@@ -372,8 +372,12 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                     <Label>Personen</Label>
                     <Input type="number" min={1} max={20} value={guests} onChange={(e) => setGuests(parseInt(e.target.value) || 6)} />
                   </div>
-                  <div className="text-sm text-muted-foreground pt-6">
-                    {nightsCount} Nächte
+                  <div className="space-y-2 w-24">
+                    <Label>Nächte</Label>
+                    <Input type="number" min={1} max={30} value={nightsCount} onChange={(e) => {
+                      const n = parseInt(e.target.value) || 7;
+                      setCheckOut(addDays(checkIn, n));
+                    }} />
                   </div>
                 </div>
 
