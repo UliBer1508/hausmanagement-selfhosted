@@ -38,17 +38,25 @@ serve(async (req) => {
       const currentRent = body.current_rent || null;
       const platforms: string[] = body.platforms ?? ['alle'];
 
+      // Map UI IDs to readable labels for the prompt
+      const rentalLabelMap: Record<string, string> = {
+        'immoscout24': 'ImmoScout24',
+        'immowelt': 'Immowelt',
+        'ebay-kleinanzeigen': 'eBay Kleinanzeigen',
+        'wg-gesucht': 'WG-gesucht',
+        'wohnungsboerse': 'Wohnungsbörse',
+      };
       const platformText = platforms.includes('alle')
         ? 'ImmoScout24, Immowelt, eBay Kleinanzeigen, WG-gesucht'
-        : platforms.join(', ');
+        : platforms.map(p => rentalLabelMap[p] || p).join(', ');
 
-      // Build domain filter for rental search
+      // Build domain filter for rental search (keys = UI IDs)
       const rentalDomainMap: Record<string, string> = {
-        'ImmoScout24': 'immobilienscout24.de',
-        'Immowelt': 'immowelt.de',
-        'eBay Kleinanzeigen': 'kleinanzeigen.de',
-        'WG-gesucht': 'wg-gesucht.de',
-        'Wohnungsbörse': 'wohnungsboerse.net',
+        'immoscout24': 'immobilienscout24.de',
+        'immowelt': 'immowelt.de',
+        'ebay-kleinanzeigen': 'kleinanzeigen.de',
+        'wg-gesucht': 'wg-gesucht.de',
+        'wohnungsboerse': 'wohnungsboerse.net',
       };
       const rentalDomainFilter: string[] = platforms.includes('alle')
         ? Object.values(rentalDomainMap)
@@ -277,19 +285,29 @@ WICHTIG für comparables:
       );
     }
 
+    // Map UI IDs to readable labels for the prompt
+    const touristLabelMap: Record<string, string> = {
+      'booking.com': 'Booking.com',
+      'airbnb': 'Airbnb',
+      'vrbo': 'VRBO',
+      'belvilla': 'Belvilla',
+      'fewo-direkt': 'FeWo-direkt',
+      'holidu': 'Holidu',
+      'traum-ferienwohnungen': 'Traum-Ferienwohnungen',
+    };
     const platformText = platforms.includes('alle') 
       ? 'Booking.com, Airbnb, VRBO, Belvilla, FeWo-direkt, Holidu, Traum-Ferienwohnungen'
-      : platforms.join(', ');
+      : platforms.map(p => touristLabelMap[p] || p).join(', ');
 
-    // Build domain filter for Perplexity search
+    // Build domain filter for Perplexity search (keys = UI IDs)
     const domainMap: Record<string, string> = {
-      'Booking.com': 'booking.com',
-      'Airbnb': 'airbnb.com',
-      'VRBO': 'vrbo.com',
-      'Belvilla': 'belvilla.de',
-      'FeWo-direkt': 'fewo-direkt.de',
-      'Holidu': 'holidu.com',
-      'Traum-Ferienwohnungen': 'traum-ferienwohnungen.de',
+      'booking.com': 'booking.com',
+      'airbnb': 'airbnb.com',
+      'vrbo': 'vrbo.com',
+      'belvilla': 'belvilla.de',
+      'fewo-direkt': 'fewo-direkt.de',
+      'holidu': 'holidu.com',
+      'traum-ferienwohnungen': 'traum-ferienwohnungen.de',
     };
     const searchDomainFilter: string[] = platforms.includes('alle')
       ? Object.values(domainMap)
