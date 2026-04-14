@@ -1,27 +1,16 @@
 
 
-# Wettbewerbssuche auf Booking.com & Airbnb beschränken
+# Perplexity-Suche testen: Chalets mit Preiszusammenfassung
 
-## Problem
-Die Perplexity-Prompts fordern aktuell auch Ergebnisse von Aggregatoren (Trivago, Google Hotels, HolidayCheck, Holidu, HomeToGo, Casamundo). Dadurch kommen Ergebnisse von Drittportalen statt direkt von Booking.com und Airbnb.
+## Aktion
 
-## Lösung
+Zwei Testaufrufe der Edge Function `scrape-competitor-prices` durchführen — einmal für Booking.com und einmal für Airbnb — um zu prüfen, ob Perplexity konkrete Chalets mit Preisen in der Region Neukirchen am Großvenediger findet.
 
-### Edge Function (`scrape-competitor-prices/index.ts`)
+## Schritte
 
-**2 Änderungen pro Portal-Suche:**
+1. **Booking.com-Suche** via `curl_edge_functions` mit Testparametern (Neukirchen, Juli 2025, 6 Gäste, `platforms: ['booking.com']`)
+2. **Airbnb-Suche** mit denselben Parametern (`platforms: ['airbnb']`)
+3. **Ergebnisse hier zusammenfassen** — Listings, Preise, Bewertungen, Citations-Qualität
 
-1. **`search_domain_filter` hinzufügen** — Perplexity API-Parameter, der die Suche auf bestimmte Domains einschränkt:
-   - Booking.com-Suche: `search_domain_filter: ['booking.com']`
-   - Airbnb-Suche: `search_domain_filter: ['airbnb.com', 'airbnb.de']`
-
-2. **Aggregator-Verweise aus Prompts entfernen** — Keine Erwähnung von Trivago, Google Hotels, HolidayCheck, Holidu, HomeToGo, Casamundo mehr in den Suchprompts
-
-3. **`enrichListingsWithCitations`** — Aggregator-Domains aus der Citation-Filterung entfernen (nur noch `booking.com` bzw. `airbnb.com/de`)
-
-### Dateien
-
-| Datei | Änderung |
-|-------|----------|
-| `scrape-competitor-prices/index.ts` | Domain-Filter + Prompts bereinigen + Citations-Filter |
+Keine Code-Änderungen nötig — rein ein Test der bestehenden Funktion.
 
