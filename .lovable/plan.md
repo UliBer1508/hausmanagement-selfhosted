@@ -1,115 +1,71 @@
 
 
-# Erweiterung: Wettbewerber-Scraping mit konfigurierbaren Suchparametern
+# Wettbewerbssuche auf Haeuser-Screen verlagern
 
 ## Uebersicht
 
-Der aktuelle Scraping-Dialog ist ein "One-Click"-Button ohne Einstellungsmoeglichkeiten. Er sucht immer nur den aktuellen Monat, 7 Naechte, mit der Gaestezahl aus `competitor_properties.max_guests`. Es gibt keine Portal-Auswahl und keinen flexiblen Zeitraum.
-
-Die Erweiterung macht den Dialog zu einem vollwertigen Suchformular mit konfigurierbaren Parametern.
+Die Wettbewerber-Preissuche (Scraping) wird aus den einzelnen HouseCards herausgeloest und als zentraler Dialog auf den Haeuser-Screen verlegt. Der User waehlt im Dialog das Haus, fuer das er die Analyse durchfuehren will. Miethaeuser bekommen eine angepasste Mietpreisanalyse.
 
 ## Aenderungen
 
-### 1. ScrapePricesDialog komplett ueberarbeiten
+### 1. Neuer Button im Haeuser-Header
+
+**Datei:** `src/components/Houses/HouseManagement.tsx`
+
+Neben dem "Haus hinzufuegen"-Button kommt ein neuer Button "Preisanalyse". Beim Klick oeffnet sich ein erweiterter ScrapePricesDialog.
+
+```text
+[ Preisanalyse ]  [ + Haus hinzufuegen ]
+```
+
+### 2. ScrapePricesDialog erweitern
 
 **Datei:** `src/components/Houses/CompetitorAnalysis/ScrapePricesDialog.tsx`
 
-Neuer Dialog mit Formularfeldern:
+Neue Funktionen:
+- **Haus-Auswahl**: Dropdown mit allen Haeusern (touristisch + Festvermietung)
+- **Modus-Erkennung**: Basierend auf `rental_type` des gewaehlten Hauses:
+  - `tourist` → Bestehende Logik (Ferienwohnungs-Preise auf Portalen)
+  - `long_term` → Mietpreis-Analyse (Prompt wird angepasst: Kaltmiete/Warmmiete, qm-Preis, Vergleichsmieten in der Region)
+- **Props-Aenderung**: `house_id` wird optional; die Haeuser-Liste wird per Query geladen
 
-| Feld | Typ | Default |
-|------|-----|---------|
-| Check-in von | Datepicker | Heute |
-| Check-in bis | Datepicker | Ende aktueller Monat |
-| Min. Naechte | Number Input | 7 |
-| Anzahl Gaeste (Erwachsene) | Number Input | 2 |
-| Anzahl Kinder | Number Input | 0 |
-| Portale | Multi-Select Checkboxen | Alle ausgewaehlt |
+**Mietpreis-Modus (long_term):**
+- Statt Portal-Checkboxen: Immobilien-Portale (ImmoScout24, Immowelt, eBay Kleinanzeigen, wg-gesucht)
+- Statt Check-in/Naechte: Wohnungsgroesse (qm), Zimmeranzahl, Lage/Adresse
+- Perplexity-Prompt sucht Vergleichsmieten in der Region
+- Ergebnis: Durchschnittliche Kaltmiete/qm, Preisspanne, Vergleichsobjekte
 
-**Portal-Auswahlliste:**
-- Booking.com
-- Airbnb
-- VRBO
-- Belvilla
-- FeWo-direkt
-- Holidu
-- Traum-Ferienwohnungen
-- Alle Portale (uebergreifende Suche)
-
-Alle Einstellungen werden als Body-Parameter an die Edge Function gesendet.
-
-### 2. Edge Function erweitern
+### 3. Edge Function erweitern
 
 **Datei:** `supabase/functions/scrape-competitor-prices/index.ts`
 
-Neue Body-Parameter akzeptieren:
-```text
-{
-  manual: true,
-  check_in_from: "2026-06-01",
-  check_in_to: "2026-06-30",
-  min_nights: 7,
-  guests_adults: 4,
-  guests_children: 2,
-  platforms: ["booking.com", "airbnb", "vrbo"]
-}
-```
+Neuer Parameter `analysis_type`:
+- `tourist` (default): Bestehende Logik
+- `rental`: Neuer Prompt fuer Mietpreisanalyse
 
-Den Perplexity-Prompt dynamisch aufbauen:
-- Statt hardcoded "7 Naechte" → `min_nights` verwenden
-- Statt `property.max_guests` → uebergebene Gaestezahl verwenden
-- Statt nur Booking.com → Perplexity anweisen, auf den gewaehlten Portalen zu suchen
-- Zeitraum aus `check_in_from`/`check_in_to` statt hardcoded aktueller Monat
+Fuer Mietpreis-Analyse:
+- Input: Adresse, qm, Zimmer, aktuelle Miete
+- Perplexity-Prompt: "Finde aktuelle Mietpreise fuer Wohnungen mit X qm, Y Zimmern in [Adresse/Region]"
+- Output: Durchschnittsmiete, Preisspanne, qm-Preis, Quellen
 
-Prompt-Anpassung (Beispiel fuer Landing-Page):
-```text
-AUFGABE: Finde einen Preis fuer diese Ferienunterkunft:
-NAME: {property_name}
-URL: {property_url}
+### 4. Ergebnis-Speicherung fuer Mietanalyse
 
-SUCHPARAMETER:
-- Check-in: Beliebiger Tag zwischen {check_in_from} und {check_in_to}
-- Aufenthalt: Mindestens {min_nights} Naechte
-- Gaeste: {guests_adults} Erwachsene, {guests_children} Kinder
-- Portale: Suche auf {platforms.join(', ')}
+Neue Migration: Tabelle `rental_price_analysis` mit:
+- `house_id`, `analysis_date`, `avg_rent`, `min_rent`, `max_rent`, `price_per_sqm`, `comparable_count`, `sources` (jsonb), `search_params` (jsonb)
 
-Falls die URL zu einem bestimmten Portal gehoert, suche dort.
-Falls nicht, suche den guenstigsten Preis ueber die angegebenen Portale.
-```
+### 5. HouseCard anpassen
 
-Antwort-JSON erweitern um `platform` und `nights`:
-```json
-{
-  "total_price": 1890,
-  "check_in": "2026-06-15",
-  "check_out": "2026-06-22",
-  "nights": 7,
-  "platform": "booking.com",
-  "available": true,
-  "currency": "EUR"
-}
-```
+**Datei:** `src/components/Houses/HouseCard.tsx`
 
-### 3. monthly_pricing Tabelle erweitern (Migration)
-
-Neue Spalten:
-- `nights` (integer, default 7) — Anzahl Naechte
-- `guests_adults` (integer, nullable) — Suchparameter Erwachsene
-- `guests_children` (integer, nullable) — Suchparameter Kinder
-- `platform_source` (text, nullable) — Welches Portal den Preis lieferte
-
-### 4. Ergebnis-Anzeige im Dialog
-
-Nach dem Scraping: Ergebnisliste im Dialog anzeigen (statt nur Toast), mit:
-- Property-Name
-- Gefundener Preis + Portal
-- Check-in/Check-out + Naechte
-- Status (Erfolg/Fehler)
+Der "Preisanalyse"-Button auf den einzelnen Cards bleibt bestehen und oeffnet weiterhin den CompetitorAnalysisDashboard-Dialog (fuer touristische Haeuser). Fuer Miethaeuser zeigt er die letzte Mietpreisanalyse an.
 
 ## Zusammenfassung
 
 | Datei | Aenderung |
 |-------|-----------|
-| `ScrapePricesDialog.tsx` | Komplett neu: Suchformular mit Parametern |
-| `scrape-competitor-prices/index.ts` | Neue Parameter, dynamischer Prompt, Portal-Suche |
-| Migration | 4 neue Spalten in `monthly_pricing` |
+| `HouseManagement.tsx` | Neuer "Preisanalyse"-Button im Header |
+| `ScrapePricesDialog.tsx` | Haus-Auswahl, Modus tourist/rental, Mietpreis-UI |
+| `scrape-competitor-prices/index.ts` | Neuer `rental`-Modus mit Mietpreis-Prompt |
+| Migration | Neue Tabelle `rental_price_analysis` |
+| `HouseCard.tsx` | Mietpreis-Ergebnis-Anzeige fuer long_term Haeuser |
 
