@@ -178,22 +178,41 @@ WICHTIG für comparables:
         }
       }
 
+      // Helper: check if a URL looks like a specific listing (not a homepage/search/mietspiegel)
+      const isListingUrl = (url: string): boolean => {
+        const lower = url.toLowerCase();
+        // Reject generic pages
+        if (lower.match(/\/(mietspiegel|mietpreise|statistik|ratgeber|suche|search|ergebnisse|results|blog|magazin|news)\b/)) return false;
+        // Reject homepages (path is just / or empty after domain)
+        try {
+          const parsed = new URL(url);
+          if (parsed.pathname === '/' || parsed.pathname === '') return false;
+        } catch { return false; }
+        // Accept known listing patterns
+        if (lower.includes('/expose/') || lower.includes('/angebot/') || lower.includes('/wohnung/') || lower.includes('/objekt/') || lower.includes('/d/details/') || lower.includes('/anzeige/')) return true;
+        // Accept if path has numeric ID segment (likely a listing)
+        if (lower.match(/\/\d{5,}/)) return true;
+        return false;
+      };
+
       // Enrich comparables with citation URLs as fallback
       const comparables = (rentalData.comparables || []).map((c: any, idx: number) => {
         const url = c.listing_url;
         const isPlaceholder = !url || url.includes('...') || url.includes('expose/1') || url.length < 20;
         if (isPlaceholder && rentalCitations.length > 0) {
-          // Try to match citation by source platform name
+          // Only use citations that look like actual listings
+          const listingCitations = rentalCitations.filter((cit: string) => isListingUrl(cit));
+          
           const sourceLower = (c.source || '').toLowerCase();
-          const matched = rentalCitations.find((cit: string) => {
+          const matched = listingCitations.find((cit: string) => {
             const citLower = cit.toLowerCase();
             if (sourceLower.includes('immoscout') || sourceLower.includes('immobilienscout')) return citLower.includes('immobilienscout24');
             if (sourceLower.includes('immowelt')) return citLower.includes('immowelt');
-            if (sourceLower.includes('ebay')) return citLower.includes('ebay');
+            if (sourceLower.includes('ebay') || sourceLower.includes('kleinanzeigen')) return citLower.includes('kleinanzeigen');
             if (sourceLower.includes('wg-gesucht')) return citLower.includes('wg-gesucht');
             return false;
           });
-          return { ...c, listing_url: matched || (rentalCitations[idx] ?? null) };
+          return { ...c, listing_url: matched || (listingCitations[idx] ?? null) };
         }
         return c;
       });
