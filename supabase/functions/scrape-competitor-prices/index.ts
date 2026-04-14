@@ -12,12 +12,158 @@ serve(async (req) => {
   }
 
   try {
-    console.log('[scrape-prices] Starting price scraping...');
+    console.log('[scrape-prices] Starting price analysis...');
     
     const body = await req.json().catch(() => ({}));
     const manual = body.manual ?? false;
+    const analysisType = body.analysis_type || 'tourist';
+    const houseId = body.house_id;
     
-    // Configurable search parameters with defaults
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
+    if (!perplexityKey) throw new Error('PERPLEXITY_API_KEY nicht konfiguriert');
+
+    // ===================== RENTAL MODE =====================
+    if (analysisType === 'rental') {
+      console.log('[scrape-prices] Running rental price analysis...');
+      
+      const address = body.address || '';
+      const sqm = body.sqm || 60;
+      const rooms = body.rooms || 2;
+      const currentRent = body.current_rent || null;
+      const platforms: string[] = body.platforms ?? ['alle'];
+
+      const platformText = platforms.includes('alle')
+        ? 'ImmoScout24, Immowelt, eBay Kleinanzeigen, WG-gesucht'
+        : platforms.join(', ');
+
+      const currentRentText = currentRent ? `Die aktuelle Miete beträgt ${currentRent} EUR/Monat.` : '';
+
+      const rentalPrompt = `
+AUFGABE: Finde aktuelle Mietpreise für eine vergleichbare Wohnung.
+
+OBJEKTDATEN:
+- Adresse/Region: ${address}
+- Wohnfläche: ${sqm} qm
+- Zimmer: ${rooms}
+${currentRentText}
+
+SUCHPARAMETER:
+- Suche auf: ${platformText}
+- Suche Kaltmieten für Wohnungen mit ähnlicher Größe (±15 qm) und Zimmeranzahl in der gleichen Region
+- Berücksichtige Wohnungen im Umkreis von 10 km
+
+ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
+{
+  "avg_rent": 850,
+  "min_rent": 700,
+  "max_rent": 1100,
+  "price_per_sqm": 12.50,
+  "comparable_count": 8,
+  "currency": "EUR",
+  "sources": ["ImmoScout24", "Immowelt"],
+  "comparables": [
+    {"address": "Beispielstr. 1", "sqm": 65, "rooms": 2, "rent": 800, "source": "ImmoScout24"},
+    {"address": "Musterweg 5", "sqm": 58, "rooms": 2, "rent": 750, "source": "Immowelt"}
+  ]
+}
+      `;
+
+      const response = await fetch('https://api.perplexity.ai/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${perplexityKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'sonar',
+          messages: [
+            { role: 'system', content: 'Du bist ein Mietpreis-Analyse-Assistent. Recherchiere aktuelle Mietpreise auf Immobilienportalen und antworte AUSSCHLIESSLICH mit validem JSON. Keine zusätzlichen Erklärungen.' },
+            { role: 'user', content: rentalPrompt }
+          ],
+          temperature: 0.0,
+          max_tokens: 2000,
+          return_images: false,
+          return_related_questions: false,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error(`[scrape-prices] ❌ API error ${response.status}:`, errorBody);
+        throw new Error(`Perplexity API error ${response.status}`);
+      }
+
+      const data = await response.json();
+      const content = data.choices[0].message.content;
+      console.log('[scrape-prices] 📥 Rental analysis response:', content);
+
+      // Parse JSON
+      let rentalData;
+      try {
+        rentalData = JSON.parse(content);
+      } catch {
+        let cleaned = content.trim();
+        const codeBlock = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (codeBlock) cleaned = codeBlock[1].trim();
+        const jsonStart = cleaned.indexOf('{');
+        if (jsonStart >= 0) cleaned = cleaned.substring(jsonStart);
+        const jsonEnd = cleaned.lastIndexOf('}');
+        if (jsonEnd >= 0) cleaned = cleaned.substring(0, jsonEnd + 1);
+        try {
+          rentalData = JSON.parse(cleaned);
+        } catch {
+          throw new Error('JSON parse failed for rental analysis');
+        }
+      }
+
+      // Save to rental_price_analysis
+      if (houseId) {
+        const { error: insertError } = await supabase
+          .from('rental_price_analysis')
+          .insert({
+            house_id: houseId,
+            avg_rent: rentalData.avg_rent || null,
+            min_rent: rentalData.min_rent || null,
+            max_rent: rentalData.max_rent || null,
+            price_per_sqm: rentalData.price_per_sqm || null,
+            comparable_count: rentalData.comparable_count || 0,
+            sources: rentalData.sources || [],
+            search_params: { address, sqm, rooms, platforms, current_rent: currentRent },
+          });
+
+        if (insertError) {
+          console.error('[scrape-prices] ❌ Insert error:', insertError);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          manual,
+          analysis_type: 'rental',
+          results: [{
+            success: true,
+            property: body.house_name || address,
+            avg_rent: rentalData.avg_rent,
+            min_rent: rentalData.min_rent,
+            max_rent: rentalData.max_rent,
+            price_per_sqm: rentalData.price_per_sqm,
+            comparable_count: rentalData.comparable_count,
+            sources: rentalData.sources,
+          }],
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ===================== TOURIST MODE =====================
+    console.log('[scrape-prices] Running tourist price scraping...');
+    
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth();
@@ -31,16 +177,18 @@ serve(async (req) => {
     const platforms: string[] = body.platforms ?? ['alle'];
     
     console.log(`[scrape-prices] Params: ${checkInFrom} - ${checkInTo}, ${minNights} nights, ${guestsAdults} adults + ${guestsChildren} children, platforms: ${platforms.join(', ')}`);
-    
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
 
-    const { data: competitors, error: competitorError } = await supabase
+    // Build competitor query - filter by house_id if provided
+    let competitorQuery = supabase
       .from('competitor_properties')
       .select('*')
       .eq('is_active', true);
+    
+    if (houseId) {
+      competitorQuery = competitorQuery.eq('house_id', houseId);
+    }
+
+    const { data: competitors, error: competitorError } = await competitorQuery;
 
     if (competitorError) throw competitorError;
 
@@ -48,13 +196,10 @@ serve(async (req) => {
 
     if (!competitors || competitors.length === 0) {
       return new Response(
-        JSON.stringify({ success: true, message: 'Keine aktiven Wettbewerber', results: [], manual }),
+        JSON.stringify({ success: true, message: 'Keine aktiven Wettbewerber für dieses Haus', results: [], manual }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
-    if (!perplexityKey) throw new Error('PERPLEXITY_API_KEY nicht konfiguriert');
 
     const platformText = platforms.includes('alle') 
       ? 'allen verfügbaren Buchungsportalen (Booking.com, Airbnb, VRBO, Belvilla, FeWo-direkt, Holidu, Traum-Ferienwohnungen)'
@@ -67,7 +212,6 @@ serve(async (req) => {
     const results = [];
 
     for (const property of competitors) {
-      console.log(`[scrape-prices] ========================================`);
       console.log(`[scrape-prices] Processing: ${property.property_name}`);
       
       const propertyResults = {
@@ -167,10 +311,7 @@ Falls NICHT verfügbar:
             body: JSON.stringify({
               model: 'sonar',
               messages: [
-                { 
-                  role: 'system', 
-                  content: 'Du bist ein Preis-Extraktions-Assistent für Ferienwohnungen. Besuche URLs, finde verfügbare Preise auf den angegebenen Portalen und antworte AUSSCHLIESSLICH mit validem JSON. Keine zusätzlichen Erklärungen.' 
-                },
+                { role: 'system', content: 'Du bist ein Preis-Extraktions-Assistent für Ferienwohnungen. Besuche URLs, finde verfügbare Preise auf den angegebenen Portalen und antworte AUSSCHLIESSLICH mit validem JSON. Keine zusätzlichen Erklärungen.' },
                 { role: 'user', content: priceQuery }
               ],
               temperature: 0.0,
@@ -197,7 +338,6 @@ Falls NICHT verfügbar:
           console.log(`[scrape-prices] 📥 RAW RESPONSE for ${property.property_name}:`);
           console.log(content);
           
-          // Parse JSON robustly
           let priceData;
           try {
             priceData = JSON.parse(content);
@@ -251,7 +391,6 @@ Falls NICHT verfügbar:
           propertyResults.platform_source = platformSource;
           propertyResults.nights = nights;
           
-          // Save to monthly_pricing
           const { error: insertError } = await supabase
             .from('monthly_pricing')
             .upsert({
@@ -309,7 +448,6 @@ Falls NICHT verfügbar:
         });
       }
 
-      // Rate limiting between properties
       console.log(`[scrape-prices] ⏳ Waiting 5s before next property...`);
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
@@ -321,6 +459,7 @@ Falls NICHT verfügbar:
         success: true, 
         results,
         manual,
+        analysis_type: 'tourist',
         search_params: { check_in_from: checkInFrom, check_in_to: checkInTo, min_nights: minNights, guests_adults: guestsAdults, guests_children: guestsChildren, platforms },
         total_properties: competitors.length,
         successful_properties: results.filter(r => r.success).length,
