@@ -239,27 +239,26 @@ WICHTIG für comparables:
 
         try {
           const priceQuery = `
-AUFGABE: Finde ALLE bekannten Preise UND Objektdetails für diese Ferienunterkunft.
+AUFGABE: Finde den ENDPREIS fuer diese Ferienunterkunft -- so wie er auf einem Buchungsportal angezeigt wird.
 
 NAME: ${property.property_name}
 URL: ${property.property_url || 'Keine URL vorhanden'}
 
-REFERENZ-ZEITRAUM (optional): ${checkInFrom} bis ${checkInTo}
-Personen: bis zu ${maxGuests}, Mindestaufenthalt: ${minNights} Nächte
-Suche auf: ${platformText}
+SUCHPARAMETER:
+- Reisezeitraum: ${checkInFrom} bis ${checkInTo}
+- Personen: bis zu ${maxGuests}
+- Aufenthalt: ${minNights} Naechte
+- Suche auf: ${platformText}
 
-WICHTIG - BREITE SUCHE:
-- Suche zuerst auf der eigenen Website (URL) nach Preislisten, Ratenblättern, Saisonpreistabellen
-- Suche auf Buchungsportalen nach aktuellen ODER vergangenen Preisen
-- Auch Preise aus vergangenen Saisons oder anderen Jahren sind relevant
-- Saisonpreise, Wochenpreise, Nachtpreise -- ALLES ist relevant
-- Wenn keine exakten Preise: Gib Preisspannen oder Richtwerte als Preis-Einträge an
-- Endreinigungskosten, Nebenkosten, Kurtaxe separat als "notes" auflisten
-- Klassifiziere jeden gefundenen Preis nach Typ
-- Recherchiere zusätzlich ALLE verfügbaren Objektdetails
-- SETZE "found" auf true sobald IRGENDEINE Preisinformation gefunden wurde (auch Spannen oder Richtwerte)
+WAS ICH BRAUCHE:
+- Den ENDPREIS den ein Gast auf dem Buchungsportal sieht (inkl. aller Steuern, Gebuehren, Endreinigung etc.)
+- Entweder als Preis pro Nacht ODER als Gesamtpreis fuer den Aufenthalt
+- Wenn du den Gesamtpreis kennst, berechne auch den Nachtpreis (Gesamtpreis / Naechte)
+- Wenn du nur den Nachtpreis kennst, gib nur diesen an
+- Was im Preis enthalten ist als kurzen Text (z.B. "inkl. Steuern, Endreinigung, Bettwaesche")
+- KEINE kuenstliche Aufschluesselung von Nebenkosten -- einfach was auf dem Portal steht
 
-ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
+ANTWORT-FORMAT (NUR JSON, keine Erklaerungen):
 {
   "found": true,
   "property_details": {
@@ -276,34 +275,30 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
   },
   "prices": [
     {
-      "total_price": 1890,
       "price_per_night": 270,
-      "check_in": "2026-07-01",
-      "check_out": "2026-07-08",
+      "price_total": 1890,
       "nights": 7,
       "guests": 6,
+      "check_in": "2026-07-01",
       "platform": "booking.com",
-      "type": "exact",
-      "notes": "Sommerpreis inkl. Endreinigung"
+      "includes": "inkl. Steuern, Endreinigung, Bettwaesche"
     }
   ],
-  "general_info": "Zusätzliche Preis-Infos, Nebenkosten, Inklusivleistungen"
+  "general_info": "Weitere Preis-Hinweise falls vorhanden"
 }
 
-type kann sein:
-- "exact" = exakter buchbarer Preis für bestimmte Daten
-- "seasonal" = Saisonpreis (z.B. Sommer 200€/N, Winter 350€/N)
-- "range" = Preisspanne (min-max), nutze price_per_night für den Durchschnitt
-- "per_night" = nur Nachtpreis bekannt, kein Gesamtpreis
-- "list" = Preis aus einer Preisliste/Ratentabelle der Website
-
-WICHTIG: Wenn du Preisspannen findest (z.B. "236-456€/Nacht"), erstelle einen Preis-Eintrag vom Typ "range" mit price_per_night = Durchschnitt der Spanne und notes = "Spanne: 236-456€/Nacht".
-Wenn du nur allgemeine Infos wie "ab 200€/Nacht" findest, erstelle einen Eintrag vom Typ "per_night" mit price_per_night = 200.
+REGELN:
+- price_per_night und/oder price_total angeben -- mindestens eines davon
+- Wenn nur Gesamtpreis bekannt: price_per_night = price_total / nights
+- Wenn nur Nachtpreis bekannt: price_total = null
+- "includes" = was im Preis enthalten ist (kurzer Text)
+- Mehrere Preis-Eintraege erlaubt wenn verschiedene Portale/Zeitraeume gefunden
+- Auch Preise aus Preislisten oder Saisontabellen sind willkommen
 
 Falls GAR KEINE Preisinformationen gefunden werden:
 {
   "found": false,
-  "property_details": { ... trotzdem ausfüllen wenn möglich ... },
+  "property_details": { ... trotzdem ausfuellen wenn moeglich ... },
   "prices": [],
   "general_info": "Grund warum keine Preise gefunden wurden"
 }

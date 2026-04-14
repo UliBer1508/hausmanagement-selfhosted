@@ -45,14 +45,16 @@ const RENTAL_PLATFORMS = [
 ];
 
 interface PriceEntry {
-  total_price?: number;
   price_per_night?: number;
+  price_total?: number;
   check_in?: string;
-  check_out?: string;
   nights?: number;
   guests?: number;
   platform?: string;
-  type?: string; // exact, seasonal, range, per_night
+  includes?: string;
+  // legacy fields for backward compat
+  total_price?: number;
+  type?: string;
   notes?: string;
 }
 
