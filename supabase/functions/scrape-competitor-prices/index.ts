@@ -384,17 +384,21 @@ Falls GAR KEINE Preisinformationen gefunden werden:
           
           const found = priceData.found !== false || prices.length > 0;
 
-          // Save best exact price to monthly_pricing
+          // Save best price to monthly_pricing
           if (found) {
-            const exactPrices = prices.filter((p: any) => p.total_price && (p.type === 'exact' || !p.type));
-            const bestPrice = exactPrices.length > 0
-              ? exactPrices.reduce((min: any, p: any) => p.total_price < min.total_price ? p : min, exactPrices[0])
-              : prices.find((p: any) => p.total_price);
+            // Support both new (price_total) and legacy (total_price) field names
+            const getTotal = (p: any) => p.price_total || p.total_price || (p.price_per_night && p.nights ? p.price_per_night * p.nights : null);
+            const pricesWithTotal = prices.filter((p: any) => getTotal(p));
+            const bestPrice = pricesWithTotal.length > 0
+              ? pricesWithTotal.reduce((min: any, p: any) => (getTotal(p) < getTotal(min)) ? p : min, pricesWithTotal[0])
+              : prices[0];
 
-            if (bestPrice) {
+            const bestTotal = bestPrice ? getTotal(bestPrice) : null;
+
+            if (bestPrice && bestTotal) {
               const checkInDate = bestPrice.check_in || checkInFrom;
               const nights = bestPrice.nights || minNights;
-              const checkOutDate = bestPrice.check_out || (() => {
+              const checkOutDate = (() => {
                 const d = new Date(checkInDate);
                 d.setDate(d.getDate() + nights);
                 return d.toISOString().split('T')[0];
@@ -406,7 +410,7 @@ Falls GAR KEINE Preisinformationen gefunden werden:
                   competitor_property_id: property.id,
                   check_in_date: checkInDate,
                   check_out_date: checkOutDate,
-                  base_price_7nights: bestPrice.total_price,
+                  base_price_7nights: bestTotal,
                   currency: 'EUR',
                   source: 'scraped',
                   scraped_at: new Date().toISOString(),
