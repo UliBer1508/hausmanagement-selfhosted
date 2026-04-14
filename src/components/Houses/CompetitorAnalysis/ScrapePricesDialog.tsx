@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -107,6 +107,7 @@ interface ScrapeResult {
 const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesDialogProps) => {
   const [open, setOpen] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Load all houses for selection
   const { data: houses } = useQuery({
@@ -137,6 +138,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   // Rental-specific fields
   const [sqm, setSqm] = useState(selectedHouse?.living_area_sqm || 60);
   const [rooms, setRooms] = useState(selectedHouse?.bedrooms || 2);
+  const [radiusKm, setRadiusKm] = useState(10);
   
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<ScrapeResult[] | null>(null);
@@ -197,6 +199,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
         body.address = selectedHouse?.address || '';
         body.sqm = sqm;
         body.rooms = rooms;
+        body.radius_km = radiusKm;
         body.current_rent = (selectedHouse?.tenant_info as any)?.monthly_rent || null;
 
         toast({
@@ -346,16 +349,47 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
               </>
             )}
 
-            {/* Rental Mode: sqm, rooms */}
+            {/* Rental Mode: sqm, rooms, radius */}
             {isRental && selectedHouseId && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Wohnfläche (qm)</Label>
                   <Input type="number" min={10} max={500} value={sqm} onChange={(e) => setSqm(parseInt(e.target.value) || 60)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Zimmeranzahl</Label>
-                  <Input type="number" min={1} max={10} value={rooms} onChange={(e) => setRooms(parseInt(e.target.value) || 2)} />
+                  <div className="flex gap-1">
+                    <Input type="number" min={1} max={10} value={rooms} onChange={(e) => {
+                      const val = parseInt(e.target.value) || 2;
+                      setRooms(val);
+                    }} />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 text-xs px-2"
+                      onClick={async () => {
+                        if (!selectedHouseId) return;
+                        const { error } = await supabase
+                          .from('houses')
+                          .update({ bedrooms: rooms })
+                          .eq('id', selectedHouseId);
+                        if (error) {
+                          toast({ title: "Fehler beim Speichern", variant: "destructive" });
+                        } else {
+                          queryClient.invalidateQueries({ queryKey: ['houses'] });
+                          queryClient.invalidateQueries({ queryKey: ['houses-for-scrape'] });
+                          toast({ title: "Zimmeranzahl gespeichert" });
+                        }
+                      }}
+                    >
+                      💾
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Umkreis (km)</Label>
+                  <Input type="number" min={1} max={50} value={radiusKm} onChange={(e) => setRadiusKm(parseInt(e.target.value) || 10)} />
                 </div>
               </div>
             )}
