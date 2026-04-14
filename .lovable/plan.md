@@ -1,39 +1,45 @@
 
 
-# Mietpreisanalyse: Details zu gefundenen Vergleichsobjekten anzeigen
+# Wettbewerber-Detailansicht: Klickbare CompetitorCard mit Detail-Dialog
 
-## Problem
+## Uebersicht
 
-Die Edge Function fordert bereits `comparables` im Prompt an (Zeile 69-72), aber:
-1. Die `comparables`-Daten werden nicht im Response an das Frontend weitergegeben (Zeile 148-158)
-2. Das Frontend zeigt nur Zusammenfassungsdaten (Durchschnitt, Spanne, Anzahl), keine Einzelobjekte
+Aktuell zeigt die CompetitorCard nur eine Zusammenfassung (Name, Platform, Gaeste, ein paar Amenities). Der User moechte durch Klick auf eine Card alle Details sehen: Immobilien-Infos, Lage, Ausstattung, Bewertungen, Preishistorie, Notizen.
 
 ## Aenderungen
 
-### 1. Edge Function: `comparables` durchreichen
+### 1. Neuer Detail-Dialog: `CompetitorDetailsDialog.tsx`
 
-**Datei:** `supabase/functions/scrape-competitor-prices/index.ts`
+**Datei:** `src/components/Houses/CompetitorAnalysis/CompetitorDetailsDialog.tsx` (NEU)
 
-Im Rental-Response (Zeile 149) das `comparables`-Array aus `rentalData` mit in die Results aufnehmen:
+Ein Dialog der alle Informationen eines Wettbewerbers uebersichtlich anzeigt:
 
-```
-comparables: rentalData.comparables || []
-```
+- **Header**: Property-Name, Betreiber, Platform-Badge, Link zur Originalseite
+- **Lage-Sektion**: Adresse, Entfernung, ggf. Google Maps Link (basierend auf Adresse)
+- **Immobilien-Details**: Max. Gaeste, Schlafzimmer, Badezimmer
+- **Bewertungen**: Rating mit Sterndarstellung, Anzahl Bewertungen
+- **Ausstattung**: Alle Amenities als Badge-Liste (nicht nur 6 wie auf der Card)
+- **Preishistorie**: Letzte bekannte Preise aus `monthly_pricing` (Query nach `competitor_property_id`)
+- **Notizen**: Vollstaendige Notizen
 
-### 2. Frontend: Vergleichsobjekte als Liste anzeigen
+Layout: ScrollArea im Dialog fuer lange Inhalte.
 
-**Datei:** `src/components/Houses/CompetitorAnalysis/ScrapePricesDialog.tsx`
+### 2. CompetitorCard anpassen
 
-- `ScrapeResult`-Interface um `comparables` erweitern (Array mit `address`, `sqm`, `rooms`, `rent`, `source`)
-- Im Rental-Ergebnisbereich (Zeile 423-446) unter den Zusammenfassungsdaten eine aufklappbare Liste der einzelnen Vergleichsobjekte anzeigen
-- Pro Objekt: Adresse, qm, Zimmer, Miete, Quelle
+**Datei:** `src/components/Houses/CompetitorAnalysis/CompetitorCard.tsx`
 
-Darstellung: Kompakte Zeilen mit Adresse links, Miete rechts, darunter qm/Zimmer/Quelle als kleine Details.
+- Card bekommt `cursor-pointer` und `onClick` Handler
+- Klick oeffnet den neuen `CompetitorDetailsDialog`
+- Die Action-Buttons (Edit, Delete, ExternalLink) bleiben oben rechts und stoppen Event-Propagation
+
+### 3. Preishistorie laden
+
+Im Detail-Dialog: Query auf `monthly_pricing` mit `competitor_property_id = competitor.id`, sortiert nach Datum absteigend. Zeigt die letzten Scraping-Ergebnisse als kompakte Liste.
 
 ## Zusammenfassung
 
 | Datei | Aenderung |
 |-------|-----------|
-| `scrape-competitor-prices/index.ts` | `comparables` im Response durchreichen |
-| `ScrapePricesDialog.tsx` | Interface + UI fuer Vergleichsobjekt-Details |
+| `CompetitorDetailsDialog.tsx` | NEU: Vollstaendiger Detail-Dialog |
+| `CompetitorCard.tsx` | Klickbar machen, Dialog oeffnen |
 
