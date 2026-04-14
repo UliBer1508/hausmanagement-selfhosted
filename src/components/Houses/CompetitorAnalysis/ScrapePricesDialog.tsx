@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RefreshCw, CheckCircle2, XCircle, Search, TrendingUp } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Search, TrendingUp, ChevronDown, ChevronUp, MapPin, Users, BedDouble, Bath, Star, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface ScrapePricesDialogProps {
   house_id?: string;
@@ -55,6 +56,19 @@ interface PriceEntry {
   notes?: string;
 }
 
+interface PropertyDetails {
+  description?: string;
+  max_guests?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  size_sqm?: number;
+  rating?: number;
+  review_count?: number;
+  amenities?: string[];
+  address?: string;
+  highlights?: string[];
+}
+
 interface ScrapeResult {
   property?: string;
   success: boolean;
@@ -65,6 +79,7 @@ interface ScrapeResult {
   attempts?: number;
   error?: string;
   errors?: string[];
+  property_details?: PropertyDetails;
   // rental fields
   avg_rent?: number;
   min_rent?: number;
