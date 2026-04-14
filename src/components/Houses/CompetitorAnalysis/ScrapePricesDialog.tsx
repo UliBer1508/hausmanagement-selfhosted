@@ -45,14 +45,16 @@ const RENTAL_PLATFORMS = [
 ];
 
 interface PriceEntry {
-  total_price?: number;
   price_per_night?: number;
+  price_total?: number;
   check_in?: string;
-  check_out?: string;
   nights?: number;
   guests?: number;
   platform?: string;
-  type?: string; // exact, seasonal, range, per_night
+  includes?: string;
+  // legacy fields for backward compat
+  total_price?: number;
+  type?: string;
   notes?: string;
 }
 
@@ -524,23 +526,31 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                         {/* Tourist prices */}
                         {r.success && !isRental && r.prices && r.prices.length > 0 && (
                           <div className="space-y-1.5">
-                            {r.prices.map((p, j) => (
-                              <div key={j} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                    {p.type === 'exact' ? 'Exakt' : p.type === 'seasonal' ? 'Saison' : p.type === 'range' ? 'Spanne' : p.type === 'per_night' ? '/Nacht' : p.type === 'list' ? 'Liste' : p.type || '?'}
-                                  </Badge>
-                                  <span className="font-medium">
-                                    {p.total_price ? `€${p.total_price.toLocaleString('de-DE')}` : p.price_per_night ? `€${p.price_per_night}/N` : '–'}
-                                  </span>
+                            {r.prices.map((p, j) => {
+                              const nightPrice = p.price_per_night || (p.total_price && p.nights ? Math.round(p.total_price / p.nights) : null);
+                              const totalPrice = p.price_total || p.total_price || null;
+                              const includesText = p.includes || p.notes || null;
+
+                              return (
+                                <div key={j} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-primary">
+                                      {nightPrice ? `€${nightPrice}/N` : totalPrice ? `€${totalPrice.toLocaleString('de-DE')}` : '–'}
+                                    </span>
+                                    {nightPrice && totalPrice && (
+                                      <span className="text-xs text-muted-foreground">
+                                        (€{totalPrice.toLocaleString('de-DE')} ges.)
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground text-right max-w-[55%]">
+                                    {p.platform && <span className="block">{p.platform}</span>}
+                                    {p.check_in && p.nights && <span className="block">{p.check_in} • {p.nights}N{p.guests ? ` • ${p.guests}P` : ''}</span>}
+                                    {includesText && <span className="block italic truncate">{includesText}</span>}
+                                  </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground text-right">
-                                  {p.platform && <span className="block">{p.platform}</span>}
-                                  {p.check_in && p.nights && <span className="block">{p.check_in} • {p.nights}N</span>}
-                                  {p.notes && <span className="block italic">{p.notes}</span>}
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                             {r.general_info && (
                               <p className="text-xs text-muted-foreground mt-1 italic">{r.general_info}</p>
                             )}
