@@ -103,7 +103,7 @@ WICHTIG für comparables:
 - year_built: Baujahr wenn bekannt
 - features: Array mit Ausstattungsmerkmalen (Balkon, Einbauküche, Keller, Aufzug, Garten, Stellplatz, etc.)
 - available_from: Verfügbar ab Datum wenn bekannt
-- listing_url: Die EXAKTE URL zum Originalinserat aus deinen Suchergebnissen. KEINE Platzhalter-URLs wie "expose/..." -- nur echte, funktionierende Links. Wenn du keine echte URL hast, setze den Wert auf null.
+- listing_url: Die direkte URL zum spezifischen Inserat (z.B. https://www.immobilienscout24.de/expose/12345678 oder https://www.immowelt.de/expose/abcde). KEINE Startseiten, KEINE Mietspiegel-Seiten, KEINE Suchergebnis-Seiten. NUR die URL die direkt zum einzelnen Wohnungsinserat fuehrt. Wenn du keine echte Inserat-URL hast, setze den Wert auf null.
 }
       `;
 
