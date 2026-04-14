@@ -42,6 +42,19 @@ serve(async (req) => {
         ? 'ImmoScout24, Immowelt, eBay Kleinanzeigen, WG-gesucht'
         : platforms.join(', ');
 
+      // Build domain filter for rental search
+      const rentalDomainMap: Record<string, string> = {
+        'ImmoScout24': 'immobilienscout24.de',
+        'Immowelt': 'immowelt.de',
+        'eBay Kleinanzeigen': 'kleinanzeigen.de',
+        'WG-gesucht': 'wg-gesucht.de',
+        'Wohnungsbörse': 'wohnungsboerse.net',
+      };
+      const rentalDomainFilter: string[] = platforms.includes('alle')
+        ? Object.values(rentalDomainMap)
+        : platforms.map(p => rentalDomainMap[p]).filter(Boolean);
+      console.log(`[scrape-prices] Rental domain filter: ${rentalDomainFilter.join(', ')}`);
+
       const currentRentText = currentRent ? `Die aktuelle Miete beträgt ${currentRent} EUR/Monat.` : '';
 
       const rentalPrompt = `
