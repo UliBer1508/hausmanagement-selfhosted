@@ -3002,9 +3002,13 @@ export type Database = {
           created_at: string
           currency: string
           final_price_7nights: number | null
+          guests_adults: number | null
+          guests_children: number | null
           house_id: string | null
           id: string
           markup_percentage: number | null
+          nights: number | null
+          platform_source: string | null
           scraped_at: string | null
           source: string
           updated_at: string
@@ -3017,9 +3021,13 @@ export type Database = {
           created_at?: string
           currency?: string
           final_price_7nights?: number | null
+          guests_adults?: number | null
+          guests_children?: number | null
           house_id?: string | null
           id?: string
           markup_percentage?: number | null
+          nights?: number | null
+          platform_source?: string | null
           scraped_at?: string | null
           source?: string
           updated_at?: string
@@ -3032,9 +3040,13 @@ export type Database = {
           created_at?: string
           currency?: string
           final_price_7nights?: number | null
+          guests_adults?: number | null
+          guests_children?: number | null
           house_id?: string | null
           id?: string
           markup_percentage?: number | null
+          nights?: number | null
+          platform_source?: string | null
           scraped_at?: string | null
           source?: string
           updated_at?: string
