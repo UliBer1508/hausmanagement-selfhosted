@@ -139,6 +139,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<ScrapeResult[] | null>(null);
   const [expandedResults, setExpandedResults] = useState<Set<number>>(new Set());
+  const [expandedComparables, setExpandedComparables] = useState<Set<string>>(new Set());
 
   // Update rental fields when house changes
   const handleHouseChange = (houseId: string) => {
@@ -580,23 +581,80 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                             {r.comparables && r.comparables.length > 0 && (
                               <div className="mt-2 space-y-1.5">
                                 <div className="text-xs font-medium text-foreground">Gefundene Objekte:</div>
-                                {r.comparables.map((c, ci) => (
-                                  <div key={ci} className="flex items-center justify-between text-sm bg-muted/50 rounded px-2 py-1.5">
-                                    <div>
-                                      <span className="font-medium">{c.address || 'Unbekannt'}</span>
-                                      <div className="text-xs text-muted-foreground">
-                                        {c.sqm && <span>{c.sqm} qm</span>}
-                                        {c.rooms && <span> • {c.rooms} Zi.</span>}
-                                        {c.source && <span> • {c.source}</span>}
+                                {r.comparables.map((c, ci) => {
+                                  const compKey = `${i}-${ci}`;
+                                  const isCompExpanded = expandedComparables.has(compKey);
+                                  const hasCompDetails = !!(c.description || c.floor || c.year_built || (c.features && c.features.length > 0) || c.available_from || c.listing_url);
+
+                                  return (
+                                    <Collapsible key={ci} open={isCompExpanded} onOpenChange={(open) => {
+                                      setExpandedComparables(prev => {
+                                        const next = new Set(prev);
+                                        if (open) next.add(compKey); else next.delete(compKey);
+                                        return next;
+                                      });
+                                    }}>
+                                      <div className={cn("border rounded-lg bg-muted/30 transition-colors", hasCompDetails && "cursor-pointer hover:border-primary/50")}>
+                                        <CollapsibleTrigger asChild>
+                                          <div className="flex items-center justify-between px-2 py-1.5">
+                                            <div className="flex items-center gap-1.5">
+                                              {hasCompDetails && (isCompExpanded ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />)}
+                                              <div>
+                                                <span className="font-medium text-sm">{c.address || 'Unbekannt'}</span>
+                                                <div className="text-xs text-muted-foreground">
+                                                  {c.sqm && <span>{c.sqm} qm</span>}
+                                                  {c.rooms && <span> • {c.rooms} Zi.</span>}
+                                                  {c.source && <span> • {c.source}</span>}
+                                                </div>
+                                              </div>
+                                            </div>
+                                            {c.rent && (
+                                              <span className="font-semibold text-primary whitespace-nowrap ml-2">
+                                                €{c.rent.toLocaleString('de-DE')}/M
+                                              </span>
+                                            )}
+                                          </div>
+                                        </CollapsibleTrigger>
+
+                                        <CollapsibleContent>
+                                          {hasCompDetails && (
+                                            <div className="px-3 pb-2.5 pt-1 border-t space-y-2">
+                                              {c.description && (
+                                                <p className="text-xs text-muted-foreground">{c.description}</p>
+                                              )}
+                                              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                                {c.floor && <span>📍 {c.floor}</span>}
+                                                {c.year_built && <span>🏗️ Baujahr {c.year_built}</span>}
+                                                {c.available_from && <span>📅 Ab {c.available_from}</span>}
+                                              </div>
+                                              {c.features && c.features.length > 0 && (
+                                                <div className="flex flex-wrap gap-1">
+                                                  {c.features.map((f, fi) => (
+                                                    <Badge key={fi} variant="secondary" className="text-[10px] px-1.5 py-0">
+                                                      {f}
+                                                    </Badge>
+                                                  ))}
+                                                </div>
+                                              )}
+                                              {c.listing_url && (
+                                                <a
+                                                  href={c.listing_url}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
+                                                  <ExternalLink className="w-3 h-3" />
+                                                  Inserat ansehen
+                                                </a>
+                                              )}
+                                            </div>
+                                          )}
+                                        </CollapsibleContent>
                                       </div>
-                                    </div>
-                                    {c.rent && (
-                                      <span className="font-semibold text-primary whitespace-nowrap ml-2">
-                                        €{c.rent.toLocaleString('de-DE')}/M
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
+                                    </Collapsible>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
