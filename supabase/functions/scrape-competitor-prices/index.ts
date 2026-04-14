@@ -172,7 +172,7 @@ Falls NICHT verfügbar:
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              model: 'llama-3.1-sonar-large-128k-online',
+              model: 'sonar',
               messages: [
                 { 
                   role: 'system', 
@@ -263,7 +263,7 @@ Falls NICHT verfügbar:
             throw new Error('Price field missing in response');
           }
 
-          const period = monthToScrape;
+          // period already declared at line 100
           const totalPrice = parseFloat(priceData.total_price);
           const checkInDate = priceData.check_in || `${period.year}-${String(period.month).padStart(2, '0')}-15`;
           const checkOutDate = priceData.check_out || (() => {
