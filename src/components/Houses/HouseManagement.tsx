@@ -81,7 +81,7 @@ const HouseManagement = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Ferienhäuser</h1>
+          <h1 className="text-3xl font-bold text-foreground">Ferienhäuser und Mietobjekte</h1>
           <p className="text-muted-foreground mt-2">
             Verwalten Sie Ihre Immobilien und deren Inventar
           </p>
