@@ -1,98 +1,79 @@
 
 
-# Fix: Einfach den Inseratspreis auslesen + Link zum Angebot
+# Neuer Ansatz: Standortbasierte Suche statt Namenssuche
 
 ## Problem
 
-Perplexity findet bei 4 von 5 Objekten keine Preise, weil der Prompt zu spezifische Suchkriterien verlangt (exakter Zeitraum, exakte Gästeanzahl, exakte Nächte). Booking.com zeigt Preise dynamisch -- Perplexity findet diese selten für den exakten Zeitraum. Zusätzlich werden die Perplexity-Citations (= direkte Links zum Inserat) komplett ignoriert.
+Der aktuelle Ansatz sucht jede Konkurrenz-Unterkunft einzeln nach Name. Perplexity kann aber dynamische Portal-Preise fuer spezifische Daten/Gaeste nicht zuverlaessig aus einzelnen Inseraten auslesen. 
 
-## Lösung
+Der Benutzer will es wie auf Booking.com: **"Neukirchen am Grossvenediger, 6 Personen, naechster Samstag bis uebernaechster Samstag"** eingeben und eine **Liste von Angeboten mit Preisen** zurueckbekommen.
 
-Den Prompt radikal vereinfachen: Nur den aktuell im Inserat sichtbaren Preis auslesen, egal für welchen Zeitraum. Und den Inseratslink aus den Perplexity-Citations zurückgeben.
+## Loesung
 
-## Änderungen
+Den Tourist-Modus umbauen: Statt pro Konkurrent einzeln zu suchen, **eine einzige Standort-Suche** durchfuehren. Perplexity sucht dann z.B. "Ferienwohnungen in Neukirchen am Grossvenediger, 18.04.-25.04., 6 Personen auf Booking.com" und liefert eine Liste verfuegbarer Unterkuenfte mit Preisen.
 
-### 1. Edge Function (`supabase/functions/scrape-competitor-prices/index.ts`)
+## Aenderungen
 
-**A) Prompt vereinfachen (Zeile 331-377)**
+### 1. Edge Function (`scrape-competitor-prices/index.ts`)
 
-Statt komplexer Datums-/Personen-Anforderungen nur fragen:
-- "Finde das Inserat von [Name] auf [Portalen]"
-- "Lies den dort angezeigten Preis ab"
-- "Gib an, für welchen Zeitraum/Personen dieser Preis gilt (wenn sichtbar)"
+**Tourist-Modus komplett umbauen (Zeilen 250-578):**
 
-Neues JSON-Schema (vereinfacht):
-```json
-{
-  "found": true,
-  "prices": [{
-    "price": 1338,
-    "price_info": "1 Woche, 6 Erwachsene, inkl. Steuern",
-    "platform": "Booking.com"
-  }],
-  "property_details": { ... },
-  "general_info": "..."
-}
+- Neue Parameter akzeptieren: `location` (Ort), `check_in` (Datum), `check_out` (Datum), `guests` (Anzahl)
+- **Check-in/Check-out automatisch berechnen**: Naechster Samstag bis uebernaechster Samstag als Default
+- **Ein einziger Perplexity-Call** statt Loop ueber Konkurrenten
+- Neuer Prompt:
+
+```text
+Suche verfuegbare Ferienwohnungen/Chalets in [Ort] 
+auf [Portalen] fuer den Zeitraum [Check-in] bis [Check-out] 
+fuer [X] Personen.
+
+Liste alle gefundenen Angebote mit:
+- Name der Unterkunft
+- Gesamtpreis fuer den Zeitraum
+- Preis pro Nacht (wenn angegeben)
+- Plattform (Booking.com, Airbnb etc.)
+- Kurzbeschreibung
+- Max. Gaeste, Schlafzimmer
+- Bewertung
+
+Antwort als JSON-Array.
 ```
 
-Keine harte Anforderung mehr an `check_in`, `nights`, `guests` etc. -- nur was im Inserat steht.
+- Citations als Links zu den Inseraten zuordnen
+- Ergebnisse optional mit bestehenden `competitor_properties` matchen und neue automatisch anlegen
 
-**B) Citations auslesen und als `listing_url` zurückgeben (nach Zeile 408)**
+### 2. UI (`ScrapePricesDialog.tsx`)
 
-Perplexity liefert `data.citations` als Array von URLs. Diese werden:
-- Geloggt
-- Nach Portal gefiltert (booking.com, airbnb.com etc.)
-- Pro Preis-Eintrag als `listing_url` zugeordnet
-- Im Result-Objekt mitgegeben
+**Suchformular vereinfachen:**
 
-**C) Synthetische Preis-Heuristiken entfernen (Zeile 436-456)**
+- **Ort**: Vorausgefuellt aus `house.address` (z.B. "Neukirchen am Grossvenediger"), editierbar
+- **Check-in / Check-out**: Zwei Datumspicker (Default: naechster/uebernaechster Samstag)
+- **Personen**: Anzahl (Default aus `house.max_guests`)
+- **Portale**: Wie bisher (Booking.com, Airbnb etc.)
+- Felder "Min. Naechte" und "Check-in von/bis" Spanne entfernen (werden durch konkretes Datum ersetzt)
 
-Die Logik die aus `general_info` Preise schätzt (Regex für "236-456€") wird entfernt. Wenn kein Preis im Inserat steht, dann `found: false`.
+**Ergebnis-Anzeige anpassen:**
 
-**D) Result-Objekt um `listing_url` und `property_url` erweitern (Zeile 531-540)**
-
-```typescript
-results.push({
-  ...bisherige Felder,
-  listing_url: bestCitationUrl || property.property_url || null,
-  citations: relevantCitations,
-});
-```
-
-**E) `competitor_properties.property_url` aktualisieren**
-
-Wenn eine brauchbare Citation-URL gefunden wird und `property.property_url` fehlt, wird sie automatisch gespeichert.
-
-### 2. Dialog (`src/components/Houses/CompetitorAnalysis/ScrapePricesDialog.tsx`)
-
-**A) Preis-Anzeige um "Angebot öffnen"-Button erweitern (Zeile 600-630)**
-
-Pro Preis-Eintrag: Wenn `listing_url` oder `evidence_url` vorhanden, einen klickbaren Link-Button anzeigen ("Angebot ansehen" mit ExternalLink-Icon), der das Inserat in neuem Tab öffnet.
-
-**B) Fallback-Bereich erweitern (Zeile 634-638)**
-
-Auch wenn keine Preise gefunden wurden, aber ein `listing_url` existiert, einen Button "Inserat öffnen" anzeigen.
+- Liste von gefundenen Unterkuenften mit Preis, Plattform, Bewertung
+- "Angebot oeffnen" Button pro Eintrag (Link aus Citations)
+- Optional: "Als Wettbewerber speichern" Button pro Eintrag
 
 ### Zusammenfassung
 
-| Datei | Änderung |
-|---|---|
-| `scrape-competitor-prices/index.ts` | Prompt vereinfachen (nur sichtbaren Preis lesen), Citations als Links nutzen, Heuristiken entfernen, property_url updaten |
-| `ScrapePricesDialog.tsx` | "Angebot ansehen"-Button pro Preis-Eintrag mit Link zum Inserat |
+| Datei | Aenderung |
+|-------|-----------|
+| `scrape-competitor-prices/index.ts` | Tourist-Modus: Standortsuche statt Namenssuche, ein API-Call, neuer Prompt |
+| `ScrapePricesDialog.tsx` | Suchformular: Ort + Check-in/out + Personen, Ergebnisliste mit Links |
 
-### Technischer Ablauf (neu)
+### Ablauf (neu)
 
 ```text
-Perplexity sucht Inserat auf booking.com
-  → liest sichtbaren Preis ab (z.B. "€1.338")
-  → liest Preis-Info ab (z.B. "1 Woche, 6 Erwachsene")
-  → liefert Citations (URLs zum Inserat)
-Edge Function:
-  → nimmt Preis + Citation-URL
-  → speichert in monthly_pricing
-  → gibt listing_url zurück
-UI:
-  → zeigt Preis + "Angebot ansehen" Button
-  → Klick öffnet Booking.com-Inserat direkt
+User waehlt Haus -> Ort wird vorausgefuellt
+User setzt Datum (Sa-Sa) und Personen (6)
+-> Ein Perplexity-Call: "Ferienwohnungen Neukirchen, 18.04-25.04, 6 Pers., Booking.com"
+-> Perplexity liefert Liste: [{name, preis, plattform, ...}]
+-> Citations = Links zu den Inseraten
+-> UI zeigt Liste mit "Angebot oeffnen" Buttons
 ```
 
