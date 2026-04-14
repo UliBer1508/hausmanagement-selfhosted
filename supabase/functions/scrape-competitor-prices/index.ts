@@ -155,6 +155,7 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
             price_per_sqm: rentalData.price_per_sqm,
             comparable_count: rentalData.comparable_count,
             sources: rentalData.sources,
+            comparables: rentalData.comparables || [],
           }],
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
