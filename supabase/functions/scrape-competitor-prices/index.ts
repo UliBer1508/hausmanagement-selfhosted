@@ -116,13 +116,14 @@ WICHTIG für comparables:
         body: JSON.stringify({
           model: 'sonar',
           messages: [
-            { role: 'system', content: 'Du bist ein Mietpreis-Analyse-Assistent. Recherchiere aktuelle Mietpreise auf Immobilienportalen und antworte AUSSCHLIESSLICH mit validem JSON. Keine zusätzlichen Erklärungen.' },
+            { role: 'system', content: 'Du durchsuchst Immobilienportale nach konkreten Mietinseraten. Gib NUR Daten zurueck die du in echten Inseraten auf den Portalen findest. Antworte ausschliesslich mit validem JSON. Keine Mietspiegel oder Statistikseiten.' },
             { role: 'user', content: rentalPrompt }
           ],
           temperature: 0.0,
           max_tokens: 2000,
           return_images: false,
           return_related_questions: false,
+          ...(rentalDomainFilter.length > 0 ? { search_domain_filter: rentalDomainFilter } : {}),
         }),
       });
 
