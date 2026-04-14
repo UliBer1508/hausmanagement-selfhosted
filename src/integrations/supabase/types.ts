@@ -2451,6 +2451,7 @@ export type Database = {
           pricing_config: Json | null
           property_type: string | null
           rental_type: string | null
+          scrape_search_params: Json | null
           tenant_info: Json | null
           updated_at: string | null
         }
@@ -2483,6 +2484,7 @@ export type Database = {
           pricing_config?: Json | null
           property_type?: string | null
           rental_type?: string | null
+          scrape_search_params?: Json | null
           tenant_info?: Json | null
           updated_at?: string | null
         }
@@ -2515,6 +2517,7 @@ export type Database = {
           pricing_config?: Json | null
           property_type?: string | null
           rental_type?: string | null
+          scrape_search_params?: Json | null
           tenant_info?: Json | null
           updated_at?: string | null
         }
