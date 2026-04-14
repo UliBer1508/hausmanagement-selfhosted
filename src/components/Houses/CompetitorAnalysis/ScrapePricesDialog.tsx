@@ -357,6 +357,34 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                     <Input type="number" min={1} max={20} value={maxGuests} onChange={(e) => setMaxGuests(parseInt(e.target.value) || 6)} />
                   </div>
                 </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={async () => {
+                    if (!selectedHouseId) return;
+                    const params = {
+                      min_nights: minNights,
+                      max_guests: maxGuests,
+                      platforms: selectedPlatforms,
+                    };
+                    const { error } = await supabase
+                      .from('houses')
+                      .update({ scrape_search_params: params } as any)
+                      .eq('id', selectedHouseId);
+                    if (error) {
+                      toast({ title: "Fehler beim Speichern", variant: "destructive" });
+                    } else {
+                      queryClient.invalidateQueries({ queryKey: ['houses'] });
+                      queryClient.invalidateQueries({ queryKey: ['houses-for-scrape'] });
+                      toast({ title: "✅ Suchparameter gespeichert" });
+                    }
+                  }}
+                >
+                  💾 Suchparameter speichern
+                </Button>
               </>
             )}
 
