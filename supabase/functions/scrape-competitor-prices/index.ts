@@ -281,10 +281,9 @@ WICHTIG für comparables:
       'holidu': 'holidu.com',
       'traum-ferienwohnungen': 'traum-ferienwohnungen.de',
     };
-    const searchDomainFilter: string[] = platforms.includes('alle')
-      ? Object.values(domainMap)
-      : platforms.map(p => domainMap[p]).filter(Boolean);
-    console.log(`[scrape-prices] Domain filter: ${searchDomainFilter.join(', ')}`);
+    // Domain-Filter deaktiviert - Perplexity soll frei suchen können
+    // (Buchungsportale rendern Preise per JS, Perplexity kann sie nicht direkt lesen)
+    console.log(`[scrape-prices] Freie Suche (kein Domain-Filter), bevorzugte Portale: ${platformText}`);
 
     // Format dates for display in prompt
     const formatDateDE = (dateStr: string) => {
@@ -296,16 +295,17 @@ WICHTIG für comparables:
     const nightsCount = checkIn && checkOut ? Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / (1000 * 60 * 60 * 24)) : 7;
 
     const searchPrompt = `
-Suche verfuegbare Ferienwohnungen, Chalets und Ferienhaeuser in ${location} auf ${platformText} fuer folgenden Zeitraum:
+Finde Ferienwohnungen, Chalets und Ferienhaeuser zur Miete in ${location} fuer folgenden Zeitraum:
 
 CHECK-IN: ${checkInDE}
 CHECK-OUT: ${checkOutDE} (${nightsCount} Naechte)
 PERSONEN: ${guests}
 
 AUFGABE:
-1. Suche auf den genannten Portalen nach verfuegbaren Unterkuenften in ${location} fuer diesen Zeitraum und diese Personenanzahl
-2. Fuer jedes gefundene Angebot lies den angezeigten Gesamtpreis ab
-3. Sammle alle relevanten Details
+1. Suche nach verfuegbaren Unterkuenften in ${location} fuer diesen Zeitraum und diese Personenanzahl
+2. Bevorzugte Quellen: ${platformText}, aber auch Aggregatoren wie Holidu, Trivago, Google Hotels, HolidayCheck
+3. Fuer jedes gefundene Angebot lies den angezeigten Gesamtpreis ab
+4. Sammle alle relevanten Details
 
 ANTWORT NUR ALS JSON:
 {
@@ -339,7 +339,7 @@ REGELN:
 - "price_per_night" = Preis pro Nacht wenn separat angegeben
 - "listing_url" = Die direkte URL zum Inserat auf dem Buchungsportal. KEINE Suchseiten oder Startseiten.
 - Wenn du keinen Preis findest, setze price_total auf null
-- Erfinde KEINE Preise! Nur was tatsaechlich auf den Portalen angezeigt wird
+- Erfinde KEINE Preise! Nur was tatsaechlich auf den Webseiten angezeigt wird
 - Sortiere nach Preis aufsteigend
     `;
 
@@ -350,16 +350,15 @@ REGELN:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar',
+        model: 'sonar-pro',
         messages: [
-          { role: 'system', content: 'Du durchsuchst Buchungsportale nach verfuegbaren Ferienunterkuenften mit Preisen. Gib NUR Daten zurueck die du tatsaechlich auf den Portalen findest. Antworte ausschliesslich mit validem JSON.' },
+          { role: 'system', content: 'Du bist ein Reise-Recherche-Experte. Finde Ferienunterkuenfte mit Preisen aus allen verfuegbaren Webquellen - Buchungsportale, Aggregatoren, Vergleichsseiten und gecachte Inserate. Antworte ausschliesslich mit validem JSON.' },
           { role: 'user', content: searchPrompt }
         ],
         temperature: 0.0,
         max_tokens: 4000,
         return_images: false,
         return_related_questions: false,
-        ...(searchDomainFilter.length > 0 ? { search_domain_filter: searchDomainFilter } : {}),
       }),
     });
 
