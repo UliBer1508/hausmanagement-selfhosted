@@ -245,8 +245,23 @@ WICHTIG für comparables:
     }
 
     const platformText = platforms.includes('alle') 
-      ? 'allen verfügbaren Buchungsportalen (Booking.com, Airbnb, VRBO, Belvilla, FeWo-direkt, Holidu, Traum-Ferienwohnungen)'
+      ? 'Booking.com, Airbnb, VRBO, Belvilla, FeWo-direkt, Holidu, Traum-Ferienwohnungen'
       : platforms.join(', ');
+
+    // Build domain filter for Perplexity search
+    const domainMap: Record<string, string> = {
+      'Booking.com': 'booking.com',
+      'Airbnb': 'airbnb.com',
+      'VRBO': 'vrbo.com',
+      'Belvilla': 'belvilla.de',
+      'FeWo-direkt': 'fewo-direkt.de',
+      'Holidu': 'holidu.com',
+      'Traum-Ferienwohnungen': 'traum-ferienwohnungen.de',
+    };
+    const searchDomainFilter: string[] = platforms.includes('alle')
+      ? Object.values(domainMap)
+      : platforms.map(p => domainMap[p]).filter(Boolean);
+    console.log(`[scrape-prices] Domain filter: ${searchDomainFilter.join(', ')}`);
 
     const results = [];
 
@@ -262,70 +277,52 @@ WICHTIG für comparables:
         console.log(`[scrape-prices] 🔄 Attempt ${retryCount}/${MAX_RETRIES}`);
 
         try {
-          const priceQuery = `
-AUFGABE: Finde den ENDPREIS fuer diese Ferienunterkunft -- so wie er auf einem Buchungsportal angezeigt wird.
+        const priceQuery = `
+Suche den aktuellen Mietpreis fuer diese Ferienunterkunft auf Buchungsportalen.
 
-NAME: ${property.property_name}
-URL: ${property.property_url || 'Keine URL vorhanden'}
+UNTERKUNFT: "${property.property_name}"
+${property.property_url ? `WEBSEITE: ${property.property_url}` : ''}
 
-SUCHPARAMETER:
-- Reisezeitraum: ${checkInFrom} bis ${checkInTo}
-- Personen: bis zu ${maxGuests}
-- Aufenthalt: ${minNights} Naechte
-- Suche auf: ${platformText}
+SUCHE AUF DIESEN PORTALEN: ${platformText}
+SUCHKRITERIEN: ${checkInFrom} bis ${checkInTo}, ${minNights} Naechte, ${maxGuests} Personen
 
-WAS ICH BRAUCHE:
-- Den ENDPREIS den ein Gast auf dem Buchungsportal sieht (inkl. aller Steuern, Gebuehren, Endreinigung etc.)
-- Entweder als Preis pro Nacht ODER als Gesamtpreis fuer den Aufenthalt
-- Wenn du den Gesamtpreis kennst, berechne auch den Nachtpreis (Gesamtpreis / Naechte)
-- Wenn du nur den Nachtpreis kennst, gib nur diesen an
-- Was im Preis enthalten ist als kurzen Text (z.B. "inkl. Steuern, Endreinigung, Bettwaesche")
-- KEINE kuenstliche Aufschluesselung von Nebenkosten -- einfach was auf dem Portal steht
+Suche das Inserat dieser Unterkunft auf den genannten Portalen und gib den dort angezeigten Gesamtpreis an -- so wie ihn ein Gast beim Buchen sieht (z.B. "1.338 EUR fuer 1 Woche, 6 Erwachsene, inkl. Steuern und Gebuehren").
 
-ANTWORT-FORMAT (NUR JSON, keine Erklaerungen):
+ANTWORT NUR ALS JSON:
 {
-  "found": true,
+  "found": true/false,
   "property_details": {
-    "description": "Kurze Beschreibung der Unterkunft",
+    "description": "Kurzbeschreibung",
     "max_guests": 6,
     "bedrooms": 3,
     "bathrooms": 2,
     "size_sqm": 120,
     "rating": 9.2,
     "review_count": 48,
-    "amenities": ["Sauna", "Whirlpool", "WLAN", "Parkplatz"],
-    "address": "Ort/Region der Unterkunft",
-    "highlights": ["Panoramablick", "Ski-in/Ski-out"]
+    "amenities": ["Sauna", "WLAN"],
+    "address": "Ort der Unterkunft",
+    "highlights": ["Panoramablick"]
   },
   "prices": [
     {
-      "price_per_night": 270,
-      "price_total": 1890,
+      "price_per_night": 191,
+      "price_total": 1338,
       "nights": 7,
       "guests": 6,
       "check_in": "2026-07-01",
       "platform": "booking.com",
-      "includes": "inkl. Steuern, Endreinigung, Bettwaesche"
+      "includes": "inkl. Steuern, Endreinigung"
     }
   ],
-  "general_info": "Weitere Preis-Hinweise falls vorhanden"
+  "general_info": "Zusaetzliche Infos"
 }
 
 REGELN:
-- price_per_night und/oder price_total angeben -- mindestens eines davon
-- Wenn nur Gesamtpreis bekannt: price_per_night = price_total / nights
-- Wenn nur Nachtpreis bekannt: price_total = null
-- "includes" = was im Preis enthalten ist (kurzer Text)
-- Mehrere Preis-Eintraege erlaubt wenn verschiedene Portale/Zeitraeume gefunden
-- Auch Preise aus Preislisten oder Saisontabellen sind willkommen
-
-Falls GAR KEINE Preisinformationen gefunden werden:
-{
-  "found": false,
-  "property_details": { ... trotzdem ausfuellen wenn moeglich ... },
-  "prices": [],
-  "general_info": "Grund warum keine Preise gefunden wurden"
-}
+- Gib NUR Preise an die du tatsaechlich auf einem Portal gefunden hast
+- price_total = Gesamtpreis wie auf dem Portal angezeigt
+- price_per_night = price_total / nights (oder wie auf Portal angegeben)
+- Mehrere Eintraege wenn auf verschiedenen Portalen gefunden
+- Wenn nichts gefunden: found=false, prices=[]
           `;
 
           const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -337,13 +334,14 @@ Falls GAR KEINE Preisinformationen gefunden werden:
             body: JSON.stringify({
               model: 'sonar',
               messages: [
-                { role: 'system', content: 'Du bist ein Preis-Recherche-Assistent für Ferienwohnungen. Recherchiere alle verfügbaren Preise auf den angegebenen Portalen und antworte AUSSCHLIESSLICH mit validem JSON. Keine zusätzlichen Erklärungen.' },
+                { role: 'system', content: 'Du durchsuchst Buchungsportale nach aktuellen Mietpreisen fuer Ferienunterkuenfte. Gib NUR Preise zurueck die du tatsaechlich auf den Portalen findest. Antworte ausschliesslich mit validem JSON.' },
                 { role: 'user', content: priceQuery }
               ],
               temperature: 0.0,
               max_tokens: 2000,
               return_images: false,
               return_related_questions: false,
+              ...(searchDomainFilter.length > 0 ? { search_domain_filter: searchDomainFilter } : {}),
             }),
           });
 
