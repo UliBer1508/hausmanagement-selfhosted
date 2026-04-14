@@ -1,45 +1,63 @@
 
 
-# Wettbewerber-Detailansicht: Klickbare CompetitorCard mit Detail-Dialog
+# Wettbewerber-Details in Tourist-Suchergebnissen anzeigen
 
-## Uebersicht
+## Problem
 
-Aktuell zeigt die CompetitorCard nur eine Zusammenfassung (Name, Platform, Gaeste, ein paar Amenities). Der User moechte durch Klick auf eine Card alle Details sehen: Immobilien-Infos, Lage, Ausstattung, Bewertungen, Preishistorie, Notizen.
+Die Tourist-Preissuche zeigt pro Wettbewerber nur gefundene Preise, aber keine Objektdetails (Ausstattung, Lage, Groesse, Bewertungen). Der User kann nicht auf ein Ergebnis klicken, um mehr zu erfahren. Die Perplexity-Suche fragt diese Infos auch nicht ab.
 
 ## Aenderungen
 
-### 1. Neuer Detail-Dialog: `CompetitorDetailsDialog.tsx`
+### 1. Perplexity-Prompt erweitern (Edge Function)
 
-**Datei:** `src/components/Houses/CompetitorAnalysis/CompetitorDetailsDialog.tsx` (NEU)
+**Datei:** `supabase/functions/scrape-competitor-prices/index.ts`
 
-Ein Dialog der alle Informationen eines Wettbewerbers uebersichtlich anzeigt:
+Den Tourist-Prompt so erweitern, dass Perplexity zusaetzlich zu Preisen auch Objektdaten zurueckgibt:
 
-- **Header**: Property-Name, Betreiber, Platform-Badge, Link zur Originalseite
-- **Lage-Sektion**: Adresse, Entfernung, ggf. Google Maps Link (basierend auf Adresse)
-- **Immobilien-Details**: Max. Gaeste, Schlafzimmer, Badezimmer
-- **Bewertungen**: Rating mit Sterndarstellung, Anzahl Bewertungen
-- **Ausstattung**: Alle Amenities als Badge-Liste (nicht nur 6 wie auf der Card)
-- **Preishistorie**: Letzte bekannte Preise aus `monthly_pricing` (Query nach `competitor_property_id`)
-- **Notizen**: Vollstaendige Notizen
+```json
+{
+  "found": true,
+  "property_details": {
+    "description": "Modernes Chalet mit Panoramablick...",
+    "max_guests": 6,
+    "bedrooms": 3,
+    "bathrooms": 2,
+    "size_sqm": 120,
+    "rating": 9.2,
+    "review_count": 48,
+    "amenities": ["Sauna", "Whirlpool", "WLAN"],
+    "address": "Bramberg am Wildkogel",
+    "platform_url": "https://..."
+  },
+  "prices": [...]
+}
+```
 
-Layout: ScrollArea im Dialog fuer lange Inhalte.
+Die `property_details` werden im Result-Objekt an das Frontend durchgereicht.
 
-### 2. CompetitorCard anpassen
+### 2. Frontend: Klickbare Ergebnis-Cards mit Detail-Dialog
 
-**Datei:** `src/components/Houses/CompetitorAnalysis/CompetitorCard.tsx`
+**Datei:** `src/components/Houses/CompetitorAnalysis/ScrapePricesDialog.tsx`
 
-- Card bekommt `cursor-pointer` und `onClick` Handler
-- Klick oeffnet den neuen `CompetitorDetailsDialog`
-- Die Action-Buttons (Edit, Delete, ExternalLink) bleiben oben rechts und stoppen Event-Propagation
+- `ScrapeResult`-Interface um `property_details` erweitern
+- Jede Ergebnis-Card bekommt `cursor-pointer` und einen Expand/Collapse-Mechanismus
+- Bei Klick zeigt sich ein Detail-Bereich mit:
+  - Beschreibung
+  - Gaeste/Schlafzimmer/Badezimmer/Groesse
+  - Bewertung + Anzahl
+  - Ausstattungs-Badges
+  - Adresse/Lage
+  - Link zum Portal
+- Preise bleiben wie bisher unterhalb der Details sichtbar
 
-### 3. Preishistorie laden
+### 3. Bestehende Wettbewerber-Daten aktualisieren
 
-Im Detail-Dialog: Query auf `monthly_pricing` mit `competitor_property_id = competitor.id`, sortiert nach Datum absteigend. Zeigt die letzten Scraping-Ergebnisse als kompakte Liste.
+Wenn `property_details` zurueckkommen und der Wettbewerber in `competitor_properties` existiert, werden fehlende Felder (amenities, rating, review_count, max_guests, bedrooms, bathrooms, address) mit den neu gefundenen Daten ergaenzt (nur wenn bisher NULL).
 
 ## Zusammenfassung
 
 | Datei | Aenderung |
 |-------|-----------|
-| `CompetitorDetailsDialog.tsx` | NEU: Vollstaendiger Detail-Dialog |
-| `CompetitorCard.tsx` | Klickbar machen, Dialog oeffnen |
+| `scrape-competitor-prices/index.ts` | Prompt um property_details erweitern, Details durchreichen + in DB updaten |
+| `ScrapePricesDialog.tsx` | Interface + klickbare Detail-Ansicht pro Ergebnis |
 
