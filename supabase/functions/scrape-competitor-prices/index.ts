@@ -353,7 +353,7 @@ REGELN:
       body: JSON.stringify({
         model: 'sonar-pro',
         messages: [
-          { role: 'system', content: 'Du bist ein Reise-Recherche-Experte. Finde Ferienunterkuenfte mit Preisen aus allen verfuegbaren Webquellen - Buchungsportale, Aggregatoren, Vergleichsseiten und gecachte Inserate. Antworte ausschliesslich mit validem JSON.' },
+          { role: 'system', content: 'Du bist ein Reise-Recherche-Experte. Finde Ferienunterkuenfte mit Preisen aus allen verfuegbaren Webquellen. Auch Nachtpreise oder Preisspannen von Aggregatoren und Vergleichsseiten sind wertvolle Ergebnisse. Gib lieber Ergebnisse mit ungefaehren Preisen zurueck als eine leere Liste. Antworte ausschliesslich mit validem JSON.' },
           { role: 'user', content: searchPrompt }
         ],
         temperature: 0.0,
