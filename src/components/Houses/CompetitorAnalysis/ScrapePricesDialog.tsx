@@ -680,7 +680,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                                                   ))}
                                                 </div>
                                               )}
-                                              {c.listing_url && (
+                                              {c.listing_url && !c.listing_url.includes('...') && c.listing_url.length > 15 && (
                                                 <a
                                                   href={c.listing_url}
                                                   target="_blank"
