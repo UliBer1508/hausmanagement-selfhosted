@@ -219,7 +219,7 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
 
         try {
           const priceQuery = `
-AUFGABE: Recherchiere ALLE verfügbaren Preise für diese Ferienunterkunft.
+AUFGABE: Recherchiere ALLE verfügbaren Preise UND Objektdetails für diese Ferienunterkunft.
 
 NAME: ${property.property_name}
 URL: ${property.property_url || 'Keine URL vorhanden'}
@@ -238,10 +238,23 @@ WICHTIG:
 - Klassifiziere jeden gefundenen Preis nach Typ
 - Falls die URL zu einem Portal gehört, suche dort zuerst
 - Suche auch auf anderen Portalen nach Preisen
+- Recherchiere zusätzlich ALLE verfügbaren Objektdetails
 
 ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
 {
   "found": true,
+  "property_details": {
+    "description": "Kurze Beschreibung der Unterkunft",
+    "max_guests": 6,
+    "bedrooms": 3,
+    "bathrooms": 2,
+    "size_sqm": 120,
+    "rating": 9.2,
+    "review_count": 48,
+    "amenities": ["Sauna", "Whirlpool", "WLAN", "Parkplatz"],
+    "address": "Ort/Region der Unterkunft",
+    "highlights": ["Panoramablick", "Ski-in/Ski-out"]
+  },
   "prices": [
     {
       "total_price": 1890,
@@ -267,6 +280,7 @@ type kann sein:
 Falls KEINE Preise gefunden werden:
 {
   "found": false,
+  "property_details": { ... trotzdem ausfüllen wenn möglich ... },
   "prices": [],
   "general_info": "Grund warum keine Preise gefunden wurden"
 }
@@ -367,6 +381,31 @@ Falls KEINE Preise gefunden werden:
             }
           }
 
+          // Update competitor_properties with newly found details
+          const details = priceData.property_details;
+          if (details && typeof details === 'object') {
+            const updates: Record<string, any> = {};
+            if (details.max_guests && !property.max_guests) updates.max_guests = details.max_guests;
+            if (details.bedrooms && !property.bedrooms) updates.bedrooms = details.bedrooms;
+            if (details.bathrooms && !property.bathrooms) updates.bathrooms = details.bathrooms;
+            if (details.address && !property.address) updates.address = details.address;
+            if (details.rating && !property.rating) updates.rating = details.rating;
+            if (details.review_count && !property.review_count) updates.review_count = details.review_count;
+            if (details.amenities?.length && (!property.amenities || (Array.isArray(property.amenities) && property.amenities.length === 0))) {
+              updates.amenities = details.amenities;
+            }
+
+            if (Object.keys(updates).length > 0) {
+              updates.updated_at = new Date().toISOString();
+              const { error: updateError } = await supabase
+                .from('competitor_properties')
+                .update(updates)
+                .eq('id', property.id);
+              if (updateError) console.error(`[scrape-prices] ❌ Update competitor error:`, updateError);
+              else console.log(`[scrape-prices] ✅ Updated competitor with ${Object.keys(updates).length} fields`);
+            }
+          }
+
           console.log(`[scrape-prices] ✅ ${property.property_name}: ${prices.length} prices found`);
           resultFound = true;
 
@@ -375,6 +414,7 @@ Falls KEINE Preise gefunden werden:
             success: true,
             found,
             prices,
+            property_details: details || null,
             general_info: priceData.general_info || null,
             best_price: prices.find((p: any) => p.total_price)?.total_price || null,
             attempts: retryCount,
