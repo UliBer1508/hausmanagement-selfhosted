@@ -1,55 +1,53 @@
 
 
-# Fix: Perplexity-Prompt toleranter fuer Preisfindung
+# Mietobjekt-Details: Klickbare Vergleichsobjekte in der Mietpreisanalyse
 
 ## Problem
 
-Perplexity findet Objektdetails, aber keine Preise, weil:
-- Der Zeitraum (April-Oktober 2026) zu weit in der Zukunft liegt
-- Der Prompt nur nach buchbaren Preisen fuer exakte Daten fragt
-- Preisinformationen aus general_info (z.B. "236-456€/Nacht") nicht als Preise extrahiert werden
+Die Vergleichsobjekte in der Mietpreisanalyse zeigen nur Adresse, qm, Zimmer, Quelle und Miete. Der User moechte durch Klick auf ein Objekt mehr Details sehen.
 
 ## Loesung
 
-### 1. Prompt ueberarbeiten (Edge Function)
+### 1. Perplexity-Prompt erweitern (Edge Function)
 
 **Datei:** `supabase/functions/scrape-competitor-prices/index.ts`
 
-Den Prompt so aendern, dass Perplexity breiter sucht:
+Das `comparables`-Array im Rental-Prompt (Zeile 69-72) um zusaetzliche Felder erweitern:
 
-- **Auch vergangene/aktuelle Preislisten akzeptieren** ("Was kostet die Unterkunft generell?")
-- **Preistabellen von der eigenen Website** suchen (viele Chalets haben Saisonpreislisten)
-- **Explizit nach Preislisten, Ratenblättern, Saisonpreisen fragen** -- nicht nur buchbare Daten
-- **Zeitraum weglassen oder optional machen**: "Finde alle bekannten Preise, egal fuer welchen Zeitraum"
-- Neuen Preis-Typ `"list"` ergaenzen fuer Preistabellen-Eintraege
-
-Neuer Prompt-Kern:
-```
-AUFGABE: Finde ALLE bekannten Preise fuer diese Ferienunterkunft.
-
-WICHTIG - BREITE SUCHE:
-- Suche auf der eigenen Website nach Preislisten/Ratenblättern
-- Suche auf Buchungsportalen nach aktuellen oder vergangenen Preisen
-- Auch Preise aus vergangenen Saisons sind relevant
-- Saisonpreise, Wochenpreise, Nachtpreise -- ALLES ist relevant
-- Wenn keine exakten Preise: Gib Preisspannen oder Richtwerte an
-- Endreinigungskosten, Nebenkosten separat auflisten
+```json
+{
+  "address": "Beispielstr. 1, 14612 Falkensee",
+  "sqm": 65,
+  "rooms": 2,
+  "rent": 800,
+  "source": "ImmoScout24",
+  "description": "Helle 2-Zimmer-Wohnung mit Balkon...",
+  "floor": "2. OG",
+  "year_built": 2005,
+  "features": ["Balkon", "Einbauküche", "Keller"],
+  "available_from": "01.07.2026",
+  "listing_url": "https://..."
+}
 ```
 
-### 2. general_info als Fallback-Preis parsen
-
-Wenn `prices` leer ist aber `general_info` Preisangaben enthaelt (z.B. "200-350€/Nacht"), einen synthetischen Preis-Eintrag vom Typ `"info"` erzeugen, damit das Frontend "Keine Preise" nicht anzeigt.
-
-### 3. Frontend: "Keine Preise" durch general_info ersetzen
+### 2. Frontend: Klickbare Vergleichsobjekte mit Expand/Collapse
 
 **Datei:** `src/components/Houses/CompetitorAnalysis/ScrapePricesDialog.tsx`
 
-Wenn `r.found === false` aber `r.general_info` existiert, zeige statt "Keine Preise" den Badge "Info" und darunter den `general_info` Text. So sieht der User zumindest die gefundenen Preisinformationen.
+- `comparables`-Interface um die neuen Felder erweitern (description, floor, year_built, features, available_from, listing_url)
+- Jedes Vergleichsobjekt bekommt `cursor-pointer` und einen Collapsible-Mechanismus
+- Bei Klick oeffnet sich ein Detail-Bereich mit:
+  - Beschreibung
+  - Etage, Baujahr
+  - Ausstattungs-Badges (features)
+  - Verfuegbar ab
+  - Link zum Inserat (wenn vorhanden)
+- Die kompakte Zeile (Adresse, qm, Zimmer, Miete) bleibt als Trigger sichtbar
 
 ## Zusammenfassung
 
 | Datei | Aenderung |
 |-------|-----------|
-| `scrape-competitor-prices/index.ts` | Prompt breiter (keine Zeitraum-Pflicht, Preislisten suchen, neuer Typ "list"/"info") + general_info Fallback |
-| `ScrapePricesDialog.tsx` | general_info anzeigen wenn keine Preise, Badge "Info" statt "Keine Preise" |
+| `scrape-competitor-prices/index.ts` | Rental-Prompt: comparables um Details erweitern |
+| `ScrapePricesDialog.tsx` | Interface + klickbare Collapsible-Details pro Vergleichsobjekt |
 
