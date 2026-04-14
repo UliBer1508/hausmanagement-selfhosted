@@ -132,6 +132,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   
   const [isLoading, setIsLoading] = useState(false);
   const [results, setResults] = useState<ScrapeResult[] | null>(null);
+  const [expandedResults, setExpandedResults] = useState<Set<number>>(new Set());
 
   // Update rental fields when house changes
   const handleHouseChange = (houseId: string) => {
