@@ -153,11 +153,11 @@ const PriceLabsTab = ({ house_id }: PriceLabsTabProps) => {
 
           {/* Hinweis wenn kein API-Key */}
           {availableListings === undefined && !listingsLoading && (
-            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
-              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+            <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-destructive mt-0.5" />
               <div className="text-sm">
-                <p className="font-medium text-amber-800 dark:text-amber-200">PriceLabs API-Key fehlt</p>
-                <p className="text-amber-700 dark:text-amber-300 mt-1">
+                <p className="font-medium text-destructive">PriceLabs API-Key fehlt</p>
+                <p className="text-muted-foreground mt-1">
                   Bitte hinterlegen Sie Ihren PriceLabs API-Key in den Supabase Secrets (PRICELABS_API_KEY), 
                   um die Integration zu nutzen.
                 </p>
