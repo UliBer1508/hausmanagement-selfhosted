@@ -680,6 +680,29 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                     </>
                   )}
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={async () => {
+                    if (!selectedHouseId) return;
+                    const params = { sqm, rooms, radius_km: radiusKm, platforms: selectedPlatforms };
+                    const { error } = await supabase
+                      .from('houses')
+                      .update({ scrape_search_params: params } as any)
+                      .eq('id', selectedHouseId);
+                    if (error) {
+                      toast({ title: "Fehler beim Speichern", variant: "destructive" });
+                    } else {
+                      queryClient.invalidateQueries({ queryKey: ['houses'] });
+                      queryClient.invalidateQueries({ queryKey: ['houses-for-scrape'] });
+                      toast({ title: "✅ Suchparameter gespeichert" });
+                    }
+                  }}
+                >
+                  💾 Suchparameter speichern
+                </Button>
               </>
             )}
             {/* Tourist Results with Tabs */}
