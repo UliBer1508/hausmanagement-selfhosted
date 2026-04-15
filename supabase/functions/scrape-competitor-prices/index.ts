@@ -319,21 +319,24 @@ serve(async (req) => {
         ? Object.values(rentalDomainMap)
         : platforms.map(p => rentalDomainMap[p]).filter(Boolean);
 
-      const currentRentText = currentRent ? `Die aktuelle Miete beträgt ${currentRent} EUR/Monat.` : '';
+      const currentRentText = currentRent 
+        ? `Die aktuelle Kaltmiete des Objekts beträgt ${currentRent} EUR/Monat (${(currentRent / sqm).toFixed(2)} EUR/qm). Finde vergleichbare Objekte in einer ähnlichen Preisklasse.` 
+        : '';
 
       const rentalPrompt = `
-AUFGABE: Finde aktuelle Mietpreise für eine vergleichbare Wohnung.
+AUFGABE: Finde aktuelle Mietangebote (Kaltmiete) für vergleichbare Wohnungen.
 
 OBJEKTDATEN:
 - Adresse/Region: ${address}
 - Wohnfläche: ${sqm} qm
-- Zimmer: ${rooms}
+- Zimmeranzahl: ${rooms} Zimmer
 ${currentRentText}
 
 SUCHPARAMETER:
 - Suche auf: ${platformText}
-- Suche Kaltmieten für Wohnungen mit ähnlicher Größe (±15 qm) und Zimmeranzahl in der gleichen Region
+- Suche Kaltmieten für Wohnungen mit ${rooms} Zimmern (±1 Zimmer) und ähnlicher Größe (${Math.round(sqm * 0.8)}-${Math.round(sqm * 1.2)} qm) in der gleichen Region
 - Berücksichtige Wohnungen im Umkreis von ${radiusKm} km
+- WICHTIG: "rent" ist immer die KALTMIETE (ohne Nebenkosten), NICHT die Warmmiete
 
 ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
 {
@@ -360,6 +363,12 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
     }
   ]
 }
+
+REGELN:
+- "rent" = NUR Kaltmiete (Nettokaltmiete), KEINE Warmmiete
+- "rooms" = Gesamtzimmeranzahl (nicht nur Schlafzimmer)
+- Nur echte, aktuelle Inserate verwenden
+- avg_rent, min_rent, max_rent beziehen sich auf die gefundenen Vergleichsobjekte
       `;
 
       const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -369,13 +378,13 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'sonar',
+          model: 'sonar-pro',
           messages: [
-            { role: 'system', content: 'Du durchsuchst Immobilienportale nach konkreten Mietinseraten. Antworte ausschliesslich mit validem JSON.' },
+            { role: 'system', content: 'Du durchsuchst Immobilienportale nach konkreten Mietinseraten. Antworte ausschliesslich mit validem JSON. Alle Mietpreise sind KALTMIETEN (ohne Nebenkosten).' },
             { role: 'user', content: rentalPrompt }
           ],
           temperature: 0.0,
-          max_tokens: 2000,
+          max_tokens: 4000,
           return_images: false,
           return_related_questions: false,
           ...(rentalDomainFilter.length > 0 ? { search_domain_filter: rentalDomainFilter } : {}),
