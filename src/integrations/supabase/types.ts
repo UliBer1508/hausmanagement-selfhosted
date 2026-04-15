@@ -3356,6 +3356,100 @@ export type Database = {
           },
         ]
       }
+      pricelabs_listings: {
+        Row: {
+          base_price: number | null
+          created_at: string
+          health_score: string | null
+          house_id: string
+          id: string
+          last_synced_at: string | null
+          listing_name: string | null
+          max_price: number | null
+          min_price: number | null
+          pms_name: string | null
+          pricelabs_listing_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_price?: number | null
+          created_at?: string
+          health_score?: string | null
+          house_id: string
+          id?: string
+          last_synced_at?: string | null
+          listing_name?: string | null
+          max_price?: number | null
+          min_price?: number | null
+          pms_name?: string | null
+          pricelabs_listing_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_price?: number | null
+          created_at?: string
+          health_score?: string | null
+          house_id?: string
+          id?: string
+          last_synced_at?: string | null
+          listing_name?: string | null
+          max_price?: number | null
+          min_price?: number | null
+          pms_name?: string | null
+          pricelabs_listing_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricelabs_listings_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricelabs_market_data: {
+        Row: {
+          created_at: string
+          data_date: string
+          fetched_at: string
+          house_id: string
+          id: string
+          neighborhood_data: Json | null
+          pricelabs_listing_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_date?: string
+          fetched_at?: string
+          house_id: string
+          id?: string
+          neighborhood_data?: Json | null
+          pricelabs_listing_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_date?: string
+          fetched_at?: string
+          house_id?: string
+          id?: string
+          neighborhood_data?: Json | null
+          pricelabs_listing_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricelabs_market_data_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string | null
