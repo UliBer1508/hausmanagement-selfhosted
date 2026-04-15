@@ -304,7 +304,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
       const saved = house.scrape_search_params as any;
       if (house.rental_type === 'long_term') {
         setSqm(saved?.sqm || 60);
-        setRooms(house.bedrooms || 2);
+        setRooms(saved?.rooms || house.bedrooms || 2);
         setRadiusKm(saved?.radius_km || 10);
         setSelectedPlatforms(saved?.platforms || ['alle']);
       } else {
@@ -679,6 +679,29 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                       Mietpreise analysieren
                     </>
                   )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={async () => {
+                    if (!selectedHouseId) return;
+                    const params = { sqm, rooms, radius_km: radiusKm, platforms: selectedPlatforms };
+                    const { error } = await supabase
+                      .from('houses')
+                      .update({ scrape_search_params: params } as any)
+                      .eq('id', selectedHouseId);
+                    if (error) {
+                      toast({ title: "Fehler beim Speichern", variant: "destructive" });
+                    } else {
+                      queryClient.invalidateQueries({ queryKey: ['houses'] });
+                      queryClient.invalidateQueries({ queryKey: ['houses-for-scrape'] });
+                      toast({ title: "✅ Suchparameter gespeichert" });
+                    }
+                  }}
+                >
+                  💾 Suchparameter speichern
                 </Button>
               </>
             )}
