@@ -1,88 +1,27 @@
 
 
-# PriceLabs fuer Ferienobjekte + Perplexity fuer Vermietungsobjekte
+# Suchparameter aus Hausdefinition lesen
 
-## Ueberblick
-- **Ferienobjekte** (`rental_type = 'tourist'`): PriceLabs API fuer Wettbewerbsanalyse (Neighborhood Data, Preise, Listings)
-- **Vermietungsobjekte** (`rental_type != 'tourist'`): Perplexity bleibt wie bisher (Mietpreisanalyse)
+## Problem
+Die Mietpreisanalyse nutzt Standardwerte (60 qm, 2 Zimmer) statt der tatsaechlichen Hausdaten (`living_area_sqm`, `bedrooms`). Bei der Wohnung Winthirstrasse werden deshalb falsche Parameter verwendet.
 
-## PriceLabs API Endpoints (verifiziert via Postman Docs)
+## Aenderung
 
-| Endpoint | Beschreibung |
-|---|---|
-| `GET /v1/listings` | Alle Listings (id, pms, name, min/base/max) |
-| `GET /v1/listings/{id}` | Einzellisting mit Health-Score |
-| `GET /v1/listings/{id}/neighborhood?pms=X` | Markt-/Wettbewerberdaten der Region |
-| `GET /v1/listings/{id}/overrides?pms=X` | Tagespreise & Ueberschreibungen |
-| `POST /v1/prices` | Preisempfehlungen abrufen |
+**Datei: `src/components/Houses/CompetitorAnalysis/ScrapePricesDialog.tsx`**
 
-Auth: `X-API-Key` Header
+Zeile 304-309 aendern: Die Initialisierung der Suchparameter soll zuerst gespeicherte Werte (`scrape_search_params`) nutzen, dann Hausdaten, dann Defaults:
 
-## Schritte
+```typescript
+// Vorher:
+setSqm(saved?.sqm || 60);
+setRooms(saved?.rooms || house.bedrooms || 2);
+setRadiusKm(saved?.radius_km || 10);
 
-### 1. Secret `PRICELABS_API_KEY` hinzufuegen
-User muss den API-Key aus dem PriceLabs Dashboard bereitstellen.
-
-### 2. Neue Edge Function `pricelabs-sync`
-Proxy zur PriceLabs API mit Aktionen:
-- `list-listings` → `GET /v1/listings`
-- `get-listing` → `GET /v1/listings/{id}` (mit Health-Score)
-- `get-neighborhood` → `GET /v1/listings/{id}/neighborhood?pms=X`
-- `get-prices` → `POST /v1/prices` (Preisempfehlungen)
-- `get-overrides` → `GET /v1/listings/{id}/overrides?pms=X`
-
-### 3. DB-Migration: `pricelabs_listings`
-Mapping PriceLabs Listing-IDs zu lokalen Haeusern:
-```text
-pricelabs_listings:
-  id UUID PK
-  house_id FK → houses
-  pricelabs_listing_id TEXT
-  pms_name TEXT (airbnb, booking, etc.)
-  listing_name TEXT
-  base_price INTEGER
-  min_price INTEGER
-  max_price INTEGER
-  health_score TEXT
-  last_synced_at TIMESTAMPTZ
+// Nachher:
+setSqm(saved?.sqm || house.living_area_sqm || 60);
+setRooms(saved?.rooms || house.bedrooms || 2);
+setRadiusKm(saved?.radius_km || 10);
 ```
 
-### 4. DB-Migration: `pricelabs_market_data`
-Cache fuer Neighborhood-Daten:
-```text
-pricelabs_market_data:
-  id UUID PK
-  house_id FK → houses
-  pricelabs_listing_id TEXT
-  data_date DATE
-  neighborhood_data JSONB (komplettes Neighborhood-Response)
-  fetched_at TIMESTAMPTZ
-```
-
-### 5. React Hook `usePriceLabs`
-- `usePriceLabsListings()` — alle PriceLabs-Listings laden
-- `useLinkListing(house_id, pricelabs_listing_id, pms)` — Listing einem Haus zuordnen
-- `useSyncNeighborhood(listing_id, pms)` — Marktdaten abrufen
-- `usePriceLabsMarketData(house_id)` — gecachte Marktdaten lesen
-
-### 6. UI: Neuer Tab "PriceLabs" im CompetitorAnalysisDashboard
-Nur sichtbar fuer Haeuser mit `rental_type = 'tourist'`:
-- **Listing-Verknuepfung**: Dropdown um PriceLabs-Listings einem Haus zuzuordnen
-- **Marktdaten-Dashboard**: Neighborhood Data (Auslastung, Durchschnittspreise, Comp-Set)
-- **Tagespreise**: Overrides/Preisempfehlungen als Tabelle
-- **Sync-Button**: Manuelles Aktualisieren mit Zeitstempel
-
-### 7. Routing-Logik im Dashboard
-`CompetitorAnalysisDashboard` erhaelt den `rental_type` als Prop:
-- `tourist` → PriceLabs-Tab wird angezeigt, ScrapePricesDialog/CompetitorSearchDialog werden ausgeblendet
-- `tenant` → Perplexity-basierte Suche bleibt wie bisher (ScrapePricesDialog, CompetitorSearchDialog)
-
-### 8. Bestehende Komponenten
-Bleiben alle erhalten:
-- `CompetitorCard`, `ManualCompetitorDialog`, `OwnPricingDialog`, `AdditionalFeesDialog`
-- `PriceComparisonTable`, `PriceComparisonChart`, `CompetitorPriceHistoryList`
-- `ScrapePricesDialog`, `CompetitorSearchDialog` — nur noch fuer Vermietungsobjekte sichtbar
-
-## Voraussetzung
-PriceLabs API-Key aus dem PriceLabs Dashboard (Settings → API). Wird als Secret gespeichert.
+Die einzige tatsaechliche Aenderung ist bei `sqm`: statt hartkodiertem `60` wird `house.living_area_sqm` als Fallback verwendet. `rooms` und `radius` nutzen bereits die Hausdaten bzw. sinnvolle Defaults.
 
