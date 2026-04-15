@@ -360,6 +360,7 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
           <CompetitorAnalysisDashboard 
             house_id={house.id} 
             house_name={house.name}
+            rental_type={house.rental_type}
           />
         </DialogContent>
       </Dialog>
