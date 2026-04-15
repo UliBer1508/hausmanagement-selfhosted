@@ -304,7 +304,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
       const saved = house.scrape_search_params as any;
       if (house.rental_type === 'long_term') {
         setSqm(saved?.sqm || 60);
-        setRooms(house.bedrooms || 2);
+        setRooms(saved?.rooms || house.bedrooms || 2);
         setRadiusKm(saved?.radius_km || 10);
         setSelectedPlatforms(saved?.platforms || ['alle']);
       } else {
