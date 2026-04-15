@@ -13,18 +13,22 @@ import AdditionalFeesDialog from './AdditionalFeesDialog';
 import ManualCompetitorDialog from './ManualCompetitorDialog';
 import CompetitorPriceHistoryList from './CompetitorPriceHistoryList';
 import ScrapePricesDialog from './ScrapePricesDialog';
+import PriceLabsTab from './PriceLabsTab';
 import { format } from 'date-fns';
 
 interface CompetitorAnalysisDashboardProps {
   house_id: string;
   house_name: string;
+  rental_type?: string;
 }
 
-const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysisDashboardProps) => {
+const CompetitorAnalysisDashboard = ({ house_id, house_name, rental_type }: CompetitorAnalysisDashboardProps) => {
+  const isTourist = rental_type === 'tourist' || !rental_type;
+  
   // Zeitraum für monatliche Preise: Nur aktueller Monat
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1; // 1-12
+  const currentMonth = now.getMonth() + 1;
   const lastDayOfMonth = new Date(currentYear, currentMonth, 0).getDate();
   
   const [dateRange, setDateRange] = useState({
@@ -51,6 +55,8 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
       : 0
   };
 
+  const tabCount = isTourist ? 5 : 4;
+
   return (
     <div className="space-y-6">
       {/* Header mit Stats */}
@@ -66,11 +72,16 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
           <AdditionalFeesDialog house_id={house_id} />
           <OwnPricingDialog house_id={house_id} />
           <ManualCompetitorDialog house_id={house_id} />
-          <CompetitorSearchDialog house_id={house_id} />
-          <ScrapePricesDialog 
-            house_id={house_id} 
-            disabled={!competitors || competitors.length === 0}
-          />
+          {/* Perplexity-basierte Suche nur für Vermietungsobjekte */}
+          {!isTourist && (
+            <>
+              <CompetitorSearchDialog house_id={house_id} />
+              <ScrapePricesDialog 
+                house_id={house_id} 
+                disabled={!competitors || competitors.length === 0}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -137,13 +148,23 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
       </div>
 
       {/* Tabs mit Detailansichten */}
-      <Tabs defaultValue="comparison" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue={isTourist ? "pricelabs" : "comparison"} className="w-full">
+        <TabsList className={`grid w-full ${isTourist ? 'grid-cols-5' : 'grid-cols-4'}`}>
+          {isTourist && (
+            <TabsTrigger value="pricelabs">PriceLabs</TabsTrigger>
+          )}
           <TabsTrigger value="comparison">Preisvergleich</TabsTrigger>
           <TabsTrigger value="competitors">Wettbewerber ({stats.competitorCount})</TabsTrigger>
           <TabsTrigger value="chart">Visualisierung</TabsTrigger>
           <TabsTrigger value="price-history">Preisentwicklung</TabsTrigger>
         </TabsList>
+
+        {/* PriceLabs Tab - nur für Ferienobjekte */}
+        {isTourist && (
+          <TabsContent value="pricelabs" className="space-y-4">
+            <PriceLabsTab house_id={house_id} />
+          </TabsContent>
+        )}
 
         <TabsContent value="comparison" className="space-y-4">
           <Card>
@@ -170,7 +191,8 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
                     <p>Um den Preisvergleich zu starten, benötigen Sie:</p>
                     <ol className="list-decimal list-inside space-y-1 text-left max-w-md mx-auto">
                       <li>Eigene monatliche Preise eingeben (Button "Eigene Preise eingeben")</li>
-                      <li>Wettbewerber-Preise scrapen (Button "Preise aktualisieren")</li>
+                      {!isTourist && <li>Wettbewerber-Preise scrapen (Button "Preise aktualisieren")</li>}
+                      {isTourist && <li>Marktdaten über PriceLabs laden (Tab "PriceLabs")</li>}
                     </ol>
                   </div>
                   <div className="flex gap-2 justify-center pt-4">
@@ -182,10 +204,12 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
                         </Button>
                       }
                     />
-                    <ScrapePricesDialog 
-                      house_id={house_id}
-                      disabled={stats.competitorCount === 0}
-                    />
+                    {!isTourist && (
+                      <ScrapePricesDialog 
+                        house_id={house_id}
+                        disabled={stats.competitorCount === 0}
+                      />
+                    )}
                   </div>
                 </div>
               )}
@@ -214,9 +238,12 @@ const CompetitorAnalysisDashboard = ({ house_id, house_name }: CompetitorAnalysi
                 <Users className="w-12 h-12 text-muted-foreground mb-4" />
                 <p className="text-lg font-medium mb-2">Noch keine Wettbewerber</p>
                 <p className="text-sm text-muted-foreground mb-4 text-center max-w-md">
-                  Suchen Sie nach vergleichbaren Ferienhäusern in Ihrer Region, um Ihre Preise zu optimieren.
+                  {isTourist 
+                    ? "Fügen Sie manuell Wettbewerber hinzu oder nutzen Sie PriceLabs für automatische Marktdaten."
+                    : "Suchen Sie nach vergleichbaren Objekten in Ihrer Region."
+                  }
                 </p>
-                <CompetitorSearchDialog house_id={house_id} />
+                {!isTourist && <CompetitorSearchDialog house_id={house_id} />}
               </CardContent>
             </Card>
           )}
