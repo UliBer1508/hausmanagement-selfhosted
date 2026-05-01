@@ -1,34 +1,64 @@
-# Mobile-Optimierung: Automatisierungs-Karte
+# Plan: Datei mit Auth-Lösung im Projekt ablegen
 
-Die Karte `AutoLinenOrderSettingsCard.tsx` hat auf dem Handy mehrere Layout-Probleme (Switch + Label überlappen mit "Jetzt prüfen"-Button, "Speichern"-Button fehlt im Sichtbereich, Sektion "Wäsche Oberpinzgau Sync" bricht ebenfalls).
+Erstelle die Datei `docs/Auth-Implementation-Plan.md` mit der gesamten Lösungsbeschreibung für den späteren Einsatz.
 
-## Änderungen in `src/components/Houses/AutoLinenOrderSettingsCard.tsx`
+## Inhalt der Datei
 
-### 1. Header-Bereich (Zeilen 162–222)
-- Header-Aktionsleiste auf mobil **vertikal stapeln**, ab `sm` horizontal.
-- Switch + Label in eine eigene Zeile, Buttons in eine zweite Zeile mit `flex-wrap` und `w-full sm:w-auto`.
-- Kürzere Button-Labels auf mobil:
-  - „Einstellungen speichern" → mobil nur „Speichern" (`hidden sm:inline` / `sm:hidden`).
-  - „Jetzt prüfen" bleibt (passt).
-- Buttons mit `flex-1 sm:flex-initial`, damit sie auf Handy gleichmäßig die Breite teilen und nichts überlappt.
-- `shrink-0` auf Switch + Icons.
+Die Datei dokumentiert die geplante Authentifizierung mit folgenden Eckpunkten:
 
-### 2. Eingabefelder-Grid (Zeilen 226–317)
-- Aktuell `grid-cols-1 md:grid-cols-4`. Auf mobil bleibt 1 Spalte → bereits ok.
-- Card-Padding auf mobil reduzieren (`CardContent` bekommt `p-3 sm:p-6` Verhalten via `space-y-4 sm:space-y-6`).
+### Architektur-Übersicht
+- **Hauptapp**: Email/Passwort-Login via Supabase Auth (UI-seitiger Schutz, keine RLS)
+- **Portale** (`/portal/cleaning`, `/portal/laundry`, `/portal/service`): Bleiben vollständig öffentlich, anonymer Zugriff wie bisher
+- **Keine RLS** in der Datenbank — Schutz nur auf UI-Ebene
 
-### 3. Sektion „Wäsche Oberpinzgau Sync" (Zeilen 461–493)
-- `flex items-center justify-between` → auf mobil `flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between`.
-- Aktionsleiste (Mapping-Button + Switch + Label) wird ebenfalls vertikal/`flex-wrap` für mobil; Mapping-Button erhält `w-full sm:w-auto`.
+### User-Verwaltung
+- Neue Admin-User werden **manuell** im Supabase Dashboard angelegt (Auth → Users → Add user)
+- Self-Signup ist deaktiviert
+- Kein User-Profile-Table nötig (reine Login-Funktion, keine Profil-Daten)
 
-### 4. Ergebnis-Tabellen (Zeilen 350–456)
-- Tabellen in einen Wrapper mit `overflow-x-auto` packen, damit sie auf 390px-Viewport horizontal scrollbar sind statt zu brechen.
+### Zu erstellende Dateien
+1. `src/hooks/useAuth.tsx` — Auth-Context mit `onAuthStateChange` (zuerst!) und `getSession()`
+2. `src/pages/Auth.tsx` — Login-Seite (Email + Passwort + "Passwort vergessen"-Link)
+3. `src/pages/ResetPassword.tsx` — Setzt neues Passwort via `supabase.auth.updateUser()`
+4. `src/components/ProtectedRoute.tsx` — Wrapper, redirect auf `/auth` wenn keine Session
+5. Erweiterung der Top-Navigation (`AppLayout`) — Email-Anzeige + Logout-Button
 
-## Nicht geändert
-- Logik, State, Hooks, Edge-Function-Aufrufe.
-- Desktop-Darstellung bleibt visuell identisch (alle neuen Klassen sind mobil-first mit `sm:`-Reset).
+### Routing-Anpassungen in `src/App.tsx`
+```text
+Öffentliche Routen (kein Schutz):
+  /auth
+  /reset-password
+  /portal/cleaning
+  /portal/laundry
+  /portal/service
+  (alle weiteren /portal/* Routen)
 
-## Testkriterien
-- Bei 390×736 Viewport: kein Element überlappt, alle Buttons vollständig sichtbar, Switch-Label nicht abgeschnitten.
-- Tabellen scrollen horizontal statt umzubrechen.
-- Bei ≥640 px (sm) sieht alles aus wie vorher.
+Geschützte Routen (ProtectedRoute-Wrapper):
+  /  (Dashboard)
+  Alle übrigen Hauptapp-Routen
+```
+
+### Password-Reset Flow
+- "Passwort vergessen" → `supabase.auth.resetPasswordForEmail(email, { redirectTo: \`${window.location.origin}/reset-password\` })`
+- Reset-Seite prüft `type=recovery` im URL-Hash und ruft `updateUser({ password })` auf
+- **Voraussetzung**: Auth-Email-Templates via Lovable Auth Email System einrichten (eigener Schritt)
+
+### Login-Verhalten
+- Nach erfolgreichem Login: Redirect auf `/` (Dashboard)
+- Logout-Button in der Top-Navigation rechts neben Email-Anzeige
+
+### Wichtige Hinweise (in der Datei vermerkt)
+- **Sicherheits-Trade-off**: Da keine RLS aktiv ist und Portale anonym zugreifen, bleiben alle Tabellen weiterhin über den anon-key öffentlich lesbar/schreibbar. Der Login schützt nur die Hauptapp-UI, nicht die Datenbank.
+- Die offenen Security-Findings im Security-Panel sind dadurch erwartbar und werden bewusst hingenommen.
+- Bei späterem Produktiv-Going sollte RLS + verify_jwt für Edge Functions nachgezogen werden.
+
+### Umsetzungs-Reihenfolge (für später)
+1. `useAuth`-Hook + Auth-Context anlegen
+2. `/auth` und `/reset-password` Seiten bauen
+3. `ProtectedRoute` implementieren und in `App.tsx` einbinden
+4. Logout-Button in Top-Nav integrieren
+5. Ersten Admin-User manuell im Supabase Dashboard anlegen
+6. Optional: Auth-Email-Templates (Recovery) brandgerecht aufsetzen
+
+## Aktion in diesem Schritt
+Nur die Datei `docs/Auth-Implementation-Plan.md` mit obigem Inhalt anlegen. Keine Code-Änderungen, keine DB-Migrationen, keine Edge-Function-Deployments.
