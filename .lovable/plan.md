@@ -1,50 +1,34 @@
+# Mobile-Optimierung: Automatisierungs-Karte
 
+Die Karte `AutoLinenOrderSettingsCard.tsx` hat auf dem Handy mehrere Layout-Probleme (Switch + Label überlappen mit "Jetzt prüfen"-Button, "Speichern"-Button fehlt im Sichtbereich, Sektion "Wäsche Oberpinzgau Sync" bricht ebenfalls).
 
-# Israel zur Nationalitäten-Liste hinzufügen
+## Änderungen in `src/components/Houses/AutoLinenOrderSettingsCard.tsx`
 
-## Problem
-Die Länder-Auswahl im Buchungsformular ist eine hartkodierte Liste in `src/components/Bookings/CreateBookingForm.tsx` (Zeile 88-131) mit ca. 42 Ländern. Israel ist nicht enthalten — ebenso fehlen viele andere häufige Herkunftsländer von Gästen.
+### 1. Header-Bereich (Zeilen 162–222)
+- Header-Aktionsleiste auf mobil **vertikal stapeln**, ab `sm` horizontal.
+- Switch + Label in eine eigene Zeile, Buttons in eine zweite Zeile mit `flex-wrap` und `w-full sm:w-auto`.
+- Kürzere Button-Labels auf mobil:
+  - „Einstellungen speichern" → mobil nur „Speichern" (`hidden sm:inline` / `sm:hidden`).
+  - „Jetzt prüfen" bleibt (passt).
+- Buttons mit `flex-1 sm:flex-initial`, damit sie auf Handy gleichmäßig die Breite teilen und nichts überlappt.
+- `shrink-0` auf Switch + Icons.
 
-## Lösung
+### 2. Eingabefelder-Grid (Zeilen 226–317)
+- Aktuell `grid-cols-1 md:grid-cols-4`. Auf mobil bleibt 1 Spalte → bereits ok.
+- Card-Padding auf mobil reduzieren (`CardContent` bekommt `p-3 sm:p-6` Verhalten via `space-y-4 sm:space-y-6`).
 
-In `src/components/Bookings/CreateBookingForm.tsx` die `countries`-Liste erweitern um:
+### 3. Sektion „Wäsche Oberpinzgau Sync" (Zeilen 461–493)
+- `flex items-center justify-between` → auf mobil `flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between`.
+- Aktionsleiste (Mapping-Button + Switch + Label) wird ebenfalls vertikal/`flex-wrap` für mobil; Mapping-Button erhält `w-full sm:w-auto`.
 
-- **IL** — Israel
-- **AE** — Vereinigte Arabische Emirate
-- **SA** — Saudi-Arabien
-- **EG** — Ägypten
-- **MA** — Marokko
-- **TN** — Tunesien
-- **TH** — Thailand
-- **SG** — Singapur
-- **KR** — Südkorea
-- **HK** — Hongkong
-- **TW** — Taiwan
-- **ID** — Indonesien
-- **PH** — Philippinen
-- **VN** — Vietnam
-- **NZ** — Neuseeland
-- **CL** — Chile
-- **CO** — Kolumbien
-- **PE** — Peru
-- **IS** — Island
-- **EE** — Estland
-- **LV** — Lettland
-- **LT** — Litauen
-- **RS** — Serbien
-- **BA** — Bosnien-Herzegowina
-- **MK** — Nordmazedonien
-- **AL** — Albanien
-- **ME** — Montenegro
-- **XK** — Kosovo
-- **MD** — Moldau
-- **BY** — Belarus
-- **GE** — Georgien
-- **AM** — Armenien
-- **AZ** — Aserbaidschan
+### 4. Ergebnis-Tabellen (Zeilen 350–456)
+- Tabellen in einen Wrapper mit `overflow-x-auto` packen, damit sie auf 390px-Viewport horizontal scrollbar sind statt zu brechen.
 
-Die Liste wird alphabetisch nach Ländername (Deutsch) sortiert, damit Israel und alle anderen Länder leicht auffindbar sind.
+## Nicht geändert
+- Logik, State, Hooks, Edge-Function-Aufrufe.
+- Desktop-Darstellung bleibt visuell identisch (alle neuen Klassen sind mobil-first mit `sm:`-Reset).
 
-## Hinweis
-Das `nationality`-Feld erlaubt 2-Buchstaben-Codes (ISO 3166-1 alpha-2), `IL` ist der korrekte Code für Israel und passt zur bestehenden Validierung (Zeile 67).
-
+## Testkriterien
+- Bei 390×736 Viewport: kein Element überlappt, alle Buttons vollständig sichtbar, Switch-Label nicht abgeschnitten.
+- Tabellen scrollen horizontal statt umzubrechen.
+- Bei ≥640 px (sm) sieht alles aus wie vorher.

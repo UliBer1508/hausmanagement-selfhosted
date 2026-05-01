@@ -159,33 +159,34 @@ const AutoLinenOrderSettingsCard = () => {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-2 lg:space-y-0 pb-4">
+        <CardHeader className="flex flex-col gap-3 pb-4 p-3 sm:p-6">
           <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
+            <Settings className="h-5 w-5 shrink-0" />
             Automatisierung
           </CardTitle>
-          
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center gap-3">
-              <Switch 
+
+          <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <Switch
                 checked={localIsEnabled}
                 onCheckedChange={(checked) => {
                   setLocalIsEnabled(checked);
                   handleChange();
                 }}
                 disabled={isLoading}
+                className="shrink-0"
               />
               <Label className="text-sm font-medium cursor-pointer">
                 Automatisierung aktivieren
               </Label>
             </div>
-            <div className="flex items-center gap-2">
-              <Button 
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <Button
                 variant="outline"
-                onClick={handleCheckNow} 
+                onClick={handleCheckNow}
                 disabled={isChecking || !localIsEnabled}
                 size="sm"
-                className="gap-2"
+                className="gap-2 flex-1 sm:flex-initial"
               >
                 {isChecking ? (
                   <>
@@ -199,11 +200,11 @@ const AutoLinenOrderSettingsCard = () => {
                   </>
                 )}
               </Button>
-              <Button 
-                onClick={handleSave} 
+              <Button
+                onClick={handleSave}
                 disabled={!hasChanges || isUpdating}
                 size="sm"
-                className="gap-2"
+                className="gap-2 flex-1 sm:flex-initial"
               >
                 {isUpdating ? (
                   <>
@@ -213,15 +214,16 @@ const AutoLinenOrderSettingsCard = () => {
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    Einstellungen speichern
+                    <span className="hidden sm:inline">Einstellungen speichern</span>
+                    <span className="sm:hidden">Speichern</span>
                   </>
                 )}
               </Button>
             </div>
           </div>
         </CardHeader>
-        
-        <CardContent className="space-y-6">
+
+        <CardContent className="space-y-4 sm:space-y-6 p-3 sm:p-6 pt-0 sm:pt-0">
           {/* Lokale Automatisierung */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Anzahl Buchungen */}
@@ -355,11 +357,12 @@ const AutoLinenOrderSettingsCard = () => {
                   <div className="mt-3 space-y-4 max-h-80 overflow-y-auto">
                     {/* Erstellte Bestellungen - Tabelle */}
                     {lastCheckResult.details.filter(d => d.action === 'created').length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-green-700 dark:text-green-400 flex items-center gap-1 mb-2">
-                          <CheckCircle className="h-3 w-3" /> Erstellt
-                        </p>
-                        <Table>
+                       <div>
+                         <p className="text-xs font-semibold text-green-700 dark:text-green-400 flex items-center gap-1 mb-2">
+                           <CheckCircle className="h-3 w-3" /> Erstellt
+                         </p>
+                         <div className="overflow-x-auto">
+                         <Table>
                           <TableHeader>
                             <TableRow>
                               <TableHead className="text-xs h-8">Gast</TableHead>
@@ -391,19 +394,21 @@ const AutoLinenOrderSettingsCard = () => {
                                   <TableCell className="py-2 text-xs">{formatDate(d.delivery_date)}</TableCell>
                                 </TableRow>
                               );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
+                             })}
+                           </TableBody>
+                         </Table>
+                         </div>
+                       </div>
                     )}
 
                     {/* Übersprungene Buchungen - Tabelle */}
                     {lastCheckResult.details.filter(d => d.action === 'skipped').length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-2">
-                          <Package className="h-3 w-3" /> Bestehende Bestellungen
-                        </p>
-                        <Table>
+                       <div>
+                         <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1 mb-2">
+                           <Package className="h-3 w-3" /> Bestehende Bestellungen
+                         </p>
+                         <div className="overflow-x-auto">
+                         <Table>
                           <TableHeader>
                             <TableRow>
                               <TableHead className="text-xs h-8">Gast</TableHead>
@@ -446,10 +451,11 @@ const AutoLinenOrderSettingsCard = () => {
                                   <TableCell className="py-2 text-xs">{getStatusBadge()}</TableCell>
                                 </TableRow>
                               );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
+                             })}
+                           </TableBody>
+                         </Table>
+                         </div>
+                       </div>
                     )}
                   </div>
                 </details>
@@ -459,36 +465,39 @@ const AutoLinenOrderSettingsCard = () => {
 
           {/* Wäsche Oberpinzgau Synchronisation */}
           <div className="border-t pt-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Link2 className="h-5 w-5 text-muted-foreground" />
-                <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2 min-w-0">
+                <Link2 className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="min-w-0">
                   <h4 className="font-medium">Wäsche Oberpinzgau Sync</h4>
                   <p className="text-xs text-muted-foreground">
                     Bestellungen zur externen Oberpinzgau-Datenbank synchronisieren (nicht Teuni)
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Button 
-                  variant="outline" 
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => setShowMappingDialog(true)}
-                  className="gap-2"
+                  className="gap-2 w-full sm:w-auto"
                 >
                   <Link2 className="h-4 w-4" />
                   Artikel-Mapping ({mappingCount})
                 </Button>
-                <Switch 
-                  checked={localExternalSyncEnabled}
-                  onCheckedChange={(checked) => {
-                    setLocalExternalSyncEnabled(checked);
-                    handleChange();
-                  }}
-                />
-                <Label className="text-sm font-medium cursor-pointer">
-                  Aktivieren
-                </Label>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={localExternalSyncEnabled}
+                    onCheckedChange={(checked) => {
+                      setLocalExternalSyncEnabled(checked);
+                      handleChange();
+                    }}
+                    className="shrink-0"
+                  />
+                  <Label className="text-sm font-medium cursor-pointer">
+                    Aktivieren
+                  </Label>
+                </div>
               </div>
             </div>
 
