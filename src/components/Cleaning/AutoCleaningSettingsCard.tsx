@@ -78,26 +78,28 @@ const AutoCleaningSettingsCard = () => {
 
   return (
     <Card>
-      <CardHeader className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-2 lg:space-y-0 pb-4">
-        <CardTitle className="flex items-center gap-2">
-          <Settings className="h-5 w-5" />
+      <CardHeader className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 pb-4">
+        <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+          <Settings className="h-5 w-5 shrink-0" />
           Automatisierung
         </CardTitle>
-        
-          <div className="flex items-center gap-3 w-full">
+
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          <div className="flex items-center gap-2 min-w-0">
             <Switch
-            checked={localIsEnabled}
-            onCheckedChange={(checked) => {
-              setLocalIsEnabled(checked);
-              handleChange();
-            }}
-            disabled={isLoading}
-          />
-          <Label className="text-sm font-medium cursor-pointer">
-            Automatisierung aktivieren
-          </Label>
-          <Button 
-            onClick={handleSave} 
+              checked={localIsEnabled}
+              onCheckedChange={(checked) => {
+                setLocalIsEnabled(checked);
+                handleChange();
+              }}
+              disabled={isLoading}
+            />
+            <Label className="text-sm font-medium cursor-pointer">
+              Automatisierung aktivieren
+            </Label>
+          </div>
+          <Button
+            onClick={handleSave}
             disabled={!hasChanges || isUpdating}
             size="sm"
             className="gap-2 ml-auto"
@@ -105,12 +107,13 @@ const AutoCleaningSettingsCard = () => {
             {isUpdating ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Speichere...
+                <span className="hidden sm:inline">Speichere...</span>
               </>
             ) : (
               <>
                 <Save className="h-4 w-4" />
-                Einstellungen speichern
+                <span className="hidden sm:inline">Einstellungen speichern</span>
+                <span className="sm:hidden">Speichern</span>
               </>
             )}
           </Button>
