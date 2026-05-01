@@ -124,20 +124,22 @@ const GuestManagement = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Gäste-Management</h1>
-          <p className="text-muted-foreground">Verwalten Sie Ihre Gäste und deren Buchungshistorie</p>
+          <h1 className="text-xl sm:text-2xl font-bold">Gäste-Management</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Verwalten Sie Ihre Gäste und deren Buchungshistorie</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button 
             onClick={() => setDuplicatesDialogOpen(true)} 
             variant="outline"
-            className="relative"
+            size="sm"
+            className="relative flex-1 sm:flex-none"
           >
-            <GitMerge className="h-4 w-4 mr-2" />
-            Duplikate prüfen
+            <GitMerge className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Duplikate prüfen</span>
+            <span className="sm:hidden ml-2">Duplikate</span>
             {duplicateCount > 0 && (
               <Badge 
                 variant="destructive" 
@@ -147,15 +149,16 @@ const GuestManagement = () => {
               </Badge>
             )}
           </Button>
-          <Button onClick={handleExportCSV} variant="outline">
-            <span className="mr-2">📥</span>
-            Export CSV
+          <Button onClick={handleExportCSV} variant="outline" size="sm" className="flex-1 sm:flex-none">
+            <span className="sm:mr-2">📥</span>
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden ml-2">Export</span>
           </Button>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 h-auto gap-1">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+        <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 h-auto gap-1">
           <TabsTrigger value="overview" className="flex-col h-auto py-2 gap-1">
             <span className="text-base">📋</span>
             <span className="text-xs">Übersicht</span>
