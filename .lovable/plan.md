@@ -1,27 +1,50 @@
 
 
-# Suchparameter aus Hausdefinition lesen
+# Israel zur Nationalitäten-Liste hinzufügen
 
 ## Problem
-Die Mietpreisanalyse nutzt Standardwerte (60 qm, 2 Zimmer) statt der tatsaechlichen Hausdaten (`living_area_sqm`, `bedrooms`). Bei der Wohnung Winthirstrasse werden deshalb falsche Parameter verwendet.
+Die Länder-Auswahl im Buchungsformular ist eine hartkodierte Liste in `src/components/Bookings/CreateBookingForm.tsx` (Zeile 88-131) mit ca. 42 Ländern. Israel ist nicht enthalten — ebenso fehlen viele andere häufige Herkunftsländer von Gästen.
 
-## Aenderung
+## Lösung
 
-**Datei: `src/components/Houses/CompetitorAnalysis/ScrapePricesDialog.tsx`**
+In `src/components/Bookings/CreateBookingForm.tsx` die `countries`-Liste erweitern um:
 
-Zeile 304-309 aendern: Die Initialisierung der Suchparameter soll zuerst gespeicherte Werte (`scrape_search_params`) nutzen, dann Hausdaten, dann Defaults:
+- **IL** — Israel
+- **AE** — Vereinigte Arabische Emirate
+- **SA** — Saudi-Arabien
+- **EG** — Ägypten
+- **MA** — Marokko
+- **TN** — Tunesien
+- **TH** — Thailand
+- **SG** — Singapur
+- **KR** — Südkorea
+- **HK** — Hongkong
+- **TW** — Taiwan
+- **ID** — Indonesien
+- **PH** — Philippinen
+- **VN** — Vietnam
+- **NZ** — Neuseeland
+- **CL** — Chile
+- **CO** — Kolumbien
+- **PE** — Peru
+- **IS** — Island
+- **EE** — Estland
+- **LV** — Lettland
+- **LT** — Litauen
+- **RS** — Serbien
+- **BA** — Bosnien-Herzegowina
+- **MK** — Nordmazedonien
+- **AL** — Albanien
+- **ME** — Montenegro
+- **XK** — Kosovo
+- **MD** — Moldau
+- **BY** — Belarus
+- **GE** — Georgien
+- **AM** — Armenien
+- **AZ** — Aserbaidschan
 
-```typescript
-// Vorher:
-setSqm(saved?.sqm || 60);
-setRooms(saved?.rooms || house.bedrooms || 2);
-setRadiusKm(saved?.radius_km || 10);
+Die Liste wird alphabetisch nach Ländername (Deutsch) sortiert, damit Israel und alle anderen Länder leicht auffindbar sind.
 
-// Nachher:
-setSqm(saved?.sqm || house.living_area_sqm || 60);
-setRooms(saved?.rooms || house.bedrooms || 2);
-setRadiusKm(saved?.radius_km || 10);
-```
-
-Die einzige tatsaechliche Aenderung ist bei `sqm`: statt hartkodiertem `60` wird `house.living_area_sqm` als Fallback verwendet. `rooms` und `radius` nutzen bereits die Hausdaten bzw. sinnvolle Defaults.
+## Hinweis
+Das `nationality`-Feld erlaubt 2-Buchstaben-Codes (ISO 3166-1 alpha-2), `IL` ist der korrekte Code für Israel und passt zur bestehenden Validierung (Zeile 67).
 
