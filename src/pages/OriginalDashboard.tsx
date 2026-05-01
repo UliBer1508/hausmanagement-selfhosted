@@ -2634,15 +2634,15 @@ const OriginalDashboard = () => {
 
         {/* Navigation Tabs - Mobile Wrapping */}
         <div className="border-b border-gray-200 mb-4 sm:mb-6">
-          <nav className="flex flex-wrap gap-2 sm:gap-4 pb-1">
+          <nav className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-2 pb-1">
             {tabs.map((tab) => (
               <button
                 key={tab.name}
                 onClick={() => setActiveTab(tab.name)}
-                className={`${tab.name === activeTab ? 'nav-tab-active' : 'nav-tab'} flex items-center gap-2`}
+                className={`${tab.name === activeTab ? 'nav-tab-active' : 'nav-tab'} flex items-center gap-2 justify-start`}
               >
-                <span className="text-lg">{tab.emoji}</span>
-                {tab.name}
+                <span className="text-lg w-6 text-center shrink-0">{tab.emoji}</span>
+                <span>{tab.name}</span>
               </button>
             ))}
           </nav>
