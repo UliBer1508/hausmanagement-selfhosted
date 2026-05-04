@@ -180,6 +180,7 @@ export async function bulkUpdatePrices({
 
   let updated = 0;
   let errors = 0;
+  let firstError: Error | null = null;
   const total = daysAhead;
 
   for (let i = 0; i < daysAhead; i++) {
@@ -228,11 +229,19 @@ export async function bulkUpdatePrices({
       p_factors: result.factors as any,
       p_market_occupancy: occ,
       p_market_avg_price: m?.avgPrice ?? null,
-      p_source: 'bulk_manual',
+      p_source: 'manual',
     });
-    if (error) errors++;
-    else updated++;
+    if (error) {
+      errors++;
+      if (!firstError) {
+        firstError = error;
+      }
+    } else updated++;
     onProgress?.(i + 1, total);
+  }
+
+  if (updated === 0 && firstError) {
+    throw firstError;
   }
 
   return { updated, errors };
