@@ -1,68 +1,45 @@
-## Ziel
-AirDNA als zentrale Marktdaten-Quelle integrieren, PriceLabs als aktive Datenquelle für die dynamische Preislogik ablösen. Die bestehende PriceLabs-Infrastruktur bleibt vorerst im Code (deaktiviert/optional), damit nichts bricht; alle Pricing-Flows nutzen ab sofort AirDNA.
+## Problem
 
-## Architektur-Entscheidung
-- **AirDNA** liefert: Occupancy-Rate, ADR (Average Daily Rate), MarketScore pro Standort/Datum.
-- Aufrufe ausschließlich **server-side** über eine neue Edge Function (`airdna-sync`) mit `AIRDNA_API_KEY` als Secret. Kein `VITE_AIRDNA_API_KEY` mehr im Frontend (Sicherheits-Fix).
-- Ergebnisse werden in `market_data_cache` (vorhanden) mit `source='airdna'` und 24h-TTL persistiert.
-- Daily-Cron (`daily-pricing`) ruft vor der Preisberechnung `airdna-sync` für jedes Tourist-Haus auf, danach läuft die bestehende Faktor-Logik (Season/DOW/LeadTime/Occupancy/Event/Gap) gegen die AirDNA-Werte.
+Beim Speichern eines Preis-Overrides im Pricing Dashboard wirft Postgres:
+`there is no unique or exclusion constraint matching the ON CONFLICT specification`
 
-## Änderungen im Detail
+**Ursache:** Die RPC-Funktion `public.update_dynamic_price` verwendet `ON CONFLICT (house_id, date)` auf der Tabelle `daily_pricing`. Diese Tabelle hat aber nur folgende Unique-Constraints:
+- `daily_pricing_pkey` auf `(id)`
+- `unique_competitor_date` auf `(competitor_property_id, date)`
 
-### 1. Neue Edge Function `supabase/functions/airdna-sync/index.ts`
-- Actions:
-  - `fetch-market` → `{ location, startDate, days }` → ruft AirDNA Market Stats API, normalisiert auf `{date, occupancyRate, avgPrice, source:'airdna'}`, upsert in `market_data_cache`.
-  - `link-property` → speichert AirDNA `property_id`/`market_id` pro Haus (siehe DB unten).
-  - `get-comp-set` → optional: Comp-Set/Neighborhood-Daten für Analyse-UI.
-- Auth: `getClaims()` für interaktive Calls; Cron-Aufruf via `CRON_SECRET` Header.
-- Fehlerbehandlung: Bei AirDNA-Fehler/Quota → Fallback `estimateOccupancyFromSeason` + `source='estimated'`, damit Pricing nie blockiert.
+Es existiert **kein** Unique-Constraint auf `(house_id, date)` — daher schlägt das Upsert fehl. `house_id` kann zudem NULL sein (wenn `competitor_property_id` gesetzt ist), darum brauchen wir einen **partiellen** Unique-Index.
 
-### 2. Secret hinzufügen
-- `AIRDNA_API_KEY` (Runtime-Secret, via add_secret).
-- `VITE_AIRDNA_API_KEY` aus Code/Doku entfernen.
+## Lösung
 
-### 3. DB-Migration
-Neue Tabelle `airdna_listings` analog zu `pricelabs_listings`:
+### 1. Migration: Partiellen Unique-Index ergänzen
+
+```sql
+-- Vorher Duplikate säubern (sicherheitshalber)
+DELETE FROM public.daily_pricing a
+USING public.daily_pricing b
+WHERE a.ctid < b.ctid
+  AND a.house_id IS NOT NULL
+  AND a.house_id = b.house_id
+  AND a.date = b.date;
+
+CREATE UNIQUE INDEX IF NOT EXISTS unique_house_date
+  ON public.daily_pricing (house_id, date)
+  WHERE house_id IS NOT NULL;
 ```
-id uuid pk, house_id uuid fk houses, airdna_property_id text,
-airdna_market_id text, location_normalized text,
-last_synced_at timestamptz, raw jsonb
-unique(house_id, airdna_property_id)
-```
-Kein Schema-Change an `market_data_cache` nötig (nutzt `source`-Spalte).
 
-### 4. Service-Layer Refactor
-- `src/services/marketOccupancyService.ts`:
-  - `fetchMarketData()` ruft nicht mehr direkt `api.airdna.co` aus dem Browser, sondern `supabase.functions.invoke('airdna-sync', { body:{ action:'fetch-market', ... }})`.
-  - `useMarketData()` Strategy-Default → `'airdna'`. Fallback auf `'estimated'` wenn Edge Function Fehler/leer liefert.
-- `src/services/pricingService.ts`: Location-Key normalisieren (Stadt+PLZ statt voller Adresse) → konsistente Cache-Hits.
+Damit funktioniert `ON CONFLICT (house_id, date)` in `update_dynamic_price` (Postgres erkennt einen partiellen Unique-Index, wenn das WHERE auf NOT NULL implizit erfüllt ist — dies ist hier der Fall, weil die Funktion immer `house_id` setzt).
 
-### 5. `daily-pricing` Edge Function
-- Vor der 180-Tage-Schleife pro Haus: einmaliger Aufruf `airdna-sync action:fetch-market` (ein Batch-Request statt 180 Single-Reads).
-- Lese-Pfad gegen `market_data_cache` bleibt gleich.
-- Fallback bei fehlenden Daten → `estimateOccupancyFromSeason`.
+### 2. Verifikation
 
-### 6. UI
-- Neue Karte in `PricingDashboard.tsx`: "Marktdaten-Quelle: AirDNA · zuletzt aktualisiert …" + Button "Marktdaten jetzt aktualisieren" (ruft `airdna-sync`).
-- Haus-Settings: Feld "AirDNA Property/Market verknüpfen" (Dropdown nach Suche, schreibt `airdna_listings`).
-- PriceLabs-UI bleibt erhalten, wird aber als "Legacy/optional" gekennzeichnet (kein aktiver Pricing-Einfluss).
+- Pricing Dashboard öffnen → Datum wählen → Override speichern → Erfolgsmeldung statt Fehler.
+- Kontrolle: Eintrag in `daily_pricing` existiert (insert) bzw. wurde aktualisiert (update).
 
-### 7. PriceLabs-Deaktivierung (nicht löschen)
-- `usePriceLabs.ts`, `pricelabs-sync` Edge Function bleiben.
-- Hinweis in `.lovable/plan.md` + Memory: AirDNA ist primär; PriceLabs nur Read-only Referenz.
+## Nicht betroffen
 
-### 8. Cron
-- Bestehender 03:00-Cron (sofern noch nicht aktiv) ergänzen: zuerst `airdna-sync` für alle Tourist-Häuser, dann `daily-pricing`. Alternativ in `daily-pricing` integriert (siehe 5).
+- `monthly_pricing` (hat bereits `unique_house_checkin` und `unique_competitor_checkin`).
+- `market_data_cache` (hat bereits `(location, date)`).
+- `OwnPricingDialog`, `marketOccupancyService`, `expand-daily-prices`, `generate-guest-profile` — deren `onConflict`-Targets sind bereits durch passende Constraints gedeckt.
 
-## Reihenfolge der Umsetzung
-1. `AIRDNA_API_KEY` Secret anlegen.
-2. Migration `airdna_listings` + Index auf `market_data_cache(location,date)` prüfen.
-3. Edge Function `airdna-sync` implementieren + deployen + testen via curl.
-4. `marketOccupancyService.ts` auf Invoke umbauen, `VITE_AIRDNA_API_KEY` entfernen.
-5. `daily-pricing` anpassen (Batch-Fetch + Fallback).
-6. UI: AirDNA-Status-Karte + Verknüpfungs-Dialog im Haus-Settings/PricingDashboard.
-7. Cron registrieren (pg_cron, 03:00).
-8. Memory aktualisieren: "AirDNA als primäre Marktdatenquelle, PriceLabs Legacy".
+## Umfang
 
-## Offene Frage an dich
-Brauchst du den AirDNA **MarketMinder** (aggregierte Marktdaten pro PLZ/Region) oder **Rentalizer/Comp-Set** (objektgenaue Vergleichsdaten)? Die API-Endpunkte unterscheiden sich — MarketMinder reicht für Occupancy/ADR der Pricing-Logik, Rentalizer wäre nur für die Wettbewerbsanalyse-UI nötig.
+Eine einzige DB-Migration. Kein Code-Change im Frontend oder in Edge Functions nötig.
