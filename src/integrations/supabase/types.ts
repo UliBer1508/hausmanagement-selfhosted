@@ -470,6 +470,50 @@ export type Database = {
           },
         ]
       }
+      airdna_listings: {
+        Row: {
+          airdna_market_id: string | null
+          airdna_property_id: string | null
+          created_at: string
+          house_id: string
+          id: string
+          last_synced_at: string | null
+          location_normalized: string | null
+          raw: Json | null
+          updated_at: string
+        }
+        Insert: {
+          airdna_market_id?: string | null
+          airdna_property_id?: string | null
+          created_at?: string
+          house_id: string
+          id?: string
+          last_synced_at?: string | null
+          location_normalized?: string | null
+          raw?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          airdna_market_id?: string | null
+          airdna_property_id?: string | null
+          created_at?: string
+          house_id?: string
+          id?: string
+          last_synced_at?: string | null
+          location_normalized?: string | null
+          raw?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "airdna_listings_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alpine_activities: {
         Row: {
           address: string
