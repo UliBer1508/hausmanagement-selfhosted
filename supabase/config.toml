@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.import-guest-list]
 verify_jwt = false
+
+[functions.daily-pricing]
+verify_jwt = false
