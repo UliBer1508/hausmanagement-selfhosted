@@ -10,7 +10,7 @@ import GuestAnalytics from './GuestAnalytics';
 import GuestCommunication from './GuestCommunication';
 import GuestSegments from './GuestSegments';
 import MarketingActions from './MarketingActions';
-import { GuestAppTracking } from './GuestAppTracking';
+import DynamicPricingPanel from './DynamicPricingPanel';
 import { GuestDuplicatesDialog } from './GuestDuplicatesDialog';
 import { useGuestDuplicates } from '@/hooks/useGuestDuplicates';
 
@@ -180,8 +180,8 @@ const GuestManagement = () => {
             <span className="text-xs">Marketing</span>
           </TabsTrigger>
           <TabsTrigger value="tracking" className="flex-col h-auto py-2 gap-1">
-            <span className="text-base">📱</span>
-            <span className="text-xs">App Tracking</span>
+            <span className="text-base">💶</span>
+            <span className="text-xs">Pricing</span>
           </TabsTrigger>
         </TabsList>
 
@@ -206,7 +206,7 @@ const GuestManagement = () => {
         </TabsContent>
 
         <TabsContent value="tracking" className="space-y-6">
-          <GuestAppTracking selectedHouseId="" />
+          <DynamicPricingPanel />
         </TabsContent>
       </Tabs>
 
