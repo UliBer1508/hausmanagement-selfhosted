@@ -88,6 +88,28 @@ export default function DynamicPricingPanel() {
     },
   });
 
+  // Lokale Events am gewählten Datum
+  const { data: autoEvent } = useQuery({
+    queryKey: ['local-event', date],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('local_events')
+        .select('event_size,title')
+        .lte('date_start', date)
+        .gte('date_end', date)
+        .order('event_size', { ascending: false })
+        .limit(1);
+      return data?.[0] ?? null;
+    },
+  });
+
+  useEffect(() => {
+    if (autoEvent) {
+      setHasEvent(true);
+      setEventSize((autoEvent as any).event_size ?? 'small');
+    }
+  }, [autoEvent]);
+
   const occupancy = occupancyOverride ?? marketOcc;
 
   const previewDays = useMemo(() => {
@@ -106,12 +128,25 @@ export default function DynamicPricingPanel() {
 
   const handleAccept = async (price: number) => {
     if (!houseId) return;
-    const { error } = await supabase
-      .from('daily_pricing')
-      .upsert(
-        { house_id: houseId, date, price, currency: 'EUR', source: 'dynamic_pricing' },
-        { onConflict: 'house_id,date' } as any,
-      );
+    const factors = calculateDynamicPrice({
+      basePrice,
+      checkInDate,
+      marketOccupancy: occupancy,
+      hasLocalEvent: hasEvent,
+      eventSize,
+      isGapDay: gapInfo?.isGapDay,
+      gapLength: gapInfo?.gapLength,
+    }).factors;
+
+    const { error } = await supabase.rpc('update_dynamic_price' as any, {
+      p_house_id: houseId,
+      p_date: date,
+      p_dynamic_price: price,
+      p_factors: factors as any,
+      p_market_occupancy: occupancy,
+      p_market_avg_price: null,
+      p_source: 'manual',
+    });
     if (error) toast.error('Speichern fehlgeschlagen: ' + error.message);
     else toast.success(`Preis ${price} € für ${format(checkInDate, 'dd.MM.yyyy')} gespeichert`);
   };

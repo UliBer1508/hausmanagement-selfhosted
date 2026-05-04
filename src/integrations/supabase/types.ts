@@ -1524,14 +1524,28 @@ export type Database = {
       }
       daily_pricing: {
         Row: {
+          booked_at: string | null
           competitor_property_id: string | null
           created_at: string | null
           currency: string | null
           date: string
+          dynamic_price: number | null
+          factor_dow: number | null
+          factor_event: number | null
+          factor_gap: number | null
+          factor_leadtime: number | null
+          factor_occupancy: number | null
+          factor_season: number | null
+          final_price: number | null
           house_id: string | null
           id: string
           is_available: boolean | null
+          is_blocked: boolean | null
+          is_booked: boolean | null
           is_expanded: boolean | null
+          market_avg_price: number | null
+          market_occupancy: number | null
+          market_source: string | null
           min_stay: number | null
           period_check_in: string | null
           period_check_out: string | null
@@ -1543,14 +1557,28 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          booked_at?: string | null
           competitor_property_id?: string | null
           created_at?: string | null
           currency?: string | null
           date: string
+          dynamic_price?: number | null
+          factor_dow?: number | null
+          factor_event?: number | null
+          factor_gap?: number | null
+          factor_leadtime?: number | null
+          factor_occupancy?: number | null
+          factor_season?: number | null
+          final_price?: number | null
           house_id?: string | null
           id?: string
           is_available?: boolean | null
+          is_blocked?: boolean | null
+          is_booked?: boolean | null
           is_expanded?: boolean | null
+          market_avg_price?: number | null
+          market_occupancy?: number | null
+          market_source?: string | null
           min_stay?: number | null
           period_check_in?: string | null
           period_check_out?: string | null
@@ -1562,14 +1590,28 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          booked_at?: string | null
           competitor_property_id?: string | null
           created_at?: string | null
           currency?: string | null
           date?: string
+          dynamic_price?: number | null
+          factor_dow?: number | null
+          factor_event?: number | null
+          factor_gap?: number | null
+          factor_leadtime?: number | null
+          factor_occupancy?: number | null
+          factor_season?: number | null
+          final_price?: number | null
           house_id?: string | null
           id?: string
           is_available?: boolean | null
+          is_blocked?: boolean | null
+          is_booked?: boolean | null
           is_expanded?: boolean | null
+          market_avg_price?: number | null
+          market_occupancy?: number | null
+          market_source?: string | null
           min_stay?: number | null
           period_check_in?: string | null
           period_check_out?: string | null
@@ -2960,6 +3002,66 @@ export type Database = {
           },
         ]
       }
+      local_events: {
+        Row: {
+          created_at: string | null
+          date_end: string
+          date_start: string
+          event_size: string | null
+          id: string
+          location: string | null
+          title: string
+        }
+        Insert: {
+          created_at?: string | null
+          date_end: string
+          date_start: string
+          event_size?: string | null
+          id?: string
+          location?: string | null
+          title: string
+        }
+        Update: {
+          created_at?: string | null
+          date_end?: string
+          date_start?: string
+          event_size?: string | null
+          id?: string
+          location?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
+      market_data_cache: {
+        Row: {
+          avg_price: number | null
+          date: string
+          fetched_at: string | null
+          id: string
+          location: string
+          occupancy_rate: number | null
+          source: string | null
+        }
+        Insert: {
+          avg_price?: number | null
+          date: string
+          fetched_at?: string | null
+          id?: string
+          location: string
+          occupancy_rate?: number | null
+          source?: string | null
+        }
+        Update: {
+          avg_price?: number | null
+          date?: string
+          fetched_at?: string | null
+          id?: string
+          location?: string
+          occupancy_rate?: number | null
+          source?: string | null
+        }
+        Relationships: []
+      }
       marketing_actions: {
         Row: {
           created_at: string
@@ -3443,6 +3545,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "pricelabs_market_data_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pricing_logs: {
+        Row: {
+          created_at: string | null
+          date: string
+          house_id: string | null
+          id: string
+          new_price: number | null
+          old_price: number | null
+          trigger: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          house_id?: string | null
+          id?: string
+          new_price?: number | null
+          old_price?: number | null
+          trigger?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          house_id?: string | null
+          id?: string
+          new_price?: number | null
+          old_price?: number | null
+          trigger?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pricing_logs_house_id_fkey"
             columns: ["house_id"]
             isOneToOne: false
             referencedRelation: "houses"
@@ -4827,6 +4967,18 @@ export type Database = {
       track_token_usage: {
         Args: { token_hash_param: string }
         Returns: boolean
+      }
+      update_dynamic_price: {
+        Args: {
+          p_date: string
+          p_dynamic_price: number
+          p_factors: Json
+          p_house_id: string
+          p_market_avg_price?: number
+          p_market_occupancy?: number
+          p_source?: string
+        }
+        Returns: undefined
       }
       validate_portal_token: {
         Args: { token: string }

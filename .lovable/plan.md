@@ -1,70 +1,52 @@
-# Dynamic Pricing (PriceLabs-Style) im Gäste-Management
+## Analyse des SQL-Scripts
 
-Die hochgeladenen Dateien enthalten einen sauberen, in sich geschlossenen Preisalgorithmus. Ich baue beides exakt wie gewünscht ein und ersetze den "App Tracking"-Tab im Gäste-Management durch eine neue Preis-Ansicht.
+Das Script ist bereits 1:1 in der DB ausgeführt — alle 5 Tabellen (`properties`, `nightly_rates`, `local_events`, `market_data_cache`, `pricing_logs`) und die Funktion `update_dynamic_price` existieren. Es gibt aber **Konflikte mit dem bestehenden System**:
 
-## Was eingebaut wird
-
-### 1. Hook (unverändert übernommen)
-- Datei: `src/hooks/useDynamicPricing.ts`
-- Inhalt 1:1 aus `useDynamicPricing.ts.txt` (Faktoren Saisonalität, Wochentag, Lead-Time, Marktauslastung, Event, Gap; Buchungswahrscheinlichkeit; Strategie + Tags)
-- Pure Logik, keine DB-Aufrufe, keine Abhängigkeiten
-
-### 2. Komponente `PricingCard`
-- Datei: `src/components/PricingCard.tsx`
-- Props laut Upload:
-  - `basePrice: number`
-  - `checkInDate: Date`
-  - `marketOccupancy: number` (0–1)
-  - `onPriceAccepted?: (price: number) => void`
-  - optional: `hasLocalEvent`, `eventSize`, `isGapDay`, `gapLength`, `houseId`
-- Nutzt intern `useDynamicPricing` und zeigt:
-  - Empfohlener Preis (groß) + Min/Max-Range
-  - Strategie-Badge (`last-minute` / `standard` / `far-out`)
-  - Faktor-Breakdown (Saisonalität, Wochentag, Lead-Time, Auslastung, Event, Gap) als kleine Pills mit Multiplikator
-  - Buchungswahrscheinlichkeit als Progress-Bar
-  - Tags (Hochsaison, Event, Lückenoptimierung …)
-  - Button **"Preis übernehmen"** → ruft `onPriceAccepted(recommendedPrice)`
-  - Slider zum manuellen Override innerhalb Min/Max
-
-### 3. Neue Tab-Ansicht im Gäste-Management
-- Datei: `src/components/Guests/DynamicPricingPanel.tsx` (neu)
-- Ersetzt im `GuestManagement.tsx` den Tab `tracking` (📱 App Tracking → 💶 Dynamic Pricing)
-- Inhalt:
-  1. **Haus-Auswahl** (Dropdown via `useHouses`, gefiltert auf `rental_type = 'tourist'` gemäß Core-Regel)
-  2. **Datums-Picker** (Check-in-Datum)
-  3. **Markt-Auslastungs-Eingabe**: Default = automatisch berechnet aus eigenen `bookings` für gewähltes Datum ±14 Tage über alle Häuser; manueller Slider zum Übersteuern
-  4. **Event-Toggle** + Größe (small/large/festival) — manuell, optional später aus `local_events`/Holiday-Kalender (`src/lib/holidayCalendar.ts` existiert bereits)
-  5. **Gap-Day-Erkennung**: prüft, ob am Tag davor/danach eine Buchung im gewählten Haus liegt, ohne dass der Tag selbst belegt ist → setzt `isGapDay` automatisch
-  6. **`<PricingCard>`** mit den ermittelten Eingaben
-  7. **"Preis übernehmen"** speichert in der bereits vorhandenen `daily_prices`-Tabelle (siehe Migrations) für `(house_id, date)` → `price` per upsert
-- Darunter: kleine 14-Tage-Vorschau-Tabelle mit empfohlenem Preis pro Tag (gleiche Logik in Schleife)
-
-### 4. Anpassungen `GuestManagement.tsx`
-- Import `GuestAppTracking` entfernen, `DynamicPricingPanel` importieren
-- TabTrigger `tracking`: Icon `💶`, Label `Pricing`
-- TabsContent: `<DynamicPricingPanel />` statt `<GuestAppTracking>`
-- `GuestAppTracking.tsx` bleibt im Repo (wird nur nicht mehr referenziert) — keine Datei-Löschung nötig
-
-## Datenquellen
-
-| Eingabe | Quelle |
+| Problem | Begründung |
 |---|---|
-| `basePrice` | Aus `houses.base_price` falls vorhanden, sonst manueller Default 120 € |
-| `marketOccupancy` | Berechnung: belegte Nächte / verfügbare Nächte im ±14-Tage-Fenster über alle Tourist-Häuser, aus `bookings` (status confirmed/checked_in) |
-| `isGapDay` / `gapLength` | Direktabfrage `bookings` für gewähltes `house_id` |
-| Persistenz Preisübernahme | Upsert in `daily_prices(house_id, date, price)` |
+| `properties` dupliziert `houses` | Wir verwalten Häuser bereits in `houses` (mit Adresse, max_guests, base_price etc.). Eine Parallel-Tabelle führt zu Datendrift. |
+| `nightly_rates` dupliziert `daily_pricing` | Die App schreibt heute (DynamicPricingPanel `handleAccept`) in `daily_pricing` mit `house_id`. `nightly_rates` würde nie befüllt. |
+| `update_dynamic_price` nutzt `properties.id` | Funktion ist unbrauchbar, solange wir `house_id` referenzieren. |
+| RLS-Policies aktiv | Projektregel: keine RLS während Entwicklung. Außerdem hat das Projekt aktuell keine Auth → `auth.role()='authenticated'` blockt alles. |
+| Fehlende Faktoren-Spalten in `daily_pricing` | Für Transparenz/Audit (Saison, DOW, Event, Gap) muss `daily_pricing` erweitert werden. |
+| `local_events` / `market_data_cache` | sinnvoll, behalten. |
 
-## Außerhalb des Scopes
-- Keine Edge-Function nötig (Logik läuft im Browser)
-- Keine Schema-Änderungen
-- Keine Auth-/Rollen-Änderungen
-- Holiday-/Event-Auto-Erkennung nur als Stub, kann später an `holidayCalendar.ts` angeschlossen werden
+## Lösung
 
-## Dateien (Zusammenfassung)
+### 1. Migration: Aufräumen + Anpassen
 
-| Aktion | Pfad |
-|---|---|
-| Neu | `src/hooks/useDynamicPricing.ts` |
-| Neu | `src/components/PricingCard.tsx` |
-| Neu | `src/components/Guests/DynamicPricingPanel.tsx` |
-| Edit | `src/components/Guests/GuestManagement.tsx` (Tab ersetzen) |
+- **Drop** `nightly_rates`, `properties`, alte Funktion `update_dynamic_price` (property-basiert).
+- **Erweitere** `daily_pricing` um:
+  - `dynamic_price`, `final_price` numeric
+  - `factor_season`, `factor_dow`, `factor_leadtime`, `factor_occupancy`, `factor_event`, `factor_gap` numeric(5,3)
+  - `market_occupancy`, `market_avg_price` numeric, `market_source` text
+  - `is_blocked` boolean default false, `is_booked` boolean default false, `booked_at` timestamptz
+- **Behalte** `local_events` und `market_data_cache` (RLS aus, da Dev-Phase).
+- **Behalte/erweitere** `pricing_logs`, aber ersetze `property_id` durch `house_id uuid references houses(id) on delete cascade`.
+- **Neue Funktion** `update_dynamic_price(p_house_id, p_date, p_dynamic_price, p_factors jsonb, p_market_occupancy, p_market_avg_price, p_source)` analog zur Vorlage, jedoch gegen `houses` + `daily_pricing` (Upsert auf `house_id,date`, schreibt Log nur bei Preisänderung). Liest `base_price` aus `houses`.
+- **RLS deaktivieren** auf `local_events`, `market_data_cache`, `pricing_logs` (Dev-Phase, konsistent zu restl. Tabellen).
+
+### 2. Code-Anpassung
+
+- `src/hooks/useDynamicPricing.ts`: Rückgabewert um `factors` (alle 6) erweitern, sodass sie persistiert werden können (bereits intern berechnet, nur exposen).
+- `src/components/Guests/DynamicPricingPanel.tsx`: 
+  - `handleAccept` → statt direktem Upsert die RPC `update_dynamic_price` aufrufen (übergibt house_id, date, price, factors, marketOcc, marketAvgPrice=null, source='manual').
+  - Lokale Events aus `local_events` für gewähltes Datum laden und Switch automatisch befüllen (Fallback auf manuelle Auswahl).
+  - Anzeige eines kleinen "Preishistorie"-Hinweises aus `pricing_logs` für die gewählte (haus, datum)-Kombination.
+- `src/components/PricingCard.tsx`: unverändert, nutzt weiterhin Hook-Output.
+
+### 3. Was NICHT gemacht wird
+
+- Kein Auth-Refactor.
+- Keine Massendaten-Migration (nightly_rates ist leer / nicht im Code referenziert).
+- Keine UI für `local_events`-Pflege in dieser Iteration (nur Lesen). CRUD kann später folgen.
+
+### 4. Dateiänderungen (Zusammenfassung)
+
+```text
+SQL Migration (neu)
+src/hooks/useDynamicPricing.ts        (Faktoren in Result)
+src/components/Guests/DynamicPricingPanel.tsx  (RPC + local_events)
+```
+
+Nach Approval führe ich die Migration aus und passe Hook + Panel an.
