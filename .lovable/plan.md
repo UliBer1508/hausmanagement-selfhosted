@@ -1,45 +1,64 @@
-## Problem
+## Ergebnis der Untersuchung
 
-Beim Speichern eines Preis-Overrides im Pricing Dashboard wirft Postgres:
-`there is no unique or exclusion constraint matching the ON CONFLICT specification`
+Die Tabellen- und Spaltennamen passen.
 
-**Ursache:** Die RPC-Funktion `public.update_dynamic_price` verwendet `ON CONFLICT (house_id, date)` auf der Tabelle `daily_pricing`. Diese Tabelle hat aber nur folgende Unique-Constraints:
-- `daily_pricing_pkey` auf `(id)`
+Betroffene Stellen:
+- `public.update_dynamic_price` schreibt in `public.daily_pricing`
+- verwendete Spalten dort: `house_id`, `date`, `price`, `dynamic_price`, `factor_*`, `market_*`
+- Frontend ruft korrekt die RPC `update_dynamic_price` auf (`PricingDashboard`, `DynamicPricingPanel`)
+- `monthly_pricing` ist hier sehr wahrscheinlich **nicht** die Ursache für genau diese Fehlermeldung
+
+## Eigentliche Ursache
+
+In der Datenbank existiert aktuell auf `daily_pricing`:
 - `unique_competitor_date` auf `(competitor_property_id, date)`
+- `unique_house_date` als **partieller** Unique-Index auf `(house_id, date) WHERE house_id IS NOT NULL`
 
-Es existiert **kein** Unique-Constraint auf `(house_id, date)` — daher schlägt das Upsert fehl. `house_id` kann zudem NULL sein (wenn `competitor_property_id` gesetzt ist), darum brauchen wir einen **partiellen** Unique-Index.
-
-## Lösung
-
-### 1. Migration: Partiellen Unique-Index ergänzen
+Die RPC-Funktion verwendet aber derzeit:
 
 ```sql
--- Vorher Duplikate säubern (sicherheitshalber)
-DELETE FROM public.daily_pricing a
-USING public.daily_pricing b
-WHERE a.ctid < b.ctid
-  AND a.house_id IS NOT NULL
-  AND a.house_id = b.house_id
-  AND a.date = b.date;
-
-CREATE UNIQUE INDEX IF NOT EXISTS unique_house_date
-  ON public.daily_pricing (house_id, date)
-  WHERE house_id IS NOT NULL;
+ON CONFLICT (house_id, date) DO UPDATE
 ```
 
-Damit funktioniert `ON CONFLICT (house_id, date)` in `update_dynamic_price` (Postgres erkennt einen partiellen Unique-Index, wenn das WHERE auf NOT NULL implizit erfüllt ist — dies ist hier der Fall, weil die Funktion immer `house_id` setzt).
+Das passt nicht sauber zum partiellen Index. Bei PostgreSQL muss bei Inferenz eines partiellen Unique-Index die Predicate-Bedingung mit angegeben werden. Sonst kommt genau der Fehler:
 
-### 2. Verifikation
+```text
+there is no unique or exclusion constraint matching the ON CONFLICT specification
+```
 
-- Pricing Dashboard öffnen → Datum wählen → Override speichern → Erfolgsmeldung statt Fehler.
-- Kontrolle: Eintrag in `daily_pricing` existiert (insert) bzw. wurde aktualisiert (update).
+## Plan zur Behebung
 
-## Nicht betroffen
+1. Migration erstellen, die `public.update_dynamic_price` neu definiert.
+2. In der Funktion das Upsert ändern auf:
 
-- `monthly_pricing` (hat bereits `unique_house_checkin` und `unique_competitor_checkin`).
-- `market_data_cache` (hat bereits `(location, date)`).
-- `OwnPricingDialog`, `marketOccupancyService`, `expand-daily-prices`, `generate-guest-profile` — deren `onConflict`-Targets sind bereits durch passende Constraints gedeckt.
+```sql
+ON CONFLICT (house_id, date) WHERE house_id IS NOT NULL DO UPDATE
+```
 
-## Umfang
+3. Danach die Speicherung im Pricing Dashboard erneut prüfen.
+4. Optional zusätzlich einen kurzen DB-Check machen, dass keine zweite alte Funktionssignatur oder ein veralteter Call im Projekt übrig ist.
 
-Eine einzige DB-Migration. Kein Code-Change im Frontend oder in Edge Functions nötig.
+## Technische Details
+
+Minimaler Fix in der Funktion:
+
+```sql
+INSERT INTO public.daily_pricing (...)
+VALUES (...)
+ON CONFLICT (house_id, date) WHERE house_id IS NOT NULL DO UPDATE SET
+  ...
+```
+
+Warum das der richtige Fix ist:
+- `daily_pricing.house_id` und `daily_pricing.date` existieren korrekt
+- der Unique-Index `unique_house_date` existiert ebenfalls
+- nur das `ON CONFLICT`-Target ist nicht präzise genug für den **partiellen** Index
+- dadurch ist kein Frontend-Änderung notwendig
+
+## Erwartetes Ergebnis nach Fix
+
+- Speichern im Pricing Dashboard funktioniert wieder
+- `bulkUpdatePrices()` und manuelle Preisannahme über die RPC laufen ohne diesen Postgres-Fehler
+- bestehende Datenstruktur kann unverändert bleiben
+
+Wenn du freigibst, setze ich genau diese Funktionsanpassung per Migration um.
