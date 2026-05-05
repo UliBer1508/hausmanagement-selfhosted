@@ -10,7 +10,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import { 
@@ -29,21 +28,13 @@ import {
   ChevronRight,
   Plus,
   Settings,
-  Bell,
-  User,
   Trash2,
-  Shield,
-  Palette,
   Database,
   Save,
   Filter,
   ChevronDown,
   ChevronUp,
   Building2,
-  FileBarChart,
-  Mail,
-  Send,
-  CheckCircle,
   FileSpreadsheet
 } from 'lucide-react';
 import { format, isSameDay, parseISO, addDays, addMonths, subMonths } from 'date-fns';
@@ -68,14 +59,12 @@ import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBan
 import RatingReminderBanner from '@/components/Dashboard/RatingReminderBanner';
 import CleaningStatusAlertBanner from '@/components/Dashboard/CleaningStatusAlertBanner';
 import BookingInquiryAlertBanner from '@/components/Dashboard/BookingInquiryAlertBanner';
-import GuestImportCard from '@/components/Settings/GuestImportCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
 import BookingTimeline from '@/components/Calendar/BookingTimeline';
 import { useExternalSync } from '@/hooks/useExternalSync';
 import { useEmailSettings, useProfileSettings, useAppearanceSettings, useRatingReminderSettings } from '@/hooks/useSystemSettings';
-import RatingReminderSettingsCard from '@/components/Settings/RatingReminderSettingsCard';
 import PricingTab from '@/components/Dashboard/PricingTab';
 import ProviderTab from '@/components/Dashboard/ProviderTab';
 import SettingsTab from '@/components/Dashboard/SettingsTab';
