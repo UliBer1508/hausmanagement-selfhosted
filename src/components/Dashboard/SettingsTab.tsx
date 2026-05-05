@@ -409,9 +409,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         {/* Gästeliste Import */}
         <GuestImportCard />
 
-        {/* Marktdaten-Import (Inside Airbnb) */}
-        <MarketDataImportCard />
-
         {/* System */}
         <Card>
           <CardHeader>
