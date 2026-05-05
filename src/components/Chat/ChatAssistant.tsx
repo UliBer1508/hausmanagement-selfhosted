@@ -137,6 +137,11 @@ const ChatAssistant = () => {
     }
   }, [chatMode]);
 
+  // Auto-scroll to bottom on new messages
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, providerMessages]);
+
   // Calculate total unread count
   const totalUnread = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
 
