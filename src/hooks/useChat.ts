@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Message {
   id: string;
@@ -18,6 +19,9 @@ interface PageContext {
   page: string;
 }
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
 export const useChat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -26,10 +30,7 @@ export const useChat = () => {
 
   const sendMessage = useCallback(async (content: string, context?: PageContext) => {
     setError(null);
-    
-    const SUPABASE_URL = "https://usblrulkcgucxtkhugck.supabase.co";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVzYmxydWxrY2d1Y3h0a2h1Z2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5NjI4MDMsImV4cCI6MjA2OTUzODgwM30.yvF7KPN9_xhOidfRzAdiYEJASycMPLbQCoXJyAJObwI";
-    
+
     // Add user message
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -37,18 +38,23 @@ export const useChat = () => {
       content,
       timestamp: new Date(),
     };
-    
+
     setMessages((prev) => [...prev, userMessage]);
     setIsStreaming(true);
 
     try {
+      // Use current user session token if available, fall back to anon key
+      const { data: { session } } = await supabase.auth.getSession();
+      const authToken = session?.access_token ?? SUPABASE_ANON_KEY;
+
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/chat-assistant`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${authToken}`,
+            'apikey': SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({
             messages: messages.concat(userMessage).map((m) => ({
@@ -62,14 +68,14 @@ export const useChat = () => {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        
+
         if (response.status === 429) {
           throw new Error('Zu viele Anfragen. Bitte warte einen Moment.');
         }
         if (response.status === 402) {
           throw new Error('Lovable AI Credits aufgebraucht. Bitte Credits aufladen.');
         }
-        
+
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
@@ -79,7 +85,7 @@ export const useChat = () => {
       // Handle standard JSON response from chat-assistant
       if (contentType.includes('application/json')) {
         const data = await response.json();
-        
+
         if (data.response) {
           const assistantMessage: Message = {
             id: crypto.randomUUID(),
@@ -130,7 +136,7 @@ export const useChat = () => {
 
             if (delta?.content) {
               assistantContent += delta.content;
-              
+
               // Update or create assistant message
               setMessages((prev) => {
                 const lastMessage = prev[prev.length - 1];
@@ -174,7 +180,7 @@ export const useChat = () => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Ein unbekannter Fehler ist aufgetreten';
       setError(errorMessage);
-      
+
       toast({
         title: 'Fehler',
         description: errorMessage,
