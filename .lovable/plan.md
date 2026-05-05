@@ -1,32 +1,30 @@
 ## Ziel
-Bun als alleinigen Package Manager etablieren, npm- und Legacy-Lockfiles entfernen.
+Auf der `BookingCard` ein kleines Badge anzeigen, das die Gast-Kategorie zeigt: **Stammgast** oder **Neuer Gast** – mit derselben Logik und demselben Styling wie in der Gästeliste.
 
-## Schritte
+## Logik (bereits vorhanden, wird wiederverwendet)
+In `useGuests.ts`:
+- `stay_count >= 2` ⇒ `returning` (Stammgast)
+- sonst ⇒ `new` (Neuer Gast)
 
-1. **Lockfiles bereinigen**
-   - `package-lock.json` löschen
-   - `bun.lockb` löschen (Legacy-Binärformat)
-   - `bun.lock` behalten (Single Source of Truth)
+Quelle: aggregierte Buchungen mit Status `confirmed`, `checked_in`, `completed`, gruppiert per `guest_email` (Fallback `guest_id`).
 
-2. **`.gitignore` ergänzen**
-   - Einträge hinzufügen, damit fremde Lockfiles nicht versehentlich wieder eingecheckt werden:
-     ```
-     package-lock.json
-     yarn.lock
-     pnpm-lock.yaml
-     bun.lockb
-     ```
+## Umsetzung
 
-3. **`package.json` aktualisieren**
-   - Feld `"packageManager": "bun@1.1.0"` ergänzen, um den Manager explizit zu dokumentieren
-   - `"engines"` optional erweitern: `{ "bun": ">=1.1.0" }`
+### 1. Neuer Hook `src/hooks/useGuestStayCounts.ts`
+- Lädt einmalig (React-Query, `staleTime 5min`) alle relevanten Buchungen.
+- Gibt eine `Map<email, stayCount>` zurück.
+- Helper `getGuestCategory(booking) → 'new' | 'returning'`:
+  - Zählt aktuelle Buchung ab, damit eine erste Buchung nicht fälschlich als Stammgast erscheint.
 
-4. **README-Hinweis (optional, falls vorhanden)**
-   - Kurzer Block: „Dieses Projekt nutzt **Bun**. Installation: `bun install`. Bitte kein `npm install` verwenden."
+### 2. `src/components/Bookings/BookingCard.tsx` anpassen
+- Hook nutzen, Kategorie ermitteln.
+- Badge direkt neben den Gastnamen setzen, identisches Styling wie `GuestList.tsx`:
+  - Stammgast: `bg-green-100 text-green-800`
+  - Neuer Gast: `bg-blue-100 text-blue-800`
+- Während Laden: kein Badge.
 
-## Risiken
-- Geringfügige Versionsunterschiede nach Re-Install: Lovable triggert nach den Änderungen automatisch einen Build. Falls Fehler auftreten, einzelne Pakete pinnen.
+## Betroffene Dateien
+- **neu:** `src/hooks/useGuestStayCounts.ts`
+- **edit:** `src/components/Bookings/BookingCard.tsx`
 
-## Nicht enthalten
-- Keine Code-Änderungen an Komponenten/Logik
-- Keine Datenbank-Migrationen
+Keine weiteren Änderungen.
