@@ -1,24 +1,32 @@
-## Problem
+## Ziel
 
-The `pricing-engine` edge function calls `update_dynamic_price` with `p_source: "pricing_engine"`. The `daily_pricing.source` column has a CHECK constraint that only permits `'manual' | 'scraped' | 'expanded' | 'historical'`, so every insert/update fails.
+Den "Preise"-Tab inline ins Dashboard integrieren — wie alle anderen Module (Kalender, Buchungen, Wäsche etc.) — statt zur separaten Route `/pricing` zu navigieren.
 
-## Fix
+## Änderungen in `src/pages/OriginalDashboard.tsx`
 
-**Migration**: Drop and recreate `daily_pricing_source_check` to include `'pricing_engine'`:
+1. **Import hinzufügen** (oben bei den Pricing-Komponenten):
+   ```ts
+   import PricingDashboard from '@/components/Pricing/PricingDashboard';
+   import { supabase } from '@/integrations/supabase/client';
+   ```
 
-```sql
-ALTER TABLE public.daily_pricing
-  DROP CONSTRAINT IF EXISTS daily_pricing_source_check;
+2. **Tab-Click-Handler vereinfachen** (Zeilen ~2644–2645): Sonderlogik für `'Preise'` entfernen. Der Klick ruft wieder nur `setActiveTab(tab.name)` auf — wie alle anderen Tabs. `useNavigate` darf bleiben oder entfernt werden.
 
-ALTER TABLE public.daily_pricing
-  ADD CONSTRAINT daily_pricing_source_check
-  CHECK (source = ANY (ARRAY['manual','scraped','expanded','historical','pricing_engine']));
-```
+3. **Neuer Case in `renderTabContent()`** (vor `case 'Einstellungen'`, ca. Zeile 1763):
+   ```tsx
+   case 'Preise':
+     return <PricingTabContent />;
+   ```
 
-(There are two identical copies of the constraint reported — the `DROP IF EXISTS` + re-add will collapse it to one.)
+4. **Neue lokale Komponente `PricingTabContent`** (im selben File, oberhalb des Default-Exports oder als kleine Helper-Komponente). Sie übernimmt exakt die Logik aus `src/pages/Pricing.tsx`:
+   - Lädt alle Häuser mit `rental_type='tourist'`
+   - Zeigt Header "Dynamische Preise" + Haus-Auswahl-Dropdown
+   - Rendert `<PricingDashboard houseId=… propertyName=… location=… />`
 
-No code changes required; `supabase/functions/pricing-engine/index.ts` already sends `'pricing_engine'`.
+## Aufräumen (optional, empfohlen)
 
-## Verification
+- `src/pages/Pricing.tsx` und die Route `<Route path="/pricing" …>` in `src/App.tsx` können entfernt werden, da nicht mehr benötigt. Falls Direkt-Links erhalten bleiben sollen, einfach drin lassen.
 
-After migration, click "Preise neu berechnen (Smart)" on `/pricing`; the function should write rows without the constraint error.
+## Ergebnis
+
+Klick auf "💶 Preise" zeigt das Pricing-Modul innerhalb des Dashboards an — gleicher Header, gleiche Navigation, kein Routenwechsel. Verhalten konsistent zu den anderen Modulen.
