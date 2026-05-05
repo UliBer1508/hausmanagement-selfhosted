@@ -78,6 +78,7 @@ import { useEmailSettings, useProfileSettings, useAppearanceSettings, useRatingR
 import RatingReminderSettingsCard from '@/components/Settings/RatingReminderSettingsCard';
 import PricingTab from '@/components/Dashboard/PricingTab';
 import ProviderTab from '@/components/Dashboard/ProviderTab';
+import SettingsTab from '@/components/Dashboard/SettingsTab';
 
 const OriginalDashboard = () => {
   const location = useLocation();
