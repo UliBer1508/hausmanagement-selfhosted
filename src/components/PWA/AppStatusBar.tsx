@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Wifi, WifiOff, Smartphone, Globe, Download, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Wifi, WifiOff, Smartphone, Globe, Download, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -21,8 +21,6 @@ const AppStatusBar = () => {
   );
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
-  const [showUpdateButton, setShowUpdateButton] = useState(false);
-  const updateSWRef = useRef<(() => void) | null>(null);
 
   const handleMinimize = (value: boolean) => {
     setIsMinimized(value);
@@ -84,33 +82,6 @@ const AppStatusBar = () => {
     };
   }, []);
 
-  // Update Prompt
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      const checkForUpdates = () => {
-        navigator.serviceWorker.getRegistration().then((registration) => {
-          if (registration) {
-            registration.addEventListener('updatefound', () => {
-              const newWorker = registration.installing;
-              if (newWorker) {
-                newWorker.addEventListener('statechange', () => {
-                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    setShowUpdateButton(true);
-                    updateSWRef.current = () => {
-                      newWorker.postMessage({ type: 'SKIP_WAITING' });
-                    };
-                  }
-                });
-              }
-            });
-          }
-        });
-      };
-
-      checkForUpdates();
-    }
-  }, []);
-
   const handleInstall = async () => {
     if (!deferredPrompt) return;
 
@@ -126,17 +97,6 @@ const AppStatusBar = () => {
 
     setDeferredPrompt(null);
     setShowInstallButton(false);
-  };
-
-  const handleUpdate = () => {
-    if (updateSWRef.current) {
-      updateSWRef.current();
-      setShowUpdateButton(false);
-      toast({
-        title: "Update wird installiert",
-        description: "Die App wird neu geladen...",
-      });
-    }
   };
 
   if (isMinimized) {
