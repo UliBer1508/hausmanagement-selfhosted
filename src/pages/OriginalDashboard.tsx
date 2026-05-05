@@ -4,13 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Calendar } from '@/components/ui/calendar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useQuery } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Home, 
@@ -22,10 +20,7 @@ import {
   Search,
   RefreshCw,
   Clock,
-  X,
   Edit,
-  ChevronLeft,
-  ChevronRight,
   Plus,
   Settings,
   Trash2,
@@ -37,7 +32,7 @@ import {
   Building2,
   FileSpreadsheet
 } from 'lucide-react';
-import { format, isSameDay, parseISO, addDays, addMonths, subMonths } from 'date-fns';
+import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import steinbockLogo from '@/assets/steinbock-logo.png';
 import CreateBookingDialog from '@/components/Bookings/CreateBookingDialog';
@@ -62,7 +57,6 @@ import BookingInquiryAlertBanner from '@/components/Dashboard/BookingInquiryAler
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
-import BookingTimeline from '@/components/Calendar/BookingTimeline';
 import { useExternalSync } from '@/hooks/useExternalSync';
 import { useEmailSettings, useProfileSettings, useAppearanceSettings, useRatingReminderSettings } from '@/hooks/useSystemSettings';
 import PricingTab from '@/components/Dashboard/PricingTab';
