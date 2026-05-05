@@ -9,14 +9,43 @@ const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
 // ── Defaults (Pinzgau / Oberpinzgau) ──────────────────────────────────────────
-const PINZGAU_SEASON_FACTORS: Record<number, number> = {
-  1: 1.40, 2: 1.50, 3: 0.80, 4: 0.70, 5: 0.85, 6: 1.00,
-  7: 1.30, 8: 1.40, 9: 0.90, 10: 0.75, 11: 0.65, 12: 1.30,
+const DEFAULT_FACTORS = {
+  season: { 1: 1.40, 2: 1.50, 3: 0.80, 4: 0.70, 5: 0.85, 6: 1.00, 7: 1.30, 8: 1.40, 9: 0.90, 10: 0.75, 11: 0.65, 12: 1.30 } as Record<number, number>,
+  dow: { 0: 0.85, 1: 0.85, 2: 0.85, 3: 0.90, 4: 1.10, 5: 1.20, 6: 0.95 } as Record<number, number>,
+  leadtime: [
+    { days: 90, factor: 0.90 },
+    { days: 60, factor: 0.95 },
+    { days: 30, factor: 1.00 },
+    { days: 14, factor: 1.05 },
+    { days: 7, factor: 1.10 },
+    { days: 0, factor: 0.85 },
+  ],
+  occupancy: [
+    { threshold: 0.30, factor: 0.85 },
+    { threshold: 0.50, factor: 0.90 },
+    { threshold: 0.70, factor: 1.00 },
+    { threshold: 0.85, factor: 1.10 },
+    { threshold: 1.01, factor: 1.25 },
+  ],
+  gap: { short: 0.75, long: 0.88 },
+  event: { small: 1.05, medium: 1.15, large: 1.30 } as Record<string, number>,
+  weather: { clear: 1.05, cloudy: 1.00, rain: 0.95, snow_winter: 1.10, snow_summer: 0.90, storm: 0.92 },
+  holiday: { at: 1.25, de_by: 1.20, both: 1.35 },
 };
-// 0=Mon … 6=Sun
-const DOW_FACTORS: Record<number, number> = {
-  0: 0.85, 1: 0.85, 2: 0.85, 3: 0.90, 4: 1.10, 5: 1.20, 6: 0.95,
-};
+
+function mergeFactors(custom: any) {
+  const c = custom ?? {};
+  return {
+    season: { ...DEFAULT_FACTORS.season, ...(c.season ? Object.fromEntries(Object.entries(c.season).map(([k, v]) => [Number(k), Number(v)])) : {}) },
+    dow: { ...DEFAULT_FACTORS.dow, ...(c.dow ? Object.fromEntries(Object.entries(c.dow).map(([k, v]) => [Number(k), Number(v)])) : {}) },
+    leadtime: Array.isArray(c.leadtime) && c.leadtime.length ? c.leadtime : DEFAULT_FACTORS.leadtime,
+    occupancy: Array.isArray(c.occupancy) && c.occupancy.length ? c.occupancy : DEFAULT_FACTORS.occupancy,
+    gap: { ...DEFAULT_FACTORS.gap, ...(c.gap ?? {}) },
+    event: { ...DEFAULT_FACTORS.event, ...(c.event ?? {}) },
+    weather: { ...DEFAULT_FACTORS.weather, ...(c.weather ?? {}) },
+    holiday: { ...DEFAULT_FACTORS.holiday, ...(c.holiday ?? {}) },
+  };
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function ymd(d: Date) { return d.toISOString().split("T")[0]; }
@@ -24,29 +53,29 @@ function isoWeekday(d: Date) { return (d.getUTCDay() + 6) % 7; }
 function daysBetween(a: Date, b: Date) { return Math.round((b.getTime() - a.getTime()) / 86400000); }
 function clamp(n: number, lo: number, hi: number) { return Math.min(hi, Math.max(lo, n)); }
 
-function leadtimeFactor(daysUntil: number): number {
-  if (daysUntil > 90) return 0.90;
-  if (daysUntil > 60) return 0.95;
-  if (daysUntil > 30) return 1.00;
-  if (daysUntil > 14) return 1.05;
-  if (daysUntil > 7) return 1.10;
-  return 0.85;
+function leadtimeFactor(daysUntil: number, table: Array<{ days: number; factor: number }>): number {
+  // Highest threshold first; fall through to lowest
+  const sorted = [...table].sort((a, b) => b.days - a.days);
+  for (const row of sorted) {
+    if (daysUntil > row.days) return row.factor;
+  }
+  return sorted[sorted.length - 1]?.factor ?? 1.0;
 }
 
-function occupancyFactor(occ: number): number {
-  if (occ < 0.30) return 0.85;
-  if (occ < 0.50) return 0.90;
-  if (occ < 0.70) return 1.00;
-  if (occ < 0.85) return 1.10;
-  return 1.25;
+function occupancyFactor(occ: number, table: Array<{ threshold: number; factor: number }>): number {
+  const sorted = [...table].sort((a, b) => a.threshold - b.threshold);
+  for (const row of sorted) {
+    if (occ < row.threshold) return row.factor;
+  }
+  return sorted[sorted.length - 1]?.factor ?? 1.0;
 }
 
-function weatherFactor(code: number, month: number): number {
-  if (code <= 2) return 1.05;
-  if (code <= 48) return 1.00;
-  if (code <= 67) return 0.95;
-  if (code <= 77) return (month === 12 || month <= 2) ? 1.10 : (month >= 6 && month <= 8) ? 0.90 : 1.00;
-  if (code >= 80) return 0.92;
+function weatherFactor(code: number, month: number, w: typeof DEFAULT_FACTORS.weather): number {
+  if (code <= 2) return w.clear;
+  if (code <= 48) return w.cloudy;
+  if (code <= 67) return w.rain;
+  if (code <= 77) return (month === 12 || month <= 2) ? w.snow_winter : (month >= 6 && month <= 8) ? w.snow_summer : 1.00;
+  if (code >= 80) return w.storm;
   return 1.00;
 }
 
@@ -70,11 +99,11 @@ async function fetchHolidaysFor(year: number) {
   return { atSet, bySet };
 }
 
-function holidayFactor(date: string, atSet: Set<string>, bySet: Set<string>): number {
+function holidayFactor(date: string, atSet: Set<string>, bySet: Set<string>, h: typeof DEFAULT_FACTORS.holiday): number {
   const at = atSet.has(date), by = bySet.has(date);
-  if (at && by) return 1.35;
-  if (at) return 1.25;
-  if (by) return 1.20;
+  if (at && by) return h.both;
+  if (at) return h.at;
+  if (by) return h.de_by;
   return 1.00;
 }
 
@@ -119,15 +148,13 @@ Deno.serve(async (req) => {
     const min = Number(cfg.min_price ?? base * 0.6);
     const max = Number(cfg.max_price ?? base * 2.5);
 
-    // Season factors: from calibration if available, else Pinzgau defaults
-    let seasonByMonth: Record<number, number> = { ...PINZGAU_SEASON_FACTORS };
+    // Merge user-configured factors with defaults
+    const F = mergeFactors(cfg.factors);
+    let seasonByMonth = { ...F.season };
+    // Backward-compat: legacy calibration overrides (uses 0-11)
     if (calibration?.factor_adjustments?.season) {
       const fa = calibration.factor_adjustments.season as Record<string, number>;
-      // calibration uses 0-11
-      for (const k of Object.keys(fa)) {
-        const monthIdx0 = Number(k);
-        seasonByMonth[monthIdx0 + 1] = fa[k];
-      }
+      for (const k of Object.keys(fa)) seasonByMonth[Number(k) + 1] = fa[k];
     }
 
     // Date range
@@ -166,7 +193,7 @@ Deno.serve(async (req) => {
       }
     }
     const eventFactor = (sz?: string) =>
-      sz === "large" ? 1.30 : sz === "medium" ? 1.15 : sz === "small" ? 1.05 : 1.00;
+      sz && F.event[sz] != null ? F.event[sz] : 1.00;
 
     // Existing daily_pricing for house — needed for occupancy + gap detection
     const lookbackStart = new Date(start); lookbackStart.setUTCDate(lookbackStart.getUTCDate() - 7);
@@ -214,11 +241,11 @@ Deno.serve(async (req) => {
       const daysUntil = daysBetween(today, d);
 
       const seasonF = seasonByMonth[month] ?? 1.0;
-      const dowF = DOW_FACTORS[wday] ?? 1.0;
-      const ltF = leadtimeFactor(daysUntil);
+      const dowF = F.dow[wday] ?? 1.0;
+      const ltF = leadtimeFactor(daysUntil, F.leadtime);
 
       const occ = await getMonthOccupancy(d);
-      const occF = occupancyFactor(occ);
+      const occF = occupancyFactor(occ, F.occupancy);
 
       // Gap detection
       const prev1 = ymd(new Date(d.getTime() - 86400000));
@@ -234,14 +261,14 @@ Deno.serve(async (req) => {
           if (bookedSet.has(fwd)) break;
           gapLen++;
         }
-        if (gapLen <= 2) gapF = 0.75;
-        else if (gapLen <= 4) gapF = 0.88;
+        if (gapLen <= 2) gapF = F.gap.short;
+        else if (gapLen <= 4) gapF = F.gap.long;
       }
 
       const evF = eventFactor(eventMap.get(dStr));
       const wcode = weather.get(dStr);
-      const weF = wcode != null ? weatherFactor(wcode, month) : 1.00;
-      const hoF = holidayFactor(dStr, holidayCache.atSet, holidayCache.bySet);
+      const weF = wcode != null ? weatherFactor(wcode, month, F.weather) : 1.00;
+      const hoF = holidayFactor(dStr, holidayCache.atSet, holidayCache.bySet, F.holiday);
 
       let dyn = base * seasonF * dowF * ltF * occF * gapF * evF * weF * hoF;
       dyn = Math.max(min, Math.min(max, Math.round(dyn)));
