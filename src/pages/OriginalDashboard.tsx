@@ -63,6 +63,7 @@ import PricingTab from '@/components/Dashboard/PricingTab';
 import ProviderTab from '@/components/Dashboard/ProviderTab';
 import SettingsTab from '@/components/Dashboard/SettingsTab';
 import CalendarTab from '@/components/Dashboard/CalendarTab';
+import OverviewTab from '@/components/Dashboard/OverviewTab';
 
 const OriginalDashboard = () => {
   const location = useLocation();
