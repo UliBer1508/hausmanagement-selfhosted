@@ -160,7 +160,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
             <div className="min-w-0">
               <h3 className="font-semibold">Preis-Faktoren konfigurieren</h3>
               <p className="text-xs text-muted-foreground">Multiplikatoren (pro Haus) & Datenquellen-Filter (global).</p>
-
+            </div>
           </CollapsibleTrigger>
           {open && (
             <div className="flex gap-2">
@@ -170,7 +170,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
               <Button size="sm" onClick={handleSave} disabled={saving}>
                 <Save className="h-3.5 w-3.5 mr-1" /> Speichern
               </Button>
-
+            </div>
           )}
         </div>
 
