@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export interface SyncAirROIInput {
-  location: string;
+  location?: string;
   house_id?: string;
 }
 

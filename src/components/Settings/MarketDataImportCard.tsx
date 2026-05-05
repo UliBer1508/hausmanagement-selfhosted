@@ -2,30 +2,20 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Download, RefreshCw } from "lucide-react";
 import { useSyncAirROI } from "@/hooks/useAirROI";
+import { usePricingSettings } from "@/hooks/usePricingSettings";
 
 const MarketDataImportCard = () => {
-  const [location, setLocation] = useState("");
   const [csv, setCsv] = useState("");
   const [loading, setLoading] = useState(false);
   const [lastAirroiSync, setLastAirroiSync] = useState<string | null>(null);
   const syncAirROI = useSyncAirROI();
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("houses")
-        .select("name, address")
-        .limit(1);
-      const first = data?.[0] as any;
-      if (first) setLocation(first.address || first.name || "");
-    })();
-  }, []);
+  const { data: cfg } = usePricingSettings();
+  const location = (cfg?.airroi_district?.trim() || cfg?.airroi_locality?.trim() || "").toString();
 
   useEffect(() => {
     if (!location) return;
@@ -42,13 +32,13 @@ const MarketDataImportCard = () => {
   }, [location, syncAirROI.isSuccess]);
 
   const handleImport = async () => {
-    if (!location.trim()) { toast.error("Bitte einen Standort angeben"); return; }
+    if (!location) { toast.error("Bitte zuerst Ort/Markt in der Marktdefinition oben festlegen"); return; }
     if (csv.trim().length < 10) { toast.error("Bitte gültigen CSV-Inhalt einfügen"); return; }
     setLoading(true);
     const tId = toast.loading("Inside Airbnb Import läuft…");
     try {
       const { data, error } = await supabase.functions.invoke("import-inside-airbnb", {
-        body: { location: location.trim(), csv_content: csv },
+        body: { location, csv_content: csv },
       });
       if (error) throw new Error(error.message);
       if ((data as any)?.error) throw new Error(JSON.stringify((data as any).error));
@@ -65,8 +55,7 @@ const MarketDataImportCard = () => {
   };
 
   const handleAirROI = () => {
-    if (!location.trim()) { toast.error("Bitte einen Standort angeben"); return; }
-    syncAirROI.mutate({ location: location.trim() });
+    syncAirROI.mutate({});
   };
 
   return (
@@ -78,18 +67,10 @@ const MarketDataImportCard = () => {
         </CardTitle>
         <CardDescription>
           Inside Airbnb CSV-Daten oder AirROI API verwenden, um die Marktauslastung der nächsten 365 Tage zu schätzen.
+          Verwendet die oben definierte Marktregion: <strong>{location || "—"}</strong>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="market-location">Standort</Label>
-          <Input
-            id="market-location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="z. B. Saalbach-Hinterglemm"
-          />
-        </div>
         <div className="space-y-2">
           <Label htmlFor="market-csv">CSV-Inhalt (Inside Airbnb listings.csv)</Label>
           <Textarea
