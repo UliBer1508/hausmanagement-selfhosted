@@ -7,6 +7,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AppStatusBar from "@/components/PWA/AppStatusBar";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login";
+import ProtectedRoute from "./components/ProtectedRoute";
 import ChatAssistant from "./components/Chat/ChatAssistant";
 import ErrorBoundary from "./components/ErrorBoundary";
 
@@ -56,7 +58,15 @@ const App = () => {
             <div className="pt-12">
               <ErrorBoundary level="route">
                 <Routes>
-                  <Route path="/" element={<Index />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route
+                    path="/"
+                    element={
+                      <ProtectedRoute>
+                        <Index />
+                      </ProtectedRoute>
+                    }
+                  />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
