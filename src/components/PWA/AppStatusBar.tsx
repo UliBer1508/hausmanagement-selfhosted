@@ -182,19 +182,6 @@ const AppStatusBar = () => {
               </Button>
             )}
 
-            {/* Update Button */}
-            {showUpdateButton && (
-              <Button 
-                variant="default" 
-                size="sm" 
-                onClick={handleUpdate}
-                className="gap-2 h-8"
-              >
-                <RefreshCw className="w-3 h-3" />
-                <span className="hidden sm:inline">Update</span>
-              </Button>
-            )}
-
             {/* Minimize Button */}
             <Button 
               variant="ghost" 
