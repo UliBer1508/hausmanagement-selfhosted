@@ -1,55 +1,32 @@
-
 ## Ziel
-Algorithmus-Parameter (AirROI-Filter + dynamisches Pricing) zentral konfigurierbar machen über `system_settings` (key `pricing_config`). UI wird in die bestehende `PricingFactorsConfig`-Sektion integriert (kein neuer Settings-Tab).
+Nur **eine** Konfigurationskarte mit **einem** Speichern-Button. AirROI-Filter wandern als neuer Accordion-Abschnitt „Datenquellen" in die bestehende „Preis-Faktoren konfigurieren"-Karte.
 
-## Wichtiger Hinweis: Konflikt mit Bestehendem
-Es existiert bereits eine **per-Haus** Konfiguration (`houses.pricing_config.factors`) mit anderem Schema, die von `pricing-engine`/`daily-pricing` Edge Functions gelesen wird. Der neue Hook arbeitet mit einem **globalen** Schema in `system_settings.pricing_config`. Diese koexistieren:
+## Änderungen
 
-- `useDynamicPricing` (rein clientseitiger Algorithmus laut Spec) → liest **global** aus `system_settings`
-- `pricing-engine`/`daily-pricing` Edge Functions (per-Haus Smart-Berechnung) → bleiben unverändert
-- `PricingFactorsConfig`-Komponente steuert weiterhin die per-Haus Faktoren; **zusätzlich** wird sie um eine globale Sektion für AirROI + Algorithmus-Defaults erweitert
+### 1. `src/components/Pricing/PricingDashboard.tsx`
+- Import und Render von `<GlobalPricingConfigCard />` entfernen.
+- Import-Statement von `GlobalPricingConfigCard` entfernen.
 
-## Umsetzung
+### 2. `src/components/Pricing/GlobalPricingConfigCard.tsx`
+- Datei löschen (nicht mehr referenziert).
 
-### 1. Neuer Hook `src/hooks/usePricingSettings.ts`
-- `DEFAULT_PRICING_CONFIG` Konstante (exakt wie in deiner Spec)
-- `usePricingSettings()` – `useQuery` mit `queryKey: ['system_settings','pricing_config']`, liest `system_settings` Eintrag `key='pricing_config'`, fällt auf Defaults zurück, mergt mit Defaults für fehlende Felder
-- `useSavePricingSettings()` – `useMutation`, upsert mit `onConflict: 'key'`, danach Invalidierung
+### 3. `src/components/Pricing/PricingFactorsConfig.tsx`
+- Zusätzlich zum house-spezifischen `pricing_config` auch die globale `system_settings.pricing_config` über `usePricingSettings` / `useSavePricingSettings` laden.
+- Neuer State `airroiForm` (4 Felder: `airroi_room_type`, `airroi_min_bedrooms`, `airroi_num_months`, `airroi_currency`) initialisiert aus `usePricingSettings`.
+- Neuer **Accordion-Eintrag** an erster Position des bestehenden `<Accordion>`:
+  - Trigger: „Datenquellen (AirROI Marktdaten)"
+  - Hinweisbox (`bg-muted/30`):
+    > „Diese Filter bestimmen, welche Vergleichsobjekte AirROI für die Marktauslastung heranzieht. Der ermittelte Auslastungswert fließt als Eingabe in den Preisalgorithmus oben ein."
+  - 4 Felder im 2-Spalten-Grid: Zimmertyp (Select), Mindest-Schlafzimmer (Number), Analysezeitraum (Select 6/12/24/36), Währung (Select EUR/USD/native).
+- `handleSave()` erweitern: schreibt **parallel** house-`pricing_config` (Faktoren) **und** `system_settings.pricing_config` (AirROI-Felder). Toast nur bei beidseitigem Erfolg, sonst Fehler.
+- `handleReset()` erweitert: setzt sowohl Faktoren als auch AirROI-Felder auf Defaults zurück (kein Auto-Save).
+- Untertitel der Card-Überschrift anpassen: „Multiplikatoren (pro Haus) & Datenquellen-Filter (global)."
 
-### 2. `useDynamicPricing.ts` anpassen (rückwärtskompatibel)
-- Faktor-Funktionen `getSeasonFactor`, `getDayOfWeekFactor`, `getLeadTimeFactor`, `getOccupancyFactor`, `getEventFactor`, `getGapFactor` bekommen optionalen Parameter `config?: typeof DEFAULT_PRICING_CONFIG`
-- Wenn `config` übergeben → benutzt Werte aus Config
-- `calculateDynamicPrice(input, config?)` reicht Config durch und nutzt `price_floor_ratio` / `price_ceiling_ratio`
-- `useDynamicPricing(input)` ruft intern `usePricingSettings()` auf, übergibt geladene Config; Default-Verhalten unverändert solange noch keine DB-Werte vorhanden sind
+### 4. Keine DB-Migrationen nötig
+- AirROI-Werte bleiben in `system_settings` mit Key `pricing_config`.
+- Edge Function `airroi-sync` bleibt unverändert (liest dieselbe Quelle).
 
-### 3. `airroi-sync` Edge Function
-- Liest vor API-Call `system_settings` mit `key='pricing_config'`
-- Konstantes `DEFAULT_PRICING_CONFIG`-Objekt in der Function dupliziert (Fallback)
-- AirROI-Request-URLs erweitert um Query-Params: `room_type`, `min_bedrooms`, `num_months`, `currency`
-- Bestehende Logik (Suche → Analytics → 365-Tage-Cache) bleibt
-
-### 4. UI – Integration in `PricingFactorsConfig.tsx`
-**Keine** neue Settings-Seite. Stattdessen wird die bestehende Komponente erweitert:
-
-- Neue, deutlich abgesetzte **Sektion oben** im Collapsible: "Globale Pricing-Konfiguration (alle Häuser)" mit zwei Untergruppen:
-  - **AirROI Filter**: Dropdown Zimmertyp / Number Mindest-Schlafzimmer / Dropdown Analysezeitraum / Dropdown Währung
-  - **Preisalgorithmus**: 
-    - 12 Number-Inputs für `season_factors` (Monatsnamen, step 0.05)
-    - 7 Number-Inputs für `dow_factors` (So–Sa, step 0.05)
-    - Editierbare Tabelle für `lead_time_steps` (Schwellwert/Faktor + Add/Remove)
-    - Editierbare Tabelle für `occupancy_steps` (Schwellwert/Faktor + Add/Remove)
-    - Number-Inputs: `event_factor_small/large/festival`, `gap_factor_1day/2days/3plus`, `price_floor_ratio`, `price_ceiling_ratio`
-- Eigene Buttons "Standard zurücksetzen" (lädt nur ins Form, speichert nicht) und "Speichern" (ruft `useSavePricingSettings`, Toast)
-- Während Save: alle Felder + Buttons disabled
-- Bestehende per-Haus Faktoren-Sektion bleibt darunter unverändert
-
-### 5. Datenbank
-Keine Migration nötig – `system_settings` existiert. Defaults werden beim ersten Speichern angelegt (kein Seed nötig).
-
-## Dateien
-- **Neu**: `src/hooks/usePricingSettings.ts`
-- **Geändert**: `src/hooks/useDynamicPricing.ts`, `src/components/Pricing/PricingFactorsConfig.tsx`, `supabase/functions/airroi-sync/index.ts`
-- **Unberührt**: `usePricingConfig.ts` (per-Haus Markup/Fees), `pricing-engine`, `daily-pricing`
-
-## Frage vor Umsetzung
-Soll die globale Sektion **innerhalb** des bestehenden Collapsible ("Preis-Faktoren konfigurieren") als zusätzlicher Accordion-Eintrag erscheinen, oder als **eigene Karte direkt darüber** auf der Pricing-Seite? Ich tendiere zu eigener Karte (klarere Trennung global vs. per-Haus), würde es aber auch im Akkordion einbauen wenn du es so willst.
+## Auswirkungen
+- Nur eine Karte sichtbar, ein Speichern-Button speichert alles.
+- Bestehende globale Config-Werte in `system_settings.pricing_config` bleiben erhalten und werden weiter genutzt.
+- Die nicht mehr in der UI bedienbaren globalen Algorithmus-Felder (`season_factors`, `dow_factors` etc. aus `DEFAULT_PRICING_CONFIG`) werden in `system_settings` weiterhin als Fallback für die Edge Functions konserviert — der Save-Flow überschreibt nur die 4 AirROI-Felder und lässt die übrigen Felder unverändert.
