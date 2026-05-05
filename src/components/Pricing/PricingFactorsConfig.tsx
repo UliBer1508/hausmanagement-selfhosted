@@ -204,6 +204,37 @@ export function PricingFactorsConfig({ houseId }: Props) {
               Diese Filter bestimmen, welche Vergleichsobjekte AirROI für die Marktauslastung heranzieht.
               Der ermittelte Auslastungswert fließt als Eingabe in den Preisalgorithmus oben ein.
             </p>
+            <div className="rounded border border-border p-3 mb-4 space-y-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Marktdefinition</div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Land *</Label>
+                  <Input className="h-9" disabled={saving} value={airroi.airroi_country}
+                    onChange={(e) => setAirroi((p) => ({ ...p, airroi_country: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Region *</Label>
+                  <Input className="h-9" disabled={saving} value={airroi.airroi_region}
+                    onChange={(e) => setAirroi((p) => ({ ...p, airroi_region: e.target.value }))} />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Ort/Markt *</Label>
+                  <Input className="h-9" disabled={saving} value={airroi.airroi_locality}
+                    onChange={(e) => setAirroi((p) => ({ ...p, airroi_locality: e.target.value }))} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Stadtteil/Gebiet</Label>
+                <Input className="h-9" disabled={saving} value={airroi.airroi_district}
+                  placeholder="Optional – z.B. Pinzgau"
+                  onChange={(e) => setAirroi((p) => ({ ...p, airroi_district: e.target.value }))} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Diese Werte werden direkt an die AirROI Markets API übergeben. Nutze übergeordnete Regionen
+                (z.B. „Salzburg" statt „Neukirchen") für bessere Ergebnisse — kleine Orte haben oft
+                zu wenige Listings für aussagekräftige Marktdaten.
+              </p>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">Zimmertyp</Label>
