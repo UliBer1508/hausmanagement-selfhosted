@@ -1,44 +1,55 @@
+
 ## Ziel
-CSV-Daten von Inside Airbnb importieren, in markttägliche Auslastung umrechnen und für 365 Tage in `market_data_cache` (Quelle `inside_airbnb`) ablegen. UI-Trigger in der Settings-Seite.
+Algorithmus-Parameter (AirROI-Filter + dynamisches Pricing) zentral konfigurierbar machen über `system_settings` (key `pricing_config`). UI wird in die bestehende `PricingFactorsConfig`-Sektion integriert (kein neuer Settings-Tab).
 
-## 1. Neue Edge Function: `supabase/functions/import-inside-airbnb/index.ts`
+## Wichtiger Hinweis: Konflikt mit Bestehendem
+Es existiert bereits eine **per-Haus** Konfiguration (`houses.pricing_config.factors`) mit anderem Schema, die von `pricing-engine`/`daily-pricing` Edge Functions gelesen wird. Der neue Hook arbeitet mit einem **globalen** Schema in `system_settings.pricing_config`. Diese koexistieren:
 
-- **Auth/CORS**: Standard-CORS-Header, OPTIONS-Handler. Verwendet `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (Service Role, da Massen-Upsert in Cache).
-- **Input-Validierung** mit Zod: `{ location: string (min 1), csv_content: string (min 10) }`. 400 bei Validierungsfehler.
-- **CSV-Parser** (eigene minimale Implementierung):
-  - Header-Zeile parsen, Spaltenindex für `availability_365`, `room_type`, `number_of_reviews`, `minimum_nights` ermitteln.
-  - Zeilen quoting-aware splitten (Inside-Airbnb-CSVs enthalten Kommas in Strings).
-  - Zeilen ohne valides `availability_365` (NaN, <0, >365) verwerfen.
-  - Optional Filter: `room_type === 'Entire home/apt'` und `number_of_reviews >= 1` (typische Aktiv-Listings).
-- **Basis-Auslastung**: `baseOccupancy = mean( (365 - availability_365) / 365 )` über alle gefilterten Listings. Clamp auf [0.05, 0.95].
-- **Saisonale Verteilung** mit identischer `MONTHLY_OCC`-Konstante wie `marketOccupancyService.ts` (0:0.38 … 11:0.55). Mittelwert der Tabelle berechnen, dann `factor[m] = MONTHLY_OCC[m] / mean(MONTHLY_OCC)`.
-- **Tägliche Werte erzeugen**: Schleife über die nächsten 365 Tage ab heute (UTC, ISO-Date):
-  - `occ = clamp(baseOccupancy * factor[date.getMonth()], 0.05, 0.95)`
-  - `avgPrice = round(80 + occ * 120)` (konsistent mit Service)
-  - Datensatz `{ location, date, occupancy_rate, avg_price: avgPrice, source: 'inside_airbnb', fetched_at: now }`
-- **Upsert** in Batches von 500 Zeilen via `supabase.from('market_data_cache').upsert(rows, { onConflict: 'location,date' })`.
-- **Response**: `{ success: true, imported_listings: n, days_written: 365, base_occupancy: x }`.
-- Fehler werden mit 500 + Message zurückgegeben (inkl. corsHeaders).
-- `supabase/config.toml`: kein Eintrag nötig (Default `verify_jwt = false` bei Lovable).
+- `useDynamicPricing` (rein clientseitiger Algorithmus laut Spec) → liest **global** aus `system_settings`
+- `pricing-engine`/`daily-pricing` Edge Functions (per-Haus Smart-Berechnung) → bleiben unverändert
+- `PricingFactorsConfig`-Komponente steuert weiterhin die per-Haus Faktoren; **zusätzlich** wird sie um eine globale Sektion für AirROI + Algorithmus-Defaults erweitert
 
-## 2. UI: neue Datei `src/components/Settings/MarketDataImportCard.tsx`
+## Umsetzung
 
-- Card mit Titel „Marktdaten-Import" + Untertitel „Inside Airbnb".
-- Felder:
-  - `Input` Standort (vorausgefüllt mit `houses[0].address` bzw. `houses[0].name` falls keine Adresse vorhanden, geladen via `supabase.from('houses').select('name,address').limit(1)` in `useEffect`).
-  - `Textarea` für CSV-Inhalt (min Höhe ~200px, Monospace).
-  - `Button` „Inside Airbnb Daten importieren".
-- Logik:
-  - On click: Validierung (location + CSV nicht leer), `setLoading(true)`, `toast.loading('Import läuft…')` (mit ID).
-  - Aufruf: `supabase.functions.invoke('import-inside-airbnb', { body: { location, csv_content } })`.
-  - Erfolg: `toast.success(\`Import erfolgreich: \${imported_listings} Listings, \${days_written} Tage geschrieben (Basis-Auslastung \${(base_occupancy*100).toFixed(1)}%)\`)`.
-  - Fehler: `toast.error(error.message)`.
-- Verwendet bestehenden Client `@/integrations/supabase/client`, `sonner` toasts, shadcn Card/Input/Textarea/Button/Label.
+### 1. Neuer Hook `src/hooks/usePricingSettings.ts`
+- `DEFAULT_PRICING_CONFIG` Konstante (exakt wie in deiner Spec)
+- `usePricingSettings()` – `useQuery` mit `queryKey: ['system_settings','pricing_config']`, liest `system_settings` Eintrag `key='pricing_config'`, fällt auf Defaults zurück, mergt mit Defaults für fehlende Felder
+- `useSavePricingSettings()` – `useMutation`, upsert mit `onConflict: 'key'`, danach Invalidierung
 
-## 3. Einbindung
-- `src/components/Dashboard/SettingsTab.tsx`: Import + Render `<MarketDataImportCard />` direkt unter `<GuestImportCard />`.
+### 2. `useDynamicPricing.ts` anpassen (rückwärtskompatibel)
+- Faktor-Funktionen `getSeasonFactor`, `getDayOfWeekFactor`, `getLeadTimeFactor`, `getOccupancyFactor`, `getEventFactor`, `getGapFactor` bekommen optionalen Parameter `config?: typeof DEFAULT_PRICING_CONFIG`
+- Wenn `config` übergeben → benutzt Werte aus Config
+- `calculateDynamicPrice(input, config?)` reicht Config durch und nutzt `price_floor_ratio` / `price_ceiling_ratio`
+- `useDynamicPricing(input)` ruft intern `usePricingSettings()` auf, übergibt geladene Config; Default-Verhalten unverändert solange noch keine DB-Werte vorhanden sind
 
-## Hinweise / Nicht-Änderungen
-- `market_data_cache`-Schema bleibt unverändert (Spalten location, date, occupancy_rate, avg_price, source, fetched_at; Conflict-Key location+date) — keine Migration nötig.
-- `marketOccupancyService.ts` bleibt unverändert; eingespielte `inside_airbnb`-Zeilen werden automatisch über den vorhandenen Cache-Read genutzt (24h TTL).
-- Keine neuen Secrets erforderlich.
+### 3. `airroi-sync` Edge Function
+- Liest vor API-Call `system_settings` mit `key='pricing_config'`
+- Konstantes `DEFAULT_PRICING_CONFIG`-Objekt in der Function dupliziert (Fallback)
+- AirROI-Request-URLs erweitert um Query-Params: `room_type`, `min_bedrooms`, `num_months`, `currency`
+- Bestehende Logik (Suche → Analytics → 365-Tage-Cache) bleibt
+
+### 4. UI – Integration in `PricingFactorsConfig.tsx`
+**Keine** neue Settings-Seite. Stattdessen wird die bestehende Komponente erweitert:
+
+- Neue, deutlich abgesetzte **Sektion oben** im Collapsible: "Globale Pricing-Konfiguration (alle Häuser)" mit zwei Untergruppen:
+  - **AirROI Filter**: Dropdown Zimmertyp / Number Mindest-Schlafzimmer / Dropdown Analysezeitraum / Dropdown Währung
+  - **Preisalgorithmus**: 
+    - 12 Number-Inputs für `season_factors` (Monatsnamen, step 0.05)
+    - 7 Number-Inputs für `dow_factors` (So–Sa, step 0.05)
+    - Editierbare Tabelle für `lead_time_steps` (Schwellwert/Faktor + Add/Remove)
+    - Editierbare Tabelle für `occupancy_steps` (Schwellwert/Faktor + Add/Remove)
+    - Number-Inputs: `event_factor_small/large/festival`, `gap_factor_1day/2days/3plus`, `price_floor_ratio`, `price_ceiling_ratio`
+- Eigene Buttons "Standard zurücksetzen" (lädt nur ins Form, speichert nicht) und "Speichern" (ruft `useSavePricingSettings`, Toast)
+- Während Save: alle Felder + Buttons disabled
+- Bestehende per-Haus Faktoren-Sektion bleibt darunter unverändert
+
+### 5. Datenbank
+Keine Migration nötig – `system_settings` existiert. Defaults werden beim ersten Speichern angelegt (kein Seed nötig).
+
+## Dateien
+- **Neu**: `src/hooks/usePricingSettings.ts`
+- **Geändert**: `src/hooks/useDynamicPricing.ts`, `src/components/Pricing/PricingFactorsConfig.tsx`, `supabase/functions/airroi-sync/index.ts`
+- **Unberührt**: `usePricingConfig.ts` (per-Haus Markup/Fees), `pricing-engine`, `daily-pricing`
+
+## Frage vor Umsetzung
+Soll die globale Sektion **innerhalb** des bestehenden Collapsible ("Preis-Faktoren konfigurieren") als zusätzlicher Accordion-Eintrag erscheinen, oder als **eigene Karte direkt darüber** auf der Pricing-Seite? Ich tendiere zu eigener Karte (klarere Trennung global vs. per-Haus), würde es aber auch im Akkordion einbauen wenn du es so willst.
