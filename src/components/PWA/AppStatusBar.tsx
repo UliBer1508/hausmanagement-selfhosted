@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Wifi, WifiOff, Smartphone, Globe, Download, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
@@ -9,17 +9,33 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+interface NavigatorStandalone extends Navigator {
+  standalone?: boolean;
+}
+
 const AppStatusBar = () => {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(true);
   const [isPWA, setIsPWA] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('statusbar-minimized') === 'true'
+  );
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallButton, setShowInstallButton] = useState(false);
   const [showUpdateButton, setShowUpdateButton] = useState(false);
-  const [updateSW, setUpdateSW] = useState<(() => void) | null>(null);
+  const updateSWRef = useRef<(() => void) | null>(null);
+
+  const handleMinimize = (value: boolean) => {
+    setIsMinimized(value);
+    try {
+      localStorage.setItem('statusbar-minimized', String(value));
+    } catch {
+      // ignore
+    }
+  };
 
   // Online/Offline Status
   useEffect(() => {
+    setIsOnline(navigator.onLine);
     const handleOnline = () => {
       setIsOnline(true);
       toast({
@@ -49,7 +65,7 @@ const AppStatusBar = () => {
   // PWA Status
   useEffect(() => {
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-    const isIOSStandalone = (window.navigator as any).standalone === true;
+    const isIOSStandalone = (window.navigator as NavigatorStandalone).standalone === true;
     setIsPWA(isStandalone || isIOSStandalone);
   }, []);
 
@@ -71,12 +87,6 @@ const AppStatusBar = () => {
   // Update Prompt
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      const handleControllerChange = () => {
-        window.location.reload();
-      };
-
-      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
-
       const checkForUpdates = () => {
         navigator.serviceWorker.getRegistration().then((registration) => {
           if (registration) {
@@ -86,9 +96,9 @@ const AppStatusBar = () => {
                 newWorker.addEventListener('statechange', () => {
                   if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                     setShowUpdateButton(true);
-                    setUpdateSW(() => () => {
+                    updateSWRef.current = () => {
                       newWorker.postMessage({ type: 'SKIP_WAITING' });
-                    });
+                    };
                   }
                 });
               }
@@ -98,10 +108,6 @@ const AppStatusBar = () => {
       };
 
       checkForUpdates();
-
-      return () => {
-        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
-      };
     }
   }, []);
 
@@ -123,8 +129,8 @@ const AppStatusBar = () => {
   };
 
   const handleUpdate = () => {
-    if (updateSW) {
-      updateSW();
+    if (updateSWRef.current) {
+      updateSWRef.current();
       setShowUpdateButton(false);
       toast({
         title: "Update wird installiert",
@@ -149,7 +155,7 @@ const AppStatusBar = () => {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => setIsMinimized(false)}
+              onClick={() => handleMinimize(false)}
               className="h-6 px-2"
             >
               <ChevronDown className="w-4 h-4" />
@@ -233,7 +239,7 @@ const AppStatusBar = () => {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => setIsMinimized(true)}
+              onClick={() => handleMinimize(true)}
               className="h-8 px-2"
             >
               <ChevronUp className="w-4 h-4" />
