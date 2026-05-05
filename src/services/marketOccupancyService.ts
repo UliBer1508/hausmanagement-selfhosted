@@ -80,7 +80,7 @@ export interface FetchMarketOptions {
   location: string;
   startDate: Date;
   days?: number;
-  strategy?: 'estimated' | 'airdna';
+  strategy?: 'estimated' | 'airdna' | 'airroi' | 'competitor';
   apiKey?: string;
   forceRefresh?: boolean;
 }
@@ -158,7 +158,26 @@ export async function fetchMarketData(opts: FetchMarketOptions): Promise<MarketD
   const missing = allDates.filter((d) => !result.has(d));
   if (missing.length > 0) {
     let fresh: MarketData[] = [];
-    if (strategy === 'airdna' && apiKey) {
+    if (strategy === 'airroi') {
+      try {
+        await supabase.functions.invoke('airroi-sync', { body: { location } });
+        const { data: refreshed } = await supabase
+          .from('market_data_cache')
+          .select('date, occupancy_rate, avg_price, source')
+          .eq('location', location)
+          .eq('source', 'airroi')
+          .in('date', missing);
+        fresh = (refreshed ?? []).map((r: any) => ({
+          date: r.date,
+          occupancyRate: Number(r.occupancy_rate),
+          avgPrice: Number(r.avg_price),
+          source: 'airroi',
+        }));
+      } catch {
+        /* fallback below */
+      }
+    }
+    if (fresh.length === 0 && strategy === 'airdna' && apiKey) {
       try {
         const url = `https://api.airdna.co/v1/market/stats?location=${encodeURIComponent(location)}&start_date=${missing[0]}&end_date=${missing[missing.length - 1]}&access_token=${apiKey}`;
         const r = await fetch(url);

@@ -6,12 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Download } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
+import { useSyncAirROI } from "@/hooks/useAirROI";
 
 const MarketDataImportCard = () => {
   const [location, setLocation] = useState("");
   const [csv, setCsv] = useState("");
   const [loading, setLoading] = useState(false);
+  const [lastAirroiSync, setLastAirroiSync] = useState<string | null>(null);
+  const syncAirROI = useSyncAirROI();
 
   useEffect(() => {
     (async () => {
@@ -24,15 +27,23 @@ const MarketDataImportCard = () => {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!location) return;
+    (async () => {
+      const { data } = await supabase
+        .from("market_data_cache")
+        .select("fetched_at")
+        .eq("location", location)
+        .eq("source", "airroi")
+        .order("fetched_at", { ascending: false })
+        .limit(1);
+      setLastAirroiSync((data?.[0] as any)?.fetched_at ?? null);
+    })();
+  }, [location, syncAirROI.isSuccess]);
+
   const handleImport = async () => {
-    if (!location.trim()) {
-      toast.error("Bitte einen Standort angeben");
-      return;
-    }
-    if (csv.trim().length < 10) {
-      toast.error("Bitte gültigen CSV-Inhalt einfügen");
-      return;
-    }
+    if (!location.trim()) { toast.error("Bitte einen Standort angeben"); return; }
+    if (csv.trim().length < 10) { toast.error("Bitte gültigen CSV-Inhalt einfügen"); return; }
     setLoading(true);
     const tId = toast.loading("Inside Airbnb Import läuft…");
     try {
@@ -53,6 +64,11 @@ const MarketDataImportCard = () => {
     }
   };
 
+  const handleAirROI = () => {
+    if (!location.trim()) { toast.error("Bitte einen Standort angeben"); return; }
+    syncAirROI.mutate({ location: location.trim() });
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -61,7 +77,7 @@ const MarketDataImportCard = () => {
           Marktdaten-Import
         </CardTitle>
         <CardDescription>
-          Inside Airbnb CSV-Daten importieren — schätzt die durchschnittliche Marktauslastung pro Tag für die nächsten 365 Tage.
+          Inside Airbnb CSV-Daten oder AirROI API verwenden, um die Marktauslastung der nächsten 365 Tage zu schätzen.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -84,9 +100,20 @@ const MarketDataImportCard = () => {
             className="font-mono text-xs min-h-[220px]"
           />
         </div>
-        <Button onClick={handleImport} disabled={loading}>
-          {loading ? "Importiere…" : "Inside Airbnb Daten importieren"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={handleImport} disabled={loading}>
+            {loading ? "Importiere…" : "Inside Airbnb Daten importieren"}
+          </Button>
+          <Button variant="secondary" onClick={handleAirROI} disabled={syncAirROI.isPending}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${syncAirROI.isPending ? "animate-spin" : ""}`} />
+            {syncAirROI.isPending ? "AirROI Sync läuft…" : "AirROI Sync"}
+          </Button>
+          {lastAirroiSync && (
+            <span className="text-xs text-muted-foreground">
+              Letzter AirROI Sync: {new Date(lastAirroiSync).toLocaleString("de-DE")}
+            </span>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
