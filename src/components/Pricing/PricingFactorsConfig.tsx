@@ -3,11 +3,18 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Info, RotateCcw, Save, ChevronDown } from 'lucide-react';
+import {
+  DEFAULT_PRICING_CONFIG,
+  usePricingSettings,
+  useSavePricingSettings,
+  type PricingConfig,
+} from '@/hooks/usePricingSettings';
 
 // Defaults — must mirror supabase/functions/pricing-engine/index.ts
 export const DEFAULT_FACTORS = {
@@ -44,6 +51,25 @@ export function PricingFactorsConfig({ houseId }: Props) {
   const [pricingConfig, setPricingConfig] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
+  const { data: globalCfg } = usePricingSettings();
+  const saveGlobal = useSavePricingSettings();
+  const [airroi, setAirroi] = useState({
+    airroi_room_type: DEFAULT_PRICING_CONFIG.airroi_room_type,
+    airroi_min_bedrooms: DEFAULT_PRICING_CONFIG.airroi_min_bedrooms,
+    airroi_num_months: DEFAULT_PRICING_CONFIG.airroi_num_months,
+    airroi_currency: DEFAULT_PRICING_CONFIG.airroi_currency,
+  });
+
+  useEffect(() => {
+    if (globalCfg) {
+      setAirroi({
+        airroi_room_type: globalCfg.airroi_room_type,
+        airroi_min_bedrooms: globalCfg.airroi_min_bedrooms,
+        airroi_num_months: globalCfg.airroi_num_months,
+        airroi_currency: globalCfg.airroi_currency,
+      });
+    }
+  }, [globalCfg]);
 
   useEffect(() => {
     if (!houseId) return;
@@ -71,8 +97,10 @@ export function PricingFactorsConfig({ houseId }: Props) {
       const newCfg = { ...pricingConfig, factors };
       const { error } = await supabase.from('houses').update({ pricing_config: newCfg }).eq('id', houseId);
       if (error) throw error;
+      const mergedGlobal: PricingConfig = { ...DEFAULT_PRICING_CONFIG, ...(globalCfg ?? {}), ...airroi };
+      await saveGlobal.mutateAsync(mergedGlobal);
       setPricingConfig(newCfg);
-      toast.success('Faktoren gespeichert. Greifen bei nächster Smart-Berechnung.');
+      toast.success('Konfiguration gespeichert. Greift bei nächster Smart-Berechnung & nächstem AirROI-Sync.');
     } catch (e: any) {
       toast.error('Speichern fehlgeschlagen: ' + e?.message);
     } finally {
@@ -89,6 +117,12 @@ export function PricingFactorsConfig({ houseId }: Props) {
       if (error) throw error;
       setPricingConfig(newCfg);
       setFactors(DEFAULT_FACTORS);
+      setAirroi({
+        airroi_room_type: DEFAULT_PRICING_CONFIG.airroi_room_type,
+        airroi_min_bedrooms: DEFAULT_PRICING_CONFIG.airroi_min_bedrooms,
+        airroi_num_months: DEFAULT_PRICING_CONFIG.airroi_num_months,
+        airroi_currency: DEFAULT_PRICING_CONFIG.airroi_currency,
+      });
       toast.success('Auf Standardwerte zurückgesetzt');
     } catch (e: any) {
       toast.error('Reset fehlgeschlagen: ' + e?.message);
@@ -112,7 +146,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
             <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
             <div className="min-w-0">
               <h3 className="font-semibold">Preis-Faktoren konfigurieren</h3>
-              <p className="text-xs text-muted-foreground">Multiplikatoren pro Haus. Defaults gelten für Pinzgau.</p>
+              <p className="text-xs text-muted-foreground">Multiplikatoren (pro Haus) & Datenquellen-Filter (global).</p>
             </div>
           </CollapsibleTrigger>
           {open && (
@@ -150,6 +184,61 @@ export function PricingFactorsConfig({ houseId }: Props) {
       </div>
 
       <Accordion type="multiple" className="w-full">
+        <AccordionItem value="datasources">
+          <AccordionTrigger className="text-sm">Datenquellen (AirROI Marktdaten)</AccordionTrigger>
+          <AccordionContent>
+            <p className="text-xs text-muted-foreground bg-muted/30 rounded p-2 mb-3">
+              Diese Filter bestimmen, welche Vergleichsobjekte AirROI für die Marktauslastung heranzieht.
+              Der ermittelte Auslastungswert fließt als Eingabe in den Preisalgorithmus oben ein.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Zimmertyp</Label>
+                <Select value={airroi.airroi_room_type} disabled={saving}
+                  onValueChange={(v) => setAirroi((p) => ({ ...p, airroi_room_type: v as PricingConfig['airroi_room_type'] }))}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="entire_home">Gesamte Unterkunft</SelectItem>
+                    <SelectItem value="private_room">Privatzimmer</SelectItem>
+                    <SelectItem value="shared_room">Geteiltes Zimmer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Mindest-Schlafzimmer</Label>
+                <Input type="number" min={1} max={10} step={1} className="h-9"
+                  value={airroi.airroi_min_bedrooms} disabled={saving}
+                  onChange={(e) => setAirroi((p) => ({ ...p, airroi_min_bedrooms: Math.max(1, Math.min(10, Number(e.target.value))) }))} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Analysezeitraum</Label>
+                <Select value={String(airroi.airroi_num_months)} disabled={saving}
+                  onValueChange={(v) => setAirroi((p) => ({ ...p, airroi_num_months: Number(v) as PricingConfig['airroi_num_months'] }))}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="6">6 Monate</SelectItem>
+                    <SelectItem value="12">12 Monate</SelectItem>
+                    <SelectItem value="24">24 Monate</SelectItem>
+                    <SelectItem value="36">36 Monate</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Währung</Label>
+                <Select value={airroi.airroi_currency} disabled={saving}
+                  onValueChange={(v) => setAirroi((p) => ({ ...p, airroi_currency: v as PricingConfig['airroi_currency'] }))}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="eur">EUR</SelectItem>
+                    <SelectItem value="usd">USD</SelectItem>
+                    <SelectItem value="native">Landeswährung</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
         <AccordionItem value="season">
           <AccordionTrigger className="text-sm">Saison (Monats-Multiplikatoren)</AccordionTrigger>
           <AccordionContent>
