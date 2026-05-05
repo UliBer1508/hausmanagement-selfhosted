@@ -211,30 +211,30 @@ export function PricingFactorsConfig({ houseId }: Props) {
                   <Label className="text-xs">Land *</Label>
                   <Input className="h-9" disabled={saving} value={airroi.airroi_country}
                     onChange={(e) => setAirroi((p) => ({ ...p, airroi_country: e.target.value }))} />
-    
+                </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Region *</Label>
                   <Input className="h-9" disabled={saving} value={airroi.airroi_region}
                     onChange={(e) => setAirroi((p) => ({ ...p, airroi_region: e.target.value }))} />
-    
+                </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Ort/Markt *</Label>
                   <Input className="h-9" disabled={saving} value={airroi.airroi_locality}
                     onChange={(e) => setAirroi((p) => ({ ...p, airroi_locality: e.target.value }))} />
-    
-  
+                </div>
+              </div>
               <div className="space-y-1">
                 <Label className="text-xs">Stadtteil/Gebiet</Label>
                 <Input className="h-9" disabled={saving} value={airroi.airroi_district}
                   placeholder="Optional – z.B. Pinzgau"
                   onChange={(e) => setAirroi((p) => ({ ...p, airroi_district: e.target.value }))} />
-  
+              </div>
               <p className="text-xs text-muted-foreground">
                 Diese Werte werden direkt an die AirROI Markets API übergeben. Nutze übergeordnete Regionen
                 (z.B. „Salzburg" statt „Neukirchen") für bessere Ergebnisse — kleine Orte haben oft
                 zu wenige Listings für aussagekräftige Marktdaten.
               </p>
-
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label className="text-xs">Zimmertyp</Label>
@@ -247,13 +247,13 @@ export function PricingFactorsConfig({ houseId }: Props) {
                     <SelectItem value="shared_room">Geteiltes Zimmer</SelectItem>
                   </SelectContent>
                 </Select>
-  
+              </div>
               <div className="space-y-1">
                 <Label className="text-xs">Mindest-Schlafzimmer</Label>
                 <Input type="number" min={1} max={10} step={1} className="h-9"
                   value={airroi.airroi_min_bedrooms} disabled={saving}
                   onChange={(e) => setAirroi((p) => ({ ...p, airroi_min_bedrooms: Math.max(1, Math.min(10, Number(e.target.value))) }))} />
-  
+              </div>
               <div className="space-y-1">
                 <Label className="text-xs">Analysezeitraum</Label>
                 <Select value={String(airroi.airroi_num_months)} disabled={saving}
@@ -266,7 +266,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
                     <SelectItem value="36">36 Monate</SelectItem>
                   </SelectContent>
                 </Select>
-  
+              </div>
               <div className="space-y-1">
                 <Label className="text-xs">Währung</Label>
                 <Select value={airroi.airroi_currency} disabled={saving}
@@ -278,13 +278,18 @@ export function PricingFactorsConfig({ houseId }: Props) {
                     <SelectItem value="native">Landeswährung</SelectItem>
                   </SelectContent>
                 </Select>
-  
-
-
-
-
+              </div>
+            </div>
           </AccordionContent>
         </AccordionItem>
+
+        <AccordionItem value="marketimport">
+          <AccordionTrigger className="text-sm">Marktdaten-Import (Inside Airbnb / AirROI Sync)</AccordionTrigger>
+          <AccordionContent>
+            <MarketDataImportCard />
+          </AccordionContent>
+        </AccordionItem>
+
 
         <AccordionItem value="season">
           <AccordionTrigger className="text-sm">Saison (Monats-Multiplikatoren)</AccordionTrigger>
