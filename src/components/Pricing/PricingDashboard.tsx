@@ -10,8 +10,11 @@ import {
   getRatesForRange,
   overridePrice,
   bulkUpdatePrices,
+  bulkUpdatePricesV2,
   type NightlyRate,
 } from '@/services/pricingService';
+import { PricingConfigCard } from '@/components/Pricing/PricingConfigCard';
+import { Sparkles } from 'lucide-react';
 import { useMarketData } from '@/services/marketOccupancyService';
 
 interface Props {
@@ -42,6 +45,8 @@ export function PricingDashboard({ houseId, propertyName, location }: Props) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [progress, setProgress] = useState(0);
   const [updateResult, setUpdateResult] = useState<{ updated: number; errors: number } | null>(null);
+  const [smartResult, setSmartResult] = useState<{ updated: number; errors: number; preview: any[] } | null>(null);
+  const [isSmartUpdating, setIsSmartUpdating] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [overrideValue, setOverrideValue] = useState<string>('');
@@ -73,6 +78,22 @@ export function PricingDashboard({ houseId, propertyName, location }: Props) {
       toast.error(e?.message ?? 'Update fehlgeschlagen');
     } finally {
       setIsUpdating(false);
+    }
+  }
+
+
+  async function handleSmartUpdate() {
+    setIsSmartUpdating(true);
+    setSmartResult(null);
+    try {
+      const result = await bulkUpdatePricesV2({ houseId, daysAhead: 180 });
+      setSmartResult(result);
+      await loadRates();
+      toast.success(`Smart: ${result.updated} Tage aktualisiert`);
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Smart-Update fehlgeschlagen');
+    } finally {
+      setIsSmartUpdating(false);
     }
   }
 
@@ -114,12 +135,29 @@ export function PricingDashboard({ houseId, propertyName, location }: Props) {
           <Button variant="outline" size="sm" onClick={() => setViewMode(viewMode === 'calendar' ? 'list' : 'calendar')}>
             {viewMode === 'calendar' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
           </Button>
-          <Button onClick={handleBulkUpdate} disabled={isUpdating} size="sm">
+          <Button onClick={handleBulkUpdate} disabled={isUpdating} size="sm" variant="outline">
             <RefreshCcw className="h-4 w-4 mr-2" />
             Preise neu berechnen
           </Button>
+          <Button onClick={handleSmartUpdate} disabled={isSmartUpdating} size="sm">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Preise neu berechnen (Smart)
+          </Button>
         </div>
       </div>
+
+      <PricingConfigCard houseId={houseId} />
+
+      {smartResult && !isSmartUpdating && (
+        <div className="p-3 rounded-md bg-purple-50 border border-purple-200 text-purple-900 text-sm space-y-2">
+          <div>✨ Smart-Update: {smartResult.updated} Tage aktualisiert{smartResult.errors > 0 && ` · ${smartResult.errors} Fehler`}</div>
+          {smartResult.preview && smartResult.preview.length > 0 && (
+            <div className="text-xs text-purple-800">
+              Faktoren angewendet: {Object.keys(smartResult.preview[0].factors).join(', ')}
+            </div>
+          )}
+        </div>
+      )}
 
       {isUpdating && (
         <div className="space-y-1">

@@ -246,3 +246,32 @@ export async function bulkUpdatePrices({
 
   return { updated, errors };
 }
+// ─── V2: Calls pricing-engine edge function ──────────────────────────────────
+export interface BulkUpdateV2Result {
+  updated: number;
+  errors: number;
+  preview: Array<{
+    date: string;
+    base_price: number;
+    dynamic_price: number;
+    factors: Record<string, number>;
+  }>;
+  error?: string | null;
+}
+
+export async function bulkUpdatePricesV2(opts: {
+  houseId: string;
+  daysAhead?: number;
+}): Promise<BulkUpdateV2Result> {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const end = new Date(today); end.setDate(end.getDate() + (opts.daysAhead ?? 180));
+  const date_from = today.toISOString().split('T')[0];
+  const date_to = end.toISOString().split('T')[0];
+
+  const { data, error } = await supabase.functions.invoke('pricing-engine', {
+    body: { house_id: opts.houseId, date_from, date_to },
+  });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as BulkUpdateV2Result;
+}

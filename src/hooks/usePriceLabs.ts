@@ -218,3 +218,52 @@ export const usePriceLabsMarketData = (house_id: string) => {
     enabled: !!house_id,
   });
 };
+
+// ─── House pricing config (base/min/max + calibration) ───────────────────────
+export interface HousePricingConfig {
+  base_price?: number;
+  min_price?: number;
+  max_price?: number;
+  calibration?: any;
+}
+
+export const useHousePricingConfig = (house_id: string) => {
+  return useQuery({
+    queryKey: ['house-pricing-config', house_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('houses')
+        .select('pricing_config')
+        .eq('id', house_id)
+        .maybeSingle();
+      if (error) throw error;
+      return ((data?.pricing_config as any) ?? {}) as HousePricingConfig;
+    },
+    enabled: !!house_id,
+  });
+};
+
+export const useSaveHousePricingConfig = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ house_id, config }: { house_id: string; config: HousePricingConfig }) => {
+      const { data: existing, error: rErr } = await supabase
+        .from('houses').select('pricing_config').eq('id', house_id).maybeSingle();
+      if (rErr) throw rErr;
+      const merged = { ...((existing?.pricing_config as any) ?? {}), ...config };
+      const { error } = await supabase
+        .from('houses').update({ pricing_config: merged }).eq('id', house_id);
+      if (error) throw error;
+      return merged;
+    },
+    onSuccess: (_d, vars) => {
+      toast({ title: 'Preiskonfiguration gespeichert' });
+      queryClient.invalidateQueries({ queryKey: ['house-pricing-config', vars.house_id] });
+      queryClient.invalidateQueries({ queryKey: ['houses'] });
+    },
+    onError: (e: Error) => {
+      toast({ title: 'Fehler beim Speichern', description: e.message, variant: 'destructive' });
+    },
+  });
+};
