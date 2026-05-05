@@ -30,7 +30,7 @@ export function PricingConfigCard({ houseId }: Props) {
     const b = Number(base), mn = Number(min), mx = Number(max);
     if (!b || !mn || !mx) return toast.error('Alle Preise erforderlich');
     if (!(mn < b && b < mx)) return toast.error('Mindestpreis < Basispreis < Höchstpreis');
-    save.mutate({ houseId, config: { base_price: b, min_price: mn, max_price: mx } } as any);
+    save.mutate({ house_id: houseId, config: { base_price: b, min_price: mn, max_price: mx } } as any);
   }
 
   return (
