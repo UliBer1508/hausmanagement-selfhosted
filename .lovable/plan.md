@@ -1,30 +1,19 @@
 ## Ziel
-Auf der `BookingCard` ein kleines Badge anzeigen, das die Gast-Kategorie zeigt: **Stammgast** oder **Neuer Gast** – mit derselben Logik und demselben Styling wie in der Gästeliste.
+Versionsnummer im Footer nicht mehr hartkodieren, sondern dynamisch aus `package.json` lesen. Künftige Versionsbumps benötigen dann nur noch eine Änderung in `package.json`.
 
-## Logik (bereits vorhanden, wird wiederverwendet)
-In `useGuests.ts`:
-- `stay_count >= 2` ⇒ `returning` (Stammgast)
-- sonst ⇒ `new` (Neuer Gast)
+## Änderungen
 
-Quelle: aggregierte Buchungen mit Status `confirmed`, `checked_in`, `completed`, gruppiert per `guest_email` (Fallback `guest_id`).
+### `src/components/Layout/AppLayout.tsx`
+1. JSON-Import hinzufügen:
+   ```ts
+   import pkg from '../../../package.json';
+   ```
+2. Footer-Zeile anpassen:
+   ```tsx
+   © {new Date().getFullYear()} Steinbock Chalets · v{pkg.version}
+   ```
 
-## Umsetzung
-
-### 1. Neuer Hook `src/hooks/useGuestStayCounts.ts`
-- Lädt einmalig (React-Query, `staleTime 5min`) alle relevanten Buchungen.
-- Gibt eine `Map<email, stayCount>` zurück.
-- Helper `getGuestCategory(booking) → 'new' | 'returning'`:
-  - Zählt aktuelle Buchung ab, damit eine erste Buchung nicht fälschlich als Stammgast erscheint.
-
-### 2. `src/components/Bookings/BookingCard.tsx` anpassen
-- Hook nutzen, Kategorie ermitteln.
-- Badge direkt neben den Gastnamen setzen, identisches Styling wie `GuestList.tsx`:
-  - Stammgast: `bg-green-100 text-green-800`
-  - Neuer Gast: `bg-blue-100 text-blue-800`
-- Während Laden: kein Badge.
-
-## Betroffene Dateien
-- **neu:** `src/hooks/useGuestStayCounts.ts`
-- **edit:** `src/components/Bookings/BookingCard.tsx`
-
-Keine weiteren Änderungen.
+## Hinweise
+- Vite unterstützt JSON-Imports nativ — keine zusätzliche Konfiguration nötig.
+- `tsconfig` erlaubt standardmäßig `resolveJsonModule` in Vite-Projekten; falls TypeScript meckert, ergänze `"resolveJsonModule": true` in `tsconfig.app.json` (wird vor Umsetzung geprüft).
+- Keine weiteren Stellen im Code zeigen aktuell die Version an.
