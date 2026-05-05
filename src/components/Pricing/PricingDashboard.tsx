@@ -16,6 +16,7 @@ import {
 } from '@/services/pricingService';
 import { PricingConfigCard } from '@/components/Pricing/PricingConfigCard';
 import { PricingFactorsConfig } from '@/components/Pricing/PricingFactorsConfig';
+import { GlobalPricingConfigCard } from '@/components/Pricing/GlobalPricingConfigCard';
 import { Sparkles } from 'lucide-react';
 import { useMarketData } from '@/services/marketOccupancyService';
 
@@ -149,6 +150,8 @@ export function PricingDashboard({ houseId, propertyName, location }: Props) {
       </div>
 
       <PricingConfigCard houseId={houseId} />
+
+      <GlobalPricingConfigCard />
 
       <PricingFactorsConfig houseId={houseId} />
 

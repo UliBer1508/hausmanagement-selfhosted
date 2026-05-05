@@ -1,6 +1,7 @@
 // useDynamicPricing.ts
 // PriceLabs-inspirierter Algorithmus für Ferienhaus Manager
 // Einbinden in dein Lovable-Projekt unter /src/hooks/useDynamicPricing.ts
+import { DEFAULT_PRICING_CONFIG, usePricingSettings, type PricingConfig } from './usePricingSettings';
 
 export interface PricingInput {
   basePrice: number;          // Dein Standardpreis pro Nacht
@@ -34,8 +35,11 @@ export interface PricingOutput {
 // ─── Faktoren ────────────────────────────────────────────────────────────────
 
 /** Saisonalität anhand Monat (anpassbar an deinen Markt) */
-function getSeasonFactor(date: Date): number {
+function getSeasonFactor(date: Date, config?: PricingConfig): number {
   const month = date.getMonth(); // 0=Jan, 11=Dez
+  if (config?.season_factors && Array.isArray(config.season_factors)) {
+    return config.season_factors[month] ?? 1.0;
+  }
   const factors: Record<number, number> = {
     0: 0.75,  // Januar – Nebensaison
     1: 0.78,
@@ -54,8 +58,11 @@ function getSeasonFactor(date: Date): number {
 }
 
 /** Wochentag-Faktor: Wochenenden teurer */
-function getDayOfWeekFactor(date: Date): number {
+function getDayOfWeekFactor(date: Date, config?: PricingConfig): number {
   const dow = date.getDay(); // 0=So, 6=Sa
+  if (config?.dow_factors && Array.isArray(config.dow_factors)) {
+    return config.dow_factors[dow] ?? 1.0;
+  }
   const factors: Record<number, number> = {
     0: 1.10,  // Sonntag
     1: 0.80,  // Montag
@@ -73,7 +80,14 @@ function getDayOfWeekFactor(date: Date): number {
  * - Kurzfristig (0–7 Tage): Rabatt, um leere Nächte zu füllen
  * - Weit voraus (>90 Tage): Aufschlag als Puffer (Far-Out Premium)
  */
-function getLeadTimeFactor(daysUntilCheckIn: number): number {
+function getLeadTimeFactor(daysUntilCheckIn: number, config?: PricingConfig): number {
+  if (config?.lead_time_steps && Array.isArray(config.lead_time_steps)) {
+    const sorted = [...config.lead_time_steps].sort((a, b) => a[0] - b[0]);
+    for (const [maxDays, factor] of sorted) {
+      if (daysUntilCheckIn <= maxDays) return factor;
+    }
+    return sorted.length ? sorted[sorted.length - 1][1] : 1.0;
+  }
   if (daysUntilCheckIn <= 1)   return 0.75;  // Sofort-Rabatt
   if (daysUntilCheckIn <= 3)   return 0.82;
   if (daysUntilCheckIn <= 7)   return 0.90;  // Last-Minute
@@ -86,7 +100,14 @@ function getLeadTimeFactor(daysUntilCheckIn: number): number {
 }
 
 /** Marktauslastungs-Faktor: Bei hoher Nachfrage Preis erhöhen */
-function getOccupancyFactor(occupancy: number): number {
+function getOccupancyFactor(occupancy: number, config?: PricingConfig): number {
+  if (config?.occupancy_steps && Array.isArray(config.occupancy_steps)) {
+    const sorted = [...config.occupancy_steps].sort((a, b) => a[0] - b[0]);
+    for (const [maxOcc, factor] of sorted) {
+      if (occupancy < maxOcc) return factor;
+    }
+    return sorted.length ? sorted[sorted.length - 1][1] : 1.0;
+  }
   // occupancy: 0.0 = 0%, 1.0 = 100%
   if (occupancy < 0.20) return 0.82;
   if (occupancy < 0.40) return 0.92;
@@ -97,16 +118,26 @@ function getOccupancyFactor(occupancy: number): number {
 }
 
 /** Event-Multiplikator */
-function getEventFactor(hasEvent: boolean, size?: string): number {
+function getEventFactor(hasEvent: boolean, size?: string, config?: PricingConfig): number {
   if (!hasEvent) return 1.0;
+  if (config) {
+    if (size === 'festival') return config.event_factor_festival;
+    if (size === 'large')    return config.event_factor_large;
+    return config.event_factor_small;
+  }
   if (size === 'festival') return 1.60;
   if (size === 'large')    return 1.35;
   return 1.15; // small
 }
 
 /** Orphan-Day / Lücken-Rabatt: Lieber weniger verdienen als leer bleiben */
-function getGapFactor(isGap: boolean, gapLength: number): number {
+function getGapFactor(isGap: boolean, gapLength: number, config?: PricingConfig): number {
   if (!isGap) return 1.0;
+  if (config) {
+    if (gapLength === 1) return config.gap_factor_1day;
+    if (gapLength === 2) return config.gap_factor_2days;
+    return config.gap_factor_3plus;
+  }
   if (gapLength === 1) return 0.82; // Einzelne Lücke – sehr aggressiver Rabatt
   if (gapLength === 2) return 0.88;
   return 0.94;
@@ -125,7 +156,7 @@ function calcBookingProbability(priceRatio: number, occupancy: number): number {
 
 // ─── Hauptfunktion ────────────────────────────────────────────────────────────
 
-export function calculateDynamicPrice(input: PricingInput): PricingOutput {
+export function calculateDynamicPrice(input: PricingInput, config?: PricingConfig): PricingOutput {
   const {
     basePrice,
     checkInDate,
@@ -145,19 +176,21 @@ export function calculateDynamicPrice(input: PricingInput): PricingOutput {
   );
 
   // Alle Faktoren berechnen
-  const seasonality  = getSeasonFactor(checkInDate);
-  const dayOfWeek    = getDayOfWeekFactor(checkInDate);
-  const leadTime     = getLeadTimeFactor(daysUntilCheckIn);
-  const occupancy    = getOccupancyFactor(marketOccupancy);
-  const event        = getEventFactor(hasLocalEvent, eventSize);
-  const gapDiscount  = getGapFactor(isGapDay, gapLength);
+  const seasonality  = getSeasonFactor(checkInDate, config);
+  const dayOfWeek    = getDayOfWeekFactor(checkInDate, config);
+  const leadTime     = getLeadTimeFactor(daysUntilCheckIn, config);
+  const occupancy    = getOccupancyFactor(marketOccupancy, config);
+  const event        = getEventFactor(hasLocalEvent, eventSize, config);
+  const gapDiscount  = getGapFactor(isGapDay, gapLength, config);
 
   // Preis berechnen
   const rawPrice = basePrice * seasonality * dayOfWeek * leadTime * occupancy * event * gapDiscount;
 
   // Min/Max-Grenzen anwenden (PriceLabs nennt das "Price Floors & Ceilings")
-  const minPrice = customMin ?? Math.round(basePrice * 0.55);
-  const maxPrice = customMax ?? Math.round(basePrice * 2.80);
+  const floorRatio   = config?.price_floor_ratio   ?? 0.55;
+  const ceilingRatio = config?.price_ceiling_ratio ?? 2.80;
+  const minPrice = customMin ?? Math.round(basePrice * floorRatio);
+  const maxPrice = customMax ?? Math.round(basePrice * ceilingRatio);
   const recommendedPrice = Math.min(maxPrice, Math.max(minPrice, Math.round(rawPrice)));
 
   // Buchungswahrscheinlichkeit
@@ -194,7 +227,8 @@ export function calculateDynamicPrice(input: PricingInput): PricingOutput {
 import { useMemo } from 'react';
 
 export function useDynamicPricing(input: PricingInput): PricingOutput {
-  return useMemo(() => calculateDynamicPrice(input), [
+  const { data: config } = usePricingSettings();
+  return useMemo(() => calculateDynamicPrice(input, config), [
     input.basePrice,
     input.checkInDate,
     input.marketOccupancy,
@@ -204,5 +238,6 @@ export function useDynamicPricing(input: PricingInput): PricingOutput {
     input.gapLength,
     input.minPrice,
     input.maxPrice,
+    config,
   ]);
 }

@@ -7,6 +7,14 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// Mirror of DEFAULT_PRICING_CONFIG (AirROI subset) — keep in sync with src/hooks/usePricingSettings.ts
+const DEFAULT_AIRROI_CONFIG = {
+  airroi_room_type: "entire_home",
+  airroi_min_bedrooms: 2,
+  airroi_num_months: 24,
+  airroi_currency: "eur",
+};
+
 const BodySchema = z.object({
   location: z.string().min(1).max(255),
   house_id: z.string().uuid().optional(),
@@ -42,8 +50,27 @@ Deno.serve(async (req) => {
     }
     const { location } = parsed.data;
 
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    // Pricing-Config aus system_settings lesen (Fallback: Defaults)
+    const { data: settingsRow } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "pricing_config")
+      .maybeSingle();
+    const cfg = { ...DEFAULT_AIRROI_CONFIG, ...(settingsRow?.value as Record<string, unknown> ?? {}) };
+    const filterParams = new URLSearchParams({
+      room_type:    String(cfg.airroi_room_type),
+      min_bedrooms: String(cfg.airroi_min_bedrooms),
+      num_months:   String(cfg.airroi_num_months),
+      currency:     String(cfg.airroi_currency),
+    });
+
     const searchRes = await fetch(
-      `https://api.airroi.com/v1/markets/search?q=${encodeURIComponent(location)}`,
+      `https://api.airroi.com/v1/markets/search?q=${encodeURIComponent(location)}&${filterParams}`,
       { headers: { "x-api-key": apiKey } },
     );
     if (!searchRes.ok) {
@@ -67,7 +94,7 @@ Deno.serve(async (req) => {
     }
 
     const analyticsRes = await fetch(
-      `https://api.airroi.com/v1/markets/${marketId}/analytics`,
+      `https://api.airroi.com/v1/markets/${marketId}/analytics?${filterParams}`,
       { headers: { "x-api-key": apiKey } },
     );
     if (!analyticsRes.ok) {
@@ -115,11 +142,6 @@ Deno.serve(async (req) => {
     );
 
     const monthlyMean = Object.values(MONTHLY_OCC).reduce((a, b) => a + b, 0) / 12;
-
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
