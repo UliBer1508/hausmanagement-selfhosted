@@ -59,6 +59,10 @@ export function PricingFactorsConfig({ houseId }: Props) {
     airroi_min_bedrooms: DEFAULT_PRICING_CONFIG.airroi_min_bedrooms,
     airroi_num_months: DEFAULT_PRICING_CONFIG.airroi_num_months,
     airroi_currency: DEFAULT_PRICING_CONFIG.airroi_currency,
+    airroi_country: DEFAULT_PRICING_CONFIG.airroi_country,
+    airroi_region: DEFAULT_PRICING_CONFIG.airroi_region,
+    airroi_locality: DEFAULT_PRICING_CONFIG.airroi_locality,
+    airroi_district: DEFAULT_PRICING_CONFIG.airroi_district,
   });
 
   useEffect(() => {
@@ -68,6 +72,10 @@ export function PricingFactorsConfig({ houseId }: Props) {
         airroi_min_bedrooms: globalCfg.airroi_min_bedrooms,
         airroi_num_months: globalCfg.airroi_num_months,
         airroi_currency: globalCfg.airroi_currency,
+        airroi_country: globalCfg.airroi_country ?? DEFAULT_PRICING_CONFIG.airroi_country,
+        airroi_region: globalCfg.airroi_region ?? DEFAULT_PRICING_CONFIG.airroi_region,
+        airroi_locality: globalCfg.airroi_locality ?? DEFAULT_PRICING_CONFIG.airroi_locality,
+        airroi_district: globalCfg.airroi_district ?? DEFAULT_PRICING_CONFIG.airroi_district,
       });
     }
   }, [globalCfg]);
@@ -123,6 +131,10 @@ export function PricingFactorsConfig({ houseId }: Props) {
         airroi_min_bedrooms: DEFAULT_PRICING_CONFIG.airroi_min_bedrooms,
         airroi_num_months: DEFAULT_PRICING_CONFIG.airroi_num_months,
         airroi_currency: DEFAULT_PRICING_CONFIG.airroi_currency,
+        airroi_country: DEFAULT_PRICING_CONFIG.airroi_country,
+        airroi_region: DEFAULT_PRICING_CONFIG.airroi_region,
+        airroi_locality: DEFAULT_PRICING_CONFIG.airroi_locality,
+        airroi_district: DEFAULT_PRICING_CONFIG.airroi_district,
       });
       toast.success('Auf Standardwerte zurückgesetzt');
     } catch (e: any) {
