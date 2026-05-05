@@ -1,40 +1,86 @@
-## Schritt 3: SettingsTab extrahieren
+## Problem
 
-Ziel: Den ~456 Zeilen langen `case 'Einstellungen'`-Block (Zeilen 1708-2164) aus `src/pages/OriginalDashboard.tsx` in eine eigene Komponente auslagern — **funktional 1:1 identisch**.
+`useDeleteBooking()` in `src/hooks/useBookings.ts` führt drei sequenzielle Supabase-Calls aus:
 
-### Vorgehen
+1. `DELETE FROM service_tasks WHERE booking_id = ?`
+2. `DELETE FROM linen_orders WHERE booking_id = ?`
+3. `DELETE FROM bookings WHERE id = ?`
 
-**Neue Datei**: `src/components/Dashboard/SettingsTab.tsx`
+Schlägt Schritt 2 oder 3 fehl, sind die Reinigungsaufträge bereits gelöscht — die Buchung bleibt aber bestehen. **Inkonsistenter Zustand.** Außerdem existieren weitere Tabellen mit `booking_id` (z. B. `guest_preferences`, `app_reviews`, `booking_activities`, `blocked_bookings`, `ical_preview_edits` usw.), die aktuell beim Löschen einer Buchung **gar nicht aufgeräumt** werden — das kann zu Orphan-Records führen.
 
-Die Komponente erhält alle Settings-State-Werte und Handler als Props vom Parent. Da die State-Verwaltung (`useSystemSettings`-Hook etc.) bereits zentralisiert in `OriginalDashboard.tsx` liegt und auch von anderen Tabs/Bereichen genutzt werden könnte, bleibt sie vorerst im Parent — wir reichen nur durch.
+DB-Check zeigt: Es gibt **keine FK-Constraints mit ON DELETE CASCADE** auf `bookings`, daher muss die Cleanup-Logik explizit erfolgen.
 
-**Props-Interface** (übergeben aus OriginalDashboard):
-- `localProfileSettings`, `setLocalProfileSettings`, `saveProfileSettings`, `isSavingProfile`
-- `notificationSettings`, `setNotificationSettings`, `saveNotificationSettings`, `sendTestNotification`
-- `localEmailSettings`, `setLocalEmailSettings`, `handleSaveEmailSettings`, `isSavingEmail`
-- `localAppearanceSettings`, `handleSaveAppearanceSettings`
-- `handleShowUsageReport`, `saveAllSettings`
+## Lösung
 
-**Karten in SettingsTab** (alle bestehenden, unverändert):
-1. Profil
-2. Benachrichtigungen
-3. Nutzungsberichte
-4. E-Mail-Versand (inkl. Test-E-Mail-Button mit `supabase.functions.invoke('send-gmail')`)
-5. Sicherheit
-6. Erscheinungsbild
-7. `<RatingReminderSettingsCard />`
-8. `<GuestImportCard />`
-9. System
-10. Aktionen
+Eine **Postgres RPC-Funktion** `delete_booking_cascade(p_booking_id uuid)` erstellen. Funktionen in Postgres laufen automatisch in einer Transaktion — schlägt ein Statement fehl, wird die gesamte Operation zurückgerollt. Atomar, einfach, kein Edge-Function-Overhead.
 
-### Änderungen in `OriginalDashboard.tsx`
+### Schritt 1 — DB-Migration
 
-- Neuer Import: `import { SettingsTab } from '@/components/Dashboard/SettingsTab';`
-- `case 'Einstellungen':` ersetzt durch `return <SettingsTab {...settingsProps} />;` — reduziert die Datei um ~456 Zeilen.
-- Alle benötigten Imports (User, Bell, FileBarChart, Mail, Shield, Palette, Database, Settings, Save, Send, Clock, CheckCircle, Avatar*, Switch, Select*, RatingReminderSettingsCard, GuestImportCard, supabase, toast) wandern zur neuen Datei. Imports im Parent bleiben (Settings-Icon wird z.B. auch in der Tab-Navigation genutzt) — am Ende prüfe ich mit `rg`, welche Imports im Parent nicht mehr referenziert werden, und entferne nur diese.
+```sql
+CREATE OR REPLACE FUNCTION public.delete_booking_cascade(p_booking_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Reihenfolge: erst alle Kind-Datensätze, dann die Buchung
+  DELETE FROM public.service_tasks                WHERE booking_id = p_booking_id;
+  DELETE FROM public.linen_orders                 WHERE booking_id = p_booking_id;
+  DELETE FROM public.guest_preferences            WHERE booking_id = p_booking_id;
+  DELETE FROM public.guest_preference_responses   WHERE booking_id = p_booking_id;
+  DELETE FROM public.guest_app_sessions           WHERE booking_id = p_booking_id;
+  DELETE FROM public.guest_app_events             WHERE booking_id = p_booking_id;
+  DELETE FROM public.guest_saved_activities       WHERE booking_id = p_booking_id;
+  DELETE FROM public.booking_activities           WHERE booking_id = p_booking_id;
+  DELETE FROM public.activity_recommendations     WHERE booking_id = p_booking_id;
+  DELETE FROM public.recommendation_feedback      WHERE booking_id = p_booking_id;
+  DELETE FROM public.app_reviews                  WHERE booking_id = p_booking_id;
+  DELETE FROM public.trip_plans                   WHERE booking_id = p_booking_id;
+  DELETE FROM public.saved_trip_plans             WHERE booking_id = p_booking_id;
+  DELETE FROM public.ical_preview_edits           WHERE booking_id = p_booking_id;
+  DELETE FROM public.blocked_bookings             WHERE booking_id = p_booking_id;
+  DELETE FROM public.booking_action_tracking      WHERE booking_id = p_booking_id;
 
-### Sicherheitsmaßnahmen
+  DELETE FROM public.bookings WHERE id = p_booking_id;
 
-- Keinerlei Logik-Änderungen — reines Verschieben von JSX und Pass-through der Handler.
-- Nach dem Edit: visuelle/funktionale Prüfung im Preview (Profil speichern, Test-E-Mail, Theme-Wechsel, "Alle Einstellungen speichern", Bewertungs-Erinnerungen, Gäste-Import).
-- Danach folgt Schritt 4 (CalendarTab) und Schritt 5 (OverviewTab + `useDashboardData`).
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Buchung % nicht gefunden', p_booking_id;
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.delete_booking_cascade(uuid) TO anon, authenticated, service_role;
+```
+
+Falls beliebige `DELETE`-Statement fehlschlägt (FK, Permission, etc.), rollt Postgres die komplette Funktion zurück — alle Aufräum-Operationen sind atomar.
+
+### Schritt 2 — Frontend `useDeleteBooking`
+
+```ts
+mutationFn: async (id: string) => {
+  const { error } = await supabase.rpc('delete_booking_cascade', {
+    p_booking_id: id,
+  });
+  if (error) throw error;
+},
+```
+
+Die drei sequenziellen Aufrufe entfallen vollständig. `onSuccess`-Invalidations bleiben unverändert.
+
+### Schritt 3 — Type-Regeneration
+
+Nach der Migration werden die generierten Supabase-Types automatisch aktualisiert, sodass `supabase.rpc('delete_booking_cascade', ...)` getypt verfügbar ist.
+
+## Vorteile
+
+- **Atomar**: Alles oder nichts — keine Inkonsistenzen mehr.
+- **Vollständig**: Alle bekannten Child-Tabellen mit `booking_id` werden mit aufgeräumt (vorher nur 2 von 16).
+- **Schneller**: Ein Round-Trip statt drei.
+- **Wartbar**: Neue Child-Tabellen ergänzt man an einer einzigen Stelle (Migration).
+
+## QA
+
+- Buchung mit zugehöriger Reinigung & Wäschebestellung anlegen → löschen → prüfen, dass alle drei weg sind.
+- Buchung ohne Children löschen → muss ebenfalls funktionieren.
+- Nicht-existente ID löschen → klare Fehlermeldung.

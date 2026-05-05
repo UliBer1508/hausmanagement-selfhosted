@@ -93,28 +93,12 @@ export const useDeleteBooking = () => {
   
   return useMutation({
     mutationFn: async (id: string) => {
-      // First, delete related service tasks (cleaning tasks)
-      const { error: serviceTasksError } = await supabase
-        .from('service_tasks')
-        .delete()
-        .eq('booking_id', id);
-      
-      if (serviceTasksError) throw serviceTasksError;
+      // Atomic cascade delete via Postgres function — all-or-nothing transaction.
+      // Removes booking + every related row (service_tasks, linen_orders, guest_*, etc.)
+      const { error } = await supabase.rpc('delete_booking_cascade', {
+        p_booking_id: id,
+      });
 
-      // Second, delete related linen orders
-      const { error: linenOrdersError } = await supabase
-        .from('linen_orders')
-        .delete()
-        .eq('booking_id', id);
-      
-      if (linenOrdersError) throw linenOrdersError;
-
-      // Finally, delete the booking itself
-      const { error } = await supabase
-        .from('bookings')
-        .delete()
-        .eq('id', id);
-      
       if (error) throw error;
     },
     onSuccess: async () => {
