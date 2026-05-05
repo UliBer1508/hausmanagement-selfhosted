@@ -266,11 +266,7 @@ const ChatAssistant = () => {
 
             {isStreaming && (
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
+                <LoadingDots />
                 <span>Schreibt...</span>
               </div>
             )}
@@ -295,11 +291,7 @@ const ChatAssistant = () => {
               </div>
             ) : isLoadingMessages ? (
               <div className="flex items-center justify-center h-full">
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                  <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                </div>
+                <LoadingDots />
               </div>
             ) : providerMessages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
@@ -333,6 +325,12 @@ const ChatAssistant = () => {
                   </div>
                 </div>
               ))
+            )}
+            {error && (
+              <div className="bg-destructive/10 text-destructive p-3 rounded-lg text-sm">
+                <p className="font-semibold">Fehler:</p>
+                <p>{error}</p>
+              </div>
             )}
           </>
         )}
