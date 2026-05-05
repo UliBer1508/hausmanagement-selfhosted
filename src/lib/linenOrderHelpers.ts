@@ -1,3 +1,4 @@
+import { toISODate } from '@/lib/dateHelpers';
 /**
  * ============================================================
  * LINEN ORDER STATUS STANDARD - VERBINDLICH FÜR GESAMTES SYSTEM
@@ -57,7 +58,7 @@ export const calculateDeliveryDate = (checkInDate: string): string => {
   const checkIn = new Date(checkInDate);
   const deliveryDate = new Date(checkIn);
   deliveryDate.setDate(deliveryDate.getDate() - 3);
-  return deliveryDate.toISOString().split('T')[0];
+  return toISODate(deliveryDate);
 };
 
 /**

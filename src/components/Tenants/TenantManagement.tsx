@@ -12,6 +12,7 @@ import UtilityCostEntry from "./UtilityCostEntry";
 import UtilityStatementGenerator from "./UtilityStatementGenerator";
 import { useHouses } from "@/hooks/useHouses";
 import { toast } from "sonner";
+import { todayISO } from '@/lib/dateHelpers';
 
 const TenantManagement = () => {
   const [activeTab, setActiveTab] = useState("overview");
@@ -43,7 +44,7 @@ const TenantManagement = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `mietvertraege-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `mietvertraege-${todayISO()}.csv`;
     a.click();
     toast.success('Export erfolgreich');
   };

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { toISODate } from '@/lib/dateHelpers';
 
 export interface MarketData {
   date: string;
@@ -16,7 +17,7 @@ const MONTHLY_OCC: Record<number, number> = {
 const NRW_HOLIDAYS = ['01-01', '05-01', '10-03', '10-31', '11-01', '12-25', '12-26'];
 
 function ymd(d: Date): string {
-  return d.toISOString().split('T')[0];
+  return toISODate(d);
 }
 
 export function estimateOccupancyFromSeason(date: Date, _location: string): MarketData {

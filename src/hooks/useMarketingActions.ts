@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { todayISO } from '@/lib/dateHelpers';
 
 export interface MarketingAction {
   id: string;
@@ -181,7 +182,7 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
   return useQuery({
     queryKey: ['action-stats', actionId],
     queryFn: async (): Promise<ActionStats> => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = todayISO();
       
       // Get ALL tourist bookings (both future and past)
       const { data: allBookings, error: bookingsError } = await supabase
@@ -254,7 +255,7 @@ export const useAffectedBookings = (
   return useQuery({
     queryKey: ['affected-bookings', actionId, targetCriteria, mode],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = todayISO();
       
       // Build query based on mode
       let query = supabase

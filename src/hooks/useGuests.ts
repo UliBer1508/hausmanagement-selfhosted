@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { GuestFilters, GuestWithBookings, BookingInfo } from '@/types/guest';
+import { todayISO } from '@/lib/dateHelpers';
 
 export const useGuests = (filters: GuestFilters = {}) => {
   const { searchTerm, statusFilter, houseFilter, categoryFilter, sortBy = 'booking' } = filters;
@@ -30,7 +31,7 @@ export const useGuests = (filters: GuestFilters = {}) => {
 
       if (bookingsError) throw bookingsError;
 
-      const today = new Date().toISOString().split('T')[0];
+      const today = todayISO();
 
       // Step 3: Merge guests with their bookings
       let guestsWithBookings: GuestWithBookings[] = guests.map(guest => {

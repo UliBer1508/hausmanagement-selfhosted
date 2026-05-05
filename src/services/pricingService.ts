@@ -1,6 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { calculateDynamicPrice } from '@/hooks/useDynamicPricing';
 import { fetchMarketData } from './marketOccupancyService';
+import { toISODate } from '@/lib/dateHelpers';
 
 export interface NightlyRate {
   id?: string;
@@ -34,7 +35,7 @@ export interface PropertyConfig {
 }
 
 function ymd(d: Date): string {
-  return d.toISOString().split('T')[0];
+  return toISODate(d);
 }
 
 function readBaseFromConfig(cfg: any): { base: number; min?: number; max?: number } {
@@ -265,8 +266,8 @@ export async function bulkUpdatePricesV2(opts: {
 }): Promise<BulkUpdateV2Result> {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const end = new Date(today); end.setDate(end.getDate() + (opts.daysAhead ?? 180));
-  const date_from = today.toISOString().split('T')[0];
-  const date_to = end.toISOString().split('T')[0];
+  const date_from = toISODate(today);
+  const date_to = toISODate(end);
 
   const { data, error } = await supabase.functions.invoke('pricing-engine', {
     body: { house_id: opts.houseId, date_from, date_to },

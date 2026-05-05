@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
+import { todayISO } from '@/lib/dateHelpers';
   Dialog,
   DialogContent,
   DialogDescription,
@@ -63,7 +64,7 @@ const CreateActionDialog = ({ open, onOpenChange, editAction }: CreateActionDial
       name: '',
       description: '',
       status: 'active',
-      start_date: new Date().toISOString().split('T')[0],
+      start_date: todayISO(),
       end_date: '',
       has_children: false,
       min_stays: 0,
@@ -91,7 +92,7 @@ const CreateActionDialog = ({ open, onOpenChange, editAction }: CreateActionDial
         name: '',
         description: '',
         status: 'active',
-        start_date: new Date().toISOString().split('T')[0],
+        start_date: todayISO(),
         end_date: '',
         has_children: false,
         min_stays: 0,

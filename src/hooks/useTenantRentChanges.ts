@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { toISODate } from '@/lib/dateHelpers';
 
 export interface TenantRentChange {
   id: string;
@@ -116,7 +117,7 @@ export function getActiveRent(
   baseMontlyRent: number,
   date: Date = new Date()
 ): number {
-  const dateStr = date.toISOString().split('T')[0];
+  const dateStr = toISODate(date);
   
   // Finde die letzte Mietänderung, die vor oder am Datum wirksam wurde
   const applicableChange = rentChanges
@@ -132,7 +133,7 @@ export function getActiveAdditionalCosts(
   baseAdditionalCosts: number,
   date: Date = new Date()
 ): number {
-  const dateStr = date.toISOString().split('T')[0];
+  const dateStr = toISODate(date);
   
   const applicableChange = rentChanges
     .filter(rc => rc.effective_date <= dateStr && rc.new_additional_costs !== null && rc.new_additional_costs !== undefined)
@@ -146,7 +147,7 @@ export function getPendingRentChanges(
   rentChanges: TenantRentChange[],
   fromDate: Date = new Date()
 ): TenantRentChange[] {
-  const dateStr = fromDate.toISOString().split('T')[0];
+  const dateStr = toISODate(fromDate);
   
   return rentChanges
     .filter(rc => rc.effective_date > dateStr)

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
+import { todayISO } from '@/lib/dateHelpers';
 
 interface AISettings {
   lookahead_bookings: number;
@@ -192,7 +193,7 @@ export const useLinenAI = () => {
 
     return {
       house_id: houseId,
-      order_date: new Date().toISOString().split('T')[0],
+      order_date: todayISO(),
       delivery_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // +2 Tage
       items: orderItems,
       total_items: optimization.order_suggestion.total_items,

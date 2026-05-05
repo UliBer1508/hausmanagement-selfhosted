@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { todayISO } from '@/lib/dateHelpers';
 
 export interface PriceLabsListing {
   id: string;
@@ -164,7 +165,7 @@ export const useSyncNeighborhood = () => {
         .insert({
           house_id,
           pricelabs_listing_id: listing_id,
-          data_date: new Date().toISOString().split('T')[0],
+          data_date: todayISO(),
           neighborhood_data: data,
           fetched_at: new Date().toISOString(),
         });

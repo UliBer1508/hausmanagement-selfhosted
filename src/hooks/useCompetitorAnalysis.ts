@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import { todayISO, toISODate } from '@/lib/dateHelpers';
 
 // DB row aliases — single source of truth from generated Supabase types
 type CompetitorPropertyRow = Tables<'competitor_properties'>;
@@ -340,11 +341,11 @@ export const useAddCompetitor = () => {
         // Speichere als Gesamtpreis (7-Nächte-Periode)
         const weeklyEntry: WeeklyPricingInsert = {
           competitor_property_id: data.competitor_id,
-          date: pricing.checkin.toISOString().split('T')[0],
+          date: toISODate(pricing.checkin),
           price: pricing.total,
           period_total_price: pricing.total,
-          period_check_in: pricing.checkin.toISOString().split('T')[0],
-          period_check_out: pricing.checkout.toISOString().split('T')[0],
+          period_check_in: toISODate(pricing.checkin),
+          period_check_out: toISODate(pricing.checkout),
           period_nights: nights,
           is_expanded: false,
           currency: 'EUR',
@@ -492,7 +493,7 @@ export const useUpdateCompetitor = () => {
         for (let i = 0; i < nights; i++) {
           dailyEntries.push({
             competitor_property_id: competitor_id,
-            date: new Date(currentDate).toISOString().split('T')[0],
+            date: toISODate(new Date(currentDate)),
             price: pricePerNight,
             currency: 'EUR',
             is_available: true,
@@ -592,10 +593,10 @@ export const useCompetitorPriceHistory = (competitor_id: string) => {
       
       (data as WeeklyPricingRow[] | null)?.forEach((entry) => {
         const captureDate = entry.scraped_at 
-          ? new Date(entry.scraped_at).toISOString().split('T')[0]
+          ? toISODate(new Date(entry.scraped_at))
           : entry.created_at 
-          ? new Date(entry.created_at).toISOString().split('T')[0]
-          : new Date().toISOString().split('T')[0];
+          ? toISODate(new Date(entry.created_at))
+          : todayISO();
         
         if (!groupedByCapture[captureDate]) {
           groupedByCapture[captureDate] = [];

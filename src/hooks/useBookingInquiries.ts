@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { toISODate } from '@/lib/dateHelpers';
 
 export interface BookingInquiry {
   id: string;
@@ -133,7 +134,7 @@ export const useBookingInquiries = () => {
           booking_id: booking.id,
           service_type: 'cleaning',
           status: 'scheduled',
-          scheduled_date: checkOutDate.toISOString().split('T')[0],
+          scheduled_date: toISODate(checkOutDate),
           scheduled_time: '10:00:00',
           notes: `Abreise-Reinigung für ${inquiry.guest_name}`
         });
