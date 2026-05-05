@@ -85,6 +85,45 @@ export interface FetchMarketOptions {
   forceRefresh?: boolean;
 }
 
+/**
+ * Berechnet eine Marktauslastungs-Approximation aus eigenen Wettbewerber-
+ * Preisdaten in `daily_pricing`. Es werden alle Einträge im Fenster ±14 Tage
+ * um `date` betrachtet, bei denen ein Wettbewerber zugeordnet ist
+ * (`competitor_property_id IS NOT NULL` und `house_id IS NULL`).
+ *
+ * Auslastung = Anteil der Nächte, die als gebucht (`is_booked = true`) ODER
+ * als nicht verfügbar (`is_available = false`) markiert sind.
+ *
+ * Liefert null, wenn keine Daten existieren.
+ */
+export async function fetchCompetitorOccupancy(
+  _location: string,
+  date: string,
+): Promise<number | null> {
+  const center = new Date(date);
+  const from = new Date(center);
+  from.setDate(from.getDate() - 14);
+  const to = new Date(center);
+  to.setDate(to.getDate() + 14);
+
+  const { data, error } = await supabase
+    .from('daily_pricing')
+    .select('is_booked, is_available')
+    .not('competitor_property_id', 'is', null)
+    .is('house_id', null)
+    .gte('date', ymd(from))
+    .lte('date', ymd(to));
+
+  if (error || !data || data.length === 0) return null;
+
+  const total = data.length;
+  const occupied = data.filter(
+    (r: any) => r.is_booked === true || r.is_available === false,
+  ).length;
+
+  return Math.min(1, Math.max(0, occupied / total));
+}
+
 export async function fetchMarketData(opts: FetchMarketOptions): Promise<MarketData[]> {
   const { location, startDate, days = 180, strategy = 'estimated', apiKey, forceRefresh } = opts;
   const countryCodes = await fetchGuestNationalities(location);
@@ -139,6 +178,22 @@ export async function fetchMarketData(opts: FetchMarketOptions): Promise<MarketD
     if (fresh.length === 0) {
       fresh = missing.map((dStr) => estimateOccupancyFromSeason(new Date(dStr), location, countryCodes));
     }
+
+    // Wettbewerber-Daten haben Vorrang (competitor > airdna > estimated).
+    const compResults = await Promise.all(
+      fresh.map((m) => fetchCompetitorOccupancy(location, m.date).catch(() => null)),
+    );
+    fresh = fresh.map((m, i) => {
+      const occ = compResults[i];
+      if (occ === null || occ === undefined) return m;
+      return {
+        ...m,
+        occupancyRate: Number(occ.toFixed(3)),
+        avgPrice: Math.round(80 + occ * 120),
+        source: 'competitor',
+      };
+    });
+
     fresh.forEach((m) => result.set(m.date, m));
     if (fresh.length > 0) {
       await supabase.from('market_data_cache').upsert(
