@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -78,6 +78,7 @@ import RatingReminderSettingsCard from '@/components/Settings/RatingReminderSett
 
 const OriginalDashboard = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   const [activeTab, setActiveTab] = useState('Übersicht');
@@ -788,6 +789,7 @@ const OriginalDashboard = () => {
     { name: 'Reinigung', emoji: '✨' },
     { name: 'Provider', emoji: '🏢' },
     { name: 'Wäsche', emoji: '💧' },
+    { name: 'Preise', emoji: '💶' },
     { name: 'Einstellungen', emoji: '⚙️' }
   ];
 
@@ -2634,11 +2636,17 @@ const OriginalDashboard = () => {
 
         {/* Navigation Tabs - Mobile Wrapping */}
         <div className="border-b border-gray-200 mb-4 sm:mb-6">
-          <nav className="grid grid-cols-2 sm:grid-cols-5 gap-x-4 gap-y-2 pb-1">
+          <nav className="grid grid-cols-2 sm:grid-cols-6 gap-x-4 gap-y-2 pb-1">
             {tabs.map((tab) => (
               <button
                 key={tab.name}
-                onClick={() => setActiveTab(tab.name)}
+                onClick={() => {
+                  if (tab.name === 'Preise') {
+                    navigate('/pricing');
+                  } else {
+                    setActiveTab(tab.name);
+                  }
+                }}
                 className={`${tab.name === activeTab ? 'nav-tab-active' : 'nav-tab'} flex items-center gap-2 justify-start`}
               >
                 <span className="text-lg w-6 text-center shrink-0">{tab.emoji}</span>
