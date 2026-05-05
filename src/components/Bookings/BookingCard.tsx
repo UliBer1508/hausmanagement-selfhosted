@@ -7,6 +7,7 @@ import { de } from 'date-fns/locale';
 import EditBookingDialog from './EditBookingDialog';
 import { BookingWithHouse } from '@/types';
 import { getGuestName } from '@/lib/guestHelpers';
+import { useGuestStayCounts, getGuestCategory } from '@/hooks/useGuestStayCounts';
 
 interface BookingCardProps {
   booking: BookingWithHouse;
@@ -15,6 +16,16 @@ interface BookingCardProps {
 }
 
 const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardProps) => {
+  const { data: stayCounts } = useGuestStayCounts();
+  const category = getGuestCategory(stayCounts, booking.guest_email);
+
+  const categoryBadge =
+    category === 'returning' ? (
+      <Badge variant="default" className="bg-green-100 text-green-800">Stammgast</Badge>
+    ) : (
+      <Badge variant="outline" className="bg-blue-100 text-blue-800">Neuer Gast</Badge>
+    );
+
   const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
@@ -47,7 +58,10 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
         <div className="space-y-3">
           {/* Guest Name */}
           <div>
-            <h3 className="font-semibold text-lg">{getGuestName(booking)}</h3>
+            <div className="flex items-center gap-2 flex-wrap pr-10">
+              <h3 className="font-semibold text-lg">{getGuestName(booking)}</h3>
+              {stayCounts && categoryBadge}
+            </div>
             <p className="text-sm text-muted-foreground">{booking.houses?.name}</p>
           </div>
 
