@@ -49,7 +49,7 @@ export async function fetchGuestNationalities(_location: string): Promise<string
       .not('nationality', 'is', null)
       .limit(1000);
     (g ?? []).forEach((r: any) => {
-      const c = String(r.nationality || '').trim().toUpperCase();
+      const c = String(r.nationality || '').trim();
       if (c) tally.set(c, (tally.get(c) ?? 0) + 1);
     });
   } catch { /* ignore */ }
@@ -62,7 +62,7 @@ export async function fetchGuestNationalities(_location: string): Promise<string
         .not('nationality', 'is', null)
         .limit(1000);
       (b ?? []).forEach((r: any) => {
-        const c = String(r.nationality || '').trim().toUpperCase();
+        const c = String(r.nationality || '').trim();
         if (c) tally.set(c, (tally.get(c) ?? 0) + 1);
       });
     } catch { /* ignore */ }
