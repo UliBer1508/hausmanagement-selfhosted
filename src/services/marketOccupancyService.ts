@@ -160,7 +160,7 @@ export async function fetchMarketData(opts: FetchMarketOptions): Promise<MarketD
     let fresh: MarketData[] = [];
     if (strategy === 'airroi') {
       try {
-        await supabase.functions.invoke('airroi-sync', { body: { location } });
+        await supabase.functions.invoke('airroi-sync', { body: {} });
         const { data: refreshed } = await supabase
           .from('market_data_cache')
           .select('date, occupancy_rate, avg_price, source')
