@@ -160,7 +160,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
             <div className="min-w-0">
               <h3 className="font-semibold">Preis-Faktoren konfigurieren</h3>
               <p className="text-xs text-muted-foreground">Multiplikatoren (pro Haus) & Datenquellen-Filter (global).</p>
-            </div>
+
           </CollapsibleTrigger>
           {open && (
             <div className="flex gap-2">
@@ -170,7 +170,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
               <Button size="sm" onClick={handleSave} disabled={saving}>
                 <Save className="h-3.5 w-3.5 mr-1" /> Speichern
               </Button>
-            </div>
+
           )}
         </div>
 
@@ -280,11 +280,16 @@ export function PricingFactorsConfig({ houseId }: Props) {
                 </Select>
               </div>
             </div>
-            <div className="mt-4">
-              <MarketDataImportCard />
-            </div>
           </AccordionContent>
         </AccordionItem>
+
+        <AccordionItem value="marketimport">
+          <AccordionTrigger className="text-sm">Marktdaten-Import (Inside Airbnb / AirROI Sync)</AccordionTrigger>
+          <AccordionContent>
+            <MarketDataImportCard />
+          </AccordionContent>
+        </AccordionItem>
+
 
         <AccordionItem value="season">
           <AccordionTrigger className="text-sm">Saison (Monats-Multiplikatoren)</AccordionTrigger>
@@ -297,9 +302,9 @@ export function PricingFactorsConfig({ houseId }: Props) {
                 <div key={i} className="space-y-1">
                   <Label className="text-xs">{m}</Label>
                   <NumberInput value={factors.season[i + 1] ?? 1} onChange={(v) => setNum(['season', String(i + 1)], v)} />
-                </div>
+    
               ))}
-            </div>
+
           </AccordionContent>
         </AccordionItem>
 
@@ -314,9 +319,9 @@ export function PricingFactorsConfig({ houseId }: Props) {
                 <div key={i} className="space-y-1">
                   <Label className="text-xs">{d}</Label>
                   <NumberInput value={factors.dow[i] ?? 1} onChange={(v) => setNum(['dow', String(i)], v)} />
-                </div>
+    
               ))}
-            </div>
+
           </AccordionContent>
         </AccordionItem>
 
@@ -332,9 +337,9 @@ export function PricingFactorsConfig({ houseId }: Props) {
                   <span className="text-muted-foreground w-24">&gt; {row.days} Tage:</span>
                   <NumberInput value={row.factor}
                     onChange={(v) => setFactors((p: any) => { const n = JSON.parse(JSON.stringify(p)); n.leadtime[idx].factor = v; return n; })} />
-                </div>
+    
               ))}
-            </div>
+
           </AccordionContent>
         </AccordionItem>
 
@@ -350,9 +355,9 @@ export function PricingFactorsConfig({ houseId }: Props) {
                   <span className="text-muted-foreground w-24">&lt; {Math.round(row.threshold * 100)}%:</span>
                   <NumberInput value={row.factor}
                     onChange={(v) => setFactors((p: any) => { const n = JSON.parse(JSON.stringify(p)); n.occupancy[idx].factor = v; return n; })} />
-                </div>
+    
               ))}
-            </div>
+
           </AccordionContent>
         </AccordionItem>
 
@@ -366,12 +371,12 @@ export function PricingFactorsConfig({ houseId }: Props) {
               <div className="space-y-1">
                 <Label className="text-xs">Kurze Lücke (1-2 Nächte)</Label>
                 <NumberInput value={factors.gap.short} onChange={(v) => setNum(['gap', 'short'], v)} />
-              </div>
+  
               <div className="space-y-1">
                 <Label className="text-xs">Lange Lücke (3-4 Nächte)</Label>
                 <NumberInput value={factors.gap.long} onChange={(v) => setNum(['gap', 'long'], v)} />
-              </div>
-            </div>
+  
+
           </AccordionContent>
         </AccordionItem>
 
@@ -386,9 +391,9 @@ export function PricingFactorsConfig({ houseId }: Props) {
                 <div key={k} className="space-y-1">
                   <Label className="text-xs capitalize">{k}</Label>
                   <NumberInput value={factors.event[k]} onChange={(v) => setNum(['event', k], v)} />
-                </div>
+    
               ))}
-            </div>
+
           </AccordionContent>
         </AccordionItem>
 
@@ -410,9 +415,9 @@ export function PricingFactorsConfig({ houseId }: Props) {
                 <div key={k} className="space-y-1">
                   <Label className="text-xs">{label}</Label>
                   <NumberInput value={factors.weather[k]} onChange={(v) => setNum(['weather', k], v)} />
-                </div>
+    
               ))}
-            </div>
+
           </AccordionContent>
         </AccordionItem>
 
@@ -426,16 +431,16 @@ export function PricingFactorsConfig({ houseId }: Props) {
               <div className="space-y-1">
                 <Label className="text-xs">Österreich</Label>
                 <NumberInput value={factors.holiday.at} onChange={(v) => setNum(['holiday', 'at'], v)} />
-              </div>
+  
               <div className="space-y-1">
                 <Label className="text-xs">Bayern</Label>
                 <NumberInput value={factors.holiday.de_by} onChange={(v) => setNum(['holiday', 'de_by'], v)} />
-              </div>
+  
               <div className="space-y-1">
                 <Label className="text-xs">Beide</Label>
                 <NumberInput value={factors.holiday.both} onChange={(v) => setNum(['holiday', 'both'], v)} />
-              </div>
-            </div>
+  
+
           </AccordionContent>
         </AccordionItem>
       </Accordion>
