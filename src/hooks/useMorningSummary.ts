@@ -437,12 +437,22 @@ export const useMorningSummary = () => {
 
   // LocalStorage-Check
   const shouldShow = (): boolean => {
-    const lastShown = localStorage.getItem('chat-summary-shown');
-    return lastShown !== today;
+    if (typeof window === 'undefined') return false;
+    try {
+      const lastShown = window.localStorage.getItem('chat-summary-shown');
+      return lastShown !== today;
+    } catch {
+      return false;
+    }
   };
 
   const markAsShown = (): void => {
-    localStorage.setItem('chat-summary-shown', today);
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem('chat-summary-shown', today);
+    } catch {
+      // ignore quota / privacy mode errors
+    }
   };
 
   const isLoading = loadingBookings || loadingCleanings || loadingLinen || loadingGuestContact || loadingMarketing || loadingTracking || loadingRatings || loadingRatingTracking;
