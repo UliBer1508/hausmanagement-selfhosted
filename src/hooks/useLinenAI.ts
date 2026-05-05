@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from "@/integrations/supabase/client";
-import { todayISO } from '@/lib/dateHelpers';
+import { todayISO, toISODate } from '@/lib/dateHelpers';
 
 interface AISettings {
   lookahead_bookings: number;
