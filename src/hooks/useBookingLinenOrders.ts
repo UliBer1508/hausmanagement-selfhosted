@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { calculateDeliveryDate } from "@/lib/linenOrderHelpers";
+import { todayISO } from '@/lib/dateHelpers';
 
 interface BookingLinenConfig {
   id: string;
@@ -226,7 +227,7 @@ export const useBookingLinenOrders = (houseId: string) => {
           status: 'offen',
           order_source: 'booking_required',
           suggested_at: new Date().toISOString(),
-          order_date: new Date().toISOString().split('T')[0],
+          order_date: todayISO(),
           delivery_date: userOverrides.deliveryDate || calculateDeliveryDate(generatedData.booking.check_in),
           delivery_type: userOverrides.deliveryType || 'delivery',
           notes: userOverrides.notes || generatedData.note,
@@ -285,7 +286,7 @@ export const useBookingLinenOrders = (houseId: string) => {
           status: 'offen',
           order_source: 'booking_required',
           suggested_at: new Date().toISOString(),
-          order_date: new Date().toISOString().split('T')[0],
+          order_date: todayISO(),
           delivery_date: calculateDeliveryDate(orderData.booking.check_in),
           delivery_type: 'delivery',
           notes: 'Automatische Bestellung basierend auf prädiktiver Analyse',

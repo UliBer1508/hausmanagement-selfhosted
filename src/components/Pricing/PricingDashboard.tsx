@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ChevronLeft, ChevronRight, LayoutGrid, List, RefreshCcw, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { toISODate } from '@/lib/dateHelpers';
 import {
   getRatesForRange,
   overridePrice,
@@ -27,7 +28,7 @@ interface Props {
 const WEEK_DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const MONTH_NAMES = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
 
-function ymd(d: Date) { return d.toISOString().split('T')[0]; }
+function ymd(d: Date) { return toISODate(d); }
 
 function priceColor(ratio: number, isBooked: boolean, isBlocked: boolean) {
   if (isBlocked) return 'bg-muted text-muted-foreground';

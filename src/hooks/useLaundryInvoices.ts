@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { todayISO, toISODate } from '@/lib/dateHelpers';
 
 export interface LaundryInvoice {
   id: string;
@@ -61,11 +62,11 @@ export const useLaundryInvoices = (filters?: LaundryInvoiceFilters) => {
       }
 
       if (filters?.dateFrom) {
-        query = query.gte('rechnungsdatum', filters.dateFrom.toISOString().split('T')[0]);
+        query = query.gte('rechnungsdatum', toISODate(filters.dateFrom));
       }
 
       if (filters?.dateTo) {
-        query = query.lte('rechnungsdatum', filters.dateTo.toISOString().split('T')[0]);
+        query = query.lte('rechnungsdatum', toISODate(filters.dateTo));
       }
 
       const { data, error } = await query;
@@ -123,7 +124,7 @@ export const useMarkInvoicePaid = () => {
         .from('laundry_invoices')
         .update({
           status: 'bezahlt',
-          bezahlt_am: paidDate || new Date().toISOString().split('T')[0],
+          bezahlt_am: paidDate || todayISO(),
         })
         .eq('id', invoiceId);
 

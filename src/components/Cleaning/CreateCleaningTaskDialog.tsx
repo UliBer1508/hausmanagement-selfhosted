@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getGuestName } from '@/lib/guestHelpers';
+import { todayISO, toISODate } from '@/lib/dateHelpers';
 
 import {
   Dialog,
@@ -189,7 +190,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
   const suggestCleaningDate = (booking: any) => {
     const checkIn = new Date(booking.check_in);
     // Suggest cleaning on check-in day
-    return checkIn.toISOString().split('T')[0];
+    return toISODate(checkIn);
   };
 
   // Calculate cleaning cost
@@ -623,7 +624,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
                           <Input
                             type="date"
                             {...field}
-                            min={new Date().toISOString().split('T')[0]}
+                            min={todayISO()}
                           />
                         </FormControl>
                         <FormMessage />

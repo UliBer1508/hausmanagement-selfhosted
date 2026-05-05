@@ -8,6 +8,7 @@ import { Euro } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { toISODate } from '@/lib/dateHelpers';
 
 interface OwnPricingDialogProps {
   house_id: string;
@@ -75,7 +76,7 @@ const OwnPricingDialog = ({ house_id, trigger }: OwnPricingDialogProps) => {
           house_id,
           competitor_property_id: null,
           check_in_date: checkInDate,
-          check_out_date: checkOutDate.toISOString().split('T')[0],
+          check_out_date: toISODate(checkOutDate),
           base_price_7nights: parseFloat(price),
           currency,
           source: 'manual'

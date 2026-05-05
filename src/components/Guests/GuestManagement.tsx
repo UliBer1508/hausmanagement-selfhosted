@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GitMerge } from 'lucide-react';
+import { todayISO } from '@/lib/dateHelpers';
 
 import { supabase } from '@/integrations/supabase/client';
 import GuestOverview from './GuestOverview';
@@ -109,7 +110,7 @@ const GuestManagement = () => {
       const url = URL.createObjectURL(blob);
       
       link.setAttribute('href', url);
-      link.setAttribute('download', `gaeste-export-${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `gaeste-export-${todayISO()}.csv`);
       link.style.visibility = 'hidden';
       
       document.body.appendChild(link);

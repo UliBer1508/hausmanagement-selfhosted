@@ -16,6 +16,7 @@ import EditPaymentDialog from "./EditPaymentDialog";
 import { TenantPayment } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { todayISO } from '@/lib/dateHelpers';
 
 const TenantPayments = () => {
   const { data: houses } = useHouses();
@@ -144,7 +145,7 @@ const TenantPayments = () => {
   };
 
   const handleMarkAsPaid = async (payment: TenantPayment) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayISO();
     await updatePayment.mutateAsync({
       id: payment.id,
       status: 'paid',

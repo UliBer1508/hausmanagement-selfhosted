@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDraftInvoices, useMergeDraftInvoices } from '@/hooks/useLaundryInvoices';
+import { todayISO } from '@/lib/dateHelpers';
 
 interface MergeInvoicesDialogProps {
   open: boolean;
@@ -90,7 +91,7 @@ export const MergeInvoicesDialog = ({ open, onOpenChange, preselectedInvoiceId }
       draftInvoiceIds: Array.from(selectedIds),
       invoiceData: {
         rechnungsnummer: form.rechnungsnummer,
-        rechnungsdatum: form.rechnungsdatum || new Date().toISOString().split('T')[0],
+        rechnungsdatum: form.rechnungsdatum || todayISO(),
         faelligkeitsdatum: form.faelligkeitsdatum || undefined,
         nettobetrag: parseFloat(form.nettobetrag) || 0,
         mwst_satz: parseFloat(form.mwst_satz) || undefined,
