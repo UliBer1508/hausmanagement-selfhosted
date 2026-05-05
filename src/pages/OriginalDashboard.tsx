@@ -59,6 +59,7 @@ import CleaningManagement from '@/components/Cleaning/CleaningManagement';
 import GuestManagement from '@/components/Guests/GuestManagement';
 import TenantManagement from '@/components/Tenants/TenantManagement';
 import LinenDashboard from '@/components/Houses/LinenDashboard';
+import PricingDashboard from '@/components/Pricing/PricingDashboard';
 import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderManagementDialog';
 import { ProviderBillingDialog } from '@/components/ServicePortal/ProviderBillingDialog';
 import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
@@ -1762,6 +1763,8 @@ const OriginalDashboard = () => {
         );
       case 'Wäsche':
         return <LinenDashboard />;
+      case 'Preise':
+        return <PricingTabContent />;
       case 'Einstellungen':
         return (
           <div className="space-y-6">
@@ -2641,11 +2644,7 @@ const OriginalDashboard = () => {
               <button
                 key={tab.name}
                 onClick={() => {
-                  if (tab.name === 'Preise') {
-                    navigate('/pricing');
-                  } else {
-                    setActiveTab(tab.name);
-                  }
+                  setActiveTab(tab.name);
                 }}
                 className={`${tab.name === activeTab ? 'nav-tab-active' : 'nav-tab'} flex items-center gap-2 justify-start`}
               >
