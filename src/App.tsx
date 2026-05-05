@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AppStatusBar from "@/components/PWA/AppStatusBar";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
-import Pricing from "./pages/Pricing";
 import ChatAssistant from "./components/Chat/ChatAssistant";
 
 const queryClient = new QueryClient();
@@ -28,7 +27,6 @@ const App = () => {
           <div className="pt-12">
             <Routes>
               <Route path="/" element={<Index />} />
-              <Route path="/pricing" element={<Pricing />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
