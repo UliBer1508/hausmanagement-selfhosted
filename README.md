@@ -60,6 +60,34 @@ This project is built with:
 - shadcn-ui
 - Tailwind CSS
 
+## Environment Variables
+
+Dieses Projekt nutzt **keine `.env`-Datei**. Alle Environment-Variablen werden
+von Lovable Cloud automatisch zur Build-Zeit injiziert. Für lokale
+Entwicklung außerhalb von Lovable müssten folgende Variablen gesetzt sein
+(verwendet via `import.meta.env.*`):
+
+| Variable | Zweck |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase Project URL (publishable) |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase Anon Key (publishable) |
+| `VITE_SUPABASE_PROJECT_ID` | Supabase Project ID |
+
+> Server-seitige Secrets (z. B. `GOOGLE_GEMINI_API_KEY`, `RESEND_API_KEY`)
+> werden ausschließlich in **Edge Functions** verwendet und über die
+> Lovable-Cloud Secrets verwaltet — niemals im Client-Code.
+
+## Package Manager
+
+Dieses Projekt nutzt **Bun** (siehe `bun.lock` und `packageManager`-Feld in
+`package.json`). Bitte `bun install` statt `npm install` verwenden.
+
+## Tests
+
+```sh
+bunx vitest run
+```
+
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/0a55b3b7-98cb-4fe5-aff9-419ea27d0cf7) and click on Share -> Publish.
