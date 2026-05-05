@@ -77,6 +77,7 @@ import { useExternalSync } from '@/hooks/useExternalSync';
 import { useEmailSettings, useProfileSettings, useAppearanceSettings, useRatingReminderSettings } from '@/hooks/useSystemSettings';
 import RatingReminderSettingsCard from '@/components/Settings/RatingReminderSettingsCard';
 import PricingTab from '@/components/Dashboard/PricingTab';
+import ProviderTab from '@/components/Dashboard/ProviderTab';
 
 const OriginalDashboard = () => {
   const location = useLocation();
@@ -1694,73 +1695,11 @@ const OriginalDashboard = () => {
         return <CleaningManagement />;
       case 'Provider':
         return (
-          <div className="space-y-6">
-            <div className="text-center py-8">
-              <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Service Provider Portale</h3>
-              <p className="text-gray-600 mb-6">Zugang zu den externen Provider-Webapps</p>
-              
-              <div className="flex justify-center">
-                <Button 
-                  onClick={() => setIsProviderDialogOpen(true)}
-                  variant="outline"
-                  className="gap-2"
-                >
-                  <Building2 className="w-4 h-4" />
-                  Provider Verwalten
-                </Button>
-              </div>
-            </div>
-            
-            {/* Provider Links */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {portalProviders?.length === 0 && (
-                <p className="text-center text-muted-foreground col-span-full">
-                  Keine Provider mit Portal-Zugang konfiguriert.
-                </p>
-              )}
-              
-              {portalProviders?.map((provider) => {
-                const { icon: Icon, color } = getServiceIcon(provider.service_type);
-                const displayName = provider.service_type === 'cleaning' 
-                  ? `${provider.name} Cleaning Portal` 
-                  : `${provider.name} Laundry Portal`;
-                const description = provider.service_type === 'cleaning'
-                  ? 'Reinigungsaufträge verwalten und bearbeiten'
-                  : 'Wäscheaufträge verwalten und bearbeiten';
-
-                return (
-                  <Card key={provider.id} className="hover:shadow-lg transition-shadow">
-                    <CardHeader className="text-center">
-                      <CardTitle className="flex items-center justify-center gap-2">
-                        <Icon className={`w-5 h-5 ${color}`} />
-                        {displayName}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="text-center space-y-4">
-                      <p className="text-sm text-gray-600">
-                        {description}
-                      </p>
-                      <Button 
-                        className="w-full" 
-                        onClick={() => window.open(provider.portal_token, '_blank')}
-                      >
-                        Portal öffnen
-                      </Button>
-                      <Button 
-                        variant="outline"
-                        className="w-full bg-green-600 text-white border-green-600 hover:bg-green-700 hover:text-white" 
-                        onClick={() => setSelectedProviderForBilling(provider)}
-                      >
-                        <FileSpreadsheet className="mr-2 h-4 w-4" />
-                        Abrechnung
-                      </Button>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
+          <ProviderTab
+            portalProviders={portalProviders}
+            onOpenProviderManagement={() => setIsProviderDialogOpen(true)}
+            onOpenBilling={(provider) => setSelectedProviderForBilling(provider)}
+          />
         );
       case 'Wäsche':
         return <LinenDashboard />;
