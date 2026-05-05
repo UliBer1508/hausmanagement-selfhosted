@@ -1,6 +1,34 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+
+// DB row aliases — single source of truth from generated Supabase types
+type CompetitorPropertyRow = Tables<'competitor_properties'>;
+type MonthlyPricingRow = Tables<'monthly_pricing'>;
+type WeeklyPricingRow = Tables<'weekly_pricing'>;
+type WeeklyPricingInsert = TablesInsert<'weekly_pricing'>;
+type DailyPricingInsert = TablesInsert<'daily_pricing'>;
+
+// Input shape used by Add/Update mutations (subset of competitor_properties)
+export type CompetitorInput = Partial<
+  Pick<
+    CompetitorPropertyRow,
+    | 'competitor_name'
+    | 'property_name'
+    | 'property_url'
+    | 'platform'
+    | 'address'
+    | 'distance_km'
+    | 'max_guests'
+    | 'bedrooms'
+    | 'bathrooms'
+    | 'amenities'
+    | 'rating'
+    | 'review_count'
+    | 'notes'
+  >
+>;
 
 // Types
 export interface CompetitorProperty {
@@ -120,13 +148,13 @@ export const usePriceComparison = (
     queryFn: async () => {
       // Lade eigene monatliche Preise
       const { data: ownPrices, error: ownError } = await supabase
-        .from('monthly_pricing' as any)
+        .from('monthly_pricing')
         .select('*')
         .eq('house_id', house_id)
         .is('competitor_property_id', null)
         .gte('check_in_date', date_from)
         .lte('check_in_date', date_to)
-        .order('check_in_date') as any;
+        .order('check_in_date');
 
       if (ownError) throw ownError;
 
@@ -145,23 +173,23 @@ export const usePriceComparison = (
       let competitorPrices: MonthlyPricing[] = [];
       if (competitorIds.length > 0) {
         const { data: prices, error: pricesError } = await supabase
-          .from('monthly_pricing' as any)
+          .from('monthly_pricing')
           .select('*')
           .in('competitor_property_id', competitorIds)
           .is('house_id', null)
           .gte('check_in_date', date_from)
           .lte('check_in_date', date_to)
-          .order('check_in_date') as any;
+          .order('check_in_date');
 
         if (pricesError) throw pricesError;
-        competitorPrices = (prices || []) as MonthlyPricing[];
+        competitorPrices = (prices ?? []) as unknown as MonthlyPricing[];
       }
 
       // Gruppiere nach Check-in-Datum
-      const periodMap: { [check_in: string]: any } = {};
+      const periodMap: Record<string, PriceComparisonData> = {};
 
       // Eigene Preise
-      ownPrices?.forEach((price: any) => {
+      (ownPrices as MonthlyPricingRow[] | null)?.forEach((price) => {
         const checkIn = price.check_in_date;
         if (!periodMap[checkIn]) {
           periodMap[checkIn] = {
@@ -172,11 +200,11 @@ export const usePriceComparison = (
             competitor_prices: {}
           };
         }
-        periodMap[checkIn].own_price = price.final_price_7nights || price.base_price_7nights;
+        periodMap[checkIn].own_price = price.final_price_7nights ?? price.base_price_7nights ?? undefined;
       });
 
       // Wettbewerber-Preise
-      competitorPrices.forEach((price: any) => {
+      (competitorPrices as unknown as MonthlyPricingRow[]).forEach((price) => {
         const checkIn = price.check_in_date;
         if (!periodMap[checkIn]) {
           periodMap[checkIn] = {
@@ -189,7 +217,7 @@ export const usePriceComparison = (
         }
         
         const competitor = competitors?.find(c => c.id === price.competitor_property_id);
-        if (competitor && price.competitor_property_id) {
+        if (competitor && price.competitor_property_id && price.base_price_7nights != null) {
           periodMap[checkIn].competitor_prices[price.competitor_property_id] = {
             price: price.base_price_7nights,
             property_name: competitor.property_name,
@@ -200,8 +228,8 @@ export const usePriceComparison = (
       });
 
       // Berechne Durchschnitte
-      const comparisonData: PriceComparisonData[] = Object.values(periodMap).map((data: any) => {
-        const competitorPriceValues = Object.values(data.competitor_prices).map((cp: any) => cp.price);
+      const comparisonData: PriceComparisonData[] = Object.values(periodMap).map((data) => {
+        const competitorPriceValues = Object.values(data.competitor_prices).map((cp) => cp.price);
         
         if (competitorPriceValues.length > 0) {
           const avg = competitorPriceValues.reduce((a, b) => a + b, 0) / competitorPriceValues.length;
@@ -293,7 +321,7 @@ export const useAddCompetitor = () => {
       pricing
     }: { 
       house_id: string; 
-      competitor_data: any; 
+      competitor_data: CompetitorInput; 
       enable_scraping: boolean;
       pricing?: { checkin: Date; checkout: Date; total: number } | null;
     }) => {
@@ -310,7 +338,7 @@ export const useAddCompetitor = () => {
         );
         
         // Speichere als Gesamtpreis (7-Nächte-Periode)
-        const weeklyEntry = {
+        const weeklyEntry: WeeklyPricingInsert = {
           competitor_property_id: data.competitor_id,
           date: pricing.checkin.toISOString().split('T')[0],
           price: pricing.total,
@@ -327,7 +355,7 @@ export const useAddCompetitor = () => {
         
         // Insert in weekly_pricing
         const { error: pricingError } = await supabase
-          .from('weekly_pricing' as any)
+          .from('weekly_pricing')
           .insert(weeklyEntry);
         
         if (pricingError) {
@@ -423,7 +451,7 @@ export const useUpdateCompetitor = () => {
     }: { 
       competitor_id: string; 
       house_id: string; 
-      competitor_data: any;
+      competitor_data: CompetitorInput;
       pricing?: { checkin: Date; checkout: Date; total: number } | null;
     }) => {
       const { data, error } = await supabase
@@ -458,7 +486,7 @@ export const useUpdateCompetitor = () => {
         const pricePerNight = pricing.total / nights;
         
         // Erstelle Einträge für jeden Tag
-        const dailyEntries = [];
+        const dailyEntries: DailyPricingInsert[] = [];
         const currentDate = new Date(pricing.checkin);
         
         for (let i = 0; i < nights; i++) {
@@ -552,17 +580,17 @@ export const useCompetitorPriceHistory = (competitor_id: string) => {
     queryKey: ['competitor-price-history', competitor_id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('weekly_pricing' as any)
+        .from('weekly_pricing')
         .select('*')
         .eq('competitor_property_id', competitor_id)
-        .order('scraped_at', { ascending: false, nullsFirst: false }) as any;
+        .order('scraped_at', { ascending: false, nullsFirst: false });
 
       if (error) throw error;
       
       // Gruppiere nach scraped_at (Erfassungszeitpunkt)
       const groupedByCapture: { [key: string]: WeeklyPricing[] } = {};
       
-      data?.forEach((entry: any) => {
+      (data as WeeklyPricingRow[] | null)?.forEach((entry) => {
         const captureDate = entry.scraped_at 
           ? new Date(entry.scraped_at).toISOString().split('T')[0]
           : entry.created_at 
@@ -572,7 +600,7 @@ export const useCompetitorPriceHistory = (competitor_id: string) => {
         if (!groupedByCapture[captureDate]) {
           groupedByCapture[captureDate] = [];
         }
-        groupedByCapture[captureDate].push(entry);
+        groupedByCapture[captureDate].push(entry as unknown as WeeklyPricing);
       });
       
       // Berechne Statistiken pro Erfassung
