@@ -150,8 +150,6 @@ export function PricingDashboard({ houseId, propertyName, location }: Props) {
 
       <PricingConfigCard houseId={houseId} />
 
-      <GlobalPricingConfigCard />
-
       <PricingFactorsConfig houseId={houseId} />
 
       {smartResult && !isSmartUpdating && (
