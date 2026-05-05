@@ -237,6 +237,9 @@ export function PricingFactorsConfig({ houseId }: Props) {
                 </Select>
               </div>
             </div>
+            <div className="mt-4">
+              <MarketDataImportCard />
+            </div>
           </AccordionContent>
         </AccordionItem>
 
