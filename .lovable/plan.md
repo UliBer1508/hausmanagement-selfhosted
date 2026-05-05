@@ -1,51 +1,40 @@
-## Beschreibungen zu allen Preis-Faktoren ergänzen
+## Schritt 3: SettingsTab extrahieren
 
-Ziel: In `PricingFactorsConfig.tsx` zu jeder Faktor-Kategorie und (wo sinnvoll) zu einzelnen Werten eine kurze, verständliche Erklärung anzeigen — was der Faktor bewirkt, wann er greift, und wie ein Wert > 1 / < 1 den Preis verändert.
+Ziel: Den ~456 Zeilen langen `case 'Einstellungen'`-Block (Zeilen 1708-2164) aus `src/pages/OriginalDashboard.tsx` in eine eigene Komponente auslagern — **funktional 1:1 identisch**.
 
-### Allgemeine Lese-Regel (oben als Info-Box ergänzen)
-- **1.00** = neutral (Basispreis bleibt unverändert)
-- **> 1.00** = Aufschlag (z. B. 1.20 = +20 %)
-- **< 1.00** = Rabatt (z. B. 0.85 = −15 %)
-- Alle Faktoren werden multiplikativ kombiniert: `Endpreis = Basispreis × Saison × Wochentag × Leadtime × Auslastung × Wetter × Feiertag × Event × Lücke`
+### Vorgehen
 
-### Beschreibungen pro Sektion
+**Neue Datei**: `src/components/Dashboard/SettingsTab.tsx`
 
-**Saison (Monat)**
-> Berücksichtigt typische Nachfrage im Jahresverlauf. Hochsaison (Winterferien Feb, Sommer Jul/Aug, Weihnachten Dez) bekommt einen Aufschlag; Nebensaison (Nov, Apr) einen Rabatt. Greift für jedes Datum nach Monat des Check-ins.
+Die Komponente erhält alle Settings-State-Werte und Handler als Props vom Parent. Da die State-Verwaltung (`useSystemSettings`-Hook etc.) bereits zentralisiert in `OriginalDashboard.tsx` liegt und auch von anderen Tabs/Bereichen genutzt werden könnte, bleibt sie vorerst im Parent — wir reichen nur durch.
 
-**Wochentage**
-> Wochenenden (Fr/Sa) sind in Ferienregionen stärker nachgefragt → Aufschlag. Wochentage (So-Do) erhalten meist einen Rabatt, um Auslastung zu glätten. Greift pro Übernachtung.
+**Props-Interface** (übergeben aus OriginalDashboard):
+- `localProfileSettings`, `setLocalProfileSettings`, `saveProfileSettings`, `isSavingProfile`
+- `notificationSettings`, `setNotificationSettings`, `saveNotificationSettings`, `sendTestNotification`
+- `localEmailSettings`, `setLocalEmailSettings`, `handleSaveEmailSettings`, `isSavingEmail`
+- `localAppearanceSettings`, `handleSaveAppearanceSettings`
+- `handleShowUsageReport`, `saveAllSettings`
 
-**Vorlaufzeit (Lead-Time)**
-> Steuert Frühbucher- und Last-Minute-Logik. Lange Vorlaufzeit = leichter Frühbucher-Rabatt zur frühen Buchungssicherung. Mittlere Vorlaufzeit (14–30 Tage) = Standardpreis bzw. leichter Aufschlag (höchste Zahlungsbereitschaft). Sehr kurzfristig (< 7 Tage) = Last-Minute-Rabatt, um Leerstand zu vermeiden.
+**Karten in SettingsTab** (alle bestehenden, unverändert):
+1. Profil
+2. Benachrichtigungen
+3. Nutzungsberichte
+4. E-Mail-Versand (inkl. Test-E-Mail-Button mit `supabase.functions.invoke('send-gmail')`)
+5. Sicherheit
+6. Erscheinungsbild
+7. `<RatingReminderSettingsCard />`
+8. `<GuestImportCard />`
+9. System
+10. Aktionen
 
-**Auslastung**
-> Reagiert auf die Buchungsdichte des Monats. Niedrige Auslastung → Rabatt, um Buchungen anzuziehen. Hohe Auslastung → Aufschlag, weil Knappheit Preise rechtfertigt (Yield Management).
+### Änderungen in `OriginalDashboard.tsx`
 
-**Lücken-Rabatt**
-> Wird auf einzelne Tage angewendet, die zwischen zwei Buchungen liegen. Kurze Lücken (1–2 Nächte) sind schwer verkäuflich → stärkerer Rabatt. Längere Lücken (3–4 Nächte) → moderater Rabatt. Verhindert Leerstand zwischen Gäste-Wechseln.
+- Neuer Import: `import { SettingsTab } from '@/components/Dashboard/SettingsTab';`
+- `case 'Einstellungen':` ersetzt durch `return <SettingsTab {...settingsProps} />;` — reduziert die Datei um ~456 Zeilen.
+- Alle benötigten Imports (User, Bell, FileBarChart, Mail, Shield, Palette, Database, Settings, Save, Send, Clock, CheckCircle, Avatar*, Switch, Select*, RatingReminderSettingsCard, GuestImportCard, supabase, toast) wandern zur neuen Datei. Imports im Parent bleiben (Settings-Icon wird z.B. auch in der Tab-Navigation genutzt) — am Ende prüfe ich mit `rg`, welche Imports im Parent nicht mehr referenziert werden, und entferne nur diese.
 
-**Lokale Events**
-> Greift, wenn in `local_events` ein Event im Zeitraum hinterlegt ist. Klein = lokales Event mit moderater Zugkraft. Medium = überregional. Large = großes Event mit hoher Übernachtungs-Nachfrage (z. B. Festival, Großveranstaltung).
+### Sicherheitsmaßnahmen
 
-**Wetter**
-> Roh-Daten aus Open-Meteo (16-Tage-Vorhersage). Schönes Wetter steigert Buchungslust, Schlechtwetter dämpft sie. Saison-abhängig: Schnee im Winter ist positiv (Skifahren), Schnee im Sommer negativ. Greift nur in der Vorhersage-Reichweite.
-
-**Feiertage**
-> Roh-Daten aus OpenHolidays (AT + Bayern). Aufschlag für Brücken-/Feiertage. „Beide" = Feiertag in AT *und* Bayern → stärkster Aufschlag (höchste Reisetätigkeit aus beiden Märkten).
-
-### Zusätzlich pro Eingabefeld
-- **Saison**: Tooltip-Hinweis bei Monaten mit typischer Empfehlung (z. B. Februar = Skihochsaison).
-- **Wochentage**: Hinweis "Fr/Sa = Wochenend-Aufschlag, Mo-Do = Glättung".
-- **Lead-Time**: Erklärung der Reihen-Reihenfolge (höchste Tage-Schwelle zuerst, erste passende Regel greift).
-- **Auslastung**: Hinweis "Wert = Anteil belegter Tage im Monat (0 = leer, 1 = voll)".
-
-### Umsetzung (technisch)
-- In `src/components/Pricing/PricingFactorsConfig.tsx`:
-  - Neue Info-Box „So liest du die Werte" oberhalb des Accordions.
-  - Pro `AccordionItem` einen erklärenden `<p>`-Block direkt unterhalb des Triggers (vor den Inputs), konsistent gestylt (`text-xs text-muted-foreground bg-muted/20 rounded p-2`).
-  - Optional kleine `Tooltip`-Icons (`Info`) an Spezialfeldern, falls ohne UI-Überladung machbar.
-- Keine Änderungen an Datenmodell oder Edge Function.
-
-### Out of Scope
-- Keine neuen Faktoren, keine neuen Eingabefelder, keine Logik-Änderung.
+- Keinerlei Logik-Änderungen — reines Verschieben von JSX und Pass-through der Handler.
+- Nach dem Edit: visuelle/funktionale Prüfung im Preview (Profil speichern, Test-E-Mail, Theme-Wechsel, "Alle Einstellungen speichern", Bewertungs-Erinnerungen, Gäste-Import).
+- Danach folgt Schritt 4 (CalendarTab) und Schritt 5 (OverviewTab + `useDashboardData`).
