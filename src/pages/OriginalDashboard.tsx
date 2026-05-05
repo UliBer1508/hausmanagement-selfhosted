@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useQuery } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,7 +16,6 @@ import {
   Building, 
   Sparkles, 
   Shirt, 
-  Search,
   RefreshCw,
   Clock,
   Edit,
@@ -26,9 +24,6 @@ import {
   Trash2,
   Database,
   Save,
-  Filter,
-  ChevronDown,
-  ChevronUp,
   Building2,
   FileSpreadsheet
 } from 'lucide-react';
@@ -37,9 +32,6 @@ import { de } from 'date-fns/locale';
 import steinbockLogo from '@/assets/steinbock-logo.png';
 import CreateBookingDialog from '@/components/Bookings/CreateBookingDialog';
 import BookingOverviewFixed from '@/components/Bookings/BookingOverviewFixed';
-import BookingCard from '@/components/Bookings/BookingCard';
-import ServiceTaskCard from '@/components/Bookings/ServiceTaskCard';
-import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
 import HouseManagement from '@/components/Houses/HouseManagement';
 import CleaningManagement from '@/components/Cleaning/CleaningManagement';
 import GuestManagement from '@/components/Guests/GuestManagement';
@@ -50,10 +42,6 @@ import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderMan
 import { ProviderBillingDialog } from '@/components/ServicePortal/ProviderBillingDialog';
 import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
 import { UsageReportDialog } from '@/components/Dashboard/UsageReportDialog';
-import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBanner';
-import RatingReminderBanner from '@/components/Dashboard/RatingReminderBanner';
-import CleaningStatusAlertBanner from '@/components/Dashboard/CleaningStatusAlertBanner';
-import BookingInquiryAlertBanner from '@/components/Dashboard/BookingInquiryAlertBanner';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
