@@ -1,77 +1,44 @@
 ## Ziel
+CSV-Daten von Inside Airbnb importieren, in markttägliche Auslastung umrechnen und für 365 Tage in `market_data_cache` (Quelle `inside_airbnb`) ablegen. UI-Trigger in der Settings-Seite.
 
-Robusteres Ferien-Gewichtungssystem in `src/lib/schoolHolidays.ts`, das mehr Herkunftsländer abdeckt und mit Freitext-Nationalitäten umgehen kann. Anschließend leichte Anpassung von `marketOccupancyService.ts` (Normalisierung greift bereits vor `getHolidayWeight`).
+## 1. Neue Edge Function: `supabase/functions/import-inside-airbnb/index.ts`
 
-## Änderungen
+- **Auth/CORS**: Standard-CORS-Header, OPTIONS-Handler. Verwendet `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (Service Role, da Massen-Upsert in Cache).
+- **Input-Validierung** mit Zod: `{ location: string (min 1), csv_content: string (min 10) }`. 400 bei Validierungsfehler.
+- **CSV-Parser** (eigene minimale Implementierung):
+  - Header-Zeile parsen, Spaltenindex für `availability_365`, `room_type`, `number_of_reviews`, `minimum_nights` ermitteln.
+  - Zeilen quoting-aware splitten (Inside-Airbnb-CSVs enthalten Kommas in Strings).
+  - Zeilen ohne valides `availability_365` (NaN, <0, >365) verwerfen.
+  - Optional Filter: `room_type === 'Entire home/apt'` und `number_of_reviews >= 1` (typische Aktiv-Listings).
+- **Basis-Auslastung**: `baseOccupancy = mean( (365 - availability_365) / 365 )` über alle gefilterten Listings. Clamp auf [0.05, 0.95].
+- **Saisonale Verteilung** mit identischer `MONTHLY_OCC`-Konstante wie `marketOccupancyService.ts` (0:0.38 … 11:0.55). Mittelwert der Tabelle berechnen, dann `factor[m] = MONTHLY_OCC[m] / mean(MONTHLY_OCC)`.
+- **Tägliche Werte erzeugen**: Schleife über die nächsten 365 Tage ab heute (UTC, ISO-Date):
+  - `occ = clamp(baseOccupancy * factor[date.getMonth()], 0.05, 0.95)`
+  - `avgPrice = round(80 + occ * 120)` (konsistent mit Service)
+  - Datensatz `{ location, date, occupancy_rate, avg_price: avgPrice, source: 'inside_airbnb', fetched_at: now }`
+- **Upsert** in Batches von 500 Zeilen via `supabase.from('market_data_cache').upsert(rows, { onConflict: 'location,date' })`.
+- **Response**: `{ success: true, imported_listings: n, days_written: 365, base_occupancy: x }`.
+- Fehler werden mit 500 + Message zurückgegeben (inkl. corsHeaders).
+- `supabase/config.toml`: kein Eintrag nötig (Default `verify_jwt = false` bei Lovable).
 
-### 1. `src/lib/schoolHolidays.ts` (neu schreiben/ersetzen)
+## 2. UI: neue Datei `src/components/Settings/MarketDataImportCard.tsx`
 
-Drei Exports:
+- Card mit Titel „Marktdaten-Import" + Untertitel „Inside Airbnb".
+- Felder:
+  - `Input` Standort (vorausgefüllt mit `houses[0].address` bzw. `houses[0].name` falls keine Adresse vorhanden, geladen via `supabase.from('houses').select('name,address').limit(1)` in `useEffect`).
+  - `Textarea` für CSV-Inhalt (min Höhe ~200px, Monospace).
+  - `Button` „Inside Airbnb Daten importieren".
+- Logik:
+  - On click: Validierung (location + CSV nicht leer), `setLoading(true)`, `toast.loading('Import läuft…')` (mit ID).
+  - Aufruf: `supabase.functions.invoke('import-inside-airbnb', { body: { location, csv_content } })`.
+  - Erfolg: `toast.success(\`Import erfolgreich: \${imported_listings} Listings, \${days_written} Tage geschrieben (Basis-Auslastung \${(base_occupancy*100).toFixed(1)}%)\`)`.
+  - Fehler: `toast.error(error.message)`.
+- Verwendet bestehenden Client `@/integrations/supabase/client`, `sonner` toasts, shadcn Card/Input/Textarea/Button/Label.
 
-- `getStaticHolidayWeight(date, countryCodes)` – Stufe 1
-- `getDynamicHolidayWeight(date, countryCodes)` – Stufe 2
-- `getHolidayWeight(date, countryCodes)` – Hauptfunktion, kombiniert via `Math.max`
+## 3. Einbindung
+- `src/components/Dashboard/SettingsTab.tsx`: Import + Render `<MarketDataImportCard />` direkt unter `<GuestImportCard />`.
 
-**Stufe 1 – statische Ferienranges** (MM-DD basierte Ranges, jährlich wiederkehrend):
-
-- `DE-BY` (Bayern), `DE-NW` (NRW), beide unter Code `DE` aktiv (Code `DE` aktiviert beide Sets)
-- `AT`, `NL`, `CZ`, `PL`, `HU`, `CH`, `BE`, `FR`, `IT`
-- Pro Land: Sommerferien, Weihnachtsferien, Herbst-/Frühjahrsferien (wo relevant), nationale Feiertage
-- Ostern (±3 Tage um Ostersonntag, dynamisch via Gauss-Algorithmus) gilt für alle Länder
-- Multiplikator-Skala: 0 → 1.0, 1 → 1.10, 2 → 1.20, 3 → 1.30, 4+ → 1.40
-
-**Stufe 2 – dynamische/Mondkalender-Länder**:
-
-- Codes: `IL`, `SA`, `AE`, `KW`, `QA`, `BH`, `JO`, `EG`
-- Reisemuster-Approximation (kein exaktes Ferienwissen, klar im Code kommentiert):
-  - Juli/August → 1.20 (Sommerflucht aus Hitze, Eid-Reisen)
-  - Dezember → 1.10 (Winterreisen)
-  - Sonst → 1.0
-- Skaliert nicht mit Anzahl Länder, nur ob mind. 1 Land der Gruppe enthalten ist (Effekt ist global ähnlich)
-
-**Hauptfunktion**:
-
-```text
-getHolidayWeight(date, codes):
-  normalized = codes.map(normalize).filter(known)
-  staticCodes = normalized ∩ {DE, AT, NL, CZ, PL, HU, CH, BE, FR, IT}
-  dynamicCodes = normalized ∩ {IL, SA, AE, KW, QA, BH, JO, EG}
-  return max(getStaticHolidayWeight(date, staticCodes),
-             getDynamicHolidayWeight(date, dynamicCodes))
-```
-
-**Normalisierung** (`normalizeCountryCode`):
-
-Map mit gängigen Varianten (DE/EN/Native), z.B.
-- "Deutschland", "Germany", "DEU", "DE" → `DE`
-- "Österreich", "Austria", "AUT" → `AT`
-- "Niederlande", "Netherlands", "Holland", "NLD" → `NL`
-- "Tschechien", "Czech Republic", "Czechia" → `CZ`
-- "Ungarn", "Hungary" → `HU`
-- "Polen", "Poland" → `PL`
-- "Schweiz", "Switzerland" → `CH`
-- "Belgien", "Belgium" → `BE`
-- "Frankreich", "France" → `FR`
-- "Italien", "Italy" → `IT`
-- "Israel" → `IL`
-- "Saudi Arabia", "Saudi-Arabien", "KSA" → `SA`
-- "UAE", "United Arab Emirates", "VAE", "Vereinigte Arabische Emirate" → `AE`
-- "Kuwait" → `KW`, "Qatar"/"Katar" → `QA`, "Bahrain" → `BH`, "Jordan"/"Jordanien" → `JO`, "Egypt"/"Ägypten" → `EG`
-- Bereits 2-stellige ISO-Codes werden uppercased durchgereicht
-- Unbekannte Werte → `null` (ignoriert, kein Throw)
-
-### 2. `src/services/marketOccupancyService.ts` (kleine Anpassung)
-
-Aktuell wird in `fetchGuestNationalities` nur `toUpperCase()` gemacht. Da `nationality` Freitext sein kann, hier ebenfalls Roh-Strings durchreichen — die Normalisierung passiert dann zentral in `getHolidayWeight`. Konkret:
-
-- Tally-Logik beibehalten, aber kein erzwungenes `toUpperCase` (Strings 1:1 sammeln, getrimmt)
-- Top-5 Roh-Strings zurückgeben
-- Default-Fallback bleibt `["DE", "AT"]`
-
-Keine weiteren Änderungen — `estimateOccupancyFromSeason` ruft bereits `getHolidayWeight` auf, Interfaces und `useMarketData` bleiben unverändert.
-
-## Hinweise
-
-- Stufe-2-Werte sind explizit als Näherung im Code-Kommentar markiert
-- `Math.max` statt Summe verhindert Doppelzählung bei Überlappung (z.B. Sommer überall)
-- Ostern wird für alle Stufe-1-Länder einheitlich angewendet
+## Hinweise / Nicht-Änderungen
+- `market_data_cache`-Schema bleibt unverändert (Spalten location, date, occupancy_rate, avg_price, source, fetched_at; Conflict-Key location+date) — keine Migration nötig.
+- `marketOccupancyService.ts` bleibt unverändert; eingespielte `inside_airbnb`-Zeilen werden automatisch über den vorhandenen Cache-Read genutzt (24h TTL).
+- Keine neuen Secrets erforderlich.
