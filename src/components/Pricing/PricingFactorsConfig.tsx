@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Info, RotateCcw, Save } from 'lucide-react';
+import { Info, RotateCcw, Save, ChevronDown } from 'lucide-react';
 
 // Defaults — must mirror supabase/functions/pricing-engine/index.ts
 export const DEFAULT_FACTORS = {
@@ -42,6 +43,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
   const [factors, setFactors] = useState<any>(DEFAULT_FACTORS);
   const [pricingConfig, setPricingConfig] = useState<any>({});
   const [saving, setSaving] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     if (!houseId) return;
@@ -103,22 +105,29 @@ export function PricingFactorsConfig({ houseId }: Props) {
   );
 
   return (
-    <Card className="p-4 space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h3 className="font-semibold">Preis-Faktoren konfigurieren</h3>
-          <p className="text-xs text-muted-foreground">Multiplikatoren pro Haus. Defaults gelten für Pinzgau.</p>
+    <Card className="p-4">
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CollapsibleTrigger className="flex items-center gap-2 text-left group flex-1 min-w-0">
+            <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
+            <div className="min-w-0">
+              <h3 className="font-semibold">Preis-Faktoren konfigurieren</h3>
+              <p className="text-xs text-muted-foreground">Multiplikatoren pro Haus. Defaults gelten für Pinzgau.</p>
+            </div>
+          </CollapsibleTrigger>
+          {open && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleReset} disabled={saving}>
+                <RotateCcw className="h-3.5 w-3.5 mr-1" /> Standard
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving}>
+                <Save className="h-3.5 w-3.5 mr-1" /> Speichern
+              </Button>
+            </div>
+          )}
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={handleReset} disabled={saving}>
-            <RotateCcw className="h-3.5 w-3.5 mr-1" /> Standard
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving}>
-            <Save className="h-3.5 w-3.5 mr-1" /> Speichern
-          </Button>
-        </div>
-      </div>
 
+        <CollapsibleContent className="space-y-4 pt-4">
       <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1">
         <div className="flex items-center gap-1.5 font-medium"><Info className="h-3.5 w-3.5" /> Datenquellen (Roh-Daten):</div>
         <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
@@ -294,6 +303,8 @@ export function PricingFactorsConfig({ houseId }: Props) {
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+        </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 }
