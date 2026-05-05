@@ -1,0 +1,2 @@
+ALTER TABLE public.daily_pricing DROP CONSTRAINT IF EXISTS daily_pricing_source_check;
+ALTER TABLE public.daily_pricing ADD CONSTRAINT daily_pricing_source_check CHECK (source = ANY (ARRAY['manual'::text,'scraped'::text,'expanded'::text,'historical'::text,'pricing_engine'::text]));

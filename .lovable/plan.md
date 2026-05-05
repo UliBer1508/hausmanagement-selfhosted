@@ -1,11 +1,24 @@
-## Add "Preise" Tab to Dashboard Navigation
+## Problem
 
-Edit `src/pages/OriginalDashboard.tsx` only:
+The `pricing-engine` edge function calls `update_dynamic_price` with `p_source: "pricing_engine"`. The `daily_pricing.source` column has a CHECK constraint that only permits `'manual' | 'scraped' | 'expanded' | 'historical'`, so every insert/update fails.
 
-1. **Import**: Extend the `react-router-dom` import to include `useNavigate` alongside `useLocation`.
-2. **Hook**: Add `const navigate = useNavigate();` directly under `const location = useLocation();`.
-3. **Tabs array**: Insert `{ name: 'Preise', emoji: '💶' }` between `Wäsche` and `Einstellungen`.
-4. **Tab click handler**: Update the `tabs.map(...)` button so clicking `Preise` calls `navigate('/pricing')`, all other tabs continue to use `setActiveTab(tab.name)`.
-5. **Grid columns**: Change `<nav>` className from `sm:grid-cols-5` to `sm:grid-cols-6` to accommodate the new tab.
+## Fix
 
-No changes to `renderTabContent()`, no other files touched. The `/pricing` route already exists.
+**Migration**: Drop and recreate `daily_pricing_source_check` to include `'pricing_engine'`:
+
+```sql
+ALTER TABLE public.daily_pricing
+  DROP CONSTRAINT IF EXISTS daily_pricing_source_check;
+
+ALTER TABLE public.daily_pricing
+  ADD CONSTRAINT daily_pricing_source_check
+  CHECK (source = ANY (ARRAY['manual','scraped','expanded','historical','pricing_engine']));
+```
+
+(There are two identical copies of the constraint reported — the `DROP IF EXISTS` + re-add will collapse it to one.)
+
+No code changes required; `supabase/functions/pricing-engine/index.ts` already sends `'pricing_engine'`.
+
+## Verification
+
+After migration, click "Preise neu berechnen (Smart)" on `/pricing`; the function should write rows without the constraint error.
