@@ -14,6 +14,7 @@ import {
   type NightlyRate,
 } from '@/services/pricingService';
 import { PricingConfigCard } from '@/components/Pricing/PricingConfigCard';
+import { PricingFactorsConfig } from '@/components/Pricing/PricingFactorsConfig';
 import { Sparkles } from 'lucide-react';
 import { useMarketData } from '@/services/marketOccupancyService';
 
@@ -147,6 +148,8 @@ export function PricingDashboard({ houseId, propertyName, location }: Props) {
       </div>
 
       <PricingConfigCard houseId={houseId} />
+
+      <PricingFactorsConfig houseId={houseId} />
 
       {smartResult && !isSmartUpdating && (
         <div className="p-3 rounded-md bg-purple-50 border border-purple-200 text-purple-900 text-sm space-y-2">
