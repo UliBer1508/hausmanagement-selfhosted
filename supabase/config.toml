@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.booking-analysis]
 verify_jwt = false
+
+[functions.pricing-engine]
+verify_jwt = false
