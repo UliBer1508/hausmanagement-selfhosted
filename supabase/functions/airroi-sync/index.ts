@@ -13,12 +13,16 @@ const DEFAULT_AIRROI_CONFIG = {
   airroi_min_bedrooms: 2,
   airroi_num_months: 24,
   airroi_currency: "eur",
+  airroi_country: "Austria",
+  airroi_region: "Salzburg",
+  airroi_locality: "Neukirchen am Großvenediger",
+  airroi_district: "",
 };
 
 const BodySchema = z.object({
-  location: z.string().min(1).max(255),
+  location: z.string().min(1).max(255).optional(),
   house_id: z.string().uuid().optional(),
-});
+}).optional();
 
 const MONTHLY_OCC: Record<number, number> = {
   0: 0.38, 1: 0.40, 2: 0.48, 3: 0.58, 4: 0.65, 5: 0.72,
@@ -40,15 +44,14 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = await req.json().catch(() => null);
-    const parsed = BodySchema.safeParse(body);
+    const body = await req.json().catch(() => ({}));
+    const parsed = BodySchema.safeParse(body ?? {});
     if (!parsed.success) {
       return new Response(
         JSON.stringify({ error: parsed.error.flatten().fieldErrors }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-    const { location } = parsed.data;
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -62,39 +65,36 @@ Deno.serve(async (req) => {
       .eq("key", "pricing_config")
       .maybeSingle();
     const cfg = { ...DEFAULT_AIRROI_CONFIG, ...(settingsRow?.value as Record<string, unknown> ?? {}) };
+
+    const country  = String(cfg.airroi_country  ?? "").trim();
+    const region   = String(cfg.airroi_region   ?? "").trim();
+    const locality = String(cfg.airroi_locality ?? "").trim();
+    const district = String(cfg.airroi_district ?? "").trim();
+
+    if (!country || !region || !locality) {
+      return new Response(
+        JSON.stringify({ error: "AirROI Marktdefinition unvollständig — bitte Land, Region und Ort/Markt in den Preis-Einstellungen ausfüllen." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Cache-Schlüssel: Stadtteil bevorzugt, sonst Ort
+    const location = district || locality;
+
     const filterParams = new URLSearchParams({
       room_type:    String(cfg.airroi_room_type),
       min_bedrooms: String(cfg.airroi_min_bedrooms),
       num_months:   String(cfg.airroi_num_months),
       currency:     String(cfg.airroi_currency),
+      country,
+      region,
+      locality,
     });
+    if (district) filterParams.set("district", district);
 
-    const searchRes = await fetch(
-      `https://api.airroi.com/v1/markets/search?q=${encodeURIComponent(location)}&${filterParams}`,
-      { headers: { "x-api-key": apiKey } },
-    );
-    if (!searchRes.ok) {
-      const t = await searchRes.text();
-      return new Response(
-        JSON.stringify({ error: `AirROI search failed (${searchRes.status}): ${t}` }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-    const searchJson: any = await searchRes.json();
-    const marketId =
-      searchJson?.markets?.[0]?.id ??
-      searchJson?.data?.[0]?.id ??
-      searchJson?.results?.[0]?.id ??
-      searchJson?.[0]?.id;
-    if (!marketId) {
-      return new Response(
-        JSON.stringify({ error: `Kein AirROI-Markt für "${location}" gefunden` }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
+    // Direkter Call an AirROI Markets-Analytics mit Markt-Hierarchie als Query-Params
     const analyticsRes = await fetch(
-      `https://api.airroi.com/v1/markets/${marketId}/analytics?${filterParams}`,
+      `https://api.airroi.com/v1/markets/analytics?${filterParams}`,
       { headers: { "x-api-key": apiKey } },
     );
     if (!analyticsRes.ok) {
@@ -184,7 +184,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        market_id: marketId,
+        market: { country, region, locality, district: district || undefined },
         days_written: written,
         base_occupancy: Number(baseOcc.toFixed(3)),
         base_adr: baseAdr,
