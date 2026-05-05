@@ -1,32 +1,52 @@
 ## Ziel
-Nur **eine** Konfigurationskarte mit **einem** Speichern-Button. AirROI-Filter wandern als neuer Accordion-Abschnitt „Datenquellen" in die bestehende „Preis-Faktoren konfigurieren"-Karte.
+Vier strukturierte Markt-Felder (Land/Region/Ort/Stadtteil) als Teil der AirROI-Konfiguration einführen, persistent in `system_settings.pricing_config` speichern und in der `airroi-sync` Edge Function direkt an die AirROI Markets API übergeben — ohne `/markets/search`-Lookup.
 
 ## Änderungen
 
-### 1. `src/components/Pricing/PricingDashboard.tsx`
-- Import und Render von `<GlobalPricingConfigCard />` entfernen.
-- Import-Statement von `GlobalPricingConfigCard` entfernen.
+### 1. `src/hooks/usePricingSettings.ts`
+`DEFAULT_PRICING_CONFIG` um vier Felder erweitern:
+```ts
+airroi_country: 'Austria',
+airroi_region: 'Salzburg',
+airroi_locality: 'Neukirchen am Großvenediger',
+airroi_district: '',
+```
 
-### 2. `src/components/Pricing/GlobalPricingConfigCard.tsx`
-- Datei löschen (nicht mehr referenziert).
+### 2. `src/components/Pricing/PricingFactorsConfig.tsx`
+In der „Datenquellen (AirROI Marktdaten)"-Sektion **vor** den bestehenden vier Filtern (Zimmertyp, Schlafzimmer, Zeitraum, Währung) einen neuen Block „Marktdefinition" einfügen mit:
+- **Land** (Input, Pflicht) → `airroi_country`
+- **Region** (Input, Pflicht) → `airroi_region`
+- **Ort/Markt** (Input, Pflicht) → `airroi_locality`
+- **Stadtteil/Gebiet** (Input, optional, Placeholder „Optional – z.B. Pinzgau") → `airroi_district`
 
-### 3. `src/components/Pricing/PricingFactorsConfig.tsx`
-- Zusätzlich zum house-spezifischen `pricing_config` auch die globale `system_settings.pricing_config` über `usePricingSettings` / `useSavePricingSettings` laden.
-- Neuer State `airroiForm` (4 Felder: `airroi_room_type`, `airroi_min_bedrooms`, `airroi_num_months`, `airroi_currency`) initialisiert aus `usePricingSettings`.
-- Neuer **Accordion-Eintrag** an erster Position des bestehenden `<Accordion>`:
-  - Trigger: „Datenquellen (AirROI Marktdaten)"
-  - Hinweisbox (`bg-muted/30`):
-    > „Diese Filter bestimmen, welche Vergleichsobjekte AirROI für die Marktauslastung heranzieht. Der ermittelte Auslastungswert fließt als Eingabe in den Preisalgorithmus oben ein."
-  - 4 Felder im 2-Spalten-Grid: Zimmertyp (Select), Mindest-Schlafzimmer (Number), Analysezeitraum (Select 6/12/24/36), Währung (Select EUR/USD/native).
-- `handleSave()` erweitern: schreibt **parallel** house-`pricing_config` (Faktoren) **und** `system_settings.pricing_config` (AirROI-Felder). Toast nur bei beidseitigem Erfolg, sonst Fehler.
-- `handleReset()` erweitert: setzt sowohl Faktoren als auch AirROI-Felder auf Defaults zurück (kein Auto-Save).
-- Untertitel der Card-Überschrift anpassen: „Multiplikatoren (pro Haus) & Datenquellen-Filter (global)."
+Hinweistext darunter:  
+> „Diese Werte werden direkt an die AirROI Markets API übergeben. Nutze übergeordnete Regionen (z.B. 'Salzburg' statt 'Neukirchen') für bessere Ergebnisse — kleine Orte haben oft zu wenige Listings für aussagekräftige Marktdaten."
 
-### 4. Keine DB-Migrationen nötig
-- AirROI-Werte bleiben in `system_settings` mit Key `pricing_config`.
-- Edge Function `airroi-sync` bleibt unverändert (liest dieselbe Quelle).
+State-Erweiterung: vier Felder zum `airroi`-State hinzufügen, im `useEffect` aus `globalCfg` initialisieren, in `handleSave` zusammen mit den anderen AirROI-Werten speichern, in `handleReset` auf Defaults zurücksetzen.
 
-## Auswirkungen
-- Nur eine Karte sichtbar, ein Speichern-Button speichert alles.
-- Bestehende globale Config-Werte in `system_settings.pricing_config` bleiben erhalten und werden weiter genutzt.
-- Die nicht mehr in der UI bedienbaren globalen Algorithmus-Felder (`season_factors`, `dow_factors` etc. aus `DEFAULT_PRICING_CONFIG`) werden in `system_settings` weiterhin als Fallback für die Edge Functions konserviert — der Save-Flow überschreibt nur die 4 AirROI-Felder und lässt die übrigen Felder unverändert.
+`MarketDataImportCard` bleibt erhalten (Inside-Airbnb-Import + manueller AirROI-Sync-Button), aber das dortige Standort-Textfeld wird obsolet — es wird intern aus `airroi_locality` gespeist (nicht mehr editierbar oder ganz entfernt).
+
+### 3. `src/components/Settings/MarketDataImportCard.tsx`
+- Standort-Input und automatische Voreinstellung aus `houses` entfernen.
+- Stattdessen `airroi_locality` aus `usePricingSettings()` lesen und als impliziten `location`-Schlüssel verwenden (für Cache-Lookup `lastAirroiSync` und für `import-inside-airbnb` Aufruf).
+- AirROI-Sync-Button ruft `useSyncAirROI` ohne `location` auf — die Edge Function liest die Marktdefinition selbst aus `system_settings`.
+- Hinweis: Der Inside-Airbnb-CSV-Pfad braucht weiterhin einen `location`-String für `market_data_cache`; hierfür `airroi_locality` als Schlüssel verwenden.
+
+### 4. `src/hooks/useAirROI.ts`
+`SyncAirROIInput.location` optional machen (Edge Function liest jetzt selbst). Body kann leer übergeben werden.
+
+### 5. `src/services/marketOccupancyService.ts`
+Beim `strategy === 'airroi'`-Pfad keinen `location`-Parameter mehr an `airroi-sync` übergeben (Edge Function nutzt Settings). Der lokale `location`-String bleibt für `market_data_cache`-Lookups bestehen, sollte aber idealerweise mit `airroi_locality` aus den Settings synchron sein.
+
+### 6. `supabase/functions/airroi-sync/index.ts`
+- `BodySchema`: `location` optional, `house_id` optional.
+- Aus `system_settings.pricing_config` zusätzlich `airroi_country`, `airroi_region`, `airroi_locality`, `airroi_district` lesen (Defaults: Austria/Salzburg/Neukirchen am Großvenediger/'').
+- Validierung: country, region, locality müssen nicht leer sein → sonst 400.
+- **`/markets/search`-Aufruf entfernen.** Stattdessen direkt das `market`-Objekt für die AirROI Markets API nutzen.
+- Markt-Aufruf so umbauen, dass er die Marktdefinition als Parameter sendet — entsprechend AirROI-API per POST/Query mit `country`, `region`, `locality` und (falls nicht-leer) `district`.
+- `location`-Wert für die `market_data_cache`-Zeilen: `airroi_locality` (oder `district` wenn vorhanden) als Schlüssel verwenden, damit Frontend-Lookups konsistent bleiben.
+- Antwort enthält weiter `days_written`, `base_occupancy`, `base_adr` (statt `market_id` ggf. die verwendete Marktdefinition zurückgeben).
+
+## Hinweise
+- AirROI Markets API erwartet die Markt-Hierarchie als Objekt (country/region/locality/district). Da der genaue Endpoint unklar ist, prüfe ich beim Implementieren die AirROI-Doku-Konvention; falls die API weiterhin eine `market_id` braucht, wird die Identifikation über die vier Felder serverseitig in einen Lookup umgesetzt — der Aufruf ist aber transparent für den User, der nur die vier Felder konfiguriert.
+- Da Default-Region jetzt fest auf Pinzgau/Salzburg steht, fragt AirROI keine globalen Daten mehr ab.

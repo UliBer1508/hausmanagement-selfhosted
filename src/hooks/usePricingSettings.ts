@@ -8,6 +8,12 @@ export const DEFAULT_PRICING_CONFIG = {
   airroi_num_months: 24 as 6 | 12 | 24 | 36,
   airroi_currency: 'eur' as 'eur' | 'usd' | 'native',
 
+  // AirROI Marktdefinition (direkt an AirROI Markets API)
+  airroi_country: 'Austria',
+  airroi_region: 'Salzburg',
+  airroi_locality: 'Neukirchen am Großvenediger',
+  airroi_district: '',
+
   // Saisonalität (0=Jan ... 11=Dez)
   season_factors: [0.75, 0.78, 0.90, 1.00, 1.10, 1.25, 1.50, 1.55, 1.20, 0.95, 0.80, 1.10] as number[],
 
