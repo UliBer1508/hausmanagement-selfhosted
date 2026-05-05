@@ -68,6 +68,7 @@ import { useEmailSettings, useProfileSettings, useAppearanceSettings, useRatingR
 import PricingTab from '@/components/Dashboard/PricingTab';
 import ProviderTab from '@/components/Dashboard/ProviderTab';
 import SettingsTab from '@/components/Dashboard/SettingsTab';
+import CalendarTab from '@/components/Dashboard/CalendarTab';
 
 const OriginalDashboard = () => {
   const location = useLocation();
@@ -90,10 +91,6 @@ const OriginalDashboard = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [calendarView, setCalendarView] = useState<'month' | 'week' | 'timeline'>('month');
-  const [selectedEvent, setSelectedEvent] = useState<any>(null);
-  const [openPopoverDate, setOpenPopoverDate] = useState<string | null>(null);
   const [selectedProviderForBilling, setSelectedProviderForBilling] = useState<any>(null);
   
   // Filter states for overview
