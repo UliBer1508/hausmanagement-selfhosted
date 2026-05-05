@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useQuery } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,7 +16,6 @@ import {
   Building, 
   Sparkles, 
   Shirt, 
-  Search,
   RefreshCw,
   Clock,
   Edit,
@@ -26,9 +24,6 @@ import {
   Trash2,
   Database,
   Save,
-  Filter,
-  ChevronDown,
-  ChevronUp,
   Building2,
   FileSpreadsheet
 } from 'lucide-react';
@@ -37,9 +32,6 @@ import { de } from 'date-fns/locale';
 import steinbockLogo from '@/assets/steinbock-logo.png';
 import CreateBookingDialog from '@/components/Bookings/CreateBookingDialog';
 import BookingOverviewFixed from '@/components/Bookings/BookingOverviewFixed';
-import BookingCard from '@/components/Bookings/BookingCard';
-import ServiceTaskCard from '@/components/Bookings/ServiceTaskCard';
-import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
 import HouseManagement from '@/components/Houses/HouseManagement';
 import CleaningManagement from '@/components/Cleaning/CleaningManagement';
 import GuestManagement from '@/components/Guests/GuestManagement';
@@ -50,10 +42,6 @@ import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderMan
 import { ProviderBillingDialog } from '@/components/ServicePortal/ProviderBillingDialog';
 import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
 import { UsageReportDialog } from '@/components/Dashboard/UsageReportDialog';
-import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBanner';
-import RatingReminderBanner from '@/components/Dashboard/RatingReminderBanner';
-import CleaningStatusAlertBanner from '@/components/Dashboard/CleaningStatusAlertBanner';
-import BookingInquiryAlertBanner from '@/components/Dashboard/BookingInquiryAlertBanner';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
@@ -63,6 +51,7 @@ import PricingTab from '@/components/Dashboard/PricingTab';
 import ProviderTab from '@/components/Dashboard/ProviderTab';
 import SettingsTab from '@/components/Dashboard/SettingsTab';
 import CalendarTab from '@/components/Dashboard/CalendarTab';
+import OverviewTab from '@/components/Dashboard/OverviewTab';
 
 const OriginalDashboard = () => {
   const location = useLocation();
@@ -1007,9 +996,39 @@ const OriginalDashboard = () => {
 
 
   const renderTabContent = () => {
+    const overviewElement = (
+      <OverviewTab
+        housesData={housesData}
+        filteredBookings={filteredBookings}
+        isFiltersExpanded={isFiltersExpanded}
+        setIsFiltersExpanded={setIsFiltersExpanded}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        serviceTypeFilter={serviceTypeFilter}
+        setServiceTypeFilter={setServiceTypeFilter}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        houseFilter={houseFilter}
+        setHouseFilter={setHouseFilter}
+        timePeriodFilter={timePeriodFilter}
+        setTimePeriodFilter={setTimePeriodFilter}
+        sortDirection={sortDirection}
+        setSortDirection={setSortDirection}
+        includeCheckedIn={includeCheckedIn}
+        setIncludeCheckedIn={setIncludeCheckedIn}
+        getBookingRelatedData={getBookingRelatedData}
+        getFilteredTasksByService={getFilteredTasksByService}
+        handleEditLinenOrder={handleEditLinenOrder}
+        syncingOrderId={syncingOrderId}
+        setSyncingOrderId={setSyncingOrderId}
+        syncOrder={syncOrder}
+        resetSync={resetSync}
+        externalSyncEnabled={externalSyncEnabled}
+      />
+    );
     switch (activeTab) {
       case 'Übersicht':
-        return renderOverviewContent();
+        return overviewElement;
       case 'Kalender':
         return (<CalendarTab bookingsData={bookingsData} housesData={housesData} serviceTasks={serviceTasks} linenOrders={linenOrders} />);
       case 'Buchungen':
@@ -1061,284 +1080,10 @@ const OriginalDashboard = () => {
           />
         );
       default:
-        return renderOverviewContent();
+        return overviewElement;
     }
   };
 
-  const renderOverviewContent = () => {
-    // Get unique houses from fetched data for filter
-    const availableHouses = [
-      { id: 'all', name: 'Alle Häuser' },
-      ...(housesData?.map(house => ({ id: house.id, name: house.name })) || [])
-    ];
-
-    // Get unique status values for filter (booking_status enum: confirmed, checked_in, completed, cancelled)
-    const availableStatuses = [
-      { value: 'all', label: 'Alle Status' },
-      { value: 'confirmed', label: 'Bestätigt' },
-      { value: 'checked_in', label: 'Eingecheckt' },
-      { value: 'completed', label: 'Abgeschlossen' },
-      { value: 'cancelled', label: 'Storniert' }
-    ];
-
-    // Get available time periods
-    const timePeriods = [
-      { value: 'next3months', label: 'Nächste 3 Monate' },
-      { value: 'next6months', label: 'Nächste 6 Monate' },
-      { value: 'thisyear', label: 'Dieses Jahr' },
-      { value: 'all', label: 'Alle Zeiträume' }
-    ];
-
-    return (
-      <div>
-        {/* Booking Inquiry Alert Banner - ganz oben */}
-        <BookingInquiryAlertBanner />
-        
-        {/* Guest Contact Alert Banner */}
-        <GuestContactAlertBanner />
-        
-        {/* Rating Reminder Banner */}
-        <div className="mt-4">
-          <RatingReminderBanner />
-        </div>
-        
-        {/* Cleaning Status Alert Banner */}
-        <CleaningStatusAlertBanner />
-        
-        {/* Search and Filters */}
-        <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-          {/* Filter Toggle Button - All devices */}
-          <div className="mb-4">
-            <Button
-              variant="outline"
-              onClick={() => setIsFiltersExpanded(!isFiltersExpanded)}
-              className="w-full flex items-center justify-between"
-            >
-              <span className="flex items-center gap-2">
-                <Filter className="w-4 h-4" />
-                Filter & Suche
-              </span>
-              {isFiltersExpanded ? (
-                <ChevronUp className="w-4 h-4" />
-              ) : (
-                <ChevronDown className="w-4 h-4" />
-              )}
-            </Button>
-          </div>
-
-          {/* Filter Content - Collapsible on all devices */}
-          <div className={`${isFiltersExpanded ? 'block' : 'hidden'}`}>
-            <div className="flex flex-col lg:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    placeholder="Nach Gast oder Haus suchen..."
-                    className="pl-10"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-4">
-                {/* Service Type Filter */}
-                <select 
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  value={serviceTypeFilter}
-                  onChange={(e) => setServiceTypeFilter(e.target.value)}
-                >
-                  <option value="all">Alle Services</option>
-                  <option value="cleaning">Reinigung</option>
-                  <option value="laundry">Wäsche</option>
-                  <option value="maintenance">Wartung</option>
-                </select>
-                
-                {/* Status Filter */}
-                <select 
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                >
-                  {availableStatuses.map(status => (
-                    <option key={status.value} value={status.value}>
-                      {status.label}
-                    </option>
-                  ))}
-                </select>
-                
-                {/* Houses Filter */}
-                <select 
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  value={houseFilter}
-                  onChange={(e) => setHouseFilter(e.target.value)}
-                >
-                  {availableHouses.map(house => (
-                    <option key={house.id} value={house.id}>
-                      {house.name}
-                    </option>
-                  ))}
-                </select>
-                
-                {/* Time Period Filter */}
-                <select 
-                  className="px-3 py-2 border border-gray-300 rounded-md text-sm"
-                  value={timePeriodFilter}
-                  onChange={(e) => setTimePeriodFilter(e.target.value)}
-                >
-                  {timePeriods.map(period => (
-                    <option key={period.value} value={period.value}>
-                      {period.label}
-                    </option>
-                  ))}
-                </select>
-
-                {/* Sort Direction Toggle */}
-                <button
-                  className="px-3 py-2 border border-input rounded-md text-sm flex items-center gap-1 hover:bg-accent"
-                  onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-                  title={sortDirection === 'asc' ? 'Aufsteigend (älteste zuerst)' : 'Absteigend (neueste zuerst)'}
-                >
-                  {sortDirection === 'asc' ? (
-                    <ChevronUp className="w-4 h-4" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4" />
-                  )}
-                  {sortDirection === 'asc' ? 'Aufsteigend' : 'Absteigend'}
-                </button>
-
-                {/* Checkbox: Auch eingecheckte Buchungen */}
-                {statusFilter === 'confirmed' && (
-                  <label className="flex items-center gap-2 px-3 py-2 text-sm whitespace-nowrap cursor-pointer">
-                    <Checkbox 
-                      checked={includeCheckedIn}
-                      onCheckedChange={(checked) => setIncludeCheckedIn(checked === true)}
-                    />
-                    <span>auch eingecheckte</span>
-                  </label>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Bookings Section - Real Data from Database */}
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Buchungen mit verknüpften Aufträgen
-            </h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Übersicht über Buchungen und ihre zugehörigen Service-Aufträge und Wäschebestellungen (inkl. abgeschlossene)
-            </p>
-            
-            <div className="space-y-6">
-              {filteredBookings?.map((booking, index) => {
-                const { tasks, laundry } = getBookingRelatedData(booking.id);
-                const filteredTasks = getFilteredTasksByService(tasks);
-                const colorVariant = index === 0 ? 'green' : index === 1 ? 'blue' : 'purple';
-                
-                return (
-                  <div key={booking.id} className="relative bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <div className="p-6">
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Booking Card */}
-                        <BookingCard 
-                          booking={booking} 
-                          colorVariant={colorVariant} 
-                          onBookingUpdated={() => window.location.reload()}
-                        />
-                        
-                        {/* Service Tasks */}
-                        <div className="space-y-3">
-                          {filteredTasks.length > 0 ? (
-                            filteredTasks.map((task) => (
-                              <ServiceTaskCard key={task.id} task={task} colorVariant={colorVariant} onTaskUpdated={() => window.location.reload()} />
-                            ))
-                          ) : (
-                            <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg bg-blue-50">
-                              <div className="flex flex-col items-center space-y-2">
-                                <span className="text-lg">🧹</span>
-                                <p className="font-medium">Keine Service-Aufträge</p>
-                                <p className="text-xs">Noch keine Reinigung geplant</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Laundry Orders */}
-                        <div className="space-y-3">
-                          {laundry.length > 0 ? (
-                            laundry.map((order) => (
-                              <LaundryOrderCard 
-                                key={order.id} 
-                                order={order} 
-                                colorVariant={colorVariant}
-                                onEdit={handleEditLinenOrder}
-                                onSync={async (order) => {
-                                  setSyncingOrderId(order.id);
-                                  try {
-                                    await syncOrder(order.id);
-                                  } finally {
-                                    setSyncingOrderId(null);
-                                  }
-                                }}
-                                onResetSync={async (order) => { await resetSync(order.id); }}
-                                isSyncing={syncingOrderId === order.id}
-                                externalSyncEnabled={externalSyncEnabled}
-                              />
-                            ))
-                          ) : (
-                            <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg bg-gray-50">
-                              <div className="flex flex-col items-center space-y-2">
-                                <span className="text-lg">👕</span>
-                                <p className="font-medium">Keine Wäschebestellungen</p>
-                                <p className="text-xs">Wäscheservice aktuell nicht verfügbar</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }) ?? (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">Keine bestätigten Buchungen gefunden</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Empty States */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Service-Aufträge ohne Buchung</CardTitle>
-                <p className="text-sm text-gray-600">
-                  Aufträge die keiner Buchung zugeordnet sind (inkl. abgeschlossene)
-                </p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-gray-500 py-8">Keine unverbundenen Aufträge</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold">Wäschebestellungen ohne Buchung</CardTitle>
-                <p className="text-sm text-gray-600">
-                  Bestellungen die keiner Buchung zugeordnet sind (inkl. abgeschlossene)
-                </p>
-              </CardHeader>
-              <CardContent>
-                <p className="text-center text-gray-500 py-8">Keine unverbundenen Bestellungen</p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 relative">
