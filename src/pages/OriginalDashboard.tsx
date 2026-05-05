@@ -1008,9 +1008,39 @@ const OriginalDashboard = () => {
 
 
   const renderTabContent = () => {
+    const overviewElement = (
+      <OverviewTab
+        housesData={housesData}
+        filteredBookings={filteredBookings}
+        isFiltersExpanded={isFiltersExpanded}
+        setIsFiltersExpanded={setIsFiltersExpanded}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        serviceTypeFilter={serviceTypeFilter}
+        setServiceTypeFilter={setServiceTypeFilter}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        houseFilter={houseFilter}
+        setHouseFilter={setHouseFilter}
+        timePeriodFilter={timePeriodFilter}
+        setTimePeriodFilter={setTimePeriodFilter}
+        sortDirection={sortDirection}
+        setSortDirection={setSortDirection}
+        includeCheckedIn={includeCheckedIn}
+        setIncludeCheckedIn={setIncludeCheckedIn}
+        getBookingRelatedData={getBookingRelatedData}
+        getFilteredTasksByService={getFilteredTasksByService}
+        handleEditLinenOrder={handleEditLinenOrder}
+        syncingOrderId={syncingOrderId}
+        setSyncingOrderId={setSyncingOrderId}
+        syncOrder={syncOrder}
+        resetSync={resetSync}
+        externalSyncEnabled={externalSyncEnabled}
+      />
+    );
     switch (activeTab) {
       case 'Übersicht':
-        return renderOverviewContent();
+        return overviewElement;
       case 'Kalender':
         return (<CalendarTab bookingsData={bookingsData} housesData={housesData} serviceTasks={serviceTasks} linenOrders={linenOrders} />);
       case 'Buchungen':
@@ -1062,7 +1092,7 @@ const OriginalDashboard = () => {
           />
         );
       default:
-        return renderOverviewContent();
+        return overviewElement;
     }
   };
 
