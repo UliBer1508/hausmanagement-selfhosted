@@ -5,6 +5,7 @@ import { useProviderMessageNotifications } from '@/hooks/useProviderMessageNotif
 import { useGuestContactReminders } from '@/hooks/useGuestContactReminders';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import pkg from '../../../package.json';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -43,7 +44,7 @@ const AppLayout = ({ children }: AppLayoutProps) => {
       {/* Global Copyright Footer */}
       <footer className="py-4 border-t border-border/50 text-center">
         <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} Steinbock Chalets · v2.0.0
+          © {new Date().getFullYear()} Steinbock Chalets · v{pkg.version}
         </p>
       </footer>
 
