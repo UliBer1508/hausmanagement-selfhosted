@@ -4989,6 +4989,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      delete_booking_cascade: {
+        Args: { p_booking_id: string }
+        Returns: undefined
+      }
       get_all_table_rows: {
         Args: never
         Returns: {
