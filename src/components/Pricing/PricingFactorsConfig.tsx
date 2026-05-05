@@ -15,6 +15,7 @@ import {
   useSavePricingSettings,
   type PricingConfig,
 } from '@/hooks/usePricingSettings';
+import MarketDataImportCard from '@/components/Settings/MarketDataImportCard';
 
 // Defaults — must mirror supabase/functions/pricing-engine/index.ts
 export const DEFAULT_FACTORS = {
@@ -235,6 +236,9 @@ export function PricingFactorsConfig({ houseId }: Props) {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="mt-4">
+              <MarketDataImportCard />
             </div>
           </AccordionContent>
         </AccordionItem>
