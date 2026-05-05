@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { ChevronLeft, ChevronRight, LayoutGrid, List, RefreshCcw, X } from 'lucide-react';
 import { toast } from 'sonner';
-import {
 import { toISODate } from '@/lib/dateHelpers';
+import {
   getRatesForRange,
   overridePrice,
   bulkUpdatePrices,
