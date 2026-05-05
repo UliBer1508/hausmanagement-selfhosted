@@ -1,36 +1,140 @@
-## Ziel
+# Plan: `booking-analysis` Edge Function
 
-Code-Qualitäts-Fixes in `src/components/Chat/ChatAssistant.tsx` und `src/components/PWA/AppStatusBar.tsx` umsetzen — ohne Funktions- oder UI-Änderungen.
+Create a new Supabase Edge Function that analyzes historical booking data per house to calibrate the dynamic pricing engine. No new tables — results are stored inside `houses.pricing_config` (JSONB).
 
-## Änderungen `src/components/Chat/ChatAssistant.tsx`
+## 1. File Structure
 
-1. **Mobile-Duplikate entfernen** — Der gesamte mobile `<div>`-Block (Header, Mode-Toggle, Provider-Select, Messages-Area, Input — Zeilen ~436–654) sowie der inhaltliche Inhalt im Draggable-Wrapper (Zeilen ~668–852) werden gelöscht. Beide rendern stattdessen `renderChatContent(false)`.
-   - Mobile: `<div className="fixed inset-0 h-[100dvh] ... flex flex-col z-[100] touch-manipulation">{renderChatContent(false)}</div>`
-   - Desktop: `<Draggable …><div className="absolute w-[400px] h-[600px] …">{/* drag-handle bar */}{renderChatContent(false)}</div></Draggable>`
-   - Drag-Handle bleibt im Desktop-Wrapper als eigene schmale Leiste oberhalb von `renderChatContent` (mit Klasse `drag-handle` + `GripVertical`-Icon), sodass Header in `renderChatContent` unverändert bleibt.
+- `supabase/functions/booking-analysis/index.ts` — main handler
+- `supabase/config.toml` — add `[functions.booking-analysis] verify_jwt = false` entry
 
-2. **Auto-Scroll** — Neuer `useEffect(() => { scrollToBottom(); }, [messages, providerMessages]);`.
+## 2. Request Contract
 
-3. **`window.innerWidth`-Fix** — Neuer State `windowSize` + `useEffect` mit Resize-Listener. Draggable nutzt `windowSize.width / .height` statt direktem Zugriff.
+```ts
+POST /functions/v1/booking-analysis
+Body: { house_id: string (uuid), action: 'analyze-bookings' | 'save-calibration' | 'get-calibration', payload?: any }
+```
 
-4. **Error-Display für Messaging-Mode** — Im Messaging-Block dieselbe `{error && (...)}`-Box wie im AI-Mode ergänzen (innerhalb `renderChatContent`).
+- CORS preflight handled (OPTIONS → 200)
+- Zod validation on body, returns 400 on invalid input
+- Uses `SUPABASE_SERVICE_ROLE_KEY` internally (bypasses RLS — consistent with existing `chat-assistant` and other functions in the project)
 
-5. **`LoadingDots`-Komponente** — Außerhalb der `ChatAssistant`-Funktion definieren; alle 3 Dot-Vorkommen in `renderChatContent` durch `<LoadingDots />` ersetzen.
+## 3. Action: `analyze-bookings`
 
-## Änderungen `src/components/PWA/AppStatusBar.tsx`
+Query `bookings` for the house:
+```sql
+status IN ('confirmed','completed','checked_in')
+AND booking_amount IS NOT NULL
+AND check_in >= now() - interval '24 months'
+```
 
-6. **`isOnline` Initial** — `useState(true)` + `useEffect(() => setIsOnline(navigator.onLine), [])`.
+Then compute in-memory (TypeScript, no SQL aggregations needed since dataset per house is small):
 
-7. **Auto-Reload entfernen** — `controllerchange`-Listener und `handleControllerChange` komplett entfernen (inkl. Cleanup). `handleUpdate` bleibt unverändert.
+### a) Monthly occupancy (last 12 months)
+- Build a map `YYYY-MM → { bookedNights, totalNights, revenue, avgPricePerNight }`
+- `bookedNights`: sum of overlap days between booking range and that month
+- `totalNights`: days in month
+- `occupancyRate = bookedNights / totalNights`
+- `avgPricePerNight = revenue / bookedNights`
 
-8. **Minimized persistieren** — `useState(() => localStorage.getItem('statusbar-minimized') === 'true')`. Neue Funktion `handleMinimize(value)` schreibt in localStorage und wird in beiden Toggle-Buttons benutzt.
+### b) Lead time analysis
+- `leadDays = check_in - created_at` (days)
+- Buckets: `<7`, `7-14`, `14-30`, `30-60`, `60-90`, `>90`
+- Return `{ bucket, count, share }`
 
-9. **iOS-Standalone Typ** — Lokales `interface NavigatorStandalone extends Navigator { standalone?: boolean }`; `(navigator as NavigatorStandalone).standalone === true`.
+### c) Day of week patterns
+- Group by weekday of `check_in` (0=Mon … 6=Sun, ISO style)
+- `{ weekday, count, avgStayLength }`
+- Return `mostCommonCheckInDay`
 
-10. **`updateSW` als Ref** — `useRef<(() => void) | null>(null)` statt `useState`. `setShowUpdateButton(true)` + `updateSWRef.current = …` setzen; `handleUpdate` ruft `updateSWRef.current?.()`.
+### d) Platform comparison
+- Group by `platform` (treat null as `'direct'`)
+- `{ platform, bookings, avgPricePerNight, totalRevenue }`
 
-## Sicherstellen
+### e) Gap analysis
+- Sort confirmed bookings by `check_in`
+- Compute `gap = next.check_in - prev.check_out` (days)
+- Buckets: `1`, `2`, `3-5`, `>5`
+- Also return `avgGapDays` and `totalGaps`
 
-- Keine Style-/Layout-/Verhalten-Änderungen über die genannten Punkte hinaus.
-- Mobile Safe-Area-Padding (`pt-[calc(1rem+env(safe-area-inset-top))]` / `pb-…inset-bottom`) bleibt erhalten — entweder via Klassen am mobilen Wrapper-`<div>` oder durch optionalen `isMobile`-Hint in `renderChatContent`. Empfehlung: Klassen direkt am Mobile-Wrapper anbringen (`pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]`), damit `renderChatContent` unverändert bleibt.
-- Touch-Handler (`onTouchEnd` etc.) auf Mobile-Buttons: durch das Vereinheitlichen entfallen sie — das ist akzeptiert, da `renderChatContent` bereits funktional über Standard-`onClick` arbeitet (gewünschte Vereinfachung gemäß Aufgabenstellung „remove duplication").
+### f) Seasonal price elasticity
+- Map month → season (Winter Dec/Jan/Feb, Spring Mar–May, Summer Jun–Aug, Autumn Sep–Nov)
+- Per season: `min`, `max`, `avg` price/night, `bookings`, `occupancyRate` (using bookedNights / totalNightsInSeasonWindow)
+
+### g) Region modifier (Pinzgau context)
+- Detect house location via `houses.address` containing one of: Krimml, Wald, Neukirchen, Bramberg, Hollersbach
+- Add `region: 'oberpinzgau' | 'unknown'` to output
+- Include local high seasons: Winter peak (Dec 20 – Mar 15), Summer peak (Jul 1 – Aug 31)
+
+Response shape:
+```ts
+{
+  house_id, generated_at, sample_size,
+  monthlyOccupancy, leadTime, dayOfWeek,
+  platforms, gaps, seasonal, region,
+  recommendations: { /* derived factor adjustments — see §5 */ }
+}
+```
+
+## 4. Action: `save-calibration`
+
+- Re-runs analysis (or accepts `payload.analysis` from client to avoid double work)
+- Reads current `houses.pricing_config`
+- Merges a `calibration` block:
+```json
+{
+  "calibration": {
+    "updated_at": "...",
+    "sample_size_bookings": 0,
+    "monthly_occupancy": { "2026-01": 0.62, ... },
+    "lead_time_distribution": { "<7": 0.1, ... },
+    "dow_distribution": { "0": 0.05, ... },
+    "platform_avg_price": { "airbnb": 180, "booking": 175, "direct": 200 },
+    "gap_distribution": { "1": 12, "2": 6, ... },
+    "seasonal_price": { "winter": {min,max,avg,occupancy}, ... },
+    "region": "oberpinzgau",
+    "factor_adjustments": {
+      "season": { "0": 0.78, "1": 0.81, ... },   // 12 months
+      "dayOfWeek": { "0": 0.85, ... },
+      "leadTime": { "0_7": 0.88, "8_14": 0.95, ... },
+      "gap": { "1": 0.80, "2": 0.86, ... }
+    }
+  }
+}
+```
+- `UPDATE houses SET pricing_config = pricing_config || '{calibration:...}'::jsonb WHERE id = house_id`
+
+## 5. Recommendation derivation
+
+Compute per-house factor adjustments from observed data, blended with the PriceLabs defaults already in `useDynamicPricing.ts`:
+
+```
+ownFactor[month] = avgPricePerNight[month] / overallAvgPricePerNight
+blendWeight w = clamp(sample_size / 200, 0, 0.7)
+finalFactor = defaultFactor * (1 - w) + ownFactor * w
+```
+
+Same blend for `dayOfWeek`, `leadTime`, `gap`. Min/max bounded to `[0.6, 1.8]` to prevent outliers.
+
+These are returned in `recommendations` and persisted under `factor_adjustments`.
+
+## 6. Action: `get-calibration` (small convenience)
+
+Read `houses.pricing_config.calibration` and return it. Useful for the frontend to display "last analyzed at" without rerunning.
+
+## 7. Frontend Integration (light touch — no UI build in this plan)
+
+Just expose the function so it can be called later:
+- It can be invoked via `supabase.functions.invoke('booking-analysis', { body: {...} })`
+- A future PR will wire the trigger button into `PricingDashboard.tsx`
+
+## 8. Error Handling & Logging
+
+- Try/catch around the whole handler, return `{ error }` with status 500
+- `console.error` on failure paths (visible in edge function logs)
+- Returns `{ ok: false, reason: 'no_bookings' }` (200) when sample size is 0 — frontend can show "Not enough data yet"
+
+## 9. Out of scope (will be follow-up tasks)
+
+- Calling external market APIs (AirDNA, PriceLabs) — handled separately
+- UI panel in `PricingDashboard.tsx`
+- Cron schedule (function will be triggered on demand for now)
