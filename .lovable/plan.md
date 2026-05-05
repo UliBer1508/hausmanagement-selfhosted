@@ -1,19 +1,36 @@
 ## Ziel
-Versionsnummer im Footer nicht mehr hartkodieren, sondern dynamisch aus `package.json` lesen. Künftige Versionsbumps benötigen dann nur noch eine Änderung in `package.json`.
+Updates der PWA werden auf Handy und PC **automatisch** eingespielt, ohne dass der User auf „Aktualisieren" klicken muss. Versionsnummer im Footer ist dann immer aktuell.
 
 ## Änderungen
 
-### `src/components/Layout/AppLayout.tsx`
-1. JSON-Import hinzufügen:
-   ```ts
-   import pkg from '../../../package.json';
-   ```
-2. Footer-Zeile anpassen:
-   ```tsx
-   © {new Date().getFullYear()} Steinbock Chalets · v{pkg.version}
-   ```
+### 1. `vite.config.ts` — HTML immer frisch laden
+`runtimeCaching` um eine `NetworkFirst`-Regel für HTML-Navigationen ergänzen, damit der Browser bei Online-Verbindung immer die neueste `index.html` (und damit den Verweis auf das neue JS-Bundle) bekommt:
+
+```ts
+runtimeCaching: [
+  {
+    urlPattern: ({ request }) => request.mode === 'navigate',
+    handler: 'NetworkFirst',
+    options: { cacheName: 'html', networkTimeoutSeconds: 3 },
+  },
+  // ... bestehende Regeln (Google Fonts, Supabase) bleiben
+]
+```
+
+### 2. `src/components/PWA/UpdatePrompt.tsx` — Auto-Apply statt Dialog
+- Sobald ein neuer Service Worker im Status `installed` ist und ein `controller` existiert (= echtes Update, nicht Erstinstallation), **sofort** `SKIP_WAITING` senden.
+- Den `controllerchange`-Listener behalten — er löst dann automatisch `window.location.reload()` aus.
+- Sichtbarer Dialog/Card entfällt; stattdessen kurzer Toast „App wird aktualisiert…" direkt vor dem Reload.
+- Erstinstallation (kein vorhandener `controller`) löst **kein** Reload aus.
+
+### 3. `src/components/PWA/AppStatusBar.tsx` — konsistent halten
+Den manuellen „Update"-Button entfernen (bzw. den `showUpdateButton`-Pfad), da Updates jetzt automatisch laufen. Online/Offline- und PWA-Badge bleiben unverändert.
+
+## Verhalten nach Umsetzung
+- **PC**: Beim nächsten Tab-Focus / Reload erkennt der SW das Update, installiert es, aktiviert sofort, lädt die Seite neu → neue Version + neue Versionsnummer im Footer.
+- **Handy (installierte PWA)**: Beim Öffnen der App prüft der SW auf Updates, spielt sie ohne Nachfrage ein, kurzer Reload → neue Version sichtbar.
+- **Offline**: Letzter Cache wird weiterhin ausgeliefert, kein Bruch.
 
 ## Hinweise
-- Vite unterstützt JSON-Imports nativ — keine zusätzliche Konfiguration nötig.
-- `tsconfig` erlaubt standardmäßig `resolveJsonModule` in Vite-Projekten; falls TypeScript meckert, ergänze `"resolveJsonModule": true` in `tsconfig.app.json` (wird vor Umsetzung geprüft).
-- Keine weiteren Stellen im Code zeigen aktuell die Version an.
+- Einmalige Übergangsphase: Geräte mit dem **alten** SW müssen einmal manuell aktualisiert werden (Hard-Reload PC, App-Switcher schließen Handy). Danach greift der neue Auto-Update-Mechanismus dauerhaft.
+- Risiko: User kann theoretisch mitten in einer Eingabe von einem Reload überrascht werden. Da die App keine langen Formular-Workflows ohne Zwischenspeicherung hat, ist das Risiko gering.
