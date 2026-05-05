@@ -17,6 +17,14 @@ import Draggable from 'react-draggable';
 
 type ChatMode = 'ai' | 'messaging';
 
+const LoadingDots = () => (
+  <div className="flex gap-1">
+    <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+    <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+    <div className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+  </div>
+);
+
 const ChatAssistant = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [chatMode, setChatMode] = useState<ChatMode>('ai');
@@ -28,6 +36,14 @@ const ChatAssistant = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { messages, setMessages, isStreaming, error, sendMessage, clearMessages } = useChat();
   const { summaryMessage, isLoading: summaryLoading, shouldShow, markAsShown } = useMorningSummary();
+
+  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Auto-scroll to bottom on focus (for mobile keyboard)
   const scrollToBottom = () => {
