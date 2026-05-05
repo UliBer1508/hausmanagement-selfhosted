@@ -7,12 +7,6 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  toolCalls?: Array<{
-    id: string;
-    name: string;
-    arguments: string;
-    result?: any;
-  }>;
 }
 
 interface PageContext {
@@ -157,12 +151,6 @@ export const useChat = () => {
                   },
                 ];
               });
-            }
-
-            // Handle tool calls (if any)
-            if (delta?.tool_calls) {
-              console.log('Tool calls:', delta.tool_calls);
-              // Tool calling would be handled here in future
             }
           } catch (e) {
             // Incomplete JSON, put it back
