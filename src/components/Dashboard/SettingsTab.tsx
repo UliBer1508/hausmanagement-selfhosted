@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import RatingReminderSettingsCard from '@/components/Settings/RatingReminderSettingsCard';
 import GuestImportCard from '@/components/Settings/GuestImportCard';
-import MarketDataImportCard from '@/components/Settings/MarketDataImportCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
