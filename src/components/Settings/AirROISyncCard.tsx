@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, AlertCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSyncAirROI } from "@/hooks/useAirROI";
 import { usePricingSettings } from "@/hooks/usePricingSettings";
 
@@ -35,19 +36,40 @@ const AirROISyncCard = () => {
         <strong>{location || "—"}</strong>
       </p>
       <div className="flex flex-wrap items-center gap-3">
-        <Button
-          onClick={() => syncAirROI.mutate({})}
-          disabled={syncAirROI.isPending || !location}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${syncAirROI.isPending ? "animate-spin" : ""}`} />
-          {syncAirROI.isPending ? "AirROI Sync läuft…" : "AirROI Sync"}
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={!location ? 0 : -1}>
+                <Button
+                  onClick={() => syncAirROI.mutate({})}
+                  disabled={syncAirROI.isPending || !location}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${syncAirROI.isPending ? "animate-spin" : ""}`} />
+                  {syncAirROI.isPending ? "AirROI Sync läuft…" : "AirROI Sync"}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            {!location && (
+              <TooltipContent>
+                Bitte zuerst Ort/Markt in der Marktdefinition festlegen.
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
         {lastAirroiSync && (
           <span className="text-xs text-muted-foreground">
             Letzter Sync: {new Date(lastAirroiSync).toLocaleString("de-DE")}
           </span>
         )}
       </div>
+      {!location && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300">
+          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            Bitte zuerst <strong>Ort/Markt</strong> in der Marktdefinition (Preis-Einstellungen) festlegen, bevor du den AirROI-Sync starten kannst.
+          </span>
+        </div>
+      )}
     </div>
   );
 };
