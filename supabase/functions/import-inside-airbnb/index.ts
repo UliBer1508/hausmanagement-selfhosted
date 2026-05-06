@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
+import { DEFAULT_SEASON_FACTORS } from "../_shared/pricingDefaults.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,9 +12,6 @@ const BodySchema = z.object({
   location: z.string().min(1).max(255),
   csv_content: z.string().min(10),
 });
-
-// Mirror of DEFAULT_PRICING_CONFIG.season_factors — keep in sync with src/hooks/usePricingSettings.ts
-const DEFAULT_SEASON_FACTORS = [0.75, 0.78, 0.90, 1.00, 1.10, 1.25, 1.50, 1.55, 1.20, 0.95, 0.80, 1.10];
 
 function parseCsvLine(line: string): string[] {
   const out: string[] = [];
