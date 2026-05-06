@@ -230,7 +230,7 @@ export async function fetchMarketData(opts: FetchMarketOptions): Promise<MarketD
       fresh = missing.map((dStr) => estimateOccupancyFromSeason(new Date(dStr), location, countryCodes, seasonFactors));
     }
 
-    // Wettbewerber-Daten haben Vorrang (competitor > airdna > estimated).
+    // Wettbewerber-Daten haben Vorrang (competitor > airroi > airdna > estimated).
     const compResults = await Promise.all(
       fresh.map((m) => fetchCompetitorOccupancy(location, m.date).catch(() => null)),
     );
