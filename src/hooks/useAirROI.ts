@@ -7,8 +7,18 @@ export interface SyncAirROIInput {
   house_id?: string;
 }
 
+export interface SyncAirROIMarket {
+  country: string;
+  region: string;
+  locality: string;
+  district?: string;
+}
+
 export interface SyncAirROIResult {
   success: boolean;
+  /** Marktdefinition, mit der der Sync ausgeführt wurde (Edge Function liefert immer dieses Objekt). */
+  market: SyncAirROIMarket;
+  /** @deprecated Wird von der Edge Function nicht zurückgegeben. Nur für Abwärtskompatibilität. */
   market_id?: string | number;
   days_written: number;
   base_occupancy: number;
