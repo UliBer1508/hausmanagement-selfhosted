@@ -4,7 +4,8 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { ChevronLeft, ChevronRight, LayoutGrid, List, RefreshCcw, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LayoutGrid, List, RefreshCcw, X, Info } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import { toISODate } from '@/lib/dateHelpers';
 import {
@@ -137,14 +138,62 @@ export function PricingDashboard({ houseId, propertyName, location }: Props) {
           <Button variant="outline" size="sm" onClick={() => setViewMode(viewMode === 'calendar' ? 'list' : 'calendar')}>
             {viewMode === 'calendar' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
           </Button>
-          <Button onClick={handleBulkUpdate} disabled={isUpdating} size="sm" variant="outline">
-            <RefreshCcw className="h-4 w-4 mr-2" />
-            Preise neu berechnen
-          </Button>
-          <Button onClick={handleSmartUpdate} disabled={isSmartUpdating} size="sm">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Preise neu berechnen (Smart)
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button onClick={handleBulkUpdate} disabled={isUpdating} size="sm" variant="outline">
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              Preise neu berechnen
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Info Basis-Update">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 text-sm">
+                <div className="font-semibold mb-2">Basis-Update (bulkUpdatePrices)</div>
+                <ul className="space-y-1">
+                  <li className="flex justify-between"><span>Saisonalität</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Wochentag</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Lead-Time</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Marktauslastung</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Events</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Lücken (Gap)</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Ferien (DE/AT/NL/CZ/PL/HU)</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Pfingstferien dynamisch</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between text-muted-foreground"><span>Wetter</span><span>✗</span></li>
+                  <li className="flex justify-between text-muted-foreground"><span>Mindestaufenthalt (LOS)</span><span>✗</span></li>
+                </ul>
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button onClick={handleSmartUpdate} disabled={isSmartUpdating} size="sm">
+              <Sparkles className="h-4 w-4 mr-2" />
+              Preise neu berechnen (Smart)
+            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Info Smart-Update">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 text-sm">
+                <div className="font-semibold mb-2">Smart-Update (pricing-engine)</div>
+                <ul className="space-y-1">
+                  <li className="flex justify-between"><span>Saisonalität (Sommer-Peak)</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Wochentag (Sa = Top)</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Lead-Time</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Marktauslastung (eigene)</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Events</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Lücken bis 14 Tage</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between"><span>Feiertage AT/DE-BY/NL/CZ/PL/HU</span><span className="text-green-600">✓ OpenHolidays</span></li>
+                  <li className="flex justify-between"><span>Wetter 16 Tage + Klima-Fallback</span><span className="text-green-600">✓ Open-Meteo</span></li>
+                  <li className="flex justify-between"><span>LOS-Rabatt (7/14/21+ Nächte)</span><span className="text-green-600">✓</span></li>
+                  <li className="flex justify-between text-muted-foreground"><span>AirROI Marktdaten</span><span>✗</span></li>
+                </ul>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </div>
 
