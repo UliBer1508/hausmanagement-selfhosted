@@ -28,6 +28,7 @@
     "types": ["vitest/globals"]
   },
   "include": [
-    "src"
+    "src",
+    "supabase/functions/_shared/pricingDefaults.ts"
   ]
 }
