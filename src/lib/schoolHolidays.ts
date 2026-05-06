@@ -199,7 +199,7 @@ function easterSunday(year: number): Date {
 }
 
 function inRange(date: Date, range: DateRange): boolean {
-  const md = `${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const md = `${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
   const { start, end } = range;
   if (start > end) return md >= start || md <= end; // Jahreswechsel
   return md >= start && md <= end;
@@ -207,7 +207,9 @@ function inRange(date: Date, range: DateRange): boolean {
 
 function isEasterWeek(date: Date): boolean {
   const e = easterSunday(date.getUTCFullYear());
-  const diff = Math.abs((date.getTime() - e.getTime()) / 86400000);
+  // UTC-Tagesgrenze vergleichen, damit Lokalzeit-Offsets nicht zu Off-by-one fuehren
+  const dateUtcMidnight = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const diff = Math.abs((dateUtcMidnight - e.getTime()) / 86400000);
   return diff <= 3;
 }
 
@@ -260,7 +262,7 @@ export function getDynamicHolidayWeight(date: Date, countryCodes: string[]): num
     .map((c) => c.toUpperCase())
     .some((c) => DYNAMIC_CODES.has(c));
   if (!hasDynamic) return 1.0;
-  const month = date.getMonth(); // 0-basiert
+  const month = date.getUTCMonth(); // 0-basiert, UTC-konsistent
   if (month === 6 || month === 7) return 1.20; // Juli/August
   if (month === 11) return 1.10;               // Dezember
   return 1.0;
