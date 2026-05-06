@@ -36,7 +36,6 @@ const AirROISyncCard = () => {
       </p>
       <div className="flex flex-wrap items-center gap-3">
         <Button
-          variant="secondary"
           onClick={() => syncAirROI.mutate({})}
           disabled={syncAirROI.isPending || !location}
         >
