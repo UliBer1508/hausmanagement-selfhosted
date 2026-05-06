@@ -35,12 +35,12 @@ const DEFAULT_FACTORS = {
   // Klimatologische Wetter-Erwartung Pinzgau (Fallback nach Tag 16)
   weather_climatology: { 1: 1.05, 2: 1.06, 3: 1.02, 4: 0.98, 5: 0.98, 6: 1.00, 7: 1.02, 8: 1.03, 9: 1.05, 10: 1.00, 11: 0.97, 12: 1.04 } as Record<number, number>,
   holiday: {
-    at: 1.25,
-    de_by: 1.25,
-    at_plus_de: 1.35,
-    foreign_single: 1.10,
-    foreign_multi: 1.18,
-    at_or_de_plus_foreign: 1.40,
+    at: 1.30,
+    de_by: 1.30,
+    at_plus_de: 1.45,
+    foreign_single: 1.15,
+    foreign_multi: 1.25,
+    at_or_de_plus_foreign: 1.55,
   },
   // Length-of-Stay Rabatte für zusammenhängende freie Blöcke
   los: { d7: 0.95, d14: 0.90, d21: 0.85 },
@@ -369,13 +369,22 @@ Deno.serve(async (req) => {
       const hoF = holidayFactor(dStr, holidayCache, F.holiday);
 
       const blockLen = freeBlockLength(d);
-      const losF = losFactorFor(blockLen);
+      let losF = losFactorFor(blockLen);
 
-      let dyn = base * seasonF * dowF * ltF * occF * gapF * evF * weF * hoF * losF;
+      // Holiday-Override: An Ferientagen ist Hochsaison.
+      // - Saison-Faktor wird auf min. 1.10 angehoben (Mai/Nebensaison wirkt nicht)
+      // - LOS-Rabatt wird deaktiviert (Nachfrage ist da, kein Rabatt nötig)
+      let effectiveSeasonF = seasonF;
+      if (hoF > 1.0) {
+        effectiveSeasonF = Math.max(seasonF, 1.10);
+        losF = 1.00;
+      }
+
+      let dyn = base * effectiveSeasonF * dowF * ltF * occF * gapF * evF * weF * hoF * losF;
       dyn = Math.max(min, Math.min(max, Math.round(dyn)));
 
       const factors = {
-        seasonality: seasonF,
+        seasonality: effectiveSeasonF,
         dayOfWeek: dowF,
         leadTime: ltF,
         occupancy: occF,
