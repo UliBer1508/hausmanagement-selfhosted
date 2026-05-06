@@ -16,6 +16,7 @@ import {
   type PricingConfig,
 } from '@/hooks/usePricingSettings';
 import MarketDataImportCard from '@/components/Settings/MarketDataImportCard';
+import AirROISyncCard from '@/components/Settings/AirROISyncCard';
 
 // Defaults — must mirror supabase/functions/pricing-engine/index.ts
 export const DEFAULT_FACTORS = {
@@ -280,11 +281,12 @@ export function PricingFactorsConfig({ houseId }: Props) {
                 </Select>
               </div>
             </div>
+            <AirROISyncCard />
           </AccordionContent>
         </AccordionItem>
 
         <AccordionItem value="marketimport">
-          <AccordionTrigger className="text-sm">Marktdaten-Import (Inside Airbnb / AirROI Sync)</AccordionTrigger>
+          <AccordionTrigger className="text-sm">Marktdaten-Import (Inside Airbnb CSV)</AccordionTrigger>
           <AccordionContent>
             <MarketDataImportCard />
           </AccordionContent>
