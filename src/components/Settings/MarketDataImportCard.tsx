@@ -5,31 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Download, RefreshCw } from "lucide-react";
-import { useSyncAirROI } from "@/hooks/useAirROI";
+import { Download } from "lucide-react";
 import { usePricingSettings } from "@/hooks/usePricingSettings";
 
 const MarketDataImportCard = () => {
   const [csv, setCsv] = useState("");
   const [loading, setLoading] = useState(false);
-  const [lastAirroiSync, setLastAirroiSync] = useState<string | null>(null);
-  const syncAirROI = useSyncAirROI();
   const { data: cfg } = usePricingSettings();
   const location = (cfg?.airroi_district?.trim() || cfg?.airroi_locality?.trim() || "").toString();
-
-  useEffect(() => {
-    if (!location) return;
-    (async () => {
-      const { data } = await supabase
-        .from("market_data_cache")
-        .select("fetched_at")
-        .eq("location", location)
-        .eq("source", "airroi")
-        .order("fetched_at", { ascending: false })
-        .limit(1);
-      setLastAirroiSync((data?.[0] as any)?.fetched_at ?? null);
-    })();
-  }, [location, syncAirROI.isSuccess]);
 
   const handleImport = async () => {
     if (!location) { toast.error("Bitte zuerst Ort/Markt in der Marktdefinition oben festlegen"); return; }
@@ -54,19 +37,15 @@ const MarketDataImportCard = () => {
     }
   };
 
-  const handleAirROI = () => {
-    syncAirROI.mutate({});
-  };
-
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Download className="w-5 h-5 text-primary" />
-          Marktdaten-Import
+          Marktdaten-Import (Inside Airbnb CSV)
         </CardTitle>
         <CardDescription>
-          Inside Airbnb CSV-Daten oder AirROI API verwenden, um die Marktauslastung der nächsten 365 Tage zu schätzen.
+          Inside Airbnb CSV-Daten importieren, um die Marktauslastung der nächsten 365 Tage zu schätzen.
           Verwendet die oben definierte Marktregion: <strong>{location || "—"}</strong>
         </CardDescription>
       </CardHeader>
@@ -85,15 +64,6 @@ const MarketDataImportCard = () => {
           <Button onClick={handleImport} disabled={loading}>
             {loading ? "Importiere…" : "Inside Airbnb Daten importieren"}
           </Button>
-          <Button variant="secondary" onClick={handleAirROI} disabled={syncAirROI.isPending}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${syncAirROI.isPending ? "animate-spin" : ""}`} />
-            {syncAirROI.isPending ? "AirROI Sync läuft…" : "AirROI Sync"}
-          </Button>
-          {lastAirroiSync && (
-            <span className="text-xs text-muted-foreground">
-              Letzter AirROI Sync: {new Date(lastAirroiSync).toLocaleString("de-DE")}
-            </span>
-          )}
         </div>
       </CardContent>
     </Card>

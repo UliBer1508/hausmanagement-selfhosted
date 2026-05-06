@@ -1,22 +1,29 @@
-# Preview-Fehler beheben: Fehlende JSX Closing-Tags
+# AirROI Sync sauber von Marktdaten-Import trennen
 
 ## Problem
-`src/components/Pricing/PricingFactorsConfig.tsx` enthält in mehreren Accordion-Sektionen unvollständige JSX. Mehrere `</div>` und Container-Closings fehlen, wodurch der Build/Render bricht und die Preview nicht lädt.
+Im Bereich „Marktdaten-Import" steht aktuell der Button **„AirROI Sync"** mit Status-Anzeige (`MarketDataImportCard.tsx`). Inhaltlich gehört der Sync aber zum Bereich **„Datenquellen (AirROI Marktdaten)"**, wo bereits alle AirROI-Filter (Land/Region/Ort/Stadtteil, Zimmertyp, Schlafzimmer, Zeitraum, Währung) konfiguriert werden. Der Marktdaten-Import soll ausschließlich Inside-Airbnb-CSV verarbeiten.
 
-Betroffene Sektionen (jeweils im `.map()`-Block bzw. Grid):
-- `season` — `</div>` für Item + `</div>` für Grid fehlen
-- `dow` — gleiches Muster
-- `leadtime` — gleiches Muster
-- `occupancy` — gleiches Muster
-- `gap` — beide `</div>` der zwei Items + Grid-Closing fehlen
-- `event` — Item + Grid Closing fehlen
-- `weather` — Item + Grid Closing fehlen
-- `holiday` — drei Item-Closings + Grid-Closing fehlen
+Aktueller Aufbau in `PricingFactorsConfig.tsx`:
+- Accordion „Datenquellen (AirROI Marktdaten)" → nur Filter
+- Accordion „Marktdaten-Import (Inside Airbnb / AirROI Sync)" → CSV + AirROI-Sync-Button
 
-## Fix
-Alle fehlenden `</div>`-Tags in den 8 Accordion-Sektionen ergänzen, sodass jede Map-Iteration und jedes Grid sauber geschlossen wird. Keine Logik-Änderungen, nur Strukturkorrektur.
+## Lösung
+
+### 1. `MarketDataImportCard.tsx` aufräumen
+- AirROI-Sync-Button, „Letzter Sync"-Anzeige, `useSyncAirROI`-Hook und zugehörigen `useEffect` für `lastAirroiSync` entfernen.
+- Card-Titel/Beschreibung auf reinen Inside-Airbnb-Import umstellen („Inside Airbnb CSV-Import" statt „Inside Airbnb CSV oder AirROI API").
+- Imports `RefreshCw`, `useSyncAirROI` entfernen.
+
+### 2. Neue `AirROISyncCard.tsx` (`src/components/Settings/`)
+- Zeigt Sync-Button + „Letzter Sync"-Timestamp + aktuell verwendete Marktregion.
+- Nutzt `useSyncAirROI`, liest letzten Sync analog zur bisherigen Logik aus `market_data_cache`.
+- Kompakt — keine doppelten Filter (die stehen bereits im selben Accordion).
+
+### 3. `PricingFactorsConfig.tsx` umbauen
+- Accordion „Datenquellen (AirROI Marktdaten)": am Ende (nach Filter-Grid) `<AirROISyncCard />` einbinden.
+- Accordion umbenennen: „Marktdaten-Import (Inside Airbnb / AirROI Sync)" → **„Marktdaten-Import (Inside Airbnb CSV)"**.
 
 ## Validierung
-- Preview lädt wieder
-- "Preis-Faktoren konfigurieren" Card öffnet sich, alle Accordion-Items rendern korrekt
-- Speichern/Reset funktioniert weiterhin
+- Datenquellen-Accordion: Filter + AirROI-Sync-Button + Sync-Timestamp.
+- Marktdaten-Import-Accordion: nur noch CSV-Textarea + Import-Button.
+- Bestehende Funktionalität (Sync, Import) unverändert.
