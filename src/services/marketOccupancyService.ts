@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toISODate } from '@/lib/dateHelpers';
 import { getHolidayWeight } from '@/lib/schoolHolidays';
+import { DEFAULT_PRICING_CONFIG } from '@/hooks/usePricingSettings';
 
 export interface MarketData {
   date: string;
@@ -10,10 +11,24 @@ export interface MarketData {
   source: string;
 }
 
-const MONTHLY_OCC: Record<number, number> = {
-  0: 0.38, 1: 0.40, 2: 0.48, 3: 0.58, 4: 0.65, 5: 0.72,
-  6: 0.82, 7: 0.85, 8: 0.74, 9: 0.60, 10: 0.45, 11: 0.55,
-};
+// Basis-Marktauslastung (Jahresmittel). Saisonale Verteilung kommt aus
+// system_settings.pricing_config.season_factors (UI-konfigurierbar).
+const BASE_OCC = 0.6;
+
+async function loadSeasonFactors(): Promise<number[]> {
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'pricing_config')
+      .maybeSingle();
+    const sf = (data?.value as any)?.season_factors;
+    if (Array.isArray(sf) && sf.length === 12 && sf.every((n) => Number.isFinite(Number(n)))) {
+      return sf.map(Number);
+    }
+  } catch { /* fallback */ }
+  return DEFAULT_PRICING_CONFIG.season_factors;
+}
 
 function ymd(d: Date): string {
   return toISODate(d);
@@ -23,8 +38,11 @@ export function estimateOccupancyFromSeason(
   date: Date,
   _location: string,
   countryCodes: string[] = ['DE', 'AT'],
+  seasonFactors: number[] = DEFAULT_PRICING_CONFIG.season_factors,
 ): MarketData {
-  let occ = MONTHLY_OCC[date.getMonth()] ?? 0.6;
+  const mean = seasonFactors.reduce((a, b) => a + b, 0) / seasonFactors.length;
+  const factor = (seasonFactors[date.getMonth()] ?? mean) / (mean || 1);
+  let occ = BASE_OCC * factor;
   const dow = date.getDay();
   if (dow === 5 || dow === 6) occ *= 1.25;
   else if (dow === 0) occ *= 1.10;
