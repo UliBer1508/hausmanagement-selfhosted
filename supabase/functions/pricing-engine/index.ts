@@ -94,12 +94,23 @@ function weatherFactor(code: number, month: number, w: typeof DEFAULT_FACTORS.we
 
 type HolidayCache = Record<string, Set<string>>;
 
-async function fetchOpenHolidays(country: string, subdivision: string | null, year: number): Promise<Set<string>> {
+// Modul-Level Cache (lebt nur in derselben Function-Instanz)
+const HOLIDAY_HTTP_CACHE = new Map<string, Set<string>>();
+
+async function fetchOpenHolidaysGeneric(
+  type: "PublicHolidays" | "SchoolHolidays",
+  country: string,
+  subdivision: string | null,
+  year: number,
+): Promise<Set<string>> {
+  const cacheKey = `${type}:${country}:${subdivision ?? ""}:${year}`;
+  const cached = HOLIDAY_HTTP_CACHE.get(cacheKey);
+  if (cached) return cached;
   const sub = subdivision ? `&subdivisionCode=${subdivision}` : "";
-  const url = `https://openholidaysapi.org/PublicHolidays?countryIsoCode=${country}&languageIsoCode=DE&validFrom=${year}-01-01&validTo=${year}-12-31${sub}`;
+  const url = `https://openholidaysapi.org/${type}?countryIsoCode=${country}&languageIsoCode=DE&validFrom=${year}-01-01&validTo=${year}-12-31${sub}`;
   try {
     const r = await fetch(url);
-    if (!r.ok) return new Set();
+    if (!r.ok) { HOLIDAY_HTTP_CACHE.set(cacheKey, new Set()); return new Set(); }
     const list = await r.json();
     const set = new Set<string>();
     for (const h of list ?? []) {
@@ -107,18 +118,29 @@ async function fetchOpenHolidays(country: string, subdivision: string | null, ye
       const e = new Date(h.endDate ?? h.startDate);
       for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) set.add(ymd(d));
     }
+    HOLIDAY_HTTP_CACHE.set(cacheKey, set);
     return set;
   } catch { return new Set(); }
 }
 
+async function fetchAllHolidays(country: string, subdivision: string | null, year: number): Promise<Set<string>> {
+  const [pub, sch] = await Promise.all([
+    fetchOpenHolidaysGeneric("PublicHolidays", country, subdivision, year),
+    fetchOpenHolidaysGeneric("SchoolHolidays", country, subdivision, year),
+  ]);
+  const union = new Set<string>(pub);
+  sch.forEach(d => union.add(d));
+  return union;
+}
+
 async function fetchHolidaysFor(year: number): Promise<HolidayCache> {
   const tasks: Array<[string, Promise<Set<string>>]> = [
-    ["AT",    fetchOpenHolidays("AT", null,    year)],
-    ["DE_BY", fetchOpenHolidays("DE", "DE-BY", year)],
-    ["NL",    fetchOpenHolidays("NL", null,    year)],
-    ["CZ",    fetchOpenHolidays("CZ", null,    year)],
-    ["PL",    fetchOpenHolidays("PL", null,    year)],
-    ["HU",    fetchOpenHolidays("HU", null,    year)],
+    ["AT",    fetchAllHolidays("AT", null,    year)],
+    ["DE_BY", fetchAllHolidays("DE", "DE-BY", year)],
+    ["NL",    fetchAllHolidays("NL", null,    year)],
+    ["CZ",    fetchAllHolidays("CZ", null,    year)],
+    ["PL",    fetchAllHolidays("PL", null,    year)],
+    ["HU",    fetchAllHolidays("HU", null,    year)],
   ];
   const out: HolidayCache = {};
   await Promise.all(tasks.map(async ([k, p]) => { out[k] = await p; }));
