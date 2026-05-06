@@ -58,34 +58,44 @@ export function estimateOccupancyFromSeason(
  * Top 5 ISO-Codes aus guests.nationality, Fallback bookings.nationality,
  * Default ['DE', 'AT'] wenn nichts vorhanden.
  */
-export async function fetchGuestNationalities(_location: string): Promise<string[]> {
-  const tally = new Map<string, number>();
-  try {
-    const { data: g } = await supabase
-      .from('guests')
+/** Tallyt nationality-Spalte in eine Map und paginiert über die Supabase-1000er-Grenze hinweg. */
+async function tallyNationalities(
+  table: 'guests' | 'bookings',
+  tally: Map<string, number>,
+  maxPages = 20,
+): Promise<void> {
+  const pageSize = 1000;
+  for (let page = 0; page < maxPages; page++) {
+    const from = page * pageSize;
+    const to = from + pageSize - 1;
+    const { data, error } = await supabase
+      .from(table)
       .select('nationality')
       .not('nationality', 'is', null)
-      .limit(1000);
-    (g ?? []).forEach((r: any) => {
-      const c = String(r.nationality || '').trim();
+      .range(from, to);
+    if (error || !data || data.length === 0) return;
+    for (const r of data as any[]) {
+      const c = String(r.nationality || '').trim().toUpperCase();
       if (c) tally.set(c, (tally.get(c) ?? 0) + 1);
-    });
-  } catch { /* ignore */ }
-
-  if (tally.size === 0) {
-    try {
-      const { data: b } = await supabase
-        .from('bookings')
-        .select('nationality')
-        .not('nationality', 'is', null)
-        .limit(1000);
-      (b ?? []).forEach((r: any) => {
-        const c = String(r.nationality || '').trim();
-        if (c) tally.set(c, (tally.get(c) ?? 0) + 1);
-      });
-    } catch { /* ignore */ }
+    }
+    if (data.length < pageSize) return; // letzte Seite
   }
+}
 
+/**
+ * Liest die häufigsten Gäste-Nationalitäten aus der DB.
+ * Top 5 ISO-Codes aus guests.nationality, Fallback bookings.nationality,
+ * Default ['DE', 'AT'] wenn nichts vorhanden.
+ *
+ * Hinweis: Supabase liefert per Default max. 1000 Zeilen pro Query — wir
+ * paginieren mit .range() bis alle Datensätze (oder maxPages) gelesen sind.
+ */
+export async function fetchGuestNationalities(_location: string): Promise<string[]> {
+  const tally = new Map<string, number>();
+  try { await tallyNationalities('guests', tally); } catch { /* ignore */ }
+  if (tally.size === 0) {
+    try { await tallyNationalities('bookings', tally); } catch { /* ignore */ }
+  }
   if (tally.size === 0) return ['DE', 'AT'];
 
   return Array.from(tally.entries())
