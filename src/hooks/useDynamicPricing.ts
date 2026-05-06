@@ -2,6 +2,9 @@
 // PriceLabs-inspirierter Algorithmus für Ferienhaus Manager
 // Einbinden in dein Lovable-Projekt unter /src/hooks/useDynamicPricing.ts
 import { DEFAULT_PRICING_CONFIG, usePricingSettings, type PricingConfig } from './usePricingSettings';
+import { getHolidayWeight } from '@/lib/schoolHolidays';
+
+const DEFAULT_HOLIDAY_COUNTRIES = ['DE', 'AT', 'NL', 'CZ', 'PL', 'HU'];
 
 export interface PricingInput {
   basePrice: number;          // Dein Standardpreis pro Nacht
@@ -13,6 +16,7 @@ export interface PricingInput {
   gapLength?: number;         // Wie viele Lücken-Tage?
   minPrice?: number;          // Absolutes Minimum (default: base * 0.55)
   maxPrice?: number;          // Absolutes Maximum (default: base * 2.8)
+  guestCountryCodes?: string[]; // Quellmarkt-Länder für Ferien-Gewichtung
 }
 
 export interface PricingOutput {
@@ -26,6 +30,7 @@ export interface PricingOutput {
     occupancy: number;
     event: number;
     gapDiscount: number;
+    holiday: number;
   };
   bookingProbability: number;   // 0–1
   strategy: 'last-minute' | 'standard' | 'far-out';
@@ -167,6 +172,7 @@ export function calculateDynamicPrice(input: PricingInput, config?: PricingConfi
     gapLength = 1,
     minPrice: customMin,
     maxPrice: customMax,
+    guestCountryCodes = DEFAULT_HOLIDAY_COUNTRIES,
   } = input;
 
   const today = new Date();
@@ -182,9 +188,10 @@ export function calculateDynamicPrice(input: PricingInput, config?: PricingConfi
   const occupancy    = getOccupancyFactor(marketOccupancy, config);
   const event        = getEventFactor(hasLocalEvent, eventSize, config);
   const gapDiscount  = getGapFactor(isGapDay, gapLength, config);
+  const holiday      = getHolidayWeight(checkInDate, guestCountryCodes);
 
   // Preis berechnen
-  const rawPrice = basePrice * seasonality * dayOfWeek * leadTime * occupancy * event * gapDiscount;
+  const rawPrice = basePrice * seasonality * dayOfWeek * leadTime * occupancy * event * holiday * gapDiscount;
 
   // Min/Max-Grenzen anwenden (PriceLabs nennt das "Price Floors & Ceilings")
   const floorRatio   = config?.price_floor_ratio   ?? 0.55;
@@ -210,12 +217,13 @@ export function calculateDynamicPrice(input: PricingInput, config?: PricingConfi
   if (hasLocalEvent)            tags.push('Event');
   if (isGapDay)                 tags.push('Lückenoptimierung');
   if (seasonality > 1.3)        tags.push('Hochsaison');
+  if (holiday > 1.05)           tags.push('Ferienzeit');
 
   return {
     recommendedPrice,
     minPrice,
     maxPrice,
-    factors: { seasonality, dayOfWeek, leadTime, occupancy, event, gapDiscount },
+    factors: { seasonality, dayOfWeek, leadTime, occupancy, event, gapDiscount, holiday },
     bookingProbability,
     strategy,
     tags,
@@ -241,6 +249,7 @@ export function useDynamicPricing(input: PricingInput): PricingOutput {
     input.gapLength,
     input.minPrice,
     input.maxPrice,
+    input.guestCountryCodes?.join(','),
     config,
   ]);
 }
