@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import { calculateDynamicPrice } from '@/hooks/useDynamicPricing';
-import { fetchMarketData } from './marketOccupancyService';
+import { fetchMarketData, fetchGuestNationalities } from './marketOccupancyService';
 import { toISODate } from '@/lib/dateHelpers';
 
 export interface NightlyRate {
@@ -36,6 +36,37 @@ export interface PropertyConfig {
 
 function ymd(d: Date): string {
   return toISODate(d);
+}
+
+/** Ostersonntag (Gauß'sche Osterformel), als UTC-Date. */
+function easterSunday(year: number): Date {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+/** Pfingsten = Ostersonntag + 49 Tage. Liefert Pfingstsamstag–Pfingstmontag. */
+function pentecostRange(year: number): { start: Date; end: Date } {
+  const easter = easterSunday(year);
+  const pentecostSunday = new Date(easter);
+  pentecostSunday.setUTCDate(pentecostSunday.getUTCDate() + 49);
+  const start = new Date(pentecostSunday);
+  start.setUTCDate(start.getUTCDate() - 1); // Pfingstsamstag
+  const end = new Date(pentecostSunday);
+  end.setUTCDate(end.getUTCDate() + 1);     // Pfingstmontag
+  return { start, end };
 }
 
 function readBaseFromConfig(cfg: any): { base: number; min?: number; max?: number } {
@@ -175,6 +206,29 @@ export async function bulkUpdatePrices({
   });
   const marketMap = new Map(market.map((m) => [m.date, m]));
 
+  // Quellmarkt-Nationalitäten für Ferien-Gewichtung (einmalig laden)
+  let guestCountryCodes: string[] = [];
+  try {
+    guestCountryCodes = await fetchGuestNationalities(property.location);
+  } catch {
+    guestCountryCodes = [];
+  }
+
+  // Pfingst-Bereiche für alle relevanten Jahre vorberechnen
+  const years = new Set<number>();
+  for (let i = 0; i < daysAhead; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    years.add(d.getFullYear());
+  }
+  const pentecostDates = new Set<string>();
+  years.forEach((y) => {
+    const { start, end } = pentecostRange(y);
+    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      pentecostDates.add(ymd(d));
+    }
+  });
+
   // Bestehende Rates für Lücken-Erkennung & gebuchte Tage
   const existing = await getRatesForRange(houseId, today, endDate);
   const bookedSet = new Set(existing.filter((r) => r.isBooked).map((r) => r.date));
@@ -196,7 +250,13 @@ export async function bulkUpdatePrices({
 
     const m = marketMap.get(dateStr);
     const occ = m?.occupancyRate ?? 0.6;
-    const eventSize = eventMap.get(dateStr);
+    let eventSize = eventMap.get(dateStr);
+    let hasLocalEvent = !!eventSize;
+    // Deutsche Pfingstferien: nur setzen, wenn kein anderes Event greift
+    if (!hasLocalEvent && pentecostDates.has(dateStr)) {
+      hasLocalEvent = true;
+      eventSize = 'small';
+    }
 
     // Lücken-Erkennung
     const prev = ymd(new Date(d.getTime() - 86400000));
@@ -215,10 +275,11 @@ export async function bulkUpdatePrices({
       basePrice: property.basePrice,
       checkInDate: d,
       marketOccupancy: occ,
-      hasLocalEvent: !!eventSize,
+      hasLocalEvent,
       eventSize,
       isGapDay,
       gapLength,
+      guestCountryCodes,
       // minPrice/maxPrice bewusst weggelassen: calculateDynamicPrice nutzt
       // dann price_floor_ratio / price_ceiling_ratio aus PricingConfig,
       // sodass der Floor täglich mit dem Basispreis variiert.
