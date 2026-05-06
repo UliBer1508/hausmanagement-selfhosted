@@ -264,7 +264,7 @@ export function useMarketData(location: string, startDate: Date, days = 180) {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const strategy = (import.meta.env.VITE_MARKET_STRATEGY as 'estimated' | 'airdna') || 'estimated';
+    const strategy = (import.meta.env.VITE_MARKET_STRATEGY as 'estimated' | 'airdna' | 'airroi' | 'competitor') || 'airroi';
     const apiKey = import.meta.env.VITE_AIRDNA_API_KEY as string | undefined;
     fetchMarketData({ location, startDate, days, strategy, apiKey })
       .then((rows) => {
