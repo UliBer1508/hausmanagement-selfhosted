@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     const summaryBody = {
       market,
       num_months: Number(cfg.airroi_num_months) || 12,
-      currency: String(cfg.airroi_currency || "native"),
+      currency: ["usd","native"].includes(String(cfg.airroi_currency || "").toLowerCase()) ? String(cfg.airroi_currency).toLowerCase() : "native",
     };
 
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
