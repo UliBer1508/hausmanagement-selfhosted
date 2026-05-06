@@ -1,24 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { z } from "https://esm.sh/zod@3.23.8";
+import { DEFAULT_AIRROI_CONFIG, DEFAULT_SEASON_FACTORS } from "../_shared/pricingDefaults.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
-};
-
-// Mirror of DEFAULT_PRICING_CONFIG (AirROI subset) — keep in sync with src/hooks/usePricingSettings.ts
-const DEFAULT_SEASON_FACTORS = [0.75, 0.78, 0.90, 1.00, 1.10, 1.25, 1.50, 1.55, 1.20, 0.95, 0.80, 1.10];
-const DEFAULT_AIRROI_CONFIG = {
-  airroi_room_type: "entire_home",
-  airroi_min_bedrooms: 2,
-  airroi_num_months: 24,
-  airroi_currency: "eur",
-  airroi_country: "Austria",
-  airroi_region: "Salzburg",
-  airroi_locality: "Neukirchen am Großvenediger",
-  airroi_district: "",
-  season_factors: DEFAULT_SEASON_FACTORS,
 };
 
 const BodySchema = z.object({

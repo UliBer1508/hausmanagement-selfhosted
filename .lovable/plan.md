@@ -1,49 +1,34 @@
-## Problem
-
-`MONTHLY_OCC` (12 monatliche Occupancy-Werte) ist dreifach hardcoded in:
-- `src/services/marketOccupancyService.ts`
-- `supabase/functions/airroi-sync/index.ts`
-- `supabase/functions/import-inside-airbnb/index.ts`
-
-Über die UI (`PricingFactorsConfig`) wird stattdessen `season_factors` (12 Werte, normiert um ~1.0) in `system_settings.pricing_config` gespeichert. Änderungen wirken nur im Pricing-Engine, aber nicht in den drei o.g. Stellen → Marktdaten-Cache und Schätzung verwenden veraltete Verteilung.
-
-Die `airroi-sync` Edge Function liest bereits `pricing_config` (für die AirROI-Filter), nutzt aber dann trotzdem die hardcoded `MONTHLY_OCC` für die monatliche Skalierung.
+## Ziel
+Eliminierung der manuellen Synchronisation zwischen Frontend-Defaults (`src/hooks/usePricingSettings.ts`) und den Edge-Function-Mirrors in `airroi-sync` und `import-inside-airbnb`.
 
 ## Lösung
+Eine gemeinsame Defaults-Datei einführen, die sowohl von Deno (Edge Functions) als auch vom Vite/TS-Frontend importierbar ist. Da Deno `https://`-Imports erwartet und das Frontend relative Pfade, wird die Quelle als reines TS-Modul ohne Runtime-Abhängigkeiten in `supabase/functions/_shared/pricingDefaults.ts` abgelegt und im Frontend per relativem Pfad re-exportiert.
 
-Single Source of Truth: `season_factors` aus `system_settings.pricing_config` als monatliche Verteilungs-Gewichte nutzen. Da beide Konzepte als **Verhältnis zum Monatsmittel** verwendet werden (`MONTHLY_OCC[m] / mean`), sind die Werte mathematisch austauschbar — die absolute Höhe spielt keine Rolle, nur die relative Form.
+### Neue Datei: `supabase/functions/_shared/pricingDefaults.ts`
+- Exportiert `DEFAULT_PRICING_CONFIG` (kompletter Block aus aktuellem `usePricingSettings.ts`)
+- Exportiert abgeleitete Konstanten:
+  - `DEFAULT_SEASON_FACTORS = DEFAULT_PRICING_CONFIG.season_factors`
+  - `DEFAULT_AIRROI_CONFIG` (subset object: airroi_* Felder + season_factors)
+- Exportiert Type `PricingConfig = typeof DEFAULT_PRICING_CONFIG`
+- Keine Imports, keine Deno-/Browser-spezifischen APIs → funktioniert in beiden Runtimes.
 
-### Änderungen
+### Änderungen Frontend
+- `src/hooks/usePricingSettings.ts`:
+  - Re-export von `DEFAULT_PRICING_CONFIG` und `PricingConfig` aus `../../supabase/functions/_shared/pricingDefaults`
+  - Lokale Definition entfernen, restliche Hooks unverändert
+- Konsumenten (`useDynamicPricing.ts`, `marketOccupancyService.ts`, `PricingFactorsConfig.tsx`) behalten bestehenden Import aus `@/hooks/usePricingSettings` → keine Anpassung nötig.
 
-**1. `supabase/functions/airroi-sync/index.ts`**
-- `MONTHLY_OCC` Konstante entfernen.
-- `DEFAULT_AIRROI_CONFIG` um `season_factors` ergänzen (Default-Array aus `usePricingSettings.ts` spiegeln).
-- `season_factors` aus dem bereits geladenen `cfg` lesen, mit Fallback auf Default-Array (Länge 12 prüfen).
-- Skalierung: `factor[m] = season_factors[m] / mean(season_factors)`, dann `occ = baseOcc * factor[m]` (Logik bleibt identisch).
+### Änderungen Edge Functions
+- `supabase/functions/airroi-sync/index.ts`:
+  - Mirror-Block (Zeilen 10–22) entfernen
+  - `import { DEFAULT_AIRROI_CONFIG, DEFAULT_SEASON_FACTORS } from "../_shared/pricingDefaults.ts";`
+- `supabase/functions/import-inside-airbnb/index.ts`:
+  - Mirror (Zeilen 15–16) entfernen
+  - `import { DEFAULT_SEASON_FACTORS } from "../_shared/pricingDefaults.ts";`
 
-**2. `supabase/functions/import-inside-airbnb/index.ts`**
-- `MONTHLY_OCC` Konstante entfernen.
-- `system_settings.pricing_config` laden (wie airroi-sync), `season_factors` extrahieren mit Fallback auf Default.
-- Gleiche Ratio-Berechnung verwenden.
+### Verifikation
+- TS-Compile durch Vite: relativer Import auf eine reine `.ts`-Datei außerhalb `src/` funktioniert (Vite erlaubt das, Pfad liegt im Repo). Falls TS-strict-Pfade Probleme machen, alternativ Datei in `src/shared/pricingDefaults.ts` legen und vom Edge-Function-Code per relativem `../../../src/shared/...` Pfad importieren ist NICHT möglich (Edge Functions dürfen nicht aus `src/` importieren). Daher bleibt `_shared` der Master und das Frontend importiert von dort.
+- Falls Vite/TS den Import außerhalb `src/` nicht akzeptiert (rootDir/include), Anpassung: `tsconfig`-`include` umfasst bereits `supabase/functions/_shared/pricingDefaults.ts` durch expliziten Import nicht zwingend — bei Bedarf Pfad-Alias `@shared/*` in `tsconfig.json` und `vite.config.ts` ergänzen.
 
-**3. `src/services/marketOccupancyService.ts`**
-- `MONTHLY_OCC` Konstante entfernen.
-- `estimateOccupancyFromSeason` erhält optionalen Parameter `seasonFactors?: number[]` (Default = aus `DEFAULT_PRICING_CONFIG.season_factors` importiert).
-- Da `season_factors` um 1.0 normiert sind (nicht 0–1 wie früher), Berechnung umstellen auf:
-  `occ = BASE_OCC * (season_factors[m] / mean(season_factors))` mit `BASE_OCC = 0.6`.
-- Aufrufer von `estimateOccupancyFromSeason` (in derselben Datei, ~Zeile 188–210) liest `pricing_config` einmalig per direktem Supabase-Query und übergibt `season_factors`.
-
-### Default-Array (geteilt)
-
-```ts
-// Spiegel aus DEFAULT_PRICING_CONFIG.season_factors
-const DEFAULT_SEASON_FACTORS = [0.75, 0.78, 0.90, 1.00, 1.10, 1.25, 1.50, 1.55, 1.20, 0.95, 0.80, 1.10];
-```
-
-Wird in beiden Edge Functions als Fallback eingebettet (Edge Functions können nicht aus `src/` importieren).
-
-### Vorteile
-
-- UI-Änderungen an Saisonalität wirken ab sofort auf AirROI-Sync, Inside-Airbnb-Import und Frontend-Schätzung.
-- Keine doppelte Wartung von 12 Monatswerten.
-- Verhalten bleibt rückwärtskompatibel, solange `pricing_config` existiert (sonst Default).
+## Resultat
+Eine einzige Quelle für Pricing-Defaults. Änderungen gelten automatisch in Frontend und beiden Edge Functions.
