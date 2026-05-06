@@ -124,11 +124,14 @@ export async function fetchCompetitorOccupancy(
   const to = new Date(center);
   to.setDate(to.getDate() + 14);
 
+  // Wettbewerber-Datensätze werden über competitor_property_id erkannt.
+  // house_id wird hier bewusst NICHT gefiltert: Competitor-Snapshots können
+  // optional einem eigenen Haus zugeordnet sein (z.B. Vergleichs-Tracking),
+  // sind aber trotzdem als Marktsignal gültig.
   const { data, error } = await supabase
     .from('daily_pricing')
     .select('is_booked, is_available')
     .not('competitor_property_id', 'is', null)
-    .is('house_id', null)
     .gte('date', ymd(from))
     .lte('date', ymd(to));
 
