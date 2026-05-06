@@ -116,7 +116,10 @@ Deno.serve(async (req) => {
       analytics?.metrics?.monthly ??
       [];
 
-    const monthMap: Record<number, { occ?: number; adr?: number }> = {};
+    // Aggregation pro Monat: AirROI kann mehrere Einträge je Monat liefern
+    // (z.B. mehrere Jahre im num_months-Fenster). Wir mitteln Occupancy und ADR
+    // über alle Vorkommen statt last-write-wins.
+    const monthAgg: Record<number, { occSum: number; occN: number; adrSum: number; adrN: number }> = {};
     for (const m of monthlyRaw) {
       const monthStr = String(m.month ?? m.date ?? m.period ?? "");
       let monthNum = -1;
@@ -128,9 +131,25 @@ Deno.serve(async (req) => {
       if (monthNum < 0 || monthNum > 11) continue;
       const occRaw = m.occupancy_rate ?? m.occupancy ?? m.occ;
       const adrRaw = m.avg_daily_rate ?? m.adr ?? m.average_daily_rate;
-      monthMap[monthNum] = {
-        occ: occRaw != null ? Number(occRaw) : undefined,
-        adr: adrRaw != null ? Number(adrRaw) : undefined,
+      const bucket = monthAgg[monthNum] ?? { occSum: 0, occN: 0, adrSum: 0, adrN: 0 };
+      if (occRaw != null && Number.isFinite(Number(occRaw))) {
+        let v = Number(occRaw);
+        if (v > 1) v = v / 100; // Normalisieren: AirROI liefert teils 0–100, teils 0–1
+        bucket.occSum += v;
+        bucket.occN += 1;
+      }
+      if (adrRaw != null && Number.isFinite(Number(adrRaw))) {
+        bucket.adrSum += Number(adrRaw);
+        bucket.adrN += 1;
+      }
+      monthAgg[monthNum] = bucket;
+    }
+
+    const monthMap: Record<number, { occ?: number; adr?: number }> = {};
+    for (const [k, b] of Object.entries(monthAgg)) {
+      monthMap[Number(k)] = {
+        occ: b.occN > 0 ? b.occSum / b.occN : undefined,
+        adr: b.adrN > 0 ? b.adrSum / b.adrN : undefined,
       };
     }
 
