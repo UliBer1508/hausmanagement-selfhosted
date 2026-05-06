@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 
 // Mirror of DEFAULT_PRICING_CONFIG (AirROI subset) — keep in sync with src/hooks/usePricingSettings.ts
+const DEFAULT_SEASON_FACTORS = [0.75, 0.78, 0.90, 1.00, 1.10, 1.25, 1.50, 1.55, 1.20, 0.95, 0.80, 1.10];
 const DEFAULT_AIRROI_CONFIG = {
   airroi_room_type: "entire_home",
   airroi_min_bedrooms: 2,
@@ -17,17 +18,13 @@ const DEFAULT_AIRROI_CONFIG = {
   airroi_region: "Salzburg",
   airroi_locality: "Neukirchen am Großvenediger",
   airroi_district: "",
+  season_factors: DEFAULT_SEASON_FACTORS,
 };
 
 const BodySchema = z.object({
   location: z.string().min(1).max(255).optional(),
   house_id: z.string().uuid().optional(),
 }).optional();
-
-const MONTHLY_OCC: Record<number, number> = {
-  0: 0.38, 1: 0.40, 2: 0.48, 3: 0.58, 4: 0.65, 5: 0.72,
-  6: 0.82, 7: 0.85, 8: 0.74, 9: 0.60, 10: 0.45, 11: 0.55,
-};
 
 // Liefert yyyy-MM-dd in Europe/Vienna (Lokalzeit) – konsistent mit Frontend toISODate/todayISO.
 const ymd = (d: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Vienna" }).format(d);
@@ -71,6 +68,11 @@ Deno.serve(async (req) => {
     const region   = String(cfg.airroi_region   ?? "").trim();
     const locality = String(cfg.airroi_locality ?? "").trim();
     const district = String(cfg.airroi_district ?? "").trim();
+
+    const sfRaw = (cfg as any).season_factors;
+    const seasonFactors: number[] = (Array.isArray(sfRaw) && sfRaw.length === 12 && sfRaw.every((n: any) => Number.isFinite(Number(n))))
+      ? sfRaw.map(Number)
+      : DEFAULT_SEASON_FACTORS;
 
     if (!country || !region || !locality) {
       return new Response(
@@ -142,7 +144,7 @@ Deno.serve(async (req) => {
       analytics?.data?.avg_daily_rate ?? analytics?.metrics?.adr ?? 120,
     );
 
-    const monthlyMean = Object.values(MONTHLY_OCC).reduce((a, b) => a + b, 0) / 12;
+    const monthlyMean = seasonFactors.reduce((a, b) => a + b, 0) / 12;
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
@@ -153,7 +155,7 @@ Deno.serve(async (req) => {
       d.setUTCDate(d.getUTCDate() + i);
       const m = d.getUTCMonth();
       const mm = monthMap[m] ?? {};
-      let occ = mm.occ != null ? mm.occ : baseOcc * (MONTHLY_OCC[m] / monthlyMean);
+      let occ = mm.occ != null ? mm.occ : baseOcc * (seasonFactors[m] / monthlyMean);
       if (occ > 1) occ = occ / 100;
       occ = clamp(occ, 0.05, 0.98);
       const adr = Math.round(mm.adr ?? baseAdr);
