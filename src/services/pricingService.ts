@@ -219,8 +219,9 @@ export async function bulkUpdatePrices({
       eventSize,
       isGapDay,
       gapLength,
-      minPrice: property.minPrice,
-      maxPrice: property.maxPrice,
+      // minPrice/maxPrice bewusst weggelassen: calculateDynamicPrice nutzt
+      // dann price_floor_ratio / price_ceiling_ratio aus PricingConfig,
+      // sodass der Floor täglich mit dem Basispreis variiert.
     });
 
     const { error } = await supabase.rpc('update_dynamic_price' as any, {
