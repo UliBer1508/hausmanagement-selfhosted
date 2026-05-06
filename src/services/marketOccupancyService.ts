@@ -213,7 +213,8 @@ export async function fetchMarketData(opts: FetchMarketOptions): Promise<MarketD
       }
     }
     if (fresh.length === 0) {
-      fresh = missing.map((dStr) => estimateOccupancyFromSeason(new Date(dStr), location, countryCodes));
+      const seasonFactors = await loadSeasonFactors();
+      fresh = missing.map((dStr) => estimateOccupancyFromSeason(new Date(dStr), location, countryCodes, seasonFactors));
     }
 
     // Wettbewerber-Daten haben Vorrang (competitor > airdna > estimated).
