@@ -286,7 +286,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
         </AccordionItem>
 
         <AccordionItem value="marketimport">
-          <AccordionTrigger className="text-2xl font-semibold">Marktdaten-Import (Inside Airbnb CSV)</AccordionTrigger>
+          <AccordionTrigger className="text-sm">Marktdaten-Import (Inside Airbnb CSV)</AccordionTrigger>
           <AccordionContent>
             <MarketDataImportCard />
           </AccordionContent>
