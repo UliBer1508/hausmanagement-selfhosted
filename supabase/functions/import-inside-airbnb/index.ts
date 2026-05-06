@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
     const idxAvail = header.indexOf("availability_365");
     const idxRoom = header.indexOf("room_type");
     const idxReviews = header.indexOf("number_of_reviews");
+    const idxPrice = header.indexOf("price");
     if (idxAvail === -1) {
       return new Response(
         JSON.stringify({ error: "Spalte availability_365 fehlt" }),
@@ -78,6 +79,7 @@ Deno.serve(async (req) => {
 
     let sumOcc = 0;
     let count = 0;
+    const prices: number[] = [];
     for (let i = 1; i < lines.length; i++) {
       const cols = parseCsvLine(lines[i]);
       const availRaw = cols[idxAvail];
@@ -95,6 +97,16 @@ Deno.serve(async (req) => {
 
       sumOcc += (365 - avail) / 365;
       count++;
+
+      // Preis aus CSV parsen (Inside-Airbnb: "$1,234.00" oder "€199" o.ä.)
+      if (idxPrice !== -1) {
+        const raw = (cols[idxPrice] || "").trim();
+        if (raw) {
+          const cleaned = raw.replace(/[^0-9.,-]/g, "").replace(/,(?=\d{3}(?:\D|$))/g, "").replace(",", ".");
+          const v = parseFloat(cleaned);
+          if (Number.isFinite(v) && v > 0 && v < 10000) prices.push(v);
+        }
+      }
     }
 
     if (count === 0) {
@@ -105,6 +117,16 @@ Deno.serve(async (req) => {
     }
 
     const baseOccupancy = clamp(sumOcc / count, 0.05, 0.95);
+
+    // Median der lokalen Preise — robuster als Mittelwert (Ausreißer)
+    let medianPrice: number | null = null;
+    if (prices.length > 0) {
+      const sorted = [...prices].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      medianPrice = sorted.length % 2 === 0
+        ? (sorted[mid - 1] + sorted[mid]) / 2
+        : sorted[mid];
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -134,7 +156,12 @@ Deno.serve(async (req) => {
       const d = new Date(today);
       d.setUTCDate(d.getUTCDate() + i);
       const occ = clamp(baseOccupancy * factor[d.getUTCMonth()], 0.05, 0.95);
-      const avgPrice = Math.round(80 + occ * 120);
+      // Wenn lokale Preise vorhanden: Median × saisonalem Faktor verwenden,
+      // sonst Fallback auf alte Heuristik (80 + occ*120).
+      const seasonalFactor = factor[d.getUTCMonth()] ?? 1;
+      const avgPrice = medianPrice != null
+        ? Math.round(medianPrice * seasonalFactor)
+        : Math.round(80 + occ * 120);
       rows.push({
         location,
         date: ymd(d),
@@ -166,6 +193,8 @@ Deno.serve(async (req) => {
         imported_listings: count,
         days_written: written,
         base_occupancy: Number(baseOccupancy.toFixed(3)),
+        median_price: medianPrice != null ? Math.round(medianPrice) : null,
+        price_samples: prices.length,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
