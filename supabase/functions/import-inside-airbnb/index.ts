@@ -12,10 +12,8 @@ const BodySchema = z.object({
   csv_content: z.string().min(10),
 });
 
-const MONTHLY_OCC: Record<number, number> = {
-  0: 0.38, 1: 0.40, 2: 0.48, 3: 0.58, 4: 0.65, 5: 0.72,
-  6: 0.82, 7: 0.85, 8: 0.74, 9: 0.60, 10: 0.45, 11: 0.55,
-};
+// Mirror of DEFAULT_PRICING_CONFIG.season_factors — keep in sync with src/hooks/usePricingSettings.ts
+const DEFAULT_SEASON_FACTORS = [0.75, 0.78, 0.90, 1.00, 1.10, 1.25, 1.50, 1.55, 1.20, 0.95, 0.80, 1.10];
 
 function parseCsvLine(line: string): string[] {
   const out: string[] = [];
@@ -108,17 +106,25 @@ Deno.serve(async (req) => {
 
     const baseOccupancy = clamp(sumOcc / count, 0.05, 0.95);
 
-    const monthlyValues = Object.values(MONTHLY_OCC);
-    const monthlyMean = monthlyValues.reduce((a, b) => a + b, 0) / monthlyValues.length;
-    const factor: Record<number, number> = {};
-    for (const [m, v] of Object.entries(MONTHLY_OCC)) {
-      factor[Number(m)] = v / monthlyMean;
-    }
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
+
+    // season_factors aus pricing_config laden (Single Source of Truth)
+    const { data: settingsRow } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "pricing_config")
+      .maybeSingle();
+    const sfRaw = (settingsRow?.value as any)?.season_factors;
+    const seasonFactors: number[] =
+      Array.isArray(sfRaw) && sfRaw.length === 12 && sfRaw.every((n: any) => Number.isFinite(Number(n)))
+        ? sfRaw.map(Number)
+        : DEFAULT_SEASON_FACTORS;
+    const monthlyMean = seasonFactors.reduce((a, b) => a + b, 0) / seasonFactors.length;
+    const factor: Record<number, number> = {};
+    seasonFactors.forEach((v, m) => { factor[m] = v / monthlyMean; });
 
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
