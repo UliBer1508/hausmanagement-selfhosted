@@ -29,7 +29,8 @@ const MONTHLY_OCC: Record<number, number> = {
   6: 0.82, 7: 0.85, 8: 0.74, 9: 0.60, 10: 0.45, 11: 0.55,
 };
 
-const ymd = (d: Date) => d.toISOString().slice(0, 10);
+// Liefert yyyy-MM-dd in Europe/Vienna (Lokalzeit) – konsistent mit Frontend toISODate/todayISO.
+const ymd = (d: Date) => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Vienna" }).format(d);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 Deno.serve(async (req) => {
