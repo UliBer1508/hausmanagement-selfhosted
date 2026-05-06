@@ -71,55 +71,86 @@ Deno.serve(async (req) => {
     // Cache-Schlüssel: Stadtteil bevorzugt, sonst Ort
     const location = district || locality;
 
-    const filterParams = new URLSearchParams({
-      room_type:    String(cfg.airroi_room_type),
-      min_bedrooms: String(cfg.airroi_min_bedrooms),
-      num_months:   String(cfg.airroi_num_months),
-      currency:     String(cfg.airroi_currency),
-      country,
-      region,
-      locality,
-    });
-    if (district) filterParams.set("district", district);
+    // AirROI-API: POST /markets/summary mit Market-Objekt (kein /v1/-Prefix, kein Query-String).
+    // Siehe https://www.airroi.com/api/documentation
+    const summaryUrl = "https://api.airroi.com/markets/summary";
+    const market: Record<string, string> = { country, region, locality };
+    if (district) market.district = district;
+    const summaryBody = {
+      market,
+      num_months: Number(cfg.airroi_num_months) || 12,
+      currency: ["usd","native"].includes(String(cfg.airroi_currency || "").toLowerCase()) ? String(cfg.airroi_currency).toLowerCase() : "native",
+    };
 
-    // Direkter Call an AirROI Markets-Analytics mit Markt-Hierarchie als Query-Params.
-    // Mit Retry-Logik: max. 3 Versuche, exponentielles Backoff (500ms, 1s, 2s)
-    // bei Netzwerkfehlern oder transienten 5xx/429-Antworten.
-    const url = `https://api.airroi.com/v1/markets/analytics?${filterParams}`;
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     const MAX_ATTEMPTS = 3;
-    let analyticsRes: Response | null = null;
-    let lastErr: unknown = null;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      try {
-        analyticsRes = await fetch(url, { headers: { "x-api-key": apiKey } });
-        // Retry nur bei transienten Fehlern (429, 5xx)
-        if (analyticsRes.ok || (analyticsRes.status < 500 && analyticsRes.status !== 429)) {
-          break;
+
+    async function fetchWithRetry(url: string, init: RequestInit): Promise<{ res: Response | null; err: unknown; attempts: number }> {
+      let res: Response | null = null;
+      let err: unknown = null;
+      let attempt = 0;
+      for (attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        try {
+          res = await fetch(url, init);
+          if (res.ok || (res.status < 500 && res.status !== 429)) return { res, err: null, attempts: attempt };
+          err = new Error(`HTTP ${res.status}`);
+        } catch (e) {
+          err = e;
+          res = null;
         }
-        lastErr = new Error(`HTTP ${analyticsRes.status}`);
-      } catch (err) {
-        lastErr = err;
-        analyticsRes = null;
+        if (attempt < MAX_ATTEMPTS) await sleep(500 * Math.pow(2, attempt - 1));
       }
-      if (attempt < MAX_ATTEMPTS) {
-        await sleep(500 * Math.pow(2, attempt - 1));
-      }
+      return { res, err, attempts: attempt - 1 };
     }
-    if (!analyticsRes) {
+
+    const debug: any = { endpoints: [] };
+
+    const summaryInit: RequestInit = {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(summaryBody),
+    };
+    const summaryResult = await fetchWithRetry(summaryUrl, summaryInit);
+    debug.endpoints.push({ url: summaryUrl, method: "POST", status: summaryResult.res?.status ?? null, attempts: summaryResult.attempts });
+
+    if (!summaryResult.res) {
       return new Response(
-        JSON.stringify({ error: `AirROI analytics fetch failed after ${MAX_ATTEMPTS} attempts: ${(lastErr as Error)?.message ?? "network error"}` }),
+        JSON.stringify({ error: `AirROI summary fetch failed after ${MAX_ATTEMPTS} attempts: ${(summaryResult.err as Error)?.message ?? "network error"}`, debug }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-    if (!analyticsRes.ok) {
-      const t = await analyticsRes.text();
+    if (!summaryResult.res.ok) {
+      const t = await summaryResult.res.text();
       return new Response(
-        JSON.stringify({ error: `AirROI analytics failed (${analyticsRes.status}) after ${MAX_ATTEMPTS} attempts: ${t}` }),
+        JSON.stringify({ error: `AirROI /markets/summary failed (${summaryResult.res.status}): ${t}`, debug }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-    const analytics: any = await analyticsRes.json();
+    const summary: any = await summaryResult.res.json();
+
+    // Optional: monatliche Metriken (POST /markets/metrics/all). Bei Fehler/leer:
+    // Fallback auf Summary + season_factors für saisonale Verteilung.
+    const metricsUrl = "https://api.airroi.com/markets/metrics/all";
+    const metricsResult = await fetchWithRetry(metricsUrl, {
+      method: "POST",
+      headers: { "x-api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify(summaryBody),
+    });
+    debug.endpoints.push({ url: metricsUrl, method: "POST", status: metricsResult.res?.status ?? null, attempts: metricsResult.attempts });
+
+    let metrics: any = null;
+    if (metricsResult.res?.ok) {
+      try { metrics = await metricsResult.res.json(); } catch { metrics = null; }
+    } else if (metricsResult.res) {
+      // Body konsumieren um Resource-Leak zu vermeiden
+      try { await metricsResult.res.text(); } catch { /* noop */ }
+    }
+
+    // Kombiniere Summary + (optional) Monthly-Metriken in das ursprüngliche `analytics`-Format
+    const analytics: any = {
+      ...(summary ?? {}),
+      monthly: metrics?.monthly ?? metrics?.monthly_metrics ?? metrics?.data?.monthly ?? [],
+    };
 
     const monthlyRaw: any[] =
       analytics?.monthly ??
@@ -171,7 +202,7 @@ Deno.serve(async (req) => {
     );
     if (baseOcc > 1) baseOcc = baseOcc / 100;
     const baseAdr = Number(
-      analytics?.avg_daily_rate ?? analytics?.adr ??
+      analytics?.average_daily_rate ?? analytics?.avg_daily_rate ?? analytics?.adr ??
       analytics?.data?.avg_daily_rate ?? analytics?.metrics?.adr ?? 120,
     );
 
@@ -222,6 +253,7 @@ Deno.serve(async (req) => {
         days_written: written,
         base_occupancy: Number(baseOcc.toFixed(3)),
         base_adr: baseAdr,
+        debug,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
