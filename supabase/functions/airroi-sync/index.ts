@@ -82,15 +82,40 @@ Deno.serve(async (req) => {
     });
     if (district) filterParams.set("district", district);
 
-    // Direkter Call an AirROI Markets-Analytics mit Markt-Hierarchie als Query-Params
-    const analyticsRes = await fetch(
-      `https://api.airroi.com/v1/markets/analytics?${filterParams}`,
-      { headers: { "x-api-key": apiKey } },
-    );
+    // Direkter Call an AirROI Markets-Analytics mit Markt-Hierarchie als Query-Params.
+    // Mit Retry-Logik: max. 3 Versuche, exponentielles Backoff (500ms, 1s, 2s)
+    // bei Netzwerkfehlern oder transienten 5xx/429-Antworten.
+    const url = `https://api.airroi.com/v1/markets/analytics?${filterParams}`;
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    const MAX_ATTEMPTS = 3;
+    let analyticsRes: Response | null = null;
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        analyticsRes = await fetch(url, { headers: { "x-api-key": apiKey } });
+        // Retry nur bei transienten Fehlern (429, 5xx)
+        if (analyticsRes.ok || (analyticsRes.status < 500 && analyticsRes.status !== 429)) {
+          break;
+        }
+        lastErr = new Error(`HTTP ${analyticsRes.status}`);
+      } catch (err) {
+        lastErr = err;
+        analyticsRes = null;
+      }
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(500 * Math.pow(2, attempt - 1));
+      }
+    }
+    if (!analyticsRes) {
+      return new Response(
+        JSON.stringify({ error: `AirROI analytics fetch failed after ${MAX_ATTEMPTS} attempts: ${(lastErr as Error)?.message ?? "network error"}` }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
     if (!analyticsRes.ok) {
       const t = await analyticsRes.text();
       return new Response(
-        JSON.stringify({ error: `AirROI analytics failed (${analyticsRes.status}): ${t}` }),
+        JSON.stringify({ error: `AirROI analytics failed (${analyticsRes.status}) after ${MAX_ATTEMPTS} attempts: ${t}` }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
