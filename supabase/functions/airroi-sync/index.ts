@@ -202,7 +202,7 @@ Deno.serve(async (req) => {
     );
     if (baseOcc > 1) baseOcc = baseOcc / 100;
     const baseAdr = Number(
-      analytics?.avg_daily_rate ?? analytics?.adr ??
+      analytics?.average_daily_rate ?? analytics?.avg_daily_rate ?? analytics?.adr ??
       analytics?.data?.avg_daily_rate ?? analytics?.metrics?.adr ?? 120,
     );
 
@@ -253,6 +253,7 @@ Deno.serve(async (req) => {
         days_written: written,
         base_occupancy: Number(baseOcc.toFixed(3)),
         base_adr: baseAdr,
+        debug,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
