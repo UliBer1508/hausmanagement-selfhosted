@@ -228,9 +228,12 @@ import { useMemo } from 'react';
 
 export function useDynamicPricing(input: PricingInput): PricingOutput {
   const { data: config } = usePricingSettings();
+  // checkInDate als primitiver Timestamp, damit eine inline neu erzeugte
+  // Date-Instanz mit gleichem Zeitpunkt nicht das Memo invalidiert.
+  const checkInTime = input.checkInDate?.getTime();
   return useMemo(() => calculateDynamicPrice(input, config), [
     input.basePrice,
-    input.checkInDate,
+    checkInTime,
     input.marketOccupancy,
     input.hasLocalEvent,
     input.eventSize,
