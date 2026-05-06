@@ -249,6 +249,7 @@ export function useDynamicPricing(input: PricingInput): PricingOutput {
     input.gapLength,
     input.minPrice,
     input.maxPrice,
+    input.guestCountryCodes?.join(','),
     config,
   ]);
 }
