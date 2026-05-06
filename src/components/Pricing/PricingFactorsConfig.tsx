@@ -15,7 +15,6 @@ import {
   useSavePricingSettings,
   type PricingConfig,
 } from '@/hooks/usePricingSettings';
-import MarketDataImportCard from '@/components/Settings/MarketDataImportCard';
 import AirROISyncCard from '@/components/Settings/AirROISyncCard';
 
 // Defaults — must mirror supabase/functions/pricing-engine/index.ts
@@ -284,14 +283,6 @@ export function PricingFactorsConfig({ houseId }: Props) {
             <AirROISyncCard />
           </AccordionContent>
         </AccordionItem>
-
-        <AccordionItem value="marketimport">
-          <AccordionTrigger className="text-sm">Marktdaten-Import (Inside Airbnb CSV)</AccordionTrigger>
-          <AccordionContent>
-            <MarketDataImportCard />
-          </AccordionContent>
-        </AccordionItem>
-
 
         <AccordionItem value="season">
           <AccordionTrigger className="text-sm">Saison (Monats-Multiplikatoren)</AccordionTrigger>
