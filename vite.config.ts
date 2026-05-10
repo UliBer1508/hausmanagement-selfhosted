@@ -54,10 +54,19 @@ export default defineConfig(({ mode }) => ({
         theme_color: '#0b3d2e',
         background_color: '#f5f1e8',
         display: 'standalone',
-        orientation: 'portrait',
+        display_override: ['window-controls-overlay', 'standalone'],
+        orientation: 'any',
         scope: '/',
         start_url: '/',
         lang: 'de',
+        categories: ['business', 'productivity'],
+        launch_handler: { client_mode: 'navigate-existing' },
+        shortcuts: [
+          { name: 'Dashboard', short_name: 'Dashboard', url: '/', icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }] },
+          { name: 'Buchungen', short_name: 'Buchungen', url: '/bookings', icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }] },
+          { name: 'Reinigung', short_name: 'Reinigung', url: '/cleaning', icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }] },
+          { name: 'Wäsche', short_name: 'Wäsche', url: '/laundry', icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }] }
+        ],
         icons: [
           {
             src: 'pwa-192x192.png',
