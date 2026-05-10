@@ -24,9 +24,10 @@ if (isLovablePreview || isInIframe) {
   }
 } else if ("serviceWorker" in navigator && import.meta.env.PROD) {
   // vite-plugin-pwa with autoUpdate registers /sw.js automatically via virtual:pwa-register.
-  // Importing dynamically keeps dev bundle clean.
-  import("virtual:pwa-register").then(({ registerSW }) => {
-    registerSW({ immediate: true });
+  // Use string-literal import that TS won't try to resolve at build time.
+  // @ts-expect-error virtual module provided by vite-plugin-pwa at build time
+  import(/* @vite-ignore */ "virtual:pwa-register").then((m: any) => {
+    m.registerSW?.({ immediate: true });
   }).catch(() => { /* plugin not available in dev */ });
 }
 
