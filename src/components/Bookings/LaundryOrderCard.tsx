@@ -415,16 +415,33 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 gap-1">
-                    <Link2 className="h-3 w-3" />
-                    Sync
-                  </Badge>
+                  {externalStatus ? (
+                    (() => {
+                      const info = getExternalStatusBadgeInfo(externalStatus.status);
+                      return (
+                        <Badge variant={info.variant} className={cn('gap-1', info.className)}>
+                          <Link2 className="h-3 w-3" />
+                          {info.label}
+                        </Badge>
+                      );
+                    })()
+                  ) : (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 gap-1">
+                      <Link2 className="h-3 w-3" />
+                      Sync
+                    </Badge>
+                  )}
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>Externe Bestellnummer: {order.external_bestellnummer}</p>
                   {order.external_synced_at && (
                     <p className="text-xs text-muted-foreground">
                       Synchronisiert am {new Date(order.external_synced_at).toLocaleString('de-DE')}
+                    </p>
+                  )}
+                  {externalStatus && (
+                    <p className="text-xs text-muted-foreground">
+                      Portal-Status: {externalStatus.status} · {externalStatus.totalPrice.toFixed(2)} €
                     </p>
                   )}
                 </TooltipContent>
