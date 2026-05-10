@@ -27,28 +27,36 @@ Deno.serve(async (req) => {
 
     const internalSupabase = createClient(internalSupabaseUrl, internalSupabaseKey);
 
-    // Initialize external Supabase client (Wäsche Oberpinzgau)
-    const externalSupabaseUrl = 'https://pkpnowevagxmhyqlawng.supabase.co';
-    const externalSupabaseKey = Deno.env.get('EXTERNAL_LAUNDRY_ANON_KEY');
+    // Fetch invoices via REST endpoint (preferred) with direct-DB fallback
+    const portalToken = Deno.env.get('OBERPINZGAU_PARTNER_TOKEN');
+    let externalRechnungen: any[] = [];
 
-    if (!externalSupabaseKey) {
-      throw new Error('Missing EXTERNAL_LAUNDRY_ANON_KEY');
-    }
-
-    const externalSupabase = createClient(externalSupabaseUrl, externalSupabaseKey);
-
-    // Fetch invoices from external database for our customer
-    console.log(`Fetching invoices for customer ${KUNDE_KUNDENNUMMER}...`);
-    
-    const { data: externalRechnungen, error: fetchError } = await externalSupabase
-      .from('rechnungen')
-      .select('*, rechnungspositionen(*)')
-      .eq('kunde_kundennummer', KUNDE_KUNDENNUMMER)
-      .order('rechnungsdatum', { ascending: false });
-
-    if (fetchError) {
-      console.error('Error fetching external invoices:', fetchError);
-      throw new Error(`Failed to fetch external invoices: ${fetchError.message}`);
+    if (portalToken) {
+      console.log('Fetching invoices via REST (external-invoices)...');
+      const url = 'https://pkpnowevagxmhyqlawng.supabase.co/functions/v1/external-invoices?limit=500';
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${portalToken}` } });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`REST external-invoices failed (${res.status}): ${txt}`);
+      }
+      const payload = await res.json();
+      // Map REST shape (positionen[]) to legacy shape (rechnungspositionen[])
+      externalRechnungen = (payload.rechnungen || []).map((r: any) => ({
+        ...r,
+        rechnungspositionen: r.positionen || [],
+      }));
+    } else {
+      console.warn('OBERPINZGAU_PARTNER_TOKEN missing — falling back to direct DB access');
+      const externalSupabaseKey = Deno.env.get('EXTERNAL_LAUNDRY_ANON_KEY');
+      if (!externalSupabaseKey) throw new Error('Missing EXTERNAL_LAUNDRY_ANON_KEY (and no portal token)');
+      const externalSupabase = createClient('https://pkpnowevagxmhyqlawng.supabase.co', externalSupabaseKey);
+      const { data, error: fetchError } = await externalSupabase
+        .from('rechnungen')
+        .select('*, rechnungspositionen(*)')
+        .eq('kunde_kundennummer', KUNDE_KUNDENNUMMER)
+        .order('rechnungsdatum', { ascending: false });
+      if (fetchError) throw new Error(`Failed to fetch external invoices: ${fetchError.message}`);
+      externalRechnungen = data || [];
     }
 
     console.log(`Found ${externalRechnungen?.length || 0} invoices in external database`);

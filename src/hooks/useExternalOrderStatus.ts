@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { externalLaundryClient } from '@/integrations/externalLaundry/client';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ExternalOrderStatus {
   status: string;
@@ -14,41 +14,29 @@ interface ExternalOrdersStatusMap {
   };
 }
 
+type PortalOrder = {
+  bestellnummer: string;
+  status: string;
+  gesamt_preis?: number;
+};
+
 // Single order status hook
 export const useExternalOrderStatus = (externalBestellnummer: string | null) => {
   return useQuery<ExternalOrderStatus | null>({
     queryKey: ['external-order-status', externalBestellnummer],
     queryFn: async () => {
       if (!externalBestellnummer) return null;
-      
-      // 1. Bestellung laden
-      const { data: order, error: orderError } = await externalLaundryClient
-        .from('waeschebestellungen')
-        .select('id, bestellnummer, status')
-        .eq('bestellnummer', externalBestellnummer)
-        .single();
-      
-      if (orderError || !order) return null;
-      
-      // 2. Positionen mit Preisen laden
-      const { data: positionen } = await externalLaundryClient
-        .from('bestellpositionen')
-        .select(`
-          menge,
-          waescheartikel (preis)
-        `)
-        .eq('bestellung_id', order.id);
-      
-      // 3. Preis berechnen
-      const totalPrice = positionen?.reduce((sum, pos: any) => {
-        const preis = pos.waescheartikel?.preis || 0;
-        return sum + (pos.menge * preis);
-      }, 0) || 0;
-      
+
+      const { data, error } = await supabase.functions.invoke('get-external-order-status', {
+        body: { bestellnummer: externalBestellnummer },
+      });
+      if (error || !data) return null;
+      const order: PortalOrder | undefined = data.orders?.[0] ?? (data.bestellnummer ? data : undefined);
+      if (!order) return null;
       return {
         status: order.status,
-        totalPrice,
-        bestellnummer: order.bestellnummer
+        totalPrice: Number(order.gesamt_preis ?? 0),
+        bestellnummer: order.bestellnummer,
       };
     },
     enabled: !!externalBestellnummer,
@@ -67,38 +55,19 @@ export const useExternalOrdersStatus = (bestellnummern: string[]) => {
     queryKey: ['external-orders-status', bestellnummern.sort().join(',')],
     queryFn: async () => {
       if (bestellnummern.length === 0) return {};
-      
-      // Alle Bestellungen auf einmal laden
-      const { data: orders, error } = await externalLaundryClient
-        .from('waeschebestellungen')
-        .select('id, bestellnummer, status')
-        .in('bestellnummer', bestellnummern);
-      
-      if (error || !orders) return {};
-      
-      // Für jede Bestellung die Positionen laden und Preis berechnen
+
+      const { data, error } = await supabase.functions.invoke('get-external-order-status', {
+        body: { bestellnummern },
+      });
+      if (error || !data?.orders) return {};
+
       const statusMap: ExternalOrdersStatusMap = {};
-      
-      for (const order of orders) {
-        const { data: positionen } = await externalLaundryClient
-          .from('bestellpositionen')
-          .select(`
-            menge,
-            waescheartikel (preis)
-          `)
-          .eq('bestellung_id', order.id);
-        
-        const totalPrice = positionen?.reduce((sum, pos: any) => {
-          const preis = pos.waescheartikel?.preis || 0;
-          return sum + (pos.menge * preis);
-        }, 0) || 0;
-        
+      for (const order of data.orders as PortalOrder[]) {
         statusMap[order.bestellnummer] = {
           status: order.status,
-          totalPrice
+          totalPrice: Number(order.gesamt_preis ?? 0),
         };
       }
-      
       return statusMap;
     },
     enabled: bestellnummern.length > 0,
