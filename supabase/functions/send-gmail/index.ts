@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import nodemailer from "npm:nodemailer@6.9.7";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireAdmin } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +35,10 @@ const handler = async (req: Request): Promise<Response> => {
       headers: corsHeaders 
     });
   }
+
+  // Require authenticated admin
+  const authError = await requireAdmin(req, corsHeaders);
+  if (authError) return authError;
 
   try {
     const { to, subject, html, text, guestName }: EmailRequest = await req.json();
