@@ -74,7 +74,7 @@ const InstallPrompt = () => {
       </CardHeader>
       <CardContent className="pt-0">
         <CardDescription className="mb-4">
-          Installiere den Ferienhaus Manager für schnelleren Zugriff und bessere Performance.
+          Installiere den Steinbock Chalets Manager für schnelleren Zugriff und Offline-Funktionen.
         </CardDescription>
         <div className="flex gap-2">
           <Button onClick={handleInstall} className="flex-1">
