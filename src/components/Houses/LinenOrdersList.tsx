@@ -5,11 +5,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search } from 'lucide-react';
-import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
+import LaundryOrderCard from '@/components/Bookings/LaundryOrderCardWithStatus';
 import { useToast } from '@/hooks/use-toast';
 import { useExternalSync } from '@/hooks/useExternalSync';
 import { getGuestName } from '@/lib/guestHelpers';
-import { useExternalOrdersStatus } from '@/hooks/useExternalOrderStatus';
 
 interface LinenOrdersListProps {
   onEditOrder?: (order: any) => void;
@@ -245,45 +244,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
         </Card>
       ) : (
         <div className="space-y-4">
-          <LinenOrdersListInner
-            orders={filteredOrders}
-            onEditOrder={onEditOrder}
-            onDeleteOrder={onDeleteOrder}
-            confirmOrderMutation={confirmOrderMutation}
-            syncOrder={syncOrder}
-            resetSync={resetSync}
-            externalSyncEnabled={externalSyncEnabled}
-            syncingOrderId={syncingOrderId}
-            setSyncingOrderId={setSyncingOrderId}
-            queryClient={queryClient}
-          />
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Inner component that subscribes to external order statuses
-const LinenOrdersListInner = ({
-  orders,
-  onEditOrder,
-  onDeleteOrder,
-  confirmOrderMutation,
-  syncOrder,
-  resetSync,
-  externalSyncEnabled,
-  syncingOrderId,
-  setSyncingOrderId,
-  queryClient,
-}: any) => {
-  const externalNumbers = orders
-    .map((o: any) => o.external_bestellnummer)
-    .filter((n: string | null): n is string => !!n);
-  const { data: externalStatusMap } = useExternalOrdersStatus(externalNumbers);
-
-  return (
-    <>
-      {orders.map((order: any) => (
+          {filteredOrders.map((order) => (
             <LaundryOrderCard
               key={order.id}
               order={order}
@@ -310,14 +271,11 @@ const LinenOrdersListInner = ({
               }}
               isSyncing={syncingOrderId === order.id}
               externalSyncEnabled={externalSyncEnabled}
-              externalStatus={
-                order.external_bestellnummer
-                  ? externalStatusMap?.[order.external_bestellnummer] ?? null
-                  : null
-              }
             />
-      ))}
-    </>
+          ))}
+        </div>
+      )}
+    </div>
   );
 };
 
