@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search } from 'lucide-react';
-import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
+import LaundryOrderCard from '@/components/Bookings/LaundryOrderCardWithStatus';
 import { useToast } from '@/hooks/use-toast';
 import { useExternalSync } from '@/hooks/useExternalSync';
 import { getGuestName } from '@/lib/guestHelpers';

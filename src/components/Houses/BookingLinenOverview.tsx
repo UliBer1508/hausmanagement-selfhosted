@@ -9,7 +9,7 @@ import { translateItemType, getUrgencyVariant, getUrgencyLabel, formatCurrency, 
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { AlertTriangle, CheckCircle2, Clock, Package } from "lucide-react";
-import LaundryOrderCard from "../Bookings/LaundryOrderCard";
+import LaundryOrderCard from "../Bookings/LaundryOrderCardWithStatus";
 import { BookingWithoutOrderCard } from "./BookingWithoutOrderCard";
 import LinenOrderDialog from "./LinenOrderDialog";
 import LinenOrderEmailDialog from "./LinenOrderEmailDialog";

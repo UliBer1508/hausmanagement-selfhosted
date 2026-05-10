@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 import { translateItemType } from '@/lib/linenOrderHelpers';
 import { getGuestName } from '@/lib/guestHelpers';
+import { getExternalStatusBadgeInfo } from '@/hooks/useExternalOrderStatus';
 // Feste Anzeige-Reihenfolge der Wäscheartikel
 const ITEM_DISPLAY_ORDER = [
   'bedding',        // 1. Bettwäsche
@@ -56,9 +57,10 @@ interface LaundryOrderCardProps {
   onResetSync?: (order: any) => Promise<void> | void;
   isSyncing?: boolean;
   externalSyncEnabled?: boolean;
+  externalStatus?: { status: string; totalPrice: number } | null;
 }
 
-const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false }: LaundryOrderCardProps) => {
+const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false, externalStatus = null }: LaundryOrderCardProps) => {
   // Debug: Check if status_changed_by is present
   console.log('[LaundryOrderCard] Order:', order.id, 'status_changed_by:', order.status_changed_by, 'status_changed_at:', order.status_changed_at);
   
@@ -413,16 +415,33 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 gap-1">
-                    <Link2 className="h-3 w-3" />
-                    Sync
-                  </Badge>
+                  {externalStatus ? (
+                    (() => {
+                      const info = getExternalStatusBadgeInfo(externalStatus.status);
+                      return (
+                        <Badge variant={info.variant} className={cn('gap-1', info.className)}>
+                          <Link2 className="h-3 w-3" />
+                          {info.label}
+                        </Badge>
+                      );
+                    })()
+                  ) : (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-300 gap-1">
+                      <Link2 className="h-3 w-3" />
+                      Sync
+                    </Badge>
+                  )}
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>Externe Bestellnummer: {order.external_bestellnummer}</p>
                   {order.external_synced_at && (
                     <p className="text-xs text-muted-foreground">
                       Synchronisiert am {new Date(order.external_synced_at).toLocaleString('de-DE')}
+                    </p>
+                  )}
+                  {externalStatus && (
+                    <p className="text-xs text-muted-foreground">
+                      Portal-Status: {externalStatus.status} · {externalStatus.totalPrice.toFixed(2)} €
                     </p>
                   )}
                 </TooltipContent>

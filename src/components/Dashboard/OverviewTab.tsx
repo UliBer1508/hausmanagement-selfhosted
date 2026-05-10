@@ -10,7 +10,7 @@ import RatingReminderBanner from '@/components/Dashboard/RatingReminderBanner';
 import CleaningStatusAlertBanner from '@/components/Dashboard/CleaningStatusAlertBanner';
 import BookingCard from '@/components/Bookings/BookingCard';
 import ServiceTaskCard from '@/components/Bookings/ServiceTaskCard';
-import LaundryOrderCard from '@/components/Bookings/LaundryOrderCard';
+import LaundryOrderCard from '@/components/Bookings/LaundryOrderCardWithStatus';
 
 interface OverviewTabProps {
   housesData: any[] | undefined;

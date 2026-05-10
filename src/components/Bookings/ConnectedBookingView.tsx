@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import BookingCard from './BookingCard';
 import ServiceTaskCard from './ServiceTaskCard';
-import LaundryOrderCard from './LaundryOrderCard';
+import LaundryOrderCard from './LaundryOrderCardWithStatus';
 import ConnectionLine from './ConnectionLine';
 import LinenOrderDialog from '../Houses/LinenOrderDialog';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
