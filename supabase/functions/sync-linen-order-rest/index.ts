@@ -127,6 +127,7 @@ Deno.serve(async (req) => {
         try { lastBody = JSON.parse(text); } catch { lastBody = { raw: text }; }
 
         if (resp.ok) {
+          const bestellnummer = lastBody?.bestellnummer || lastBody?.data?.bestellnummer || null;
           // success
           await supabase.from('linen_sync_log').insert({
             linen_order_id: linenOrderId,
@@ -138,11 +139,11 @@ Deno.serve(async (req) => {
             success: true,
           });
           await supabase.from('linen_orders').update({
-            external_bestellnummer: lastBody?.bestellnummer || null,
+            external_bestellnummer: bestellnummer,
             external_synced_at: new Date().toISOString(),
           }).eq('id', linenOrderId);
 
-          return new Response(JSON.stringify({ success: true, bestellnummer: lastBody?.bestellnummer, attempt }), {
+          return new Response(JSON.stringify({ success: true, bestellnummer, attempt }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
