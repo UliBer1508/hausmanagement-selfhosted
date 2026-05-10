@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 import { translateItemType } from '@/lib/linenOrderHelpers';
 import { getGuestName } from '@/lib/guestHelpers';
+import { getExternalStatusBadgeInfo } from '@/hooks/useExternalOrderStatus';
 // Feste Anzeige-Reihenfolge der Wäscheartikel
 const ITEM_DISPLAY_ORDER = [
   'bedding',        // 1. Bettwäsche
@@ -59,7 +60,7 @@ interface LaundryOrderCardProps {
   externalStatus?: { status: string; totalPrice: number } | null;
 }
 
-const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false }: LaundryOrderCardProps) => {
+const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false, externalStatus = null }: LaundryOrderCardProps) => {
   // Debug: Check if status_changed_by is present
   console.log('[LaundryOrderCard] Order:', order.id, 'status_changed_by:', order.status_changed_by, 'status_changed_at:', order.status_changed_at);
   
