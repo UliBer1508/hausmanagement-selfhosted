@@ -52,7 +52,12 @@ export const useExternalOrderStatus = (externalBestellnummer: string | null) => 
       };
     },
     enabled: !!externalBestellnummer,
-    staleTime: 5 * 60 * 1000, // 5 Minuten Cache
+    staleTime: 60 * 1000,
+    refetchInterval: (query) => {
+      const data = query.state.data as ExternalOrderStatus | null | undefined;
+      if (!data) return false;
+      return data.status === 'neu' || data.status === 'in_bearbeitung' ? 60_000 : false;
+    },
   });
 };
 
