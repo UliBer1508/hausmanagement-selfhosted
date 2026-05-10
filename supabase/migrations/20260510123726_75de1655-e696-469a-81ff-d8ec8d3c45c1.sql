@@ -1,0 +1,1 @@
+UPDATE public.linen_orders SET external_bestellnummer='B1778343093471' WHERE id='35c035ef-804a-487e-9d4f-1a67699e6495';
