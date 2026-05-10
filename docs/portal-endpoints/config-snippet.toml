@@ -1,0 +1,7 @@
+# In supabase/config.toml des Portal-Projekts ergänzen:
+
+[functions.external-order-status]
+verify_jwt = false
+
+[functions.external-invoices]
+verify_jwt = false
