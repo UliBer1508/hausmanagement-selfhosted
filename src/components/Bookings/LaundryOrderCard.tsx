@@ -56,6 +56,7 @@ interface LaundryOrderCardProps {
   onResetSync?: (order: any) => Promise<void> | void;
   isSyncing?: boolean;
   externalSyncEnabled?: boolean;
+  externalStatus?: { status: string; totalPrice: number } | null;
 }
 
 const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false }: LaundryOrderCardProps) => {
