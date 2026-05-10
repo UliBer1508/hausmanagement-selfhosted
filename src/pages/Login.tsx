@@ -6,13 +6,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+const REMEMBER_KEY = "auth_remember";
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const redirectTo = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname ?? "/";
@@ -23,6 +27,19 @@ export default function Login() {
     });
   }, [navigate, redirectTo]);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(REMEMBER_KEY);
+      if (!raw) return;
+      const decoded = JSON.parse(atob(raw)) as { email?: string; password?: string };
+      if (decoded.email) setEmail(decoded.email);
+      if (decoded.password) setPassword(decoded.password);
+      setRememberMe(true);
+    } catch {
+      localStorage.removeItem(REMEMBER_KEY);
+    }
+  }, []);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -32,6 +49,16 @@ export default function Login() {
     if (error) {
       toast.error("Anmeldung fehlgeschlagen", { description: error.message });
       return;
+    }
+
+    try {
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_KEY, btoa(JSON.stringify({ email, password })));
+      } else {
+        localStorage.removeItem(REMEMBER_KEY);
+      }
+    } catch {
+      // ignore storage errors
     }
 
     toast.success("Erfolgreich angemeldet");
@@ -70,6 +97,17 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={submitting}
               />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="remember"
+                checked={rememberMe}
+                onCheckedChange={(v) => setRememberMe(v === true)}
+                disabled={submitting}
+              />
+              <Label htmlFor="remember" className="cursor-pointer text-sm font-normal">
+                Angemeldet bleiben
+              </Label>
             </div>
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Anmelden"}
