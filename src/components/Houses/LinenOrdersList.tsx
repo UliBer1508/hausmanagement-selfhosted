@@ -245,7 +245,51 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
         </Card>
       ) : (
         <div className="space-y-4">
-          {filteredOrders.map((order) => (
+          {(() => {
+            const externalNumbers = filteredOrders
+              .map((o: any) => o.external_bestellnummer)
+              .filter((n: string | null): n is string => !!n);
+            return null;
+          })()}
+          <LinenOrdersListInner
+            orders={filteredOrders}
+            onEditOrder={onEditOrder}
+            onDeleteOrder={onDeleteOrder}
+            confirmOrderMutation={confirmOrderMutation}
+            syncOrder={syncOrder}
+            resetSync={resetSync}
+            externalSyncEnabled={externalSyncEnabled}
+            syncingOrderId={syncingOrderId}
+            setSyncingOrderId={setSyncingOrderId}
+            queryClient={queryClient}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Inner component that subscribes to external order statuses
+const LinenOrdersListInner = ({
+  orders,
+  onEditOrder,
+  onDeleteOrder,
+  confirmOrderMutation,
+  syncOrder,
+  resetSync,
+  externalSyncEnabled,
+  syncingOrderId,
+  setSyncingOrderId,
+  queryClient,
+}: any) => {
+  const externalNumbers = orders
+    .map((o: any) => o.external_bestellnummer)
+    .filter((n: string | null): n is string => !!n);
+  const { data: externalStatusMap } = useExternalOrdersStatus(externalNumbers);
+
+  return (
+    <>
+      {orders.map((order: any) => (
             <LaundryOrderCard
               key={order.id}
               order={order}
@@ -272,11 +316,14 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
               }}
               isSyncing={syncingOrderId === order.id}
               externalSyncEnabled={externalSyncEnabled}
+              externalStatus={
+                order.external_bestellnummer
+                  ? externalStatusMap?.[order.external_bestellnummer] ?? null
+                  : null
+              }
             />
-          ))}
-        </div>
-      )}
-    </div>
+      ))}
+    </>
   );
 };
 
