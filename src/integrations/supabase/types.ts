@@ -2817,13 +2817,17 @@ export type Database = {
           default_provider_id: string | null
           delivery_advance_days: number
           delivery_timing: string | null
+          external_abholzeit: string
           external_api_url: string | null
           external_kundennummer: string | null
+          external_lieferzeit: string
           external_sync_enabled: boolean | null
           id: string
           is_enabled: boolean
           lookahead_bookings: number
           min_advance_days: number
+          sync_max_retries: number
+          sync_transport: string
           updated_at: string | null
         }
         Insert: {
@@ -2831,13 +2835,17 @@ export type Database = {
           default_provider_id?: string | null
           delivery_advance_days?: number
           delivery_timing?: string | null
+          external_abholzeit?: string
           external_api_url?: string | null
           external_kundennummer?: string | null
+          external_lieferzeit?: string
           external_sync_enabled?: boolean | null
           id?: string
           is_enabled?: boolean
           lookahead_bookings?: number
           min_advance_days?: number
+          sync_max_retries?: number
+          sync_transport?: string
           updated_at?: string | null
         }
         Update: {
@@ -2845,13 +2853,17 @@ export type Database = {
           default_provider_id?: string | null
           delivery_advance_days?: number
           delivery_timing?: string | null
+          external_abholzeit?: string
           external_api_url?: string | null
           external_kundennummer?: string | null
+          external_lieferzeit?: string
           external_sync_enabled?: boolean | null
           id?: string
           is_enabled?: boolean
           lookahead_bookings?: number
           min_advance_days?: number
+          sync_max_retries?: number
+          sync_transport?: string
           updated_at?: string | null
         }
         Relationships: [
@@ -3042,6 +3054,53 @@ export type Database = {
             columns: ["house_id"]
             isOneToOne: false
             referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      linen_sync_log: {
+        Row: {
+          attempt: number
+          created_at: string
+          error_message: string | null
+          id: string
+          linen_order_id: string | null
+          request_payload: Json | null
+          response_body: Json | null
+          response_status: number | null
+          success: boolean
+          transport: string
+        }
+        Insert: {
+          attempt?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          linen_order_id?: string | null
+          request_payload?: Json | null
+          response_body?: Json | null
+          response_status?: number | null
+          success?: boolean
+          transport: string
+        }
+        Update: {
+          attempt?: number
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          linen_order_id?: string | null
+          request_payload?: Json | null
+          response_body?: Json | null
+          response_status?: number | null
+          success?: boolean
+          transport?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "linen_sync_log_linen_order_id_fkey"
+            columns: ["linen_order_id"]
+            isOneToOne: false
+            referencedRelation: "linen_orders"
             referencedColumns: ["id"]
           },
         ]
