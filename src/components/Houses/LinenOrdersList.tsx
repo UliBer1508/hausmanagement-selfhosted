@@ -245,12 +245,6 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
         </Card>
       ) : (
         <div className="space-y-4">
-          {(() => {
-            const externalNumbers = filteredOrders
-              .map((o: any) => o.external_bestellnummer)
-              .filter((n: string | null): n is string => !!n);
-            return null;
-          })()}
           <LinenOrdersListInner
             orders={filteredOrders}
             onEditOrder={onEditOrder}
