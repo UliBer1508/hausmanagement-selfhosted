@@ -1,42 +1,51 @@
-# Plan: Voller PWA mit Offline-Support
+## Windows-Installierbarkeit für die PWA
 
-⚠️ **Wichtig vorab:** PWA-Features (Offline, Installations-Prompt, Service-Worker) funktionieren **nur in der published Version** — nicht im Lovable-Editor-Preview, weil der Preview im iframe läuft. Im Code wird die Service-Worker-Registrierung deshalb für `id-preview--*` und iframe-Kontexte deaktiviert.
+Die gute Nachricht: Die bereits implementierte PWA ist **technisch schon Windows-kompatibel**. Microsoft Edge und Chrome auf Windows 10/11 unterstützen den `beforeinstallprompt`-Event und installieren die App als eigenständiges Desktop-Fenster (mit Eintrag im Startmenü, Taskleiste-Pin, optional Autostart).
 
-## Schritte
+Damit Windows-Nutzer die App jedoch zuverlässig und komfortabel installieren können, sind einige Ergänzungen sinnvoll:
 
-### 1. Icon generieren
-Ein hochwertiges App-Icon im Steinbock-Chalets-Stil (Bergsilhouette + Steinbock-Andeutung, dunkelgrüner Akzent, klares zentrales Motiv mit Padding) — Quellbild 1024×1024 PNG.
-Daraus per Skript exportieren: `192×192`, `512×512`, `512×512 maskable`, `apple-touch-icon 180×180`. Ablage in `public/icons/`.
+### Was bereits funktioniert
+- `manifest.webmanifest` mit `display: standalone`, Icons (192/512/maskable), `theme_color`, `background_color`
+- Service Worker (nur in Production, nicht im Editor-Preview)
+- `InstallPrompt`-Komponente mit `beforeinstallprompt`-Handler → zeigt Browser-Install-Dialog auch auf Windows
 
-### 2. `vite-plugin-pwa` installieren & konfigurieren
-- Dev-Dependency: `vite-plugin-pwa`
-- `vite.config.ts` erweitern:
-  - `registerType: 'autoUpdate'`
-  - `devOptions: { enabled: false }` (kein SW im Dev/Preview)
-  - `workbox.navigateFallbackDenylist: [/^\/~oauth/, /^\/api/, /supabase/]`
-  - Runtime-Caching: HTML = `NetworkFirst` (3 s Timeout), Assets = `CacheFirst`, Supabase-Calls **nicht cachen**
-  - Manifest: `name: "Steinbock Chalets Manager"`, `short_name: "Steinbock"`, `display: standalone`, `theme_color`, `background_color`, alle Icons inkl. maskable
+### Was ergänzt werden soll
 
-### 3. Registrierungs-Guard in `src/main.tsx`
-Snippet einfügen, das den Service-Worker im iframe / auf `*lovableproject.com` / `id-preview--*` **nicht** registriert und vorhandene Registrierungen dort entfernt. Verhindert Cache-Probleme im Editor.
+1. **Windows-spezifischer Hinweistext im Install-Dialog**
+   `InstallPrompt.tsx` erkennt aktuell nur iOS-Sonderfall. Ergänzen: Plattform-Erkennung für **Windows Desktop** (Edge/Chrome), mit kurzer Anleitung als Fallback, falls `beforeinstallprompt` (noch) nicht gefeuert hat:
+   > "In Edge/Chrome: Adressleiste → Symbol „App installieren" oder Menü ⋯ → „Apps" → „Diese Site als App installieren"."
 
-### 4. `index.html` Meta-Tags
-- `<link rel="manifest" href="/manifest.webmanifest">`
-- Apple-Tags: `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`, `apple-touch-icon` (180px)
-- `theme-color` Meta passend zum Manifest
+2. **Manifest-Erweiterungen für Windows-Desktop-Komfort**
+   - `"display_override": ["window-controls-overlay", "standalone"]` — erlaubt nahtlose Titelleiste unter Windows 11
+   - `"launch_handler": { "client_mode": "navigate-existing" }` — verhindert mehrfaches Öffnen
+   - `"categories": ["business", "productivity"]`
+   - `"shortcuts"` (Jump-List für Windows-Taskleiste): z. B. „Buchungen", „Reinigung", „Wäsche", „Dashboard" — Rechtsklick auf das Taskleisten-Icon zeigt diese als Schnellzugriffe
+   - `"screenshots"` (form_factor `wide` + `narrow`) — verbessert Install-UI in Edge
 
-### 5. Install-Hilfe-Komponente (optional, klein)
-Ein dezenter Button „App installieren" in den Einstellungen, der das `beforeinstallprompt`-Event abfängt und manuell triggert (Chrome/Edge/Android). Auf iOS Hinweis-Dialog: „Teilen → Zum Home-Bildschirm".
+3. **Tile-Farbe für Windows-Startmenü-Pinning aus dem Browser**
+   `<meta name="msapplication-TileColor" content="#0b3d2e">` und `<meta name="msapplication-TileImage" content="/pwa-192x192.png">` in `index.html` — aktuell nur teilweise gesetzt.
 
-### 6. Build-Verifikation
-Nach Build prüfen, dass `dist/sw.js`, `dist/manifest.webmanifest` und Icons existieren. Hinweis an dich: Nach **Publish** aufrufen → Lighthouse / Browser-Install-Prompt sollte erscheinen.
+4. **Install-Button auch sichtbar nach Erst-Dismiss**
+   Der manuelle „App installieren"-Button (Einstellungen) bleibt auf Windows immer verfügbar, falls Nutzer den Auto-Prompt schließen.
 
-## Was der User danach tun muss
-1. App publishen (Update-Button im Editor)
-2. Auf Mobil/Desktop die published URL öffnen
-3. Browser-Menü → „Installieren" / „Zum Home-Bildschirm hinzufügen"
+5. **Optional (separate Iteration): Microsoft Store via PWABuilder**
+   Falls gewünscht, kann die PWA über pwabuilder.com als `.msix` paketiert und im Microsoft Store gelistet werden — kein Code-Change nötig, nur Hinweis.
 
-## Was NICHT enthalten ist
-- Push-Notifications (separates Setup, später)
-- Background-Sync
-- Offline-Schreibfähigkeit (nur Lese-Cache für statische Assets/HTML)
+### Nicht enthalten
+- Keine native Electron-/Win32-App (würde komplette zweite Build-Pipeline bedeuten)
+- Keine Push-Notifications, kein Background-Sync
+- Keine Code-Signatur / MSIX-Paketierung im Repo
+
+### Technische Details
+
+| Datei | Änderung |
+|---|---|
+| `vite.config.ts` | Manifest erweitern: `display_override`, `launch_handler`, `categories`, `shortcuts`, `screenshots` |
+| `public/screenshots/` | 2 Screenshots (1280×720 wide + 750×1334 narrow) generieren |
+| `index.html` | `msapplication-TileColor` + `msapplication-TileImage` Meta-Tags |
+| `src/components/PWA/InstallPrompt.tsx` | Plattform-Detection (Windows/Edge/Chrome) + entsprechender Hilfetext, Fallback-Anleitung wenn `beforeinstallprompt` nicht verfügbar |
+
+### Verifikation nach Publish
+- Edge auf Windows → Adressleiste zeigt Install-Icon → App startet im eigenen Fenster
+- Rechtsklick auf Taskleisten-Icon → Shortcuts erscheinen
+- An Startmenü anheften möglich
