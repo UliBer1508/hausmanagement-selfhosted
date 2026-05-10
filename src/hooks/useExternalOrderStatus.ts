@@ -97,7 +97,15 @@ export const useExternalOrdersStatus = (bestellnummern: string[]) => {
       return statusMap;
     },
     enabled: bestellnummern.length > 0,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
+    refetchInterval: (query) => {
+      const data = query.state.data as ExternalOrdersStatusMap | undefined;
+      if (!data) return false;
+      const hasOpen = Object.values(data).some(
+        (v) => v.status === 'neu' || v.status === 'in_bearbeitung'
+      );
+      return hasOpen ? 60_000 : false;
+    },
   });
 };
 
