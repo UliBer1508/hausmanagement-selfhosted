@@ -15,9 +15,11 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: 'autoUpdate',
+      devOptions: { enabled: false },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6MB
+        navigateFallbackDenylist: [/^\/~oauth/, /^\/api/, /^\/functions/],
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.mode === 'navigate',
@@ -39,28 +41,23 @@ export default defineConfig(({ mode }) => ({
             }
           },
           {
+            // Supabase calls (REST + functions + auth + realtime) — never cache
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24
-              }
-            }
+            handler: 'NetworkOnly',
           }
         ]
       },
       manifest: {
-        name: 'Ferienhaus Manager',
-        short_name: 'FH Manager',
-        description: 'Verwalte deine Ferienhäuser professionell',
-        theme_color: '#3b82f6',
-        background_color: '#ffffff',
+        name: 'Steinbock Chalets Manager',
+        short_name: 'Steinbock',
+        description: 'Ferienhäuser und Mietobjekte professionell verwalten',
+        theme_color: '#0b3d2e',
+        background_color: '#f5f1e8',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
+        lang: 'de',
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -73,10 +70,16 @@ export default defineConfig(({ mode }) => ({
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'pwa-512x512-maskable.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'maskable'
+          },
+          {
+            src: 'apple-touch-icon.png',
+            sizes: '180x180',
+            type: 'image/png',
+            purpose: 'any'
           }
         ]
       }

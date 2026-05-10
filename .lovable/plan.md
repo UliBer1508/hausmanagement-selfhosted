@@ -1,22 +1,42 @@
-# Plan: End-to-End-Smoketest der REST-Integration
+# Plan: Voller PWA mit Offline-Support
 
-## Schritt 1 — Rechnungs-Sync triggern
-`sync-laundry-invoices` per Edge-Function-Curl aufrufen (nutzt jetzt REST + Portal-Token).
-Erwartung: HTTP 200 mit `{ success: true, newCount, updatedCount }` und mindestens 1 verarbeitete Rechnung (R2025-0001).
+⚠️ **Wichtig vorab:** PWA-Features (Offline, Installations-Prompt, Service-Worker) funktionieren **nur in der published Version** — nicht im Lovable-Editor-Preview, weil der Preview im iframe läuft. Im Code wird die Service-Worker-Registrierung deshalb für `id-preview--*` und iframe-Kontexte deaktiviert.
 
-## Schritt 2 — Logs prüfen
-- `sync-laundry-invoices` Logs → "Fetching invoices via REST" muss erscheinen, kein Fallback-Warning.
-- `get-external-order-status` Logs (falls Hook im Frontend feuert).
+## Schritte
 
-## Schritt 3 — Status-Proxy testen
-`get-external-order-status` mit bekannter Bestellnummer (`B0001` aus den Rechnungspositionen) aufrufen.
-Erwartung: HTTP 200 mit `{ orders: [{ bestellnummer: "B0001", status: "...", gesamt_preis: ... }] }`.
+### 1. Icon generieren
+Ein hochwertiges App-Icon im Steinbock-Chalets-Stil (Bergsilhouette + Steinbock-Andeutung, dunkelgrüner Akzent, klares zentrales Motiv mit Padding) — Quellbild 1024×1024 PNG.
+Daraus per Skript exportieren: `192×192`, `512×512`, `512×512 maskable`, `apple-touch-icon 180×180`. Ablage in `public/icons/`.
 
-## Schritt 4 — DB-Verifikation
-`select rechnungsnummer, status, bruttobetrag, synced_at from laundry_invoices order by synced_at desc limit 5;`
-Erwartung: R2025-0001 vorhanden mit korrektem Brutto (101,30) und frischem `synced_at`.
+### 2. `vite-plugin-pwa` installieren & konfigurieren
+- Dev-Dependency: `vite-plugin-pwa`
+- `vite.config.ts` erweitern:
+  - `registerType: 'autoUpdate'`
+  - `devOptions: { enabled: false }` (kein SW im Dev/Preview)
+  - `workbox.navigateFallbackDenylist: [/^\/~oauth/, /^\/api/, /supabase/]`
+  - Runtime-Caching: HTML = `NetworkFirst` (3 s Timeout), Assets = `CacheFirst`, Supabase-Calls **nicht cachen**
+  - Manifest: `name: "Steinbock Chalets Manager"`, `short_name: "Steinbock"`, `display: standalone`, `theme_color`, `background_color`, alle Icons inkl. maskable
 
-## Schritt 5 — Bericht
-Kurze Zusammenfassung: was funktioniert, was nicht, ggf. nötige Folge-Fixes.
+### 3. Registrierungs-Guard in `src/main.tsx`
+Snippet einfügen, das den Service-Worker im iframe / auf `*lovableproject.com` / `id-preview--*` **nicht** registriert und vorhandene Registrierungen dort entfernt. Verhindert Cache-Probleme im Editor.
 
-Keine Code-Änderungen geplant — reiner Verifikationslauf.
+### 4. `index.html` Meta-Tags
+- `<link rel="manifest" href="/manifest.webmanifest">`
+- Apple-Tags: `apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`, `apple-touch-icon` (180px)
+- `theme-color` Meta passend zum Manifest
+
+### 5. Install-Hilfe-Komponente (optional, klein)
+Ein dezenter Button „App installieren" in den Einstellungen, der das `beforeinstallprompt`-Event abfängt und manuell triggert (Chrome/Edge/Android). Auf iOS Hinweis-Dialog: „Teilen → Zum Home-Bildschirm".
+
+### 6. Build-Verifikation
+Nach Build prüfen, dass `dist/sw.js`, `dist/manifest.webmanifest` und Icons existieren. Hinweis an dich: Nach **Publish** aufrufen → Lighthouse / Browser-Install-Prompt sollte erscheinen.
+
+## Was der User danach tun muss
+1. App publishen (Update-Button im Editor)
+2. Auf Mobil/Desktop die published URL öffnen
+3. Browser-Menü → „Installieren" / „Zum Home-Bildschirm hinzufügen"
+
+## Was NICHT enthalten ist
+- Push-Notifications (separates Setup, später)
+- Background-Sync
+- Offline-Schreibfähigkeit (nur Lese-Cache für statische Assets/HTML)
