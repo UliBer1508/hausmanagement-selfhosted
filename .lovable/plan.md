@@ -1,121 +1,60 @@
-# Plan v2: REST-Endpoints für Oberpinzgau – aligned mit Teuni-Rechnungsmodell
+# Plan: Vollständige Umsetzung der 4 Next-Steps
 
-## Erkenntnis aus dem Teuni-System
+## Ablauf
 
-Teuni läuft **in derselben DB** wie die Logik-App (kein Sync nötig) und nutzt das Vollmodell `laundry_invoices` mit folgenden Feldern (Stand DB):
+### Schritt 1 — Portal-Projekt vorbereiten (du machst es manuell, ich liefere)
+Das Portal-Paket liegt fertig in `docs/portal-endpoints/`. Du kopierst es ins Portal-Projekt `pkpnowevagxmhyqlawng`:
+- Migration `migration_partner_api_keys.sql` ausführen (legt `partner_api_keys` + `partner_api_log` an)
+- Ordner `external-order-status/` und `external-invoices/` nach `supabase/functions/`
+- `config-snippet.toml` in `supabase/config.toml` einfügen → automatischer Deploy
 
+### Schritt 2 — Token im Portal generieren (du machst es)
+Im Portal-Projekt SQL-Editor:
+```sql
+insert into partner_api_keys (kundennummer, token_hash, name)
+values (
+  'K470214',
+  encode(digest('<KLARTEXT-TOKEN>', 'sha256'), 'hex'),
+  'Steinbock Chalets Logik-App'
+);
 ```
-rechnungsnummer, rechnungsdatum, faelligkeitsdatum, bezahlt_am, status,
-kunde_name, kunde_kundennummer, kunde_strasse, kunde_plz, kunde_ort,
-nettobetrag, mwst_satz, mwst_betrag, bearbeitungsgebuehr, bruttobetrag,
-positionen (jsonb), external_rechnung_id, external_bestellung_id,
-external_kunde_id, external_updated_at, synced_at, notes
-```
+Klartext-Token vorher selbst generieren (z. B. via `openssl rand -hex 32`).
 
-UI-Funktionen vorhanden: `LaundryInvoicesList`, `CreateInvoiceDialog`, `EditInvoiceDialog`, `MergeInvoicesDialog`, `AssignOrdersToInvoiceDialog`, `InvoiceDetailsDialog`.
+### Schritt 3 — Token hier als Secret hinterlegen (ich frage ab)
+Ich rufe `secrets--add_secret` für `OBERPINZGAU_PARTNER_TOKEN` auf — du gibst den Klartext-Token (aus Schritt 2) sicher in das eingeblendete Formular ein. **Niemals im Chat posten.**
 
-→ **Konsequenz:** Die neuen Oberpinzgau-REST-Endpoints müssen **exakt dieses Schema spiegeln**, damit `sync-laundry-invoices` die Antwort 1:1 in `laundry_invoices` schreiben kann (wie heute beim Direkt-DB-Zugriff) und die bestehende Teuni-UI ohne Änderung weiterläuft.
+### Schritt 4 — Logik-App auf REST umstellen (ich code)
 
----
+**4a) `supabase/functions/sync-laundry-invoices/index.ts`:**
+- Ersetzt direkten `externalSupabase.from('rechnungen')`-Zugriff durch `fetch('https://pkpnowevagxmhyqlawng.supabase.co/functions/v1/external-invoices?…', { Authorization: Bearer OBERPINZGAU_PARTNER_TOKEN })`
+- Mapping bleibt identisch (Schema = `laundry_invoices`)
+- Fallback: Wenn Secret fehlt → alter Direkt-DB-Pfad (Übergangs-Sicherheit)
 
-## 1. Endpoint `external-order-status` (unverändert ggü. v1)
+**4b) `src/hooks/useExternalOrderStatus.ts`:**
+- Beide Varianten (Single + Batch) rufen neue Edge Function `get-external-order-status` (intern) auf, die den Token serverseitig kennt und das Portal kontaktiert. So bleibt der Token im Server.
+- Neue interne Edge Function `get-external-order-status` als dünner Proxy (nimmt `bestellnummer`/`bestellnummern`, ruft Portal, gibt JSON zurück, JWT-validiert).
+- Direkter `externalLaundryClient`-Zugriff in diesem Hook entfernt.
 
-`GET /functions/v1/external-order-status` auf Portal-Projekt `pkpnowevagxmhyqlawng`.
+**4c) Aufräumen:**
+- `externalLaundryClient` bleibt nur für `ExternalArticleMappingDialog` (Artikel-Katalog) — bis ein REST-Endpoint dafür existiert. In `client.ts` Kommentar entsprechend ergänzen.
+- Memory `data/external-orders-direct-database-access` aktualisieren (Status/Rechnungen jetzt via REST).
 
-- Auth: `Authorization: Bearer <PARTNER_TOKEN>` → Lookup in neuer Tabelle `partner_api_keys` (kundennummer, token_hash, is_active, last_used_at)
-- Query: `bestellnummer` **oder** `bestellnummern` (CSV, max 100)
-- Response je Bestellung: `bestellnummer, status, kunde_kundennummer, objekt_objektnummer, gastname, check_in, check_out, anzahl_personen, lieferdatum, abholdatum, erstellt_am, aktualisiert_am, gesamt_preis, waehrung, positionen[]`
-- Status-Vokabular: `neu | in_bearbeitung | ausgeliefert | abgeholt | abgeschlossen | storniert`
-- Tenant-Isolation strikt nach `kunde_kundennummer` aus dem Token
-- Rate-Limit 60 req/min · 400/401/404/429
+**4d) Smoke-Test:**
+- `sync-laundry-invoices` einmal manuell triggern → Logs prüfen
+- Eine bekannte Bestellnummer im Frontend laden → Status sollte erscheinen
 
-## 2. Endpoint `external-invoices` – **angepasst an Teuni-Schema**
+## Was ich von dir brauche
 
-`GET /functions/v1/external-invoices`
+Nur **ein** Klartext-Token: `OBERPINZGAU_PARTNER_TOKEN` (für unsere Kundennummer K470214). Den frage ich nach Approval dieses Plans über das Secret-Formular ab.
 
-- Auth/Tenant-Isolation wie oben
-- Query: `since` (ISO-Datum), `status` (`offen|bezahlt|storniert|mahnung`), `limit` (default 100, max 500), optional `rechnungsnummer` für Einzelabfrage
-- **Response-Schema spiegelt `laundry_invoices` 1:1**:
+## Reihenfolge der Tool-Calls (nach Approval)
 
-```json
-{
-  "rechnungen": [
-    {
-      "id": "uuid",                    // → external_rechnung_id
-      "rechnungsnummer": "R-2026-0042",
-      "rechnungsdatum": "2026-04-30",
-      "faelligkeitsdatum": "2026-05-30",
-      "bezahlt_am": null,
-      "status": "offen",
-      "kunde_id": "uuid",              // → external_kunde_id
-      "kunde_kundennummer": "K470214",
-      "kunde_name": "Steinbock Chalets",
-      "kunde_strasse": "...",
-      "kunde_plz": "...",
-      "kunde_ort": "...",
-      "nettobetrag": 1200.00,
-      "mwst_satz": 20,
-      "mwst_betrag": 240.00,
-      "bearbeitungsgebuehr": 0.00,
-      "bruttobetrag": 1440.00,
-      "waehrung": "EUR",
-      "bestellung_id": "uuid",         // → external_bestellung_id (nullable bei Sammelrechnung)
-      "updated_at": "2026-05-01T10:00:00Z",  // → external_updated_at
-      "pdf_url": null,                 // signiert via createSignedUrl, später
-      "positionen": [
-        {
-          "bezeichnung": "Bettwäsche",
-          "menge": 12,
-          "einzelpreis": 30.00,
-          "summe": 360.00,
-          "bestellnummer": "B0042",     // Verknüpfung zu Einzelbestellung
-          "artikelnummer": "WA001"
-        }
-      ]
-    }
-  ],
-  "count": 1
-}
-```
+1. `secrets--add_secret(["OBERPINZGAU_PARTNER_TOKEN"])` → Wartet auf deine Eingabe
+2. Code-Änderungen 4a + 4b + 4c (parallel-Patches)
+3. Neue Edge Function `get-external-order-status` (Auto-Deploy)
+4. Memory-Update
+5. Smoke-Test via Edge-Function-Logs
 
-→ Die `positionen` werden als JSONB direkt in `laundry_invoices.positionen` übernommen (existing behavior in `sync-laundry-invoices`). Status-Mapping bleibt: nicht `offen|bezahlt|storniert|mahnung` ⇒ `offen`.
+## Voraussetzung
 
-## 3. Auth-Tabelle `partner_api_keys` (im Portal-Projekt)
-
-```
-id uuid pk
-kundennummer text not null
-token_hash text not null unique     -- sha256(plaintext)
-name text
-is_active boolean default true
-last_used_at timestamptz
-created_at timestamptz default now()
-```
-
-RLS: nur Service Role. Klartext-Token wird einmalig generiert und an die Hausverwaltung übergeben. Logging optional in `partner_api_log`.
-
-## 4. Anpassungen in der Logik-App (nach Live-Schalten)
-
-| Datei | Änderung |
-|-------|----------|
-| `supabase/functions/sync-laundry-invoices/index.ts` | Statt `externalLaundryClient` direkt → `fetch(EXTERNAL_INVOICES_URL, {Authorization: Bearer …})`; Mapping bleibt identisch (Felder matchen bereits) |
-| `src/hooks/useExternalOrderStatus.ts` | Statt direkter DB-Reads → Edge-Function-Proxy oder direkter `fetch` mit anon-tauglichem Bearer; Batch-Variante nutzt `bestellnummern=` |
-| Neuer Secret im Logik-Projekt | `OBERPINZGAU_PARTNER_TOKEN` (Klartext für unsere eigene Kundennummer K470214) |
-| `externalLaundryClient` | Nur noch für `ExternalArticleMappingDialog` (Artikel-Katalog), bis auch dafür ein REST-Endpoint existiert |
-
-Teuni-Code bleibt **unangetastet** – läuft weiter als interne Direkt-DB.
-
-## 5. Briefing für die Hausverwaltung
-
-Nach Implementierung wird ein curl-Beispiel-Snippet ausgeliefert (analog v1-Briefing), aber mit dem oben präzisierten Rechnungs-Schema und Hinweis: „Felder = `laundry_invoices`-Schema der Logik-App, daher direkt 1:1 ingestbar."
-
----
-
-## Offene Bestätigung
-
-**Wo deployen?** Die zwei neuen Edge Functions gehören ins **Portal-Projekt `pkpnowevagxmhyqlawng`** (Wäsche Oberpinzgau), nicht in dieses Repo. Optionen:
-
-1. Code hier erstellen → ich übergebe ihn dir, du deployst ihn manuell im Portal-Projekt
-2. Du wechselst kurz ins Portal-Projekt und ich kann dort direkt deployen via cross-project (Standardweg in Lovable)
-
-Sag mir Variante 1 oder 2, dann implementiere ich.
+Schritte 1 und 2 müssen vor dem Smoke-Test im Portal abgeschlossen sein, sonst antworten die Endpoints mit 401/404. Code wird trotzdem schon deployed — wird automatisch funktional sobald Portal live ist.
