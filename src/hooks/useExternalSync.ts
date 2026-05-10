@@ -35,7 +35,7 @@ export const useExternalSync = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('linen_automation_settings')
-        .select('external_sync_enabled, external_kundennummer')
+        .select('external_sync_enabled, external_kundennummer, sync_transport')
         .single();
       
       if (error) throw error;
@@ -52,6 +52,26 @@ export const useExternalSync = () => {
         throw new Error('Externe Synchronisation ist nicht aktiviert');
       }
 
+      // NEU: REST-Transport (Default) → Edge Function aufrufen
+      const transport = (syncSettings as any)?.sync_transport ?? 'rest';
+      if (transport === 'rest') {
+        const { data, error } = await supabase.functions.invoke('sync-linen-order-rest', {
+          body: { linen_order_id: linenOrderId },
+        });
+        if (error) throw new Error(error.message);
+        if (!data?.success) {
+          const msg = data?.error || 'REST-Sync fehlgeschlagen';
+          toast({ variant: 'destructive', title: 'Synchronisation fehlgeschlagen', description: msg });
+          return { success: false, error: msg };
+        }
+        toast({
+          title: '✅ Synchronisation erfolgreich',
+          description: `Bestellung ${data.bestellnummer ?? ''} wurde ans externe Portal übertragen.`,
+        });
+        return { success: true, bestellnummer: data.bestellnummer };
+      }
+
+      // LEGACY: Direkter DB-Pfad (Fallback während Cutover)
       // 2. Bestellung mit Haus und Buchung laden
       const { data: order, error: orderError } = await supabase
         .from('linen_orders')
