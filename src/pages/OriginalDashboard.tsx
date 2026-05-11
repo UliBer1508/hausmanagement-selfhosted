@@ -363,13 +363,59 @@ const OriginalDashboard = () => {
   };
 
   // Handler für Erstellen einer neuen Wäschebestellung aus dem Dashboard
-  const handleCreateLinenOrder = (booking: any) => {
+  const handleCreateLinenOrder = async (booking: any) => {
     if (showLinenOrderDialog) return;
     console.log('➕ Neue Wäschebestellung für Buchung:', booking?.id);
     setSelectedBookingForOrder(booking);
     setEditingOrderId(null);
-    setEditingOrderData(null);
-    setShowLinenOrderDialog(true);
+
+    // Standard-Lieferdatum: Vortag des Check-in
+    let defaultDeliveryDate: string | undefined;
+    if (booking?.check_in) {
+      const d = new Date(booking.check_in);
+      d.setDate(d.getDate() - 1);
+      defaultDeliveryDate = d.toISOString().slice(0, 10);
+    }
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        'generate-booking-linen-order',
+        { body: { booking_id: booking.id } }
+      );
+      if (error) throw error;
+
+      const items = data?.order_items || {};
+      setEditingOrderData({
+        items,
+        item_variants: data?.item_variants || null,
+        linen_color: data?.linen_color || null,
+        delivery_date: defaultDeliveryDate,
+        delivery_type: 'delivery',
+        notes: '',
+        status: 'offen',
+      });
+
+      toast({
+        title: 'Wäschebestellung berechnet',
+        description: `${data?.total_items ?? 0} Teile vorbefüllt${data?.estimated_cost ? ` – ca. ${data.estimated_cost} EUR` : ''}.`,
+      });
+    } catch (err: any) {
+      console.error('❌ Fehler beim Berechnen der Wäschebestellung:', err);
+      setEditingOrderData({
+        items: {},
+        delivery_date: defaultDeliveryDate,
+        delivery_type: 'delivery',
+        notes: '',
+        status: 'offen',
+      });
+      toast({
+        title: 'Berechnung fehlgeschlagen',
+        description: err?.message || 'Bitte Positionen manuell eintragen.',
+        variant: 'destructive',
+      });
+    } finally {
+      setShowLinenOrderDialog(true);
+    }
   };
 
   // Handler für Erstellen/Aktualisieren von Wäschebestellungen
