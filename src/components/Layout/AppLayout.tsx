@@ -1,4 +1,8 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 import InstallPrompt from '@/components/PWA/InstallPrompt';
 import UpdatePrompt from '@/components/PWA/UpdatePrompt';
 import { useProviderMessageNotifications } from '@/hooks/useProviderMessageNotifications';
@@ -18,6 +22,22 @@ const AppLayout = ({ children }: AppLayoutProps) => {
   // Guest contact reminder notification on app start
   const { guestsToContact, isLoading } = useGuestContactReminders();
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const [isAuthed, setIsAuthed] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setIsAuthed(!!session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setIsAuthed(!!session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    toast({ title: 'Abgemeldet', description: 'Du wurdest erfolgreich abgemeldet.' });
+    navigate('/login', { replace: true });
+  };
   
   useEffect(() => {
     const today = format(new Date(), 'yyyy-MM-dd');
@@ -36,6 +56,18 @@ const AppLayout = ({ children }: AppLayoutProps) => {
 
   return (
     <div className="layout-container min-h-screen flex flex-col">
+      {isAuthed && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleLogout}
+          title="Abmelden"
+          aria-label="Abmelden"
+          className="fixed top-3 right-3 z-50 bg-background/80 backdrop-blur-sm border border-border/50 hover:bg-background"
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
+      )}
       {/* Simplified Layout - No Sidebar */}
       <main className="content-main flex-1">
         {children}
