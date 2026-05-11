@@ -5045,7 +5045,44 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      app_reviews_public: {
+        Row: {
+          booking_id: string | null
+          created_at: string | null
+          feedback_text: string | null
+          id: string | null
+          preferred_language: string | null
+          rating: number | null
+          submitted_from_screen: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string | null
+          feedback_text?: string | null
+          id?: string | null
+          preferred_language?: string | null
+          rating?: number | null
+          submitted_from_screen?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string | null
+          feedback_text?: string | null
+          id?: string | null
+          preferred_language?: string | null
+          rating?: number | null
+          submitted_from_screen?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "app_reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       delete_booking_cascade: {
