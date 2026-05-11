@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,6 +19,7 @@ interface BookingCardProps {
 const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardProps) => {
   const { data: stayCounts } = useGuestStayCounts();
   const category = getGuestCategory(stayCounts, booking.guest_email);
+  const [editOpen, setEditOpen] = useState(false);
 
   const categoryBadge =
     category === 'returning' ? (
@@ -53,7 +55,19 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
   };
 
   return (
-    <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-yellow-50 relative`}>
+    <Card
+      role="button"
+      tabIndex={0}
+      aria-label={`Buchung von ${getGuestName(booking)} bearbeiten`}
+      onClick={() => setEditOpen(true)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setEditOpen(true);
+        }
+      }}
+      className={`border-l-4 ${getBorderColor(colorVariant)} bg-yellow-50 relative cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+    >
       <CardContent className="p-4">
         <div className="space-y-3">
           {/* Guest Name */}
@@ -100,11 +114,14 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
         <EditBookingDialog 
           booking={booking}
           onBookingUpdated={onBookingUpdated}
+          open={editOpen}
+          onOpenChange={setEditOpen}
           trigger={
             <Button
               variant="ghost"
               size="sm"
               className="absolute top-2 right-2 h-8 w-8 p-0"
+              onClick={(e) => e.stopPropagation()}
             >
               <Edit className="w-4 h-4" />
             </Button>
