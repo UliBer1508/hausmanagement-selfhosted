@@ -362,6 +362,16 @@ const OriginalDashboard = () => {
     console.log('🎬 Dialog öffnen für Order:', order.id);
   };
 
+  // Handler für Erstellen einer neuen Wäschebestellung aus dem Dashboard
+  const handleCreateLinenOrder = (booking: any) => {
+    if (showLinenOrderDialog) return;
+    console.log('➕ Neue Wäschebestellung für Buchung:', booking?.id);
+    setSelectedBookingForOrder(booking);
+    setEditingOrderId(null);
+    setEditingOrderData(null);
+    setShowLinenOrderDialog(true);
+  };
+
   // Handler für Erstellen/Aktualisieren von Wäschebestellungen
   const handleCreateOrUpdateOrder = async (orderData: any) => {
     try {
