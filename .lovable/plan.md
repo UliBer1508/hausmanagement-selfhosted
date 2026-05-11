@@ -1,43 +1,24 @@
 ## Ziel
-Die beiden Karten unten in der Übersicht sollen echte unverbundene Datensätze anzeigen statt statischer Leertexte.
+Beim Klick auf "Keine Wäschebestellungen → Klicken um Bestellung zu erstellen" soll der Dialog mit den passenden Bestellpositionen vorbefüllt werden, statt mit einer leeren Liste zu öffnen.
 
 ## Festgestellter Stand
-- In der Datenbank existieren aktuell unverbundene Einträge:
-  - 2 `service_tasks` ohne `booking_id`
-  - 1 `linen_order` ohne `booking_id`
-- Alle gefundenen Einträge gehören zu touristischen Häusern und sollten damit im Dashboard sichtbar sein.
-- Die beiden Karten in `src/components/Dashboard/OverviewTab.tsx` sind derzeit nur Platzhalter und bekommen gar keine Daten übergeben.
+- `handleCreateLinenOrder` in `src/pages/OriginalDashboard.tsx` setzt aktuell nur die Buchung und öffnet den Dialog mit leeren Items.
+- Es existiert bereits eine Edge Function `generate-booking-linen-order`, die anhand der Buchung die exakten Positionen (inkl. `linen_color` und `item_variants`) berechnet. Sie wird bereits an zwei Stellen genutzt:
+  - `src/components/Bookings/CreateBookingForm.tsx` (Button "Wäschebestellung erstellen")
+  - `src/hooks/useBookingLinenOrders.ts` (`createOrderMutation`)
+- Der Dialog `LinenOrderDialog` liest die initialen Positionen über die Prop `orderItems`.
 
-## Umsetzungsplan
-1. Daten für unverbundene Einträge im Dashboard ableiten
-- In `src/pages/OriginalDashboard.tsx` aus den bereits geladenen `serviceTasks` und `linenOrders` zwei gefilterte Listen ableiten:
-  - Service-Aufträge ohne Buchung
-  - Wäschebestellungen ohne Buchung
-- Dabei nur touristische Häuser berücksichtigen, passend zur bestehenden Dashboard-Logik.
-
-2. Daten an `OverviewTab` durchreichen
-- Die Props von `OverviewTab` erweitern, damit die beiden neuen Listen dort verfügbar sind.
-- Vorhandene Handler weiterverwenden, damit Bearbeiten/Klick-Verhalten konsistent bleibt.
-
-3. Platzhalterkarten durch echte Inhalte ersetzen
-- In `src/components/Dashboard/OverviewTab.tsx` die statischen Texte durch Listen ersetzen.
-- Für Service-Aufträge vorhandene `ServiceTaskCard` verwenden.
-- Für Wäschebestellungen vorhandene `LaundryOrderCard` verwenden.
-- Falls keine Datensätze vorhanden sind, einen echten Empty State anzeigen.
-
-4. Verhalten der Karten konsistent halten
-- Unverbundene Wäschebestellungen sollen direkt bearbeitbar bleiben.
-- Unverbundene Service-Aufträge sollen wie die übrigen Service-Karten direkt editierbar sein.
-- Die Anzeige soll auch abgeschlossene bzw. gelieferte Einträge weiterhin enthalten, wie es die Kartentexte versprechen.
-
-5. Validierung
-- Prüfen, dass die drei aktuell vorhandenen unverbundenen Datensätze in der Übersicht erscheinen.
-- Prüfen, dass Klick auf die Karten die bestehenden Dialoge öffnet.
-- Prüfen, dass bei wirklich leerem Zustand wieder der passende Leertext erscheint.
+## Umsetzung
+1. In `src/pages/OriginalDashboard.tsx` die Funktion `handleCreateLinenOrder` so anpassen, dass sie zuerst `generate-booking-linen-order` aufruft und das Ergebnis als Vorbefüllung in den Dialog gibt:
+   - `editingOrderData` mit `items`, `linen_color`, `item_variants` aus dem Edge-Function-Ergebnis vorbelegen.
+   - `delivery_date` standardmäßig auf den Vortag des Check-in setzen (gleiche Logik wie in `useBookingLinenOrders`).
+   - `mode` bleibt `create`, damit beim Speichern eine neue Bestellung angelegt wird (kein `editingOrderId`).
+2. Während des Aufrufs einen Lade-Toast anzeigen und Fehler abfangen:
+   - Erfolg: kurze Info "X Teile berechnet".
+   - Fehler (z. B. keine `linen_set_definitions`): Toast mit Hinweis und Dialog trotzdem leer öffnen, damit der Nutzer manuell ergänzen kann.
+3. Mehrfachklicks verhindern (Lade-Status), keine Änderung am Dialog selbst nötig.
 
 ## Technische Details
-- Betroffene Dateien:
-  - `src/pages/OriginalDashboard.tsx`
-  - `src/components/Dashboard/OverviewTab.tsx`
-- Keine Datenbankänderung nötig.
-- Ursache ist sehr wahrscheinlich kein Datenproblem, sondern eine fehlende UI-Anbindung: die Daten sind da, die Karten rendern sie nur derzeit nicht.
+- Betroffene Datei: `src/pages/OriginalDashboard.tsx` (nur die Funktion `handleCreateLinenOrder` und ggf. ein kleiner Loading-State).
+- Keine Änderungen an der Edge Function, am Dialog oder am Schema.
+- Vorbild für den Aufruf: `generateLinenOrderMutation` in `CreateBookingForm.tsx` und `createOrderMutation` in `useBookingLinenOrders.ts`.
