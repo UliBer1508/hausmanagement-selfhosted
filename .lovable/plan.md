@@ -1,47 +1,24 @@
 ## Ziel
+Im Dashboard (Übersicht) soll die leere Karte „Keine Wäschebestellungen" anklickbar sein, sodass direkt der Wäschebestellungs-Dialog für die jeweilige Buchung geöffnet wird – wie es im `ConnectedBookingView` bereits funktioniert.
 
-Die drei Karten-Typen in der Dashboard-Übersicht (Buchung, Reinigung, Wäschebestellung) sollen komplett anklickbar sein und direkt den jeweiligen Bearbeiten-Dialog öffnen — statt nur über das kleine Stift-Icon oben rechts.
+## Änderungen
 
-## Umfang
+### 1. `src/pages/OriginalDashboard.tsx`
+- Neuen Handler `handleCreateLinenOrder(booking)` hinzufügen, der analog zu `ConnectedBookingView.handleCreateLinenOrder` arbeitet:
+  - `setSelectedBookingForOrder(booking)`
+  - leere `orderItems` setzen
+  - `editingOrderId = null`, `editingOrderData = null`
+  - `setShowLinenOrderDialog(true)`
+- Handler als Prop `handleCreateLinenOrder` an `<OverviewTab />` übergeben.
 
-Betroffen sind drei Komponenten, die bereits vorhandene Edit-Dialoge nutzen:
+### 2. `src/components/Dashboard/OverviewTab.tsx`
+- Prop `handleCreateLinenOrder: (booking: any) => void` ergänzen.
+- Den leeren Zustand (Zeile ~243) durch eine klickbare `Card` ersetzen (gleiches Muster wie in `ConnectedBookingView` Zeilen 502–517):
+  - `cursor-pointer`, Hover-States, `role="button"`, `tabIndex={0}`, Tastatur-Handler (Enter/Space)
+  - Beim Klick `handleCreateLinenOrder(booking)` aufrufen
+  - Text leicht anpassen: „Klicken um Bestellung zu erstellen"
+  - Icon (ShoppingCart) optional ergänzen für Konsistenz
 
-| Karte | Datei | Aktion bei Klick |
-|---|---|---|
-| Buchung | `src/components/Bookings/BookingCard.tsx` | öffnet `EditBookingDialog` |
-| Reinigung | `src/components/Bookings/ServiceTaskCard.tsx` | öffnet `EditCleaningTaskDialog` |
-| Wäschebestellung | `src/components/Bookings/LaundryOrderCard.tsx` | ruft `onEdit(order)` auf (öffnet `LinenOrderDialog` im Edit-Modus) |
-
-Keine Änderungen an Daten, Hooks oder Dialog-Logik — nur das Klick-Verhalten der Karten.
-
-## Umsetzung
-
-1. **Card-Wrapper klickbar machen**
-   - `<Card>` bekommt `role="button"`, `tabIndex={0}`, `cursor-pointer`, dezenten Hover-Effekt (`hover:shadow-md transition-shadow`) und Keyboard-Handler (Enter/Space).
-   - Klick öffnet den jeweiligen Edit-Dialog.
-
-2. **EditBookingDialog & EditCleaningTaskDialog auf kontrollierten Modus**
-   - Dialog wird über `open` / `onOpenChange` von der Karte gesteuert (statt Trigger-Button).
-   - Stift-Icon oben rechts bleibt erhalten als visueller Hinweis, ist aber rein dekorativ bzw. setzt denselben State.
-
-3. **Klick-Bubbling verhindern für interaktive Elemente in der Karte**
-   - Buttons innerhalb der Karte (Sync, Delete, Confirm bei Wäsche; Stift-Icon selbst; ggf. Status-Badges mit Aktion) bekommen `onClick={(e) => e.stopPropagation()}` bzw. das vorhandene `onClick` wird mit `stopPropagation` ergänzt.
-   - Aufklappbare Bereiche („Artikel (28)") bleiben funktional und stoppen Propagation.
-
-4. **Accessibility**
-   - `aria-label` mit kurzer Beschreibung („Buchung von Joke Hauters bearbeiten" o. ä.).
-   - Fokus-Ring über bestehendes Tailwind `focus-visible:ring-2 focus-visible:ring-ring`.
-
-## Technische Details
-
-- `EditBookingDialog` muss optional `open` + `onOpenChange` Props akzeptieren (zusätzlich zum bestehenden `trigger`). Falls bereits per `trigger`-Pattern gebaut: kontrollierte Variante einführen, ohne den Trigger-Modus zu brechen (beides unterstützen).
-- `LaundryOrderCard` ruft `onEdit(order)` bereits über das Stift-Icon auf — derselbe Handler wird zusätzlich am Card-Wurzelknoten ausgelöst.
-- Kein neuer State außerhalb der Karten nötig.
-
-## Verifikation
-
-- Klick irgendwo auf eine Buchungskarte → `EditBookingDialog` öffnet sich.
-- Klick auf eine Reinigungskarte → `EditCleaningTaskDialog` öffnet sich.
-- Klick auf eine Wäschebestellungskarte → Wäsche-Edit-Dialog öffnet sich.
-- Klick auf Sync-/Delete-/Confirm-Button in der Wäschekarte führt **weiterhin nur** die Aktion aus, öffnet nicht zusätzlich den Dialog.
-- Tastatur-Navigation (Tab → Enter) öffnet ebenfalls den Dialog.
+### Hinweise
+- Reine UI-/Verkabelungs-Änderung, keine Geschäftslogik-Änderung.
+- Der Dialog `LinenOrderDialog` ist im Dashboard bereits gemountet; nur das Triggern aus der leeren Karte fehlt.

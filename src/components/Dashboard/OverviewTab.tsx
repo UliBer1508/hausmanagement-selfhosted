@@ -34,6 +34,7 @@ interface OverviewTabProps {
   getBookingRelatedData: (bookingId: string) => { tasks: any[]; laundry: any[] };
   getFilteredTasksByService: (tasks: any[]) => any[];
   handleEditLinenOrder: (order: any) => void;
+  handleCreateLinenOrder: (booking: any) => void;
   syncingOrderId: string | null;
   setSyncingOrderId: React.Dispatch<React.SetStateAction<string | null>>;
   syncOrder: (id: string) => Promise<any>;
@@ -53,6 +54,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   includeCheckedIn, setIncludeCheckedIn,
   getBookingRelatedData, getFilteredTasksByService,
   handleEditLinenOrder, syncingOrderId, setSyncingOrderId,
+  handleCreateLinenOrder,
   syncOrder, resetSync, externalSyncEnabled,
 }) => {
   const availableHouses = [
@@ -240,11 +242,22 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                             />
                           ))
                         ) : (
-                          <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg bg-gray-50">
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleCreateLinenOrder(booking)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleCreateLinenOrder(booking);
+                              }
+                            }}
+                            className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted hover:border-primary/50 hover:bg-accent/50 rounded-lg bg-gray-50 cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          >
                             <div className="flex flex-col items-center space-y-2">
                               <span className="text-lg">👕</span>
                               <p className="font-medium">Keine Wäschebestellungen</p>
-                              <p className="text-xs">Wäscheservice aktuell nicht verfügbar</p>
+                              <p className="text-xs">Klicken um Bestellung zu erstellen</p>
                             </div>
                           </div>
                         )}
