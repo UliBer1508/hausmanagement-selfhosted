@@ -70,9 +70,12 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
       role="button"
       tabIndex={0}
       aria-label={`${getServiceLabel(task.service_type)} bearbeiten`}
-      onClick={() => setShowEditDialog(true)}
+      onClick={(e) => {
+        if (!e.currentTarget.contains(e.target as Node)) return;
+        setShowEditDialog(true);
+      }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
           e.preventDefault();
           setShowEditDialog(true);
         }

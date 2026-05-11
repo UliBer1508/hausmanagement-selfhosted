@@ -131,9 +131,12 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
       role={isClickable ? 'button' : undefined}
       tabIndex={isClickable ? 0 : undefined}
       aria-label={isClickable ? `Wäschebestellung für ${houseName} bearbeiten` : undefined}
-      onClick={isClickable ? handleCardClick : undefined}
+      onClick={isClickable ? (e) => {
+        if (!e.currentTarget.contains(e.target as Node)) return;
+        handleCardClick();
+      } : undefined}
       onKeyDown={isClickable ? (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
           e.preventDefault();
           handleCardClick();
         }
