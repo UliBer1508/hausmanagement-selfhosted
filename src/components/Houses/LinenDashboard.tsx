@@ -606,10 +606,7 @@ const LinenDashboard = () => {
             key={houseStatus.house.id}
             role="button"
             tabIndex={0}
-            onClick={(e) => {
-              if (!e.currentTarget.contains(e.target as Node)) return;
-              setSelectedHouse(houseStatus.house);
-            }}
+            onClick={() => setSelectedHouse(houseStatus.house)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
