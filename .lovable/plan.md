@@ -1,43 +1,46 @@
 ## Ursache
 
-`src/components/Bookings/BookingCard.tsx` macht die gesamte Karte klickbar:
+Dasselbe React-Portal-Bubble-Problem wie bei `BookingCard`: Mehrere Karten machen die gesamte `Card` klickbar (öffnet einen Dialog) **und** der Dialog wird via Radix-Portal in `document.body` gerendert. React-Events bubblen aber durch den **React-Komponentenbaum**, nicht durch das DOM. Folge: Klick auf X / Backdrop / Cancel im Dialog → Dialog schließt → Click-Event bubbelt zurück zur Card → `setOpen(true)` → Dialog öffnet sofort wieder.
 
-```tsx
-<Card onClick={() => setEditOpen(true)} ...>
-```
+Betroffene Karten:
+- `src/components/Bookings/ServiceTaskCard.tsx` → öffnet "Reinigungsauftrag bearbeiten" (das Symptom aus dem Screenshot, sichtbar in „Buchungen → Verknüpft")
+- `src/components/Bookings/LaundryOrderCard.tsx` → öffnet "Wäschebestellung bearbeiten"
+- `src/components/Houses/CompetitorAnalysis/CompetitorCard.tsx` → öffnet Konkurrenz-Details
 
-Der Dialog "Buchung bearbeiten" wird via Radix-Portal in `document.body` gerendert, **React-Events bubblen aber durch den React-Komponentenbaum** (nicht durch das DOM). Das bedeutet: Klick auf das X im Dialog → Dialog schließt sich → derselbe Click-Event bubbelt durch den React-Tree hoch zur `Card` → `setEditOpen(true)` → Dialog öffnet sich sofort wieder.
-
-Effekt für den User: Der X-Button "funktioniert nicht".
-
-Genau dasselbe Problem würde bei jedem Klick im Dialog auftreten (Backdrop-Klick, Cancel-Button, etc.).
+`HouseCard.tsx` nutzt nur Button-Trigger und ist nicht betroffen. `BookingCard.tsx` wurde bereits im vorherigen Schritt gefixt.
 
 ## Lösung
 
-In `BookingCard.tsx` den `onClick`-Handler der Card so absichern, dass nur tatsächliche Klicks innerhalb des Card-DOM die Bearbeitung öffnen – Klicks aus geportalten Kindern (Dialog, Selects, Popovers, Toasts) werden ignoriert.
+In allen drei Karten denselben Schutz wie in `BookingCard` einbauen: Card-`onClick` und `onKeyDown` ignorieren Events, die nicht aus dem eigenen DOM-Subtree stammen (also Events aus geportalten Kindern wie Dialog/Select/Popover).
 
-### Änderung in `src/components/Bookings/BookingCard.tsx`
+### Patch-Schema (pro Datei)
 
 ```tsx
 onClick={(e) => {
-  // Klicks aus Portalen (Dialog, Select, Popover) ignorieren –
-  // sonst öffnet der Dialog-Close das Edit-Fenster sofort wieder.
   if (!e.currentTarget.contains(e.target as Node)) return;
-  setEditOpen(true);
+  setOpen(true);            // jeweiliger Setter
 }}
 onKeyDown={(e) => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
     e.preventDefault();
-    setEditOpen(true);
+    setOpen(true);
   }
 }}
 ```
 
-Keine weiteren Dateien betroffen. Edit-Button im Dialog (Trigger) hat bereits `stopPropagation` – bleibt unverändert.
+### Konkrete Änderungen
+
+1. **`src/components/Bookings/ServiceTaskCard.tsx`** (Z. 73–79): `setShowEditDialog(true)` mit Guard.
+2. **`src/components/Bookings/LaundryOrderCard.tsx`** (Z. 134–140): `handleCardClick` nur ausführen, wenn Event nicht aus Portal stammt.
+3. **`src/components/Houses/CompetitorAnalysis/CompetitorCard.tsx`** (Z. 47): `setDetailsOpen(true)` mit Guard.
+
+Keine weiteren Dateien betroffen. Edit-Buttons innerhalb der Karten haben bereits `stopPropagation` und bleiben unverändert.
 
 ## Akzeptanzkriterien
 
-- Klick auf Karte "Helena Kunz" öffnet den Dialog "Buchung bearbeiten".
-- Klick auf das X schließt den Dialog dauerhaft (öffnet nicht erneut).
-- Klick außerhalb (Backdrop) und ESC schließen den Dialog ebenfalls.
-- Selects/Popovers innerhalb des Formulars schließen normal, ohne den Dialog zu reöffnen.
+- "Reinigungsauftrag bearbeiten" – X-Button schließt zuverlässig (öffnet nicht erneut).
+- "Wäschebestellung bearbeiten" – X-Button schließt zuverlässig.
+- Konkurrenz-Detail-Dialog – X-Button schließt zuverlässig.
+- Backdrop-Klick und ESC schließen ebenfalls.
+- Selects/Popovers/AlertDialogs innerhalb der Dialoge schließen normal, ohne den darüberliegenden Dialog zu reöffnen.
+- Karten-Klick öffnet den jeweiligen Dialog weiterhin wie gewohnt.
