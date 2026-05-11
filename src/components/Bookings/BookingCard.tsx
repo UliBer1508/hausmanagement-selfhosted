@@ -59,9 +59,14 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
       role="button"
       tabIndex={0}
       aria-label={`Buchung von ${getGuestName(booking)} bearbeiten`}
-      onClick={() => setEditOpen(true)}
+      onClick={(e) => {
+        // Klicks aus Portalen (Dialog, Select, Popover) ignorieren –
+        // sonst öffnet der Dialog-Close das Edit-Fenster sofort wieder.
+        if (!e.currentTarget.contains(e.target as Node)) return;
+        setEditOpen(true);
+      }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
+        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
           e.preventDefault();
           setEditOpen(true);
         }
