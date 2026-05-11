@@ -795,6 +795,35 @@ const OriginalDashboard = () => {
     [processedBookingData]
   );
 
+  // Unverbundene Service-Aufträge (ohne Buchung), nur touristische Häuser
+  const unlinkedServiceTasks = useMemo(() => {
+    if (!serviceTasks) return [];
+    const touristHouseIds = new Set((housesData || []).map((h: any) => h.id));
+    return serviceTasks
+      .filter((task: any) => !task.booking_id && touristHouseIds.has(task.house_id))
+      .map((task: any) => {
+        const assignments = cleaningAssignments?.filter((a: any) => a.service_task_id === task.id) || [];
+        return { ...task, cleaning_assignments: assignments, direct_assigned_staff: null };
+      })
+      .sort((a: any, b: any) => {
+        const da = a.scheduled_date ? new Date(a.scheduled_date).getTime() : 0;
+        const db = b.scheduled_date ? new Date(b.scheduled_date).getTime() : 0;
+        return db - da;
+      });
+  }, [serviceTasks, housesData, cleaningAssignments]);
+
+  // Unverbundene Wäschebestellungen (ohne Buchung), Tourist-Filter erfolgt bereits in der Query
+  const unlinkedLinenOrders = useMemo(() => {
+    if (!linenOrders) return [];
+    return [...linenOrders]
+      .filter((order: any) => !order.booking_id)
+      .sort((a: any, b: any) => {
+        const da = a.delivery_date ? new Date(a.delivery_date).getTime() : 0;
+        const db = b.delivery_date ? new Date(b.delivery_date).getTime() : 0;
+        return db - da;
+      });
+  }, [linenOrders]);
+
   const tabs = [
     { name: 'Übersicht', emoji: '📊' },
     { name: 'Kalender', emoji: '📅' },
