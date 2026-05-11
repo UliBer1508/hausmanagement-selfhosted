@@ -116,11 +116,34 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
   const numberOfGuests = order.bookings?.number_of_guests || null;
   const guestName = order.bookings ? getGuestName(order.bookings) : null;
 
+  const isClickable = !isPending && !!onEdit;
+  const handleCardClick = async () => {
+    if (!isClickable || !onEdit) return;
+    try {
+      await onEdit(order);
+    } catch (error) {
+      console.error('Error in onEdit (card click):', error);
+    }
+  };
+
   return (
-    <Card className={cn(
-      `border-l-4 ${getBorderColor(colorVariant)} bg-laundry-bg relative`,
-      isPending && "border-dashed opacity-90"
-    )}>
+    <Card
+      role={isClickable ? 'button' : undefined}
+      tabIndex={isClickable ? 0 : undefined}
+      aria-label={isClickable ? `Wäschebestellung für ${houseName} bearbeiten` : undefined}
+      onClick={isClickable ? handleCardClick : undefined}
+      onKeyDown={isClickable ? (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleCardClick();
+        }
+      } : undefined}
+      className={cn(
+        `border-l-4 ${getBorderColor(colorVariant)} bg-laundry-bg relative`,
+        isPending && "border-dashed opacity-90",
+        isClickable && "cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      )}
+    >
       <CardContent className="p-3 relative pb-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
           {/* Left Column: House Info & Booking */}
@@ -195,7 +218,10 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             {/* Items List - Collapsible */}
             {order.items && (
               <Collapsible open={isItemsOpen} onOpenChange={setIsItemsOpen}>
-                <CollapsibleTrigger className="flex items-center gap-2 w-full hover:bg-muted/50 rounded p-1 -ml-1 transition-colors">
+                <CollapsibleTrigger
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 w-full hover:bg-muted/50 rounded p-1 -ml-1 transition-colors"
+                >
                   <ChevronDown 
                     className={cn(
                       "h-4 w-4 text-muted-foreground transition-transform duration-200",
