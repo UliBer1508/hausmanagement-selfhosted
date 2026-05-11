@@ -1,20 +1,42 @@
-## Ziel
+## Problembefund
 
-Auf der Login-Seite eine Checkbox "Angemeldet bleiben" hinzufügen. Wenn aktiviert, werden E-Mail und Passwort lokal im Browser gespeichert und beim nächsten Besuch automatisch ins Formular eingetragen.
+Für die Buchung **Dot Shaw / Wald Chalet (20.06.2026)** existiert in der Datenbank eine Wäschebestellung (`linen_orders.id = 5b4e4e71-…`, Status `offen`, erstellt am 11.05.2026 10:42 UTC). Sie ist korrekt mit `booking_id` verknüpft, das Haus hat `rental_type='tourist'`, und es gibt keine RLS-Blockade.
 
-## Änderungen
+Die Bestellung wird im Tab **„Übersicht"** trotzdem nicht angezeigt — die Karte zeigt „Keine Wäschebestellungen".
 
-**Datei:** `src/pages/Login.tsx`
+### Ursache
 
-1. Neuen State `rememberMe` (boolean) hinzufügen.
-2. Beim Mount: aus `localStorage` (Key `auth_remember`) gespeicherte Daten laden und Felder + Checkbox vorbefüllen.
-3. Im `handleSubmit` nach erfolgreichem Login:
-   - Wenn `rememberMe = true`: `{ email, password }` als JSON in `localStorage` unter `auth_remember` speichern (Base64-codiert zur leichten Verschleierung).
-   - Wenn `rememberMe = false`: gespeicherten Eintrag entfernen.
-4. UI: shadcn `Checkbox` + Label "Angemeldet bleiben" unter dem Passwort-Feld, vor dem Submit-Button.
+Der Übersichts-Tab (`src/pages/OriginalDashboard.tsx`, Zeile 687–712) lädt die Wäschebestellungen über React-Query mit dem Key `['dashboard-linen-orders', 'tourist']` und `staleTime: 5 * 60 * 1000`.
 
-## Sicherheits-Hinweis
+Dieser Query hat **keine Realtime-Subscription** und wird **nicht invalidiert**, wenn anderswo (z. B. Tab „Buchungen" / `ConnectedBookingView`, Tab „Wäsche", Edge-Function `auto-create-linen-orders`, externer Sync) eine neue Bestellung entsteht. Die Übersicht zeigt deshalb bis zu 5 Minuten lang einen veralteten Stand bzw. bis zum manuellen Reload gar nichts.
 
-Passwörter im `localStorage` sind grundsätzlich unsicher (XSS-Risiko, Klartext-Lesbarkeit). Da die App nur von einem kleinen Admin-Kreis auf eigenen Geräten genutzt wird und du diese Variante explizit gewählt hast, ist das vertretbar. Die Supabase-Session selbst (Token) wird ohnehin schon in `localStorage` gehalten und bleibt ~1h aktiv — die gespeicherten Credentials dienen also v.a. dem Re-Login nach Token-Ablauf.
+`ConnectedBookingView` hat exakt diese Subscription bereits (Zeile 40–95) und zeigt die Bestellung dort sichtbar. Im Übersichts-Tab fehlt das Pendant.
 
-Falls du später mehr Sicherheit möchtest, sind Alternativen: nur E-Mail merken, oder Auto-Refresh-Tokens länger laufen lassen.
+Analoge Lücke besteht für `service_tasks` (Key `service_tasks`) und `bookings` (Key `dashboard-bookings`), die im selben Tab angezeigt werden.
+
+## Lösung
+
+In `src/pages/OriginalDashboard.tsx` einen `useEffect` mit Supabase-Realtime-Channels hinzufügen, der die drei relevanten Query-Keys invalidiert, sobald sich die jeweiligen Tabellen ändern. Das spiegelt das Muster aus `ConnectedBookingView` und sorgt für sofortige Aktualisierung der Übersicht.
+
+Konkret:
+
+1. **Channel `dashboard-linen-orders-realtime`** auf Tabelle `linen_orders` (Event `*`) → invalidiert `['dashboard-linen-orders', 'tourist']`.
+2. **Channel `dashboard-service-tasks-realtime`** auf Tabelle `service_tasks` → invalidiert den Service-Tasks-Query.
+3. **Channel `dashboard-bookings-realtime`** auf Tabelle `bookings` → invalidiert den Bookings-Query.
+4. Cleanup über `supabase.removeChannel(...)` in der Return-Funktion.
+5. Subscription nur einmal beim Mount; `queryClient` als Dependency.
+
+Keine Änderungen an Datenbank, RLS oder Geschäftslogik. Nur Frontend-Refresh.
+
+## Technische Details
+
+- Datei: `src/pages/OriginalDashboard.tsx` (neuer `useEffect` nahe den existierenden Query-Hooks).
+- Nutzt vorhandenes `useQueryClient()` (bereits importiert oder über `@tanstack/react-query` ergänzen, falls nicht vorhanden).
+- Query-Keys exakt wie in den bestehenden `useQuery`-Aufrufen verwenden, damit `invalidateQueries` matcht.
+- Kein Polling, keine Reduzierung der `staleTime` nötig — Realtime ist effizienter.
+
+## Verifikation
+
+Nach dem Fix:
+- Übersicht im Browser öffnen → Karte für Dot Shaw zeigt die existierende Bestellung (5 Bettwäsche, 2 Spannbetttuch etc.) statt „Keine Wäschebestellungen".
+- Neue Bestellung in einem anderen Tab anlegen → erscheint ohne Reload sofort in der Übersicht.
