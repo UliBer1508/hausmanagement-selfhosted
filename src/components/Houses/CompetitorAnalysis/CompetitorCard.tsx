@@ -44,7 +44,13 @@ const CompetitorCard = ({ competitor, house_id }: CompetitorCardProps) => {
 
   return (
     <>
-      <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => setDetailsOpen(true)}>
+      <Card
+        className="cursor-pointer hover:shadow-md transition-shadow"
+        onClick={(e) => {
+          if (!e.currentTarget.contains(e.target as Node)) return;
+          setDetailsOpen(true);
+        }}
+      >
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
             <div className="flex-1">
