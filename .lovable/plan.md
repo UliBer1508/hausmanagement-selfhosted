@@ -1,16 +1,26 @@
 ## Ziel
-Eingeloggte Nutzer sollen sich überall in der App per Klick auf ein Logout-Icon ausloggen können.
+Das Fenster „Buchung bearbeiten“ soll sich wieder zuverlässig über den Close-Button schließen lassen.
+
+## Ursache
+Der globale Logout-Button in `src/components/Layout/AppLayout.tsx` ist oben rechts fixiert und liegt über dem Dialog-Close-Button des Shadcn-Dialogs. Dadurch fängt er den Klick ab.
 
 ## Umsetzung
-- In `src/components/Layout/AppLayout.tsx` einen kleinen, fest positionierten Logout-Button (oben rechts, `LogOut`-Icon aus lucide-react, ghost variant) hinzufügen.
-- Beim Klick:
-  - `supabase.auth.signOut()` aufrufen
-  - Toast "Abgemeldet" anzeigen
-  - Mit `navigate('/login', { replace: true })` zur Login-Seite weiterleiten
-- Den Button nur rendern, wenn eine Session vorhanden ist (per `supabase.auth.getSession` + `onAuthStateChange`), damit er auf der Login-Seite nicht erscheint.
-- Tooltip "Abmelden" für Klarheit.
+1. In `src/components/Layout/AppLayout.tsx` den fixierten Logout-Button aus der oberen rechten Ecke entfernen.
+2. Den Logout an eine kollisionsfreie Stelle verschieben, ohne andere UI-Elemente zu überdecken:
+   - bevorzugt in den Footer,
+   - weiterhin nur sichtbar, wenn eine Session besteht.
+3. Das bestehende Logout-Verhalten beibehalten:
+   - `supabase.auth.signOut()`
+   - Toast „Abgemeldet“
+   - Redirect zu `/login`
 
 ## Technische Details
-- Nur eine Datei betroffen: `src/components/Layout/AppLayout.tsx`.
-- Imports: `LogOut` (lucide-react), `Button`, `supabase`, `useNavigate`, `useToast`, `useEffect/useState`.
-- Keine DB- oder Routing-Änderungen.
+- `isAuthed`-State und `handleLogout` bleiben bestehen.
+- Nur das Rendering/Placement des Buttons wird geändert.
+- Keine Änderungen an Dialog-Logik oder Buchungsformular nötig.
+
+## Akzeptanzkriterien
+- Der Close-Button im Dialog „Buchung bearbeiten“ funktioniert wieder.
+- Das Dialogfenster lässt sich auch per Klick außerhalb schließen.
+- Klickbare Karten/Aktionen oben rechts werden nicht mehr blockiert.
+- Logout bleibt weiterhin erreichbar und funktionsfähig.
