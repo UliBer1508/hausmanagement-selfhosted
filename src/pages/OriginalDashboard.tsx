@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -448,6 +448,39 @@ const OriginalDashboard = () => {
   };
 
   const [timePeriodFilter, setTimePeriodFilter] = useState('all');
+
+  const queryClient = useQueryClient();
+
+  // Realtime: invalidate dashboard queries when underlying tables change,
+  // so newly created linen orders / service tasks / bookings appear without reload.
+  useEffect(() => {
+    const linenChannel = supabase
+      .channel('dashboard-linen-orders-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'linen_orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-linen-orders', 'tourist'] });
+      })
+      .subscribe();
+
+    const tasksChannel = supabase
+      .channel('dashboard-service-tasks-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_tasks' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-service-tasks'] });
+      })
+      .subscribe();
+
+    const bookingsChannel = supabase
+      .channel('dashboard-bookings-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-bookings-v2'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(linenChannel);
+      supabase.removeChannel(tasksChannel);
+      supabase.removeChannel(bookingsChannel);
+    };
+  }, [queryClient]);
 
   // Fetch real bookings data with optimized caching
   const { data: bookingsData, isLoading: bookingsLoading } = useQuery({
