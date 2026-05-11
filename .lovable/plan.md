@@ -1,25 +1,15 @@
 ## Ziel
+Die beiden Haus-Karten im Wäsche-Dashboard sollen immer **nebeneinander in einer Zeile** dargestellt werden – auch auf schmalen Viewports (aktuell 967px zeigt sie noch nebeneinander, aber unter `lg` (1024px) stapeln sie).
 
-Die Buchungs-Tabelle in „Buchungen → Übersicht" (`BookingOverviewFixed.tsx`) soll komplett klickbar sein: Klick irgendwo auf eine Zeile öffnet „Buchung bearbeiten". Edit-/Lösch-Buttons in der letzten Spalte bleiben unverändert nutzbar.
+## Änderung
+**Datei:** `src/components/Houses/LinenDashboard.tsx` (Zeile 603)
 
-## Lösung
+- Grid von `grid-cols-1 lg:grid-cols-2` → **`grid-cols-2`** (immer 2 Spalten).
+- `gap-4` → `gap-3`, damit auf schmalen Screens genug Platz bleibt.
 
-1. **`src/components/Bookings/BookingOverviewFixed.tsx`** (TableRow ab Z. 879):
-   - Lokalen State `rowEditBookingId` einführen, der die aktuell zu bearbeitende Buchung hält.
-   - `TableRow` bekommt:
-     - `onClick` mit Portal-Bubble-Guard (`e.currentTarget.contains(e.target)`), öffnet die Buchung.
-     - `role="button"`, `tabIndex={0}`, Hover-Cursor (`cursor-pointer hover:bg-muted/50`).
-     - `onKeyDown` für Enter/Space.
-   - Aktionsspalte (`TableCell` mit Edit/Delete) erhält `onClick={(e) => e.stopPropagation()}`, damit Klicks dort nicht die Zeile triggern.
-   - Render des Bearbeiten-Dialogs (analog zur bestehenden „Auto-Open"-Variante Z. 977ff.) gesteuert über `rowEditBookingId`.
-   - Bestehende Edit-Button-Variante in der Aktionsspalte bleibt erhalten (Redundanz für gewohnte Bedienung).
+## Innerer Karten-Inhalt (Anpassung für Enge)
+Damit die Karten auch auf kleinen Breiten lesbar bleiben:
+- Die innere Stat-Reihe (`grid-cols-2 md:grid-cols-5`, Zeile 515) bekommt zusätzlich `gap-2` und kleinere Mindestbreiten, damit sie in der halben Card-Breite nicht überläuft.
+- `flex-wrap` für die Action-Buttons (Verwalten / Genehmigen), damit sie umbrechen statt zu überlaufen.
 
-2. Keine Änderungen an `EditBookingDialog`, `BookingCard` oder anderen Karten.
-
-## Akzeptanzkriterien
-
-- Klick auf eine Zeile in der Buchungs-Tabelle öffnet „Buchung bearbeiten" mit den richtigen Daten.
-- Klick auf Edit-Icon bzw. Lösch-Icon in der Aktionsspalte funktioniert wie bisher und öffnet nicht zusätzlich den Bearbeiten-Dialog.
-- X-Button, Backdrop und ESC schließen den Dialog zuverlässig (kein Re-Open durch Portal-Bubble).
-- Tastatur: Tab fokussiert die Zeile, Enter/Space öffnet den Dialog.
-- Keine visuellen Regressionen (Spaltenausrichtung, Hover-Highlight bleibt dezent).
+Keine Logik-Änderungen, rein Layout/Presentation.
