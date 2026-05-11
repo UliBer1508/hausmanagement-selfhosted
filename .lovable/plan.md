@@ -1,24 +1,43 @@
 ## Ziel
-Im Dashboard (Übersicht) soll die leere Karte „Keine Wäschebestellungen" anklickbar sein, sodass direkt der Wäschebestellungs-Dialog für die jeweilige Buchung geöffnet wird – wie es im `ConnectedBookingView` bereits funktioniert.
+Die beiden Karten unten in der Übersicht sollen echte unverbundene Datensätze anzeigen statt statischer Leertexte.
 
-## Änderungen
+## Festgestellter Stand
+- In der Datenbank existieren aktuell unverbundene Einträge:
+  - 2 `service_tasks` ohne `booking_id`
+  - 1 `linen_order` ohne `booking_id`
+- Alle gefundenen Einträge gehören zu touristischen Häusern und sollten damit im Dashboard sichtbar sein.
+- Die beiden Karten in `src/components/Dashboard/OverviewTab.tsx` sind derzeit nur Platzhalter und bekommen gar keine Daten übergeben.
 
-### 1. `src/pages/OriginalDashboard.tsx`
-- Neuen Handler `handleCreateLinenOrder(booking)` hinzufügen, der analog zu `ConnectedBookingView.handleCreateLinenOrder` arbeitet:
-  - `setSelectedBookingForOrder(booking)`
-  - leere `orderItems` setzen
-  - `editingOrderId = null`, `editingOrderData = null`
-  - `setShowLinenOrderDialog(true)`
-- Handler als Prop `handleCreateLinenOrder` an `<OverviewTab />` übergeben.
+## Umsetzungsplan
+1. Daten für unverbundene Einträge im Dashboard ableiten
+- In `src/pages/OriginalDashboard.tsx` aus den bereits geladenen `serviceTasks` und `linenOrders` zwei gefilterte Listen ableiten:
+  - Service-Aufträge ohne Buchung
+  - Wäschebestellungen ohne Buchung
+- Dabei nur touristische Häuser berücksichtigen, passend zur bestehenden Dashboard-Logik.
 
-### 2. `src/components/Dashboard/OverviewTab.tsx`
-- Prop `handleCreateLinenOrder: (booking: any) => void` ergänzen.
-- Den leeren Zustand (Zeile ~243) durch eine klickbare `Card` ersetzen (gleiches Muster wie in `ConnectedBookingView` Zeilen 502–517):
-  - `cursor-pointer`, Hover-States, `role="button"`, `tabIndex={0}`, Tastatur-Handler (Enter/Space)
-  - Beim Klick `handleCreateLinenOrder(booking)` aufrufen
-  - Text leicht anpassen: „Klicken um Bestellung zu erstellen"
-  - Icon (ShoppingCart) optional ergänzen für Konsistenz
+2. Daten an `OverviewTab` durchreichen
+- Die Props von `OverviewTab` erweitern, damit die beiden neuen Listen dort verfügbar sind.
+- Vorhandene Handler weiterverwenden, damit Bearbeiten/Klick-Verhalten konsistent bleibt.
 
-### Hinweise
-- Reine UI-/Verkabelungs-Änderung, keine Geschäftslogik-Änderung.
-- Der Dialog `LinenOrderDialog` ist im Dashboard bereits gemountet; nur das Triggern aus der leeren Karte fehlt.
+3. Platzhalterkarten durch echte Inhalte ersetzen
+- In `src/components/Dashboard/OverviewTab.tsx` die statischen Texte durch Listen ersetzen.
+- Für Service-Aufträge vorhandene `ServiceTaskCard` verwenden.
+- Für Wäschebestellungen vorhandene `LaundryOrderCard` verwenden.
+- Falls keine Datensätze vorhanden sind, einen echten Empty State anzeigen.
+
+4. Verhalten der Karten konsistent halten
+- Unverbundene Wäschebestellungen sollen direkt bearbeitbar bleiben.
+- Unverbundene Service-Aufträge sollen wie die übrigen Service-Karten direkt editierbar sein.
+- Die Anzeige soll auch abgeschlossene bzw. gelieferte Einträge weiterhin enthalten, wie es die Kartentexte versprechen.
+
+5. Validierung
+- Prüfen, dass die drei aktuell vorhandenen unverbundenen Datensätze in der Übersicht erscheinen.
+- Prüfen, dass Klick auf die Karten die bestehenden Dialoge öffnet.
+- Prüfen, dass bei wirklich leerem Zustand wieder der passende Leertext erscheint.
+
+## Technische Details
+- Betroffene Dateien:
+  - `src/pages/OriginalDashboard.tsx`
+  - `src/components/Dashboard/OverviewTab.tsx`
+- Keine Datenbankänderung nötig.
+- Ursache ist sehr wahrscheinlich kein Datenproblem, sondern eine fehlende UI-Anbindung: die Daten sind da, die Karten rendern sie nur derzeit nicht.
