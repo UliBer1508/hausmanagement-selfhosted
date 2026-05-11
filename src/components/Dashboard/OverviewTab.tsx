@@ -40,6 +40,8 @@ interface OverviewTabProps {
   syncOrder: (id: string) => Promise<any>;
   resetSync: (id: string) => Promise<any>;
   externalSyncEnabled: boolean;
+  unlinkedServiceTasks?: any[];
+  unlinkedLinenOrders?: any[];
 }
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({
@@ -56,6 +58,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   handleEditLinenOrder, syncingOrderId, setSyncingOrderId,
   handleCreateLinenOrder,
   syncOrder, resetSync, externalSyncEnabled,
+  unlinkedServiceTasks = [],
+  unlinkedLinenOrders = [],
 }) => {
   const availableHouses = [
     { id: 'all', name: 'Alle Häuser' },
@@ -283,7 +287,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               </p>
             </CardHeader>
             <CardContent>
-              <p className="text-center text-gray-500 py-8">Keine unverbundenen Aufträge</p>
+              {unlinkedServiceTasks.length > 0 ? (
+                <div className="space-y-3">
+                  {unlinkedServiceTasks.map((task) => (
+                    <ServiceTaskCard
+                      key={task.id}
+                      task={task}
+                      colorVariant="blue"
+                      onTaskUpdated={() => window.location.reload()}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">Keine unverbundenen Aufträge</p>
+              )}
             </CardContent>
           </Card>
 
@@ -295,7 +312,31 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               </p>
             </CardHeader>
             <CardContent>
-              <p className="text-center text-gray-500 py-8">Keine unverbundenen Bestellungen</p>
+              {unlinkedLinenOrders.length > 0 ? (
+                <div className="space-y-3">
+                  {unlinkedLinenOrders.map((order) => (
+                    <LaundryOrderCard
+                      key={order.id}
+                      order={order}
+                      colorVariant="purple"
+                      onEdit={handleEditLinenOrder}
+                      onSync={async (o) => {
+                        setSyncingOrderId(o.id);
+                        try {
+                          await syncOrder(o.id);
+                        } finally {
+                          setSyncingOrderId(null);
+                        }
+                      }}
+                      onResetSync={async (o) => { await resetSync(o.id); }}
+                      isSyncing={syncingOrderId === order.id}
+                      externalSyncEnabled={externalSyncEnabled}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-gray-500 py-8">Keine unverbundenen Bestellungen</p>
+              )}
             </CardContent>
           </Card>
         </div>
