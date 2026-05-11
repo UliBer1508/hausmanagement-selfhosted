@@ -1,42 +1,47 @@
-## Problembefund
+## Ziel
 
-Für die Buchung **Dot Shaw / Wald Chalet (20.06.2026)** existiert in der Datenbank eine Wäschebestellung (`linen_orders.id = 5b4e4e71-…`, Status `offen`, erstellt am 11.05.2026 10:42 UTC). Sie ist korrekt mit `booking_id` verknüpft, das Haus hat `rental_type='tourist'`, und es gibt keine RLS-Blockade.
+Die drei Karten-Typen in der Dashboard-Übersicht (Buchung, Reinigung, Wäschebestellung) sollen komplett anklickbar sein und direkt den jeweiligen Bearbeiten-Dialog öffnen — statt nur über das kleine Stift-Icon oben rechts.
 
-Die Bestellung wird im Tab **„Übersicht"** trotzdem nicht angezeigt — die Karte zeigt „Keine Wäschebestellungen".
+## Umfang
 
-### Ursache
+Betroffen sind drei Komponenten, die bereits vorhandene Edit-Dialoge nutzen:
 
-Der Übersichts-Tab (`src/pages/OriginalDashboard.tsx`, Zeile 687–712) lädt die Wäschebestellungen über React-Query mit dem Key `['dashboard-linen-orders', 'tourist']` und `staleTime: 5 * 60 * 1000`.
+| Karte | Datei | Aktion bei Klick |
+|---|---|---|
+| Buchung | `src/components/Bookings/BookingCard.tsx` | öffnet `EditBookingDialog` |
+| Reinigung | `src/components/Bookings/ServiceTaskCard.tsx` | öffnet `EditCleaningTaskDialog` |
+| Wäschebestellung | `src/components/Bookings/LaundryOrderCard.tsx` | ruft `onEdit(order)` auf (öffnet `LinenOrderDialog` im Edit-Modus) |
 
-Dieser Query hat **keine Realtime-Subscription** und wird **nicht invalidiert**, wenn anderswo (z. B. Tab „Buchungen" / `ConnectedBookingView`, Tab „Wäsche", Edge-Function `auto-create-linen-orders`, externer Sync) eine neue Bestellung entsteht. Die Übersicht zeigt deshalb bis zu 5 Minuten lang einen veralteten Stand bzw. bis zum manuellen Reload gar nichts.
+Keine Änderungen an Daten, Hooks oder Dialog-Logik — nur das Klick-Verhalten der Karten.
 
-`ConnectedBookingView` hat exakt diese Subscription bereits (Zeile 40–95) und zeigt die Bestellung dort sichtbar. Im Übersichts-Tab fehlt das Pendant.
+## Umsetzung
 
-Analoge Lücke besteht für `service_tasks` (Key `service_tasks`) und `bookings` (Key `dashboard-bookings`), die im selben Tab angezeigt werden.
+1. **Card-Wrapper klickbar machen**
+   - `<Card>` bekommt `role="button"`, `tabIndex={0}`, `cursor-pointer`, dezenten Hover-Effekt (`hover:shadow-md transition-shadow`) und Keyboard-Handler (Enter/Space).
+   - Klick öffnet den jeweiligen Edit-Dialog.
 
-## Lösung
+2. **EditBookingDialog & EditCleaningTaskDialog auf kontrollierten Modus**
+   - Dialog wird über `open` / `onOpenChange` von der Karte gesteuert (statt Trigger-Button).
+   - Stift-Icon oben rechts bleibt erhalten als visueller Hinweis, ist aber rein dekorativ bzw. setzt denselben State.
 
-In `src/pages/OriginalDashboard.tsx` einen `useEffect` mit Supabase-Realtime-Channels hinzufügen, der die drei relevanten Query-Keys invalidiert, sobald sich die jeweiligen Tabellen ändern. Das spiegelt das Muster aus `ConnectedBookingView` und sorgt für sofortige Aktualisierung der Übersicht.
+3. **Klick-Bubbling verhindern für interaktive Elemente in der Karte**
+   - Buttons innerhalb der Karte (Sync, Delete, Confirm bei Wäsche; Stift-Icon selbst; ggf. Status-Badges mit Aktion) bekommen `onClick={(e) => e.stopPropagation()}` bzw. das vorhandene `onClick` wird mit `stopPropagation` ergänzt.
+   - Aufklappbare Bereiche („Artikel (28)") bleiben funktional und stoppen Propagation.
 
-Konkret:
-
-1. **Channel `dashboard-linen-orders-realtime`** auf Tabelle `linen_orders` (Event `*`) → invalidiert `['dashboard-linen-orders', 'tourist']`.
-2. **Channel `dashboard-service-tasks-realtime`** auf Tabelle `service_tasks` → invalidiert den Service-Tasks-Query.
-3. **Channel `dashboard-bookings-realtime`** auf Tabelle `bookings` → invalidiert den Bookings-Query.
-4. Cleanup über `supabase.removeChannel(...)` in der Return-Funktion.
-5. Subscription nur einmal beim Mount; `queryClient` als Dependency.
-
-Keine Änderungen an Datenbank, RLS oder Geschäftslogik. Nur Frontend-Refresh.
+4. **Accessibility**
+   - `aria-label` mit kurzer Beschreibung („Buchung von Joke Hauters bearbeiten" o. ä.).
+   - Fokus-Ring über bestehendes Tailwind `focus-visible:ring-2 focus-visible:ring-ring`.
 
 ## Technische Details
 
-- Datei: `src/pages/OriginalDashboard.tsx` (neuer `useEffect` nahe den existierenden Query-Hooks).
-- Nutzt vorhandenes `useQueryClient()` (bereits importiert oder über `@tanstack/react-query` ergänzen, falls nicht vorhanden).
-- Query-Keys exakt wie in den bestehenden `useQuery`-Aufrufen verwenden, damit `invalidateQueries` matcht.
-- Kein Polling, keine Reduzierung der `staleTime` nötig — Realtime ist effizienter.
+- `EditBookingDialog` muss optional `open` + `onOpenChange` Props akzeptieren (zusätzlich zum bestehenden `trigger`). Falls bereits per `trigger`-Pattern gebaut: kontrollierte Variante einführen, ohne den Trigger-Modus zu brechen (beides unterstützen).
+- `LaundryOrderCard` ruft `onEdit(order)` bereits über das Stift-Icon auf — derselbe Handler wird zusätzlich am Card-Wurzelknoten ausgelöst.
+- Kein neuer State außerhalb der Karten nötig.
 
 ## Verifikation
 
-Nach dem Fix:
-- Übersicht im Browser öffnen → Karte für Dot Shaw zeigt die existierende Bestellung (5 Bettwäsche, 2 Spannbetttuch etc.) statt „Keine Wäschebestellungen".
-- Neue Bestellung in einem anderen Tab anlegen → erscheint ohne Reload sofort in der Übersicht.
+- Klick irgendwo auf eine Buchungskarte → `EditBookingDialog` öffnet sich.
+- Klick auf eine Reinigungskarte → `EditCleaningTaskDialog` öffnet sich.
+- Klick auf eine Wäschebestellungskarte → Wäsche-Edit-Dialog öffnet sich.
+- Klick auf Sync-/Delete-/Confirm-Button in der Wäschekarte führt **weiterhin nur** die Aktion aus, öffnet nicht zusätzlich den Dialog.
+- Tastatur-Navigation (Tab → Enter) öffnet ebenfalls den Dialog.
