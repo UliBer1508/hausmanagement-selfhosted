@@ -449,6 +449,39 @@ const OriginalDashboard = () => {
 
   const [timePeriodFilter, setTimePeriodFilter] = useState('all');
 
+  const queryClient = useQueryClient();
+
+  // Realtime: invalidate dashboard queries when underlying tables change,
+  // so newly created linen orders / service tasks / bookings appear without reload.
+  useEffect(() => {
+    const linenChannel = supabase
+      .channel('dashboard-linen-orders-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'linen_orders' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-linen-orders', 'tourist'] });
+      })
+      .subscribe();
+
+    const tasksChannel = supabase
+      .channel('dashboard-service-tasks-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_tasks' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-service-tasks'] });
+      })
+      .subscribe();
+
+    const bookingsChannel = supabase
+      .channel('dashboard-bookings-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['dashboard-bookings-v2'] });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(linenChannel);
+      supabase.removeChannel(tasksChannel);
+      supabase.removeChannel(bookingsChannel);
+    };
+  }, [queryClient]);
+
   // Fetch real bookings data with optimized caching
   const { data: bookingsData, isLoading: bookingsLoading } = useQuery({
     queryKey: ['dashboard-bookings-v2'],
