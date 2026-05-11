@@ -699,13 +699,6 @@ const LinenDashboard = () => {
 
                 {/* Actions */}
                 <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedHouse(houseStatus.house)}
-                  >
-                    Verwalten
-                  </Button>
                   {houseStatus.ordersToApprove > 0 && (
                     <Button
                       size="sm"
