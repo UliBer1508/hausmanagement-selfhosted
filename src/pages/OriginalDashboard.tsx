@@ -1097,6 +1097,8 @@ const OriginalDashboard = () => {
         syncOrder={syncOrder}
         resetSync={resetSync}
         externalSyncEnabled={externalSyncEnabled}
+        unlinkedServiceTasks={unlinkedServiceTasks}
+        unlinkedLinenOrders={unlinkedLinenOrders}
       />
     );
     switch (activeTab) {
