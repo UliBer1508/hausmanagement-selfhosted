@@ -1062,6 +1062,7 @@ const OriginalDashboard = () => {
         getBookingRelatedData={getBookingRelatedData}
         getFilteredTasksByService={getFilteredTasksByService}
         handleEditLinenOrder={handleEditLinenOrder}
+        handleCreateLinenOrder={handleCreateLinenOrder}
         syncingOrderId={syncingOrderId}
         setSyncingOrderId={setSyncingOrderId}
         syncOrder={syncOrder}
