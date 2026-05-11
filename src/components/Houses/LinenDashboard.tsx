@@ -599,39 +599,55 @@ const LinenDashboard = () => {
         </Alert>
       )}
 
-      {/* Houses - Horizontal Layout */}
-      <div className="space-y-4">
+      {/* Houses - 2-column compact layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {houseStatuses.map((houseStatus) => (
-          <Card key={houseStatus.house.id} className={`relative ${getStatusColor(houseStatus.status)}`}>
+          <Card
+            key={houseStatus.house.id}
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              if (!e.currentTarget.contains(e.target as Node)) return;
+              setSelectedHouse(houseStatus.house);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setSelectedHouse(houseStatus.house);
+              }
+            }}
+            className={`relative cursor-pointer transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary ${getStatusColor(houseStatus.status)}`}
+            aria-label={`${houseStatus.house.name} verwalten`}
+          >
             <CardContent className="p-4">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="flex flex-col gap-3">
                 {/* House Info */}
-                <div className="flex items-center gap-3 lg:min-w-[200px]">
-                  <div>
-                    <div className="font-semibold text-lg">{houseStatus.house.name}</div>
-                    <div className="text-sm text-muted-foreground">{houseStatus.house.address}</div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-base truncate">{houseStatus.house.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{houseStatus.house.address}</div>
                   </div>
                   {getStatusBadge(houseStatus.status)}
                 </div>
 
-                {/* Stats Grid - Horizontal */}
-                <div className="flex flex-wrap gap-6 lg:flex-1">
+                {/* Stats Grid - Compact */}
+                <div className="flex flex-wrap gap-4">
                   {/* Mit Bestellung */}
-                  <div className="text-center min-w-[80px]">
-                    <div className="text-2xl font-bold text-green-600">{houseStatus.bookingsWithOrder}</div>
+                  <div className="text-center min-w-[64px]">
+                    <div className="text-xl font-bold text-green-600">{houseStatus.bookingsWithOrder}</div>
                     <div className="text-xs text-muted-foreground">Mit Bestellung</div>
                   </div>
 
                   {/* Ausstehend (pending) */}
-                  <div className="text-center min-w-[80px]">
-                    <div className="text-2xl font-bold text-blue-600">{houseStatus.pendingOrders}</div>
+                  <div className="text-center min-w-[64px]">
+                    <div className="text-xl font-bold text-blue-600">{houseStatus.pendingOrders}</div>
                     <div className="text-xs text-muted-foreground">Ausstehend</div>
                   </div>
 
                   {/* Ohne Bestellung */}
-                  <div className="text-center min-w-[80px]">
+                  <div className="text-center min-w-[64px]">
                     <div className={cn(
-                      "text-2xl font-bold",
+                      "text-xl font-bold",
                       houseStatus.bookingsWithoutOrder > 0 ? "text-yellow-600" : "text-muted-foreground"
                     )}>
                       {houseStatus.bookingsWithoutOrder}
@@ -643,9 +659,9 @@ const LinenDashboard = () => {
                   </div>
 
                   {/* Zu genehmigen */}
-                  <div className="text-center min-w-[80px]">
+                  <div className="text-center min-w-[64px]">
                     <div className={cn(
-                      "text-2xl font-bold",
+                      "text-xl font-bold",
                       houseStatus.ordersToApprove > 0 ? "text-amber-600" : "text-muted-foreground"
                     )}>
                       {houseStatus.ordersToApprove}
@@ -654,10 +670,10 @@ const LinenDashboard = () => {
                   </div>
 
                   {/* Nächste Fälligkeit */}
-                  <div className="text-center min-w-[120px]">
+                  <div className="text-center min-w-[100px] ml-auto">
                     {houseStatus.nextApprovalDue ? (
                       <>
-                        <div className="text-sm font-bold text-amber-600">
+                        <div className="text-xs font-bold text-amber-600">
                           in {calculateDaysUntil(houseStatus.nextApprovalDue)} Tagen
                         </div>
                         <div className="text-xs text-muted-foreground">Nächste Genehmigung</div>
@@ -665,7 +681,7 @@ const LinenDashboard = () => {
                     ) : houseStatus.nextBookingWithoutOrder ? (
                       <>
                         <div className={cn(
-                          "text-sm font-bold",
+                          "text-xs font-bold",
                           houseStatus.urgentBookingsWithoutOrder > 0 ? "text-red-600" : "text-yellow-600"
                         )}>
                           in {calculateDaysUntil(houseStatus.nextBookingWithoutOrder)} Tagen
@@ -674,7 +690,7 @@ const LinenDashboard = () => {
                       </>
                     ) : (
                       <>
-                        <div className="text-sm font-bold text-green-600">—</div>
+                        <div className="text-xs font-bold text-green-600">—</div>
                         <div className="text-xs text-muted-foreground">Alles erledigt</div>
                       </>
                     )}
@@ -682,7 +698,7 @@ const LinenDashboard = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex gap-2 lg:ml-auto">
+                <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                   <Button
                     variant="outline"
                     size="sm"
@@ -705,7 +721,7 @@ const LinenDashboard = () => {
 
               {/* Expandable approval section */}
               {houseStatus.ordersToApprove > 1 && (
-                <div className="mt-3 pt-3 border-t border-border/50">
+                <div className="mt-3 pt-3 border-t border-border/50" onClick={(e) => e.stopPropagation()}>
                   <div className="text-sm text-muted-foreground mb-2">
                     {houseStatus.ordersToApprove} Bestellungen zur Genehmigung:
                   </div>
