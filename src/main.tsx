@@ -6,10 +6,6 @@ import "./index.css";
 const isInIframe = (() => {
   try { return window.self !== window.top; } catch { return true; }
 })();
-const isPreviewHost =
-  window.location.hostname.includes("id-preview--") ||
-  window.location.hostname.includes("lovableproject.com") ||
-  window.location.hostname.includes("lovable.app") === false ? false : false;
 const isLovablePreview =
   window.location.hostname.includes("id-preview--") ||
   window.location.hostname.includes("lovableproject.com");
@@ -24,10 +20,19 @@ if (isLovablePreview || isInIframe) {
   }
 } else if ("serviceWorker" in navigator && import.meta.env.PROD) {
   // vite-plugin-pwa with autoUpdate registers /sw.js automatically via virtual:pwa-register.
-  // Use string-literal import that TS won't try to resolve at build time.
+  // immediate:true + onNeedRefresh auto-applies any waiting worker without user prompt.
   // @ts-expect-error virtual module provided by vite-plugin-pwa at build time
   import(/* @vite-ignore */ "virtual:pwa-register").then((m: any) => {
-    m.registerSW?.({ immediate: true });
+    const updateSW = m.registerSW?.({
+      immediate: true,
+      onNeedRefresh() { updateSW?.(true); },
+      onRegisteredSW(_swUrl: string, registration: ServiceWorkerRegistration | undefined) {
+        // Poll for updates every 60s so changes go live without waiting for a reload.
+        if (registration) {
+          setInterval(() => registration.update().catch(() => {}), 60_000);
+        }
+      },
+    });
   }).catch(() => { /* plugin not available in dev */ });
 }
 
