@@ -1,46 +1,25 @@
-## Ursache
+## Ziel
 
-Dasselbe React-Portal-Bubble-Problem wie bei `BookingCard`: Mehrere Karten machen die gesamte `Card` klickbar (öffnet einen Dialog) **und** der Dialog wird via Radix-Portal in `document.body` gerendert. React-Events bubblen aber durch den **React-Komponentenbaum**, nicht durch das DOM. Folge: Klick auf X / Backdrop / Cancel im Dialog → Dialog schließt → Click-Event bubbelt zurück zur Card → `setOpen(true)` → Dialog öffnet sofort wieder.
-
-Betroffene Karten:
-- `src/components/Bookings/ServiceTaskCard.tsx` → öffnet "Reinigungsauftrag bearbeiten" (das Symptom aus dem Screenshot, sichtbar in „Buchungen → Verknüpft")
-- `src/components/Bookings/LaundryOrderCard.tsx` → öffnet "Wäschebestellung bearbeiten"
-- `src/components/Houses/CompetitorAnalysis/CompetitorCard.tsx` → öffnet Konkurrenz-Details
-
-`HouseCard.tsx` nutzt nur Button-Trigger und ist nicht betroffen. `BookingCard.tsx` wurde bereits im vorherigen Schritt gefixt.
+Die Buchungs-Tabelle in „Buchungen → Übersicht" (`BookingOverviewFixed.tsx`) soll komplett klickbar sein: Klick irgendwo auf eine Zeile öffnet „Buchung bearbeiten". Edit-/Lösch-Buttons in der letzten Spalte bleiben unverändert nutzbar.
 
 ## Lösung
 
-In allen drei Karten denselben Schutz wie in `BookingCard` einbauen: Card-`onClick` und `onKeyDown` ignorieren Events, die nicht aus dem eigenen DOM-Subtree stammen (also Events aus geportalten Kindern wie Dialog/Select/Popover).
+1. **`src/components/Bookings/BookingOverviewFixed.tsx`** (TableRow ab Z. 879):
+   - Lokalen State `rowEditBookingId` einführen, der die aktuell zu bearbeitende Buchung hält.
+   - `TableRow` bekommt:
+     - `onClick` mit Portal-Bubble-Guard (`e.currentTarget.contains(e.target)`), öffnet die Buchung.
+     - `role="button"`, `tabIndex={0}`, Hover-Cursor (`cursor-pointer hover:bg-muted/50`).
+     - `onKeyDown` für Enter/Space.
+   - Aktionsspalte (`TableCell` mit Edit/Delete) erhält `onClick={(e) => e.stopPropagation()}`, damit Klicks dort nicht die Zeile triggern.
+   - Render des Bearbeiten-Dialogs (analog zur bestehenden „Auto-Open"-Variante Z. 977ff.) gesteuert über `rowEditBookingId`.
+   - Bestehende Edit-Button-Variante in der Aktionsspalte bleibt erhalten (Redundanz für gewohnte Bedienung).
 
-### Patch-Schema (pro Datei)
-
-```tsx
-onClick={(e) => {
-  if (!e.currentTarget.contains(e.target as Node)) return;
-  setOpen(true);            // jeweiliger Setter
-}}
-onKeyDown={(e) => {
-  if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
-    e.preventDefault();
-    setOpen(true);
-  }
-}}
-```
-
-### Konkrete Änderungen
-
-1. **`src/components/Bookings/ServiceTaskCard.tsx`** (Z. 73–79): `setShowEditDialog(true)` mit Guard.
-2. **`src/components/Bookings/LaundryOrderCard.tsx`** (Z. 134–140): `handleCardClick` nur ausführen, wenn Event nicht aus Portal stammt.
-3. **`src/components/Houses/CompetitorAnalysis/CompetitorCard.tsx`** (Z. 47): `setDetailsOpen(true)` mit Guard.
-
-Keine weiteren Dateien betroffen. Edit-Buttons innerhalb der Karten haben bereits `stopPropagation` und bleiben unverändert.
+2. Keine Änderungen an `EditBookingDialog`, `BookingCard` oder anderen Karten.
 
 ## Akzeptanzkriterien
 
-- "Reinigungsauftrag bearbeiten" – X-Button schließt zuverlässig (öffnet nicht erneut).
-- "Wäschebestellung bearbeiten" – X-Button schließt zuverlässig.
-- Konkurrenz-Detail-Dialog – X-Button schließt zuverlässig.
-- Backdrop-Klick und ESC schließen ebenfalls.
-- Selects/Popovers/AlertDialogs innerhalb der Dialoge schließen normal, ohne den darüberliegenden Dialog zu reöffnen.
-- Karten-Klick öffnet den jeweiligen Dialog weiterhin wie gewohnt.
+- Klick auf eine Zeile in der Buchungs-Tabelle öffnet „Buchung bearbeiten" mit den richtigen Daten.
+- Klick auf Edit-Icon bzw. Lösch-Icon in der Aktionsspalte funktioniert wie bisher und öffnet nicht zusätzlich den Bearbeiten-Dialog.
+- X-Button, Backdrop und ESC schließen den Dialog zuverlässig (kein Re-Open durch Portal-Bubble).
+- Tastatur: Tab fokussiert die Zeile, Enter/Space öffnet den Dialog.
+- Keine visuellen Regressionen (Spaltenausrichtung, Hover-Highlight bleibt dezent).

@@ -876,7 +876,23 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
             </TableHeader>
             <TableBody>
               {sortedBookings.map((booking) => (
-                <TableRow key={booking.id}>
+                <TableRow
+                  key={booking.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Buchung von ${booking.guest_name} bearbeiten`}
+                  className="cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:bg-muted/50"
+                  onClick={(e) => {
+                    if (!e.currentTarget.contains(e.target as Node)) return;
+                    setSelectedBookingForEdit(booking);
+                  }}
+                  onKeyDown={(e) => {
+                    if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
+                      e.preventDefault();
+                      setSelectedBookingForEdit(booking);
+                    }
+                  }}
+                >
                   <TableCell className="font-medium">
                     {booking.guest_name}
                   </TableCell>
@@ -931,7 +947,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                       {getLinenInfo(booking.id)}
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1">
                       <EditBookingDialog 
                         booking={booking}
