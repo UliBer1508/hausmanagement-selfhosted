@@ -66,7 +66,19 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
   };
 
   return (
-    <Card className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50`}>
+    <Card
+      role="button"
+      tabIndex={0}
+      aria-label={`${getServiceLabel(task.service_type)} bearbeiten`}
+      onClick={() => setShowEditDialog(true)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setShowEditDialog(true);
+        }
+      }}
+      className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50 cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+    >
       <CardContent className="p-3 relative pb-10">
         <div className="space-y-2">
           {/* Header with Title and Edit Button */}
@@ -79,7 +91,10 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
               variant="ghost"
               size="sm"
               className="h-7 w-7 p-0 shrink-0"
-              onClick={() => setShowEditDialog(true)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowEditDialog(true);
+              }}
               title="Bearbeiten"
             >
               <Edit className="w-3.5 h-3.5" />
