@@ -12,6 +12,7 @@ export interface LinenAutomationSettings {
   external_sync_enabled: boolean;
   external_api_url: string;
   external_kundennummer: string;
+  teuni_stammdaten_sync_enabled: boolean;
   created_at: string;
   updated_at: string;
 }
