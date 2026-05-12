@@ -1,72 +1,46 @@
-
 ## Problem
 
-Auf dem Handy (≤ 480 px) gibt es zwei sich ergänzende Layout-Probleme:
+Auf dem Handy (390px) bleibt rechts/links viel ungenutzter Platz. Ursache sind drei aufaddierte Paddings, die sich auf Mobile zu **80px Rand pro Seite** summieren:
 
-1. **Dialoge / Formulare laufen rechts über den Rand** (Beispiel-Screenshot „Buchung bearbeiten"): Eingabefelder und Header werden über den rechten Bildschirmrand hinaus gezeichnet, der Nutzer muss horizontal scrollen.
-2. **Außerhalb der Dialoge wird Platz verschenkt**: Listen, Tabs und Karten haben großzügige Außenabstände — anders als im Wäscheportal-Screenshot, wo Dashboard-Kacheln in einem 2-spaltigen Raster mit minimalem Außenabstand fast die volle Bildschirmbreite nutzen.
+1. `.content-main` in `src/index.css` → `p-4 lg:p-6` = **16px** außen
+2. Wrapper-Karte in `OverviewTab.tsx` Zeile 202 → `p-6` = **24px** innen
+3. Banner-Boxen / Filter-Box (`p-4`) tragen zusätzlich bei
+4. (Bereits gefixt) Dialog/Sheet/StatsCards aus letzter Runde
 
-## Ursachen im Code
+Auf 390px CSS-Pixel verbraucht das ~20% der Bildschirmbreite nur für Luft.
 
-- `src/components/ui/dialog.tsx` setzt `p-6` (= 48 px) Innenabstand und kein `overflow-x-hidden`. Bei 390 px Viewport bleiben nur 342 px für Inhalte → längere Selects/Inputs sprengen die Box.
-- Mehrere Dialoge erzwingen `max-w-2xl` (= 672 px). Mit Radix-Positionierung `left-50% translate-x-[-50%]` plus überbreitem Inhalt → Box wächst über den Viewport hinaus.
-- Seiten-Container nutzen `container mx-auto p-4 md:p-6`. Auf Handy fressen 32 px horizontale Innenabstände + 32 px max-w-Container-Margin den Inhaltsbereich.
-- Stat-Cards (`StatsCards.tsx`) sind aktuell `grid-cols-1` auf Mobile, statt `grid-cols-2` wie im Wäscheportal-Beispiel.
+## Lösung (nur CSS-Klassen, keine Logik)
 
-## Ziel
+Minimaler Eingriff an **3 Stellen**, ab `sm:` (≥640px) bleibt das Desktop-Layout exakt wie heute.
 
-- Keine Dialog-Inhalte mehr über den rechten Rand.
-- Dashboard- und Listenseiten nutzen die volle Handy-Breite (Vorbild: Wäscheportal-Screenshot).
-- **Eine** zentrale Änderung pro UI-Primitive, keine neuen Komponenten, keine Logik-Änderungen, keine Performance-Auswirkung.
+### 1. `src/index.css` – `.content-main`
+```diff
+- @apply flex-1 p-4 lg:p-6 overflow-auto;
++ @apply flex-1 px-2 py-3 sm:p-4 lg:p-6 overflow-auto;
+```
+Spart 16px je Seite auf Mobile (gewinnt 32px Breite).
 
-## Vorgehen (5 Dateien, ~15 Zeilen Diff)
+### 2. `src/components/Dashboard/OverviewTab.tsx` – Buchungs-Wrapper (Zeile 203)
+```diff
+- <div className="p-6">
++ <div className="p-3 sm:p-6">
+```
+Spart 24px je Seite (gewinnt 48px). Innere Cards (`BookingCard`, `ServiceTaskCard`, `LaundryOrderCard`) bleiben unverändert.
 
-### 1. `src/components/ui/dialog.tsx` — Dialoge mobile-tauglich machen
+### 3. `src/components/Dashboard/OverviewTab.tsx` – Filter-Box (Zeile 93)
+```diff
+- <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
++ <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 mb-6">
+```
+Kleiner Konsistenz-Fix.
 
-In `DialogContent` Basisklassen:
+## Ergebnis
 
-- `w-full` → `w-[calc(100vw-1rem)] sm:w-full` (lässt 8 px Luft links/rechts auf Mobile, ab `sm:` Standardverhalten).
-- `p-6` → `p-4 sm:p-6` (16 px statt 24 px Innenabstand auf Mobile).
-- Default ergänzen: `max-h-[90dvh] overflow-y-auto overflow-x-hidden`.
-
-→ Wirkt **automatisch für alle Dialoge** (Buchung, Reinigung, Wäsche, Gast-Detail, Preisanalyse …).
-
-### 2. `src/components/ui/sheet.tsx` — gleiches Padding-Pattern
-
-`p-6` → `p-4 sm:p-6` für Konsistenz mit Dialog.
-
-### 3. `src/components/Layout/AppLayout.tsx` — schmaleres globales Padding
-
-`<main>` bekommt `px-2 sm:px-4` als globales Wrapper-Padding.
-
-### 4. Seiten-Container Suchen/Ersetzen
-
-In den ~6 Top-Level-Pages (Dashboard, Bookings, Cleaning, Laundry, Guests, Settings):
-`container mx-auto p-4 md:p-6` → `container mx-auto px-2 py-4 sm:px-4 sm:py-6 md:p-6`.
-→ Mobile gewinnt **24 px** nutzbare Breite, Desktop unverändert.
-
-### 5. `src/components/Dashboard/StatsCards.tsx` — 2-Spalten auf Mobile (nach Vorbild Wäscheportal)
-
-Grid-Klassen umstellen:
-`grid-cols-1 md:grid-cols-2 lg:grid-cols-4` → `grid-cols-2 lg:grid-cols-4`
-und `gap-4` → `gap-2 sm:gap-4`.
-
-→ Dashboard-Kacheln stehen ab Mobile in 2 Spalten, identisch zum Wäscheportal-Look.
-
-## Was NICHT geändert wird
-
-- Keine neuen Komponenten, keine neuen Dependencies.
-- Keine Verhaltens-/Funktionsänderungen.
-- Kein Touch-/Klick-Handling, keine Animationen.
-- Keine Tabellen-/Listen-Logik.
+- Mobile (<640px): ~80px gewonnene Breite → Karten füllen den Bildschirm
+- Tablet/Desktop (≥640px): **unverändert**
+- Keine Komponenten-, State- oder Daten-Änderungen
+- Keine Performance-Auswirkung (reine Tailwind-Klassen)
 
 ## Verifikation
-
-- Browser-Tool 390 × 736: Dashboard öffnen → Stat-Cards 2-spaltig, kein horizontales Scrollen.
-- Eine Buchung im Edit-Modus öffnen → Inhalte bleiben innerhalb des Bildschirms.
-- Stichproben: CreateBookingDialog, EditCleaningTaskDialog, GuestDetailsDialog.
-- Desktop 1280 × 720 Gegencheck: Layout unverändert.
-
-## Aufwand
-
-5 Dateien, ~15 Zeilen Diff insgesamt. Kein Build-Impact, keine Performance-Auswirkung.
+- Preview bei 390×736: keine horizontale Scrollbar, Karten reichen bis ~8px vom Rand
+- Preview bei 1280×720: optisch identisch zu vorher

@@ -150,7 +150,7 @@
   }
 
   .content-main {
-    @apply flex-1 p-4 lg:p-6 overflow-auto;
+    @apply flex-1 px-2 py-3 sm:p-4 lg:p-6 overflow-auto;
   }
   .dashboard-card {
     @apply bg-card border border-border rounded-lg shadow-sm hover:shadow-md transition-all duration-300;
