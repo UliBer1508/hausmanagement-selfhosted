@@ -249,9 +249,9 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Wäscheset-Regeln für {house.name}</CardTitle>
+              <CardTitle>Wäschesets für {house.name}</CardTitle>
               <CardDescription>
-                Definieren Sie, wie viel Wäsche pro Gast oder pro Buchung benötigt wird
+                Definieren Sie, welche Wäschesets pro Gast oder pro Buchung benötigt werden
               </CardDescription>
             </div>
             <div className="flex gap-2">

@@ -238,7 +238,7 @@ const LinenInventoryDialog = ({ house, open, onOpenChange }: LinenInventoryDialo
                       <span className="sm:hidden">Übersicht</span>
                     </TabsTrigger>
                     <TabsTrigger value="wäscheset-regeln" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
-                      Regeln
+                      Wäschesets
                     </TabsTrigger>
                     <TabsTrigger value="preise" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
                       Preise
