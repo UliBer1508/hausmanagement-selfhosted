@@ -265,7 +265,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
       {/* Tabs */}
       <Tabs defaultValue="missing" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Übersicht</TabsTrigger>
+          <TabsTrigger value="overview">Bestellübersicht</TabsTrigger>
           <TabsTrigger value="missing" className="relative">
             Fehlend
             {(isLoadingAllMissing || allMissingBookings.length > 0) && (
@@ -281,7 +281,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
         <TabsContent value="overview" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Übersicht - {orderStatus.house_name}</CardTitle>
+              <CardTitle>Bestellübersicht - {orderStatus.house_name}</CardTitle>
               <CardDescription>
                 Die nächsten {orderStatus.lookahead_bookings} Buchungen werden berücksichtigt
               </CardDescription>
