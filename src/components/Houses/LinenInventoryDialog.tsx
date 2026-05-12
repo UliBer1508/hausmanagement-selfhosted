@@ -234,8 +234,8 @@ const LinenInventoryDialog = ({ house, open, onOpenChange }: LinenInventoryDialo
                 <Tabs defaultValue="smart-analysis" className="w-full">
                   <TabsList className="grid w-full grid-cols-4 h-auto">
                     <TabsTrigger value="smart-analysis" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
-                      <span className="hidden sm:inline">Übersicht</span>
-                      <span className="sm:hidden">Übersicht</span>
+                      <span className="hidden sm:inline">Bestellübersicht</span>
+                      <span className="sm:hidden">Bestellübersicht</span>
                     </TabsTrigger>
                     <TabsTrigger value="wäscheset-regeln" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
                       Wäschesets
