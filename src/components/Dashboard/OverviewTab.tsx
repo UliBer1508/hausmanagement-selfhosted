@@ -90,7 +90,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       </div>
       <CleaningStatusAlertBanner />
 
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+      <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 mb-6">
         <div className="mb-4">
           <Button
             variant="outline"
@@ -200,7 +200,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
               return (
                 <div key={booking.id} className="relative bg-white rounded-lg border border-gray-200 shadow-sm">
-                  <div className="p-6">
+                  <div className="p-3 sm:p-6">
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       <BookingCard
                         booking={booking}
