@@ -135,7 +135,7 @@ const SmartLinenDashboard = () => {
 
   if (isLoading) {
     return (
-      <div className="container mx-auto p-4 md:p-6">
+      <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6 md:p-6">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
@@ -147,7 +147,7 @@ const SmartLinenDashboard = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-6">
+    <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6 md:p-6 space-y-6">
       {/* Smart Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-1">
