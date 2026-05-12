@@ -210,13 +210,13 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
       setHasChanges(false);
       toast({
         title: "✅ Gespeichert",
-        description: "Wäscheset-Regeln wurden aktualisiert",
+        description: "Wäschesets wurden aktualisiert",
       });
     },
     onError: (error) => {
       toast({
         title: "❌ Fehler",
-        description: "Regeln konnten nicht gespeichert werden",
+        description: "Wäschesets konnten nicht gespeichert werden",
         variant: "destructive",
       });
       console.error('Save error:', error);
@@ -231,7 +231,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="text-muted-foreground">Lade Wäscheset-Regeln...</div>
+        <div className="text-muted-foreground">Lade Wäschesets...</div>
       </div>
     );
   }
