@@ -21,7 +21,7 @@ export const SmartLinenDashboardWithTabs = () => {
   }, [houses]);
 
   return (
-    <div className="container mx-auto p-4 md:p-6">
+    <div className="container mx-auto px-2 py-4 sm:px-4 sm:py-6 md:p-6">
       <Tabs defaultValue="smart-analyse" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6">
           <TabsTrigger value="smart-analyse" className="relative">
