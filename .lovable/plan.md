@@ -1,90 +1,63 @@
-# Stammdaten-Import aus Wäsche Oberpinzgau (Artikel + Teuni-Sets)
+# Teuni-Integration im Wäsche-Regeln-Tab pro Haus
 
 ## Ziel
-Die zwei neuen Lese-Endpoints des Portals nutzen, um:
-1. **Wäscheartikel** als Quelle für das Mapping (`external_artikelnummer`) zu laden — ersetzt die bisherige direkte Supabase-Abfrage in `ExternalArticleMappingDialog`.
-2. **Teuni-Vorlagen-Sets** anzuzeigen und per Klick als `custom_categories` in `linen_set_definitions` für ein einzelnes Haus zu übernehmen.
-3. Beides ist optional und kann **an/aus** geschaltet werden, da aktuell eine andere Lösung produktiv ist.
+Im Tab **"Wäsche-Regeln"** (pro Haus) ein **Switch** "Eigene ↔ Teuni", um pro Haus die Quelle der Wäscheartikel/-sets zu wählen. Heute gibt es nur einen globalen Schalter und einen "Teuni-Set übernehmen"-Button — das wird durch eine echte Quellenwahl pro Haus ersetzt, mit zwei Sub-Tabs für Teuni-Artikel und Teuni-Sets.
 
-## Architektur
+## Nutzersicht
+- Im Haus → Tab **Wäsche-Regeln** oben rechts: **Switch** "Eigene Artikel" ↔ "Teuni Artikel & Sets" (pro Haus gespeichert).
+- **Eigene** (default): bestehende Tabelle mit Items, "Neues Item", Speichern/Zurücksetzen — unverändert.
+- **Teuni**: zwei Sub-Tabs:
+  1. **Artikel** — Liste aller Teuni-Artikel (Suche/Kategorie-Filter); pro Zeile Menge + Berechnungsart + "Hinzufügen" → Item wird im Haus übernommen (mit `external_artikelnummer.default`).
+  2. **Sets** — Teuni-Set-Vorlagen als Cards; pro Set "Übernehmen" mit *Ersetzen* / *Zusammenführen*.
+- Globaler Master-Switch (`teuni_stammdaten_sync_enabled`) bleibt: ist er aus, ist der Quelle-Switch im Haus deaktiviert mit Hinweis.
 
-```text
-Portal (pkpnowevagxmhyqlawng)
-  ├─ GET /external-articles            ← Bearer EXTERNAL_LAUNDRY_BEARER_TOKEN
-  └─ GET /external-vorlagen-sets       ← Bearer EXTERNAL_LAUNDRY_BEARER_TOKEN
-            │
-            ▼
-  Edge Function: external-stammdaten-proxy   (neu, hält Token serverseitig)
-            │
-            ▼
-  Hook useExternalStammdaten (artikel + sets, React Query, 5 min cache)
-            │
-       ┌────┴─────────────────────────┐
-       ▼                              ▼
-  ExternalArticleMappingDialog    TeuniSetTemplatesDialog (neu)
-  (Artikel-Liste aus Proxy)       → "Set für Haus übernehmen"
-                                  → schreibt custom_categories
-```
+## Datenmodell
+- Neue Spalte `linen_source text NOT NULL DEFAULT 'own'` in `linen_set_definitions` (`'own' | 'teuni'`).
+- `custom_categories` bleibt der einzige Speicher für Items (Teuni-Items tragen zusätzlich `external_artikelnummer.default = artikelnummer`).
+- Wechsel der Quelle löscht **keine** Items — beim Zurückschalten sind die ursprünglichen Items wieder sichtbar.
 
-## Toggle
-Neues Feld in bestehender Tabelle `linen_automation_settings`:
-- `teuni_stammdaten_sync_enabled boolean default false`
+## Technische Umsetzung
 
-Steuert beide neuen Funktionen gemeinsam (Artikel-Liste + Set-Vorlagen). Wenn `false`:
-- `ExternalArticleMappingDialog` fällt zurück auf den bisherigen direkten DB-Pfad (`externalLaundryClient.from('waescheartikel')`) — bestehende Lösung bleibt unangetastet.
-- `TeuniSetTemplatesDialog` ist nicht erreichbar (Button ausgeblendet).
+### Migration
+- `ALTER TABLE public.linen_set_definitions ADD COLUMN linen_source text NOT NULL DEFAULT 'own';`
+- CHECK-Constraint: `linen_source IN ('own','teuni')`.
 
-UI-Schalter in `AutoLinenOrderSettingsCard.tsx` direkt unter `external_sync_enabled` mit kurzer Erklärung.
+### `src/components/Houses/LinenSetRulesTab.tsx`
+- Header: Switch (shadcn `Switch`) für `linen_source`, sofort persistiert via Mutation.
+- Bei `teuniSyncEnabled === false`: Switch disabled + Tooltip + Hinweis "Teuni-Sync ist global deaktiviert".
+- Conditional Rendering:
+  - `linen_source === 'own'` → bestehende Tabelle.
+  - `linen_source === 'teuni'` → neue Komponente `<TeuniSourcePanel house={house} />`.
+- Bisheriger Header-Button "Teuni-Set übernehmen" entfällt (Funktion zieht in den Teuni-Tab).
 
-## Änderungen im Detail
+### Neue Komponente `src/components/Houses/TeuniSourcePanel.tsx`
+- shadcn `Tabs` mit "Artikel" (default) und "Sets".
+- **Artikel-Tab**:
+  - Lädt via `useExternalArticles()`.
+  - Such-Input + Kategorie-Filter (clientseitig).
+  - Tabelle: Artikelnr., Name, Kategorie, Farbe, Größe, Preis, Menge (Input), Berechnung (Select per_guest/per_booking), "Hinzufügen".
+  - Hinzufügen schreibt in `custom_categories` über bestehende Mutation; Key via `generateKeyFromLabel`, Kategorie via `guessCategory`, `external_artikelnummer.default = artikelnummer`.
+  - Liste bereits übernommener Teuni-Artikel (anhand `external_artikelnummer.default`) mit Entfernen-Button.
+- **Sets-Tab**:
+  - Lädt via `useExternalTeuniSets()`.
+  - Übernimmt den Inhalt aus dem heutigen `TeuniSetTemplatesDialog` (Cards + Übernahme mit Ersetzen/Zusammenführen) als eingebettete Ansicht.
+  - Wiederverwendung der Helper `setToCustomCategories` und `guessCategory` (in `TeuniSetTemplatesDialog` exportieren oder in `lib/linenMigration` verschieben).
 
-### 1. DB-Migration
-- `linen_automation_settings`: Spalte `teuni_stammdaten_sync_enabled boolean default false` hinzufügen.
+### `TeuniSetTemplatesDialog.tsx`
+- Bleibt vorerst funktionsfähig, wird aber nicht mehr aus dem Header geöffnet. Helper-Funktionen exportieren, damit `TeuniSourcePanel` sie nutzen kann.
 
-### 2. Neue Edge Function `external-stammdaten-proxy`
-- `verify_jwt = false` (per Default-Pattern), CORS aktiv.
-- Routes (per Query `?resource=articles|sets`):
-  - `articles` → leitet an `…/external-articles` (mit optionalen `aktiv`, `kategorie`, `search` als Query weiter).
-  - `sets` → leitet an `…/external-vorlagen-sets`.
-- Setzt `Authorization: Bearer ${EXTERNAL_LAUNDRY_BEARER_TOKEN}` serverseitig (Secret existiert bereits).
-- Gibt JSON 1:1 zurück. Fehler 4xx/5xx mit klarer Message + CORS.
+### Hook
+- `useQuery` für `linen_set_definitions` liefert `linen_source` mit (bereits via `select('*')` abgedeckt).
+- Neue kleine Mutation `updateLinenSource(houseId, source)` direkt in `LinenSetRulesTab`.
 
-### 3. Neuer Hook `src/hooks/useExternalStammdaten.ts`
-- `useExternalArticles({aktiv, kategorie, search})` → `supabase.functions.invoke('external-stammdaten-proxy', { body:{resource:'articles', ...} })`
-- `useExternalTeuniSets()` → analog für `sets`
-- React Query, `staleTime: 5 min`. Beide Hooks akzeptieren `enabled` (gekoppelt an Toggle).
+### Bestell-/Folgelogik (unverändert)
+- `generate-booking-linen-order`, `external-stammdaten-proxy`, `ExternalArticleMappingDialog` arbeiten weiter mit `custom_categories` + `external_artikelnummer`. Keine Edge-Function-Änderung nötig.
 
-### 4. `ExternalArticleMappingDialog.tsx`
-- Wenn `teuni_stammdaten_sync_enabled === true`: Artikel-Liste über `useExternalArticles` statt direktem `externalLaundryClient`.
-- Sonst: bestehender Code unverändert (Fallback).
-- Felder-Mapping unverändert (`artikelnummer`, `name`, `farbe` werden weiter in Dropdown verwendet — Endpoint liefert dieselben Felder plus `bezeichnung`, `bild_url`).
-
-### 5. Neuer Dialog `TeuniSetTemplatesDialog.tsx` (in `src/components/Houses/`)
-- Aufruf aus `LinenSetRulesTab.tsx` über neuen Button "Teuni-Set übernehmen" (nur sichtbar wenn Toggle aktiv).
-- Listet alle Vorlagen aus `useExternalTeuniSets`: Name, Kategorie, Bild, Positions-Vorschau (Tabelle: artikelnummer, name, menge, berechnungsart).
-- Pro Karte Button "Für dieses Haus übernehmen":
-  - Mapping `positionen[*]` → `custom_categories[key]` mit:
-    - `key` = slugifizierter `name` (oder `artikelnummer`)
-    - `label` = `name`
-    - `quantity` = `menge`
-    - `calculation_type` = `'per_guest'` wenn `berechnungsart === 'pro_person'`, sonst `'per_booking'`
-    - `category` = grobe Heuristik aus Vorlagen-`kategorie` (Schlafbereich/Badbereich/…)
-    - `active = true`, `availability = 'year_round'`
-    - `external_artikelnummer = { default: artikelnummer }`
-  - Bestätigungsdialog vor Überschreiben bestehender `custom_categories`. Optionen: **Ersetzen** / **Zusammenführen** / Abbrechen.
-  - Speichert über bestehenden Update-Pfad von `linen_set_definitions` für das gewählte Haus.
-
-### 6. Settings-UI
-`AutoLinenOrderSettingsCard.tsx`:
-- Neuer `Switch` "Teuni-Stammdaten-Sync (Artikel & Vorlagen-Sets)" mit kurzer Beschreibung, dass Bestellabwicklung davon unabhängig bleibt.
-- Speichert `teuni_stammdaten_sync_enabled`.
-
-## Was nicht geändert wird
-- Bestellabwicklung / `external_sync_enabled` / `sync-linen-order-rest` bleiben unberührt.
-- Bestehende Mapping-Tabelle `external_article_mapping` bleibt gleich.
-- Keine Änderung an `linen_orders`, `laundry_invoices`, AI-Funktionen.
-
-## Verifikation nach Build
-1. Toggle aus → `ExternalArticleMappingDialog` lädt Artikel weiterhin direkt (alter Pfad). Kein "Teuni-Set"-Button.
-2. Toggle an → Edge Function `external-stammdaten-proxy` antwortet (Logs prüfen). Artikel-Dropdown gefüllt. Sets werden im neuen Dialog gelistet, Übernahme schreibt `custom_categories` korrekt (DB-Check via `read_query`).
-3. Mobile (390 px): beide Dialoge ohne Horizontal-Scroll.
+## Verifikation
+- Migration angewendet (`linen_source = 'own'` für alle Häuser).
+- Globaler Switch aus → Quelle-Switch im Haus disabled mit Hinweis.
+- Globaler Switch an, Haus auf "Teuni" → Sub-Tabs laden Daten via Proxy, keine Console/Network-Fehler.
+- Artikel-Tab: "Hinzufügen" schreibt korrektes Item in `custom_categories` (`read_query`-Check).
+- Sets-Tab: Ersetzen / Zusammenführen funktioniert wie heute.
+- Zurück auf "Eigene": ursprüngliche Items wieder sichtbar.
+- Mobile (390px): keine horizontale Scrollproblematik.

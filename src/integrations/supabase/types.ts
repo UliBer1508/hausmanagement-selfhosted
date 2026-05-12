@@ -3010,6 +3010,7 @@ export type Database = {
           id: string
           kitchen_towels_per_booking: number | null
           large_towels_per_guest: number | null
+          linen_source: string
           pillow_cases_per_guest: number | null
           sauna_towels_per_guest: number | null
           sink_towels_per_booking: number | null
@@ -3027,6 +3028,7 @@ export type Database = {
           id?: string
           kitchen_towels_per_booking?: number | null
           large_towels_per_guest?: number | null
+          linen_source?: string
           pillow_cases_per_guest?: number | null
           sauna_towels_per_guest?: number | null
           sink_towels_per_booking?: number | null
@@ -3044,6 +3046,7 @@ export type Database = {
           id?: string
           kitchen_towels_per_booking?: number | null
           large_towels_per_guest?: number | null
+          linen_source?: string
           pillow_cases_per_guest?: number | null
           sauna_towels_per_guest?: number | null
           sink_towels_per_booking?: number | null
