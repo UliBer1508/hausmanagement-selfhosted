@@ -134,22 +134,6 @@ const CreateHouseDialog = ({ open, onOpenChange }: CreateHouseDialogProps) => {
           amenities: data.amenities,
           image_url: imageUrl,
           image_filename: imageFilename,
-          linen_stock: {
-            bedding: 0,
-            large_towels: 0,
-            small_towels: 0,
-            sauna_towels: 0,
-            bath_mats: 0,
-            sink_towels: 0,
-            blankets: 0,
-            kitchen_towels: 0,
-            pillow_cases: 0
-          },
-          linen_dirty: {},
-          linen_in_cleaning: {},
-          linen_in_use: {},
-          linen_reserved: {},
-          ordered_linen: {}
         }])
         .select()
         .single();
