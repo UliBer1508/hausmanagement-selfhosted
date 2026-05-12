@@ -1,69 +1,90 @@
-## Analyse
+# Stammdaten-Import aus Wäsche Oberpinzgau (Artikel + Teuni-Sets)
 
-Screenshot zeigt: Dialog "Buchung bearbeiten" auf Mobile – Inputs/Labels werden rechts abgeschnitten ("Dot Shaw", "Dater…"). Ursache sind mehrere wiederkehrende Mobile-Layout-Probleme in den Forms und Dialogen.
+## Ziel
+Die zwei neuen Lese-Endpoints des Portals nutzen, um:
+1. **Wäscheartikel** als Quelle für das Mapping (`external_artikelnummer`) zu laden — ersetzt die bisherige direkte Supabase-Abfrage in `ExternalArticleMappingDialog`.
+2. **Teuni-Vorlagen-Sets** anzuzeigen und per Klick als `custom_categories` in `linen_set_definitions` für ein einzelnes Haus zu übernehmen.
+3. Beides ist optional und kann **an/aus** geschaltet werden, da aktuell eine andere Lösung produktiv ist.
 
-### Gefundene Hauptursachen
+## Architektur
 
-1. **`flex` ohne `min-w-0` in Dialog-Children**
-   `DialogContent` nutzt intern `grid` (siehe `ui/dialog.tsx`). Grid-/Flex-Items haben default `min-width: auto` – lange Inhalte (z. B. Datums-Buttons "20.06.2026 15:00", lange Select-Werte "Wald Chalet (max. 6 Gäste)") drücken die Spalte über die Dialog-Breite hinaus, da `overflow-x-hidden` zwar clippt, aber die *Children* trotzdem rendern und Geschwister-Layouts beeinflussen.
-
-2. **Button-Reihen mit `flex` ohne `flex-wrap`**
-   `CreateBookingForm.tsx:1432` "flex gap-3" mit 3 Buttons (Aktualisieren / Löschen / Abbrechen) ≈ 350px Mindestbreite – passt nicht in 342px Dialog-Innenraum.
-
-3. **Inkonsistente DialogContent-Overrides**
-   ~25 Dialoge überschreiben mit `max-w-2xl/3xl/4xl/[800px]/[900px]`. Das Mobile-Clamp `w-[calc(100vw-1rem)]` greift zwar, aber Inhalte sind oft auf Desktop-Breite designed (mehrspaltige Grids, lange Tabs, breite Buttons).
-
-4. **AlertDialog hat keine Mobile-Anpassung**
-   `ui/alert-dialog.tsx` verwendet noch `w-full max-w-lg p-6` ohne Viewport-Clamp.
-
-5. **Lange Labels/Werte ohne `truncate` / `break-words`**
-   In Selects/Buttons mit fixen Breiten werden Texte abgeschnitten statt umzubrechen.
-
-## Lösung – 4 gezielte Änderungen
-
-### 1. Form-Wrapper innerhalb von Dialogen → `min-w-0`
-Eine Helper-Klasse, oder direkt am `<form>` in den 3 Haupt-Forms:
-- `src/components/Bookings/CreateBookingForm.tsx` Zeile 893: `space-y-6` → `space-y-6 min-w-0`
-- `src/components/Cleaning/EditCleaningTaskDialog.tsx` (Form-Wrapper)
-- `src/components/Cleaning/CreateCleaningTaskDialog.tsx`
-- `src/components/Houses/LinenOrderDialog.tsx` Form-Container
-- `src/components/Houses/EditHouseDialog.tsx` Form-Container
-
-Verhindert dass Grid-Items über die Dialog-Breite wachsen.
-
-### 2. Button-Reihen umbrechen lassen
-- `CreateBookingForm.tsx:1432`: `flex gap-3 pt-4` → `flex flex-wrap gap-3 pt-4`
-- Gleicher Fix in `EditCleaningTaskDialog`, `LinenOrderDialog` Footer (alle Dialoge mit ≥3 Buttons unten)
-
-### 3. AlertDialog Mobile-Clamp (analog zu Dialog)
-`src/components/ui/alert-dialog.tsx` `AlertDialogContent`:
-```diff
-- "fixed left-[50%] top-[50%] ... w-full max-w-lg ... p-6 ..."
-+ "fixed left-[50%] top-[50%] ... w-[calc(100vw-1rem)] sm:w-full max-w-lg max-h-[90dvh] overflow-y-auto overflow-x-hidden ... p-4 sm:p-6 ..."
+```text
+Portal (pkpnowevagxmhyqlawng)
+  ├─ GET /external-articles            ← Bearer EXTERNAL_LAUNDRY_BEARER_TOKEN
+  └─ GET /external-vorlagen-sets       ← Bearer EXTERNAL_LAUNDRY_BEARER_TOKEN
+            │
+            ▼
+  Edge Function: external-stammdaten-proxy   (neu, hält Token serverseitig)
+            │
+            ▼
+  Hook useExternalStammdaten (artikel + sets, React Query, 5 min cache)
+            │
+       ┌────┴─────────────────────────┐
+       ▼                              ▼
+  ExternalArticleMappingDialog    TeuniSetTemplatesDialog (neu)
+  (Artikel-Liste aus Proxy)       → "Set für Haus übernehmen"
+                                  → schreibt custom_categories
 ```
 
-### 4. Selects/Buttons mit langen Werten → `truncate`
-- `SelectValue` in den Form-Selects: per CSS via `[&>span]:truncate` am `SelectTrigger` (eine Stelle in `ui/select.tsx`, default-Klasse erweitern um `min-w-0` und `[&>span]:truncate`).
+## Toggle
+Neues Feld in bestehender Tabelle `linen_automation_settings`:
+- `teuni_stammdaten_sync_enabled boolean default false`
 
-## Was NICHT geändert wird
+Steuert beide neuen Funktionen gemeinsam (Artikel-Liste + Set-Vorlagen). Wenn `false`:
+- `ExternalArticleMappingDialog` fällt zurück auf den bisherigen direkten DB-Pfad (`externalLaundryClient.from('waescheartikel')`) — bestehende Lösung bleibt unangetastet.
+- `TeuniSetTemplatesDialog` ist nicht erreichbar (Button ausgeblendet).
 
-- Keine Logik / Datenflüsse / API
-- Keine Desktop-Layouts (alles greift nur via `min-w-0` neutral oder mobile-only)
-- Keine neuen Komponenten/Pakete
+UI-Schalter in `AutoLinenOrderSettingsCard.tsx` direkt unter `external_sync_enabled` mit kurzer Erklärung.
 
-## Dateien (insgesamt 6)
+## Änderungen im Detail
 
-| Datei | Änderung |
-|------|----------|
-| `src/components/ui/alert-dialog.tsx` | Mobile-Width-Clamp + Padding |
-| `src/components/ui/select.tsx` | `min-w-0 [&>span]:truncate` am Trigger |
-| `src/components/Bookings/CreateBookingForm.tsx` | `min-w-0` am Form, `flex-wrap` am Footer |
-| `src/components/Cleaning/EditCleaningTaskDialog.tsx` | `min-w-0` + `flex-wrap` |
-| `src/components/Cleaning/CreateCleaningTaskDialog.tsx` | `min-w-0` + `flex-wrap` |
-| `src/components/Houses/LinenOrderDialog.tsx` | `min-w-0` + `flex-wrap` |
+### 1. DB-Migration
+- `linen_automation_settings`: Spalte `teuni_stammdaten_sync_enabled boolean default false` hinzufügen.
 
-## Verifikation
+### 2. Neue Edge Function `external-stammdaten-proxy`
+- `verify_jwt = false` (per Default-Pattern), CORS aktiv.
+- Routes (per Query `?resource=articles|sets`):
+  - `articles` → leitet an `…/external-articles` (mit optionalen `aktiv`, `kategorie`, `search` als Query weiter).
+  - `sets` → leitet an `…/external-vorlagen-sets`.
+- Setzt `Authorization: Bearer ${EXTERNAL_LAUNDRY_BEARER_TOKEN}` serverseitig (Secret existiert bereits).
+- Gibt JSON 1:1 zurück. Fehler 4xx/5xx mit klarer Message + CORS.
 
-- Dialog "Buchung bearbeiten" bei 390×736: keine horizontale Scrollbar, alle Labels/Inputs sichtbar, Buttons brechen bei Bedarf um
-- Reinigungs-Dialog, Wäsche-Dialog gleich
-- Desktop 1280×720: optisch identisch (min-w-0 hat keinen visuellen Effekt wenn genug Platz ist)
+### 3. Neuer Hook `src/hooks/useExternalStammdaten.ts`
+- `useExternalArticles({aktiv, kategorie, search})` → `supabase.functions.invoke('external-stammdaten-proxy', { body:{resource:'articles', ...} })`
+- `useExternalTeuniSets()` → analog für `sets`
+- React Query, `staleTime: 5 min`. Beide Hooks akzeptieren `enabled` (gekoppelt an Toggle).
+
+### 4. `ExternalArticleMappingDialog.tsx`
+- Wenn `teuni_stammdaten_sync_enabled === true`: Artikel-Liste über `useExternalArticles` statt direktem `externalLaundryClient`.
+- Sonst: bestehender Code unverändert (Fallback).
+- Felder-Mapping unverändert (`artikelnummer`, `name`, `farbe` werden weiter in Dropdown verwendet — Endpoint liefert dieselben Felder plus `bezeichnung`, `bild_url`).
+
+### 5. Neuer Dialog `TeuniSetTemplatesDialog.tsx` (in `src/components/Houses/`)
+- Aufruf aus `LinenSetRulesTab.tsx` über neuen Button "Teuni-Set übernehmen" (nur sichtbar wenn Toggle aktiv).
+- Listet alle Vorlagen aus `useExternalTeuniSets`: Name, Kategorie, Bild, Positions-Vorschau (Tabelle: artikelnummer, name, menge, berechnungsart).
+- Pro Karte Button "Für dieses Haus übernehmen":
+  - Mapping `positionen[*]` → `custom_categories[key]` mit:
+    - `key` = slugifizierter `name` (oder `artikelnummer`)
+    - `label` = `name`
+    - `quantity` = `menge`
+    - `calculation_type` = `'per_guest'` wenn `berechnungsart === 'pro_person'`, sonst `'per_booking'`
+    - `category` = grobe Heuristik aus Vorlagen-`kategorie` (Schlafbereich/Badbereich/…)
+    - `active = true`, `availability = 'year_round'`
+    - `external_artikelnummer = { default: artikelnummer }`
+  - Bestätigungsdialog vor Überschreiben bestehender `custom_categories`. Optionen: **Ersetzen** / **Zusammenführen** / Abbrechen.
+  - Speichert über bestehenden Update-Pfad von `linen_set_definitions` für das gewählte Haus.
+
+### 6. Settings-UI
+`AutoLinenOrderSettingsCard.tsx`:
+- Neuer `Switch` "Teuni-Stammdaten-Sync (Artikel & Vorlagen-Sets)" mit kurzer Beschreibung, dass Bestellabwicklung davon unabhängig bleibt.
+- Speichert `teuni_stammdaten_sync_enabled`.
+
+## Was nicht geändert wird
+- Bestellabwicklung / `external_sync_enabled` / `sync-linen-order-rest` bleiben unberührt.
+- Bestehende Mapping-Tabelle `external_article_mapping` bleibt gleich.
+- Keine Änderung an `linen_orders`, `laundry_invoices`, AI-Funktionen.
+
+## Verifikation nach Build
+1. Toggle aus → `ExternalArticleMappingDialog` lädt Artikel weiterhin direkt (alter Pfad). Kein "Teuni-Set"-Button.
+2. Toggle an → Edge Function `external-stammdaten-proxy` antwortet (Logs prüfen). Artikel-Dropdown gefüllt. Sets werden im neuen Dialog gelistet, Übernahme schreibt `custom_categories` korrekt (DB-Check via `read_query`).
+3. Mobile (390 px): beide Dialoge ohne Horizontal-Scroll.
