@@ -438,7 +438,7 @@ const TeuniSetsTab = ({ house }: Props) => {
               <strong>{house.name}</strong> übernommen werden?
               <br /><br />
               <strong>Ersetzen:</strong> bestehende Wäschesets werden komplett ersetzt.<br />
-              <strong>Zusammenführen:</strong> bestehende Regeln bleiben, neue werden ergänzt/überschrieben.
+              <strong>Zusammenführen:</strong> bestehende Wäschesets bleiben, neue werden ergänzt/überschrieben.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex-wrap gap-2">
