@@ -11,11 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Save, RotateCcw, Plus, Trash2, Info, Package } from 'lucide-react';
+import { Save, RotateCcw, Plus, Trash2, Info } from 'lucide-react';
 import { LinenItemConfig, ItemColor, LinenColor, ITEM_COLORS, LINEN_COLORS } from '@/types/linen';
 import { migrateOldToNewStructure, groupByCategory } from '@/lib/linenMigration';
 import { LinenItemDialog } from './LinenItemDialog';
-import TeuniSetTemplatesDialog from './TeuniSetTemplatesDialog';
+import TeuniSourcePanel from './TeuniSourcePanel';
+import { Switch } from '@/components/ui/switch';
 import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
 import {
   AlertDialog,
@@ -39,11 +40,45 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
   const [originalItems, setOriginalItems] = useState<Record<string, LinenItemConfig>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
-  const [showTeuniDialog, setShowTeuniDialog] = useState(false);
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
   const [hasMigrated, setHasMigrated] = useState(false);
   const { settings: automationSettings } = useLinenAutomationSettings();
   const teuniSyncEnabled = !!(automationSettings as any)?.teuni_stammdaten_sync_enabled;
+  const [updatingSource, setUpdatingSource] = useState(false);
+
+  const handleSourceChange = async (toTeuni: boolean) => {
+    if (!house?.id) return;
+    const next = toTeuni ? 'teuni' : 'own';
+    setUpdatingSource(true);
+    try {
+      const { data: existing } = await supabase
+        .from('linen_set_definitions')
+        .select('id')
+        .eq('house_id', house.id)
+        .maybeSingle();
+      if (existing) {
+        const { error } = await supabase
+          .from('linen_set_definitions')
+          .update({ linen_source: next } as any)
+          .eq('house_id', house.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('linen_set_definitions')
+          .insert({ house_id: house.id, linen_source: next } as any);
+        if (error) throw error;
+      }
+      await queryClient.invalidateQueries({ queryKey: ['linen-definitions', house.id] });
+      toast({
+        title: 'Quelle geändert',
+        description: next === 'teuni' ? 'Teuni Wäscheartikel & -sets aktiv.' : 'Eigene Wäscheartikel aktiv.',
+      });
+    } catch (e: any) {
+      toast({ variant: 'destructive', title: 'Fehler', description: e?.message || 'Unbekannter Fehler' });
+    } finally {
+      setUpdatingSource(false);
+    }
+  };
 
   // Fetch current linen set definitions
   const { data: linenDef, isLoading } = useQuery({
@@ -60,6 +95,8 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     },
     enabled: !!house?.id,
   });
+
+  const linenSource: 'own' | 'teuni' = ((linenDef as any)?.linen_source as 'own' | 'teuni') || 'own';
 
   // Migrate old structure to new on first load + auto-save missing colors
   useEffect(() => {
@@ -218,17 +255,22 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              {teuniSyncEnabled && (
-                <Button onClick={() => setShowTeuniDialog(true)} size="sm" variant="outline">
-                  <Package className="w-4 h-4 mr-2" />
-                  Teuni-Set übernehmen
+              <div className="flex items-center gap-2 mr-2 px-3 py-1 rounded-md border bg-muted/30">
+                <span className={`text-xs font-medium ${linenSource === 'own' ? 'text-foreground' : 'text-muted-foreground'}`}>Eigene</span>
+                <Switch
+                  checked={linenSource === 'teuni'}
+                  disabled={!teuniSyncEnabled || updatingSource}
+                  onCheckedChange={handleSourceChange}
+                />
+                <span className={`text-xs font-medium ${linenSource === 'teuni' ? 'text-foreground' : 'text-muted-foreground'}`}>Teuni</span>
+              </div>
+              {linenSource === 'own' && (
+                <Button onClick={() => setShowAddDialog(true)} size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Neues Item
                 </Button>
               )}
-              <Button onClick={() => setShowAddDialog(true)} size="sm">
-                <Plus className="w-4 h-4 mr-2" />
-                Neues Item
-              </Button>
-              {hasChanges && (
+              {linenSource === 'own' && hasChanges && (
                 <>
                   <Button onClick={handleReset} variant="outline" size="sm">
                     <RotateCcw className="w-4 h-4 mr-2" />
@@ -244,6 +286,19 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
           </div>
         </CardHeader>
         <CardContent>
+          {!teuniSyncEnabled && (
+            <Alert className="mb-4">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Teuni-Stammdaten-Sync ist global deaktiviert. In den <strong>Einstellungen → Wäsche-Automatisierung</strong> einschalten, um Teuni-Artikel und -Sets pro Haus nutzen zu können.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {linenSource === 'teuni' ? (
+            <TeuniSourcePanel house={{ id: house.id, name: house.name }} />
+          ) : (
+          <>
           <Alert className="mb-4">
             <Info className="h-4 w-4" />
             <AlertDescription>
@@ -434,6 +489,8 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
               </div>
             )
           ))}
+          </>
+          )}
         </CardContent>
       </Card>
 
@@ -443,14 +500,6 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
         onSave={handleAddItem}
         existingKeys={Object.keys(items)}
       />
-
-      {teuniSyncEnabled && house?.id && (
-        <TeuniSetTemplatesDialog
-          open={showTeuniDialog}
-          onOpenChange={setShowTeuniDialog}
-          house={{ id: house.id, name: house.name }}
-        />
-      )}
 
       <AlertDialog open={!!deleteKey} onOpenChange={() => setDeleteKey(null)}>
         <AlertDialogContent>
