@@ -174,8 +174,7 @@ export const useOptimizedLinenManagement = () => {
     if (!housesWithLinenData) return [];
 
     return housesWithLinenData.map(house => {
-      const linenStock = house.linen_stock || {};
-      const orderedLinen = house.ordered_linen || {};
+      // Legacy linen_stock/ordered_linen wird nicht mehr gepflegt – Bestände auf 0 fixieren
       const linenDef = house.linen_set_definitions?.[0] || {};
       const upcomingBookings = house.bookings || [];
 
@@ -202,9 +201,9 @@ export const useOptimizedLinenManagement = () => {
       let totalItems = 0;
 
       linenTypes.forEach(type => {
-        const currentStock = linenStock[type.key] || 0;
-        const ordered = orderedLinen[type.key] || 0;
-        const availableStock = currentStock + ordered;
+        const currentStock = 0;
+        const ordered = 0;
+        const availableStock = 0;
         totalItems += availableStock;
 
         let totalDemand = 0;
