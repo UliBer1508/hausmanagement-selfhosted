@@ -1,84 +1,72 @@
 
 ## Problem
 
-In der Vorschau (Preview) funktionieren die klickbaren Karten in der Übersicht (Buchung, Reinigung, Wäsche) korrekt. In der **installierten** Published-PWA funktionieren sie nicht — die App zeigt dort einen älteren Build, in dem die `onClick`-Logik noch nicht enthalten war.
+Auf dem Handy (≤ 480 px) gibt es zwei sich ergänzende Layout-Probleme:
 
-Ursache: Auf bereits installierten Geräten läuft ein **alter Service Worker** mit gecachten JS-Bundles. Die aktuelle PWA-Konfiguration (`autoUpdate`, `skipWaiting`, `clientsClaim`, `NetworkFirst` für HTML) ist grundsätzlich korrekt, aber:
+1. **Dialoge / Formulare laufen rechts über den Rand** (Beispiel-Screenshot „Buchung bearbeiten"): Eingabefelder und Header werden über den rechten Bildschirmrand hinaus gezeichnet, der Nutzer muss horizontal scrollen.
+2. **Außerhalb der Dialoge wird Platz verschenkt**: Listen, Tabs und Karten haben großzügige Außenabstände — anders als im Wäscheportal-Screenshot, wo Dashboard-Kacheln in einem 2-spaltigen Raster mit minimalem Außenabstand fast die volle Bildschirmbreite nutzen.
 
-1. Es gibt **keinen Version-Check zur Laufzeit** — installierte Clients erfahren erst beim nächsten echten Reload, dass es ein Update gibt.
-2. Der `UpdatePrompt`-Listener wartet auf `controllerchange`, aber wenn iOS/Desktop die SW-`update()`-Anfrage gar nicht erst feuert (App lange offen, Standby), bleibt der alte Worker hängen.
-3. Es gibt keinen Notausschalter, der einen einmaligen harten Reload erzwingt, sobald ein neues Deployment erkannt wird.
+## Ursachen im Code
+
+- `src/components/ui/dialog.tsx` setzt `p-6` (= 48 px) Innenabstand und kein `overflow-x-hidden`. Bei 390 px Viewport bleiben nur 342 px für Inhalte → längere Selects/Inputs sprengen die Box.
+- Mehrere Dialoge erzwingen `max-w-2xl` (= 672 px). Mit Radix-Positionierung `left-50% translate-x-[-50%]` plus überbreitem Inhalt → Box wächst über den Viewport hinaus.
+- Seiten-Container nutzen `container mx-auto p-4 md:p-6`. Auf Handy fressen 32 px horizontale Innenabstände + 32 px max-w-Container-Margin den Inhaltsbereich.
+- Stat-Cards (`StatsCards.tsx`) sind aktuell `grid-cols-1` auf Mobile, statt `grid-cols-2` wie im Wäscheportal-Beispiel.
 
 ## Ziel
 
-- Installierte PWA holt **garantiert sofort** den neuesten Build.
-- Klickbare Karten (Buchungen, Reinigungen, Wäsche) funktionieren auch im installierten Modus.
-- Verifikation gegen die Published-URL nach dem Fix.
+- Keine Dialog-Inhalte mehr über den rechten Rand.
+- Dashboard- und Listenseiten nutzen die volle Handy-Breite (Vorbild: Wäscheportal-Screenshot).
+- **Eine** zentrale Änderung pro UI-Primitive, keine neuen Komponenten, keine Logik-Änderungen, keine Performance-Auswirkung.
 
-## Vorgehen
+## Vorgehen (5 Dateien, ~15 Zeilen Diff)
 
-### 1. Build-Versionierung erzwingen
+### 1. `src/components/ui/dialog.tsx` — Dialoge mobile-tauglich machen
 
-- Beim Build eine Datei `public/version.json` erzeugen, die bei jedem Build einen frischen Hash/Timestamp enthält (über ein kleines Vite-Plugin in `vite.config.ts`).
-- Diese Datei ist **nicht cachebar** (Workbox `NetworkOnly` Regel + Lovable-Proxy liefert sie ohnehin mit `no-store`).
+In `DialogContent` Basisklassen:
 
-### 2. Laufzeit-Version-Check (zentral, einmal pro App)
+- `w-full` → `w-[calc(100vw-1rem)] sm:w-full` (lässt 8 px Luft links/rechts auf Mobile, ab `sm:` Standardverhalten).
+- `p-6` → `p-4 sm:p-6` (16 px statt 24 px Innenabstand auf Mobile).
+- Default ergänzen: `max-h-[90dvh] overflow-y-auto overflow-x-hidden`.
 
-Neuer Hook `useAppVersionCheck` (in `src/hooks/`), eingebunden in `AppLayout.tsx`:
+→ Wirkt **automatisch für alle Dialoge** (Buchung, Reinigung, Wäsche, Gast-Detail, Preisanalyse …).
 
-- Speichert die zuerst geladene Version aus `/version.json` im Memory.
-- Pollt alle 60 s `/version.json` (mit `cache: 'no-store'`).
-- Bei Versions-Abweichung:
-  - Ruft `registration.update()` auf allen aktiven SWs auf.
-  - Sendet `SKIP_WAITING` an wartenden Worker.
-  - Löscht alle `caches.keys()` außer dem aktuellen Workbox-Precache.
-  - Erzwingt `window.location.reload()` (einmalig pro Session via `sessionStorage`-Flag, damit keine Reload-Schleife entsteht).
+### 2. `src/components/ui/sheet.tsx` — gleiches Padding-Pattern
 
-### 3. UpdatePrompt vereinfachen + härten
+`p-6` → `p-4 sm:p-6` für Konsistenz mit Dialog.
 
-- `src/components/PWA/UpdatePrompt.tsx`: zusätzlich beim Tab-Focus (`visibilitychange`) ein `registration.update()` triggern, damit zurückkehrende Nutzer sofort prüfen.
-- Wenn `registration.waiting` existiert: sofort `SKIP_WAITING` schicken, ohne Wartezeit.
+### 3. `src/components/Layout/AppLayout.tsx` — schmaleres globales Padding
 
-### 4. Manifest / vite.config.ts
+`<main>` bekommt `px-2 sm:px-4` als globales Wrapper-Padding.
 
-- `display_override: ['window-controls-overlay', 'standalone']` entfernen — `window-controls-overlay` ist auf Desktop-PWAs eine bekannte Ursache für nicht klickbare Bereiche im oberen Bereich (Title-Bar überlagert App-Content). Beibehalten: `display: 'standalone'`.
-- Workbox-Option `cleanupOutdatedCaches: true` ist bereits gesetzt — beibehalten.
-- Sicherstellen, dass `version.json` über die `runtimeCaching`-Liste explizit `NetworkOnly` läuft.
+### 4. Seiten-Container Suchen/Ersetzen
 
-### 5. Einmaliger Cleanup für bereits installierte alte PWAs
+In den ~6 Top-Level-Pages (Dashboard, Bookings, Cleaning, Laundry, Guests, Settings):
+`container mx-auto p-4 md:p-6` → `container mx-auto px-2 py-4 sm:px-4 sm:py-6 md:p-6`.
+→ Mobile gewinnt **24 px** nutzbare Breite, Desktop unverändert.
 
-- In `src/main.tsx` einen kleinen Bootstrap-Block ergänzen, der beim Start einmal alle veralteten Caches (`html-cache`, alte Workbox-Precaches mit anderem Revision-Hash) löscht und `registration.update()` auslöst.
-- Das gilt nur außerhalb des Lovable-Preview-Iframes (Guard ist bereits vorhanden).
+### 5. `src/components/Dashboard/StatsCards.tsx` — 2-Spalten auf Mobile (nach Vorbild Wäscheportal)
 
-### 6. Verifikation
+Grid-Klassen umstellen:
+`grid-cols-1 md:grid-cols-2 lg:grid-cols-4` → `grid-cols-2 lg:grid-cols-4`
+und `gap-4` → `gap-2 sm:gap-4`.
 
-- Nach Implementierung: Published-Version unter https://my-sweet-home-manager.lovable.app erneut öffnen, einloggen, prüfen ob Übersichts-Karten klickbar reagieren.
-- Browser-Tools: prüfen dass `/version.json` als `200` (nicht `from disk cache`) geladen wird, und dass nach einem neuen Deploy der Reload-Trigger feuert.
-- Console: keine `Multiple GoTrueClient`-getriggerten Fehler in der Klick-Pfad-Region (separater Hinweis, falls relevant).
+→ Dashboard-Kacheln stehen ab Mobile in 2 Spalten, identisch zum Wäscheportal-Look.
 
-## Technische Details
+## Was NICHT geändert wird
 
-```text
-src/
-├─ hooks/
-│   └─ useAppVersionCheck.ts        (neu — poll /version.json)
-├─ components/
-│   ├─ Layout/AppLayout.tsx         (neu: useAppVersionCheck einbinden)
-│   └─ PWA/UpdatePrompt.tsx         (visibilitychange + sofortiges SKIP_WAITING)
-├─ main.tsx                         (Cleanup-Block für alte Caches)
-public/
-└─ version.json                     (vom Build-Plugin generiert)
-vite.config.ts                      (Plugin: version.json + manifest-Anpassung)
-```
+- Keine neuen Komponenten, keine neuen Dependencies.
+- Keine Verhaltens-/Funktionsänderungen.
+- Kein Touch-/Klick-Handling, keine Animationen.
+- Keine Tabellen-/Listen-Logik.
 
-Erwartetes Verhalten danach:
+## Verifikation
 
-1. Neuer Deploy → installierte PWA pollt `/version.json` → erkennt neuen Hash → triggert SW-Update + Cache-Clear + Reload.
-2. Spätestens 60 s nach Öffnen der installierten App ist die neueste Version aktiv.
-3. Klickbare Übersichts-Karten verhalten sich identisch zu Preview und Published-Web.
+- Browser-Tool 390 × 736: Dashboard öffnen → Stat-Cards 2-spaltig, kein horizontales Scrollen.
+- Eine Buchung im Edit-Modus öffnen → Inhalte bleiben innerhalb des Bildschirms.
+- Stichproben: CreateBookingDialog, EditCleaningTaskDialog, GuestDetailsDialog.
+- Desktop 1280 × 720 Gegencheck: Layout unverändert.
 
-## Risiken / Hinweise
+## Aufwand
 
-- **Reload-Schleife** wird durch `sessionStorage`-Flag verhindert (Reload nur einmal pro Session).
-- **Erstes Deployment nach diesem Fix**: alte installierte PWAs haben den neuen Version-Check noch nicht — der **eine** harte Reload-Schritt aus Punkt 5 (Cache-Cleanup beim Boot) sorgt dafür, dass sie genau einmal den neuen Build holen. Danach greift der reguläre Mechanismus.
-- iOS-PWAs cachen `start_url`/`scope` aus dem Manifest beim Install — das ist hier unverändert, kein Eingriff nötig.
+5 Dateien, ~15 Zeilen Diff insgesamt. Kein Build-Impact, keine Performance-Auswirkung.
