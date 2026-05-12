@@ -255,17 +255,22 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              {teuniSyncEnabled && (
-                <Button onClick={() => setShowTeuniDialog(true)} size="sm" variant="outline">
-                  <Package className="w-4 h-4 mr-2" />
-                  Teuni-Set übernehmen
+              <div className="flex items-center gap-2 mr-2 px-3 py-1 rounded-md border bg-muted/30">
+                <span className={`text-xs font-medium ${linenSource === 'own' ? 'text-foreground' : 'text-muted-foreground'}`}>Eigene</span>
+                <Switch
+                  checked={linenSource === 'teuni'}
+                  disabled={!teuniSyncEnabled || updatingSource}
+                  onCheckedChange={handleSourceChange}
+                />
+                <span className={`text-xs font-medium ${linenSource === 'teuni' ? 'text-foreground' : 'text-muted-foreground'}`}>Teuni</span>
+              </div>
+              {linenSource === 'own' && (
+                <Button onClick={() => setShowAddDialog(true)} size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Neues Item
                 </Button>
               )}
-              <Button onClick={() => setShowAddDialog(true)} size="sm">
-                <Plus className="w-4 h-4 mr-2" />
-                Neues Item
-              </Button>
-              {hasChanges && (
+              {linenSource === 'own' && hasChanges && (
                 <>
                   <Button onClick={handleReset} variant="outline" size="sm">
                     <RotateCcw className="w-4 h-4 mr-2" />
@@ -281,6 +286,19 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
           </div>
         </CardHeader>
         <CardContent>
+          {!teuniSyncEnabled && (
+            <Alert className="mb-4">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Teuni-Stammdaten-Sync ist global deaktiviert. In den <strong>Einstellungen → Wäsche-Automatisierung</strong> einschalten, um Teuni-Artikel und -Sets pro Haus nutzen zu können.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {linenSource === 'teuni' ? (
+            <TeuniSourcePanel house={{ id: house.id, name: house.name }} />
+          ) : (
+          <>
           <Alert className="mb-4">
             <Info className="h-4 w-4" />
             <AlertDescription>
@@ -471,6 +489,8 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
               </div>
             )
           ))}
+          </>
+          )}
         </CardContent>
       </Card>
 
@@ -480,14 +500,6 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
         onSave={handleAddItem}
         existingKeys={Object.keys(items)}
       />
-
-      {teuniSyncEnabled && house?.id && (
-        <TeuniSetTemplatesDialog
-          open={showTeuniDialog}
-          onOpenChange={setShowTeuniDialog}
-          house={{ id: house.id, name: house.name }}
-        />
-      )}
 
       <AlertDialog open={!!deleteKey} onOpenChange={() => setDeleteKey(null)}>
         <AlertDialogContent>
