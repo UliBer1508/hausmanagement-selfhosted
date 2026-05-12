@@ -2828,6 +2828,7 @@ export type Database = {
           min_advance_days: number
           sync_max_retries: number
           sync_transport: string
+          teuni_stammdaten_sync_enabled: boolean
           updated_at: string | null
         }
         Insert: {
@@ -2846,6 +2847,7 @@ export type Database = {
           min_advance_days?: number
           sync_max_retries?: number
           sync_transport?: string
+          teuni_stammdaten_sync_enabled?: boolean
           updated_at?: string | null
         }
         Update: {
@@ -2864,6 +2866,7 @@ export type Database = {
           min_advance_days?: number
           sync_max_retries?: number
           sync_transport?: string
+          teuni_stammdaten_sync_enabled?: boolean
           updated_at?: string | null
         }
         Relationships: [

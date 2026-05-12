@@ -47,6 +47,7 @@ const AutoLinenOrderSettingsCard = () => {
   const [localMinAdvanceDays, setLocalMinAdvanceDays] = useState<number>(7);
   const [localProviderId, setLocalProviderId] = useState<string>('');
   const [localExternalSyncEnabled, setLocalExternalSyncEnabled] = useState<boolean>(false);
+  const [localTeuniStammdatenEnabled, setLocalTeuniStammdatenEnabled] = useState<boolean>(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
@@ -61,6 +62,7 @@ const AutoLinenOrderSettingsCard = () => {
       setLocalMinAdvanceDays(settings.min_advance_days);
       setLocalProviderId(settings.default_provider_id || 'none');
       setLocalExternalSyncEnabled(settings.external_sync_enabled || false);
+      setLocalTeuniStammdatenEnabled((settings as any).teuni_stammdaten_sync_enabled || false);
       setHasChanges(false);
     }
   }, [settings]);
@@ -89,6 +91,7 @@ const AutoLinenOrderSettingsCard = () => {
       min_advance_days: localMinAdvanceDays,
       default_provider_id: localProviderId === 'none' ? null : localProviderId,
       external_sync_enabled: localExternalSyncEnabled,
+      teuni_stammdaten_sync_enabled: localTeuniStammdatenEnabled,
     });
     setHasChanges(false);
   };
@@ -533,6 +536,39 @@ const AutoLinenOrderSettingsCard = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Teuni Stammdaten-Sync (Artikel & Vorlagen-Sets lesen) */}
+          <div className="border-t pt-4 space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2 min-w-0">
+                <Package className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <h4 className="font-medium">Teuni Stammdaten-Sync</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Wäscheartikel und Teuni-Vorlagen-Sets aus Wäsche Oberpinzgau lesen und für Häuser übernehmen.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={localTeuniStammdatenEnabled}
+                  onCheckedChange={(checked) => {
+                    setLocalTeuniStammdatenEnabled(checked);
+                    handleChange();
+                  }}
+                  className="shrink-0"
+                />
+                <Label className="text-sm font-medium cursor-pointer">Aktivieren</Label>
+              </div>
+            </div>
+            <div className="p-3 bg-muted/40 rounded-md border">
+              <p className="text-xs text-muted-foreground">
+                Unabhängig vom Bestellabwicklungs-Sync. Wenn deaktiviert, bleibt die aktuelle Lösung
+                (direkter Datenbankzugriff für das Artikel-Mapping) aktiv und es wird kein Teuni-Set-Button
+                bei den Wäscheset-Regeln eines Hauses angezeigt.
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>

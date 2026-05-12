@@ -11,10 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Save, RotateCcw, Plus, Trash2, Info } from 'lucide-react';
+import { Save, RotateCcw, Plus, Trash2, Info, Package } from 'lucide-react';
 import { LinenItemConfig, ItemColor, LinenColor, ITEM_COLORS, LINEN_COLORS } from '@/types/linen';
 import { migrateOldToNewStructure, groupByCategory } from '@/lib/linenMigration';
 import { LinenItemDialog } from './LinenItemDialog';
+import TeuniSetTemplatesDialog from './TeuniSetTemplatesDialog';
+import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,8 +39,11 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
   const [originalItems, setOriginalItems] = useState<Record<string, LinenItemConfig>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showTeuniDialog, setShowTeuniDialog] = useState(false);
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
   const [hasMigrated, setHasMigrated] = useState(false);
+  const { settings: automationSettings } = useLinenAutomationSettings();
+  const teuniSyncEnabled = !!(automationSettings as any)?.teuni_stammdaten_sync_enabled;
 
   // Fetch current linen set definitions
   const { data: linenDef, isLoading } = useQuery({
@@ -213,6 +218,12 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
               </CardDescription>
             </div>
             <div className="flex gap-2">
+              {teuniSyncEnabled && (
+                <Button onClick={() => setShowTeuniDialog(true)} size="sm" variant="outline">
+                  <Package className="w-4 h-4 mr-2" />
+                  Teuni-Set übernehmen
+                </Button>
+              )}
               <Button onClick={() => setShowAddDialog(true)} size="sm">
                 <Plus className="w-4 h-4 mr-2" />
                 Neues Item
@@ -432,6 +443,14 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
         onSave={handleAddItem}
         existingKeys={Object.keys(items)}
       />
+
+      {teuniSyncEnabled && house?.id && (
+        <TeuniSetTemplatesDialog
+          open={showTeuniDialog}
+          onOpenChange={setShowTeuniDialog}
+          house={{ id: house.id, name: house.name }}
+        />
+      )}
 
       <AlertDialog open={!!deleteKey} onOpenChange={() => setDeleteKey(null)}>
         <AlertDialogContent>

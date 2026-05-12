@@ -12,6 +12,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { translateItemType } from '@/lib/linenOrderHelpers';
 import { externalLaundryClient, ExternalWaescheArtikel } from '@/integrations/externalLaundry/client';
 import { toast } from '@/hooks/use-toast';
+import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
+import { useExternalArticles } from '@/hooks/useExternalStammdaten';
 
 interface ExternalArticleMappingDialogProps {
   open: boolean;
@@ -33,6 +35,8 @@ const translateColor = (colorKey: string): string => {
 const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMappingDialogProps) => {
   const queryClient = useQueryClient();
   const { mappings, isLoading: isMappingsLoading, saveMappings, isSaving } = useExternalArticleMapping();
+  const { settings: automationSettings } = useLinenAutomationSettings();
+  const useTeuniProxy = !!(automationSettings as any)?.teuni_stammdaten_sync_enabled;
   
   // State: internal_item_key (mit Farbe) → external_artikelnummer
   // Format: { "bedding__grey_striped": "WA001", "small_towels__white": "WA008" }
@@ -56,12 +60,12 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
     staleTime: 0,
   });
 
-  // Load external articles from external Supabase
+  // Load external articles from external Supabase (legacy direct path)
   const { 
-    data: externalArticles, 
-    isLoading: isLoadingExternal, 
-    error: externalError,
-    refetch: refetchExternal 
+    data: externalArticlesLegacy, 
+    isLoading: isLoadingExternalLegacy, 
+    error: externalErrorLegacy,
+    refetch: refetchExternalLegacy 
   } = useQuery({
     queryKey: ['external-waescheartikel'],
     queryFn: async () => {
@@ -74,9 +78,24 @@ const ExternalArticleMappingDialog = ({ open, onOpenChange }: ExternalArticleMap
       if (error) throw error;
       return data as ExternalWaescheArtikel[];
     },
-    enabled: open,
+    enabled: open && !useTeuniProxy,
     staleTime: 0,
   });
+
+  // Load external articles via Teuni REST proxy (new path)
+  const {
+    data: externalArticlesProxy,
+    isLoading: isLoadingExternalProxy,
+    error: externalErrorProxy,
+    refetch: refetchExternalProxy,
+  } = useExternalArticles({ aktiv: true }, open && useTeuniProxy);
+
+  const externalArticles = useTeuniProxy
+    ? (externalArticlesProxy as unknown as ExternalWaescheArtikel[] | undefined)
+    : externalArticlesLegacy;
+  const isLoadingExternal = useTeuniProxy ? isLoadingExternalProxy : isLoadingExternalLegacy;
+  const externalError = useTeuniProxy ? externalErrorProxy : externalErrorLegacy;
+  const refetchExternal = useTeuniProxy ? refetchExternalProxy : refetchExternalLegacy;
 
   // Build internal article options from custom_categories
   const internalArticleOptions: { key: string; label: string; category: string; colors: string[] }[] = (() => {
