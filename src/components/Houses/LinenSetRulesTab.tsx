@@ -444,6 +444,14 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
         existingKeys={Object.keys(items)}
       />
 
+      {teuniSyncEnabled && house?.id && (
+        <TeuniSetTemplatesDialog
+          open={showTeuniDialog}
+          onOpenChange={setShowTeuniDialog}
+          house={{ id: house.id, name: house.name }}
+        />
+      )}
+
       <AlertDialog open={!!deleteKey} onOpenChange={() => setDeleteKey(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
