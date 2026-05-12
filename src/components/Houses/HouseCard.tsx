@@ -19,28 +19,6 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showPriceAnalysis, setShowPriceAnalysis] = useState(false);
 
-  // Calculate total linen items
-  const getTotalLinenItems = (linenStock: any) => {
-    if (!linenStock) return 0;
-    return Object.values(linenStock as Record<string, number>).reduce((sum, count) => sum + count, 0);
-  };
-
-  // Get linen breakdown for display
-  const getLinenBreakdown = (linenStock: any) => {
-    if (!linenStock) return [];
-    
-    const items = [
-      { key: 'bedding', label: 'Bettwäsche', count: linenStock.bedding || 0 },
-      { key: 'large_towels', label: 'Badetücher', count: linenStock.large_towels || 0 },
-      { key: 'small_towels', label: 'Handtücher', count: linenStock.small_towels || 0 },
-      { key: 'sauna_towels', label: 'Saunatücher', count: linenStock.sauna_towels || 0 },
-      { key: 'bath_mats', label: 'Badematten', count: linenStock.bath_mats || 0 },
-      { key: 'sink_towels', label: 'WB-Handtücher', count: linenStock.sink_towels || 0 },
-    ];
-    
-    return items.filter(item => item.count > 0);
-  };
-
   // Format tenant info dates
   const formatTenantDate = (dateString: string | null | undefined) => {
     if (!dateString) return null;
@@ -64,9 +42,6 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
     };
     return labels[method] || method;
   };
-
-  const totalLinenItems = getTotalLinenItems(house.linen_stock);
-  const linenBreakdown = getLinenBreakdown(house.linen_stock);
 
   return (
     <>
@@ -168,28 +143,6 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
                 </div>
               )}
             </div>
-
-            {/* Linen Inventory - nur für touristische Vermietungen */}
-            {(house.rental_type === 'tourist' || !house.rental_type) && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium">Wäschebestand ({totalLinenItems} Teile)</h4>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  {linenBreakdown.map((item) => (
-                    <div key={item.key} className="flex justify-between">
-                      <span className="text-muted-foreground">{item.label}:</span>
-                      <span className="font-medium">{item.count}</span>
-                    </div>
-                  ))}
-                </div>
-                
-                {linenBreakdown.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Keine Wäsche definiert</p>
-                )}
-              </div>
-            )}
 
             {/* Tenant Info - nur für Festvermietungen */}
             {house.rental_type === 'long_term' && house.tenant_info && (
