@@ -19,6 +19,16 @@ if (isLovablePreview || isInIframe) {
     caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
   }
 } else if ("serviceWorker" in navigator && import.meta.env.PROD) {
+  // One-time cleanup for already-installed PWAs that may hold a stale runtime cache.
+  // Removes the html-cache so the next navigation always fetches fresh HTML.
+  if ("caches" in window && !sessionStorage.getItem("pwa-html-cache-cleared")) {
+    caches.keys().then((names) => {
+      names
+        .filter((n) => n === "html-cache" || n.startsWith("workbox-runtime"))
+        .forEach((n) => caches.delete(n));
+      sessionStorage.setItem("pwa-html-cache-cleared", "1");
+    }).catch(() => {});
+  }
   // vite-plugin-pwa with autoUpdate registers /sw.js automatically via virtual:pwa-register.
   // immediate:true + onNeedRefresh auto-applies any waiting worker without user prompt.
   // @ts-expect-error virtual module provided by vite-plugin-pwa at build time

@@ -23,9 +23,12 @@ const UpdatePrompt = () => {
       worker.postMessage({ type: 'SKIP_WAITING' });
     };
 
+    let registrationRef: ServiceWorkerRegistration | null = null;
+
     navigator.serviceWorker.ready.then((registration) => {
+      registrationRef = registration;
       // Already-waiting worker (real update — controller exists)
-      if (registration.waiting && navigator.serviceWorker.controller) {
+      if (registration.waiting) {
         applyUpdate(registration.waiting);
       }
 
@@ -33,15 +36,23 @@ const UpdatePrompt = () => {
         const newWorker = registration.installing;
         if (!newWorker) return;
         newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          if (newWorker.state === 'installed') {
             applyUpdate(newWorker);
           }
         });
       });
     });
 
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && registrationRef) {
+        registrationRef.update().catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [toast]);
 
