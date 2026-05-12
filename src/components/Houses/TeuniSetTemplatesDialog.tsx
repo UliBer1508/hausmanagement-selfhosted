@@ -80,7 +80,7 @@ const TeuniSetTemplatesDialog = ({ open, onOpenChange, house }: Props) => {
 
       const merged: Record<string, LinenItemConfig> =
         mode === 'merge' && existing?.custom_categories
-          ? { ...(existing.custom_categories as Record<string, LinenItemConfig>), ...newCats }
+          ? { ...(existing.custom_categories as unknown as Record<string, LinenItemConfig>), ...newCats }
           : newCats;
 
       const payload = {
