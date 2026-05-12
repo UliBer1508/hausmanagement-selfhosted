@@ -245,7 +245,7 @@ const LinenInventoryDialog = ({ house, open, onOpenChange }: LinenInventoryDialo
                     </TabsTrigger>
                     <TabsTrigger value="bestellungen" className="text-xs md:text-sm px-2 py-2 md:px-3 md:py-2.5 data-[state=active]:text-xs md:data-[state=active]:text-sm">
                       <span className="hidden xs:inline">Bestellungen</span>
-                      <span className="xs:hidden">Best.</span>
+                      <span className="xs:hidden">Best. Analyse</span>
                     </TabsTrigger>
                   </TabsList>
 
