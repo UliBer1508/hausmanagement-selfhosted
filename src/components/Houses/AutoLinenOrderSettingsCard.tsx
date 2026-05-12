@@ -566,7 +566,7 @@ const AutoLinenOrderSettingsCard = () => {
               <p className="text-xs text-muted-foreground">
                 Unabhängig vom Bestellabwicklungs-Sync. Wenn deaktiviert, bleibt die aktuelle Lösung
                 (direkter Datenbankzugriff für das Artikel-Mapping) aktiv und es wird kein Teuni-Set-Button
-                bei den Wäscheset-Regeln eines Hauses angezeigt.
+                bei den Wäschesets eines Hauses angezeigt.
               </p>
             </div>
           </div>

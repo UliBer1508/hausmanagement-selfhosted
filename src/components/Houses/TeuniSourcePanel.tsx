@@ -437,7 +437,7 @@ const TeuniSetsTab = ({ house }: Props) => {
               Wie sollen die {selectedSet?.positionen?.length ?? 0} Positionen für{' '}
               <strong>{house.name}</strong> übernommen werden?
               <br /><br />
-              <strong>Ersetzen:</strong> bestehende Wäscheset-Regeln werden komplett ersetzt.<br />
+              <strong>Ersetzen:</strong> bestehende Wäschesets werden komplett ersetzt.<br />
               <strong>Zusammenführen:</strong> bestehende Regeln bleiben, neue werden ergänzt/überschrieben.
             </AlertDialogDescription>
           </AlertDialogHeader>
