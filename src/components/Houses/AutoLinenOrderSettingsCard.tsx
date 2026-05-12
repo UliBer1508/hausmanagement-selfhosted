@@ -47,6 +47,7 @@ const AutoLinenOrderSettingsCard = () => {
   const [localMinAdvanceDays, setLocalMinAdvanceDays] = useState<number>(7);
   const [localProviderId, setLocalProviderId] = useState<string>('');
   const [localExternalSyncEnabled, setLocalExternalSyncEnabled] = useState<boolean>(false);
+  const [localTeuniStammdatenEnabled, setLocalTeuniStammdatenEnabled] = useState<boolean>(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
@@ -61,6 +62,7 @@ const AutoLinenOrderSettingsCard = () => {
       setLocalMinAdvanceDays(settings.min_advance_days);
       setLocalProviderId(settings.default_provider_id || 'none');
       setLocalExternalSyncEnabled(settings.external_sync_enabled || false);
+      setLocalTeuniStammdatenEnabled((settings as any).teuni_stammdaten_sync_enabled || false);
       setHasChanges(false);
     }
   }, [settings]);
@@ -89,6 +91,7 @@ const AutoLinenOrderSettingsCard = () => {
       min_advance_days: localMinAdvanceDays,
       default_provider_id: localProviderId === 'none' ? null : localProviderId,
       external_sync_enabled: localExternalSyncEnabled,
+      teuni_stammdaten_sync_enabled: localTeuniStammdatenEnabled,
     });
     setHasChanges(false);
   };
