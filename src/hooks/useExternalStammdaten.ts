@@ -17,7 +17,7 @@ export interface ExternalTeuniSetPosition {
   artikelnummer: string;
   name: string;
   menge: number;
-  berechnungsart: 'pro_person' | 'pro_buchung' | string;
+  berechnungsart: 'pro_gast' | 'pro_person' | 'pro_buchung' | string;
 }
 
 export interface ExternalTeuniSet {
@@ -48,14 +48,13 @@ export const useExternalArticles = (
   return useQuery({
     queryKey: ['external-stammdaten', 'articles', filters],
     queryFn: async () => {
-      const data = await invokeProxy<{ artikel?: ExternalArticle[] } | ExternalArticle[]>('articles', {
+      const data = await invokeProxy<any>('articles', {
         aktiv: filters.aktiv === false ? 'false' : 'true',
         kategorie: filters.kategorie,
         search: filters.search,
       });
-      // Endpoint may return array or wrapped object
-      if (Array.isArray(data)) return data;
-      return data.artikel ?? [];
+      if (Array.isArray(data)) return data as ExternalArticle[];
+      return (data?.data ?? data?.artikel ?? []) as ExternalArticle[];
     },
     enabled,
     staleTime: 5 * 60 * 1000,
@@ -66,11 +65,11 @@ export const useExternalTeuniSets = (enabled = true) => {
   return useQuery({
     queryKey: ['external-stammdaten', 'sets'],
     queryFn: async () => {
-      const data = await invokeProxy<{ sets?: ExternalTeuniSet[]; vorlagen?: ExternalTeuniSet[] } | ExternalTeuniSet[]>('sets', {
+      const data = await invokeProxy<any>('sets', {
         aktiv: 'true',
       });
-      if (Array.isArray(data)) return data;
-      return data.sets ?? data.vorlagen ?? [];
+      if (Array.isArray(data)) return data as ExternalTeuniSet[];
+      return (data?.data ?? data?.sets ?? data?.vorlagen ?? []) as ExternalTeuniSet[];
     },
     enabled,
     staleTime: 5 * 60 * 1000,
