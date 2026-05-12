@@ -48,7 +48,10 @@ const setToCustomCategories = (set: ExternalTeuniSet): Record<string, LinenItemC
       label: pos.name,
       category: guessCategory(set.kategorie),
       quantity: Number(pos.menge) || 0,
-      calculation_type: pos.berechnungsart === 'pro_person' ? 'per_guest' : 'per_booking',
+      calculation_type:
+        pos.berechnungsart === 'pro_person' || pos.berechnungsart === 'pro_gast'
+          ? 'per_guest'
+          : 'per_booking',
       availability: 'year_round',
       season: null,
       active: true,
@@ -181,7 +184,7 @@ const TeuniSetTemplatesDialog = ({ open, onOpenChange, house }: Props) => {
                       <div key={i} className="flex justify-between gap-2 border-b py-1">
                         <span className="truncate">{p.name}</span>
                         <span className="text-muted-foreground shrink-0">
-                          {p.menge}× {p.berechnungsart === 'pro_person' ? '/Gast' : '/Buchung'}
+                          {p.menge}× {p.berechnungsart === 'pro_person' || p.berechnungsart === 'pro_gast' ? '/Gast' : '/Buchung'}
                         </span>
                       </div>
                     ))}
