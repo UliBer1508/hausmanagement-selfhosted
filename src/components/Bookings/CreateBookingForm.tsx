@@ -890,7 +890,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 min-w-0">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Ferienhaus */}
           <FormField
@@ -1429,7 +1429,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         />
 
         {/* Submit Buttons */}
-        <div className="flex gap-3 pt-4">
+        <div className="flex flex-wrap gap-3 pt-4">
           <Button 
             type="submit" 
             className="flex-1 bg-black hover:bg-gray-800 text-white"
