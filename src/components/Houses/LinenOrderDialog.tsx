@@ -569,7 +569,7 @@ const LinenOrderDialog = ({
           </p>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6 min-w-0">
           {/* Validation Errors */}
           {validationErrors.length > 0 && (
             <Alert variant="destructive">
