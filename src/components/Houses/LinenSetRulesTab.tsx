@@ -17,7 +17,6 @@ import { migrateOldToNewStructure, groupByCategory } from '@/lib/linenMigration'
 import { LinenItemDialog } from './LinenItemDialog';
 import TeuniSourcePanel from './TeuniSourcePanel';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
 import {
   AlertDialog,
@@ -45,7 +44,6 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
   const [hasMigrated, setHasMigrated] = useState(false);
   const { settings: automationSettings } = useLinenAutomationSettings();
   const teuniSyncEnabled = !!(automationSettings as any)?.teuni_stammdaten_sync_enabled;
-  const linenSource: 'own' | 'teuni' = ((linenDef as any)?.linen_source as 'own' | 'teuni') || 'own';
   const [updatingSource, setUpdatingSource] = useState(false);
 
   const handleSourceChange = async (toTeuni: boolean) => {
@@ -97,6 +95,8 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     },
     enabled: !!house?.id,
   });
+
+  const linenSource: 'own' | 'teuni' = ((linenDef as any)?.linen_source as 'own' | 'teuni') || 'own';
 
   // Migrate old structure to new on first load + auto-save missing colors
   useEffect(() => {
