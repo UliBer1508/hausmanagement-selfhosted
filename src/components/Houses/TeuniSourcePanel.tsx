@@ -107,7 +107,7 @@ const TeuniArticlesTab = ({ house }: Props) => {
   useMemo(() => {
     (async () => {
       const ex = await loadExisting(house.id);
-      const cats = (ex?.custom_categories ?? {}) as Record<string, LinenItemConfig>;
+      const cats = ((ex?.custom_categories ?? {}) as unknown) as Record<string, LinenItemConfig>;
       const map: Record<string, string> = {};
       Object.entries(cats).forEach(([k, v]) => {
         const art = v?.external_artikelnummer?.default;
@@ -138,7 +138,7 @@ const TeuniArticlesTab = ({ house }: Props) => {
     setAdding(a.artikelnummer);
     try {
       const ex = await loadExisting(house.id);
-      const current = (ex?.custom_categories ?? {}) as Record<string, LinenItemConfig>;
+      const current = ((ex?.custom_categories ?? {}) as unknown) as Record<string, LinenItemConfig>;
       const usedKeys = Object.keys(current);
       const key = generateKeyFromLabel(a.name || a.artikelnummer, usedKeys);
       const state = rowState[a.artikelnummer] || { qty: 1, calc: 'per_guest' };
@@ -171,7 +171,7 @@ const TeuniArticlesTab = ({ house }: Props) => {
     setAdding(artikelnummer);
     try {
       const ex = await loadExisting(house.id);
-      const current = (ex?.custom_categories ?? {}) as Record<string, LinenItemConfig>;
+      const current = ((ex?.custom_categories ?? {}) as unknown) as Record<string, LinenItemConfig>;
       const { [key]: _removed, ...rest } = current;
       await persistCustomCategories(house.id, rest);
       setExistingByArt(prev => {
@@ -349,7 +349,7 @@ const TeuniSetsTab = ({ house }: Props) => {
     try {
       const newCats = setToCustomCategories(selectedSet);
       const ex = await loadExisting(house.id);
-      const current = (ex?.custom_categories ?? {}) as Record<string, LinenItemConfig>;
+      const current = ((ex?.custom_categories ?? {}) as unknown) as Record<string, LinenItemConfig>;
       const merged = mode === 'merge' ? { ...current, ...newCats } : newCats;
       await persistCustomCategories(house.id, merged);
       qc.invalidateQueries({ queryKey: ['linen-definitions'] });
