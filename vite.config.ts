@@ -3,6 +3,27 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from 'vite-plugin-pwa';
+import fs from "fs";
+
+// Emits a fresh public/version.json on every build/dev start.
+// Used by the runtime version-check to force-refresh installed PWAs.
+const versionStampPlugin = () => ({
+  name: "version-stamp",
+  buildStart() {
+    try {
+      const dir = path.resolve(__dirname, "public");
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const payload = {
+        version: Date.now().toString(36),
+        builtAt: new Date().toISOString(),
+      };
+      fs.writeFileSync(path.join(dir, "version.json"), JSON.stringify(payload));
+    } catch (e) {
+      // non-fatal
+      console.warn("[version-stamp] failed:", e);
+    }
+  },
+});
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -13,6 +34,7 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(), 
     mode === "development" && componentTagger(),
+    versionStampPlugin(),
     VitePWA({
       registerType: 'autoUpdate',
       devOptions: { enabled: false },
@@ -24,6 +46,11 @@ export default defineConfig(({ mode }) => ({
         cleanupOutdatedCaches: true,
         navigateFallbackDenylist: [/^\/~oauth/, /^\/api/, /^\/functions/],
         runtimeCaching: [
+          {
+            // Build-version probe — never cache, always hit the network
+            urlPattern: /\/version\.json(\?.*)?$/i,
+            handler: 'NetworkOnly',
+          },
           {
             urlPattern: ({ request }) => request.mode === 'navigate',
             handler: 'NetworkFirst',
@@ -57,7 +84,6 @@ export default defineConfig(({ mode }) => ({
         theme_color: '#0b3d2e',
         background_color: '#f5f1e8',
         display: 'standalone',
-        display_override: ['window-controls-overlay', 'standalone'],
         orientation: 'any',
         scope: '/',
         start_url: '/',

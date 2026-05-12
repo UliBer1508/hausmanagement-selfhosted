@@ -7,6 +7,7 @@ import InstallPrompt from '@/components/PWA/InstallPrompt';
 import UpdatePrompt from '@/components/PWA/UpdatePrompt';
 import { useProviderMessageNotifications } from '@/hooks/useProviderMessageNotifications';
 import { useGuestContactReminders } from '@/hooks/useGuestContactReminders';
+import { useAppVersionCheck } from '@/hooks/useAppVersionCheck';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import pkg from '../../../package.json';
@@ -18,6 +19,8 @@ interface AppLayoutProps {
 const AppLayout = ({ children }: AppLayoutProps) => {
   // Global listener for provider message notifications
   useProviderMessageNotifications();
+  // Force refresh installed PWA when a new build is deployed
+  useAppVersionCheck();
   
   // Guest contact reminder notification on app start
   const { guestsToContact, isLoading } = useGuestContactReminders();
