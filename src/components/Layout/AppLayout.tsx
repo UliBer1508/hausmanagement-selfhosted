@@ -59,27 +59,31 @@ const AppLayout = ({ children }: AppLayoutProps) => {
 
   return (
     <div className="layout-container min-h-screen flex flex-col">
+      {/* Global Header */}
+      {isAuthed && (
+        <header className="sticky top-0 z-40 flex items-center justify-end gap-2 px-3 py-2 border-b border-border/50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <LogOut className="h-3.5 w-3.5 mr-1" />
+            Abmelden
+          </Button>
+        </header>
+      )}
+
       {/* Simplified Layout - No Sidebar */}
       <main className="content-main flex-1">
         {children}
       </main>
 
       {/* Global Copyright Footer */}
-      <footer className="py-4 border-t border-border/50 px-4 flex items-center justify-center gap-4 relative">
+      <footer className="py-4 border-t border-border/50 px-4 flex items-center justify-center">
         <p className="text-xs text-muted-foreground text-center">
           © {new Date().getFullYear()} Steinbock Chalets · v{pkg.version}
         </p>
-        {isAuthed && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="absolute right-3 top-1/2 -translate-y-1/2 h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <LogOut className="h-3.5 w-3.5 mr-1" />
-            Abmelden
-          </Button>
-        )}
       </footer>
 
       {/* PWA Components */}
