@@ -323,7 +323,7 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
           </TabsList>
           
           <TabsContent value="basic" className="space-y-4">
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4 min-w-0">
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
                 <Input
