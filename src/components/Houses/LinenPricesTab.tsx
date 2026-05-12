@@ -183,7 +183,7 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
   if (isLoadingDef) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-muted-foreground">Lade Wäsche-Regeln...</div>
+        <div className="text-muted-foreground">Lade Wäschesets...</div>
       </div>
     );
   }
@@ -193,7 +193,7 @@ const LinenPricesTab: React.FC<LinenPricesTabProps> = ({ houseId }) => {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          Keine aktiven Wäsche-Artikel gefunden. Bitte definieren Sie zuerst Artikel im "Wäsche-Regeln" Tab.
+          Keine aktiven Wäsche-Artikel gefunden. Bitte definieren Sie zuerst Artikel im "Wäschesets" Tab.
         </AlertDescription>
       </Alert>
     );
