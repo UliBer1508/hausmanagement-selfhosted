@@ -473,7 +473,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
         {/* Step 3: Cleaning Details */}
         {step === 'details' && (
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 min-w-0">
               
               {/* Buchungsübersicht - NUR wenn Buchung vorhanden */}
               {displayBooking && !withoutBooking && (
