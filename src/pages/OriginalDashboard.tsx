@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,27 +31,39 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import steinbockLogo from '@/assets/steinbock-logo.png';
 import CreateBookingDialog from '@/components/Bookings/CreateBookingDialog';
-import BookingOverviewFixed from '@/components/Bookings/BookingOverviewFixed';
-import HouseManagement from '@/components/Houses/HouseManagement';
-import CleaningManagement from '@/components/Cleaning/CleaningManagement';
-import GuestManagement from '@/components/Guests/GuestManagement';
-import TenantManagement from '@/components/Tenants/TenantManagement';
-import LinenDashboard from '@/components/Houses/LinenDashboard';
-import PricingDashboard from '@/components/Pricing/PricingDashboard';
-import { ProviderManagementDialog } from '@/components/ServicePortal/ProviderManagementDialog';
-import { ProviderBillingDialog } from '@/components/ServicePortal/ProviderBillingDialog';
-import LinenOrderDialog from '@/components/Houses/LinenOrderDialog';
-import { UsageReportDialog } from '@/components/Dashboard/UsageReportDialog';
+// Lazy-loaded tab content & heavy dialogs (drastically reduces initial bundle)
+const BookingOverviewFixed = lazy(() => import('@/components/Bookings/BookingOverviewFixed'));
+const HouseManagement = lazy(() => import('@/components/Houses/HouseManagement'));
+const CleaningManagement = lazy(() => import('@/components/Cleaning/CleaningManagement'));
+const GuestManagement = lazy(() => import('@/components/Guests/GuestManagement'));
+const TenantManagement = lazy(() => import('@/components/Tenants/TenantManagement'));
+const LinenDashboard = lazy(() => import('@/components/Houses/LinenDashboard'));
+const ProviderManagementDialog = lazy(() =>
+  import('@/components/ServicePortal/ProviderManagementDialog').then(m => ({ default: m.ProviderManagementDialog }))
+);
+const ProviderBillingDialog = lazy(() =>
+  import('@/components/ServicePortal/ProviderBillingDialog').then(m => ({ default: m.ProviderBillingDialog }))
+);
+const LinenOrderDialog = lazy(() => import('@/components/Houses/LinenOrderDialog'));
+const UsageReportDialog = lazy(() =>
+  import('@/components/Dashboard/UsageReportDialog').then(m => ({ default: m.UsageReportDialog }))
+);
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
 import { useExternalSync } from '@/hooks/useExternalSync';
 import { useEmailSettings, useProfileSettings, useAppearanceSettings, useRatingReminderSettings } from '@/hooks/useSystemSettings';
-import PricingTab from '@/components/Dashboard/PricingTab';
-import ProviderTab from '@/components/Dashboard/ProviderTab';
-import SettingsTab from '@/components/Dashboard/SettingsTab';
-import CalendarTab from '@/components/Dashboard/CalendarTab';
-import OverviewTab from '@/components/Dashboard/OverviewTab';
+const PricingTab = lazy(() => import('@/components/Dashboard/PricingTab'));
+const ProviderTab = lazy(() => import('@/components/Dashboard/ProviderTab'));
+const SettingsTab = lazy(() => import('@/components/Dashboard/SettingsTab'));
+const CalendarTab = lazy(() => import('@/components/Dashboard/CalendarTab'));
+const OverviewTab = lazy(() => import('@/components/Dashboard/OverviewTab'));
+
+const TabFallback = () => (
+  <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
+    Lädt…
+  </div>
+);
 
 const OriginalDashboard = () => {
   const location = useLocation();
@@ -1383,25 +1395,30 @@ const OriginalDashboard = () => {
               ))}
             </div>
           ) : (
-            renderTabContent()
+            <Suspense fallback={<TabFallback />}>{renderTabContent()}</Suspense>
           )}
         </div>
       </div>
 
-      <ProviderManagementDialog 
-        open={isProviderDialogOpen}
-        onOpenChange={setIsProviderDialogOpen}
-      />
+      <Suspense fallback={null}>
+        {isProviderDialogOpen && (
+          <ProviderManagementDialog
+            open={isProviderDialogOpen}
+            onOpenChange={setIsProviderDialogOpen}
+          />
+        )}
 
-      <UsageReportDialog
-        open={showUsageDialog}
-        onOpenChange={setShowUsageDialog}
-        data={usageData}
-      />
+        {showUsageDialog && (
+          <UsageReportDialog
+            open={showUsageDialog}
+            onOpenChange={setShowUsageDialog}
+            data={usageData}
+          />
+        )}
 
-      {/* Wäschebestellungs-Dialog */}
-      {selectedBookingForOrder && (
-        <LinenOrderDialog 
+        {/* Wäschebestellungs-Dialog */}
+        {selectedBookingForOrder && (
+          <LinenOrderDialog
           open={showLinenOrderDialog}
           onOpenChange={(open) => {
             setShowLinenOrderDialog(open);
@@ -1423,14 +1440,17 @@ const OriginalDashboard = () => {
             notes: editingOrderData.notes,
             status: editingOrderData.status
           } : undefined}
-        />
-      )}
+          />
+        )}
 
-      <ProviderBillingDialog
-        provider={selectedProviderForBilling}
-        open={!!selectedProviderForBilling}
-        onOpenChange={(open) => !open && setSelectedProviderForBilling(null)}
-      />
+        {selectedProviderForBilling && (
+          <ProviderBillingDialog
+            provider={selectedProviderForBilling}
+            open={!!selectedProviderForBilling}
+            onOpenChange={(open) => !open && setSelectedProviderForBilling(null)}
+          />
+        )}
+      </Suspense>
     </div>
   );
 };
