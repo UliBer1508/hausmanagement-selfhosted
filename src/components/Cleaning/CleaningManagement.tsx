@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ClickableCard } from '@/components/ui/clickable-card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info as InfoIcon, ChevronRight } from 'lucide-react';
+import { Info as InfoIcon } from 'lucide-react';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -427,20 +428,13 @@ const CleaningManagement = () => {
                       </AlertDescription>
                     </Alert>
                   ) : (
-                     bookingsWithoutCleaning?.map((booking) => (
-                       <Card
-                         key={booking.id}
-                         role="button"
-                         tabIndex={0}
-                         onClick={() => handleCreateCleaningTask(booking)}
-                         onKeyDown={(e) => {
-                           if (e.key === 'Enter' || e.key === ' ') {
-                             e.preventDefault();
-                             handleCreateCleaningTask(booking);
-                           }
-                         }}
-                         className="border-l-4 border-l-orange-500 cursor-pointer transition hover:shadow-md hover:border-l-orange-600 hover:bg-orange-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                       >
+                    bookingsWithoutCleaning?.map((booking) => (
+                      <ClickableCard
+                        key={booking.id}
+                        onActivate={() => handleCreateCleaningTask(booking)}
+                        showChevron={booking.service_tasks?.some(task => task.service_type === 'cleaning')}
+                        className="border-l-4 border-l-orange-500 hover:border-l-orange-600 hover:bg-orange-50/40"
+                      >
                          <CardContent className="p-4">
                            <div className="flex justify-between items-start">
                             <div className="space-y-2">
@@ -464,9 +458,7 @@ const CleaningManagement = () => {
                                 {booking.number_of_guests} Gäste
                               </div>
                             </div>
-                            {booking.service_tasks?.some(task => task.service_type === 'cleaning') ? (
-                              <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" aria-hidden />
-                            ) : (
+                            {booking.service_tasks?.some(task => task.service_type === 'cleaning') ? null : (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -481,7 +473,7 @@ const CleaningManagement = () => {
                             )}
                           </div>
                         </CardContent>
-                      </Card>
+                      </ClickableCard>
                     ))
                   )}
                 </div>
@@ -583,22 +575,14 @@ const CleaningManagement = () => {
           ) : (
             <div className="space-y-3">
               {cleaningTasks?.map((task) => (
-                <Card
+                <ClickableCard
                   key={task.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
+                  onActivate={() => {
                     setEditTaskId(task.id);
                     setShowEditDialog(true);
                   }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setEditTaskId(task.id);
-                      setShowEditDialog(true);
-                    }
-                  }}
-                  className="border-l-4 border-l-blue-600 bg-blue-50 dark:bg-blue-950/20 cursor-pointer transition hover:shadow-md hover:border-l-blue-700 hover:bg-blue-100/60 dark:hover:bg-blue-950/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  showChevron
+                  className="border-l-4 border-l-blue-600 bg-blue-50 dark:bg-blue-950/20 hover:border-l-blue-700 hover:bg-blue-100/60 dark:hover:bg-blue-950/40"
                 >
                   <CardContent className="p-4">
                     <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
@@ -669,10 +653,9 @@ const CleaningManagement = () => {
                           )}
                         </div>
                       </div>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 self-center" aria-hidden />
                     </div>
                   </CardContent>
-                </Card>
+                </ClickableCard>
               ))}
             </div>
           )}
