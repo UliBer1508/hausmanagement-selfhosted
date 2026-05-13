@@ -1341,11 +1341,11 @@ const OriginalDashboard = () => {
           </Card>
         </div>
 
-        {/* Navigation Tabs - aneinanderliegende Buttons (Segmented Bar) */}
+        {/* Navigation als Karten-Buttons */}
         <div className="mb-4 sm:mb-6">
           <nav
             role="tablist"
-            className="inline-flex flex-wrap rounded-lg border border-border bg-muted/40 p-1 shadow-sm overflow-hidden"
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3"
           >
             {tabs.map((tab) => {
               const isActive = tab.name === activeTab;
@@ -1355,14 +1355,14 @@ const OriginalDashboard = () => {
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => setActiveTab(tab.name)}
-                  className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                  className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium text-left transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 ${
                     isActive
-                      ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900 ring-2 ring-emerald-200'
+                      : 'bg-white border-gray-200 text-gray-800 hover:border-gray-300'
                   }`}
                 >
-                  <span className="text-base leading-none shrink-0">{tab.emoji}</span>
-                  <span className="whitespace-nowrap">{tab.name}</span>
+                  <span className="text-lg leading-none shrink-0">{tab.emoji}</span>
+                  <span className="truncate">{tab.name}</span>
                 </button>
               );
             })}
