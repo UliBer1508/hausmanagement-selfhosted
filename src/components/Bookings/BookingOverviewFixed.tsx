@@ -857,7 +857,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
       {/* Bookings Table */}
       <Card>
         <CardContent className="p-0">
-          <Table>
+          <Table className="border-separate border-spacing-y-2">
             <TableHeader>
               <TableRow>
                 <TableHead>Gast</TableHead>
@@ -881,7 +881,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                   role="button"
                   tabIndex={0}
                   aria-label={`Buchung von ${booking.guest_name} bearbeiten`}
-                  className="cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:bg-muted/50"
+                  className="cursor-pointer bg-card shadow-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:bg-muted/50 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r [&>td]:border-border"
                   onClick={(e) => {
                     if (!e.currentTarget.contains(e.target as Node)) return;
                     setSelectedBookingForEdit(booking);

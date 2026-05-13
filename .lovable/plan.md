@@ -1,38 +1,30 @@
 ## Ziel
+Jede Buchungs-Zeile in der Tabelle "Buchungen" soll wie eine eigenständige Karte mit **runden Ecken** wirken. Die Status-Pills in **Services** und **Wäsche** bleiben unverändert.
 
-Die alte Wäschebestand-Verwaltung in den **Haus-Cards** (rote Markierung im Screenshot: „Wäschebestand (29 Teile) – Bettwäsche/Handtücher/Saunatücher/WB-Handtücher …") wird komplett entfernt. Sie stammt aus dem Vorgänger-System und wird durch die neue Wäsche-Logik (`linen_set_definitions`, `linen_orders`, Teuni-Integration, Buffer Settings) vollständig abgelöst.
+## Lösung
+In `src/components/Bookings/BookingOverviewFixed.tsx`:
 
-## Was entfernt wird
+1. `<Table>` (Zeile ~860) auf getrennte Zellen-Borders umstellen, damit Zeilen als eigene Blöcke gerendert werden:
+   ```tsx
+   <Table className="border-separate border-spacing-y-2">
+   ```
 
-### 1. UI-Block in `src/components/Houses/HouseCard.tsx`
-- Komplettes Block „Wäschebestand" (Zeilen ~172–192)
-- Helper `getTotalLinenItems` und `getLinenBreakdown` (~Zeilen 23–47)
-- Variablen `totalLinenItems`, `linenBreakdown` (~Zeilen 68–69)
+2. `<TableRow>` (Zeile ~879) mit Karten-Styling versehen:
+   ```tsx
+   className="cursor-pointer bg-card hover:bg-muted/50 shadow-sm
+              focus-visible:outline-none focus-visible:bg-muted/50"
+   ```
 
-### 2. Initialisierung in `src/components/Houses/CreateHouseDialog.tsx`
-Beim Anlegen neuer Häuser werden die Legacy-JSONB-Felder nicht mehr beschrieben (Zeilen ~137–152):
-- `linen_stock`, `linen_dirty`, `linen_in_cleaning`, `linen_in_use`, `linen_reserved`, `ordered_linen`
+3. Damit die runden Ecken sauber wirken, an erste/letzte `<TableCell>` Border-Radius geben:
+   - Erste Zelle (Gast, Zeile ~896): `className="font-medium rounded-l-lg border-l border-y"`
+   - Alle mittleren Zellen: `className="border-y"` (bestehende `className`s ergänzen)
+   - Letzte Zelle (Aktionen, Zeile ~950): zusätzlich `rounded-r-lg border-r border-y`
 
-Die DB-Spalten bleiben erhalten (kein Migration-Drop) – nur das Frontend schreibt nichts mehr hinein. So sind Bestandsdaten alter Häuser nicht zerstört.
+   → Effekt: Jede Zeile wirkt wie eine abgerundete Karte mit dezentem Rand und Abstand.
 
-### 3. Toter Hook löschen: `src/hooks/useLinenManagement.ts`
-Wird nirgendwo mehr importiert (nur Self-Reference) – ersatzlos löschen.
+4. Header-`<TableRow>` bleibt wie bisher (kein Karten-Look).
 
-### 4. Analyse-Hook bereinigen: `src/hooks/useOptimizedLinenManagement.ts`
-`linenAnalysis`-Berechnung nutzt aktuell `house.linen_stock` und `house.ordered_linen` für `currentStock`/`availableStock`. Da die Bestände nicht mehr gepflegt werden, wird:
-- `currentStock`/`availableStock` immer auf `0` gesetzt (Felder bleiben im Interface, damit abhängige Komponenten weiter kompilieren)
-- Status-Berechnung („critical/low/good") basiert dann ausschließlich auf prognostiziertem Bedarf vs. 0 → Anzeige bleibt funktional, ohne Phantom-Bestände
+Keine Änderung an Service-Pills (Zeile 490) und Wäsche-Pills (Zeile 514).
 
-Falls in einem späteren Schritt gewünscht, kann dieser Hook + abhängige Anzeigen (`LinenInventoryDialog` Bestandsspalten, `SmartLinenDashboard`) separat aufgeräumt werden – für diese Aufgabe hier ist das aber out-of-scope, da die User-Anforderung explizit nur die **Wäschebestand-Anzeige bei den Häusern** betrifft.
-
-## Was NICHT angefasst wird
-- `LinenDashboard.tsx` (= aktiver Wäsche-Tab mit Haus-Widgets, Wäsche-Regeln, Teuni-Integration)
-- `linen_set_definitions`, `linen_orders`, `buffer_settings`, Teuni-Logik
-- DB-Spalten (`linen_stock` etc. bleiben physisch erhalten als Archiv)
-- Tenant-Info und alle anderen Teile der HouseCard
-
-## Verifikation
-- Häuser-Liste rendert ohne den Wäschebestand-Block, keine Konsolen-Errors
-- Neues Haus anlegen funktioniert (kein 400er von Supabase)
-- Wäsche-Tab + Haus-Widgets + Wäsche-Regeln-Tab + Teuni-Switch funktionieren weiterhin
-- TypeScript-Build ohne Fehler
+## Hinweis
+Falls dir der Effekt zu "kartig" wird (z. B. doppelte Borders sichtbar), kann ich alternativ nur Schatten + `rounded-lg` ohne Border einsetzen. Sag kurz Bescheid, sonst gehe ich mit der Border-Variante.
