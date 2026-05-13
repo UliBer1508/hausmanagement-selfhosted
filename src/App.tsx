@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -5,12 +6,13 @@ import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@ta
 import { toast } from "sonner";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AppStatusBar from "@/components/PWA/AppStatusBar";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import Login from "./pages/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
-import ChatAssistant from "./components/Chat/ChatAssistant";
 import ErrorBoundary from "./components/ErrorBoundary";
+
+const Index = lazy(() => import("./pages/Index"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Login = lazy(() => import("./pages/Login"));
+const ChatAssistant = lazy(() => import("./components/Chat/ChatAssistant"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,23 +59,27 @@ const App = () => {
           >
             <div className="pt-12">
               <ErrorBoundary level="route">
-                <Routes>
-                  <Route path="/login" element={<Login />} />
-                  <Route
-                    path="/"
-                    element={
-                      <ProtectedRoute>
-                        <Index />
-                      </ProtectedRoute>
-                    }
-                  />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
+                <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Lädt…</div>}>
+                  <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route
+                      path="/"
+                      element={
+                        <ProtectedRoute>
+                          <Index />
+                        </ProtectedRoute>
+                      }
+                    />
+                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </Suspense>
               </ErrorBoundary>
             </div>
             <ErrorBoundary level="route">
-              <ChatAssistant />
+              <Suspense fallback={null}>
+                <ChatAssistant />
+              </Suspense>
             </ErrorBoundary>
           </BrowserRouter>
         </TooltipProvider>
