@@ -178,7 +178,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
           onTaskUpdated?.();
         }}
       />
-    </Card>
+    </ClickableCard>
   );
 };
 
