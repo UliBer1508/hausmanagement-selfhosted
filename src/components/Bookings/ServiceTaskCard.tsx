@@ -19,16 +19,16 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
   
   // Debug: Check if status_changed_by is present
   console.log('[ServiceTaskCard] Task:', task.id, 'status_changed_by:', task.status_changed_by, 'status_changed_at:', task.status_changed_at);
-  const getBorderColor = (variant: string) => {
+  const getDotColor = (variant: string) => {
     switch (variant) {
       case 'green':
-        return 'border-l-green-500';
+        return 'bg-green-500';
       case 'blue':
-        return 'border-l-blue-500';
+        return 'bg-blue-500';
       case 'purple':
-        return 'border-l-purple-500';
+        return 'bg-purple-500';
       default:
-        return 'border-l-gray-500';
+        return 'bg-gray-400';
     }
   };
 
@@ -71,13 +71,14 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
       aria-label={`${getServiceLabel(task.service_type)} bearbeiten`}
       onActivate={() => setShowEditDialog(true)}
       showChevron
-      className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50`}
+      className="bg-card"
     >
       <CardContent className="p-3 relative pb-10">
         <div className="space-y-2">
           {/* Header with Title and Edit Button */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className={`h-2 w-2 rounded-full shrink-0 ${getDotColor(colorVariant)}`} aria-hidden />
               <span className="text-lg shrink-0">{getServiceIcon(task.service_type)}</span>
               <h4 className="font-medium truncate">{getServiceLabel(task.service_type)}</h4>
             </div>
