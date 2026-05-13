@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Edit, Euro, Calendar, CreditCard, FileText, Mail, Phone, TrendingUp } from "lucide-react";
+import { Search, Euro, Calendar, CreditCard, FileText, Mail, Phone, TrendingUp } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { House } from "@/types";
