@@ -65,16 +65,16 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
   console.log('[LaundryOrderCard] Order:', order.id, 'status_changed_by:', order.status_changed_by, 'status_changed_at:', order.status_changed_at);
   
   const [isItemsOpen, setIsItemsOpen] = useState(false);
-  const getDotColor = (variant: string) => {
+  const getBorderColor = (variant: string) => {
     switch (variant) {
       case 'green':
-        return 'bg-green-500';
+        return 'border-l-green-500';
       case 'blue':
-        return 'bg-blue-500';
+        return 'border-l-blue-500';
       case 'purple':
-        return 'bg-purple-500';
+        return 'border-l-purple-500';
       default:
-        return 'bg-gray-400';
+        return 'border-l-gray-500';
     }
   };
 
@@ -142,7 +142,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
         }
       } : undefined}
       className={cn(
-        "bg-card relative",
+        `border-l-4 ${getBorderColor(colorVariant)} bg-laundry-bg relative`,
         isPending && "border-dashed opacity-90",
         isClickable && "cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       )}
@@ -153,7 +153,6 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
           <div className="space-y-1.5 lg:space-y-2">
             {/* Header with House Name */}
             <div className="flex items-start gap-2">
-              <span className={`h-2 w-2 rounded-full mt-1.5 shrink-0 ${getDotColor(colorVariant)}`} aria-hidden />
               <span className="text-sm lg:text-base">📦</span>
               <h4 className="font-medium text-sm">{houseName}</h4>
             </div>
