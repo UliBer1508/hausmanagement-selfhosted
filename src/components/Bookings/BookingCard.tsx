@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { CardContent } from '@/components/ui/card';
+import { ClickableCard } from '@/components/ui/clickable-card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Edit, Users } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditBookingDialog from './EditBookingDialog';
@@ -28,16 +27,16 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
       <Badge variant="outline" className="bg-blue-100 text-blue-800">Neuer Gast</Badge>
     );
 
-  const getBorderColor = (variant: string) => {
+  const getDotColor = (variant: string) => {
     switch (variant) {
       case 'green':
-        return 'border-l-green-500';
+        return 'bg-green-500';
       case 'blue':
-        return 'border-l-blue-500';
+        return 'bg-blue-500';
       case 'purple':
-        return 'border-l-purple-500';
+        return 'bg-purple-500';
       default:
-        return 'border-l-gray-500';
+        return 'bg-gray-400';
     }
   };
 
@@ -55,29 +54,17 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
   };
 
   return (
-    <Card
-      role="button"
-      tabIndex={0}
+    <ClickableCard
       aria-label={`Buchung von ${getGuestName(booking)} bearbeiten`}
-      onClick={(e) => {
-        // Klicks aus Portalen (Dialog, Select, Popover) ignorieren –
-        // sonst öffnet der Dialog-Close das Edit-Fenster sofort wieder.
-        if (!e.currentTarget.contains(e.target as Node)) return;
-        setEditOpen(true);
-      }}
-      onKeyDown={(e) => {
-        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
-          e.preventDefault();
-          setEditOpen(true);
-        }
-      }}
-      className={`border-l-4 ${getBorderColor(colorVariant)} bg-yellow-50 relative cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+      onActivate={() => setEditOpen(true)}
+      className="relative bg-card"
     >
       <CardContent className="p-4">
         <div className="space-y-3">
           {/* Guest Name */}
           <div>
             <div className="flex items-center gap-2 flex-wrap pr-10">
+              <span className={`h-2 w-2 rounded-full ${getDotColor(colorVariant)}`} aria-hidden />
               <h3 className="font-semibold text-lg">{getGuestName(booking)}</h3>
               {stayCounts && categoryBadge}
             </div>
@@ -115,25 +102,15 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
           {getStatusBadge(booking.status)}
         </div>
 
-        {/* Edit Button */}
-        <EditBookingDialog 
+        {/* Edit Dialog (controlled, no visible trigger) */}
+        <EditBookingDialog
           booking={booking}
           onBookingUpdated={onBookingUpdated}
           open={editOpen}
           onOpenChange={setEditOpen}
-          trigger={
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute top-2 right-2 h-8 w-8 p-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Edit className="w-4 h-4" />
-            </Button>
-          }
         />
       </CardContent>
-    </Card>
+    </ClickableCard>
   );
 };
 
