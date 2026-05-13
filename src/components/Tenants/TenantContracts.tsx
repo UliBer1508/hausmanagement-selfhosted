@@ -2,10 +2,10 @@ import { useState } from "react";
 import { useHouses } from "@/hooks/useHouses";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Search, Edit, Euro, Calendar, CreditCard, FileText, Mail, Phone, TrendingUp } from "lucide-react";
+import { Search, Euro, Calendar, CreditCard, FileText, Mail, Phone, TrendingUp } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
 import { House } from "@/types";
@@ -131,7 +131,11 @@ const TenantContracts = () => {
           const nextChange = pendingChanges[0];
           
           return (
-            <Card key={house.id} className="p-6">
+            <ClickableCard
+              key={house.id}
+              onActivate={() => handleEdit(house)}
+              className="p-6"
+            >
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-lg font-semibold">{house.name}</h3>
@@ -252,16 +256,7 @@ const TenantContracts = () => {
                 <Button 
                   variant="outline" 
                   size="sm"
-                  onClick={() => handleEdit(house)}
-                >
-                  <Edit className="h-4 w-4 mr-1" />
-                  Details bearbeiten
-                </Button>
-
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setRentHistoryHouse(house)}
+                  onClick={(e) => { e.stopPropagation(); setRentHistoryHouse(house); }}
                 >
                   <TrendingUp className="h-4 w-4 mr-1" />
                   Miethistorie
@@ -271,14 +266,14 @@ const TenantContracts = () => {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => window.location.href = `mailto:${tenantInfo.tenant_email}`}
+                    onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${tenantInfo.tenant_email}`; }}
                   >
                     <Mail className="h-4 w-4 mr-1" />
                     Email
                   </Button>
                 )}
               </div>
-            </Card>
+            </ClickableCard>
           );
         })}
       </div>

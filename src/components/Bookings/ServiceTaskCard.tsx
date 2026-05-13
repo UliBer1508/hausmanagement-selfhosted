@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { CardContent } from '@/components/ui/card';
+import { ClickableCard } from '@/components/ui/clickable-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Edit, User, Building } from 'lucide-react';
+import { User, Building } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditCleaningTaskDialog from '@/components/Cleaning/EditCleaningTaskDialog';
@@ -66,21 +67,11 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
   };
 
   return (
-    <Card
-      role="button"
-      tabIndex={0}
+    <ClickableCard
       aria-label={`${getServiceLabel(task.service_type)} bearbeiten`}
-      onClick={(e) => {
-        if (!e.currentTarget.contains(e.target as Node)) return;
-        setShowEditDialog(true);
-      }}
-      onKeyDown={(e) => {
-        if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
-          e.preventDefault();
-          setShowEditDialog(true);
-        }
-      }}
-      className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50 cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
+      onActivate={() => setShowEditDialog(true)}
+      showChevron
+      className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50`}
     >
       <CardContent className="p-3 relative pb-10">
         <div className="space-y-2">
@@ -90,18 +81,6 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
               <span className="text-lg shrink-0">{getServiceIcon(task.service_type)}</span>
               <h4 className="font-medium truncate">{getServiceLabel(task.service_type)}</h4>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 shrink-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowEditDialog(true);
-              }}
-              title="Bearbeiten"
-            >
-              <Edit className="w-3.5 h-3.5" />
-            </Button>
           </div>
 
           {/* Date */}
@@ -199,7 +178,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
           onTaskUpdated?.();
         }}
       />
-    </Card>
+    </ClickableCard>
   );
 };
 
