@@ -395,7 +395,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3 pr-10">
             <DialogTitle className="text-xl font-semibold">
               Reinigungsauftrag bearbeiten
             </DialogTitle>
