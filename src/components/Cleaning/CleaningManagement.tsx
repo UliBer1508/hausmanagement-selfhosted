@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info as InfoIcon } from 'lucide-react';
+import { Info as InfoIcon, ChevronRight } from 'lucide-react';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -464,24 +464,21 @@ const CleaningManagement = () => {
                                 {booking.number_of_guests} Gäste
                               </div>
                             </div>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCreateCleaningTask(booking);
-                              }}
-                              title={booking.service_tasks?.some(task => task.service_type === 'cleaning') ? 'Bearbeiten' : 'Reinigung hinzufügen'}
-                            >
-                              {booking.service_tasks?.some(task => task.service_type === 'cleaning') ? (
-                                <>✏️</>
-                              ) : (
-                                <>
-                                  <span className="mr-1">➕</span>
-                                  Reinigung hinzufügen
-                                </>
-                              )}
-                            </Button>
+                            {booking.service_tasks?.some(task => task.service_type === 'cleaning') ? (
+                              <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" aria-hidden />
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCreateCleaningTask(booking);
+                                }}
+                              >
+                                <span className="mr-1">➕</span>
+                                Reinigung hinzufügen
+                              </Button>
+                            )}
                           </div>
                         </CardContent>
                       </Card>
@@ -672,20 +669,7 @@ const CleaningManagement = () => {
                           )}
                         </div>
                       </div>
-                      <Button 
-                        size="default"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditTaskId(task.id);
-                          setShowEditDialog(true);
-                        }}
-                        className="w-full sm:w-auto min-h-[44px] min-w-[44px] touch-manipulation"
-                        title="Bearbeiten"
-                      >
-                        <span className="sm:hidden">Bearbeiten</span>
-                        <span className="hidden sm:inline">✏️</span>
-                      </Button>
+                      <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0 self-center" aria-hidden />
                     </div>
                   </CardContent>
                 </Card>
