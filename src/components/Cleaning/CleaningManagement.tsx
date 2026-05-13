@@ -427,10 +427,22 @@ const CleaningManagement = () => {
                       </AlertDescription>
                     </Alert>
                   ) : (
-                    bookingsWithoutCleaning?.map((booking) => (
-                      <Card key={booking.id} className="border-l-4 border-l-orange-500">
-                        <CardContent className="p-4">
-                          <div className="flex justify-between items-start">
+                     bookingsWithoutCleaning?.map((booking) => (
+                       <Card
+                         key={booking.id}
+                         role="button"
+                         tabIndex={0}
+                         onClick={() => handleCreateCleaningTask(booking)}
+                         onKeyDown={(e) => {
+                           if (e.key === 'Enter' || e.key === ' ') {
+                             e.preventDefault();
+                             handleCreateCleaningTask(booking);
+                           }
+                         }}
+                         className="border-l-4 border-l-orange-500 cursor-pointer transition hover:shadow-md hover:border-l-orange-600 hover:bg-orange-50/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                       >
+                         <CardContent className="p-4">
+                           <div className="flex justify-between items-start">
                             <div className="space-y-2">
                               <h4 className="font-semibold flex items-center gap-2">
                                 Reinigung - {booking.houses?.name}
@@ -455,7 +467,10 @@ const CleaningManagement = () => {
                             <Button 
                               size="sm" 
                               variant="outline"
-                              onClick={() => handleCreateCleaningTask(booking)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCreateCleaningTask(booking);
+                              }}
                               title={booking.service_tasks?.some(task => task.service_type === 'cleaning') ? 'Bearbeiten' : 'Reinigung hinzufügen'}
                             >
                               {booking.service_tasks?.some(task => task.service_type === 'cleaning') ? (
@@ -571,7 +586,23 @@ const CleaningManagement = () => {
           ) : (
             <div className="space-y-3">
               {cleaningTasks?.map((task) => (
-                <Card key={task.id} className="border-l-4 border-l-blue-600 bg-blue-50 dark:bg-blue-950/20">
+                <Card
+                  key={task.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setEditTaskId(task.id);
+                    setShowEditDialog(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setEditTaskId(task.id);
+                      setShowEditDialog(true);
+                    }
+                  }}
+                  className="border-l-4 border-l-blue-600 bg-blue-50 dark:bg-blue-950/20 cursor-pointer transition hover:shadow-md hover:border-l-blue-700 hover:bg-blue-100/60 dark:hover:bg-blue-950/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                >
                   <CardContent className="p-4">
                     <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
                       <div className="flex-1">
@@ -644,7 +675,8 @@ const CleaningManagement = () => {
                       <Button 
                         size="default"
                         variant="outline"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setEditTaskId(task.id);
                           setShowEditDialog(true);
                         }}
