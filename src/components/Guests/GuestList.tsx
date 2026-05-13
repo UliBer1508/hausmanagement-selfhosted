@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
+import { CardContent } from '@/components/ui/card';
+import { ClickableCard } from '@/components/ui/clickable-card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -107,7 +108,11 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
       
       <div className="space-y-3">
         {guests.map((guest, index) => (
-          <Card key={`${guest.guest_name}-${index}`} className="hover:shadow-md transition-shadow">
+          <ClickableCard
+            key={`${guest.guest_name}-${index}`}
+            onActivate={() => handleViewDetails(guest)}
+            className="hover:shadow-md"
+          >
             <CardContent className="p-4">
               <div className="flex flex-col gap-4">
                 {/* Header with name and badge */}
@@ -238,7 +243,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                   <Button 
                     size="sm" 
                     variant="outline"
-                    onClick={() => handleContact(guest)}
+                    onClick={(e) => { e.stopPropagation(); handleContact(guest); }}
                     disabled={!guest.guest_email && !guest.guest_phone}
                     className="flex-1 sm:flex-none"
                   >
@@ -248,16 +253,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                   <Button 
                     size="sm" 
                     variant="outline"
-                    onClick={() => handleViewDetails(guest)}
-                    className="flex-1 sm:flex-none"
-                  >
-                    <span className="mr-1">👁️</span>
-                    Details
-                  </Button>
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => handleEdit(guest)}
+                    onClick={(e) => { e.stopPropagation(); handleEdit(guest); }}
                     className="flex-1 sm:flex-none"
                   >
                     <span className="mr-1">✏️</span>
@@ -266,7 +262,7 @@ const GuestList = ({ guests, isLoading }: GuestListProps) => {
                 </div>
               </div>
             </CardContent>
-          </Card>
+          </ClickableCard>
         ))}
       </div>
 
