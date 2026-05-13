@@ -21,14 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { ClickableCard } from '@/components/ui/clickable-card';
 import {
   Popover,
   PopoverContent,
@@ -854,140 +847,133 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
         </CardContent>
       </Card>
 
-      {/* Bookings Table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table className="border-separate border-spacing-y-2">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Gast</TableHead>
-                <TableHead>Nat.</TableHead>
-                <TableHead>Haus</TableHead>
-                <TableHead>Check-in</TableHead>
-                <TableHead>Check-out</TableHead>
-                <TableHead>Gäste</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Zahlung</TableHead>
-                <TableHead>Betrag</TableHead>
-                <TableHead>Services</TableHead>
-                <TableHead>Wäsche</TableHead>
-                <TableHead>Aktionen</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedBookings.map((booking) => (
-                <TableRow
-                  key={booking.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`Buchung von ${booking.guest_name} bearbeiten`}
-                  className="cursor-pointer bg-card shadow-sm hover:bg-muted/50 focus-visible:outline-none focus-visible:bg-muted/50 [&>td:first-child]:rounded-l-lg [&>td:last-child]:rounded-r-lg [&>td]:border-y [&>td:first-child]:border-l [&>td:last-child]:border-r [&>td]:border-border"
-                  onClick={(e) => {
-                    if (!e.currentTarget.contains(e.target as Node)) return;
-                    setSelectedBookingForEdit(booking);
-                  }}
-                  onKeyDown={(e) => {
-                    if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) {
-                      e.preventDefault();
-                      setSelectedBookingForEdit(booking);
-                    }
-                  }}
-                >
-                  <TableCell className="font-medium">
-                    {booking.guest_name}
-                  </TableCell>
-                  <TableCell>
-                    <span 
-                      title={getFullCountryName(booking.nationality)}
-                      className="cursor-help"
+      {/* Bookings List */}
+      <div className="space-y-3">
+        {sortedBookings.map((booking) => {
+          const countryCode = getCountryCode(booking.nationality);
+          const hasChildren =
+            booking.number_of_children !== undefined && booking.number_of_children > 0;
+          return (
+            <ClickableCard
+              key={booking.id}
+              onActivate={() => setSelectedBookingForEdit(booking)}
+              aria-label={`Buchung von ${booking.guest_name} bearbeiten`}
+            >
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-3">
+                  {/* Header */}
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="font-semibold text-lg">
+                          {booking.guest_name}
+                          {countryCode && (
+                            <span
+                              className="ml-2 text-sm text-muted-foreground cursor-help"
+                              title={getFullCountryName(booking.nationality)}
+                            >
+                              ({countryCode})
+                            </span>
+                          )}
+                        </h4>
+                        {getStatusBadge(booking.status)}
+                        {getPaymentStatusBadge(booking.payment_status)}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {booking.houses?.name || 'Unbekanntes Haus'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Daten-Block */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                    <div className="flex gap-1">
+                      <span className="text-muted-foreground">📅 Check-in:</span>
+                      <span>{format(parseISO(booking.check_in), 'dd.MM.yyyy, HH:mm', { locale: de })}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <span className="text-muted-foreground">📅 Check-out:</span>
+                      <span>{format(parseISO(booking.check_out), 'dd.MM.yyyy, HH:mm', { locale: de })}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">👥</span>
+                      <span>
+                        {booking.number_of_guests}
+                        {hasChildren && (
+                          <span className="text-muted-foreground ml-1">
+                            ({booking.number_of_adults ?? booking.number_of_guests} Erw., {booking.number_of_children} Ki.)
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">💶</span>
+                      <span>
+                        {booking.booking_amount
+                          ? `${booking.booking_amount.toLocaleString('de-DE')} ${booking.currency || 'EUR'}`
+                          : '-'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Services & Wäsche */}
+                  <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm pt-2 border-t">
+                    <div className="flex items-start gap-2">
+                      <span className="text-muted-foreground shrink-0">🧹 Services:</span>
+                      <div className="flex flex-col gap-1">{getServiceInfo(booking.id)}</div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-muted-foreground shrink-0">🧺 Wäsche:</span>
+                      <div className="flex flex-col gap-1">{getLinenInfo(booking.id)}</div>
+                    </div>
+                  </div>
+
+                  {/* Aktionen */}
+                  <div
+                    className="flex justify-end gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <EditBookingDialog
+                      booking={booking}
+                      onBookingUpdated={() => {
+                        console.log('Booking updated, invalidating cache');
+                        window.location.reload();
+                      }}
+                      trigger={
+                        <Button variant="outline" size="sm">
+                          <Edit className="w-4 h-4 mr-1" />
+                          Bearbeiten
+                        </Button>
+                      }
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteClick(booking)}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
                     >
-                      {getCountryCode(booking.nationality)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {booking.houses?.name || 'Unbekannt'}
-                  </TableCell>
-                  <TableCell>
-                    {format(parseISO(booking.check_in), 'dd.MM.yyyy, HH:mm', { locale: de })}
-                  </TableCell>
-                  <TableCell>
-                    {format(parseISO(booking.check_out), 'dd.MM.yyyy, HH:mm', { locale: de })}
-                  </TableCell>
-                  <TableCell>
-                    <span title={
-                      (booking.number_of_children !== undefined && booking.number_of_children > 0)
-                        ? `${booking.number_of_adults ?? booking.number_of_guests} Erwachsene, ${booking.number_of_children} Kinder`
-                        : `${booking.number_of_guests} Gäste`
-                    }>
-                      {booking.number_of_guests}
-                      {(booking.number_of_children !== undefined && booking.number_of_children > 0) && (
-                        <span className="text-muted-foreground text-xs ml-1">👶</span>
-                      )}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(booking.status)}
-                  </TableCell>
-                  <TableCell>
-                    {getPaymentStatusBadge(booking.payment_status)}
-                  </TableCell>
-                  <TableCell>
-                    {booking.booking_amount ? 
-                      `${booking.booking_amount.toLocaleString('de-DE')} ${booking.currency || 'EUR'}` : 
-                      '-'
-                    }
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {getServiceInfo(booking.id)}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      {getLinenInfo(booking.id)}
-                    </div>
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center gap-1">
-                      <EditBookingDialog 
-                        booking={booking}
-                        onBookingUpdated={() => {
-                          console.log('Booking updated, invalidating cache');
-                          window.location.reload();
-                        }}
-                        trigger={
-                          <Button variant="ghost" size="sm">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        }
-                      />
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => handleDeleteClick(booking)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          
-          {filteredBookings.length === 0 && (
-            <div className="text-center py-8">
+                      <Trash2 className="w-4 h-4 mr-1" />
+                      Löschen
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </ClickableCard>
+          );
+        })}
+
+        {filteredBookings.length === 0 && (
+          <Card>
+            <CardContent className="text-center py-8">
               <p className="text-muted-foreground">
-                {searchTerm || statusFilter !== 'all' || houseFilter !== 'all' 
+                {searchTerm || statusFilter !== 'all' || houseFilter !== 'all'
                   ? 'Keine Buchungen gefunden, die den Filterkriterien entsprechen.'
-                  : 'Noch keine Buchungen vorhanden.'
-                }
+                  : 'Noch keine Buchungen vorhanden.'}
               </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Auto-Open Dialog für Chat-Navigation */}
       {selectedBookingForEdit && (
