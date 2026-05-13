@@ -1,8 +1,8 @@
-import { Card } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { House } from "@/types";
-import { Mail, Phone, Edit, Calendar } from "lucide-react";
+import { Mail, Phone, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import EditHouseDialog from "@/components/Houses/EditHouseDialog";
@@ -41,7 +41,10 @@ const TenantCard = ({ house }: TenantCardProps) => {
 
   return (
     <>
-      <Card className="p-6 hover:shadow-lg transition-shadow">
+      <ClickableCard
+        onActivate={() => setIsEditDialogOpen(true)}
+        className="p-6 hover:shadow-lg"
+      >
         <div className="flex justify-between items-start mb-4">
           <div>
             <h3 className="text-lg font-semibold text-foreground">{house.name}</h3>
@@ -97,26 +100,20 @@ const TenantCard = ({ house }: TenantCardProps) => {
         </div>
 
         <div className="flex gap-2 mt-4">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             className="flex-1"
-            onClick={() => setIsEditDialogOpen(true)}
-          >
-            <Edit className="h-4 w-4 mr-1" />
-            Bearbeiten
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1"
-            onClick={handleEmailClick}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleEmailClick();
+            }}
           >
             <Mail className="h-4 w-4 mr-1" />
             Email
           </Button>
         </div>
-      </Card>
+      </ClickableCard>
 
       <EditHouseDialog
         house={house}
