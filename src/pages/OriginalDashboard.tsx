@@ -1341,21 +1341,31 @@ const OriginalDashboard = () => {
           </Card>
         </div>
 
-        {/* Navigation Tabs - Mobile Wrapping */}
-        <div className="border-b border-gray-200 mb-4 sm:mb-6">
-          <nav className="grid grid-cols-2 sm:grid-cols-6 gap-x-4 gap-y-2 pb-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.name}
-                onClick={() => {
-                  setActiveTab(tab.name);
-                }}
-                className={`${tab.name === activeTab ? 'nav-tab-active' : 'nav-tab'} flex items-center gap-2 justify-start`}
-              >
-                <span className="text-lg w-6 text-center shrink-0">{tab.emoji}</span>
-                <span>{tab.name}</span>
-              </button>
-            ))}
+        {/* Navigation Tabs - aneinanderliegende Buttons (Segmented Bar) */}
+        <div className="mb-4 sm:mb-6">
+          <nav
+            role="tablist"
+            className="inline-flex flex-wrap rounded-lg border border-border bg-muted/40 p-1 shadow-sm overflow-hidden"
+          >
+            {tabs.map((tab) => {
+              const isActive = tab.name === activeTab;
+              return (
+                <button
+                  key={tab.name}
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => setActiveTab(tab.name)}
+                  className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                    isActive
+                      ? 'bg-background text-foreground shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-background/60 hover:text-foreground'
+                  }`}
+                >
+                  <span className="text-base leading-none shrink-0">{tab.emoji}</span>
+                  <span className="whitespace-nowrap">{tab.name}</span>
+                </button>
+              );
+            })}
           </nav>
         </div>
 
