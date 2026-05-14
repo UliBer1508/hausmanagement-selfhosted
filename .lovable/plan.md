@@ -1,55 +1,38 @@
-## Problem
-Der Schließen-Button (X) in allen shadcn-Dialogen ist nur 16×16 px (`h-4 w-4`) ohne extra Padding — auf Touch-Geräten kaum zu treffen (WCAG verlangt min. 44×44 px). Gleiches Problem im `Sheet`-Component und in mehreren custom Bannern/Karten mit eigenen X-Buttons.
+## Ziel
+Schließen-Button bekommt **das gleiche Blau wie der "Aktiv"-Badge** im Screenshot (kräftiges Blau, weißes Icon) — konsistente Optik. Sicherstellen, dass er keine Inhalte verdeckt.
 
-## Lösung: Zentralen Close-Button definieren und überall einsetzen
+## Farbe
+Im Screenshot ist der Badge ein kräftiges Blau (≈ `hsl(217 91% 60%)`, Tailwind `blue-500/600`). Wir nutzen dafür den semantischen Token `--primary` der App (gleicher Blauton, bereits für Aktiv-Badges verwendet).
 
-### 1. Neue Komponente `src/components/ui/close-button.tsx`
-Ein wiederverwendbarer, finger-freundlicher Close-Button:
-- Tap-Target **44×44 px** (`h-11 w-11`), Icon **20 px** (`h-5 w-5`)
-- Variante `subtle` (für innerhalb von Dialogen, kein Hintergrund) und `solid` (Banner/Karten, mit `bg-muted hover:bg-accent`)
-- Built-in `aria-label="Schließen"` und `<span class="sr-only">`
-- Akzeptiert alle Button-Props (onClick etc.); kann als `asChild` für `DialogPrimitive.Close` benutzt werden
+- Hintergrund: `bg-primary`
+- Icon/Text: `text-primary-foreground` (weiß)
+- Hover: `hover:bg-primary/90`
+- Form: `rounded-full` (passend zum Pill/Badge-Look)
 
-### 2. shadcn-Primitives anpassen
-**`src/components/ui/dialog.tsx`** — eingebauten X-Button vergrößern:
-- `right-4 top-4` bleibt
-- `h-11 w-11 flex items-center justify-center rounded-md` statt aktuellem `rounded-sm` ohne Padding
-- Icon `h-5 w-5`
-- `aria-label="Schließen"`
+## Änderungen
 
-**`src/components/ui/sheet.tsx`** — selbe Behandlung (h-11 w-11, h-5 w-5).
+### 1. `src/components/ui/close-button.tsx`
+- Default-Variante (`subtle`) → kräftig blauer Pill:
+  - `bg-primary text-primary-foreground hover:bg-primary/90 rounded-full shadow-sm`
+- `solid`-Variante bleibt identisch (gleicher Look, für API-Kompatibilität).
+- Größe bleibt 44×44 px, Icon 20 px.
 
-→ Damit profitieren **alle** Dialoge im Projekt (Edit-Dialoge, Create-Dialoge, AlertDialogs etc.) **automatisch**, ohne jede Stelle einzeln zu ändern.
+### 2. `src/components/ui/dialog.tsx`
+- Inline-Close-Button auf gleichen Look bringen: `bg-primary text-primary-foreground hover:bg-primary/90 rounded-full shadow-sm`.
+- Damit der jetzt sichtbarere Button keinen Titel verdeckt:
+  - `DialogContent` Padding-Top auf Mobile erhöhen → `px-4 pb-4 pt-14 sm:p-6`.
+  - `DialogHeader` bekommt `pr-12`, damit lange Titel nicht unter den Button laufen.
+- Position bleibt `absolute right-3 top-3`.
 
-### 3. Custom X-Buttons in Bannern/Karten ersetzen
-Diese nutzen handgebauten X-Buttons (oft `size="icon"` = 36×36, oder kleiner). Auf `CloseButton` umstellen:
+### 3. `src/components/ui/sheet.tsx`
+- Gleicher blauer Pill-Look wie Dialog.
+- Header-Bereich `pr-12`, Position `right-4 top-4`.
 
-| Datei | Zweck |
-|---|---|
-| `src/components/Dashboard/RatingReminderBanner.tsx` | Banner-Dismiss |
-| `src/components/Dashboard/GuestContactAlertBanner.tsx` | Banner-Dismiss |
-| `src/components/Dashboard/BookingInquiryAlertBanner.tsx` | Banner-Dismiss |
-| `src/components/Dashboard/CalendarTab.tsx` | Inline X |
-| `src/components/Chat/ChatAssistant.tsx` | Chat-Window schließen |
-| `src/components/Pricing/PricingDashboard.tsx` | X |
-| `src/components/PWA/InstallPrompt.tsx` | Prompt schließen |
-| `src/components/Operations/OperationsDashboard.tsx` | X |
-| `src/components/Houses/LinenOrderEmailDialog.tsx` | X |
-| `src/components/Tenants/ExcelUtilityImport.tsx` | X |
-| `src/components/Tenants/RentHistoryDialog.tsx` | X |
-| `src/components/Settings/GuestImportCard.tsx` | X |
-| `src/components/ServicePortal/TeuniOrdersOverview.tsx` | X |
-| `src/components/ServicePortal/LaundryInvoicesList.tsx` | X |
-| `src/components/Bookings/CreateBookingDialog.tsx` | X |
-
-### 4. Nicht ändern
-- `src/components/ui/toast.tsx` — Toast-X bleibt klein (Sonner-Pattern, automatisch oben rechts).
-- Die jeweilige **Logik** (onClose-Handler, State) wird nicht angefasst, nur das Markup des X-Buttons.
+### 4. Bestehende `<CloseButton>`-Aufrufe
+Übernehmen den neuen Look automatisch in:
+`ChatAssistant`, `InstallPrompt`, `RatingReminderBanner`, `CalendarTab`, `PricingDashboard`, `OperationsDashboard`. Visuell prüfen, dass nichts überlappt — bei Bedarf am benachbarten Heading `pr-12` ergänzen.
 
 ## Verifikation
-- Mobile-Preview (390×): Edit-Dialog "Buchung bearbeiten" öffnen → X oben rechts ist deutlich größer und gut treffbar.
-- Stichprobe Banner (z.B. RatingReminder) → X-Button ≥ 44×44.
-- Keine visuellen Regressionen auf Desktop (Buttons sind bereits gut treffbar).
-
-## Optionale Erweiterung (auf Anfrage)
-Eigene Marken-Variante (Farbe, Schatten). Standardmäßig neutral (muted/foreground), passt zu allen Hintergründen.
+- Mobile-Preview (390×): Edit-Booking-Dialog → blauer Pill-Close-Button rechts oben sichtbar, Titel nicht verdeckt.
+- Optik gleicht dem "Aktiv"-Badge aus dem Screenshot.
+- Banner & Chat-Assistent kurz prüfen.
