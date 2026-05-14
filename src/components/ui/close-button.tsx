@@ -19,12 +19,12 @@ export interface CloseButtonProps
 export const CloseButton = React.forwardRef<HTMLButtonElement, CloseButtonProps>(
   ({ className, variant = "subtle", label = "Schließen", ...props }, ref) => {
     const base =
-      "inline-flex h-11 w-11 items-center justify-center rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
+      "inline-flex h-11 w-11 items-center justify-center rounded-full shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50";
     const variants = {
       subtle:
-        "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+        "bg-primary text-primary-foreground hover:bg-primary/90",
       solid:
-        "bg-muted text-foreground hover:bg-accent hover:text-accent-foreground",
+        "bg-primary text-primary-foreground hover:bg-primary/90",
     } as const;
 
     return (
