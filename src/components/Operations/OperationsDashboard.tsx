@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { X, RefreshCw, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { CloseButton } from '@/components/ui/close-button';
 import { useOperationsDashboard, TimeRange } from '@/hooks/useOperationsDashboard';
 import { TimeRangeTabs } from './TimeRangeTabs';
 import { CheckInsCard } from './CheckInsCard';

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, GripVertical, Bot, MessagesSquare, LayoutDashboard } from 'lucide-react';
 import { OperationsDashboard } from '@/components/Operations/OperationsDashboard';
 import { Button } from '@/components/ui/button';
+import { CloseButton } from '@/components/ui/close-button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useChat } from '@/hooks/useChat';
@@ -186,13 +187,7 @@ const ChatAssistant = () => {
               </Button>
             )}
             {!isEmbedded && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <CloseButton onClick={() => setIsOpen(false)} />
             )}
           </div>
         </div>

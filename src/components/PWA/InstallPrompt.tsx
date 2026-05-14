@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { CloseButton } from '@/components/ui/close-button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Download, X, Monitor } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -117,14 +118,7 @@ const InstallPrompt = () => {
             )}
             <CardTitle className="text-lg">App installieren</CardTitle>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleDismiss}
-            className="h-8 w-8"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          <CloseButton onClick={handleDismiss} label="Hinweis schließen" />
         </div>
       </CardHeader>
       <CardContent className="pt-0">
