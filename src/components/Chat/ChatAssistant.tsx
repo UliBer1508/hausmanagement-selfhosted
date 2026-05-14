@@ -186,13 +186,7 @@ const ChatAssistant = () => {
               </Button>
             )}
             {!isEmbedded && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsOpen(false)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <CloseButton onClick={() => setIsOpen(false)} />
             )}
           </div>
         </div>
