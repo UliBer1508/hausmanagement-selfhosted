@@ -81,14 +81,6 @@ const CreateBookingDialog = ({
               {dialogDescription}
             </p>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setOpen(false)}
-            className="h-6 w-6 p-0"
-          >
-            <X className="h-4 w-4" />
-          </Button>
         </DialogHeader>
         
         <CreateBookingForm 
