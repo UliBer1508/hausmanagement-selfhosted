@@ -1428,31 +1428,59 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           )}
         />
 
+        {/* Wäschebestellung-Button (nur Edit-Mode) */}
+        {mode === 'edit' && initialData && (
+          <div className="border-t pt-4 mt-4">
+            <Button
+              type="button"
+              onClick={handleGenerateLinenOrder}
+              disabled={generateLinenOrderMutation.isPending}
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+            >
+              <ShoppingCart className="w-4 h-4 mr-2" />
+              {generateLinenOrderMutation.isPending
+                ? 'Berechne Wäschebedarf...'
+                : 'Wäschebestellung erstellen'}
+            </Button>
+            {prefilledOrderData && (
+              <p className="text-sm text-muted-foreground mt-2 text-center">
+                {prefilledOrderData.note}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Submit Buttons */}
-        <div className="flex flex-wrap gap-3 pt-4">
-          <Button 
-            type="submit" 
-            className="flex-1 bg-black hover:bg-gray-800 text-white"
+        <div className="flex flex-row flex-wrap gap-2 pt-4">
+          <Button
+            type="submit"
+            className="flex-1 min-w-0 bg-black hover:bg-gray-800 text-white"
             disabled={isSubmitting}
           >
             {isSubmitting ? (
-              mode === 'edit' ? 'Aktualisiere Buchung...' : 'Erstelle Buchung...'
+              mode === 'edit' ? 'Aktualisiere...' : 'Erstelle...'
             ) : (
-              mode === 'edit' ? 'Buchung aktualisieren' : 'Buchung erstellen'
+              mode === 'edit' ? 'Aktualisieren' : 'Buchung erstellen'
             )}
           </Button>
           {mode === 'edit' && (
-            <Button 
-              type="button" 
-              variant="destructive" 
+            <Button
+              type="button"
+              variant="destructive"
               onClick={handleCheckAndDeleteBooking}
               disabled={isSubmitting}
+              className="flex-1 min-w-0"
             >
               Löschen
             </Button>
           )}
           {onCancel && (
-            <Button type="button" variant="outline" onClick={onCancel}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCancel}
+              className="basis-full sm:basis-auto sm:w-auto"
+            >
               Abbrechen
             </Button>
           )}
@@ -1588,30 +1616,6 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Linen Order Button - Only in edit mode */}
-      {mode === 'edit' && initialData && (
-        <div className="border-t pt-4 mt-4">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleGenerateLinenOrder}
-            disabled={generateLinenOrderMutation.isPending}
-            className="w-full"
-          >
-            <ShoppingCart className="w-4 h-4 mr-2" />
-            {generateLinenOrderMutation.isPending 
-              ? 'Berechne Wäschebedarf...' 
-              : 'Wäschebestellung für diese Buchung erstellen'
-            }
-          </Button>
-          {prefilledOrderData && (
-            <p className="text-sm text-muted-foreground mt-2 text-center">
-              {prefilledOrderData.note}
-            </p>
-          )}
-        </div>
-      )}
     </Form>
   );
 };
