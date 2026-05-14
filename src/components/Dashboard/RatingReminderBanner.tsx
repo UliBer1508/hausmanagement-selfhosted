@@ -138,14 +138,10 @@ const RatingReminderBanner = () => {
             >
               {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+            <CloseButton
               onClick={() => setIsHidden(true)}
-              className="h-8 px-2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+              label="Banner schließen"
+            />
           </div>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
