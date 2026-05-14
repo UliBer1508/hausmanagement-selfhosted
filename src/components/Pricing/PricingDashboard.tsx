@@ -325,9 +325,11 @@ export function PricingDashboard({ houseId, propertyName, location }: Props) {
 
       {selectedDate && selectedRate && (
         <Card className="p-5 bg-blue-50/50 border-blue-200 relative">
-          <button onClick={() => setSelectedDate(null)} className="absolute top-3 right-3 text-muted-foreground hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
+          <CloseButton
+            onClick={() => setSelectedDate(null)}
+            className="absolute top-2 right-2"
+            label="Details schließen"
+          />
           <p className="font-medium mb-2">
             {new Date(selectedDate).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
