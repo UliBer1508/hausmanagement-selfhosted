@@ -117,14 +117,7 @@ const InstallPrompt = () => {
             )}
             <CardTitle className="text-lg">App installieren</CardTitle>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleDismiss}
-            className="h-8 w-8"
-          >
-            <X className="w-4 h-4" />
-          </Button>
+          <CloseButton onClick={handleDismiss} label="Hinweis schließen" />
         </div>
       </CardHeader>
       <CardContent className="pt-0">
