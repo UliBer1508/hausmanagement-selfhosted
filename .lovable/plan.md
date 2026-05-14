@@ -1,29 +1,55 @@
-## Ziel
-Mobile-Optimierung der Action-Buttons im Buchungsformular (`CreateBookingForm.tsx`):
-1. "Buchung aktualisieren" und "Löschen" passen nebeneinander auf Mobile.
-2. "Wäschebestellung..."-Button wandert **über** diese Buttons und bekommt grünen Hintergrund (analog Wäsche-Karten: `bg-green-600 hover:bg-green-700 text-white`).
+## Problem
+Der Schließen-Button (X) in allen shadcn-Dialogen ist nur 16×16 px (`h-4 w-4`) ohne extra Padding — auf Touch-Geräten kaum zu treffen (WCAG verlangt min. 44×44 px). Gleiches Problem im `Sheet`-Component und in mehreren custom Bannern/Karten mit eigenen X-Buttons.
 
-## Änderungen
-**Datei:** `src/components/Bookings/CreateBookingForm.tsx`
+## Lösung: Zentralen Close-Button definieren und überall einsetzen
 
-### 1. Wäschebestellung-Block verschieben (Zeile 1592–1614 → vor Submit-Buttons in Zeile 1431)
-- Den gesamten Block (`{mode === 'edit' && initialData && (...)}`) aus dem Bereich nach `</AlertDialog>` herausnehmen und direkt **vor** dem `{/* Submit Buttons */}`-Container einfügen.
-- Klassen am Button anpassen: `variant="default"`, neue Klasse `bg-green-600 hover:bg-green-700 text-white w-full`.
-- Text ggf. kürzen auf "Wäschebestellung erstellen" für Mobile-Lesbarkeit (Original-Text sehr lang).
+### 1. Neue Komponente `src/components/ui/close-button.tsx`
+Ein wiederverwendbarer, finger-freundlicher Close-Button:
+- Tap-Target **44×44 px** (`h-11 w-11`), Icon **20 px** (`h-5 w-5`)
+- Variante `subtle` (für innerhalb von Dialogen, kein Hintergrund) und `solid` (Banner/Karten, mit `bg-muted hover:bg-accent`)
+- Built-in `aria-label="Schließen"` und `<span class="sr-only">`
+- Akzeptiert alle Button-Props (onClick etc.); kann als `asChild` für `DialogPrimitive.Close` benutzt werden
 
-### 2. Submit-Button-Reihe kompakter (Zeile 1431–1459)
-- Container: `flex flex-wrap gap-3 pt-4` → `flex flex-col sm:flex-row gap-2 pt-4`.
-- "Buchung aktualisieren": `flex-1 bg-black hover:bg-gray-800 text-white` bleibt → füllt Mobile voll.
-- "Löschen" (edit-mode): `flex-1` ergänzen → teilt sich auf Mobile mit Submit. Text bleibt "Löschen".
-- "Abbrechen": `w-full sm:w-auto` ergänzen → eigene Zeile auf Mobile.
-- Damit Aktualisieren + Löschen **nebeneinander** auf Mobile (zwei Spalten via `flex-row` immer): Container final `flex flex-row flex-wrap gap-2 pt-4`, Submit + Löschen je `flex-1`, Abbrechen `w-full sm:w-auto basis-full sm:basis-auto`.
+### 2. shadcn-Primitives anpassen
+**`src/components/ui/dialog.tsx`** — eingebauten X-Button vergrößern:
+- `right-4 top-4` bleibt
+- `h-11 w-11 flex items-center justify-center rounded-md` statt aktuellem `rounded-sm` ohne Padding
+- Icon `h-5 w-5`
+- `aria-label="Schließen"`
 
-## Resultat
-- Mobile (390px):
-  - Grüner "Wäschebestellung erstellen"-Button (volle Breite)
-  - Darunter: [Buchung aktualisieren] [Löschen] nebeneinander, je halbe Breite
-  - Darunter: [Abbrechen] volle Breite
-- Desktop: gleicher Look, alles in einer Reihe wie bisher.
+**`src/components/ui/sheet.tsx`** — selbe Behandlung (h-11 w-11, h-5 w-5).
 
-## Nicht ändern
-- Logik, Handler, Disabled-States, Reihenfolge der Felder, Dialoge.
+→ Damit profitieren **alle** Dialoge im Projekt (Edit-Dialoge, Create-Dialoge, AlertDialogs etc.) **automatisch**, ohne jede Stelle einzeln zu ändern.
+
+### 3. Custom X-Buttons in Bannern/Karten ersetzen
+Diese nutzen handgebauten X-Buttons (oft `size="icon"` = 36×36, oder kleiner). Auf `CloseButton` umstellen:
+
+| Datei | Zweck |
+|---|---|
+| `src/components/Dashboard/RatingReminderBanner.tsx` | Banner-Dismiss |
+| `src/components/Dashboard/GuestContactAlertBanner.tsx` | Banner-Dismiss |
+| `src/components/Dashboard/BookingInquiryAlertBanner.tsx` | Banner-Dismiss |
+| `src/components/Dashboard/CalendarTab.tsx` | Inline X |
+| `src/components/Chat/ChatAssistant.tsx` | Chat-Window schließen |
+| `src/components/Pricing/PricingDashboard.tsx` | X |
+| `src/components/PWA/InstallPrompt.tsx` | Prompt schließen |
+| `src/components/Operations/OperationsDashboard.tsx` | X |
+| `src/components/Houses/LinenOrderEmailDialog.tsx` | X |
+| `src/components/Tenants/ExcelUtilityImport.tsx` | X |
+| `src/components/Tenants/RentHistoryDialog.tsx` | X |
+| `src/components/Settings/GuestImportCard.tsx` | X |
+| `src/components/ServicePortal/TeuniOrdersOverview.tsx` | X |
+| `src/components/ServicePortal/LaundryInvoicesList.tsx` | X |
+| `src/components/Bookings/CreateBookingDialog.tsx` | X |
+
+### 4. Nicht ändern
+- `src/components/ui/toast.tsx` — Toast-X bleibt klein (Sonner-Pattern, automatisch oben rechts).
+- Die jeweilige **Logik** (onClose-Handler, State) wird nicht angefasst, nur das Markup des X-Buttons.
+
+## Verifikation
+- Mobile-Preview (390×): Edit-Dialog "Buchung bearbeiten" öffnen → X oben rechts ist deutlich größer und gut treffbar.
+- Stichprobe Banner (z.B. RatingReminder) → X-Button ≥ 44×44.
+- Keine visuellen Regressionen auf Desktop (Buttons sind bereits gut treffbar).
+
+## Optionale Erweiterung (auf Anfrage)
+Eigene Marken-Variante (Farbe, Schatten). Standardmäßig neutral (muted/foreground), passt zu allen Hintergründen.
