@@ -351,9 +351,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                       <div className={`inline-block px-2 py-1 rounded-md text-xs font-medium ${selectedEvent.color}`}>
                         {selectedEvent.title}
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedEvent(null)}>
-                        <X className="w-4 h-4" />
-                      </Button>
+                      <CloseButton onClick={() => setSelectedEvent(null)} label="Termindetails schließen" />
                     </div>
 
                     {selectedEvent.type === 'free' ? (
