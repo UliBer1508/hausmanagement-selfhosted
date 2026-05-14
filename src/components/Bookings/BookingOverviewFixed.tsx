@@ -927,35 +927,6 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                       <div className="flex flex-col gap-1">{getLinenInfo(booking.id)}</div>
                     </div>
                   </div>
-
-                  {/* Aktionen */}
-                  <div
-                    className="flex justify-end gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <EditBookingDialog
-                      booking={booking}
-                      onBookingUpdated={() => {
-                        console.log('Booking updated, invalidating cache');
-                        window.location.reload();
-                      }}
-                      trigger={
-                        <Button variant="outline" size="sm">
-                          <Edit className="w-4 h-4 mr-1" />
-                          Bearbeiten
-                        </Button>
-                      }
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDeleteClick(booking)}
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Löschen
-                    </Button>
-                  </div>
                 </div>
               </CardContent>
             </ClickableCard>
