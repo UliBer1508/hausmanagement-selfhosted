@@ -877,7 +877,6 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                           )}
                         </h4>
                         {getStatusBadge(booking.status)}
-                        {getPaymentStatusBadge(booking.payment_status)}
                       </div>
                       <p className="text-sm text-muted-foreground mt-1">
                         {booking.houses?.name || 'Unbekanntes Haus'}
@@ -913,6 +912,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                           ? `${booking.booking_amount.toLocaleString('de-DE')} ${booking.currency || 'EUR'}`
                           : '-'}
                       </span>
+                      {getPaymentStatusBadge(booking.payment_status)}
                     </div>
                   </div>
 
