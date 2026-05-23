@@ -231,7 +231,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                             <div className="flex flex-col items-center space-y-2">
                               <span className="text-lg">🧹</span>
                               <p className="font-medium">Keine Service-Aufträge</p>
-                              <p className="text-xs text-primary text-slate-400">Klicken um Reinigungsauftrag zu erstellen</p>
+                              <p className="text-xs text-primary text-slate-500 font-bold">Klicken um Reinigungsauftrag zu erstellen</p>
                             </div>
                           </div>
                         )}
