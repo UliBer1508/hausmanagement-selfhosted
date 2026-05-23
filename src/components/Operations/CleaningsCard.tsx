@@ -61,7 +61,7 @@ export function CleaningsCard({ cleanings }: CleaningsCardProps) {
             className="w-full text-sm text-muted-foreground text-center py-4 hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors"
           >
             Keine Reinigungen in diesem Zeitraum
-            <span className="block mt-1 text-xs text-primary">Klicken um Reinigungsauftrag zu erstellen</span>
+            <span className="block mt-1 text-xs text-primary text-slate-400">Klicken um Reinigungsauftrag zu erstellen</span>
           </button>
         ) : (
           cleanings.map((cleaning) => (
