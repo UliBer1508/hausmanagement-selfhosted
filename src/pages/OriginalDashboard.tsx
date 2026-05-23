@@ -45,6 +45,7 @@ const ProviderBillingDialog = lazy(() =>
   import('@/components/ServicePortal/ProviderBillingDialog').then(m => ({ default: m.ProviderBillingDialog }))
 );
 const LinenOrderDialog = lazy(() => import('@/components/Houses/LinenOrderDialog'));
+const CreateCleaningTaskDialog = lazy(() => import('@/components/Cleaning/CreateCleaningTaskDialog'));
 const UsageReportDialog = lazy(() =>
   import('@/components/Dashboard/UsageReportDialog').then(m => ({ default: m.UsageReportDialog }))
 );
