@@ -157,6 +157,10 @@ const OriginalDashboard = () => {
   // Linen Order Dialog States
   const [showLinenOrderDialog, setShowLinenOrderDialog] = useState(false);
   const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<any>(null);
+  const [selectedBookingForCleaning, setSelectedBookingForCleaning] = useState<any>(null);
+  const handleCreateCleaningTask = useCallback((booking: any) => {
+    setSelectedBookingForCleaning(booking);
+  }, []);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [showUsageDialog, setShowUsageDialog] = useState(false);
   const [usageData, setUsageData] = useState<any>(null);
