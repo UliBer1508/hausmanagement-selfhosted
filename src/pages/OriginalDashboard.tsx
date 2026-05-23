@@ -1456,6 +1456,15 @@ const OriginalDashboard = () => {
             onOpenChange={(open) => !open && setSelectedProviderForBilling(null)}
           />
         )}
+
+        {selectedBookingForCleaning && (
+          <CreateCleaningTaskDialog
+            open={!!selectedBookingForCleaning}
+            onOpenChange={(open) => !open && setSelectedBookingForCleaning(null)}
+            preselectedBooking={selectedBookingForCleaning}
+            onTaskCreated={() => setSelectedBookingForCleaning(null)}
+          />
+        )}
       </Suspense>
     </div>
   );
