@@ -1155,6 +1155,7 @@ const OriginalDashboard = () => {
         getFilteredTasksByService={getFilteredTasksByService}
         handleEditLinenOrder={handleEditLinenOrder}
         handleCreateLinenOrder={handleCreateLinenOrder}
+        handleCreateCleaningTask={handleCreateCleaningTask}
         syncingOrderId={syncingOrderId}
         setSyncingOrderId={setSyncingOrderId}
         syncOrder={syncOrder}
