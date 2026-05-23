@@ -3288,6 +3288,8 @@ export type Database = {
           email_address: string | null
           email_notifications: boolean
           id: string
+          notifications_enabled: boolean
+          notify_days_in_advance: number
           notify_new_tasks: boolean
           notify_status_updates: boolean
           notify_task_changes: boolean
@@ -3303,6 +3305,8 @@ export type Database = {
           email_address?: string | null
           email_notifications?: boolean
           id?: string
+          notifications_enabled?: boolean
+          notify_days_in_advance?: number
           notify_new_tasks?: boolean
           notify_status_updates?: boolean
           notify_task_changes?: boolean
@@ -3318,6 +3322,8 @@ export type Database = {
           email_address?: string | null
           email_notifications?: boolean
           id?: string
+          notifications_enabled?: boolean
+          notify_days_in_advance?: number
           notify_new_tasks?: boolean
           notify_status_updates?: boolean
           notify_task_changes?: boolean
