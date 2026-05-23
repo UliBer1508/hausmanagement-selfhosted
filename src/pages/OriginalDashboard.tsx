@@ -45,6 +45,7 @@ const ProviderBillingDialog = lazy(() =>
   import('@/components/ServicePortal/ProviderBillingDialog').then(m => ({ default: m.ProviderBillingDialog }))
 );
 const LinenOrderDialog = lazy(() => import('@/components/Houses/LinenOrderDialog'));
+const CreateCleaningTaskDialog = lazy(() => import('@/components/Cleaning/CreateCleaningTaskDialog'));
 const UsageReportDialog = lazy(() =>
   import('@/components/Dashboard/UsageReportDialog').then(m => ({ default: m.UsageReportDialog }))
 );
@@ -156,6 +157,10 @@ const OriginalDashboard = () => {
   // Linen Order Dialog States
   const [showLinenOrderDialog, setShowLinenOrderDialog] = useState(false);
   const [selectedBookingForOrder, setSelectedBookingForOrder] = useState<any>(null);
+  const [selectedBookingForCleaning, setSelectedBookingForCleaning] = useState<any>(null);
+  const handleCreateCleaningTask = useCallback((booking: any) => {
+    setSelectedBookingForCleaning(booking);
+  }, []);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [showUsageDialog, setShowUsageDialog] = useState(false);
   const [usageData, setUsageData] = useState<any>(null);
@@ -1150,6 +1155,7 @@ const OriginalDashboard = () => {
         getFilteredTasksByService={getFilteredTasksByService}
         handleEditLinenOrder={handleEditLinenOrder}
         handleCreateLinenOrder={handleCreateLinenOrder}
+        handleCreateCleaningTask={handleCreateCleaningTask}
         syncingOrderId={syncingOrderId}
         setSyncingOrderId={setSyncingOrderId}
         syncOrder={syncOrder}
@@ -1448,6 +1454,15 @@ const OriginalDashboard = () => {
             provider={selectedProviderForBilling}
             open={!!selectedProviderForBilling}
             onOpenChange={(open) => !open && setSelectedProviderForBilling(null)}
+          />
+        )}
+
+        {selectedBookingForCleaning && (
+          <CreateCleaningTaskDialog
+            open={!!selectedBookingForCleaning}
+            onOpenChange={(open) => !open && setSelectedBookingForCleaning(null)}
+            preselectedBooking={selectedBookingForCleaning}
+            onTaskCreated={() => setSelectedBookingForCleaning(null)}
           />
         )}
       </Suspense>

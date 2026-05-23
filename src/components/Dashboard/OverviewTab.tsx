@@ -35,6 +35,7 @@ interface OverviewTabProps {
   getFilteredTasksByService: (tasks: any[]) => any[];
   handleEditLinenOrder: (order: any) => void;
   handleCreateLinenOrder: (booking: any) => void;
+  handleCreateCleaningTask?: (booking: any) => void;
   syncingOrderId: string | null;
   setSyncingOrderId: React.Dispatch<React.SetStateAction<string | null>>;
   syncOrder: (id: string) => Promise<any>;
@@ -57,6 +58,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   getBookingRelatedData, getFilteredTasksByService,
   handleEditLinenOrder, syncingOrderId, setSyncingOrderId,
   handleCreateLinenOrder,
+  handleCreateCleaningTask,
   syncOrder, resetSync, externalSyncEnabled,
   unlinkedServiceTasks = [],
   unlinkedLinenOrders = [],
@@ -214,11 +216,22 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                             <ServiceTaskCard key={task.id} task={task} colorVariant={colorVariant as any} onTaskUpdated={() => window.location.reload()} />
                           ))
                         ) : (
-                          <div className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted rounded-lg bg-blue-50">
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => handleCreateCleaningTask?.(booking)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                handleCreateCleaningTask?.(booking);
+                              }
+                            }}
+                            className="text-center text-muted-foreground py-8 border-2 border-dashed border-muted hover:border-primary/50 hover:bg-accent/50 rounded-lg bg-blue-50 cursor-pointer transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                          >
                             <div className="flex flex-col items-center space-y-2">
                               <span className="text-lg">🧹</span>
                               <p className="font-medium">Keine Service-Aufträge</p>
-                              <p className="text-xs">Noch keine Reinigung geplant</p>
+                              <p className="text-xs text-primary">+ Reinigungsauftrag erstellen</p>
                             </div>
                           </div>
                         )}

@@ -1,17 +1,27 @@
+# Plan: Klickbare Reinigungskarte in der Buchungsübersicht
+
 ## Ziel
-In der Operations-Übersicht (`CleaningsCard`) soll man direkt einen neuen Reinigungsauftrag erstellen können.
+Die leere Reinigungskarte in der Buchungsübersicht soll anklickbar sein und direkt den bestehenden Dialog zum Erstellen eines Reinigungsauftrags öffnen.
 
-## Änderungen
+## Umsetzung
+1. `src/components/Dashboard/OverviewTab.tsx`
+   - Die leere Karte „Keine Service-Aufträge“ als interaktives Element ausführen.
+   - Klick- und Tastatur-Interaktion ergänzen.
+   - Eine Callback-Prop aufrufen, die die aktuelle Buchung an den Eltern-Container übergibt.
 
-**Datei:** `src/components/Operations/CleaningsCard.tsx`
+2. `src/pages/OriginalDashboard.tsx`
+   - State für „ausgewählte Buchung zur Reinigungserstellung“ ergänzen.
+   - Handler hinzufügen, der beim Klick auf die leere Karte die aktuelle Buchung setzt und den Dialog öffnet.
+   - Den bestehenden `CreateCleaningTaskDialog` unterhalb der Übersicht einbinden und mit `preselectedBooking` öffnen.
 
-1. Lokalen State `dialogOpen` einführen.
-2. Den `CreateCleaningTaskDialog` aus `src/components/Cleaning/CreateCleaningTaskDialog.tsx` importieren und kontrolliert (`open` / `onOpenChange`) einbinden.
-3. Im `CardHeader` neben dem Counter-Badge einen kleinen Plus-Button (`Button variant="ghost" size="icon"` mit `Plus`-Icon, Tooltip "Neuer Reinigungsauftrag") hinzufügen, der `setDialogOpen(true)` aufruft.
-4. Zusätzlich die gesamte Card-Leerstaats-Zeile ("Keine Reinigungen…") klickbar machen → öffnet ebenfalls den Dialog (CTA "+ Reinigungsauftrag erstellen").
-5. Bestehende Reinigungs-Items bleiben unverändert (kein zusätzliches Click-Verhalten, um Verwechslungen mit Detail-Ansicht zu vermeiden).
+3. Bestehende Logik beibehalten
+   - Keine Änderung an der Reinigungslogik, Datenstruktur oder dem Erstellungsdialog selbst.
+   - Nur die fehlende Verknüpfung in der Übersicht ergänzen.
 
-## Keine weiteren Änderungen
-- Keine Logik-Änderung am Dialog selbst.
-- Keine Datenflüsse / Hooks geändert.
-- Keine Status-Logik in der Card berührt.
+## Technische Details
+- Es wird der vorhandene `CreateCleaningTaskDialog` wiederverwendet.
+- Die aktuelle Buchung wird per `preselectedBooking` übergeben, damit Haus/Buchung direkt vorbelegt sind.
+- Für Barrierefreiheit bekommt die Karte `role="button"`, `tabIndex` und Enter/Leertaste-Unterstützung.
+
+## Ergebnis
+Wenn bei einer Buchung noch keine Reinigung existiert, kann die leere Reinigungskarte direkt angeklickt werden, um sofort einen Reinigungsauftrag für diese Buchung anzulegen.
