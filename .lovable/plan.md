@@ -1,21 +1,17 @@
 ## Ziel
-Das Zahlungs-Badge "Ausstehend / Bezahlt / Teilweise" wandert vom Header neben den Betrag (💶). Damit ist sofort klar, dass es sich um den Zahlungsstatus handelt — keine Verwechslung mehr mit Wäsche oder Reinigung.
+In der Operations-Übersicht (`CleaningsCard`) soll man direkt einen neuen Reinigungsauftrag erstellen können.
 
-## Änderung
+## Änderungen
 
-**Datei:** `src/components/Bookings/BookingOverviewFixed.tsx`
+**Datei:** `src/components/Operations/CleaningsCard.tsx`
 
-1. **Header (Zeile 880):** `getPaymentStatusBadge(booking.payment_status)` entfernen. Es bleibt nur noch der Buchungsstatus (z. B. "Bestätigt") neben dem Gastnamen stehen.
+1. Lokalen State `dialogOpen` einführen.
+2. Den `CreateCleaningTaskDialog` aus `src/components/Cleaning/CreateCleaningTaskDialog.tsx` importieren und kontrolliert (`open` / `onOpenChange`) einbinden.
+3. Im `CardHeader` neben dem Counter-Badge einen kleinen Plus-Button (`Button variant="ghost" size="icon"` mit `Plus`-Icon, Tooltip "Neuer Reinigungsauftrag") hinzufügen, der `setDialogOpen(true)` aufruft.
+4. Zusätzlich die gesamte Card-Leerstaats-Zeile ("Keine Reinigungen…") klickbar machen → öffnet ebenfalls den Dialog (CTA "+ Reinigungsauftrag erstellen").
+5. Bestehende Reinigungs-Items bleiben unverändert (kein zusätzliches Click-Verhalten, um Verwechslungen mit Detail-Ansicht zu vermeiden).
 
-2. **Betragszeile (Zeile 909–916):** Badge direkt hinter den Betrag setzen:
-   ```
-   💶  1.280 EUR  [💤 Ausstehend]
-   ```
-   Das `<div className="flex items-center gap-2">` um Icon + Betrag wird um den Badge erweitert.
-
-3. **Badge-Texte bleiben kurz** (`💰 Bezahlt`, `⚠️ Teilweise`, `💤 Ausstehend`), da der Kontext (Geldbetrag direkt davor) jetzt selbsterklärend ist.
-
-## Optische Wirkung
-- Header zeigt nur den Buchungsstatus → übersichtlicher.
-- Zahlungsstatus klebt am Betrag → semantisch eindeutig zugeordnet.
-- Services/Wäsche-Block unten bleibt unverändert.
+## Keine weiteren Änderungen
+- Keine Logik-Änderung am Dialog selbst.
+- Keine Datenflüsse / Hooks geändert.
+- Keine Status-Logik in der Card berührt.

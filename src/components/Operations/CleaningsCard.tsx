@@ -1,6 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Sparkles, Plus } from 'lucide-react';
+import { useState } from 'react';
+import CreateCleaningTaskDialog from '@/components/Cleaning/CreateCleaningTaskDialog';
 import { CleaningData } from '@/hooks/useOperationsDashboard';
 import { format, isToday, isPast } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -29,6 +32,7 @@ function getStatusBadge(status: string, scheduledDate: Date) {
 }
 
 export function CleaningsCard({ cleanings }: CleaningsCardProps) {
+  const [dialogOpen, setDialogOpen] = useState(false);
   return (
     <Card className="h-full">
       <CardHeader className="pb-3">
@@ -38,13 +42,27 @@ export function CleaningsCard({ cleanings }: CleaningsCardProps) {
           <Badge variant="secondary" className="ml-auto">
             {cleanings.length}
           </Badge>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="Neuer Reinigungsauftrag"
+            onClick={() => setDialogOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 max-h-[300px] overflow-y-auto">
         {cleanings.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
+          <button
+            type="button"
+            onClick={() => setDialogOpen(true)}
+            className="w-full text-sm text-muted-foreground text-center py-4 hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors"
+          >
             Keine Reinigungen in diesem Zeitraum
-          </p>
+            <span className="block mt-1 text-xs text-primary">+ Reinigungsauftrag erstellen</span>
+          </button>
         ) : (
           cleanings.map((cleaning) => (
             <div
@@ -80,6 +98,7 @@ export function CleaningsCard({ cleanings }: CleaningsCardProps) {
           ))
         )}
       </CardContent>
+      <CreateCleaningTaskDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </Card>
   );
 }
