@@ -637,6 +637,17 @@ const RebookingCampaign = () => {
 
       {guests.length > 0 && <StatsBar guests={guests} />}
 
+      {alreadyRebookedCount > 0 && (
+        <Alert className="border-green-200 bg-green-50 text-green-800">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription>
+            {alreadyRebookedCount === 1
+              ? '1 Stammgast hat bereits wieder gebucht und wird hier nicht angezeigt.'
+              : `${alreadyRebookedCount} Stammgäste haben bereits wieder gebucht und werden hier nicht angezeigt.`}
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card className="bg-muted/30">
         <CardContent className="p-3">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
