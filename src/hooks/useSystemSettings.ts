@@ -26,7 +26,14 @@ export interface RatingReminderSettings {
   rental_type_filter: 'tourist' | 'tenant' | 'all';
 }
 
-type SettingsValue = EmailSettings | ProfileSettings | AppearanceSettings | RatingReminderSettings | Record<string, unknown>;
+export interface ContactSettings {
+  contact_email: string;
+  contact_phone: string;
+  signature_name: string;
+  signature_role: string;
+}
+
+type SettingsValue = EmailSettings | ProfileSettings | AppearanceSettings | RatingReminderSettings | ContactSettings | Record<string, unknown>;
 
 export function useSystemSettings<T extends SettingsValue>(key: string) {
   const queryClient = useQueryClient();
@@ -108,6 +115,10 @@ export function useAppearanceSettings() {
 
 export function useRatingReminderSettings() {
   return useSystemSettings<RatingReminderSettings>('rating_reminder_settings');
+}
+
+export function useContactSettings() {
+  return useSystemSettings<ContactSettings>('contact_settings');
 }
 
 export const DEFAULT_RATING_REMINDER_SETTINGS: RatingReminderSettings = {
