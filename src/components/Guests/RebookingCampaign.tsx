@@ -220,7 +220,14 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
       toast({ title: 'Angebot versendet ✓', description: `E-Mail an ${guest.guest_name} gesendet.` });
       handleClose();
     } catch (err) {
-      toast({ title: 'Fehler beim Versand', variant: 'destructive' });
+      const msg = err instanceof Error ? err.message : String(err);
+      toast({
+        title: 'Fehler beim Versand',
+        description: msg.includes('Invalid login') || msg.includes('BadCredentials')
+          ? 'Gmail-App-Passwort ist ungültig oder abgelaufen. Bitte in den Secrets neu setzen.'
+          : msg,
+        variant: 'destructive',
+      });
     } finally {
       setIsSending(false);
     }
