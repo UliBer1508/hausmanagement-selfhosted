@@ -63,6 +63,7 @@ export function useRebookingGuests() {
   return useQuery({
     queryKey: ['rebooking-guests'],
     queryFn: async (): Promise<GuestRebookingData[]> => {
+      const todayStr = new Date().toISOString().split('T')[0];
       const { data: bookings, error } = await supabase
         .from('bookings')
         .select(`
@@ -74,9 +75,12 @@ export function useRebookingGuests() {
           check_in,
           check_out,
           number_of_guests,
+          status,
           houses!bookings_house_id_fkey(name)
         `)
         .not('guest_name', 'is', null)
+        .lt('check_out', todayStr)
+        .in('status', ['completed', 'checked_out', 'checked_in', 'confirmed'])
         .order('check_in', { ascending: false });
 
       if (error) throw error;
@@ -86,6 +90,8 @@ export function useRebookingGuests() {
       const now = new Date();
 
       bookings.forEach((booking: any) => {
+        // Safety guard: skip any future-dated stays that slipped through
+        if (!booking.check_in || new Date(booking.check_in) >= now) return;
         const key = `${booking.guest_name}|${booking.guest_email || ''}`;
         if (!guestMap.has(key)) {
           guestMap.set(key, {
@@ -124,7 +130,7 @@ export function useRebookingGuests() {
       return Array.from(guestMap.values())
         .map((g) => {
           const monthsSince = g.last_stay
-            ? (now.getTime() - new Date(g.last_stay).getTime()) / (1000 * 60 * 60 * 24 * 30)
+            ? Math.max(0, (now.getTime() - new Date(g.last_stay).getTime()) / (1000 * 60 * 60 * 24 * 30))
             : 99;
           const score = calculateRebookingScore({
             stay_count: g.stay_count,
