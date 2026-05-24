@@ -165,8 +165,30 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
         },
       });
       if (error) throw error;
-      setSubject(data.subject || `Wir vermissen Sie, ${guest.guest_name.split(' ')[0]}!`);
-      setContent(data.content || '');
+      const sanitize = (raw: string) => {
+        if (!raw) return '';
+        let s = String(raw).trim();
+        // Strip markdown code fences (```json ... ``` or ``` ... ```)
+        const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        if (fence) s = fence[1].trim();
+        // If it looks like JSON, try to extract subject/content fields
+        if (s.startsWith('{')) {
+          try {
+            const obj = JSON.parse(s);
+            if (obj && typeof obj === 'object' && (obj.subject || obj.content)) {
+              return String(obj.content || obj.subject || '').trim();
+            }
+          } catch { /* fall through */ }
+        }
+        return s
+          .replace(/\{GUEST_NAME\}/g, guest.guest_name)
+          .replace(/\{HOUSE_NAME\}/g, guest.last_house || '')
+          .replace(/\{CHECK_IN\}/g, '')
+          .replace(/\{CHECK_OUT\}/g, '');
+      };
+
+      setSubject(sanitize(data.subject) || `Wir vermissen Sie, ${guest.guest_name.split(' ')[0]}!`);
+      setContent(sanitize(data.content));
       toast({ title: 'KI-Angebot generiert', description: 'Bitte prüfen und genehmigen Sie den Text.' });
     } catch (err) {
       console.error(err);
@@ -184,7 +206,17 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
     if (!guest || !approved) return;
     setIsSending(true);
     try {
-      await sendOffer.mutateAsync({ guest, aiContent: content, aiSubject: subject });
+      const escapeHtml = (str: string) =>
+        str
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      const paragraphs = content
+        .split(/\n{2,}/)
+        .map((p) => `<p style="margin:0 0 14px">${escapeHtml(p).replace(/\n/g, '<br/>')}</p>`)
+        .join('');
+      const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a">${paragraphs}</div>`;
+      await sendOffer.mutateAsync({ guest, aiContent: content, aiSubject: subject, aiHtml: html });
       toast({ title: 'Angebot versendet ✓', description: `E-Mail an ${guest.guest_name} gesendet.` });
       handleClose();
     } catch (err) {
