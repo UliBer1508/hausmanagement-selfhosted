@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,7 +25,6 @@ import {
 } from '@/hooks/useRebookingScore';
 import { supabase } from '@/integrations/supabase/client';
 import { useContactSettings, ContactSettings } from '@/hooks/useSystemSettings';
-import { useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 
 function ScoreBadge({ score, label }: { score: number; label: GuestRebookingData['score_label'] }) {
