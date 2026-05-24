@@ -180,7 +180,25 @@ export function useSendRebookingOffer() {
         },
       });
       if (error) {
-        throw new Error(error.message || 'Edge Function returned a non-2xx status code');
+        const ctx: any = (error as any).context;
+        let payload: any = null;
+
+        try {
+          if (ctx?.response && typeof ctx.response.json === 'function') {
+            payload = await ctx.response.json();
+          }
+        } catch {
+          try {
+            if (ctx?.response && typeof ctx.response.text === 'function') {
+              const raw = await ctx.response.text();
+              payload = raw ? JSON.parse(raw) : null;
+            }
+          } catch {
+            payload = null;
+          }
+        }
+
+        throw new Error(payload?.error || error.message || 'Edge Function returned a non-2xx status code');
       }
       if (!data?.success) throw new Error(data?.error || 'Versand fehlgeschlagen');
       return data;
