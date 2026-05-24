@@ -1,63 +1,62 @@
-## Lösungskonzept: KI-Wiederbuchungs-Kampagnen im Gäste-Bereich
+# Fix: KI-Wiederbuchungs-Email
 
-### Ziel
-Neuer 6. Tab „🔄 Wiederbuchung" im Gäste-Management. KI bewertet jeden Gast mit einem Score (0–100), priorisiert nach Rückkehrwahrscheinlichkeit und ermöglicht KI-generierte, personalisierte Rückbuchungs-Angebote per E-Mail – unter Wiederverwendung der bereits vorhandenen Edge Functions `generate-personalized-email` und `send-gmail`.
+## Problem (aus Screenshot sichtbar)
+Im Dialog erscheint roher Text wie:
+```
+```json
+{
+  "subject": "Ein besonderer Gruß für Sie, {GUEST_NAME}: ...",
+```
+Statt sauberem Betreff + Nachricht. Ursachen:
 
-### Scope-Regel (strikt)
-Es werden **nur 2 neue Dateien erstellt** und **1 bestehende Datei minimal erweitert**. Optional eine Edge Function im Prompt-Text ergänzen. Alle anderen Gäste-Komponenten, Hooks und Funktionen bleiben unverändert.
+1. **Gemini gibt JSON in Markdown-Fences zurück** (` ```json … ``` `). Die Regex in `generate-personalized-email/index.ts` greift, aber `JSON.parse` scheitert oft an unescapten Zeilenumbrüchen/Quotes im `content`-Feld → Fallback packt den kompletten Roh-Text inkl. ```json in `content`.
+2. **Platzhalter wie `{GUEST_NAME}`, `{HOUSE_NAME}` werden nie ersetzt** → würden so im Versand landen.
+3. **`content` ist Plaintext, wird aber als `html` an send-gmail übergeben** → keine Zeilenumbrüche in der Mail.
 
----
+## Lösung
 
-### Umsetzung
+### 1. `supabase/functions/generate-personalized-email/index.ts` — strukturierte Ausgabe
+Statt freiem Text + JSON-Parsing das bereits vorhandene `geminiStructuredOutput` (Function-Calling) nutzen. Damit liefert Gemini garantiert sauber typisierte Felder, keine Markdown-Fences, kein Parse-Risiko.
 
-**1. Neu: `src/hooks/useRebookingScore.ts`**
-- Lädt alle Buchungen mit Gastdaten aus `bookings` (Join auf `houses`)
-- Aggregiert pro Gast (Key = `name|email`): Anzahl Aufenthalte, Umsatz, letzter Aufenthalt, durchschnittliche Nächte, bevorzugte Saison, letztes Haus
-- Berechnet `rebooking_score` (0–100) gewichtet nach:
-  - Monate seit letztem Aufenthalt (Hauptfaktor: bis −55)
-  - Aufenthalts-Anzahl (Loyalitäts-Bonus/Malus)
-  - Umsatz-Bonus
-  - Aufenthaltsdauer-Bonus
-- Label: `critical` (<25) / `at_risk` (<50) / `stable` (<75) / `loyal` (≥75)
-- Filtert Gäste ohne E-Mail
-- Mutation `useSendRebookingOffer` → ruft `send-gmail` Edge Function auf
+```ts
+const result = await geminiStructuredOutput<{subject: string; content: string}>(
+  geminiApiKey, systemPrompt, prompt,
+  {
+    name: 'create_email',
+    description: 'Erstellt personalisierte E-Mail',
+    parameters: {
+      type: 'object',
+      properties: {
+        subject: { type: 'string', description: 'E-Mail-Betreff, max 80 Zeichen' },
+        content: { type: 'string', description: 'E-Mail-Text in Klartext, mit \\n für Absätze' },
+      },
+      required: ['subject', 'content'],
+    },
+  }
+);
+```
+System-Prompt anpassen: keine JSON-Anweisung mehr, dafür „Verwende ausschließlich konkrete Werte – keine Platzhalter in geschweiften Klammern".
 
-**2. Neu: `src/components/Guests/RebookingCampaign.tsx`**
-- Header mit Refresh-Button
-- 4 Stats-Cards: Kritisch, Gefährdet, Gäste gesamt, Ø Score
-- Legende der 4 Score-Kategorien
-- Filter-Bar (Alle / 🔴 / 🟡 / 🔵 / 🟢) mit Counts
-- Liste sortiert nach niedrigstem Score zuerst (= höchste Dringlichkeit)
-- Pro Zeile: Name, Nationalität, VIP-Badge, Meta (Monate her, Anzahl, Umsatz, Haus, Saison), Score-Badge + Bar, Action-Button
-- Dialog „KI-Angebot": Generate-Button → ruft `generate-personalized-email` mit Gast-Daten → Subject + Content editierbar → Genehmigen-Pflicht → Senden via `send-gmail`
+### 2. `src/components/Guests/RebookingCampaign.tsx` — Platzhalter ersetzen + HTML aufbereiten
+Im `handleGenerate` nach Empfang:
+- Restplatzhalter ersetzen: `{GUEST_NAME}` → `guest.guest_name`, `{HOUSE_NAME}` → `guest.last_house ?? ''` (Subject + Content).
+- Defensive Markdown-Stripping (falls Modell trotzdem ```json liefert): erst `code-fence`-Blöcke entfernen, dann versuchen `JSON.parse`, sonst Text wie er ist.
 
-**3. Minimal ändern: `src/components/Guests/GuestManagement.tsx`**
-- Import von `RebookingCampaign` ergänzen
-- Grid von `lg:grid-cols-5` auf `lg:grid-cols-6`
-- Neuer `<TabsTrigger value="rebooking">` mit 🔄 + Label
-- Neuer `<TabsContent value="rebooking">` mit `<RebookingCampaign />`
-- Alle 5 bestehenden Tabs bleiben unverändert
+Im `handleSend` vor Aufruf von `useSendRebookingOffer`:
+- Plain-Text → HTML konvertieren: Escaping + `\n\n` → `</p><p>` + `\n` → `<br/>`, in `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5">…</div>`.
 
-**4. Optional: `supabase/functions/generate-personalized-email/index.ts`**
-- Prompt-Template um `last_house`, `months_away`, `preferred_seasons` ergänzen, falls im Request vorhanden
-- Handler, CORS und Restlogik unverändert
+### 3. `src/hooks/useRebookingScore.ts` — beides senden
+Mutation-Body um `text` ergänzen (Plain-Text-Fallback für Clients, die HTML blockieren). Signatur erweitern: `aiHtml`, `aiText`.
 
----
+### 4. Versand-Voraussetzung
+`send-gmail` erfordert eingeloggten Admin (`requireAdmin`) und das Secret `GMAIL_APP_PASSWORD`. Nichts zu ändern, nur sicherstellen — wird im Test geprüft.
 
-### Technische Details
+## Geänderte Dateien
+- `supabase/functions/generate-personalized-email/index.ts` (umstellen auf structured output, Prompt-Refinement)
+- `src/components/Guests/RebookingCampaign.tsx` (Platzhalter-Replace, Plain→HTML, robuster Parse-Fallback)
+- `src/hooks/useRebookingScore.ts` (html + text im Body)
 
-- **Datenquelle**: `bookings` Tabelle (kein neues Schema, keine Migration)
-- **Score-Berechnung**: rein clientseitig in `useRebookingScore` – keine Persistenz nötig
-- **AI**: bestehende Edge Function `generate-personalized-email` (Google Gemini 2.5 Flash) wird wiederverwendet, neue Felder im `sampleGuests[0]` Payload
-- **Mail-Versand**: bestehende `send-gmail` Edge Function (Admin-Auth, System-E-Mail aus `system_settings`)
-- **UI**: shadcn (Card, Dialog, Badge, Button, Textarea, Skeleton, Progress, Alert), Lucide Icons, vorhandene Toast-Hook
-- **Caching**: React Query mit Key `['rebooking-guests']`, Invalidierung nach Versand
-
----
-
-### Verifizierung
-1. Gäste-Bereich zeigt 6 Tabs, alle 5 alten funktionieren unverändert
-2. Neuer Tab listet Gäste nach Score sortiert (niedrigster zuerst)
-3. Stats- und Filter-Counts korrekt
-4. Dialog: Generieren → Editieren → Genehmigen → Senden funktioniert
-5. E-Mail kommt beim Test-Empfänger an, Toast bestätigt Versand
+## Validierung
+1. Im Tab „🔄 Wiederbuchung" einen Gast wählen → „KI-Angebot erstellen" → „Generieren".
+2. Erwartung: Betreff & Nachricht sauber, **keine** `{GUEST_NAME}`/`{HOUSE_NAME}`-Platzhalter, **kein** ```json -Block.
+3. Genehmigen → „Angebot senden" → Erfolgs-Toast; Edge-Function-Logs prüfen.

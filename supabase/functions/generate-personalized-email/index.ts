@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { geminiTextCompletion, GeminiRateLimitError } from "../_shared/gemini.ts";
+import { geminiStructuredOutput, GeminiRateLimitError } from "../_shared/gemini.ts";
 
 const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 
@@ -25,49 +25,63 @@ serve(async (req) => {
     // Create personalized prompt based on segment and guest data
     const prompt = createPersonalizationPrompt(messageType, selectedSegment, segmentAnalysis, sampleGuests);
 
-    console.log('Generating personalized email with Gemini API');
+    console.log('Generating personalized email with Gemini API (structured output)');
 
-    const systemPrompt = `Du bist ein Experte für personalisierte Gästekommunikation für Steinbock Chalets, ein Premium-Chalet-Unternehmen in den Alpen. 
-            
-Erstelle hochwertige, personalisierte E-Mail-Inhalte, die:
-- Warm und einladend sind
-- Spezifisch auf das Gästesegment zugeschnitten sind
-- Emotionale Verbindungen schaffen
-- Konkrete Mehrwerte bieten
-- Professional aber persönlich klingen
-- Deutsche Sprache verwenden
+    const guestName = sampleGuests?.[0]?.guest_name || '';
+    const houseName = sampleGuests?.[0]?.last_house || '';
 
-Verwende Platzhalter wie {GUEST_NAME}, {HOUSE_NAME}, {CHECK_IN}, {CHECK_OUT} für personalisierte Felder.
+    const systemPrompt = `Du bist ein Experte für personalisierte Gästekommunikation für Steinbock Chalets, ein Premium-Chalet-Unternehmen in den Alpen.
 
-Antworte IMMER im JSON-Format: {"subject": "Betreff hier", "content": "E-Mail-Inhalt hier"}`;
+Schreibe warme, einladende, persönliche E-Mails in deutscher Sprache mit konkretem Mehrwert und klarem Call-to-Action.
 
-    const generatedText = await geminiTextCompletion(
-      geminiApiKey,
-      systemPrompt,
-      prompt,
-      { maxTokens: 1000 }
-    );
+WICHTIG:
+- Verwende konkrete Werte direkt im Text – KEINE Platzhalter in geschweiften Klammern wie {GUEST_NAME} oder {HOUSE_NAME}.
+- Gast-Anrede verwenden: "${guestName}"${houseName ? `\n- Letztes gebuchtes Haus: "${houseName}"` : ''}
+- Der Inhalt ist reiner Klartext (keine Markdown-Codeblöcke, kein HTML). Verwende \\n\\n für Absätze.`;
 
-    console.log('Generated content:', generatedText);
-
-    // Parse the JSON response
-    let parsedContent;
+    let parsedContent: { subject: string; content: string };
     try {
-      // Try to extract JSON from the response (might be wrapped in markdown code blocks)
-      const jsonMatch = generatedText.match(/\{[\s\S]*"subject"[\s\S]*"content"[\s\S]*\}/);
-      if (jsonMatch) {
-        parsedContent = JSON.parse(jsonMatch[0]);
-      } else {
-        parsedContent = JSON.parse(generatedText);
-      }
+      parsedContent = await geminiStructuredOutput<{ subject: string; content: string }>(
+        geminiApiKey,
+        systemPrompt,
+        prompt,
+        {
+          name: 'create_personalized_email',
+          description: 'Erstellt einen Betreff und einen Klartext-Inhalt für eine personalisierte Gäste-E-Mail.',
+          parameters: {
+            type: 'object',
+            properties: {
+              subject: {
+                type: 'string',
+                description: 'Betreff der E-Mail in deutscher Sprache, max. 80 Zeichen, ohne Platzhalter.',
+              },
+              content: {
+                type: 'string',
+                description: 'Vollständiger E-Mail-Text als Klartext in deutscher Sprache. Absätze mit \\n\\n trennen. Keine Platzhalter wie {GUEST_NAME}.',
+              },
+            },
+            required: ['subject', 'content'],
+          },
+        }
+      );
     } catch (e) {
-      console.error('Failed to parse JSON:', generatedText);
-      // Fallback parsing
-      const lines = generatedText.split('\n');
-      const subject = lines.find((l: string) => l.includes('Betreff') || l.includes('Subject'))?.split(':')[1]?.trim() || 'Persönliche Nachricht von Steinbock Chalets';
-      const content = generatedText.replace(/.*?(Betreff|Subject):.*?\n/, '').trim();
-      parsedContent = { subject, content };
+      console.error('Structured output failed:', e);
+      throw e;
     }
+
+    // Defensive: replace any leftover placeholders just in case
+    const replacePlaceholders = (s: string) =>
+      s
+        .replace(/\{GUEST_NAME\}/g, guestName)
+        .replace(/\{HOUSE_NAME\}/g, houseName)
+        .replace(/\{CHECK_IN\}/g, '')
+        .replace(/\{CHECK_OUT\}/g, '')
+        .trim();
+
+    parsedContent.subject = replacePlaceholders(parsedContent.subject || '');
+    parsedContent.content = replacePlaceholders(parsedContent.content || '');
+
+    console.log('Generated content OK. Subject:', parsedContent.subject);
 
     return new Response(JSON.stringify(parsedContent), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
