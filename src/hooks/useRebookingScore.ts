@@ -80,7 +80,7 @@ export function useRebookingGuests() {
         `)
         .not('guest_name', 'is', null)
         .lt('check_out', todayStr)
-        .in('status', ['completed', 'checked_out', 'checked_in', 'confirmed'])
+        .in('status', ['completed', 'checked_in', 'confirmed'])
         .order('check_in', { ascending: false });
 
       if (error) throw error;
