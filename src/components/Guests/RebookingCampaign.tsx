@@ -24,6 +24,9 @@ import {
   GuestRebookingData,
 } from '@/hooks/useRebookingScore';
 import { supabase } from '@/integrations/supabase/client';
+import { useContactSettings, ContactSettings } from '@/hooks/useSystemSettings';
+import { useEffect } from 'react';
+import { Input } from '@/components/ui/input';
 
 function ScoreBadge({ score, label }: { score: number; label: GuestRebookingData['score_label'] }) {
   const config = {
@@ -131,18 +134,52 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
   const { toast } = useToast();
   const sendOffer = useSendRebookingOffer();
 
+  // Offer config – AI may ONLY use what the user enters here
+  const [discountPercent, setDiscountPercent] = useState<string>('');
+  const [voucher, setVoucher] = useState('');
+  const [validity, setValidity] = useState('');
+  const [extraNote, setExtraNote] = useState('');
+
+  // Contact / signature – persisted in system_settings so AI never invents
+  const { data: contactData, saveSettings: saveContact } = useContactSettings();
+  const [contact, setContact] = useState<ContactSettings>({
+    contact_email: '',
+    contact_phone: '',
+    signature_name: '',
+    signature_role: 'Steinbock Chalets',
+  });
+  useEffect(() => {
+    if (contactData) setContact({ ...contact, ...contactData });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contactData]);
+
   const handleClose = () => {
     setSubject('');
     setContent('');
     setApproved(false);
+    setDiscountPercent('');
+    setVoucher('');
+    setValidity('');
+    setExtraNote('');
     onOpenChange(false);
   };
 
   const handleGenerate = async () => {
     if (!guest) return;
+    if (!contact.contact_phone || !contact.contact_email || !contact.signature_name) {
+      toast({
+        title: 'Kontaktdaten fehlen',
+        description: 'Bitte Name, Telefon und E-Mail unten ausfüllen – die KI darf nichts erfinden.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsGenerating(true);
     setApproved(false);
     try {
+      // Persist contact for future emails
+      try { await saveContact(contact); } catch (e) { console.warn('saveContact failed', e); }
+
       const { data, error } = await supabase.functions.invoke('generate-personalized-email', {
         body: {
           messageType: 'return_offer',
@@ -162,6 +199,13 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
             months_away: guest.months_since_last_stay,
             bookings: [],
           }],
+          offer: {
+            discount_percent: discountPercent ? Number(discountPercent) : null,
+            voucher: voucher.trim(),
+            validity: validity.trim(),
+            extra_note: extraNote.trim(),
+          },
+          contact,
         },
       });
       if (error) throw error;
@@ -189,7 +233,11 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
 
       setSubject(sanitize(data.subject) || `Wir vermissen Sie, ${guest.guest_name.split(' ')[0]}!`);
       setContent(sanitize(data.content));
-      toast({ title: 'KI-Angebot generiert', description: 'Bitte prüfen und genehmigen Sie den Text.' });
+      const offerSummary =
+        discountPercent || voucher
+          ? `KI nutzt nur: ${[discountPercent ? `${discountPercent}% Rabatt` : '', voucher].filter(Boolean).join(' + ')}`
+          : 'Ohne konkretes Angebot generiert.';
+      toast({ title: 'KI-Angebot generiert', description: offerSummary });
     } catch (err) {
       console.error(err);
       toast({
@@ -267,19 +315,83 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
           </div>
 
           {!content && (
-            <Button onClick={handleGenerate} disabled={isGenerating} className="w-full">
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  KI schreibt personalisierten Text…
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Personalisiertes Angebot generieren
-                </>
-              )}
-            </Button>
+            <>
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="text-sm font-semibold">Was bieten wir an?</div>
+                <p className="text-xs text-muted-foreground">
+                  Die KI verwendet ausschließlich die hier angegebenen Werte. Leer lassen = kein Angebot.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-medium">Rabatt (%)</label>
+                    <Input type="number" min={0} max={100} value={discountPercent}
+                      onChange={(e) => setDiscountPercent(e.target.value)} placeholder="z. B. 10" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">Gültigkeit</label>
+                    <Input value={validity} onChange={(e) => setValidity(e.target.value)}
+                      placeholder="z. B. buchbar bis 31.07.2026" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs font-medium">Gutschein / Extra</label>
+                    <Input value={voucher} onChange={(e) => setVoucher(e.target.value)}
+                      placeholder="z. B. Welcome-Drink, Spa-Gutschein 50 €" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs font-medium">Zusätzlicher Hinweis (optional)</label>
+                    <Input value={extraNote} onChange={(e) => setExtraNote(e.target.value)}
+                      placeholder="Persönliche Botschaft, Tipp …" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="text-sm font-semibold">Kontakt für Signatur</div>
+                <p className="text-xs text-muted-foreground">
+                  Wird automatisch unter die Mail gesetzt. Einmal eingegeben, wird gespeichert.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-medium">Dein Name *</label>
+                    <Input value={contact.signature_name}
+                      onChange={(e) => setContact({ ...contact, signature_name: e.target.value })}
+                      placeholder="z. B. Uli Berresheim" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">Rolle / Firma</label>
+                    <Input value={contact.signature_role}
+                      onChange={(e) => setContact({ ...contact, signature_role: e.target.value })}
+                      placeholder="Steinbock Chalets" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">Telefon *</label>
+                    <Input value={contact.contact_phone}
+                      onChange={(e) => setContact({ ...contact, contact_phone: e.target.value })}
+                      placeholder="+43 …" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium">Kontakt-E-Mail *</label>
+                    <Input type="email" value={contact.contact_email}
+                      onChange={(e) => setContact({ ...contact, contact_email: e.target.value })}
+                      placeholder="kontakt@…" />
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={handleGenerate} disabled={isGenerating} className="w-full">
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    KI schreibt personalisierten Text…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Personalisiertes Angebot generieren
+                  </>
+                )}
+              </Button>
+            </>
           )}
 
           {content && (
