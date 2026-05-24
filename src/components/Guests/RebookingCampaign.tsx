@@ -582,7 +582,9 @@ function GuestRow({ guest, onOffer }: GuestRowProps) {
 }
 
 const RebookingCampaign = () => {
-  const { data: guests = [], isLoading, refetch } = useRebookingGuests();
+  const { data, isLoading, refetch } = useRebookingGuests();
+  const guests: GuestRebookingData[] = data?.guests ?? [];
+  const alreadyRebookedCount = data?.alreadyRebookedCount ?? 0;
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedGuest, setSelectedGuest] = useState<GuestRebookingData | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
