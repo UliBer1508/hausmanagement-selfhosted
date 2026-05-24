@@ -166,6 +166,10 @@ export function useSendRebookingOffer() {
       aiSubject: string;
       aiHtml?: string;
     }) => {
+      if (!guest.guest_email) {
+        throw new Error('Für diesen Gast ist keine E-Mail-Adresse hinterlegt.');
+      }
+
       const { data, error } = await supabase.functions.invoke('send-gmail', {
         body: {
           to: [guest.guest_email],
@@ -175,7 +179,9 @@ export function useSendRebookingOffer() {
           guestName: guest.guest_name,
         },
       });
-      if (error) throw error;
+      if (error) {
+        throw new Error(error.message || 'Edge Function returned a non-2xx status code');
+      }
       if (!data?.success) throw new Error(data?.error || 'Versand fehlgeschlagen');
       return data;
     },

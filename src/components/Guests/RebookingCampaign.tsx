@@ -251,6 +251,14 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
 
   const handleSend = async () => {
     if (!guest || !approved) return;
+    if (!guest.guest_email) {
+      toast({
+        title: 'Keine Gast-E-Mail vorhanden',
+        description: `Für ${guest.guest_name} ist in der Buchung keine E-Mail-Adresse hinterlegt.`,
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsSending(true);
     try {
       const escapeHtml = (str: string) =>
@@ -264,7 +272,7 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
         .join('');
       const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a">${paragraphs}</div>`;
       await sendOffer.mutateAsync({ guest, aiContent: content, aiSubject: subject, aiHtml: html });
-      toast({ title: 'Angebot versendet ✓', description: `E-Mail an ${guest.guest_name} gesendet.` });
+      toast({ title: 'Angebot versendet ✓', description: `E-Mail an ${guest.guest_email} gesendet.` });
       handleClose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -399,6 +407,9 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                   Bitte prüfen Sie den Text sorgfältig vor dem Versand an {guest.guest_name}.
+                  <br />
+                  <span className="font-medium">Empfänger:</span>{' '}
+                  {guest.guest_email || 'Keine E-Mail in der Buchung hinterlegt'}
                 </AlertDescription>
               </Alert>
 
@@ -445,7 +456,7 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Abbrechen</Button>
-          <Button onClick={handleSend} disabled={!approved || isSending || !content}>
+          <Button onClick={handleSend} disabled={!approved || isSending || !content || !guest.guest_email}>
             {isSending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
