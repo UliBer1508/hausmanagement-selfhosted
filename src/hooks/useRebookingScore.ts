@@ -62,8 +62,23 @@ function getPreferredSeason(checkIn: string): string {
 export function useRebookingGuests() {
   return useQuery({
     queryKey: ['rebooking-guests'],
-    queryFn: async (): Promise<GuestRebookingData[]> => {
+    queryFn: async (): Promise<{ guests: GuestRebookingData[]; alreadyRebookedCount: number }> => {
       const todayStr = new Date().toISOString().split('T')[0];
+
+      // Gäste, die bereits eine zukünftige Buchung haben → aus Kampagne ausschließen
+      const { data: futureBookings, error: futureError } = await supabase
+        .from('bookings')
+        .select('guest_name, guest_email')
+        .gte('check_in', todayStr)
+        .in('status', ['confirmed', 'checked_in']);
+      if (futureError) throw futureError;
+
+      const rebookedKeys = new Set<string>();
+      (futureBookings || []).forEach((b: any) => {
+        if (!b.guest_name) return;
+        rebookedKeys.add(`${b.guest_name}|${b.guest_email || ''}`);
+      });
+
       const { data: bookings, error } = await supabase
         .from('bookings')
         .select(`
@@ -84,7 +99,7 @@ export function useRebookingGuests() {
         .order('check_in', { ascending: false });
 
       if (error) throw error;
-      if (!bookings) return [];
+      if (!bookings) return { guests: [], alreadyRebookedCount: 0 };
 
       const guestMap = new Map<string, any>();
       const now = new Date();
@@ -127,7 +142,15 @@ export function useRebookingGuests() {
         }
       });
 
-      return Array.from(guestMap.values())
+      let alreadyRebookedCount = 0;
+      const guests = Array.from(guestMap.values())
+        .filter((g) => {
+          if (rebookedKeys.has(g.guest_key)) {
+            alreadyRebookedCount += 1;
+            return false;
+          }
+          return true;
+        })
         .map((g) => {
           const monthsSince = g.last_stay
             ? Math.max(0, (now.getTime() - new Date(g.last_stay).getTime()) / (1000 * 60 * 60 * 24 * 30))
@@ -148,6 +171,8 @@ export function useRebookingGuests() {
         })
         .filter((g) => g.guest_email)
         .sort((a, b) => a.rebooking_score - b.rebooking_score);
+
+      return { guests, alreadyRebookedCount };
     },
   });
 }
