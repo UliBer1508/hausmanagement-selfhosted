@@ -582,7 +582,9 @@ function GuestRow({ guest, onOffer }: GuestRowProps) {
 }
 
 const RebookingCampaign = () => {
-  const { data: guests = [], isLoading, refetch } = useRebookingGuests();
+  const { data, isLoading, refetch } = useRebookingGuests();
+  const guests: GuestRebookingData[] = data?.guests ?? [];
+  const alreadyRebookedCount = data?.alreadyRebookedCount ?? 0;
   const [filter, setFilter] = useState<FilterType>('all');
   const [selectedGuest, setSelectedGuest] = useState<GuestRebookingData | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -634,6 +636,17 @@ const RebookingCampaign = () => {
       </div>
 
       {guests.length > 0 && <StatsBar guests={guests} />}
+
+      {alreadyRebookedCount > 0 && (
+        <Alert className="border-green-200 bg-green-50 text-green-800">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription>
+            {alreadyRebookedCount === 1
+              ? '1 Stammgast hat bereits wieder gebucht und wird hier nicht angezeigt.'
+              : `${alreadyRebookedCount} Stammgäste haben bereits wieder gebucht und werden hier nicht angezeigt.`}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="bg-muted/30">
         <CardContent className="p-3">
