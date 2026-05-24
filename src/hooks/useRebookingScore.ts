@@ -153,16 +153,19 @@ export function useSendRebookingOffer() {
       guest,
       aiContent,
       aiSubject,
+      aiHtml,
     }: {
       guest: GuestRebookingData;
       aiContent: string;
       aiSubject: string;
+      aiHtml?: string;
     }) => {
       const { data, error } = await supabase.functions.invoke('send-gmail', {
         body: {
           to: [guest.guest_email],
           subject: aiSubject,
-          html: aiContent,
+          html: aiHtml || aiContent,
+          text: aiContent,
           guestName: guest.guest_name,
         },
       });
