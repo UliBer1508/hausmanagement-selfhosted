@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { geminiStructuredOutput, GeminiRateLimitError } from "../_shared/gemini.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const geminiApiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 
@@ -16,14 +17,51 @@ serve(async (req) => {
   }
 
   try {
-    const { messageType, selectedSegment, segmentAnalysis, sampleGuests } = await req.json();
+    const { messageType, selectedSegment, segmentAnalysis, sampleGuests, offer = {}, contact: contactOverride } = await req.json();
 
     if (!geminiApiKey) {
       throw new Error('Google Gemini API key not configured');
     }
 
+    // Load contact info from system_settings (never let the AI invent it)
+    let contact = contactOverride && typeof contactOverride === 'object' ? contactOverride : null;
+    if (!contact) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supa = createClient(supabaseUrl, serviceKey);
+        const { data: cs } = await supa
+          .from('system_settings')
+          .select('value')
+          .eq('key', 'contact_settings')
+          .maybeSingle();
+        contact = (cs?.value as any) || null;
+        if (!contact) {
+          const { data: ps } = await supa
+            .from('system_settings')
+            .select('value')
+            .eq('key', 'profile_settings')
+            .maybeSingle();
+          const { data: es } = await supa
+            .from('system_settings')
+            .select('value')
+            .eq('key', 'email_settings')
+            .maybeSingle();
+          contact = {
+            signature_name: (ps?.value as any)?.user_name || '',
+            signature_role: (ps?.value as any)?.company_name || (es?.value as any)?.display_name || '',
+            contact_email: (es?.value as any)?.email || '',
+            contact_phone: '',
+          };
+        }
+      } catch (e) {
+        console.error('Failed to load contact settings:', e);
+        contact = { contact_email: '', contact_phone: '', signature_name: '', signature_role: '' };
+      }
+    }
+
     // Create personalized prompt based on segment and guest data
-    const prompt = createPersonalizationPrompt(messageType, selectedSegment, segmentAnalysis, sampleGuests);
+    const prompt = createPersonalizationPrompt(messageType, selectedSegment, segmentAnalysis, sampleGuests, offer);
 
     console.log('Generating personalized email with Gemini API (structured output)');
 
@@ -34,7 +72,12 @@ serve(async (req) => {
 
 Schreibe warme, einladende, persönliche E-Mails in deutscher Sprache mit konkretem Mehrwert und klarem Call-to-Action.
 
-WICHTIG:
+STRENGE REGELN (NICHT VERLETZEN):
+- ❌ KEINE erfundenen Rabatte, Prozente, Gutscheine, Geschenke, Preise oder Sonderangebote.
+- ❌ KEINE erfundenen Telefonnummern, E-Mail-Adressen oder Webseiten.
+- ✅ Verwende AUSSCHLIESSLICH die unten im Block "ANGEBOTSDETAILS" genannten Werte.
+- ✅ Wenn dort kein Rabatt/Gutschein steht: erwähne KEINEN. Schreibe stattdessen eine freundliche, persönliche Wiedersehens-Nachricht ohne konkretes Angebot.
+- ✅ Beende den Text OHNE Signatur, OHNE Telefonnummer, OHNE E-Mail. Die Signatur wird automatisch angehängt.
 - Verwende konkrete Werte direkt im Text – KEINE Platzhalter in geschweiften Klammern wie {GUEST_NAME} oder {HOUSE_NAME}.
 - Gast-Anrede verwenden: "${guestName}"${houseName ? `\n- Letztes gebuchtes Haus: "${houseName}"` : ''}
 - Der Inhalt ist reiner Klartext (keine Markdown-Codeblöcke, kein HTML). Verwende \\n\\n für Absätze.`;
@@ -81,6 +124,13 @@ WICHTIG:
     parsedContent.subject = replacePlaceholders(parsedContent.subject || '');
     parsedContent.content = replacePlaceholders(parsedContent.content || '');
 
+    // Strip any signature/contact lines the model may have added anyway, then append the deterministic one
+    parsedContent.content = stripTrailingSignature(parsedContent.content);
+    const signature = buildSignature(contact);
+    if (signature) {
+      parsedContent.content = `${parsedContent.content.trim()}\n\n${signature}`;
+    }
+
     console.log('Generated content OK. Subject:', parsedContent.subject);
 
     return new Response(JSON.stringify(parsedContent), {
@@ -113,10 +163,43 @@ WICHTIG:
   }
 });
 
-function createPersonalizationPrompt(messageType: string, selectedSegment: string, segmentAnalysis: any, sampleGuests: any[]) {
+function buildSignature(contact: any): string {
+  if (!contact) return '';
+  const lines: string[] = ['Mit herzlichen Grüßen aus den Alpen'];
+  if (contact.signature_name) lines.push(contact.signature_name);
+  if (contact.signature_role) lines.push(contact.signature_role);
+  const contactLine: string[] = [];
+  if (contact.contact_phone) contactLine.push(`Tel: ${contact.contact_phone}`);
+  if (contact.contact_email) contactLine.push(`E-Mail: ${contact.contact_email}`);
+  if (contactLine.length) lines.push(contactLine.join(' · '));
+  return lines.join('\n');
+}
+
+function stripTrailingSignature(text: string): string {
+  if (!text) return text;
+  // Remove common closing blocks the LLM might append so we don't get double signatures
+  return text
+    .replace(/\n+\s*(Mit (herzlichen|besten|freundlichen) Grüßen|Herzliche Grüße|Liebe Grüße|Beste Grüße|Ihr Team|Ihr|Ihre)[\s\S]*$/i, '')
+    .replace(/\n+\s*(Tel\.?:|Telefon:|E-?Mail:|Phone:)[\s\S]*$/i, '')
+    .trim();
+}
+
+function createPersonalizationPrompt(messageType: string, selectedSegment: string, segmentAnalysis: any, sampleGuests: any[], offer: any = {}) {
   const segmentDescription = getSegmentDescription(selectedSegment);
   const messageTypeDescription = getMessageTypeDescription(messageType);
-  
+
+  const hasDiscount = offer?.discount_percent !== null && offer?.discount_percent !== undefined && offer?.discount_percent !== '' && Number(offer.discount_percent) > 0;
+  const hasVoucher = offer?.voucher && String(offer.voucher).trim().length > 0;
+  const hasValidity = offer?.validity && String(offer.validity).trim().length > 0;
+  const hasNote = offer?.extra_note && String(offer.extra_note).trim().length > 0;
+  const hasAnyOffer = hasDiscount || hasVoucher;
+
+  const offerBlock = hasAnyOffer || hasValidity || hasNote
+    ? `\n\nANGEBOTSDETAILS (verbindlich – nutze NUR diese Werte):
+${hasDiscount ? `- Rabatt: ${offer.discount_percent}% (genau diesen Wert nennen, keinen anderen)\n` : ''}${hasVoucher ? `- Gutschein/Extra: ${String(offer.voucher).trim()}\n` : ''}${hasValidity ? `- Gültigkeit: ${String(offer.validity).trim()}\n` : ''}${hasNote ? `- Zusätzlicher Hinweis: ${String(offer.extra_note).trim()}\n` : ''}`
+    : `\n\nANGEBOTSDETAILS: KEIN Rabatt, KEIN Gutschein, KEIN Geschenk vorgegeben.
+→ Schreibe eine warme, persönliche Wiedersehens-Nachricht OHNE jedes konkrete Angebot, OHNE Rabatte, OHNE Prozente, OHNE Geschenke. Lade den Gast freundlich zur Rückkehr ein und biete an, bei Fragen persönlich zur Verfügung zu stehen.`;
+
   return `
 Erstelle eine personalisierte E-Mail für Steinbock Chalets:
 
@@ -132,15 +215,15 @@ BEISPIEL-GÄSTE (für Kontext):
 ${sampleGuests.map(guest => `
 - ${guest.guest_name}: ${guest.bookings.length} Buchung(en), €${guest.total_revenue} Gesamtumsatz, Bevorzugte Saison: ${Array.from(guest.preferred_seasons).join('/')}, Loyalitätslevel: ${guest.loyalty_level}
 `).join('')}
+${offerBlock}
 
 ANFORDERUNGEN:
-- Verwende spezifische Details über das Segment
-- Schaffe emotionale Verbindung zu den Alpen und dem Chalet-Erlebnis
-- Biete segmentspezifische Mehrwerte
-- Verwende warme, einladende Sprache
-- Füge konkrete Call-to-Actions hinzu
-- Integriere saisonale Bezüge wenn relevant
-- Beziehe sich auf Buchungshistorie und Loyalität
+- Persönliche, warme, einladende Sprache
+- Bezug auf vorherigen Aufenthalt und Loyalität
+- Saisonale Bezüge wenn passend
+- Klarer Call-to-Action (Antwort, Anfrage – KEINE erfundenen Links/Buchungscodes)
+- Erfinde NICHTS, was nicht oben in ANGEBOTSDETAILS steht
+- KEINE Signatur am Ende (wird automatisch angehängt)
 
 Erstelle Betreff und Inhalt, die speziell für diese Zielgruppe optimiert sind.
 `;

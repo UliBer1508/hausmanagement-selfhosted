@@ -1,53 +1,77 @@
-## Problem-Analyse
+## Probleme
 
-**1. Falsche Gäste-Auswahl (Luca & Kristina)**
-Der Hook `useRebookingScore.ts` lädt **alle** Buchungen ohne Datums-Filter. Luca & Kristinas Juli-2026-Buchung wird als „Aufenthalt" gezählt, obwohl sie noch gar nicht da waren. Die Berechnung `months_since_last_stay` wird dadurch negativ und der Score-Algorithmus liefert unsinnige Werte – die beiden landen in der Wiederbuchungs-Liste, obwohl sie gerade erst gebucht haben.
+1. **Erfundene Kontaktdaten**: Die KI erfindet Telefonnummer und Kontakt-E-Mail aus dem Nichts. Im System sind nur Absender-E-Mail (`steinbockchalets@gmail.com`) und Firmenname hinterlegt – sonst nichts.
+2. **Erfundene Angebote**: Die KI erfindet eigenständig „11 % Rabatt + Willkommensgeschenk", obwohl niemand das so definiert hat.
 
-**2. E-Mail-Versand scheitert (535 BadCredentials)**
-Die Edge-Function-Logs zeigen eindeutig:
-```
-Invalid login: 535-5.7.8 Username and Password not accepted
-```
-Das Gmail-App-Passwort (`GMAIL_APP_PASSWORD`) wird von Google abgelehnt. Das ist **kein Code-Problem** – das Passwort ist abgelaufen, wurde widerrufen oder die Zwei-Faktor-Authentifizierung des Gmail-Kontos wurde geändert.
+Beides muss verschwinden: die KI darf **nichts erfinden** und soll vor dem Schreiben **fragen**, was angeboten wird.
 
 ---
 
 ## Lösungskonzept
 
-### Teil A – Filter auf vergangene Aufenthalte (Code-Fix)
+### A) Neuer Schritt im Dialog: „Was bieten wir an?"
 
-Datei: `src/hooks/useRebookingScore.ts`
+Vor dem Klick auf „Personalisiertes Angebot generieren" wird ein kompaktes Eingabe-Formular angezeigt mit:
 
-- In der Supabase-Query nur Buchungen laden, deren **`check_out` in der Vergangenheit** liegt:
-  ```
-  .lt('check_out', new Date().toISOString().split('T')[0])
-  ```
-- Zusätzlich Status einschränken auf tatsächlich erfolgte Aufenthalte: `status in ('completed','checked_out','checked_in','confirmed')` – stornierte/no-show ausschließen.
-- Sicherheits-Guard in der Aggregation: Buchungen mit `check_in >= heute` überspringen, damit auch bei Datenfehlern keine zukünftigen Buchungen einfliessen.
-- `months_since_last_stay` auf `Math.max(0, …)` clampen, damit negative Werte (zukünftige Daten) keinen falschen Score erzeugen können.
-- Gäste, die nach dem Filtern **0 Aufenthalte** haben, werden automatisch durch den existierenden `guestMap`-Aufbau entfernt.
+- **Rabatt** (optional, in %) – Zahl oder leer
+- **Gutschein/Extra** (optional, freier Text, z. B. „Welcome-Drink", „Spa-Gutschein 50 €", leer = nichts)
+- **Gültigkeit** (optional, freier Text, z. B. „buchbar bis 31.07.2026")
+- **Zusätzlicher Hinweis** (optional, freier Text für individuelle Botschaft)
 
-**Ergebnis:** Luca & Kristina erscheinen erst dann in der Wiederbuchungs-Liste, wenn ihr Aufenthalt im Juli 2026 abgeschlossen ist.
+Defaults: alle leer → KI bietet **gar nichts** an, nur eine freundliche Wiedersehens-Nachricht.
 
-### Teil B – Gmail-Versand reparieren (Konfiguration, kein Code)
+### B) Kontaktdaten zentral pflegen – nicht erfinden
 
-Das `GMAIL_APP_PASSWORD`-Secret muss neu gesetzt werden. Schritte für dich:
+Da heute keine Telefon-/Kontakt-Felder existieren, erweitern wir `system_settings` um einen Eintrag `contact_settings`:
 
-1. Bei `steinbockchalets@gmail.com` einloggen → https://myaccount.google.com/apppasswords
-2. Sicherstellen, dass **2-Faktor-Authentifizierung aktiv** ist (sonst keine App-Passwörter möglich).
-3. Neues App-Passwort erstellen (App: „Mail", Gerät: „Lovable Edge Function").
-4. Das 16-stellige Passwort (ohne Leerzeichen) als neuen Wert für das Secret `GMAIL_APP_PASSWORD` speichern.
+```json
+{
+  "contact_email": "steinbockchalets@gmail.com",
+  "contact_phone": "+43 ...",
+  "signature_name": "Uli Berresheim",
+  "signature_role": "Steinbock Chalets"
+}
+```
 
-Nach dem Update funktioniert der Versand sofort – kein Re-Deploy nötig.
+- Migration legt den Eintrag mit leeren Defaults an (du füllst danach aus).
+- Neue kleine UI in **Einstellungen → Profil/Kontakt**, in der du Telefon, Kontakt-E-Mail und Signatur pflegst.
+- Edge Function lädt `contact_settings` aus der DB und übergibt sie der KI als **Fakten**. Telefon/E-Mail werden zusätzlich als feste Signatur unten an den von der KI generierten Text angehängt – nicht im LLM-freien Fließtext, damit nichts erfunden werden kann.
 
-**Optional (zusätzlicher Code-Fix):** Aktuell verschluckt das Frontend die echte Fehlermeldung („Fehler beim Versand"). Wir können den Toast erweitern, sodass die Server-Fehlermeldung (z. B. „Gmail-Passwort ungültig") direkt angezeigt wird – das hilft bei künftigen Diagnosen.
+### C) Edge Function `generate-personalized-email` härten
+
+Neuer Body-Parameter:
+```json
+{
+  "offer": {
+    "discount_percent": null,
+    "voucher": "",
+    "validity": "",
+    "extra_note": ""
+  }
+}
+```
+
+System-Prompt-Regeln (strikt):
+- „Verwende **ausschließlich** die unten genannten Angebotsdetails. **Erfinde keine Rabatte, Gutscheine, Preise, Telefonnummern oder E-Mail-Adressen.**"
+- „Wenn kein Rabatt/Gutschein angegeben ist, **erwähne keinen**. Schreibe stattdessen eine freundliche, persönliche Wiedersehens-Nachricht ohne konkretes Angebot."
+- „Schließe den Text **ohne Signatur**. Die Signatur wird automatisch angehängt."
+- Bei leerem Angebot: kürzerer, persönlicher Ton ohne Werbung.
+
+Die Signatur (Name, Rolle, Tel, E-Mail) wird **in der Edge Function deterministisch** aus `contact_settings` zusammengebaut und an `content` angehängt. So ist garantiert, dass die richtigen, echten Kontaktdaten in jeder Mail stehen.
+
+### D) Frontend-Anpassung `RebookingCampaign.tsx`
+
+- Neuer „Angebot konfigurieren"-Block im Dialog (4 Felder) wird **vor** dem Generate-Button angezeigt.
+- Werte werden an die Edge Function durchgereicht.
+- Toast-Hinweis: „KI verwendet nur die hier angegebenen Angebotsdetails."
 
 ---
 
 ## Umfang der Änderungen
 
-- **`src/hooks/useRebookingScore.ts`** – Query-Filter + Score-Clamp (Teil A)
-- **`src/components/Guests/RebookingCampaign.tsx`** – Toast zeigt echten Fehler (Teil B optional)
-- **Secret `GMAIL_APP_PASSWORD`** – muss von dir manuell aktualisiert werden
+- **DB-Migration**: `system_settings`-Eintrag `contact_settings` mit Default-Schema anlegen.
+- **`supabase/functions/generate-personalized-email/index.ts`**: `offer` & `contact_settings` lesen, strikter System-Prompt, deterministische Signatur am Ende.
+- **`src/components/Guests/RebookingCampaign.tsx`**: Angebots-Formular im Dialog, Übergabe an Edge Function.
+- **`src/components/Settings/...`** (kleinste passende Datei): Felder für Telefon, Kontakt-E-Mail, Signatur pflegen.
 
-Bestehende Funktionalität, andere Tabs und der Score-Algorithmus selbst bleiben unverändert.
+Bestehende Tabs, Score-Logik und der Versand bleiben unverändert.
