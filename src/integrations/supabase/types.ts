@@ -2657,6 +2657,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "ical_preview_edits_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "ical_preview_edits_source_id_fkey"
             columns: ["source_id"]
             isOneToOne: false
