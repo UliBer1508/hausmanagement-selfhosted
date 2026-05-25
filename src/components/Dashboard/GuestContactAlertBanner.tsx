@@ -63,6 +63,21 @@ const GuestContactAlertBanner = () => {
     );
   };
 
+  const handleCardClick = (booking: typeof guestsToContact[number]) => {
+    if (!booking.guest_email) {
+      toast({
+        title: "Keine E-Mail-Adresse hinterlegt",
+        description: `Für ${booking.guest_name} ist keine E-Mail vorhanden. Bitte Gastdaten prüfen.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    const checkInDate = format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de });
+    const houseName = booking.houses?.name ?? '';
+    const subject = `Ihre Anreise am ${checkInDate}${houseName ? ` – ${houseName}` : ''}`;
+    window.location.href = `mailto:${booking.guest_email}?subject=${encodeURIComponent(subject)}`;
+  };
+
   return (
     <div className="bg-amber-50 dark:bg-amber-950/30 border-l-4 border-amber-500 p-4 mb-6 rounded-lg shadow-sm">
       <div className="flex items-start gap-3">
@@ -82,7 +97,17 @@ const GuestContactAlertBanner = () => {
               return (
                 <div 
                   key={booking.id} 
-                  className="flex flex-col gap-3 bg-white dark:bg-background/50 p-3 rounded-lg border border-amber-200 dark:border-amber-800"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleCardClick(booking)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleCardClick(booking);
+                    }
+                  }}
+                  title={booking.guest_email ? `E-Mail an ${booking.guest_email} schreiben` : 'Keine E-Mail hinterlegt'}
+                  className="flex flex-col gap-3 bg-white dark:bg-background/50 p-3 rounded-lg border border-amber-200 dark:border-amber-800 cursor-pointer hover:shadow-md hover:border-amber-400 transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {/* Buchungsinformationen */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -121,6 +146,7 @@ const GuestContactAlertBanner = () => {
                         {booking.guest_email && (
                           <a 
                             href={`mailto:${booking.guest_email}`}
+                            onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-1 text-sm text-primary hover:underline"
                             title={booking.guest_email}
                           >
@@ -131,6 +157,7 @@ const GuestContactAlertBanner = () => {
                         {booking.guest_phone && (
                           <a 
                             href={`tel:${booking.guest_phone}`}
+                            onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-1 text-sm text-primary hover:underline"
                             title={booking.guest_phone}
                           >
@@ -145,7 +172,7 @@ const GuestContactAlertBanner = () => {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleMarkNotRequired(booking.id, booking.guest_name)}
+                        onClick={(e) => { e.stopPropagation(); handleMarkNotRequired(booking.id, booking.guest_name); }}
                         disabled={isUpdating}
                         className="text-muted-foreground hover:text-foreground w-full sm:w-auto"
                       >
@@ -154,7 +181,7 @@ const GuestContactAlertBanner = () => {
                       </Button>
                       <Button
                         size="sm"
-                        onClick={() => handleMarkContacted(booking.id, booking.guest_name)}
+                        onClick={(e) => { e.stopPropagation(); handleMarkContacted(booking.id, booking.guest_name); }}
                         disabled={isUpdating}
                         className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
                       >
@@ -166,7 +193,7 @@ const GuestContactAlertBanner = () => {
 
                   {/* Marketing-Aktionen */}
                   {marketingMatches.length > 0 && (
-                    <div className="space-y-2">
+                    <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
                       {marketingMatches.map(match => (
                         <div 
                           key={match.action.id}
