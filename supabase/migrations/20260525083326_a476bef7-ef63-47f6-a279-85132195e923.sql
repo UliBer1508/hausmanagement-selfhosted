@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.delete_booking_cascade(uuid) TO authenticated, anon;
