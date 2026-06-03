@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
  * Polls /version.json and forces a hard refresh when a new build is detected.
  * Ensures installed PWAs pick up new deploys within ~60s without a manual reload.
  */
-export function useAppVersionCheck(intervalMs = 60_000) {
+export function useAppVersionCheck(intervalMs = 20_000) {
   const initialVersion = useRef<string | null>(null);
   const reloading = useRef(false);
 
