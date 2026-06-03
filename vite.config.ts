@@ -56,7 +56,7 @@ export default defineConfig(({ mode }) => ({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'html-cache',
-              networkTimeoutSeconds: 3,
+              networkTimeoutSeconds: 1,
             },
           },
           {
