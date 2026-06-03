@@ -1384,6 +1384,18 @@ const OriginalDashboard = () => {
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                toast({ title: 'Abgemeldet', description: 'Du wurdest erfolgreich abgemeldet.' });
+                navigate('/login', { replace: true });
+              }}
+              className="flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium text-left transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 bg-white border-gray-200 text-gray-800 hover:border-gray-300"
+            >
+              <span className="text-lg leading-none shrink-0">🚪</span>
+              <span className="truncate">Abmelden</span>
+            </button>
           </nav>
         </div>
 
