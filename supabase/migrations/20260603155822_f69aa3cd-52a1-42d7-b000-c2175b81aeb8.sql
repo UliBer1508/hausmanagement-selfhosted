@@ -1,0 +1,1 @@
+SELECT schemaname, tablename FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('weather_cache', 'route_cache', 'activity_cache') ORDER BY tablename;
