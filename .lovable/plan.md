@@ -1,27 +1,14 @@
-## Plan: Enable RLS on Three Cache Tables
+## Ziel
+Den globalen "Abmelden"-Button oben rechts entfernen und stattdessen als zusätzlichen Karten-Button in der Dashboard-Navigation einfügen – an der Position nach "Einstellungen" (also unter "Provider" / rechts neben "Einstellungen" im Grid).
 
-### Goal
-Create a single Supabase migration that enables Row Level Security on the three non-critical cache tables: `weather_cache`, `route_cache`, and `activity_cache`.
+## Änderungen
 
-### Migration SQL
-The migration will run this exact pattern for each table:
-1. Drop any existing policy with the same name (idempotent)
-2. Enable RLS on the table
-3. Create a permissive policy granting full access to authenticated users
+**1. `src/components/Layout/AppLayout.tsx`**
+- Header mit `LogOut`-Button, zugehörigen State (`isAuthed`), `handleLogout`, Auth-Listener und unbenutzte Imports entfernen.
 
-### Scope Constraints
-- **Only** these three tables are touched
-- No `anon` role policies are added
-- No application code changes
-- No other tables are modified
+**2. `src/pages/OriginalDashboard.tsx`**
+- Im Navigations-Grid (Zeile ~1368) nach den `tabs.map(...)`-Buttons einen zusätzlichen Karten-Button "Abmelden" (🚪) einfügen – gleicher Stil wie die anderen Buttons, aber kein Tab.
+- onClick: `supabase.auth.signOut()` → Toast → `navigate('/login')`.
+- Imports ergänzen: `useNavigate`, `supabase`, `toast`.
 
-### Tables Verified
-All three tables exist in the database:
-- `public.weather_cache`
-- `public.route_cache`
-- `public.activity_cache`
-
-### Post-Migration Impact
-- Authenticated admin users retain full read/write access via the permissive policy
-- Edge Functions using `service_role` key bypass RLS (unchanged behavior)
-- No anonymous access is granted
+Damit erscheint "Abmelden" im Grid als nächste Karte nach "Einstellungen" (responsives Grid, ohne weitere Layout-Anpassungen).
