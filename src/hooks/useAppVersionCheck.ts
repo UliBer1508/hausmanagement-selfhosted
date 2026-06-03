@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 
 /**
  * Polls /version.json and forces a hard refresh when a new build is detected.
- * Ensures installed PWAs pick up new deploys within ~60s without a manual reload.
+ * Ensures installed PWAs pick up new deploys within ~20s without a manual reload.
  */
 export function useAppVersionCheck(intervalMs = 20_000) {
   const initialVersion = useRef<string | null>(null);
@@ -18,6 +18,16 @@ export function useAppVersionCheck(intervalMs = 20_000) {
     if (inIframe || isPreviewHost) return;
 
     let cancelled = false;
+
+    // When a new SW takes control, reload immediately so the user sees the new build.
+    const onControllerChange = () => {
+      if (reloading.current) return;
+      reloading.current = true;
+      window.location.reload();
+    };
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("controllerchange", onControllerChange);
+    }
 
     const fetchVersion = async (): Promise<string | null> => {
       try {
@@ -35,27 +45,30 @@ export function useAppVersionCheck(intervalMs = 20_000) {
 
     const triggerHardReload = async () => {
       if (reloading.current) return;
-      if (sessionStorage.getItem("app-version-reloaded") === "1") return;
       reloading.current = true;
-      sessionStorage.setItem("app-version-reloaded", "1");
 
       try {
         if ("serviceWorker" in navigator) {
           const regs = await navigator.serviceWorker.getRegistrations();
+          let hasWaiting = false;
           await Promise.all(
             regs.map(async (r) => {
               try { await r.update(); } catch {}
-              if (r.waiting) r.waiting.postMessage({ type: "SKIP_WAITING" });
+              if (r.waiting) {
+                hasWaiting = true;
+                r.waiting.postMessage({ type: "SKIP_WAITING" });
+              }
             })
           );
-        }
-        if ("caches" in window) {
-          const names = await caches.keys();
-          await Promise.all(
-            names
-              .filter((n) => n !== "workbox-precache-v2-")
-              .map((n) => caches.delete(n))
-          );
+          // If a new SW is taking over, the controllerchange listener will reload us.
+          // Give it 1.5s to claim; otherwise fall back to a plain reload.
+          if (hasWaiting) {
+            setTimeout(() => {
+              if (!reloading.current) return;
+              window.location.reload();
+            }, 1500);
+            return;
+          }
         }
       } catch {
         // ignore
@@ -88,6 +101,9 @@ export function useAppVersionCheck(intervalMs = 20_000) {
       cancelled = true;
       window.clearInterval(id);
       document.removeEventListener("visibilitychange", onVisibility);
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.removeEventListener("controllerchange", onControllerChange);
+      }
     };
   }, [intervalMs]);
 }
