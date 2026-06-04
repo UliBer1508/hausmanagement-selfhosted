@@ -1,45 +1,59 @@
 ## Problem
 
-Im `EditCleaningTaskDialog` (Reinigungsauftrag bearbeiten) reagiert der runde blaue **X**-Schließen-Button nicht. Im Session-Replay sieht man, dass der User mehrfach klickt, ohne dass der Dialog schließt.
+Der X-Close-Button im `EditCleaningTaskDialog` schließt den Dialog weiterhin nicht — auch nach dem Layout-Fix (Badge/Löschen in eigene Zeile).
 
-### Ursache
+## Vermutete Ursache
 
-Der globale Schließen-Button ist in `src/components/ui/dialog.tsx` als `absolute right-3 top-3`, 44×44 px gross. Im `EditCleaningTaskDialog`-Header sitzt rechts oben aber zusätzlich:
+`EditCleaningTaskDialog` rendert **drei separate `<Dialog>`-Komponenten** abhängig vom Zustand:
 
-- Status-Badge ("Abgeschlossen")
-- Roter **Löschen**-Button (`<AlertDialogTrigger asChild>` → `<Button>`)
+```tsx
+if (loadingTask) return <Dialog>...</Dialog>;   // Variante A
+if (!task)       return <Dialog>...</Dialog>;   // Variante B
+return            <Dialog>...</Dialog>;          // Variante C
+```
 
-Beide liegen innerhalb der Header-Flexbox mit nur `pr-10`. Der `Löschen`-Button überlappt damit räumlich mit dem X-Button. Da `Löschen` im DOM nach dem X eingefügt sein kann (Portal-Reihenfolge) bzw. das `AlertDialogTrigger` denselben Bereich abfängt, landet der Klick auf `Löschen` (öffnet den Bestätigungs-AlertDialog kurz / schluckt das Event) statt auf X. Ergebnis: Dialog schliesst nicht.
+Dadurch:
+
+1. Radix Dialog wird **unmounted und remounted**, sobald `loadingTask` von `true` auf `false` wechselt.
+2. Während des kurzen Übergangs (Loading → Daten geladen) bleibt der Portal-/Focus-Trap-/Scroll-Lock-Zustand inkonsistent (im Replay sieht man `body[data-scroll-locked]` + `pointer-events: none`).
+3. Wenn der User währenddessen auf X klickt, feuert `onOpenChange(false)` zwar — aber die parallel ablaufende Re-Mount-Logik führt dazu, dass `open=true` für die neu gemountete Dialog-Instanz aktiv bleibt (Parent-State wurde durch Re-Mount überschrieben oder die Open-Property kommt vom Parent, der noch `true` hält).
 
 ## Lösung
 
-### 1. `EditCleaningTaskDialog` Header reparieren
-- Header-Aktionen (Badge + Löschen) auf eigene Zeile *unter* dem Titel verschieben, oder
-- klare Trennung zum X erzwingen: `pr-16` auf den Action-Container und `Löschen` darf nicht in den X-Hitbereich (≥ 56 px vom rechten Rand) ragen.
+`EditCleaningTaskDialog` so refaktorieren, dass **immer nur ein** `<Dialog open={open} onOpenChange={onOpenChange}>` gerendert wird. Innerhalb von `<DialogContent>` wird der Inhalt anhand des States bedingt gerendert (Loading-Spinner, „nicht gefunden"-Hinweis oder Formular).
 
-Empfohlen: Badge + Löschen in eine zweite Zeile unter dem Titel, damit X frei bleibt — und die Karte weiterhin auf Mobile sauber aussieht.
+```tsx
+return (
+  <Dialog open={open} onOpenChange={onOpenChange}>
+    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      {loadingTask ? (
+        <div className="flex items-center justify-center py-8">Lädt...</div>
+      ) : !task ? (
+        <div className="flex items-center justify-center py-8 text-muted-foreground">
+          Reinigungsauftrag nicht gefunden.
+        </div>
+      ) : (
+        <>
+          <DialogHeader>...</DialogHeader>
+          ...restliches Formular...
+        </>
+      )}
+    </DialogContent>
+  </Dialog>
+);
+```
 
-### 2. Andere Edit-/Detail-Dialoge prüfen
-Folgende Dialoge platzieren ebenfalls Buttons/Badges in den Header und sind kandidatengefährdet für dieselbe Überschneidung mit dem X. Ich prüfe sie und korrigiere identische Überlappungen:
+Damit:
+- nur **eine** Dialog-Root mit stabilem Portal/Focus-Trap
+- X-Close-Button verhält sich konsistent
+- kein Flicker zwischen Loading- und Daten-Variante
 
-- `src/components/ServicePortal/EditInvoiceDialog.tsx`
-- `src/components/ServicePortal/InvoiceDetailsDialog.tsx`
-- `src/components/ServicePortal/ProviderManagementDialog.tsx`
-- `src/components/ServicePortal/ProviderBillingDialog.tsx`
-- `src/components/Tenants/EditPaymentDialog.tsx`
-- `src/components/Tenants/RentHistoryDialog.tsx`
-- `src/components/Houses/EditHouseDialog.tsx`
-- `src/components/Houses/LinenOrderDialog.tsx`
-- `src/components/Houses/CompetitorAnalysis/CompetitorDetailsDialog.tsx`
-- `src/components/Guests/ActionDetailsDialog.tsx`
-- `src/components/Bookings/CreateBookingForm.tsx` (im Dialog-Kontext)
+## Verifikation
 
-Geprüft wird pro Datei nur: Liegt ein Button/Badge im obersten rechten Bereich des `DialogHeader`? Falls ja → gleiche Korrektur (zweite Zeile oder ausreichend `pr`).
-
-### 3. Verifikation
-- Preview öffnen, `EditCleaningTaskDialog` testen: X schliesst zuverlässig, Löschen funktioniert weiterhin.
-- Stichprobenartig 2–3 der korrigierten Dialoge im Preview prüfen.
+- Preview öffnen, einen Reinigungsauftrag-Edit-Dialog öffnen, X klicken → schließt sofort.
+- Bei langsamem Netzwerk: während des Ladens auf X klicken → schließt sofort.
+- ESC und Klick auf Overlay weiterhin funktional.
 
 ## Nicht im Umfang
-- Keine Änderung am globalen X-Style in `dialog.tsx` (würde sonst alle Dialoge verändern).
-- Keine Logik-Änderung (Mutations, Queries) — rein Layout/UX.
+- Keine Änderung an `dialog.tsx` oder an anderen Dialogen.
+- Keine Logik-Änderung in den Mutations/Queries.
