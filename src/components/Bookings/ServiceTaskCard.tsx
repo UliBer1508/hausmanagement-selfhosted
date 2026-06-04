@@ -67,12 +67,13 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
   };
 
   return (
-    <ClickableCard
-      aria-label={`${getServiceLabel(task.service_type)} bearbeiten`}
-      onActivate={() => setShowEditDialog(true)}
-      showChevron
-      className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50`}
-    >
+    <>
+      <ClickableCard
+        aria-label={`${getServiceLabel(task.service_type)} bearbeiten`}
+        onActivate={() => setShowEditDialog(true)}
+        showChevron
+        className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50`}
+      >
       <CardContent className="p-3 relative pb-10">
         <div className="space-y-2">
           {/* Header with Title and Edit Button */}
@@ -168,6 +169,8 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
         </div>
       </CardContent>
 
+      </ClickableCard>
+
       {/* Edit Dialog */}
       <EditCleaningTaskDialog
         taskId={task.id}
@@ -178,7 +181,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
           onTaskUpdated?.();
         }}
       />
-    </ClickableCard>
+    </>
   );
 };
 
