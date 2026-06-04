@@ -367,68 +367,54 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     return staffId && staffId !== 'none' && staff.id === staffId;
   }) || (task?.cleaning_assignments?.[0]?.cleaning_staff ? task.cleaning_assignments[0].cleaning_staff : null);
 
-  if (loadingTask) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className={loadingTask || !task ? "max-w-2xl" : "max-w-4xl max-h-[90vh] overflow-y-auto"}>
+        {loadingTask ? (
           <div className="flex items-center justify-center py-8">
             Lädt...
           </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  if (!task) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
+        ) : !task ? (
           <div className="flex items-center justify-center py-8 text-muted-foreground">
             Reinigungsauftrag nicht gefunden.
           </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">
-            Reinigungsauftrag bearbeiten
-          </DialogTitle>
-          <div className="flex flex-wrap items-center gap-2 pt-2">
-            {getStatusBadge(task.status)}
-            <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm">
-                    <Trash2 className="w-4 h-4 mr-1" />
-                    Löschen
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Auftrag löschen?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Diese Aktion kann nicht rückgängig gemacht werden. Der Reinigungsauftrag wird permanent gelöscht.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                    <AlertDialogAction 
-                      onClick={() => deleteTaskMutation.mutate()}
-                      className="bg-destructive text-destructive-foreground"
-                    >
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-xl font-semibold">
+                Reinigungsauftrag bearbeiten
+              </DialogTitle>
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                {getStatusBadge(task.status)}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="w-4 h-4 mr-1" />
                       Löschen
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-          </div>
-        </DialogHeader>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Auftrag löschen?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Diese Aktion kann nicht rückgängig gemacht werden. Der Reinigungsauftrag wird permanent gelöscht.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={() => deleteTaskMutation.mutate()}
+                        className="bg-destructive text-destructive-foreground"
+                      >
+                        Löschen
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Booking Information */}
           <Card>
             <CardHeader>
