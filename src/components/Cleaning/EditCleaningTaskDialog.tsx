@@ -810,6 +810,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
             </CardContent>
           </Card>
         )}
+          </>
       </DialogContent>
     </Dialog>
   );
