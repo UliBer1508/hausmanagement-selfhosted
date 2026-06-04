@@ -1,59 +1,49 @@
-## Problem
+## Bewertung des Prompts
 
-Der X-Close-Button im `EditCleaningTaskDialog` schließt den Dialog weiterhin nicht — auch nach dem Layout-Fix (Badge/Löschen in eigene Zeile).
+Der Prompt ist **sinnvoll und sicher**. Die Änderungen produzieren keine Fehler, wenn sie sauber umgesetzt werden. Ich habe die Datenbank inspiziert und bestätige:
 
-## Vermutete Ursache
+### Teil A — Duplicate Indexes (verifiziert)
+Für jede genannte Tabelle existieren tatsächlich **zwei identische Indexe** (gleiche Spalten, gleicher Typ). Die `_id`-Variante ist jeweils das Duplikat einer kürzeren Version, die erhalten bleibt:
 
-`EditCleaningTaskDialog` rendert **drei separate `<Dialog>`-Komponenten** abhängig vom Zustand:
+| Drop (Duplikat)                              | Bleibt (gleiche Spalte)                   |
+|----------------------------------------------|-------------------------------------------|
+| `idx_cleaning_assignments_staff_id`          | `idx_cleaning_assignments_staff`          |
+| `idx_cleaning_assignments_task_id`           | `idx_cleaning_assignments_task`           |
+| `idx_competitor_properties_house_id`         | `idx_competitor_properties_house`         |
+| `idx_preference_config_parent`               | `idx_onboarding_configuration_parent_id`  |
+| `idx_provider_messages_provider_id`          | `idx_provider_messages_provider`          |
 
-```tsx
-if (loadingTask) return <Dialog>...</Dialog>;   // Variante A
-if (!task)       return <Dialog>...</Dialog>;   // Variante B
-return            <Dialog>...</Dialog>;          // Variante C
+→ Risikofrei, kein App-Code betroffen.
+
+### Teil B — RLS auth_rls_initplan
+Ich habe die Policies in `pg_policies` gegengeprüft. Praktisch alle gelisteten Policies haben die Form:
 ```
-
-Dadurch:
-
-1. Radix Dialog wird **unmounted und remounted**, sobald `loadingTask` von `true` auf `false` wechselt.
-2. Während des kurzen Übergangs (Loading → Daten geladen) bleibt der Portal-/Focus-Trap-/Scroll-Lock-Zustand inkonsistent (im Replay sieht man `body[data-scroll-locked]` + `pointer-events: none`).
-3. Wenn der User währenddessen auf X klickt, feuert `onOpenChange(false)` zwar — aber die parallel ablaufende Re-Mount-Logik führt dazu, dass `open=true` für die neu gemountete Dialog-Instanz aktiv bleibt (Parent-State wurde durch Re-Mount überschrieben oder die Open-Property kommt vom Parent, der noch `true` hält).
-
-## Lösung
-
-`EditCleaningTaskDialog` so refaktorieren, dass **immer nur ein** `<Dialog open={open} onOpenChange={onOpenChange}>` gerendert wird. Innerhalb von `<DialogContent>` wird der Inhalt anhand des States bedingt gerendert (Loading-Spinner, „nicht gefunden"-Hinweis oder Formular).
-
-```tsx
-return (
-  <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-      {loadingTask ? (
-        <div className="flex items-center justify-center py-8">Lädt...</div>
-      ) : !task ? (
-        <div className="flex items-center justify-center py-8 text-muted-foreground">
-          Reinigungsauftrag nicht gefunden.
-        </div>
-      ) : (
-        <>
-          <DialogHeader>...</DialogHeader>
-          ...restliches Formular...
-        </>
-      )}
-    </DialogContent>
-  </Dialog>
-);
+has_role(auth.uid(), 'admin'::app_role)
 ```
+Das Wrapping nach Supabase-Empfehlung ist:
+```
+has_role((select auth.uid()), 'admin'::app_role)
+```
+Das ändert **nur** die Planung (initplan statt per-row), nicht die Semantik. Roles (`authenticated` vs `public`), `USING`/`WITH CHECK` und Befehlstyp bleiben exakt erhalten.
 
-Damit:
-- nur **eine** Dialog-Root mit stabilem Portal/Focus-Trap
-- X-Close-Button verhält sich konsistent
-- kein Flicker zwischen Loading- und Daten-Variante
+### Wichtige Punkte, die der Prompt korrekt vorgibt
+- `DROP POLICY IF EXISTS` + `CREATE POLICY` (idempotent)
+- Tatsächliche aktuelle Definition jeder Policy inspizieren statt erraten
+- `TO`-Klausel (z. B. `authenticated` vs default `public`) beibehalten — kritisch, sonst Rechteänderung
+- `WITH CHECK` nur dort, wo es im Original existiert
 
-## Verifikation
+### Hinweise / kleine Verbesserungen
+1. **Policy-Namen exakt verifizieren**: Z. B. `user_roles → "Admin can modify roles"` muss vor dem Recreate überprüft werden (Schreibweise/Vorhandensein). Falls eine Policy nicht existiert, soll die Migration sie überspringen, nicht failen → `DROP POLICY IF EXISTS` reicht; `CREATE POLICY` darf aber nur erfolgen, wenn Originaltext bekannt ist.
+2. **Keine `auth.*`-Calls in `SECURITY DEFINER`-Funktionen wrappen** — die hier betroffenen Policies rufen `has_role(auth.uid(), …)` direkt im Policy-Ausdruck, das ist der korrekte Ort.
+3. **Reihenfolge**: Indexe zuerst droppen, dann Policies neu erstellen — unkritisch, aber sauber.
+4. Migration als **ein** Transaktions-Block ausführen, damit bei Fehler alles zurückrollt.
 
-- Preview öffnen, einen Reinigungsauftrag-Edit-Dialog öffnen, X klicken → schließt sofort.
-- Bei langsamem Netzwerk: während des Ladens auf X klicken → schließt sofort.
-- ESC und Klick auf Overlay weiterhin funktional.
+### Plan
+1. Aktuelle Definitionen aller gelisteten Policies via `pg_policies` einlesen (qual, with_check, roles, cmd).
+2. Eine Migration generieren, die:
+   - die 5 Duplikat-Indexe per `DROP INDEX IF EXISTS` entfernt,
+   - für jede gelistete Policy `DROP POLICY IF EXISTS … ON … ;` gefolgt von `CREATE POLICY … ON … FOR <cmd> TO <roles> USING (…) WITH CHECK (…)` ausführt, wobei `auth.uid()` / `auth.role()` / `auth.jwt()` / `current_setting(...)` durch `(select …)` ersetzt werden — Rest 1:1 übernommen.
+3. Über `supabase--migration` einreichen, anschließend Linter erneut laufen lassen, um Behebung zu bestätigen.
 
-## Nicht im Umfang
-- Keine Änderung an `dialog.tsx` oder an anderen Dialogen.
-- Keine Logik-Änderung in den Mutations/Queries.
+### Fazit
+Der Prompt ist technisch korrekt, sicher (keine Logik-/Rechteänderung) und entspricht der offiziellen Supabase-Empfehlung für das `auth_rls_initplan`-Warning. Empfohlen umzusetzen.
