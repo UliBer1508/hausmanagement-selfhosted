@@ -49,23 +49,19 @@ const CompetitorDetailsDialog = ({ competitor, open, onOpenChange }: CompetitorD
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] p-0">
         <DialogHeader className="px-6 pt-6 pb-2">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <DialogTitle className="text-xl">{competitor.property_name}</DialogTitle>
-              <p className="text-sm text-muted-foreground mt-1">von {competitor.competitor_name}</p>
-            </div>
-            <div className="flex gap-2 items-center">
-              {competitor.platform && (
-                <Badge className={platformColors[competitor.platform] || platformColors.other}>
-                  {competitor.platform}
-                </Badge>
-              )}
-              {competitor.property_url && (
-                <Button size="sm" variant="outline" onClick={() => window.open(competitor.property_url, '_blank')}>
-                  <ExternalLink className="w-4 h-4 mr-1" /> Öffnen
-                </Button>
-              )}
-            </div>
+          <DialogTitle className="text-xl">{competitor.property_name}</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-1">von {competitor.competitor_name}</p>
+          <div className="flex flex-wrap gap-2 items-center pt-2">
+            {competitor.platform && (
+              <Badge className={platformColors[competitor.platform] || platformColors.other}>
+                {competitor.platform}
+              </Badge>
+            )}
+            {competitor.property_url && (
+              <Button size="sm" variant="outline" onClick={() => window.open(competitor.property_url, '_blank')}>
+                <ExternalLink className="w-4 h-4 mr-1" /> Öffnen
+              </Button>
+            )}
           </div>
         </DialogHeader>
 

@@ -395,13 +395,12 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-center justify-between gap-3 pr-10">
-            <DialogTitle className="text-xl font-semibold">
-              Reinigungsauftrag bearbeiten
-            </DialogTitle>
-            <div className="flex items-center gap-2">
-              {getStatusBadge(task.status)}
-              <AlertDialog>
+          <DialogTitle className="text-xl font-semibold">
+            Reinigungsauftrag bearbeiten
+          </DialogTitle>
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            {getStatusBadge(task.status)}
+            <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="destructive" size="sm">
                     <Trash2 className="w-4 h-4 mr-1" />
@@ -426,7 +425,6 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-            </div>
           </div>
         </DialogHeader>
 
