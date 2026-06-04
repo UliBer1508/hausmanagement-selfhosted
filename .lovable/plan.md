@@ -1,49 +1,32 @@
-## Bewertung des Prompts
+## Migration: Covering Indexes für Foreign Keys
 
-Der Prompt ist **sinnvoll und sicher**. Die Änderungen produzieren keine Fehler, wenn sie sauber umgesetzt werden. Ich habe die Datenbank inspiziert und bestätige:
+Erstellt 9 neue Indexe auf häufig abgefragten Foreign-Key-Spalten, um Query-Performance zu verbessern. Alle Befehle nutzen `CREATE INDEX IF NOT EXISTS` — idempotent und sicher.
 
-### Teil A — Duplicate Indexes (verifiziert)
-Für jede genannte Tabelle existieren tatsächlich **zwei identische Indexe** (gleiche Spalten, gleicher Typ). Die `_id`-Variante ist jeweils das Duplikat einer kürzeren Version, die erhalten bleibt:
+### Was passiert
+- 9 neue B-Tree Indexe werden angelegt
+- Keine bestehenden Indexe werden geändert oder gelöscht
+- Keine Tabellenstruktur, RLS-Policies oder Daten werden verändert
+- Keine Anwendungscode-Änderungen
 
-| Drop (Duplikat)                              | Bleibt (gleiche Spalte)                   |
-|----------------------------------------------|-------------------------------------------|
-| `idx_cleaning_assignments_staff_id`          | `idx_cleaning_assignments_staff`          |
-| `idx_cleaning_assignments_task_id`           | `idx_cleaning_assignments_task`           |
-| `idx_competitor_properties_house_id`         | `idx_competitor_properties_house`         |
-| `idx_preference_config_parent`               | `idx_onboarding_configuration_parent_id`  |
-| `idx_provider_messages_provider_id`          | `idx_provider_messages_provider`          |
+### Betroffene Indexe
+1. `idx_linen_orders_laundry_invoice_id` auf `linen_orders(laundry_invoice_id)`
+2. `idx_linen_orders_related_linen_order_id` auf `linen_orders(related_linen_order_id)`
+3. `idx_service_tasks_related_task_id` auf `service_tasks(related_task_id)`
+4. `idx_utility_costs_category_id` auf `utility_costs(category_id)`
+5. `idx_utility_statements_house_id` auf `utility_statements(house_id)`
+6. `idx_tenant_payments_house_id` auf `tenant_payments(house_id)`
+7. `idx_tenant_rent_changes_house_id` auf `tenant_rent_changes(house_id)`
+8. `idx_houses_default_provider_id` auf `houses(default_provider_id)`
+9. `idx_profiles_provider_id` auf `profiles(provider_id)`
 
-→ Risikofrei, kein App-Code betroffen.
+### Sicherheits-Check (bereits verifiziert)
+- Alle Spalten existieren ✅
+- Keiner der Indexe existiert bereits → keine Konflikte ✅
+- `IF NOT EXISTS` macht Migration wiederholbar ✅
+- Guest-App-Tabellen werden bewusst ausgelassen ✅
 
-### Teil B — RLS auth_rls_initplan
-Ich habe die Policies in `pg_policies` gegengeprüft. Praktisch alle gelisteten Policies haben die Form:
-```
-has_role(auth.uid(), 'admin'::app_role)
-```
-Das Wrapping nach Supabase-Empfehlung ist:
-```
-has_role((select auth.uid()), 'admin'::app_role)
-```
-Das ändert **nur** die Planung (initplan statt per-row), nicht die Semantik. Roles (`authenticated` vs `public`), `USING`/`WITH CHECK` und Befehlstyp bleiben exakt erhalten.
+### Vorsichtsmaßnahmen
+- Index-Erstellung sperrt die Tabelle nur kurz für Schreibvorgänge (kleine Tabellen → millisekunden). Falls eine Tabelle sehr groß ist, könnte das kurz spürbar sein — aber kein Datenverlust-Risiko.
+- Bei Fehler in einem `CREATE INDEX` rollt die gesamte Migration zurück.
 
-### Wichtige Punkte, die der Prompt korrekt vorgibt
-- `DROP POLICY IF EXISTS` + `CREATE POLICY` (idempotent)
-- Tatsächliche aktuelle Definition jeder Policy inspizieren statt erraten
-- `TO`-Klausel (z. B. `authenticated` vs default `public`) beibehalten — kritisch, sonst Rechteänderung
-- `WITH CHECK` nur dort, wo es im Original existiert
-
-### Hinweise / kleine Verbesserungen
-1. **Policy-Namen exakt verifizieren**: Z. B. `user_roles → "Admin can modify roles"` muss vor dem Recreate überprüft werden (Schreibweise/Vorhandensein). Falls eine Policy nicht existiert, soll die Migration sie überspringen, nicht failen → `DROP POLICY IF EXISTS` reicht; `CREATE POLICY` darf aber nur erfolgen, wenn Originaltext bekannt ist.
-2. **Keine `auth.*`-Calls in `SECURITY DEFINER`-Funktionen wrappen** — die hier betroffenen Policies rufen `has_role(auth.uid(), …)` direkt im Policy-Ausdruck, das ist der korrekte Ort.
-3. **Reihenfolge**: Indexe zuerst droppen, dann Policies neu erstellen — unkritisch, aber sauber.
-4. Migration als **ein** Transaktions-Block ausführen, damit bei Fehler alles zurückrollt.
-
-### Plan
-1. Aktuelle Definitionen aller gelisteten Policies via `pg_policies` einlesen (qual, with_check, roles, cmd).
-2. Eine Migration generieren, die:
-   - die 5 Duplikat-Indexe per `DROP INDEX IF EXISTS` entfernt,
-   - für jede gelistete Policy `DROP POLICY IF EXISTS … ON … ;` gefolgt von `CREATE POLICY … ON … FOR <cmd> TO <roles> USING (…) WITH CHECK (…)` ausführt, wobei `auth.uid()` / `auth.role()` / `auth.jwt()` / `current_setting(...)` durch `(select …)` ersetzt werden — Rest 1:1 übernommen.
-3. Über `supabase--migration` einreichen, anschließend Linter erneut laufen lassen, um Behebung zu bestätigen.
-
-### Fazit
-Der Prompt ist technisch korrekt, sicher (keine Logik-/Rechteänderung) und entspricht der offiziellen Supabase-Empfehlung für das `auth_rls_initplan`-Warning. Empfohlen umzusetzen.
+Nach deiner Bestätigung führe ich die Migration über das Migrations-Tool aus.
