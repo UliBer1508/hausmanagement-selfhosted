@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { openInMailClient } from '@/lib/mailtoHelper';
 
 export interface GuestRebookingData {
   guest_key: string;
@@ -195,38 +196,14 @@ export function useSendRebookingOffer() {
         throw new Error('Für diesen Gast ist keine E-Mail-Adresse hinterlegt.');
       }
 
-      const { data, error } = await supabase.functions.invoke('send-gmail', {
-        body: {
-          to: [guest.guest_email],
-          subject: aiSubject,
-          html: aiHtml || aiContent,
-          text: aiContent,
-          guestName: guest.guest_name,
-        },
+      // Mail wird im lokalen E-Mail-Client geöffnet (kein Server-Versand)
+      openInMailClient({
+        to: guest.guest_email,
+        subject: aiSubject,
+        text: aiContent,
+        html: aiHtml,
       });
-      if (error) {
-        const ctx: any = (error as any).context;
-        let payload: any = null;
-
-        try {
-          if (ctx?.response && typeof ctx.response.json === 'function') {
-            payload = await ctx.response.json();
-          }
-        } catch {
-          try {
-            if (ctx?.response && typeof ctx.response.text === 'function') {
-              const raw = await ctx.response.text();
-              payload = raw ? JSON.parse(raw) : null;
-            }
-          } catch {
-            payload = null;
-          }
-        }
-
-        throw new Error(payload?.error || error.message || 'Edge Function returned a non-2xx status code');
-      }
-      if (!data?.success) throw new Error(data?.error || 'Versand fehlgeschlagen');
-      return data;
+      return { success: true, opened: true };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rebooking-guests'] });

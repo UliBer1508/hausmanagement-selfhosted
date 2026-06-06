@@ -12,6 +12,7 @@ import GuestPersonalization from './GuestPersonalization';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useGuestSegments, GuestSegmentData } from '@/hooks/useGuests';
 import { supabase } from '@/integrations/supabase/client';
+import { openInMailClient } from '@/lib/mailtoHelper';
 
 const GuestCommunication = () => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -100,33 +101,25 @@ const GuestCommunication = () => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('send-gmail', {
-        body: {
-          to: targetGuests,
-          subject: subject,
-          html: content,
-          guestName: 'Liebe Gäste'
-        }
+      // Öffnet lokalen Mail-Client mit vorausgefülltem Entwurf
+      openInMailClient({
+        to: targetGuests,
+        subject,
+        html: content,
       });
 
-      if (error) throw error;
+      toast({
+        title: "E-Mail-Entwurf geöffnet",
+        description: `Entwurf für ${targetGuests.length} Gäste im Mail-Client geöffnet. Bitte prüfen und manuell senden.`,
+      });
 
-      if (data?.success) {
-        toast({
-          title: "E-Mail gesendet",
-          description: `Nachricht wurde erfolgreich an ${data.recipients || targetGuests.length} Gäste gesendet`,
-        });
-        
-        setCustomMessage('');
-        setSelectedTemplate('');
-      } else {
-        throw new Error(data?.error || 'Unbekannter Fehler');
-      }
+      setCustomMessage('');
+      setSelectedTemplate('');
     } catch (error) {
       console.error('Error sending email:', error);
       toast({
-        title: "Fehler beim Senden",
-        description: "Die E-Mail konnte nicht gesendet werden. Bitte versuchen Sie es später erneut.",
+        title: "Fehler",
+        description: "Der E-Mail-Entwurf konnte nicht geöffnet werden.",
         variant: "destructive"
       });
     }
@@ -145,30 +138,21 @@ const GuestCommunication = () => {
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('send-gmail', {
-        body: {
-          to: targetGuests,
-          subject: subject,
-          html: content,
-          guestName: 'Liebe Gäste'
-        }
+      openInMailClient({
+        to: targetGuests,
+        subject,
+        html: content,
       });
 
-      if (error) throw error;
-
-      if (data?.success) {
-        toast({
-          title: "Personalisierte E-Mail gesendet",
-          description: `KI-optimierte Nachricht wurde erfolgreich an ${data.recipients || targetGuests.length} Gäste gesendet`,
-        });
-      } else {
-        throw new Error(data?.error || 'Unbekannter Fehler');
-      }
+      toast({
+        title: "Personalisierter Entwurf geöffnet",
+        description: `KI-optimierter Entwurf für ${targetGuests.length} Gäste im Mail-Client geöffnet.`,
+      });
     } catch (error) {
       console.error('Error sending personalized email:', error);
       toast({
-        title: "Fehler beim Senden",
-        description: "Die personalisierte E-Mail konnte nicht gesendet werden.",
+        title: "Fehler",
+        description: "Der Entwurf konnte nicht geöffnet werden.",
         variant: "destructive"
       });
     }

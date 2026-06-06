@@ -143,15 +143,12 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
       // Vollständigen E-Mail-Text aus Komponenten zusammensetzen
       const fullEmailText = `${emailData.customText ? `${emailData.customText}\n\n` : ''}${emailData.orderDetails}\n\nBitte bestätigen Sie den Erhalt dieser Bestellung.\n\nMit freundlichen Grüßen\nSteinbock Chalets Team`;
 
-      const { error } = await supabase.functions.invoke('send-gmail', {
-        body: {
-          to: [emailData.to],
-          subject: emailData.subject,
-          text: fullEmailText
-        }
+      const { openInMailClient } = await import('@/lib/mailtoHelper');
+      openInMailClient({
+        to: emailData.to,
+        subject: emailData.subject,
+        text: fullEmailText,
       });
-      
-      if (error) throw error;
 
       // E-Mail-Zeitstempel aktualisieren
       if (createdOrderForEmail?.id) {
@@ -162,16 +159,16 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
       }
       
       toast({
-        title: "E-Mail versendet",
-        description: `Bestellung wurde erfolgreich an ${emailData.to} gesendet.`,
+        title: "E-Mail-Entwurf geöffnet",
+        description: `Entwurf für ${emailData.to} im Mail-Client geöffnet. Bitte manuell senden.`,
       });
       setEmailDialogOpen(false);
       setCreatedOrderForEmail(null);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Fehler beim Versenden",
-        description: error.message || "Die E-Mail konnte nicht versendet werden.",
+        title: "Fehler",
+        description: error.message || "Der E-Mail-Entwurf konnte nicht geöffnet werden.",
       });
     }
   };

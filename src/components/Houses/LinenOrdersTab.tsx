@@ -235,15 +235,12 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
 
       const fullEmailText = `${emailData.customText ? `${emailData.customText}\n\n` : ''}${emailData.orderDetails}\n\nBitte bestätigen Sie den Erhalt dieser Bestellung.\n\nMit freundlichen Grüßen\nSteinbock Chalets Team`;
 
-      const { data, error } = await supabase.functions.invoke('send-gmail', {
-        body: {
-          to: [emailData.to],
-          subject: emailData.subject,
-          text: fullEmailText
-        }
+      const { openInMailClient } = await import('@/lib/mailtoHelper');
+      openInMailClient({
+        to: emailData.to,
+        subject: emailData.subject,
+        text: fullEmailText,
       });
-
-      if (error) throw error;
 
       // Update email_sent_at timestamp
       await supabase
@@ -252,8 +249,8 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
         .eq('id', emailingOrder.id);
 
       toast({
-        title: "E-Mail gesendet",
-        description: `Bestellung wurde erfolgreich an ${emailData.to} gesendet.`,
+        title: "E-Mail-Entwurf geöffnet",
+        description: `Entwurf für ${emailData.to} im Mail-Client geöffnet. Bitte manuell senden.`,
       });
 
       // Refresh orders to show updated email timestamp
@@ -269,8 +266,8 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
     } catch (error: any) {
       console.error('❌ E-Mail Fehler:', error);
       toast({
-        title: "Fehler beim E-Mail versenden",
-        description: error.message || "Die E-Mail konnte nicht gesendet werden.",
+        title: "Fehler",
+        description: error.message || "Der E-Mail-Entwurf konnte nicht geöffnet werden.",
         variant: "destructive",
       });
     } finally {

@@ -251,14 +251,14 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 <span className="text-sm font-medium">Status</span>
                 <Badge variant="outline" className="text-green-600">
                   <CheckCircle className="w-3 h-3 mr-1" />
-                  Verbunden (Gmail SMTP)
+                  Lokaler E-Mail-Client
                 </Badge>
               </div>
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Alle E-Mails werden über Ihren Gmail-Account versendet.
-              Das App-Passwort ist sicher in den Secrets gespeichert.
+              Alle E-Mails öffnen sich als Entwurf in Ihrem lokal installierten
+              E-Mail-Client. Sie senden manuell von steinbockchalets@gmail.com.
             </p>
 
             <div className="space-y-2">
@@ -270,30 +270,20 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 variant="outline"
                 className="w-full"
                 onClick={async () => {
-                  try {
-                    const { error } = await supabase.functions.invoke('send-gmail', {
-                      body: {
-                        to: [localEmailSettings.email],
-                        subject: 'Test-E-Mail vom Ferienhaus Management',
-                        text: `Dies ist eine Test-E-Mail.\n\nGesendet am: ${new Date().toLocaleString('de-DE')}\n\nWenn Sie diese E-Mail erhalten, funktioniert der E-Mail-Versand korrekt.\n\nMit freundlichen Grüßen\n${localEmailSettings.display_name} System`,
-                      },
-                    });
-                    if (error) throw error;
-                    toast({
-                      title: 'Test-E-Mail versendet',
-                      description: `Eine Test-E-Mail wurde an ${localEmailSettings.email} gesendet.`,
-                    });
-                  } catch (error: any) {
-                    toast({
-                      variant: 'destructive',
-                      title: 'Fehler beim Versenden',
-                      description: error.message || 'Die Test-E-Mail konnte nicht versendet werden.',
-                    });
-                  }
+                  const { openInMailClient } = await import('@/lib/mailtoHelper');
+                  openInMailClient({
+                    to: localEmailSettings.email,
+                    subject: 'Test-E-Mail vom Ferienhaus Management',
+                    text: `Dies ist eine Test-E-Mail.\n\nErstellt am: ${new Date().toLocaleString('de-DE')}\n\nWenn sich der E-Mail-Client geöffnet hat, funktioniert die Integration korrekt.\n\nMit freundlichen Grüßen\n${localEmailSettings.display_name} System`,
+                  });
+                  toast({
+                    title: 'Test-Entwurf geöffnet',
+                    description: `Ein Test-Entwurf wurde in Ihrem E-Mail-Client geöffnet.`,
+                  });
                 }}
               >
                 <Send className="w-4 h-4 mr-2" />
-                Test-E-Mail senden
+                Test-Entwurf öffnen
               </Button>
             </div>
           </CardContent>
