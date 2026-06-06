@@ -6,12 +6,6 @@ verify_jwt = false
 [functions.auto-create-linen-orders.cron]
 schedule = "0 6 * * *"
 
-[functions.check-supabase-usage]
-verify_jwt = false
-
-[functions.send-gmail]
-verify_jwt = false
-
 [functions.generate-personalized-email]
 verify_jwt = false
 
