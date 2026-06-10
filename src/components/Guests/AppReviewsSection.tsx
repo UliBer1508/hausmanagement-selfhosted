@@ -296,7 +296,11 @@ export const AppReviewsSection = ({ selectedHouseId }: AppReviewsSectionProps) =
                       </td>
                       <td className="p-4">
                         <div className="flex flex-col gap-2">
-                          <a href={`mailto:${booking.guest_email}`}>
+                          <a
+                            href={`https://mail.google.com/mail/?authuser=steinbockchalets@gmail.com&view=cm&fs=1&to=${encodeURIComponent(booking.guest_email)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
                             <Button variant="outline" size="sm" className="w-full justify-start">
                               <Mail className="h-3 w-3 mr-2" />
                               Email

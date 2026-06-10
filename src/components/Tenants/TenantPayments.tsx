@@ -127,8 +127,16 @@ const TenantPayments = () => {
     const tenantInfo = house?.tenant_info as any;
     const subject = `Zahlungserinnerung - ${house?.name}`;
     const body = `Sehr geehrte/r ${tenantInfo?.tenant_name},\n\nwir möchten Sie freundlich an die ausstehende Mietzahlung erinnern:\n\nObjekt: ${house?.name}\nBetrag: ${payment.amount.toLocaleString('de-DE')} €\nFällig am: ${format(new Date(payment.due_date), 'dd.MM.yyyy', { locale: de })}\n\nMit freundlichen Grüßen`;
-    
-    window.location.href = `mailto:${tenantInfo?.tenant_email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+    const params = new URLSearchParams({
+      authuser: 'steinbockchalets@gmail.com',
+      view: 'cm',
+      fs: '1',
+      to: tenantInfo?.tenant_email ?? '',
+      su: subject,
+      body,
+    });
+    window.open(`https://mail.google.com/mail/?${params.toString()}`, '_blank', 'noopener,noreferrer');
   };
 
   const handleDeletePayment = (payment: TenantPayment) => {

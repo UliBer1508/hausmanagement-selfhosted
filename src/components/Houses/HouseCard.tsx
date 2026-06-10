@@ -164,7 +164,9 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Email:</span>
                           <a 
-                            href={`mailto:${house.tenant_info.tenant_email}`}
+                            href={`https://mail.google.com/mail/?authuser=steinbockchalets@gmail.com&view=cm&fs=1&to=${encodeURIComponent(house.tenant_info.tenant_email)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="font-medium text-primary hover:underline"
                           >
                             {house.tenant_info.tenant_email}

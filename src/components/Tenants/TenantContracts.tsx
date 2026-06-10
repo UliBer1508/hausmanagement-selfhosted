@@ -168,7 +168,9 @@ const TenantContracts = () => {
                 <div className="flex items-center gap-2 mb-3">
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <a 
-                    href={`mailto:${tenantInfo.tenant_email}`}
+                    href={`https://mail.google.com/mail/?authuser=steinbockchalets@gmail.com&view=cm&fs=1&to=${encodeURIComponent(tenantInfo.tenant_email)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="text-sm text-primary hover:underline"
                   >
                     {tenantInfo.tenant_email}
@@ -266,7 +268,11 @@ const TenantContracts = () => {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={(e) => { e.stopPropagation(); window.location.href = `mailto:${tenantInfo.tenant_email}`; }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const href = `https://mail.google.com/mail/?authuser=steinbockchalets@gmail.com&view=cm&fs=1&to=${encodeURIComponent(tenantInfo.tenant_email)}`;
+                      window.open(href, '_blank', 'noopener,noreferrer');
+                    }}
                   >
                     <Mail className="h-4 w-4 mr-1" />
                     Email
