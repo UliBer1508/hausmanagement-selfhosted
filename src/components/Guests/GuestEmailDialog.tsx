@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
+import { buildGmailComposeHref } from '@/lib/mailtoHelper';
 
 interface Guest {
   guest_name: string;
@@ -96,15 +97,16 @@ const GuestEmailDialog = ({
     const processedSubject = replaceTemplatePlaceholders(customSubject);
     const processedMessage = replaceTemplatePlaceholders(customMessage);
 
-    // Create mailto link
-    const mailtoLink = `mailto:${encodeURIComponent(guest.guest_email)}?subject=${encodeURIComponent(processedSubject)}&body=${encodeURIComponent(processedMessage)}`;
-    
-    // Open local email client
-    window.location.href = mailtoLink;
-    
+    const href = buildGmailComposeHref({
+      to: guest.guest_email,
+      subject: processedSubject,
+      text: processedMessage,
+    });
+    window.open(href, '_blank', 'noopener,noreferrer');
+
     toast({
-      title: 'E-Mail-Client geöffnet',
-      description: 'Die E-Mail wurde in Ihrem E-Mail-Programm vorbereitet.',
+      title: 'Gmail-Entwurf geöffnet',
+      description: 'Die E-Mail wurde in Gmail (steinbockchalets@gmail.com) vorbereitet.',
     });
     
     onOpenChange(false);

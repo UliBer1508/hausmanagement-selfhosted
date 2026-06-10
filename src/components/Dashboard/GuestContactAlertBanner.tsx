@@ -7,6 +7,7 @@ import { useBookingMarketingActions } from '@/hooks/useBookingMarketingActions';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
+import { buildGmailComposeHref } from '@/lib/mailtoHelper';
 
 const GuestContactAlertBanner = () => {
   const { guestsToContact, isLoading, markAsContacted, markAsNotRequired, isUpdating } = useGuestContactReminders();
@@ -75,7 +76,7 @@ const GuestContactAlertBanner = () => {
     const checkInDate = format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de });
     const houseName = booking.houses?.name ?? '';
     const subject = `Ihre Anreise am ${checkInDate}${houseName ? ` – ${houseName}` : ''}`;
-    window.location.href = `mailto:${booking.guest_email}?subject=${encodeURIComponent(subject)}`;
+    window.open(buildGmailComposeHref({ to: booking.guest_email, subject }), '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -145,7 +146,9 @@ const GuestContactAlertBanner = () => {
                       <div className="flex items-center gap-2 sm:gap-3 mt-2">
                         {booking.guest_email && (
                           <a 
-                            href={`mailto:${booking.guest_email}`}
+                            href={buildGmailComposeHref({ to: booking.guest_email })}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()}
                             className="flex items-center gap-1 text-sm text-primary hover:underline"
                             title={booking.guest_email}
