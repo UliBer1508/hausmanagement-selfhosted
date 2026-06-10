@@ -1,7 +1,16 @@
 /**
- * mailto:-Helper — alle E-Mail-Kommunikation läuft über den lokalen Mail-Client.
+ * Mail-Helper — alle E-Mail-Kommunikation läuft über Gmail-Web-Compose
+ * mit erzwungenem Absender-Account steinbockchalets@gmail.com (authuser-Parameter).
  * Es gibt KEINEN serverseitigen E-Mail-Versand mehr.
+ *
+ * Hintergrund: Der RFC für mailto: erlaubt es nicht, den Absender festzulegen —
+ * lokale Mail-Clients nehmen IMMER ihr Standard-Konto. Gmail-Web hingegen
+ * akzeptiert ?authuser=<email>, wodurch der gewünschte Account erzwungen wird,
+ * sofern der Nutzer im Browser dort eingeloggt ist.
  */
+
+/** Fester Absender für ALLE E-Mails aus der App. */
+export const SENDER_EMAIL = 'steinbockchalets@gmail.com';
 
 /**
  * Konvertiert HTML-Markup in lesbaren Plain-Text für mailto:-Body.
@@ -75,43 +84,48 @@ export interface MailtoOptions {
 }
 
 /**
- * Öffnet den lokal installierten E-Mail-Client mit vorausgefüllter Nachricht.
- * Der User editiert dort den Text und sendet manuell von steinbockchalets@gmail.com.
- *
- * Gibt true zurück, wenn der mailto-Link initiiert wurde (was nicht garantiert,
- * dass der User wirklich einen Mail-Client installiert hat).
+ * Baut die Gmail-Web-Compose-URL mit erzwungenem Absender steinbockchalets@gmail.com.
+ * Kann direkt als href= verwendet werden (target="_blank" empfohlen).
+ */
+export function buildGmailComposeHref(opts: MailtoOptions): string {
+  const toArr = Array.isArray(opts.to) ? opts.to : [opts.to];
+  const toStr = toArr.filter(Boolean).join(',');
+
+  const body = opts.text ?? htmlToPlainText(opts.html ?? '');
+
+  const params = new URLSearchParams();
+  params.set('authuser', SENDER_EMAIL);
+  params.set('view', 'cm');
+  params.set('fs', '1');
+  if (toStr) params.set('to', toStr);
+  if (opts.subject) params.set('su', opts.subject);
+  if (body) params.set('body', body);
+  if (opts.cc) {
+    const cc = Array.isArray(opts.cc) ? opts.cc.join(',') : opts.cc;
+    if (cc) params.set('cc', cc);
+  }
+  if (opts.bcc) {
+    const bcc = Array.isArray(opts.bcc) ? opts.bcc.join(',') : opts.bcc;
+    if (bcc) params.set('bcc', bcc);
+  }
+
+  return `https://mail.google.com/mail/?${params.toString()}`;
+}
+
+/**
+ * Öffnet Gmail-Web-Compose in einem neuen Tab mit vorausgefüllter Nachricht.
+ * Absender: steinbockchalets@gmail.com (über authuser erzwungen).
  */
 export function openInMailClient(opts: MailtoOptions): boolean {
   const toArr = Array.isArray(opts.to) ? opts.to : [opts.to];
   const toStr = toArr.filter(Boolean).join(',');
 
   if (!toStr) {
-    console.warn('[mailtoHelper] Keine Empfänger-Adresse angegeben.');
+    console.warn('[mailHelper] Keine Empfänger-Adresse angegeben.');
     return false;
   }
 
-  const body = opts.text ?? htmlToPlainText(opts.html ?? '');
-
-  const params: string[] = [];
-  if (opts.subject) params.push(`subject=${encodeURIComponent(opts.subject)}`);
-  if (body) params.push(`body=${encodeURIComponent(body)}`);
-  if (opts.cc) {
-    const cc = Array.isArray(opts.cc) ? opts.cc.join(',') : opts.cc;
-    if (cc) params.push(`cc=${encodeURIComponent(cc)}`);
-  }
-  if (opts.bcc) {
-    const bcc = Array.isArray(opts.bcc) ? opts.bcc.join(',') : opts.bcc;
-    if (bcc) params.push(`bcc=${encodeURIComponent(bcc)}`);
-  }
-
-  const href = `mailto:${encodeURIComponent(toStr).replace(/%2C/g, ',')}${params.length ? `?${params.join('&')}` : ''}`;
-
-  // Browser-Limit für mailto: ist je nach OS/Client ca. 2000 Zeichen.
-  if (href.length > 1900) {
-    console.warn(`[mailtoHelper] mailto-URL ist ${href.length} Zeichen lang — wird ggf. abgeschnitten.`);
-  }
-
-  // window.location.href öffnet zuverlässig den Standard-Mail-Client
-  window.location.href = href;
+  const href = buildGmailComposeHref(opts);
+  window.open(href, '_blank', 'noopener,noreferrer');
   return true;
 }
