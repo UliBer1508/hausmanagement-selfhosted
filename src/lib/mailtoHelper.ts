@@ -1,12 +1,11 @@
 /**
- * Mail-Helper — alle E-Mail-Kommunikation läuft über Gmail-Web-Compose
- * mit erzwungenem Absender-Account steinbockchalets@gmail.com (authuser-Parameter).
- * Es gibt KEINEN serverseitigen E-Mail-Versand mehr.
+ * mailto:-Helper — alle E-Mail-Kommunikation läuft über den lokalen
+ * Mail-Client (Outlook). Es gibt KEINEN serverseitigen E-Mail-Versand mehr.
  *
- * Hintergrund: Der RFC für mailto: erlaubt es nicht, den Absender festzulegen —
- * lokale Mail-Clients nehmen IMMER ihr Standard-Konto. Gmail-Web hingegen
- * akzeptiert ?authuser=<email>, wodurch der gewünschte Account erzwungen wird,
- * sofern der Nutzer im Browser dort eingeloggt ist.
+ * WICHTIG zum Absender: Der mailto:-Standard erlaubt es nicht, den Absender
+ * festzulegen. Outlook ignoriert nicht-standardisierte Parameter wie ?from=.
+ * Der User muss im Outlook-Compose-Fenster ggf. manuell über das "Von"-Dropdown
+ * auf steinbockchalets@gmail.com wechseln.
  */
 
 /** Fester Absender für ALLE E-Mails aus der App. */
@@ -84,37 +83,39 @@ export interface MailtoOptions {
 }
 
 /**
- * Baut die Gmail-Web-Compose-URL mit erzwungenem Absender steinbockchalets@gmail.com.
- * Kann direkt als href= verwendet werden (target="_blank" empfohlen).
+ * Baut einen mailto:-Link für den lokalen Mail-Client.
+ * Kann als href= verwendet werden.
  */
-export function buildGmailComposeHref(opts: MailtoOptions): string {
+export function buildMailtoHref(opts: MailtoOptions): string {
   const toArr = Array.isArray(opts.to) ? opts.to : [opts.to];
   const toStr = toArr.filter(Boolean).join(',');
 
   const body = opts.text ?? htmlToPlainText(opts.html ?? '');
 
-  const params = new URLSearchParams();
-  params.set('authuser', SENDER_EMAIL);
-  params.set('view', 'cm');
-  params.set('fs', '1');
-  if (toStr) params.set('to', toStr);
-  if (opts.subject) params.set('su', opts.subject);
-  if (body) params.set('body', body);
+  const params: string[] = [];
+  if (opts.subject) params.push(`subject=${encodeURIComponent(opts.subject)}`);
+  if (body) params.push(`body=${encodeURIComponent(body)}`);
   if (opts.cc) {
     const cc = Array.isArray(opts.cc) ? opts.cc.join(',') : opts.cc;
-    if (cc) params.set('cc', cc);
+    if (cc) params.push(`cc=${encodeURIComponent(cc)}`);
   }
   if (opts.bcc) {
     const bcc = Array.isArray(opts.bcc) ? opts.bcc.join(',') : opts.bcc;
-    if (bcc) params.set('bcc', bcc);
+    if (bcc) params.push(`bcc=${encodeURIComponent(bcc)}`);
   }
 
-  return `https://mail.google.com/mail/?${params.toString()}`;
+  return `mailto:${encodeURIComponent(toStr).replace(/%2C/g, ',')}${params.length ? `?${params.join('&')}` : ''}`;
 }
 
 /**
- * Öffnet Gmail-Web-Compose in einem neuen Tab mit vorausgefüllter Nachricht.
- * Absender: steinbockchalets@gmail.com (über authuser erzwungen).
+ * Alias für Abwärtskompatibilität — verwendet jetzt mailto:.
+ * @deprecated Verwende buildMailtoHref.
+ */
+export const buildGmailComposeHref = buildMailtoHref;
+
+/**
+ * Öffnet den lokal installierten Mail-Client (Outlook) mit vorausgefüllter Nachricht.
+ * Hinweis: Der User muss in Outlook ggf. das Absender-Konto manuell wechseln.
  */
 export function openInMailClient(opts: MailtoOptions): boolean {
   const toArr = Array.isArray(opts.to) ? opts.to : [opts.to];
@@ -125,7 +126,10 @@ export function openInMailClient(opts: MailtoOptions): boolean {
     return false;
   }
 
-  const href = buildGmailComposeHref(opts);
-  window.open(href, '_blank', 'noopener,noreferrer');
+  const href = buildMailtoHref(opts);
+  if (href.length > 1900) {
+    console.warn(`[mailHelper] mailto-URL ist ${href.length} Zeichen lang — wird ggf. abgeschnitten.`);
+  }
+  window.location.href = href;
   return true;
 }
