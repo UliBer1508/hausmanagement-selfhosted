@@ -149,6 +149,22 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
                 )}
               </span>
             </div>
+
+            {/* Notes */}
+            {(booking as any).notes && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="inline-flex cursor-help">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-[200px] whitespace-pre-wrap">{(booking as any).notes}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         </CardContent>
       </Card>

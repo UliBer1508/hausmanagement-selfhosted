@@ -185,6 +185,22 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
                 )}
               </div>
             )}
+
+            {/* Notes */}
+            {task.notes && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="inline-flex cursor-help">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-[200px] whitespace-pre-wrap">{task.notes}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         </CardContent>
       </ClickableCard>
