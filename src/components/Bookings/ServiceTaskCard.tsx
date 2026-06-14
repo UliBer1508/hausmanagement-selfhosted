@@ -130,6 +130,16 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
             {getStatusText(task.status)}
           </span>
         </div>
+        {/* Notes icon overlay in header */}
+        <button
+          type="button"
+          aria-label="Notiz anzeigen/bearbeiten"
+          onClick={(e) => {
+            e.stopPropagation();
+            setNotesOpen(true);
+          }}
+          className="hidden"
+        />
 
         <CardContent className="p-3">
           <div className="space-y-2">
@@ -210,21 +220,6 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
               </div>
             )}
 
-            {/* Notes */}
-            {task.notes && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="inline-flex cursor-help">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="max-w-[200px] whitespace-pre-wrap">{task.notes}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
           </div>
         </CardContent>
       </ClickableCard>
@@ -237,6 +232,14 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
           setShowEditDialog(false);
           onTaskUpdated?.();
         }}
+      />
+      <NotesQuickDialog
+        open={notesOpen}
+        onOpenChange={setNotesOpen}
+        title="Notiz"
+        value={task.notes ?? ''}
+        saving={savingNotes}
+        onSave={handleSaveNotes}
       />
     </>
   );
