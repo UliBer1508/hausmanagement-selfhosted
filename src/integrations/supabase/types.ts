@@ -879,6 +879,79 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_charges: {
+        Row: {
+          amount: number
+          booking_id: string
+          charge_type: string
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          house_id: string | null
+          id: string
+          origin: string | null
+          payment_id: string | null
+          quantity: number | null
+          status: string | null
+          unit_amount: number
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          booking_id: string
+          charge_type: string
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          house_id?: string | null
+          id?: string
+          origin?: string | null
+          payment_id?: string | null
+          quantity?: number | null
+          status?: string | null
+          unit_amount: number
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          booking_id?: string
+          charge_type?: string
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          house_id?: string | null
+          id?: string
+          origin?: string | null
+          payment_id?: string | null
+          quantity?: number | null
+          status?: string | null
+          unit_amount?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_charges_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_charges_house_id_fkey"
+            columns: ["house_id"]
+            isOneToOne: false
+            referencedRelation: "houses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_booking_charges_payment"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_inquiries: {
         Row: {
           check_in: string
@@ -3390,6 +3463,81 @@ export type Database = {
             columns: ["optimization_result_id"]
             isOneToOne: false
             referencedRelation: "ai_optimization_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          booking_charge_id: string | null
+          booking_id: string | null
+          created_at: string | null
+          currency: string | null
+          description: string | null
+          id: string
+          paid_at: string | null
+          payment_url: string | null
+          purpose: string
+          raw_event: Json | null
+          status: string | null
+          stripe_checkout_session_id: string | null
+          stripe_event_id: string | null
+          stripe_payment_intent_id: string | null
+          stripe_payment_link_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          booking_charge_id?: string | null
+          booking_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          id?: string
+          paid_at?: string | null
+          payment_url?: string | null
+          purpose: string
+          raw_event?: Json | null
+          status?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_event_id?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_payment_link_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          booking_charge_id?: string | null
+          booking_id?: string | null
+          created_at?: string | null
+          currency?: string | null
+          description?: string | null
+          id?: string
+          paid_at?: string | null
+          payment_url?: string | null
+          purpose?: string
+          raw_event?: Json | null
+          status?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_event_id?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_payment_link_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_booking_charge_id_fkey"
+            columns: ["booking_charge_id"]
+            isOneToOne: false
+            referencedRelation: "booking_charges"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
         ]
