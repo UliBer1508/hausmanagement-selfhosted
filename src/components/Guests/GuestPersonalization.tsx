@@ -16,7 +16,7 @@ import { useGuestSegments } from '@/hooks/useGuests';
 import { supabase } from '@/integrations/supabase/client';
 
 interface GuestPersonalizationProps {
-  onSendPersonalizedMessage: (content: string, subject: string, segment: string) => void;
+  onSendPersonalizedMessage: (content: string, subject: string, segment: string, recipientEmails?: string[]) => void;
 }
 
 const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizationProps) => {
