@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { CardContent } from '@/components/ui/card';
 import { ClickableCard } from '@/components/ui/clickable-card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileText } from 'lucide-react';
+import { StickyNote } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditCleaningTaskDialog from '@/components/Cleaning/EditCleaningTaskDialog';
+import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ServiceTaskCardProps {
   task: any;
@@ -18,6 +20,29 @@ interface ServiceTaskCardProps {
 
 const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNameProp }: ServiceTaskCardProps) => {
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const handleSaveNotes = async (val: string) => {
+    setSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('service_tasks')
+        .update({ notes: val || null })
+        .eq('id', task.id);
+      if (error) throw error;
+      task.notes = val || null;
+      queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
+      onTaskUpdated?.();
+      toast({ title: 'Notiz gespeichert' });
+    } catch (err: any) {
+      toast({ title: 'Fehler beim Speichern', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   const getBorderColor = (variant: string) => {
     switch (variant) {
