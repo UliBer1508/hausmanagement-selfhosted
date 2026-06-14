@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info as InfoIcon } from 'lucide-react';
+import { Info as InfoIcon, StickyNote } from 'lucide-react';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +15,8 @@ import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
 import EditCleaningTaskDialog from './EditCleaningTaskDialog';
 import AutoCleaningSettingsCard from './AutoCleaningSettingsCard';
 import { getGuestName } from '@/lib/guestHelpers';
+import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import { useToast } from '@/hooks/use-toast';
 
 const CleaningManagement = () => {
   const location = useLocation();
