@@ -472,6 +472,14 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
           </div>
         )}
       </CardContent>
+      <NotesQuickDialog
+        open={notesOpen}
+        onOpenChange={setNotesOpen}
+        title="Notiz zur Wäschebestellung"
+        value={order.notes ?? ''}
+        saving={savingNotes}
+        onSave={handleSaveNotes}
+      />
     </Card>
   );
 };
