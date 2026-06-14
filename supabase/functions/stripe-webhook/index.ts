@@ -57,6 +57,11 @@ async function findPayment(criteria: {
 }
 
 async function markPaid(payment: any, event: Stripe.Event, paymentIntentId: string | null) {
+  if (payment.status === 'paid') {
+    console.log('Payment already paid, skipping:', payment.id);
+    return;
+  }
+
   const updates: Record<string, unknown> = {
     status: 'paid',
     paid_at: new Date().toISOString(),
