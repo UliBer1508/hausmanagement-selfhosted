@@ -162,7 +162,7 @@ export const usePricingConfig = (houseId: string) => {
         .single();
       
       if (error) throw error;
-      return (data.additional_fees as unknown as AdditionalFees) || getDefaultFees();
+      return data.additional_fees as unknown as Record<string, any> | null;
     },
     enabled: !!houseId,
   });
@@ -196,14 +196,27 @@ export const usePricingConfig = (houseId: string) => {
   });
 
   const saveFeesMutation = useMutation({
-    mutationFn: async (newFees: AdditionalFees) => {
+    mutationFn: async (newFees: AdditionalFees | AdditionalFeesV2) => {
+      // Detect shape: v2 has the nested objects (service_fee.amount etc.)
+      const isV2 =
+        newFees &&
+        typeof (newFees as any).service_fee === 'object' &&
+        (newFees as any).service_fee !== null &&
+        'amount' in (newFees as any).service_fee;
+
+      const v2: AdditionalFeesV2 = isV2
+        ? (newFees as AdditionalFeesV2)
+        : normalizeFeesV2(newFees);
+      const flat = flattenFeesV2(v2, config?.standard_guests ?? 6);
+      // Persist both shapes so legacy consumers keep working.
+      const payload = { ...flat, ...v2 };
       const { error } = await supabase
         .from('houses')
-        .update({ additional_fees: newFees as any })
+        .update({ additional_fees: payload as any })
         .eq('id', houseId);
       
       if (error) throw error;
-      return newFees;
+      return payload;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['additional-fees', houseId] });
@@ -225,7 +238,8 @@ export const usePricingConfig = (houseId: string) => {
 
   return {
     config: config || getDefaultPricingConfig(),
-    fees: fees || getDefaultFees(),
+    fees: flattenFeesV2(normalizeFeesV2(fees), (config?.standard_guests ?? 6)),
+    feesV2: normalizeFeesV2(fees),
     isLoading: configLoading || feesLoading,
     saveConfig: saveConfigMutation.mutate,
     saveFees: saveFeesMutation.mutate,
