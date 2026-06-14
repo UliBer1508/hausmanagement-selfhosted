@@ -17,7 +17,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messageType, selectedSegment, segmentAnalysis, sampleGuests, offer = {}, contact: contactOverride } = await req.json();
+    const { messageType, selectedSegment, segmentAnalysis, sampleGuests, offer = {}, contact: contactOverride, intent, tone, length } = await req.json();
 
     if (!geminiApiKey) {
       throw new Error('Google Gemini API key not configured');
@@ -61,7 +61,7 @@ serve(async (req) => {
     }
 
     // Create personalized prompt based on segment and guest data
-    const prompt = createPersonalizationPrompt(messageType, selectedSegment, segmentAnalysis, sampleGuests, offer);
+    const prompt = createPersonalizationPrompt(messageType, selectedSegment, segmentAnalysis, sampleGuests, offer, intent, tone, length);
 
     console.log('Generating personalized email with Gemini API (structured output)');
 
@@ -77,6 +77,7 @@ STRENGE REGELN (NICHT VERLETZEN):
 - ❌ KEINE erfundenen Telefonnummern, E-Mail-Adressen oder Webseiten.
 - ✅ Verwende AUSSCHLIESSLICH die unten im Block "ANGEBOTSDETAILS" genannten Werte.
 - ✅ Wenn dort kein Rabatt/Gutschein steht: erwähne KEINEN. Schreibe stattdessen eine freundliche, persönliche Wiedersehens-Nachricht ohne konkretes Angebot.
+- ⚠️ Die optionale "ABSICHT DES VERMIETERS" steuert NUR Ton, Inhalt und Stoßrichtung. Sie ist KEINE Quelle für harte Fakten. Konkrete Rabatte, Prozente, Preise, Gutscheine oder Termine dürfen AUSSCHLIESSLICH aus "ANGEBOTSDETAILS" stammen – auch wenn die Absicht z. B. "biete 20% Rabatt" formuliert. Stehen solche Fakten nicht in ANGEBOTSDETAILS, werden sie weggelassen.
 - ✅ Beende den Text OHNE Signatur, OHNE Telefonnummer, OHNE E-Mail. Die Signatur wird automatisch angehängt.
 - Verwende konkrete Werte direkt im Text – KEINE Platzhalter in geschweiften Klammern wie {GUEST_NAME} oder {HOUSE_NAME}.
 - Gast-Anrede verwenden: "${guestName}"${houseName ? `\n- Letztes gebuchtes Haus: "${houseName}"` : ''}
