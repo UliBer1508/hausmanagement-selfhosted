@@ -186,15 +186,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       </div>
 
       <div className="space-y-6">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Buchungen mit verknüpften Aufträgen
-          </h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Übersicht über Buchungen und ihre zugehörigen Service-Aufträge und Wäschebestellungen (inkl. abgeschlossene)
-          </p>
-
-          <div className="space-y-6">
+        <div className="space-y-6">
             {filteredBookings?.map((booking, index) => {
               const { tasks, laundry } = getBookingRelatedData(booking.id);
               const filteredTasks = getFilteredTasksByService(tasks);
