@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -40,10 +40,21 @@ const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
   const { feesV2, isLoading, saveFees, isSaving } = usePricingConfig(houseId);
 
   const [localFees, setLocalFees] = useState<AdditionalFeesV2>(DEFAULT_V2);
+  const initializedRef = useRef(false);
 
+  // Only initialize local state once from the server, so React Query refetches
+  // (e.g. on window focus) don't overwrite in-progress edits.
   useEffect(() => {
-    if (feesV2) setLocalFees(feesV2);
+    if (feesV2 && !initializedRef.current) {
+      setLocalFees(feesV2);
+      initializedRef.current = true;
+    }
   }, [feesV2]);
+
+  // Reset when switching to a different house.
+  useEffect(() => {
+    initializedRef.current = false;
+  }, [houseId]);
 
   const updateItem = (key: FeeKey, patch: Partial<{ mode: FeeMode; amount: number }>) => {
     setLocalFees((prev) => ({
