@@ -4,7 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Sparkles, Send, Loader2, RefreshCw, Eye, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Sparkles, Send, Loader2, RefreshCw, Eye, CheckCircle, XCircle, AlertTriangle, ChevronDown, Tag } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
@@ -23,6 +25,13 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isApproved, setIsApproved] = useState(false);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [offer, setOffer] = useState<{
+    discount_percent: string;
+    voucher: string;
+    validity: string;
+    extra_note: string;
+  }>({ discount_percent: '', voucher: '', validity: '', extra_note: '' });
   const { toast } = useToast();
 
   // Use the centralized guest segments hook (includes tourist filter!)
@@ -86,7 +95,13 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
             average_stay_duration: g.average_stay_duration,
             preferred_seasons: g.preferred_seasons,
             loyalty_level: g.loyalty_level
-          }))
+          })),
+          offer: {
+            discount_percent: offer.discount_percent ? Number(offer.discount_percent) : undefined,
+            voucher: offer.voucher || undefined,
+            validity: offer.validity || undefined,
+            extra_note: offer.extra_note || undefined,
+          }
         }
       });
 
@@ -243,6 +258,64 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Concrete Offer (optional) */}
+            <Collapsible open={offerOpen} onOpenChange={setOfferOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full justify-between">
+                  <span className="flex items-center gap-2">
+                    <Tag className="w-4 h-4" />
+                    Konkretes Angebot (optional)
+                  </span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${offerOpen ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-3 pt-3">
+                <p className="text-xs text-muted-foreground">
+                  Diese Werte werden 1:1 an die KI übergeben. Leer lassen, wenn kein Angebot kommuniziert werden soll – die KI erfindet dann nichts.
+                </p>
+                <div>
+                  <label className="text-xs font-medium">Rabatt in Prozent</label>
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={offer.discount_percent}
+                    onChange={(e) => setOffer({ ...offer, discount_percent: e.target.value })}
+                    placeholder="z. B. 10"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Gutschein / Extra</label>
+                  <Input
+                    value={offer.voucher}
+                    onChange={(e) => setOffer({ ...offer, voucher: e.target.value })}
+                    placeholder="z. B. Gratis Sektfrühstück"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Gültigkeit</label>
+                  <Input
+                    value={offer.validity}
+                    onChange={(e) => setOffer({ ...offer, validity: e.target.value })}
+                    placeholder="z. B. bis 31.03.2026"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium">Zusätzlicher Hinweis</label>
+                  <Textarea
+                    value={offer.extra_note}
+                    onChange={(e) => setOffer({ ...offer, extra_note: e.target.value })}
+                    placeholder="Optionaler Zusatz für die KI"
+                    rows={3}
+                    className="mt-1"
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Generate Button */}
             <Button 
