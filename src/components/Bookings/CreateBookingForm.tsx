@@ -13,6 +13,7 @@ import { useUpdateServiceTask } from '@/hooks/useServiceTasks';
 import { Booking, BookingWithHouse } from '@/types';
 import { normalizeRating, getMaxRatingForPlatform } from '@/lib/ratingHelpers';
 import { GuestSuggestions } from './GuestSuggestions';
+import BookingChargesPanel from './BookingChargesPanel';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1019,6 +1020,14 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 min-w-0">
+        {mode === 'edit' && initialData?.id && (
+          <BookingChargesPanel
+            bookingId={initialData.id}
+            bookingAmount={initialData.booking_amount}
+            guestEmail={initialData.guest_email}
+            guestName={initialData.guest_name}
+          />
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Ferienhaus */}
           <FormField
