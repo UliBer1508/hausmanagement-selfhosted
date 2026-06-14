@@ -50,6 +50,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { Mail, CreditCard, AlertCircle } from 'lucide-react';
 
 const bookingSchema = z.object({
   house_id: z.string().min(1, 'Ferienhaus ist erforderlich'),
@@ -212,6 +213,11 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   const [pendingBookingData, setPendingBookingData] = useState<any>(null);
   const [linenOrderDialogOpen, setLinenOrderDialogOpen] = useState(false);
   const [prefilledOrderData, setPrefilledOrderData] = useState<any>(null);
+
+  // Delta charges state (Zusatzkosten bei Erhöhung)
+  const [deltaResult, setDeltaResult] = useState<{ charges: any[]; total_amount: number } | null>(null);
+  const [isCalculatingDelta, setIsCalculatingDelta] = useState(false);
+  const [isSendingPaymentLink, setIsSendingPaymentLink] = useState(false);
   
   const { toast } = useToast();
 
