@@ -687,6 +687,58 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           title: 'Buchung aktualisiert',
           description: 'Die Buchung wurde erfolgreich aktualisiert.',
         });
+
+        // === Zusatzkosten-Erkennung (calculate-booking-delta) ===
+        try {
+          const old_guests = initialData.number_of_guests || 0;
+          const new_guests = numberOfGuests;
+          const msPerDay = 1000 * 60 * 60 * 24;
+          const old_nights = Math.max(
+            0,
+            Math.round(
+              (new Date(initialData.check_out).getTime() - new Date(initialData.check_in).getTime()) / msPerDay
+            )
+          );
+          const new_nights = Math.max(
+            0,
+            Math.round((data.check_out.getTime() - data.check_in.getTime()) / msPerDay)
+          );
+
+          const isIncrease = new_guests > old_guests || new_nights > old_nights;
+          if (isIncrease) {
+            setIsCalculatingDelta(true);
+            const { data: deltaData, error: deltaError } = await supabase.functions.invoke(
+              'calculate-booking-delta',
+              {
+                body: {
+                  booking_id: initialData.id,
+                  old_guests,
+                  new_guests,
+                  old_nights,
+                  new_nights,
+                },
+              }
+            );
+            if (deltaError) throw deltaError;
+            if (deltaData?.charges && deltaData.charges.length > 0) {
+              setDeltaResult({
+                charges: deltaData.charges,
+                total_amount: deltaData.total_amount || 0,
+              });
+              // Panel anzeigen statt direkt zu schließen
+              return;
+            }
+          }
+        } catch (deltaErr: any) {
+          console.error('Delta-Berechnung fehlgeschlagen:', deltaErr);
+          toast({
+            title: 'Hinweis',
+            description: 'Zusatzkosten konnten nicht berechnet werden: ' + (deltaErr.message || 'unbekannter Fehler'),
+            variant: 'destructive',
+          });
+        } finally {
+          setIsCalculatingDelta(false);
+        }
       } else {
         console.log('Creating new booking');
         // Create new booking
