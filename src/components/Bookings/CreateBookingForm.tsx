@@ -50,6 +50,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { Mail, CreditCard, AlertCircle } from 'lucide-react';
 
 const bookingSchema = z.object({
   house_id: z.string().min(1, 'Ferienhaus ist erforderlich'),
@@ -212,6 +213,11 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   const [pendingBookingData, setPendingBookingData] = useState<any>(null);
   const [linenOrderDialogOpen, setLinenOrderDialogOpen] = useState(false);
   const [prefilledOrderData, setPrefilledOrderData] = useState<any>(null);
+
+  // Delta charges state (Zusatzkosten bei Erhöhung)
+  const [deltaResult, setDeltaResult] = useState<{ charges: any[]; total_amount: number } | null>(null);
+  const [isCalculatingDelta, setIsCalculatingDelta] = useState(false);
+  const [isSendingPaymentLink, setIsSendingPaymentLink] = useState(false);
   
   const { toast } = useToast();
 
@@ -681,6 +687,58 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           title: 'Buchung aktualisiert',
           description: 'Die Buchung wurde erfolgreich aktualisiert.',
         });
+
+        // === Zusatzkosten-Erkennung (calculate-booking-delta) ===
+        try {
+          const old_guests = initialData.number_of_guests || 0;
+          const new_guests = numberOfGuests;
+          const msPerDay = 1000 * 60 * 60 * 24;
+          const old_nights = Math.max(
+            0,
+            Math.round(
+              (new Date(initialData.check_out).getTime() - new Date(initialData.check_in).getTime()) / msPerDay
+            )
+          );
+          const new_nights = Math.max(
+            0,
+            Math.round((data.check_out.getTime() - data.check_in.getTime()) / msPerDay)
+          );
+
+          const isIncrease = new_guests > old_guests || new_nights > old_nights;
+          if (isIncrease) {
+            setIsCalculatingDelta(true);
+            const { data: deltaData, error: deltaError } = await supabase.functions.invoke(
+              'calculate-booking-delta',
+              {
+                body: {
+                  booking_id: initialData.id,
+                  old_guests,
+                  new_guests,
+                  old_nights,
+                  new_nights,
+                },
+              }
+            );
+            if (deltaError) throw deltaError;
+            if (deltaData?.charges && deltaData.charges.length > 0) {
+              setDeltaResult({
+                charges: deltaData.charges,
+                total_amount: deltaData.total_amount || 0,
+              });
+              // Panel anzeigen statt direkt zu schließen
+              return;
+            }
+          }
+        } catch (deltaErr: any) {
+          console.error('Delta-Berechnung fehlgeschlagen:', deltaErr);
+          toast({
+            title: 'Hinweis',
+            description: 'Zusatzkosten konnten nicht berechnet werden: ' + (deltaErr.message || 'unbekannter Fehler'),
+            variant: 'destructive',
+          });
+        } finally {
+          setIsCalculatingDelta(false);
+        }
       } else {
         console.log('Creating new booking');
         // Create new booking
@@ -885,6 +943,76 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         description: error.message || "Die Buchung konnte nicht gelöscht werden",
         variant: "destructive"
       });
+    }
+  };
+
+  // === Delta-Panel Handler ===
+  const handleConfirmDeltaCharges = () => {
+    toast({
+      title: 'Forderungen angelegt',
+      description: `${deltaResult?.charges.length || 0} Posten wurden als offene Forderung gespeichert.`,
+    });
+    setDeltaResult(null);
+    onSuccess();
+  };
+
+  const handleCreateAndSendPaymentLink = async () => {
+    if (!deltaResult || !initialData?.id) return;
+    setIsSendingPaymentLink(true);
+    try {
+      const paymentUrls: string[] = [];
+      for (const charge of deltaResult.charges) {
+        const { data: linkData, error: linkError } = await supabase.functions.invoke(
+          'create-payment-link',
+          { body: { booking_charge_id: charge.id } }
+        );
+        if (linkError) throw linkError;
+        if (linkData?.payment_url) paymentUrls.push(linkData.payment_url);
+      }
+
+      const guestEmail = form.getValues('guest_email');
+      if (!guestEmail) {
+        toast({
+          title: 'Zahlungslink erstellt',
+          description: 'Keine Gast-E-Mail hinterlegt – Link nicht versendet.',
+          variant: 'destructive',
+        });
+      } else {
+        const linksHtml = paymentUrls
+          .map((u, i) => `<p>Zahlungslink ${i + 1}: <a href="${u}">${u}</a></p>`)
+          .join('');
+        const totalFmt = (deltaResult.total_amount).toFixed(2).replace('.', ',') + ' €';
+        const html = `
+          <p>Hallo ${form.getValues('guest_name') || ''},</p>
+          <p>aufgrund der Änderung Ihrer Buchung fallen Zusatzkosten in Höhe von <strong>${totalFmt}</strong> an.</p>
+          ${linksHtml}
+          <p>Vielen Dank!</p>
+        `;
+        const { error: mailError } = await supabase.functions.invoke('send-gmail', {
+          body: {
+            to: guestEmail,
+            subject: 'Zusatzkosten zu Ihrer Buchung',
+            html,
+          },
+        });
+        if (mailError) throw mailError;
+        toast({
+          title: 'Zahlungslink versendet',
+          description: `E-Mail mit ${paymentUrls.length} Link(s) an ${guestEmail} gesendet.`,
+        });
+      }
+
+      setDeltaResult(null);
+      onSuccess();
+    } catch (err: any) {
+      console.error('Payment-Link/E-Mail Fehler:', err);
+      toast({
+        title: 'Fehler',
+        description: err.message || 'Zahlungslink konnte nicht erstellt/versendet werden.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingPaymentLink(false);
     }
   };
 
@@ -1452,12 +1580,49 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
 
         {/* Submit Buttons */}
         <div className="flex flex-row flex-wrap gap-2 pt-4">
+          {deltaResult && (
+            <div className="basis-full rounded-md border border-amber-300 bg-amber-50 p-4 mb-2">
+              <div className="flex items-start gap-2 mb-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold text-amber-900">
+                    Diese Änderung erzeugt {deltaResult.total_amount.toFixed(2).replace('.', ',')} € Zusatzkosten:
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm text-amber-900">
+                    {deltaResult.charges.map((c: any) => (
+                      <li key={c.id}>
+                        • {c.description}: {Number(c.amount).toFixed(2).replace('.', ',')} €
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={handleConfirmDeltaCharges}>
+                  Als Forderung anlegen
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleCreateAndSendPaymentLink}
+                  disabled={isSendingPaymentLink}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isSendingPaymentLink ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <CreditCard className="w-4 h-4 mr-2" />
+                  )}
+                  Zahlungslink erstellen & an Gast senden
+                </Button>
+              </div>
+            </div>
+          )}
           <Button
             type="submit"
             className="flex-1 min-w-0 bg-black hover:bg-gray-800 text-white"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isCalculatingDelta}
           >
-            {isSubmitting ? (
+            {isSubmitting || isCalculatingDelta ? (
               mode === 'edit' ? 'Aktualisiere...' : 'Erstelle...'
             ) : (
               mode === 'edit' ? 'Aktualisieren' : 'Buchung erstellen'
