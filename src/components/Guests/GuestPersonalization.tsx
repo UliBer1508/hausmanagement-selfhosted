@@ -496,6 +496,31 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
                 </AlertDescription>
               </Alert>
             )}
+            {variants.length > 1 && !showPreview && (
+              <div>
+                <label className="text-sm font-medium">Varianten ({variants.length})</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                  {variants.map((v, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleSelectVariant(i)}
+                      className={`text-left p-3 rounded-md border transition-colors ${
+                        selectedVariant === i
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-border hover:bg-muted'
+                      }`}
+                    >
+                      <div className="text-xs font-semibold mb-1">{v.label}</div>
+                      <div className="text-xs text-muted-foreground line-clamp-2">{v.subject}</div>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Wählen Sie eine Variante – Betreff und Inhalt darunter werden automatisch aktualisiert.
+                </p>
+              </div>
+            )}
             {generatedSubject && (
               <div>
                 <label className="text-sm font-medium">Betreff</label>
