@@ -5,36 +5,52 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Loader2, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { usePricingConfig } from '@/hooks/usePricingConfig';
+import {
+  usePricingConfig,
+  AdditionalFeesV2,
+  FeeMode,
+  calcFeeItem,
+} from '@/hooks/usePricingConfig';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface AdditionalFeesTabProps {
   houseId: string;
 }
 
+const DEFAULT_V2: AdditionalFeesV2 = {
+  service_fee: { mode: 'flat', amount: 0 },
+  tourist_tax: { mode: 'per_person', amount: 2.5 },
+  cleaning_fee: { mode: 'flat', amount: 80 },
+  electricity_fee: { mode: 'flat', amount: 40 },
+  linen_fee: { mode: 'flat', amount: 30 },
+  vat_percentage: 19,
+};
+
+type FeeKey = Exclude<keyof AdditionalFeesV2, 'vat_percentage'>;
+
+const FEE_FIELDS: { key: FeeKey; label: string; touristTax?: boolean }[] = [
+  { key: 'service_fee', label: 'Service-Gebühr' },
+  { key: 'tourist_tax', label: 'Kurtaxe', touristTax: true },
+  { key: 'cleaning_fee', label: 'Reinigungsgebühr' },
+  { key: 'electricity_fee', label: 'Stromkosten' },
+  { key: 'linen_fee', label: 'Wäschekosten' },
+];
+
 const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
-  const { fees, isLoading, saveFees, isSaving } = usePricingConfig(houseId);
-  
-  const [localFees, setLocalFees] = useState({
-    service_fee_per_stay: 0,
-    tourist_tax_per_night: 2.50,
-    cleaning_fee_per_stay: 80,
-    electricity_fee_per_stay: 40,
-    linen_fee_per_stay: 30,
-    vat_percentage: 19
-  });
+  const { feesV2, isLoading, saveFees, isSaving } = usePricingConfig(houseId);
+
+  const [localFees, setLocalFees] = useState<AdditionalFeesV2>(DEFAULT_V2);
 
   useEffect(() => {
-    if (fees) {
-      setLocalFees({
-        service_fee_per_stay: fees.service_fee_per_stay ?? 0,
-        tourist_tax_per_night: fees.tourist_tax_per_night ?? 2.50,
-        cleaning_fee_per_stay: fees.cleaning_fee_per_stay ?? 80,
-        electricity_fee_per_stay: fees.electricity_fee_per_stay ?? 40,
-        linen_fee_per_stay: fees.linen_fee_per_stay ?? 30,
-        vat_percentage: fees.vat_percentage ?? 19
-      });
-    }
-  }, [fees]);
+    if (feesV2) setLocalFees(feesV2);
+  }, [feesV2]);
+
+  const updateItem = (key: FeeKey, patch: Partial<{ mode: FeeMode; amount: number }>) => {
+    setLocalFees((prev) => ({
+      ...prev,
+      [key]: { ...prev[key], ...patch },
+    }));
+  };
 
   const handleSave = () => {
     saveFees(localFees);
@@ -42,13 +58,15 @@ const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
 
   // Beispielberechnung für 7 Nächte, 6 Personen
   const exampleBooking = { nights: 7, guests: 6 };
-  const totalCosts = (
-    localFees.service_fee_per_stay +
-    localFees.tourist_tax_per_night * exampleBooking.nights * exampleBooking.guests +
-    localFees.cleaning_fee_per_stay +
-    localFees.electricity_fee_per_stay +
-    localFees.linen_fee_per_stay
-  );
+  const calcForGuests = (guests: number) =>
+    FEE_FIELDS.reduce(
+      (sum, f) =>
+        sum +
+        calcFeeItem(localFees[f.key], { guests, nights: exampleBooking.nights }, !!f.touristTax),
+      0,
+    );
+  const totalCosts = calcForGuests(exampleBooking.guests);
+  const extraPerPerson = calcForGuests(exampleBooking.guests + 1) - totalCosts;
 
   if (isLoading) {
     return (
@@ -64,82 +82,82 @@ const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
         <CardHeader>
           <CardTitle>Nebenkosten-Konfiguration</CardTitle>
           <CardDescription>
-            Definieren Sie die Nebenkosten, die zu Ihrem Basispreis addiert werden
+            Definieren Sie pro Posten den Betrag und ob er pauschal pro Aufenthalt
+            oder pro Person berechnet wird.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="service">Service-Gebühr pro Aufenthalt (€)</Label>
-              <Input
-                id="service"
-                type="number"
-                step="0.01"
-                min="0"
-                value={localFees.service_fee_per_stay}
-                onChange={(e) => setLocalFees({ ...localFees, service_fee_per_stay: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
+          <div className="space-y-3">
+            {FEE_FIELDS.map((f) => {
+              const item = localFees[f.key];
+              const unitHint =
+                item.mode === 'per_person'
+                  ? f.touristTax
+                    ? '€ pro Person & Nacht'
+                    : '€ pro Person'
+                  : '€ pro Aufenthalt';
+              return (
+                <div
+                  key={f.key}
+                  className="grid grid-cols-1 md:grid-cols-[1fr_160px_180px] gap-3 md:items-end border rounded-md p-3"
+                >
+                  <div className="space-y-1">
+                    <Label htmlFor={f.key}>{f.label}</Label>
+                    <p className="text-xs text-muted-foreground">{unitHint}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={f.key} className="text-xs">Betrag (€)</Label>
+                    <Input
+                      id={f.key}
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={item.amount}
+                      onChange={(e) =>
+                        updateItem(f.key, {
+                          amount: Math.round((parseFloat(e.target.value) || 0) * 100) / 100,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Berechnung</Label>
+                    <Select
+                      value={item.mode}
+                      onValueChange={(v) => updateItem(f.key, { mode: v as FeeMode })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="flat">Pauschale</SelectItem>
+                        <SelectItem value="per_person">pro Person</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              );
+            })}
 
-            <div className="space-y-2">
-              <Label htmlFor="tourist-tax">Kurtaxe pro Nacht/Person (€)</Label>
-              <Input
-                id="tourist-tax"
-                type="number"
-                step="0.01"
-                min="0"
-                value={localFees.tourist_tax_per_night}
-                onChange={(e) => setLocalFees({ ...localFees, tourist_tax_per_night: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cleaning">Reinigungsgebühr pro Aufenthalt (€)</Label>
-              <Input
-                id="cleaning"
-                type="number"
-                step="0.01"
-                min="0"
-                value={localFees.cleaning_fee_per_stay}
-                onChange={(e) => setLocalFees({ ...localFees, cleaning_fee_per_stay: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="electricity">Stromkosten pro Aufenthalt (€)</Label>
-              <Input
-                id="electricity"
-                type="number"
-                step="0.01"
-                min="0"
-                value={localFees.electricity_fee_per_stay}
-                onChange={(e) => setLocalFees({ ...localFees, electricity_fee_per_stay: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="linen">Wäschekosten pro Aufenthalt (€)</Label>
-              <Input
-                id="linen"
-                type="number"
-                step="0.01"
-                min="0"
-                value={localFees.linen_fee_per_stay}
-                onChange={(e) => setLocalFees({ ...localFees, linen_fee_per_stay: parseFloat(e.target.value) || 0 })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="vat">MwSt-Satz (%)</Label>
-              <Input
-                id="vat"
-                type="number"
-                step="0.1"
-                min="0"
-                max="100"
-                value={localFees.vat_percentage}
-                onChange={(e) => setLocalFees({ ...localFees, vat_percentage: parseFloat(e.target.value) || 0 })}
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="vat">MwSt-Satz (%)</Label>
+                <Input
+                  id="vat"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  value={localFees.vat_percentage}
+                  onChange={(e) =>
+                    setLocalFees({
+                      ...localFees,
+                      vat_percentage:
+                        Math.round((parseFloat(e.target.value) || 0) * 100) / 100,
+                    })
+                  }
+                />
+              </div>
             </div>
           </div>
 
@@ -164,29 +182,36 @@ const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Service-Gebühr:</span>
-              <span>€{localFees.service_fee_per_stay.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Kurtaxe (7 Nächte × 6 Personen):</span>
-              <span>€{(localFees.tourist_tax_per_night * 7 * 6).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Reinigung:</span>
-              <span>€{localFees.cleaning_fee_per_stay.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Strom:</span>
-              <span>€{localFees.electricity_fee_per_stay.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Wäsche:</span>
-              <span>€{localFees.linen_fee_per_stay.toFixed(2)}</span>
-            </div>
+            {FEE_FIELDS.map((f) => {
+              const item = localFees[f.key];
+              const value = calcFeeItem(
+                item,
+                { guests: exampleBooking.guests, nights: exampleBooking.nights },
+                !!f.touristTax,
+              );
+              const detail =
+                item.mode === 'per_person'
+                  ? f.touristTax
+                    ? ` (${item.amount.toFixed(2)} × ${exampleBooking.guests} P. × ${exampleBooking.nights} N.)`
+                    : ` (${item.amount.toFixed(2)} × ${exampleBooking.guests} P.)`
+                  : '';
+              return (
+                <div key={f.key} className="flex justify-between">
+                  <span>
+                    {f.label}
+                    <span className="text-muted-foreground">{detail}</span>
+                  </span>
+                  <span>€{value.toFixed(2)}</span>
+                </div>
+              );
+            })}
             <div className="flex justify-between pt-2 border-t-2 font-bold text-primary">
               <span>Gesamte Nebenkosten:</span>
               <span>€{totalCosts.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Mehrkosten je zusätzlicher Person (bei {exampleBooking.nights} Nächten):</span>
+              <span>€{extraPerPerson.toFixed(2)}</span>
             </div>
           </div>
 
