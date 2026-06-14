@@ -38,6 +38,7 @@ const BookingInquiryAlertBanner = () => {
   // State for email dialog after confirmation
   const [showConfirmEmailDialog, setShowConfirmEmailDialog] = useState(false);
   const [confirmedInquiry, setConfirmedInquiry] = useState<BookingInquiry | null>(null);
+  const [confirmedBookingId, setConfirmedBookingId] = useState<string | undefined>(undefined);
 
   const formatDateRange = (checkIn: string, checkOut: string) => {
     const start = new Date(checkIn);
@@ -51,10 +52,11 @@ const BookingInquiryAlertBanner = () => {
     setShowBookingDialog(true);
   };
 
-  const handleBookingCreated = () => {
+  const handleBookingCreated = (bookingId?: string) => {
     // After booking created, show confirmation email dialog
     if (selectedInquiry) {
       setConfirmedInquiry(selectedInquiry);
+      setConfirmedBookingId(bookingId);
       setShowConfirmEmailDialog(true);
     }
     setShowBookingDialog(false);
@@ -118,9 +120,13 @@ const BookingInquiryAlertBanner = () => {
       open={showConfirmEmailDialog}
       onOpenChange={(open) => {
         setShowConfirmEmailDialog(open);
-        if (!open) setConfirmedInquiry(null);
+        if (!open) {
+          setConfirmedInquiry(null);
+          setConfirmedBookingId(undefined);
+        }
       }}
       defaultTemplate="inquiry_confirmed"
+      bookingId={confirmedBookingId}
       templatePlaceholders={{
         checkIn: format(new Date(confirmedInquiry.check_in), 'dd.MM.yyyy', { locale: de }),
         checkOut: format(new Date(confirmedInquiry.check_out), 'dd.MM.yyyy', { locale: de }),
