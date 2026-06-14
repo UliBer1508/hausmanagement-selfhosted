@@ -247,6 +247,36 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
               </p>
             </div>
 
+            {/* Intent (free text + quick chips) */}
+            <div>
+              <label className="text-sm font-medium">Ihre Absicht</label>
+              <div className="flex flex-wrap gap-1.5 mt-1 mb-2">
+                {[
+                  'Stammgast nach Winter wieder einladen',
+                  'Für tolle Bewertung bedanken',
+                  'Last-Minute-Lücke im Kalender füllen',
+                  'Nach langem Aufenthalt um Feedback bitten',
+                ].map((chip) => (
+                  <Button
+                    key={chip}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => setIntent(chip)}
+                  >
+                    {chip}
+                  </Button>
+                ))}
+              </div>
+              <Textarea
+                value={intent}
+                onChange={(e) => setIntent(e.target.value)}
+                placeholder="Was möchten Sie dem Gast sagen? (optional)"
+                rows={3}
+              />
+            </div>
+
             {/* Message Type */}
             <div>
               <label className="text-sm font-medium">Nachrichtentyp</label>
@@ -263,6 +293,37 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
                   <SelectItem value="feedback_request">Feedback-Anfrage</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Tone & Length */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium">Tonalität</label>
+                <Select value={tone} onValueChange={(v) => setTone(v as typeof tone)}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="herzlich">Herzlich</SelectItem>
+                    <SelectItem value="sachlich">Sachlich</SelectItem>
+                    <SelectItem value="exklusiv">Exklusiv</SelectItem>
+                    <SelectItem value="humorvoll">Humorvoll</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Länge</label>
+                <Select value={length} onValueChange={(v) => setLength(v as typeof length)}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="kurz">Kurz</SelectItem>
+                    <SelectItem value="mittel">Mittel</SelectItem>
+                    <SelectItem value="ausführlich">Ausführlich</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Concrete Offer (optional) */}
