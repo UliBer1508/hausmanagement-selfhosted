@@ -858,7 +858,38 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
               key={booking.id}
               onActivate={() => setSelectedBookingForEdit(booking)}
               aria-label={`Buchung von ${booking.guest_name} bearbeiten`}
+              className="border-l-4 border-l-amber-500 bg-yellow-50 overflow-hidden"
             >
+              {/* Kopfbalken (wie Übersicht) */}
+              <div
+                className="flex items-center gap-2 px-3 py-2 text-white"
+                style={{ background: 'linear-gradient(100deg,#d97706,#f59e0b)' }}
+              >
+                <div
+                  className="w-7 h-7 rounded-lg grid place-items-center text-[15px] shrink-0"
+                  style={{ background: 'rgba(255,255,255,.22)' }}
+                >
+                  🗓️
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[9px] font-bold uppercase tracking-wider opacity-90">
+                    Buchung · {booking.houses?.name || 'Unbekannt'}
+                  </div>
+                  <div className="text-[14px] font-extrabold leading-tight truncate">
+                    Reservierung
+                  </div>
+                </div>
+                <span
+                  className="text-[10px] font-extrabold px-2 py-1 rounded-full bg-white/95 shrink-0"
+                  style={{ color: '#d97706' }}
+                >
+                  {booking.status === 'confirmed' ? 'Bestätigt'
+                    : booking.status === 'checked_in' ? 'Eingecheckt'
+                    : booking.status === 'completed' ? 'Abgeschlossen'
+                    : booking.status === 'cancelled' ? 'Storniert'
+                    : booking.status}
+                </span>
+              </div>
               <CardContent className="p-4">
                 <div className="flex flex-col gap-3">
                   {/* Header */}
@@ -876,11 +907,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                             </span>
                           )}
                         </h4>
-                        {getStatusBadge(booking.status)}
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {booking.houses?.name || 'Unbekanntes Haus'}
-                      </p>
                     </div>
                   </div>
 
