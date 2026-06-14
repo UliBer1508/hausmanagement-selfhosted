@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { FileText } from 'lucide-react';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditBookingDialog from './EditBookingDialog';

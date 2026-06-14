@@ -3,6 +3,8 @@ import { CardContent } from '@/components/ui/card';
 import { ClickableCard } from '@/components/ui/clickable-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditCleaningTaskDialog from '@/components/Cleaning/EditCleaningTaskDialog';

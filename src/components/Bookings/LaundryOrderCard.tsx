@@ -273,12 +273,20 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             </Collapsible>
           )}
 
-          {/* Notes */}
+            {/* Notes */}
           {order.notes && (
-            <div>
-              <p className="text-xs text-muted-foreground">Notizen:</p>
-              <p className="text-xs line-clamp-2">{order.notes}</p>
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="inline-flex cursor-help">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-[200px] whitespace-pre-wrap">{order.notes}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
 
           {/* Created by */}
