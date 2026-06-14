@@ -625,16 +625,37 @@ const LinenDashboard = () => {
             className={`relative cursor-pointer transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary ${getStatusColor(houseStatus.status)}`}
             aria-label={`${houseStatus.house.name} verwalten`}
           >
+            <div
+              className="flex items-center gap-2 px-3 py-2 text-white rounded-t-lg"
+              style={{ background: 'linear-gradient(100deg,#059669,#10b981)' }}
+            >
+              <div
+                className="w-7 h-7 rounded-lg grid place-items-center text-[15px] shrink-0"
+                style={{ background: 'rgba(255,255,255,.22)' }}
+              >
+                📦
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[9px] font-bold uppercase tracking-wider opacity-90">
+                  Wäsche · {houseStatus.house.name}
+                </div>
+                <div className="text-[14px] font-extrabold leading-tight truncate">
+                  Wäsche-Status
+                </div>
+              </div>
+              <span
+                className="text-[10px] font-extrabold px-2 py-1 rounded-full bg-white/95 shrink-0"
+                style={{ color: '#059669' }}
+              >
+                {getStatusPillText(houseStatus.status)}
+              </span>
+            </div>
             <CardContent className="p-4">
               <div className="flex flex-col gap-3">
-                {/* House Info */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-base truncate">{houseStatus.house.name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{houseStatus.house.address}</div>
-                  </div>
-                  {getStatusBadge(houseStatus.status)}
-                </div>
+                {/* House Address */}
+                {houseStatus.house.address && (
+                  <div className="text-xs text-muted-foreground truncate">{houseStatus.house.address}</div>
+                )}
 
                 {/* Stats Grid - Compact */}
                 <div className="flex flex-wrap gap-4">
