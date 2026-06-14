@@ -123,6 +123,20 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
               {getServiceShortLabel(task.service_type)}
             </div>
           </div>
+          <button
+            type="button"
+            aria-label="Notiz anzeigen/bearbeiten"
+            onClick={(e) => {
+              e.stopPropagation();
+              setNotesOpen(true);
+            }}
+            className="relative grid place-items-center w-7 h-7 rounded-md bg-white/15 hover:bg-white/25 transition-colors shrink-0"
+          >
+            <StickyNote className="w-4 h-4" />
+            {task.notes && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-300 border border-white" />
+            )}
+          </button>
           <span
             className="text-[10px] font-extrabold px-2 py-1 rounded-full bg-white/95 shrink-0"
             style={{ color: '#2563eb' }}
