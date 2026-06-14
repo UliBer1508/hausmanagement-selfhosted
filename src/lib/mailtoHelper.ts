@@ -1,11 +1,10 @@
 /**
- * mailto:-Helper — alle E-Mail-Kommunikation läuft über den lokalen
- * Mail-Client (Outlook). Es gibt KEINEN serverseitigen E-Mail-Versand mehr.
+ * E-Mail-Helper — Standard: Gmail-Web mit festem Absender
+ * (steinbockchalets@gmail.com). Betreff & Text bleiben erhalten, kein
+ * manueller Kontowechsel nötig.
  *
- * WICHTIG zum Absender: Der mailto:-Standard erlaubt es nicht, den Absender
- * festzulegen. Outlook ignoriert nicht-standardisierte Parameter wie ?from=.
- * Der User muss im Outlook-Compose-Fenster ggf. manuell über das "Von"-Dropdown
- * auf steinbockchalets@gmail.com wechseln.
+ * Optional: lokaler Mail-Client (Outlook) via mailto: über
+ * `openEmail({ preferLocalClient: true })` bzw. `openInMailClient(...)`.
  */
 
 /** Fester Absender für ALLE E-Mails aus der App. */
