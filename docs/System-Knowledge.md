@@ -202,6 +202,9 @@ payment_method, reference_number, notes
 | `generate-guest-profile` | KI-Gästeprofil-Analyse |
 | `generate-personalized-email` | Personalisierte Email-Generierung; akzeptiert `offer`-Block (Rabatt, Gutschein, Gültigkeit, Hinweis) – siehe `docs/Guest-Personalization-Improvement-Concept.md` |
 | `send-gmail` | Gmail-Versand |
+| `calculate-booking-delta` | Erkennt Zusatzkosten bei Gast-/Nacht-Erhöhung im Edit-Mode; legt `booking_charges` an |
+| `create-payment-link` | Erzeugt Stripe Payment Link für eine `booking_charge`; speichert `payment_url` in `payments` |
+| `stripe-webhook` | Öffentlicher Webhook (kein JWT); prüft Stripe-Signatur, aktualisiert `payments`+`booking_charges`+`bookings` |
 
 ### Chat-Assistent Tools (20+)
 
