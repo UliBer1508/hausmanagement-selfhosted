@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, CreditCard, Mail, Copy, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { useBookingCharges, BookingChargeRow } from '@/hooks/useBookingCharges';
+import { useBookingCharges } from '@/hooks/useBookingCharges';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -32,7 +32,7 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
   const { data: charges, isLoading } = useBookingCharges(bookingId);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'create' | 'send' | null>(null);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['booking_charges', bookingId] });
 
@@ -41,11 +41,23 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
     .filter((c) => c.status === 'open')
     .reduce((s, c) => s + Number(c.amount || 0), 0);
 
-  const handleCreateLink = async (charge: BookingChargeRow) => {
-    setBusyId(charge.id);
+  // Open charges that don't yet have a payment link
+  const openWithoutLink = (charges || []).filter(
+    (c) => c.status === 'open' && !c.payment?.payment_url,
+  );
+  const openWithoutLinkSum = openWithoutLink.reduce((s, c) => s + Number(c.amount || 0), 0);
+
+  // Active (unpaid) bundled link: find any open charge that already has a payment_url
+  const activeLinkCharge = (charges || []).find(
+    (c) => c.status === 'open' && c.payment?.payment_url,
+  );
+  const activePaymentUrl = activeLinkCharge?.payment?.payment_url || null;
+
+  const handleCreateBundledLink = async () => {
+    setBusy('create');
     try {
       const { data, error } = await supabase.functions.invoke('create-payment-link', {
-        body: { booking_charge_id: charge.id },
+        body: { booking_id: bookingId },
       });
       if (error) throw error;
       toast({ title: 'Zahlungslink erstellt', description: data?.payment_url });
@@ -53,22 +65,20 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
     } catch (e: any) {
       toast({ title: 'Fehler', description: e.message, variant: 'destructive' });
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
-  const handleSendLink = async (charge: BookingChargeRow) => {
+  const handleSendLink = async (url: string) => {
     if (!guestEmail) {
       toast({ title: 'Keine E-Mail', description: 'Gast hat keine E-Mail-Adresse hinterlegt.', variant: 'destructive' });
       return;
     }
-    const url = charge.payment?.payment_url;
-    if (!url) return;
-    setBusyId(charge.id);
+    setBusy('send');
     try {
       const html = `
         <p>Hallo ${guestName || ''},</p>
-        <p>für die Position "<strong>${charge.description}</strong>" über <strong>${fmt(charge.amount)}</strong>
+        <p>für Ihre offenen Zusatzforderungen über <strong>${fmt(openCharges)}</strong>
         finden Sie hier Ihren Zahlungslink:</p>
         <p><a href="${url}">${url}</a></p>
         <p>Vielen Dank!</p>
@@ -81,7 +91,7 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
     } catch (e: any) {
       toast({ title: 'Fehler', description: e.message, variant: 'destructive' });
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
@@ -108,10 +118,67 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
         ) : !charges || charges.length === 0 ? (
           <p className="text-sm text-muted-foreground">Keine Zusatzforderungen für diese Buchung.</p>
         ) : (
-          <ul className="divide-y">
+          <>
+            {/* Bundled payment-link action bar */}
+            {(openWithoutLink.length > 0 || activePaymentUrl) && (
+              <div className="mb-4 rounded-md border bg-muted/40 p-3 flex flex-col gap-2">
+                {activePaymentUrl ? (
+                  <>
+                    <div className="text-sm">
+                      Aktiver Zahlungslink über <strong>{fmt(openCharges)}</strong>:
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={busy !== null}
+                        onClick={() => handleSendLink(activePaymentUrl)}
+                      >
+                        {busy === 'send' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
+                        Link an Gast senden
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => handleCopy(activePaymentUrl)}>
+                        <Copy className="w-4 h-4 mr-2" /> Link kopieren
+                      </Button>
+                      <a
+                        href={activePaymentUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-blue-600 underline self-center break-all"
+                      >
+                        {activePaymentUrl}
+                      </a>
+                    </div>
+                    {openWithoutLink.length > 0 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={busy !== null}
+                        onClick={handleCreateBundledLink}
+                      >
+                        {busy === 'create' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
+                        Neuen Link für übrige Forderungen erstellen ({fmt(openWithoutLinkSum)})
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={busy !== null}
+                    onClick={handleCreateBundledLink}
+                  >
+                    {busy === 'create' ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
+                    Zahlungslink für alle offenen Forderungen erstellen (Summe {fmt(openWithoutLinkSum)})
+                  </Button>
+                )}
+              </div>
+            )}
+
+            <ul className="divide-y">
             {charges.map((charge) => {
-              const isBusy = busyId === charge.id;
-              const url = charge.payment?.payment_url;
               return (
                 <li key={charge.id} className="py-3 flex flex-col gap-2">
                   <div className="flex items-center justify-between gap-2">
@@ -122,50 +189,9 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
                     {statusBadge(charge.status)}
                   </div>
 
-                  {charge.status === 'open' && (
-                    <div className="flex flex-wrap gap-2">
-                      {!url ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={isBusy}
-                          onClick={() => handleCreateLink(charge)}
-                        >
-                          {isBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CreditCard className="w-4 h-4 mr-2" />}
-                          Zahlungslink erstellen
-                        </Button>
-                      ) : (
-                        <>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={isBusy}
-                            onClick={() => handleSendLink(charge)}
-                          >
-                            {isBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-                            Link an Gast senden
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleCopy(url)}
-                          >
-                            <Copy className="w-4 h-4 mr-2" />
-                            Link kopieren
-                          </Button>
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sm text-blue-600 underline self-center break-all"
-                          >
-                            {url}
-                          </a>
-                        </>
-                      )}
+                  {charge.status === 'open' && charge.payment?.payment_url && (
+                    <div className="text-xs text-muted-foreground">
+                      In aktivem Zahlungslink enthalten.
                     </div>
                   )}
 
@@ -186,7 +212,8 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
                 </li>
               );
             })}
-          </ul>
+            </ul>
+          </>
         )}
       </CardContent>
     </Card>
