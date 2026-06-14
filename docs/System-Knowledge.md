@@ -71,6 +71,21 @@ tenant_info (JSONB für Langzeitmieter), default_cleaning_hours, default_linen_c
 image_url, ical_url, pricing_config (JSONB), additional_fees (JSONB)
 ```
 
+**Nebenkosten-Schema (additional_fees V2):**
+```typescript
+{
+  service_fee:     { mode: 'flat' | 'per_person', amount: number },
+  tourist_tax:     { mode: 'flat' | 'per_person', amount: number },
+  cleaning_fee:    { mode: 'flat' | 'per_person', amount: number },
+  electricity_fee: { mode: 'flat' | 'per_person', amount: number },
+  linen_fee:       { mode: 'flat' | 'per_person', amount: number },
+  vat_percentage:  number
+}
+```
+- `flat` = Pauschal pro Aufenthalt
+- `per_person` = pro Person (Kurtaxe zusätzlich pro Nacht)
+- Legacy-Flat-Werte werden automatisch in V2-Objekte normalisiert.
+
 #### bookings (Buchungen)
 ```
 id, house_id (FK), guest_id (FK -> guests), guest_name, guest_email, guest_phone,
@@ -79,6 +94,22 @@ status (confirmed/checked_in/completed/cancelled), booking_amount, currency,
 payment_status (pending/paid/partial), platform, external_booking_id, external_rating,
 normalized_rating, nationality, notes, guest_contact_status, rating_not_expected,
 cancellation_date, cancellation_reason, cancelled_by
+```
+
+#### booking_charges (Zusatzforderungen zu Buchungen)
+```
+id, booking_id (FK), house_id (FK), charge_type, description,
+quantity, unit_amount, amount, currency, status (open/paid/cancelled),
+origin (auto_delta/manual), payment_id (FK -> payments),
+created_at, updated_at
+```
+
+#### payments (Zahlungen zu Buchungen / Forderungen)
+```
+id, booking_id (FK), booking_charge_id (FK), amount, currency, purpose, description,
+status (created/paid/failed/refunded), payment_url, paid_at,
+stripe_payment_link_id, stripe_checkout_session_id, stripe_payment_intent_id,
+stripe_event_id, raw_event (JSONB), created_at, updated_at
 ```
 
 #### guests (Gäste-Stammdaten)
@@ -186,6 +217,9 @@ payment_method, reference_number, notes
 | `generate-guest-profile` | KI-Gästeprofil-Analyse |
 | `generate-personalized-email` | Personalisierte Email-Generierung; akzeptiert `offer`-Block (Rabatt, Gutschein, Gültigkeit, Hinweis) – siehe `docs/Guest-Personalization-Improvement-Concept.md` |
 | `send-gmail` | Gmail-Versand |
+| `calculate-booking-delta` | Erkennt Zusatzkosten bei Gast-/Nacht-Erhöhung im Edit-Mode; legt `booking_charges` an |
+| `create-payment-link` | Erzeugt Stripe Payment Link für eine `booking_charge`; speichert `payment_url` in `payments` |
+| `stripe-webhook` | Öffentlicher Webhook (kein JWT); prüft Stripe-Signatur, aktualisiert `payments`+`booking_charges`+`bookings` |
 
 ### Chat-Assistent Tools (20+)
 
@@ -280,7 +314,10 @@ offen -> ausstehend -> delivered
 **linen_order_status:** `offen`, `ausstehend`, `delivered`, `cancelled`
 > ⚠️ **WICHTIG:** Niemals 'pending', 'bestellt' oder 'assigned' verwenden!
 
-**payment_status:** `pending`, `paid`, `partial`, `overdue`
+**booking_charge_status:** `open`, `paid`, `cancelled`
+
+**payment_status:** `created`, `paid`, `failed`, `refunded`
+> ⚠️ **WICHTIG:** `bookings.payment_status` verwendet weiterhin `pending`, `paid`, `partial`.
 
 **service_type:** `cleaning`, `laundry`
 
@@ -533,6 +570,8 @@ erDiagram
 | `EXTERNAL_LAUNDRY_ANON_KEY` | Oberpinzgau Anon Key |
 | `GOOGLE_PLACES_API_KEY` | Aktivitäten-Suche |
 | `OPENWEATHER_API_KEY` | Wetter-Daten |
+| `STRIPE_SECRET_KEY` | Stripe API (Payment Links erstellen) |
+| `STRIPE_WEBHOOK_SECRET` | Stripe Webhook-Signatur-Prüfung |
 
 ---
 
@@ -603,4 +642,4 @@ const response = await supabase.functions.invoke('sync-linen-order-external', {
 
 ---
 
-*Letzte Aktualisierung: Januar 2026*
+*Letzte Aktualisierung: Juni 2026*
