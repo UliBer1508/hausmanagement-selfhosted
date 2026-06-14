@@ -130,16 +130,6 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
             {getStatusText(task.status)}
           </span>
         </div>
-        {/* Notes icon overlay in header */}
-        <button
-          type="button"
-          aria-label="Notiz anzeigen/bearbeiten"
-          onClick={(e) => {
-            e.stopPropagation();
-            setNotesOpen(true);
-          }}
-          className="hidden"
-        />
 
         <CardContent className="p-3">
           <div className="space-y-2">
