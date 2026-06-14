@@ -67,6 +67,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   handleShowUsageReport, saveAllSettings,
 }) => {
   const { toast } = useToast();
+  const [preferLocalClient, setPreferLocalClient] = React.useState(false);
 
   return (
     <div className="space-y-6">
@@ -251,14 +252,27 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 <span className="text-sm font-medium">Status</span>
                 <Badge variant="outline" className="text-green-600">
                   <CheckCircle className="w-3 h-3 mr-1" />
-                  Lokaler E-Mail-Client
+                  {preferLocalClient ? 'Lokaler E-Mail-Client' : 'Gmail (Web)'}
                 </Badge>
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <div>
+                  <Label>Im lokalen Client (Outlook) öffnen</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Aus = Gmail im Browser (Absender automatisch korrekt)
+                  </p>
+                </div>
+                <Switch
+                  checked={preferLocalClient}
+                  onCheckedChange={setPreferLocalClient}
+                />
               </div>
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Alle E-Mails öffnen sich als Entwurf in Ihrem lokal installierten
-              E-Mail-Client. Sie senden manuell von steinbockchalets@gmail.com.
+              {preferLocalClient
+                ? 'Alle E-Mails öffnen sich als Entwurf in Ihrem lokal installierten E-Mail-Client (z. B. Outlook). Der Absender muss ggf. manuell gewechselt werden.'
+                : 'Alle E-Mails öffnen sich als Entwurf in Gmail im Browser. Absender ist automatisch steinbockchalets@gmail.com.'}
             </p>
 
             <div className="space-y-2">
@@ -270,15 +284,18 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 variant="outline"
                 className="w-full"
                 onClick={async () => {
-                  const { openInMailClient } = await import('@/lib/mailtoHelper');
-                  openInMailClient({
+                  const { openEmail } = await import('@/lib/mailtoHelper');
+                  openEmail({
                     to: localEmailSettings.email,
                     subject: 'Test-E-Mail vom Ferienhaus Management',
                     text: `Dies ist eine Test-E-Mail.\n\nErstellt am: ${new Date().toLocaleString('de-DE')}\n\nWenn sich der E-Mail-Client geöffnet hat, funktioniert die Integration korrekt.\n\nMit freundlichen Grüßen\n${localEmailSettings.display_name} System`,
+                    preferLocalClient,
                   });
                   toast({
                     title: 'Test-Entwurf geöffnet',
-                    description: `Ein Test-Entwurf wurde in Ihrem E-Mail-Client geöffnet.`,
+                    description: preferLocalClient
+                      ? 'Ein Test-Entwurf wurde in Ihrem lokalen E-Mail-Client geöffnet.'
+                      : 'Ein Test-Entwurf wurde in Gmail (Web) geöffnet.',
                   });
                 }}
               >
