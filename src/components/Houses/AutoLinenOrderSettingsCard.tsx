@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Save, Settings, Link2, AlertTriangle, Play, CheckCircle, Info, Package } from 'lucide-react';
+import { Loader2, Save, Settings, Link2, AlertTriangle, Play, CheckCircle, Info, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
 import { useExternalArticleMapping } from '@/hooks/useExternalArticleMapping';
@@ -52,6 +52,7 @@ const AutoLinenOrderSettingsCard = () => {
   const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [lastCheckResult, setLastCheckResult] = useState<CheckResult | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Load settings into local state when available
   useEffect(() => {
@@ -163,11 +164,24 @@ const AutoLinenOrderSettingsCard = () => {
     <>
       <Card>
         <CardHeader className="flex flex-col gap-3 pb-4 p-3 sm:p-6">
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5 shrink-0" />
-            Automatisierung
-          </CardTitle>
+          <button
+            type="button"
+            onClick={() => setIsExpanded((v) => !v)}
+            className="flex items-center justify-between gap-2 w-full text-left"
+            aria-expanded={isExpanded}
+          >
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5 shrink-0" />
+              Automatisierung
+            </CardTitle>
+            {isExpanded ? (
+              <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0" />
+            )}
+          </button>
 
+          {isExpanded && (
           <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <Switch
@@ -224,8 +238,10 @@ const AutoLinenOrderSettingsCard = () => {
               </Button>
             </div>
           </div>
+          )}
         </CardHeader>
 
+        {isExpanded && (
         <CardContent className="space-y-4 sm:space-y-6 p-3 sm:p-6 pt-0 sm:pt-0">
           {/* Lokale Automatisierung */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -571,6 +587,7 @@ const AutoLinenOrderSettingsCard = () => {
             </div>
           </div>
         </CardContent>
+        )}
       </Card>
 
       <ExternalArticleMappingDialog 
