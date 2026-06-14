@@ -186,7 +186,7 @@ interface BookingPrefillData {
 interface CreateBookingFormProps {
   mode?: 'create' | 'edit';
   initialData?: BookingWithHouse;
-  onSuccess: () => void;
+  onSuccess: (bookingId?: string) => void;
   onCancel?: () => void;
   prefillData?: BookingPrefillData; // From booking inquiry
 }
@@ -449,6 +449,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
 
   const performBookingUpdate = async (data: BookingFormData) => {
     try {
+      let createdBookingId: string | undefined;
       console.log('performBookingUpdate - check_in:', data.check_in.toISOString());
       console.log('performBookingUpdate - check_out:', data.check_out.toISOString());
       
@@ -749,6 +750,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         console.log('Creating new booking');
         // Create new booking
         const bookingResult = await createBooking.mutateAsync(bookingData);
+        createdBookingId = bookingResult?.id;
 
         console.log('Booking created successfully');
 
@@ -829,7 +831,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         }
       }
 
-      onSuccess();
+      onSuccess(createdBookingId);
     } catch (error: any) {
       console.error('Booking update error:', error);
       toast({
