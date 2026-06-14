@@ -71,6 +71,21 @@ tenant_info (JSONB für Langzeitmieter), default_cleaning_hours, default_linen_c
 image_url, ical_url, pricing_config (JSONB), additional_fees (JSONB)
 ```
 
+**Nebenkosten-Schema (additional_fees V2):**
+```typescript
+{
+  service_fee:     { mode: 'flat' | 'per_person', amount: number },
+  tourist_tax:     { mode: 'flat' | 'per_person', amount: number },
+  cleaning_fee:    { mode: 'flat' | 'per_person', amount: number },
+  electricity_fee: { mode: 'flat' | 'per_person', amount: number },
+  linen_fee:       { mode: 'flat' | 'per_person', amount: number },
+  vat_percentage:  number
+}
+```
+- `flat` = Pauschal pro Aufenthalt
+- `per_person` = pro Person (Kurtaxe zusätzlich pro Nacht)
+- Legacy-Flat-Werte werden automatisch in V2-Objekte normalisiert.
+
 #### bookings (Buchungen)
 ```
 id, house_id (FK), guest_id (FK -> guests), guest_name, guest_email, guest_phone,
