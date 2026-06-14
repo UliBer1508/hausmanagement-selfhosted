@@ -173,7 +173,26 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             {deliveryDate && (
               <div>
                 <span className="text-muted-foreground text-xs">Lieferdatum</span>
-                <div>{deliveryDate}</div>
+                <div className="flex items-center gap-1.5">
+                  <span>{deliveryDate}</span>
+                  {order.notes && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            className="inline-flex cursor-help"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="max-w-[200px] whitespace-pre-wrap">{order.notes}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -271,22 +290,6 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
                 </div>
               </CollapsibleContent>
             </Collapsible>
-          )}
-
-            {/* Notes */}
-          {order.notes && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="inline-flex cursor-help">
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p className="max-w-[200px] whitespace-pre-wrap">{order.notes}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           )}
 
           {/* Created by */}

@@ -77,7 +77,6 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
       <ClickableCard
         aria-label={`${getServiceLabel(task.service_type)} bearbeiten`}
         onActivate={() => setShowEditDialog(true)}
-        showChevron
         className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50 overflow-hidden`}
       >
         {/* Kopfbalken */}
