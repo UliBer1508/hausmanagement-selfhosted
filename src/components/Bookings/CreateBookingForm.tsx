@@ -1580,12 +1580,49 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
 
         {/* Submit Buttons */}
         <div className="flex flex-row flex-wrap gap-2 pt-4">
+          {deltaResult && (
+            <div className="basis-full rounded-md border border-amber-300 bg-amber-50 p-4 mb-2">
+              <div className="flex items-start gap-2 mb-3">
+                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold text-amber-900">
+                    Diese Änderung erzeugt {deltaResult.total_amount.toFixed(2).replace('.', ',')} € Zusatzkosten:
+                  </p>
+                  <ul className="mt-2 space-y-1 text-sm text-amber-900">
+                    {deltaResult.charges.map((c: any) => (
+                      <li key={c.id}>
+                        • {c.description}: {Number(c.amount).toFixed(2).replace('.', ',')} €
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={handleConfirmDeltaCharges}>
+                  Als Forderung anlegen
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleCreateAndSendPaymentLink}
+                  disabled={isSendingPaymentLink}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isSendingPaymentLink ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <CreditCard className="w-4 h-4 mr-2" />
+                  )}
+                  Zahlungslink erstellen & an Gast senden
+                </Button>
+              </div>
+            </div>
+          )}
           <Button
             type="submit"
             className="flex-1 min-w-0 bg-black hover:bg-gray-800 text-white"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isCalculatingDelta}
           >
-            {isSubmitting ? (
+            {isSubmitting || isCalculatingDelta ? (
               mode === 'edit' ? 'Aktualisiere...' : 'Erstelle...'
             ) : (
               mode === 'edit' ? 'Aktualisieren' : 'Buchung erstellen'
