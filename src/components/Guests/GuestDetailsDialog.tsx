@@ -17,6 +17,7 @@ import {
   FileText
 } from 'lucide-react';
 import GuestEmailDialog from './GuestEmailDialog';
+import GuestCommunicationHistory from './GuestCommunicationHistory';
 
 interface Guest {
   id?: string;
@@ -298,6 +299,13 @@ const GuestDetailsDialog = ({ guest, open, onOpenChange }: GuestDetailsDialogPro
             </div>
           </CardContent>
         </Card>
+
+        <GuestCommunicationHistory
+          guestEmail={guest.guest_email}
+          guestId={guest.id}
+          guestName={guest.guest_name}
+          className="mt-4"
+        />
       </DialogContent>
 
       {/* Email Dialog */}
