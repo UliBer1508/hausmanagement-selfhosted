@@ -170,6 +170,8 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
     setIsApproved(false);
     setPersonalizedContent('');
     setGeneratedSubject('');
+    setVariants([]);
+    setSelectedVariant(0);
     toast({
       title: "Nachricht abgelehnt",
       description: "Die generierte Nachricht wurde zurückgewiesen. Erstellen Sie eine neue Nachricht."
@@ -202,6 +204,15 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
     setIsApproved(false);
     setPersonalizedContent('');
     setGeneratedSubject('');
+    setVariants([]);
+    setSelectedVariant(0);
+  };
+
+  const handleSelectVariant = (index: number) => {
+    if (!variants[index]) return;
+    setSelectedVariant(index);
+    setPersonalizedContent(variants[index].content);
+    setGeneratedSubject(variants[index].subject);
   };
 
   const getSegmentInfo = (segment: string) => {
