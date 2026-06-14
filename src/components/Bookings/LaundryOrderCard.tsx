@@ -146,7 +146,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[9px] font-bold uppercase tracking-wider opacity-90">
-            Wäschebestellung · {houseName}
+            Wäsche · {houseName}
           </div>
           <div className="text-[14px] font-extrabold leading-tight truncate">
             Lieferschein · {getTotalItems()} Artikel

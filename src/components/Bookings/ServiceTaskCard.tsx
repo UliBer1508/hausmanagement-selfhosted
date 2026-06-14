@@ -48,7 +48,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
   };
 
   const getServiceLabel = (type: string) => {
-    return type === 'cleaning' ? 'Reinigungsauftrag' : 'Wäscherei-Auftrag';
+    return type === 'cleaning' ? 'Reinigung' : 'Wäscherei-Auftrag';
   };
 
   const getServiceShortLabel = (type: string) => {
@@ -145,7 +145,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
                     <div className="flex items-center gap-2">
                       <span className="text-base shrink-0">👤</span>
                       <span className="text-muted-foreground text-xs">Putzkraft:</span>
-                      <span className="font-medium truncate">{assignment.cleaning_staff?.name || 'Unbekannt'}</span>
+                      <span className="font-medium truncate">{assignment.cleaning_staff?.name || 'Amlea'}</span>
                     </div>
                     {assignment.estimated_duration && (
                       <div className="text-xs text-muted-foreground">
@@ -167,9 +167,10 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
                 <span className="font-medium truncate">{task.direct_assigned_staff.name}</span>
               </div>
             ) : (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm">
                 <span className="text-base shrink-0">👤</span>
-                <span className="text-xs">Noch keine Putzkraft zugewiesen</span>
+                <span className="text-muted-foreground text-xs">Putzkraft:</span>
+                <span className="font-medium truncate">Amlea</span>
               </div>
             )}
 
