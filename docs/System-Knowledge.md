@@ -642,4 +642,4 @@ const response = await supabase.functions.invoke('sync-linen-order-external', {
 
 ---
 
-*Letzte Aktualisierung: Januar 2026*
+*Letzte Aktualisierung: Juni 2026*
