@@ -1,17 +1,24 @@
-# Reinigungskarte: "Unbekannt" beheben
+## Problem
 
-## Ursache
-Im Header der `ServiceTaskCard` steht `Reinigungsauftrag · Unbekannt`, weil der Fallback `task.houses?.name || task.bookings?.houses?.name || 'Unbekannt'` greift. In `OverviewTab` (und teils `ConnectedBookingView`) werden die Tasks ohne die `houses`-Joins geladen — beide Felder sind also leer, obwohl die Karte unter einer Buchung mit bekanntem Chalet hängt.
+Auf der Reinigungs-Seite (`CleaningManagement.tsx`) wirken die Reinigungskarten auf dem Handy enger als die Buchungskarten:
 
-## Lösung (nur UI/Props, keine Datenlogik-Änderung)
+- Titel im Kopfbalken wird zu „Reinigungsa…" abgeschnitten (durch `truncate`), weil „Reinigungsauftrag" zu lang ist.
+- Body nutzt ein dichtes Grid `grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5` — auf Mobile sind die Zeilen mit nur 6px Abstand gestapelt, ohne Label/Value-Trennung.
+- Im Vergleich nutzt `BookingCard.tsx` `space-y-2` mit dezenten Labels (`text-xs text-muted-foreground` über dem Wert) und wirkt dadurch luftig.
 
-1. **`src/components/Bookings/ServiceTaskCard.tsx`**
-   - Neue optionale Prop `houseName?: string`.
-   - Header-Anzeige nutzt: `houseName ?? task.houses?.name ?? task.bookings?.houses?.name ?? 'Unbekannt'`.
+## Lösung
 
-2. **Caller anpassen, damit der Hausname durchgereicht wird:**
-   - `src/components/Dashboard/OverviewTab.tsx` (bzw. die Stelle, die `ServiceTaskCard` rendert): `houseName={booking.houses?.name}` aus der zugehörigen Buchung übergeben.
-   - `src/components/Bookings/ConnectedBookingView.tsx`: analog `houseName={booking.houses?.name}` mitgeben.
+Reinigungskarte in `CleaningManagement.tsx` (Zeilen ~595–687) auf das gleiche Layout-Muster wie `BookingCard.tsx` umstellen:
 
-## Ergebnis
-Die Reinigungskarte zeigt im Header z. B. `Reinigungsauftrag · Wald Chalet` statt `Unbekannt`. Keine Änderung am Layout, Datenmodell oder den Dialog-Öffnern.
+1. **Kopfbalken**: Titel von „Reinigungsauftrag" auf „Reinigung" verkürzen (passt ohne Truncate, analog zu „Reservierung").
+2. **Body-Struktur**: `grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5` ersetzen durch denselben Aufbau wie BookingCard:
+   - Äußerer Wrapper `space-y-2`
+   - Datumspaar (Service / Buchung) als `grid grid-cols-2 gap-2 text-sm` mit Label oben (`text-muted-foreground text-xs`) und Wert darunter
+   - Restliche Zeilen (Adresse, Gast, Gäste-Anzahl, Provider, Kosten, Bezahlung, Personal, Status-Change) jeweils als eigene `flex items-center gap-2 text-sm` Zeile
+3. Auf Desktop (≥ md) optional zweispaltig belassen, aber Mobile bekommt klare, luftige Stapelung wie bei Buchungen.
+
+## Technisch betroffene Datei
+
+- `src/components/Cleaning/CleaningManagement.tsx` (nur der `cleaningTasks?.map(...)` Render-Block, ~Zeilen 588–688)
+
+Keine Änderungen an Daten, Hooks oder anderen Komponenten.

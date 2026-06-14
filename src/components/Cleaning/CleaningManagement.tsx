@@ -610,7 +610,7 @@ const CleaningManagement = () => {
                         Reinigung · {task.houses?.name || 'Unbekannt'}
                       </div>
                       <div className="text-[14px] font-extrabold leading-tight truncate">
-                        Reinigungsauftrag
+                        Reinigung
                       </div>
                     </div>
                     <span
@@ -622,64 +622,91 @@ const CleaningManagement = () => {
                   </div>
 
                   <CardContent className="p-3">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>📍</span>
-                        {task.houses?.address}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <span>📅</span>
-                        Service: {new Date(task.scheduled_date).toLocaleDateString('de-DE')} {task.scheduled_time ? `${task.scheduled_time.slice(0,5)}` : ''}
-                      </div>
-                      {task.bookings && (
-                        <>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span>📅</span>
-                            Buchung: {new Date(task.bookings.check_in).toLocaleDateString('de-DE')} - {new Date(task.bookings.check_out).toLocaleDateString('de-DE')}
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span>👤</span>
-                            Gast: {getGuestName(task.bookings)}
-                          </div>
-                          <div className="flex items-center gap-2 text-sm">
-                            <span>👤</span>
-                            {task.bookings.number_of_guests} Gäste
-                          </div>
-                        </>
-                      )}
-                      {task.service_providers && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span>👤</span>
-                          Provider: {task.service_providers.name}
+                    <div className="space-y-2">
+                      {/* Address */}
+                      {task.houses?.address && (
+                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <span className="shrink-0">📍</span>
+                          <span className="break-words">{task.houses.address}</span>
                         </div>
                       )}
+
+                      {/* Service date + Booking range side by side */}
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground text-xs">Service</span>
+                          <div>
+                            {new Date(task.scheduled_date).toLocaleDateString('de-DE')}
+                            {task.scheduled_time ? ` ${task.scheduled_time.slice(0,5)}` : ''}
+                          </div>
+                        </div>
+                        {task.bookings && (
+                          <div>
+                            <span className="text-muted-foreground text-xs">Buchung</span>
+                            <div className="truncate">
+                              {new Date(task.bookings.check_in).toLocaleDateString('de-DE')} – {new Date(task.bookings.check_out).toLocaleDateString('de-DE')}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Guest */}
+                      {task.bookings && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-base shrink-0">👤</span>
+                          <span className="text-muted-foreground text-xs">Gast:</span>
+                          <span className="font-medium truncate">{getGuestName(task.bookings)}</span>
+                          <span className="text-muted-foreground text-xs ml-1">({task.bookings.number_of_guests} Gäste)</span>
+                        </div>
+                      )}
+
+                      {/* Provider */}
+                      {task.service_providers && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="text-base shrink-0">👤</span>
+                          <span className="text-muted-foreground text-xs">Provider:</span>
+                          <span className="font-medium truncate">{task.service_providers.name}</span>
+                        </div>
+                      )}
+
+                      {/* Status change */}
                       {task.status_changed_by && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <span>📊</span>
+                        <div className="flex items-center gap-2 text-sm flex-wrap">
+                          <span className="shrink-0">📊</span>
                           {getStatusBadge(task.status)}
                           <span
+                            className="text-xs text-muted-foreground"
                             title={task.status_changed_at ? `Geändert am ${new Date(task.status_changed_at).toLocaleDateString('de-DE')} um ${new Date(task.status_changed_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : undefined}
                           >
                             ({task.status_changed_by})
                           </span>
                         </div>
                       )}
+
+                      {/* Cost */}
                       {task.cleaning_cost && (
                         <div className="flex items-center gap-2 text-sm">
-                          <span>💶</span>
-                          Kosten: <span className="font-semibold text-green-700">{task.cleaning_cost.toFixed(2)} EUR</span>
+                          <span className="shrink-0">💶</span>
+                          <span className="text-muted-foreground text-xs">Kosten:</span>
+                          <span className="font-semibold text-green-700">{task.cleaning_cost.toFixed(2)} EUR</span>
                         </div>
                       )}
+
+                      {/* Payment */}
                       {task.payment_status && (
                         <div className="flex items-center gap-2 text-sm">
-                          <span>💳</span>
-                          Bezahlung: {getPaymentStatusBadge(task.payment_status)}
+                          <span className="shrink-0">💳</span>
+                          <span className="text-muted-foreground text-xs">Bezahlung:</span>
+                          {getPaymentStatusBadge(task.payment_status)}
                         </div>
                       )}
+
+                      {/* Staff */}
                       {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
                         <div className="flex items-center gap-2 text-sm">
-                          <span>👤</span>
-                          Personal: {task.cleaning_assignments[0].cleaning_staff.name}
+                          <span className="text-base shrink-0">👤</span>
+                          <span className="text-muted-foreground text-xs">Personal:</span>
+                          <span className="font-medium truncate">{task.cleaning_assignments[0].cleaning_staff.name}</span>
                         </div>
                       )}
                     </div>
