@@ -749,6 +749,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         console.log('Creating new booking');
         // Create new booking
         const bookingResult = await createBooking.mutateAsync(bookingData);
+        createdBookingId = bookingResult?.id;
 
         console.log('Booking created successfully');
 
@@ -829,7 +830,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         }
       }
 
-      onSuccess(bookingResult?.id);
+      onSuccess(createdBookingId);
     } catch (error: any) {
       console.error('Booking update error:', error);
       toast({
