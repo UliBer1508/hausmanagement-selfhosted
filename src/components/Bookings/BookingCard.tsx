@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileText } from 'lucide-react';
+import { StickyNote } from 'lucide-react';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditBookingDialog from './EditBookingDialog';
 import { BookingWithHouse } from '@/types';
 import { getGuestName } from '@/lib/guestHelpers';
 import { useGuestStayCounts, getGuestCategory } from '@/hooks/useGuestStayCounts';
+import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface BookingCardProps {
   booking: BookingWithHouse;
@@ -20,6 +23,29 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
   const { data: stayCounts } = useGuestStayCounts();
   const category = getGuestCategory(stayCounts, booking.guest_email);
   const [editOpen, setEditOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const handleSaveNotes = async (val: string) => {
+    setSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ notes: val || null })
+        .eq('id', booking.id);
+      if (error) throw error;
+      (booking as any).notes = val || null;
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      onBookingUpdated?.();
+      toast({ title: 'Notiz gespeichert' });
+    } catch (err: any) {
+      toast({ title: 'Fehler beim Speichern', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   const nights = differenceInCalendarDays(parseISO(booking.check_out), parseISO(booking.check_in));
 
@@ -106,6 +132,20 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
               Reservierung
             </div>
           </div>
+          <button
+            type="button"
+            aria-label="Notiz anzeigen/bearbeiten"
+            onClick={(e) => {
+              e.stopPropagation();
+              setNotesOpen(true);
+            }}
+            className="relative grid place-items-center w-7 h-7 rounded-md bg-white/15 hover:bg-white/25 transition-colors shrink-0"
+          >
+            <StickyNote className="w-4 h-4" />
+            {(booking as any).notes && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-300 border border-white" />
+            )}
+          </button>
           <span
             className="text-[10px] font-extrabold px-2 py-1 rounded-full bg-white/95 shrink-0"
             style={{ color: '#d97706' }}
@@ -150,21 +190,6 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
               </span>
             </div>
 
-            {/* Notes */}
-            {(booking as any).notes && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="inline-flex cursor-help">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="max-w-[200px] whitespace-pre-wrap">{(booking as any).notes}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
           </div>
         </CardContent>
       </Card>
@@ -174,6 +199,14 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
         onBookingUpdated={onBookingUpdated}
         open={editOpen}
         onOpenChange={setEditOpen}
+      />
+      <NotesQuickDialog
+        open={notesOpen}
+        onOpenChange={setNotesOpen}
+        title="Notiz"
+        value={(booking as any).notes ?? ''}
+        saving={savingNotes}
+        onSave={handleSaveNotes}
       />
     </>
   );
