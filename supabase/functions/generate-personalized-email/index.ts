@@ -17,7 +17,8 @@ serve(async (req) => {
   }
 
   try {
-    const { messageType, selectedSegment, segmentAnalysis, sampleGuests, offer = {}, contact: contactOverride, intent, tone, length } = await req.json();
+    const { messageType, selectedSegment, segmentAnalysis, sampleGuests, offer = {}, contact: contactOverride, intent, tone, length, variantCount } = await req.json();
+    const requestedVariants = Math.min(3, Math.max(1, Number(variantCount) || 3));
 
     if (!geminiApiKey) {
       throw new Error('Google Gemini API key not configured');
@@ -61,7 +62,7 @@ serve(async (req) => {
     }
 
     // Create personalized prompt based on segment and guest data
-    const prompt = createPersonalizationPrompt(messageType, selectedSegment, segmentAnalysis, sampleGuests, offer, intent, tone, length);
+    const prompt = createPersonalizationPrompt(messageType, selectedSegment, segmentAnalysis, sampleGuests, offer, intent, tone, length, requestedVariants);
 
     console.log('Generating personalized email with Gemini API (structured output)');
 
@@ -83,34 +84,53 @@ STRENGE REGELN (NICHT VERLETZEN):
 - Gast-Anrede verwenden: "${guestName}"${houseName ? `\n- Letztes gebuchtes Haus: "${houseName}"` : ''}
 - Der Inhalt ist reiner Klartext (keine Markdown-Codeblöcke, kein HTML). Verwende \\n\\n für Absätze.`;
 
-    let parsedContent: { subject: string; content: string };
+    let parsed: { variants?: Array<{ label: string; subject: string; content: string }>; subject?: string; content?: string };
     try {
-      parsedContent = await geminiStructuredOutput<{ subject: string; content: string }>(
+      parsed = await geminiStructuredOutput<any>(
         geminiApiKey,
         systemPrompt,
         prompt,
         {
-          name: 'create_personalized_email',
-          description: 'Erstellt einen Betreff und einen Klartext-Inhalt für eine personalisierte Gäste-E-Mail.',
+          name: 'create_personalized_email_variants',
+          description: `Erstellt ${requestedVariants} unterschiedliche Varianten (Betreff + Klartext-Inhalt) einer personalisierten Gäste-E-Mail.`,
           parameters: {
             type: 'object',
             properties: {
-              subject: {
-                type: 'string',
-                description: 'Betreff der E-Mail in deutscher Sprache, max. 80 Zeichen, ohne Platzhalter.',
-              },
-              content: {
-                type: 'string',
-                description: 'Vollständiger E-Mail-Text als Klartext in deutscher Sprache. Absätze mit \\n\\n trennen. Keine Platzhalter wie {GUEST_NAME}.',
+              variants: {
+                type: 'array',
+                minItems: 1,
+                maxItems: 3,
+                description: `Liefere genau ${requestedVariants} Varianten, die sich in Tonalität/Stil/Aufbau deutlich unterscheiden.`,
+                items: {
+                  type: 'object',
+                  properties: {
+                    label: { type: 'string', description: 'Kurzcharakter, z. B. "Herzlich & persönlich", "Sachlich & knapp", "Exklusiv & elegant".' },
+                    subject: { type: 'string', description: 'Betreff, max. 80 Zeichen, ohne Platzhalter.' },
+                    content: { type: 'string', description: 'Vollständiger E-Mail-Text als Klartext. Absätze mit \\n\\n. Keine Platzhalter, keine Signatur.' },
+                  },
+                  required: ['label', 'subject', 'content'],
+                },
               },
             },
-            required: ['subject', 'content'],
+            required: ['variants'],
           },
         }
       );
     } catch (e) {
       console.error('Structured output failed:', e);
       throw e;
+    }
+
+    // Normalize: accept legacy single-shape responses too
+    let variants: Array<{ label: string; subject: string; content: string }> = [];
+    if (Array.isArray(parsed?.variants) && parsed.variants.length > 0) {
+      variants = parsed.variants;
+    } else if (parsed?.subject && parsed?.content) {
+      variants = [{ label: 'Variante 1', subject: parsed.subject, content: parsed.content }];
+    }
+
+    if (variants.length === 0) {
+      throw new Error('Keine Varianten von der KI erhalten.');
     }
 
     // Defensive: replace any leftover placeholders just in case
@@ -122,21 +142,33 @@ STRENGE REGELN (NICHT VERLETZEN):
         .replace(/\{CHECK_OUT\}/g, '')
         .trim();
 
-    parsedContent.subject = replacePlaceholders(parsedContent.subject || '');
-    parsedContent.content = replacePlaceholders(parsedContent.content || '');
-
-    // Strip any signature/contact lines the model may have added anyway, then append the deterministic one
-    parsedContent.content = stripTrailingSignature(parsedContent.content);
     const signature = buildSignature(contact);
-    if (signature) {
-      parsedContent.content = `${parsedContent.content.trim()}\n\n${signature}`;
-    }
 
-    console.log('Generated content OK. Subject:', parsedContent.subject);
-
-    return new Response(JSON.stringify(parsedContent), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    variants = variants.map((v, i) => {
+      const subject = replacePlaceholders(v.subject || '');
+      let content = replacePlaceholders(v.content || '');
+      content = stripTrailingSignature(content);
+      if (signature) {
+        content = `${content.trim()}\n\n${signature}`;
+      }
+      return {
+        label: v.label?.trim() || `Variante ${i + 1}`,
+        subject,
+        content,
+      };
     });
+
+    console.log(`Generated ${variants.length} variant(s). First subject:`, variants[0].subject);
+
+    return new Response(
+      JSON.stringify({
+        variants,
+        // Backward compatibility
+        subject: variants[0].subject,
+        content: variants[0].content,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
     console.error('Error in generate-personalized-email function:', error);
@@ -185,7 +217,7 @@ function stripTrailingSignature(text: string): string {
     .trim();
 }
 
-function createPersonalizationPrompt(messageType: string, selectedSegment: string, segmentAnalysis: any, sampleGuests: any[], offer: any = {}, intent?: string, tone?: string, length?: string) {
+function createPersonalizationPrompt(messageType: string, selectedSegment: string, segmentAnalysis: any, sampleGuests: any[], offer: any = {}, intent?: string, tone?: string, length?: string, variantCount: number = 3) {
   const segmentDescription = getSegmentDescription(selectedSegment);
   const messageTypeDescription = getMessageTypeDescription(messageType);
 
@@ -245,7 +277,11 @@ ANFORDERUNGEN:
 - Erfinde NICHTS, was nicht oben in ANGEBOTSDETAILS steht
 - KEINE Signatur am Ende (wird automatisch angehängt)
 
-Erstelle Betreff und Inhalt, die speziell für diese Zielgruppe optimiert sind.
+VARIANTEN:
+- Erstelle GENAU ${variantCount} Varianten der E-Mail.
+- Jede Variante muss sich in Tonalität, Aufbau und Stil DEUTLICH von den anderen unterscheiden (z. B. "Herzlich & persönlich", "Sachlich & knapp", "Exklusiv & elegant" oder ähnliche klare Charaktere).
+- Alle Varianten müssen DIESELBEN harten Fakten (insb. aus ANGEBOTSDETAILS) respektieren.
+- Gib jeder Variante ein kurzes, prägnantes Label, das ihren Charakter beschreibt.
 `;
 }
 

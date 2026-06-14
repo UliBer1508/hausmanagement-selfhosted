@@ -35,6 +35,8 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
   const [intent, setIntent] = useState('');
   const [tone, setTone] = useState<'herzlich' | 'sachlich' | 'exklusiv' | 'humorvoll'>('herzlich');
   const [length, setLength] = useState<'kurz' | 'mittel' | 'ausführlich'>('mittel');
+  const [variants, setVariants] = useState<Array<{ label: string; subject: string; content: string }>>([]);
+  const [selectedVariant, setSelectedVariant] = useState(0);
   const { toast } = useToast();
 
   // Use the centralized guest segments hook (includes tourist filter!)
@@ -108,19 +110,39 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
           intent: intent.trim() || undefined,
           tone,
           length,
+          variantCount: 3,
         }
       });
 
       if (error) throw error;
 
-      setPersonalizedContent(data.content);
-      setGeneratedSubject(data.subject);
-      setShowPreview(true);
+      // Normalize response: prefer variants[], fall back to single {subject, content}
+      let receivedVariants: Array<{ label: string; subject: string; content: string }> = [];
+      if (Array.isArray(data?.variants) && data.variants.length > 0) {
+        receivedVariants = data.variants;
+      } else if (data?.subject && data?.content) {
+        receivedVariants = [{ label: 'Variante 1', subject: data.subject, content: data.content }];
+      }
+
+      if (receivedVariants.length === 0) {
+        toast({
+          title: 'Keine Varianten erhalten',
+          description: 'Die KI hat keine verwertbaren Varianten zurückgegeben. Bitte erneut versuchen.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setVariants(receivedVariants);
+      setSelectedVariant(0);
+      setPersonalizedContent(receivedVariants[0].content);
+      setGeneratedSubject(receivedVariants[0].subject);
+      setShowPreview(false);
       setIsApproved(false);
 
       toast({
-        title: "Personalisierte Nachricht erstellt",
-        description: `KI-optimierte Nachricht für ${targetGuests.length} Gäste generiert. Bitte überprüfen Sie die Nachricht vor dem Versand.`
+        title: 'Personalisierte Nachrichten erstellt',
+        description: `${receivedVariants.length} Variante(n) für ${targetGuests.length} Gäste generiert. Wählen Sie eine Variante zur Vorschau.`
       });
 
     } catch (error) {
@@ -148,6 +170,8 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
     setIsApproved(false);
     setPersonalizedContent('');
     setGeneratedSubject('');
+    setVariants([]);
+    setSelectedVariant(0);
     toast({
       title: "Nachricht abgelehnt",
       description: "Die generierte Nachricht wurde zurückgewiesen. Erstellen Sie eine neue Nachricht."
@@ -180,6 +204,15 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
     setIsApproved(false);
     setPersonalizedContent('');
     setGeneratedSubject('');
+    setVariants([]);
+    setSelectedVariant(0);
+  };
+
+  const handleSelectVariant = (index: number) => {
+    if (!variants[index]) return;
+    setSelectedVariant(index);
+    setPersonalizedContent(variants[index].content);
+    setGeneratedSubject(variants[index].subject);
   };
 
   const getSegmentInfo = (segment: string) => {
@@ -462,6 +495,31 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
                   E-Mail wurde genehmigt und kann versendet werden.
                 </AlertDescription>
               </Alert>
+            )}
+            {variants.length > 1 && !showPreview && (
+              <div>
+                <label className="text-sm font-medium">Varianten ({variants.length})</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                  {variants.map((v, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handleSelectVariant(i)}
+                      className={`text-left p-3 rounded-md border transition-colors ${
+                        selectedVariant === i
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-border hover:bg-muted'
+                      }`}
+                    >
+                      <div className="text-xs font-semibold mb-1">{v.label}</div>
+                      <div className="text-xs text-muted-foreground line-clamp-2">{v.subject}</div>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Wählen Sie eine Variante – Betreff und Inhalt darunter werden automatisch aktualisiert.
+                </p>
+              </div>
             )}
             {generatedSubject && (
               <div>
