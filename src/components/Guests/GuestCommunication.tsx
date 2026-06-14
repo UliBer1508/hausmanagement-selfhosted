@@ -125,9 +125,11 @@ const GuestCommunication = () => {
     }
   };
 
-  const handleSendPersonalizedMessage = async (content: string, subject: string, segment: string) => {
+  const handleSendPersonalizedMessage = async (content: string, subject: string, segment: string, recipientEmails?: string[]) => {
     try {
-      const targetGuests = getGuestEmailsForSegment(segment);
+      const targetGuests = recipientEmails && recipientEmails.length > 0
+        ? recipientEmails
+        : getGuestEmailsForSegment(segment);
       
       if (targetGuests.length === 0) {
         toast({
