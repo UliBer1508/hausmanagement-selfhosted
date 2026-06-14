@@ -81,6 +81,22 @@ normalized_rating, nationality, notes, guest_contact_status, rating_not_expected
 cancellation_date, cancellation_reason, cancelled_by
 ```
 
+#### booking_charges (Zusatzforderungen zu Buchungen)
+```
+id, booking_id (FK), house_id (FK), charge_type, description,
+quantity, unit_amount, amount, currency, status (open/paid/cancelled),
+origin (auto_delta/manual), payment_id (FK -> payments),
+created_at, updated_at
+```
+
+#### payments (Zahlungen zu Buchungen / Forderungen)
+```
+id, booking_id (FK), booking_charge_id (FK), amount, currency, purpose, description,
+status (created/paid/failed/refunded), payment_url, paid_at,
+stripe_payment_link_id, stripe_checkout_session_id, stripe_payment_intent_id,
+stripe_event_id, raw_event (JSONB), created_at, updated_at
+```
+
 #### guests (Gäste-Stammdaten)
 ```
 id, name, email, phone, street, city, postal_code, nationality,
