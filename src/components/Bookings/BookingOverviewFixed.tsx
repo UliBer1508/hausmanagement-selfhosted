@@ -119,6 +119,28 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
   const [selectedBookingForEdit, setSelectedBookingForEdit] = useState<any | null>(null);
   const [bookingToDelete, setBookingToDelete] = useState<any | null>(null);
   const [relatedItems, setRelatedItems] = useState<{ cleanings: number; orders: number }>({ cleanings: 0, orders: 0 });
+  const [notesBooking, setNotesBooking] = useState<any | null>(null);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleSaveNotes = async (val: string) => {
+    if (!notesBooking) return;
+    setSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ notes: val || null })
+        .eq('id', notesBooking.id);
+      if (error) throw error;
+      notesBooking.notes = val || null;
+      queryClient.invalidateQueries({ queryKey: ['bookings-overview'] });
+      toast({ title: 'Notiz gespeichert' });
+    } catch (err: any) {
+      toast({ title: 'Fehler beim Speichern', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
   
   const { toast } = useToast();
   const deleteBookingMutation = useDeleteBooking();
@@ -880,6 +902,20 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                     Reservierung
                   </div>
                 </div>
+                <button
+                  type="button"
+                  aria-label="Notiz anzeigen/bearbeiten"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setNotesBooking(booking);
+                  }}
+                  className="relative grid place-items-center w-7 h-7 rounded-md bg-white/15 hover:bg-white/25 transition-colors shrink-0"
+                >
+                  <StickyNote className="w-4 h-4" />
+                  {booking.notes && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-300 border border-white" />
+                  )}
+                </button>
                 <span
                   className="text-[10px] font-extrabold px-2 py-1 rounded-full bg-white/95 shrink-0"
                   style={{ color: '#d97706' }}
@@ -1030,6 +1066,15 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <NotesQuickDialog
+        open={!!notesBooking}
+        onOpenChange={(open) => !open && setNotesBooking(null)}
+        title="Notiz"
+        value={notesBooking?.notes ?? ''}
+        saving={savingNotes}
+        onSave={handleSaveNotes}
+      />
     </div>
   );
 };
