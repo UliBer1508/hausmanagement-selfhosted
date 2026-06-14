@@ -2,15 +2,23 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
-// PWA service worker — disabled inside Lovable preview iframes to avoid stale-cache issues.
+// PWA service worker — disabled inside Lovable preview/iframes and via ?sw=off kill switch.
 const isInIframe = (() => {
   try { return window.self !== window.top; } catch { return true; }
 })();
+const hostname = window.location.hostname;
 const isLovablePreview =
-  window.location.hostname.includes("id-preview--") ||
-  window.location.hostname.includes("lovableproject.com");
+  hostname.startsWith("id-preview--") ||
+  hostname.startsWith("preview--") ||
+  hostname === "lovableproject.com" ||
+  hostname.endsWith(".lovableproject.com") ||
+  hostname === "lovableproject-dev.com" ||
+  hostname.endsWith(".lovableproject-dev.com") ||
+  hostname === "beta.lovable.dev" ||
+  hostname.endsWith(".beta.lovable.dev");
+const isSwOff = new URLSearchParams(window.location.search).get("sw") === "off";
 
-if (isLovablePreview || isInIframe) {
+if (isLovablePreview || isInIframe || isSwOff) {
   // Unregister any existing SW & clear caches in preview/iframe contexts
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
