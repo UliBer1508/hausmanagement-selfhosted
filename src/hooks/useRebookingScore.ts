@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { openEmail } from '@/lib/mailtoHelper';
+import { logCommunication } from '@/hooks/useGuestCommunications';
 
 export interface GuestRebookingData {
   guest_key: string;
@@ -202,6 +203,13 @@ export function useSendRebookingOffer() {
         subject: aiSubject,
         text: aiContent,
         html: aiHtml,
+      });
+      void logCommunication({
+        guestEmail: guest.guest_email,
+        guestName: (guest as any).guest_name ?? null,
+        direction: 'outbound',
+        subject: aiSubject,
+        body: aiContent,
       });
       return { success: true, opened: true };
     },

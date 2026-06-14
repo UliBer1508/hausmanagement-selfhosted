@@ -2070,6 +2070,53 @@ export type Database = {
           },
         ]
       }
+      guest_communications: {
+        Row: {
+          body: string | null
+          channel: string
+          created_at: string
+          direction: string
+          guest_email: string | null
+          guest_id: string | null
+          guest_name: string | null
+          id: string
+          occurred_at: string
+          subject: string | null
+        }
+        Insert: {
+          body?: string | null
+          channel?: string
+          created_at?: string
+          direction?: string
+          guest_email?: string | null
+          guest_id?: string | null
+          guest_name?: string | null
+          id?: string
+          occurred_at?: string
+          subject?: string | null
+        }
+        Update: {
+          body?: string | null
+          channel?: string
+          created_at?: string
+          direction?: string
+          guest_email?: string | null
+          guest_id?: string | null
+          guest_name?: string | null
+          id?: string
+          occurred_at?: string
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_communications_guest_id_fkey"
+            columns: ["guest_id"]
+            isOneToOne: false
+            referencedRelation: "guests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       guest_preference_responses: {
         Row: {
           booking_id: string | null
