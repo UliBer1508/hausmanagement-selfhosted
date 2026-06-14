@@ -38,6 +38,26 @@ const CleaningManagement = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedBookingForCreation, setSelectedBookingForCreation] = useState<any>(null);
+  const [notesTask, setNotesTask] = useState<{ id: string; notes: string | null } | null>(null);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const { toast } = useToast();
+
+  const saveTaskNotes = async (taskId: string, newNotes: string) => {
+    setSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('service_tasks')
+        .update({ notes: newNotes || null })
+        .eq('id', taskId);
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
+      toast({ title: 'Notiz gespeichert' });
+    } catch (err: any) {
+      toast({ title: 'Fehler beim Speichern', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   // Auto-open task dialog when navigating from chat
   useEffect(() => {
