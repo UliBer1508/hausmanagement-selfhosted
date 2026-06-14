@@ -186,7 +186,7 @@ interface BookingPrefillData {
 interface CreateBookingFormProps {
   mode?: 'create' | 'edit';
   initialData?: BookingWithHouse;
-  onSuccess: () => void;
+  onSuccess: (bookingId?: string) => void;
   onCancel?: () => void;
   prefillData?: BookingPrefillData; // From booking inquiry
 }
@@ -829,7 +829,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         }
       }
 
-      onSuccess();
+      onSuccess(bookingResult?.id);
     } catch (error: any) {
       console.error('Booking update error:', error);
       toast({
