@@ -391,12 +391,6 @@ const ConnectedBookingView = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Buchungen mit verknüpften Aufträgen</h1>
-        <p className="text-muted-foreground">Übersicht über Buchungen und ihre zugehörigen Service-Aufträge und Wäschebestellungen (inkl. abgeschlossene)</p>
-      </div>
-
       {/* Filters */}
       <Card>
         <CardContent className="p-6">
