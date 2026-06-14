@@ -11,9 +11,10 @@ interface ServiceTaskCardProps {
   task: any;
   colorVariant: 'green' | 'blue' | 'purple';
   onTaskUpdated?: () => void;
+  houseName?: string;
 }
 
-const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardProps) => {
+const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNameProp }: ServiceTaskCardProps) => {
   const [showEditDialog, setShowEditDialog] = useState(false);
 
   const getBorderColor = (variant: string) => {
@@ -67,7 +68,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated }: ServiceTaskCardP
     }
   };
 
-  const houseName = task.houses?.name || task.bookings?.houses?.name || 'Unbekannt';
+  const houseName = houseNameProp || task.houses?.name || task.bookings?.houses?.name || 'Unbekannt';
 
   return (
     <>
