@@ -85,6 +85,15 @@ async function markPaid(payment: any, event: Stripe.Event, paymentIntentId: stri
     if (error) console.error('booking_charges update error', error);
   }
 
+  // Bundled payment: mark ALL charges that reference this payment_id as paid
+  {
+    const { error } = await supabase
+      .from('booking_charges')
+      .update({ status: 'paid' })
+      .eq('payment_id', payment.id);
+    if (error) console.error('booking_charges bundled update error', error);
+  }
+
   // Add amount to booking_amount and adjust booking payment_status
   if (payment.booking_id) {
     const { data: booking, error: bErr } = await supabase
