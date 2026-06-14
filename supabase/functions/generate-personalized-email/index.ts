@@ -264,9 +264,15 @@ ZIELGRUPPE: ${segmentDescription}
 NACHRICHTENTYP: ${messageTypeDescription}
 
 BEISPIEL-GÄSTE (für Kontext):
-${sampleGuests.map(guest => `
-- ${guest.guest_name}: ${guest.bookings.length} Buchung(en), €${guest.total_revenue} Gesamtumsatz, Bevorzugte Saison: ${Array.from(guest.preferred_seasons).join('/')}, Loyalitätslevel: ${guest.loyalty_level}
-`).join('')}
+${(Array.isArray(sampleGuests) ? sampleGuests : []).map(guest => {
+  const bookingsCount = Array.isArray(guest?.bookings) ? guest.bookings.length : (guest?.booking_count ?? 0);
+  const seasons = guest?.preferred_seasons
+    ? Array.from(guest.preferred_seasons as Iterable<string>).join('/')
+    : '—';
+  return `
+- ${guest?.guest_name ?? 'Gast'}: ${bookingsCount} Buchung(en), €${guest?.total_revenue ?? 0} Gesamtumsatz, Bevorzugte Saison: ${seasons}, Loyalitätslevel: ${guest?.loyalty_level ?? '—'}
+`;
+}).join('')}
 ${offerBlock}${intentBlock}
 
 ANFORDERUNGEN:
