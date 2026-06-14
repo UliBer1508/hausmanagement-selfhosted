@@ -647,6 +647,11 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
 
       // Prepare booking data
       const numberOfGuests = data.number_of_adults + data.number_of_children;
+      // Modell B: Wenn Buchung aus einer Anfrage stammt UND ein Betrag hinterlegt ist,
+      // wird der Betrag als booking_charge angelegt. booking_amount bleibt 0/null,
+      // damit es nicht doppelt zählt — der Webhook addiert den Betrag bei Zahlung.
+      const isFromInquiryWithAmount =
+        !!prefillData?.inquiry_id && !!data.booking_amount && data.booking_amount > 0;
       const bookingData = {
         house_id: data.house_id,
         guest_id: guestId, // Verknüpfung zur guests-Tabelle
@@ -659,7 +664,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         guest_email: data.guest_email || null,
         guest_phone: data.guest_phone || null,
         nationality: (data.nationality && data.nationality !== 'none' && data.nationality !== '') ? data.nationality : null,
-        booking_amount: data.booking_amount || null,
+        booking_amount: isFromInquiryWithAmount ? 0 : (data.booking_amount || null),
         currency: data.currency || 'EUR',
         platform: (data.platform && data.platform !== 'none') ? data.platform : null,
         external_booking_id: data.external_booking_id || null,
@@ -746,7 +751,41 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         const bookingResult = await createBooking.mutateAsync(bookingData);
 
         console.log('Booking created successfully');
-        
+
+        // Modell B: Erstelle booking_charge für den Buchungsbetrag aus der Anfrage
+        if (isFromInquiryWithAmount && bookingResult?.id) {
+          try {
+            const houseName =
+              houses?.find((h) => h.id === data.house_id)?.name || 'Buchung';
+            const amount = data.booking_amount as number;
+            const { error: chargeError } = await supabase
+              .from('booking_charges')
+              .insert({
+                booking_id: bookingResult.id,
+                house_id: data.house_id,
+                charge_type: 'accommodation',
+                description: `Buchungsbetrag / Booking amount: ${houseName}`,
+                quantity: 1,
+                unit_amount: amount,
+                amount: amount,
+                status: 'open',
+                origin: 'manual',
+              });
+            if (chargeError) {
+              console.error('Fehler beim Erstellen der Buchungsforderung:', chargeError);
+              toast({
+                title: 'Hinweis',
+                description:
+                  'Buchung wurde erstellt, aber die Zahlungsforderung konnte nicht angelegt werden: ' +
+                  chargeError.message,
+                variant: 'destructive',
+              });
+            }
+          } catch (e: any) {
+            console.error('Fehler beim Erstellen der Buchungsforderung:', e);
+          }
+        }
+
         // Update inquiry status if this booking is from an inquiry
         if (prefillData?.inquiry_id) {
           console.log('Updating inquiry status to confirmed:', prefillData.inquiry_id);
