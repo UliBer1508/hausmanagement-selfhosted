@@ -570,6 +570,8 @@ erDiagram
 | `EXTERNAL_LAUNDRY_ANON_KEY` | Oberpinzgau Anon Key |
 | `GOOGLE_PLACES_API_KEY` | Aktivitäten-Suche |
 | `OPENWEATHER_API_KEY` | Wetter-Daten |
+| `STRIPE_SECRET_KEY` | Stripe API (Payment Links erstellen) |
+| `STRIPE_WEBHOOK_SECRET` | Stripe Webhook-Signatur-Prüfung |
 
 ---
 
