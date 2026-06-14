@@ -213,7 +213,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                       <div className="space-y-3">
                         {filteredTasks.length > 0 ? (
                           filteredTasks.map((task) => (
-                            <ServiceTaskCard key={task.id} task={task} colorVariant={colorVariant as any} onTaskUpdated={() => window.location.reload()} />
+                            <ServiceTaskCard key={task.id} task={task} colorVariant={colorVariant as any} houseName={booking.houses?.name} onTaskUpdated={() => window.location.reload()} />
                           ))
                         ) : (
                           <div
