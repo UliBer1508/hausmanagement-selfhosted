@@ -184,7 +184,7 @@ payment_method, reference_number, notes
 | `sync-linen-order-external` | Sync mit externem Wäsche-Portal (Teuni) |
 | `create-cleaning-task-for-booking` | Automatische Reinigungserstellung |
 | `generate-guest-profile` | KI-Gästeprofil-Analyse |
-| `generate-personalized-email` | Personalisierte Email-Generierung |
+| `generate-personalized-email` | Personalisierte Email-Generierung; akzeptiert `offer`-Block (Rabatt, Gutschein, Gültigkeit, Hinweis) – siehe `docs/Guest-Personalization-Improvement-Concept.md` |
 | `send-gmail` | Gmail-Versand |
 
 ### Chat-Assistent Tools (20+)
