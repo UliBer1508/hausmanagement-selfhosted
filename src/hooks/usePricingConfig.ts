@@ -16,6 +16,105 @@ export interface AdditionalFees {
   vat_percentage: number;
 }
 
+export type FeeMode = 'flat' | 'per_person';
+
+export interface FeeItem {
+  mode: FeeMode;
+  amount: number;
+}
+
+export interface AdditionalFeesV2 {
+  service_fee: FeeItem;
+  tourist_tax: FeeItem;
+  cleaning_fee: FeeItem;
+  electricity_fee: FeeItem;
+  linen_fee: FeeItem;
+  vat_percentage: number;
+}
+
+const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
+
+function getDefaultFeesV2(): AdditionalFeesV2 {
+  return {
+    service_fee: { mode: 'flat', amount: 0 },
+    tourist_tax: { mode: 'per_person', amount: 2.5 },
+    cleaning_fee: { mode: 'flat', amount: 80 },
+    electricity_fee: { mode: 'flat', amount: 40 },
+    linen_fee: { mode: 'flat', amount: 30 },
+    vat_percentage: 19,
+  };
+}
+
+/**
+ * Normalise stored JSON (flat legacy OR structured v2) into AdditionalFeesV2.
+ * Flat values are mapped to mode "flat" and preserved.
+ */
+export function normalizeFeesV2(raw: any): AdditionalFeesV2 {
+  const def = getDefaultFeesV2();
+  if (!raw || typeof raw !== 'object') return def;
+
+  const pick = (
+    structuredKey: keyof AdditionalFeesV2,
+    legacyKey: string,
+    fallbackMode: FeeMode,
+  ): FeeItem => {
+    const v = (raw as any)[structuredKey];
+    if (v && typeof v === 'object' && 'amount' in v) {
+      const mode: FeeMode = v.mode === 'per_person' ? 'per_person' : 'flat';
+      return { mode, amount: r2(Number(v.amount) || 0) };
+    }
+    const legacy = (raw as any)[legacyKey];
+    if (typeof legacy === 'number') {
+      return { mode: fallbackMode, amount: r2(legacy) };
+    }
+    return (def[structuredKey] as FeeItem);
+  };
+
+  return {
+    service_fee: pick('service_fee', 'service_fee_per_stay', 'flat'),
+    // tourist_tax legacy field is per night/person → per_person
+    tourist_tax: pick('tourist_tax', 'tourist_tax_per_night', 'per_person'),
+    cleaning_fee: pick('cleaning_fee', 'cleaning_fee_per_stay', 'flat'),
+    electricity_fee: pick('electricity_fee', 'electricity_fee_per_stay', 'flat'),
+    linen_fee: pick('linen_fee', 'linen_fee_per_stay', 'flat'),
+    vat_percentage:
+      typeof raw.vat_percentage === 'number' ? r2(raw.vat_percentage) : def.vat_percentage,
+  };
+}
+
+/**
+ * Build a legacy-flat representation alongside v2 so older consumers
+ * (analytics, calculateFinalPrice) keep working without changes.
+ * standardGuests is used as a sensible per-stay equivalent for per_person fees.
+ */
+export function flattenFeesV2(v2: AdditionalFeesV2, standardGuests = 6): AdditionalFees {
+  const flat = (f: FeeItem) =>
+    f.mode === 'per_person' ? r2(f.amount * standardGuests) : r2(f.amount);
+  return {
+    service_fee_per_stay: flat(v2.service_fee),
+    // tourist tax is always per-night/person downstream
+    tourist_tax_per_night: r2(v2.tourist_tax.amount),
+    cleaning_fee_per_stay: flat(v2.cleaning_fee),
+    electricity_fee_per_stay: flat(v2.electricity_fee),
+    linen_fee_per_stay: flat(v2.linen_fee),
+    vat_percentage: v2.vat_percentage,
+  };
+}
+
+/** Calculate the additional-cost contribution of a single fee item. */
+export function calcFeeItem(
+  item: FeeItem,
+  ctx: { guests: number; nights: number },
+  isTouristTax = false,
+): number {
+  if (item.mode === 'per_person') {
+    return isTouristTax
+      ? r2(item.amount * ctx.guests * ctx.nights)
+      : r2(item.amount * ctx.guests);
+  }
+  return r2(item.amount);
+}
+
 function getDefaultPricingConfig(): PricingConfig {
   return {
     markup_percentage: 0,
@@ -63,7 +162,7 @@ export const usePricingConfig = (houseId: string) => {
         .single();
       
       if (error) throw error;
-      return (data.additional_fees as unknown as AdditionalFees) || getDefaultFees();
+      return data.additional_fees as unknown as Record<string, any> | null;
     },
     enabled: !!houseId,
   });
@@ -97,14 +196,27 @@ export const usePricingConfig = (houseId: string) => {
   });
 
   const saveFeesMutation = useMutation({
-    mutationFn: async (newFees: AdditionalFees) => {
+    mutationFn: async (newFees: AdditionalFees | AdditionalFeesV2) => {
+      // Detect shape: v2 has the nested objects (service_fee.amount etc.)
+      const isV2 =
+        newFees &&
+        typeof (newFees as any).service_fee === 'object' &&
+        (newFees as any).service_fee !== null &&
+        'amount' in (newFees as any).service_fee;
+
+      const v2: AdditionalFeesV2 = isV2
+        ? (newFees as AdditionalFeesV2)
+        : normalizeFeesV2(newFees);
+      const flat = flattenFeesV2(v2, config?.standard_guests ?? 6);
+      // Persist both shapes so legacy consumers keep working.
+      const payload = { ...flat, ...v2 };
       const { error } = await supabase
         .from('houses')
-        .update({ additional_fees: newFees as any })
+        .update({ additional_fees: payload as any })
         .eq('id', houseId);
       
       if (error) throw error;
-      return newFees;
+      return payload;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['additional-fees', houseId] });
@@ -126,7 +238,8 @@ export const usePricingConfig = (houseId: string) => {
 
   return {
     config: config || getDefaultPricingConfig(),
-    fees: fees || getDefaultFees(),
+    fees: flattenFeesV2(normalizeFeesV2(fees), (config?.standard_guests ?? 6)),
+    feesV2: normalizeFeesV2(fees),
     isLoading: configLoading || feesLoading,
     saveConfig: saveConfigMutation.mutate,
     saveFees: saveFeesMutation.mutate,
