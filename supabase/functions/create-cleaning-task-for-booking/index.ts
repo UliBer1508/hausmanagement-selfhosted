@@ -152,6 +152,35 @@ serve(async (req) => {
 
     console.log('✅ Service task created:', serviceTask);
 
+    // Standard-Reinigungskraft Amela zuweisen, falls vorhanden
+    try {
+      const { data: amela } = await supabase
+        .from('cleaning_staff')
+        .select('id')
+        .ilike('name', 'Amela')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (amela?.id) {
+        const { error: assignErr } = await supabase
+          .from('cleaning_assignments')
+          .insert({
+            service_task_id: serviceTask.id,
+            cleaning_staff_id: amela.id,
+            status: 'assigned',
+          });
+        if (assignErr) {
+          console.error('⚠️ Konnte Amela nicht zuweisen:', assignErr);
+        } else {
+          console.log('✅ Amela als Standard-Reinigungskraft zugewiesen');
+        }
+      } else {
+        console.log('ℹ️ Amela nicht gefunden - keine Standardzuweisung');
+      }
+    } catch (assignError) {
+      console.error('⚠️ Fehler bei Standard-Zuweisung:', assignError);
+    }
+
     // Format date for response
     const dateObj = new Date(scheduledDate);
     const formattedDate = dateObj.toLocaleDateString('de-DE', {
