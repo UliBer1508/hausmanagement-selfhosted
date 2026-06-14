@@ -793,7 +793,7 @@ const LinenDashboard = () => {
 
       {/* Linen Orders with Bookings Section */}
       <div className="mt-8">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">Wäschebestellungen</h2>
             <p className="text-muted-foreground">
@@ -808,7 +808,7 @@ const LinenDashboard = () => {
               setCalculatedOrderItems({});
               setShowNewOrderDialog(true);
             }}
-            className="bg-primary hover:bg-primary/90"
+            className="bg-primary hover:bg-primary/90 w-full sm:w-auto shrink-0"
           >
                 <Plus className="w-4 h-4 mr-2" />
                 Neue Wäschebestellung
