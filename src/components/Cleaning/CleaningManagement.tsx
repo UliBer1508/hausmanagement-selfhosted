@@ -579,12 +579,14 @@ const CleaningManagement = () => {
               </Select>
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Results for cleaning tasks */}
-          {loadingTasks ? (
-            <div className="text-center py-8">Lädt...</div>
-          ) : (
-            <div className="space-y-3">
+      {/* Results for cleaning tasks (außerhalb der Karte für volle Breite) */}
+      {loadingTasks ? (
+        <div className="text-center py-8">Lädt...</div>
+      ) : (
+        <div className="space-y-3">
               {cleaningTasks?.map((task) => (
                 <ClickableCard
                   key={task.id}
@@ -713,10 +715,8 @@ const CleaningManagement = () => {
                   </CardContent>
                 </ClickableCard>
               ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
 
       {/* Edit Task Dialog */}
       {editTaskId && (
