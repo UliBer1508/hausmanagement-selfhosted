@@ -521,72 +521,45 @@ const LinenDashboard = () => {
       </div>
 
       {/* Overall Status Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">🏠</span>
-              <div>
-                <div className="text-2xl font-bold">{overallStatus.totalHouses}</div>
-                <div className="text-sm text-muted-foreground">Häuser</div>
+      <Card>
+        <CardContent className="p-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
+            <div className="flex items-center gap-2 p-3">
+              <span className="text-xl">✅</span>
+              <div className="min-w-0">
+                <div className="text-xl font-bold text-green-600 leading-tight">{overallStatus.totalBookingsWithOrder}</div>
+                <div className="text-xs text-muted-foreground">Mit Bestellung</div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">✅</span>
-              <div>
-                <div className="text-2xl font-bold text-green-600">{overallStatus.totalBookingsWithOrder}</div>
-                <div className="text-sm text-muted-foreground">Mit Bestellung</div>
+            <div className="flex items-center gap-2 p-3">
+              <span className="text-xl">📦</span>
+              <div className="min-w-0">
+                <div className="text-xl font-bold text-blue-600 leading-tight">{overallStatus.totalPendingOrders}</div>
+                <div className="text-xs text-muted-foreground">Ausstehend</div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">📦</span>
-              <div>
-                <div className="text-2xl font-bold text-blue-600">{overallStatus.totalPendingOrders}</div>
-                <div className="text-sm text-muted-foreground">Ausstehend</div>
+            <div className="flex items-center gap-2 p-3">
+              <span className="text-xl">⚠️</span>
+              <div className="min-w-0">
+                <div className="text-xl font-bold text-yellow-600 leading-tight">{overallStatus.totalBookingsWithoutOrder}</div>
+                <div className="text-xs text-muted-foreground">Ohne Bestellung</div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">⚠️</span>
-              <div>
-                <div className="text-2xl font-bold text-yellow-600">{overallStatus.totalBookingsWithoutOrder}</div>
-                <div className="text-sm text-muted-foreground">Ohne Bestellung</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">📝</span>
-              <div>
-                <div className="text-2xl font-bold text-amber-600">{overallStatus.totalOrdersToApprove}</div>
-                <div className="text-sm text-muted-foreground">Zu genehmigen</div>
+            <div className="flex items-center gap-2 p-3">
+              <span className="text-xl">📝</span>
+              <div className="min-w-0">
+                <div className="text-xl font-bold text-amber-600 leading-tight">{overallStatus.totalOrdersToApprove}</div>
+                <div className="text-xs text-muted-foreground">Zu genehmigen</div>
                 {overallStatus.urgentOrdersToApprove > 0 && (
-                  <div className="text-xs font-bold text-red-600 mt-1">
-                    ({overallStatus.urgentOrdersToApprove} dringend)
+                  <div className="text-[10px] font-bold text-red-600 mt-0.5">
+                    {overallStatus.urgentOrdersToApprove} dringend
                   </div>
                 )}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Critical Alert */}
       {(overallStatus.urgentOrdersToApprove > 0 || overallStatus.totalUrgentBookings > 0) && (
