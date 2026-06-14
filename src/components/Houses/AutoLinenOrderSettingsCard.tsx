@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Save, Settings, Link2, AlertTriangle, Play, CheckCircle, Info, Package } from 'lucide-react';
+import { Loader2, Save, Settings, Link2, AlertTriangle, Play, CheckCircle, Info, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
 import { useExternalArticleMapping } from '@/hooks/useExternalArticleMapping';
@@ -52,6 +52,7 @@ const AutoLinenOrderSettingsCard = () => {
   const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
   const [lastCheckResult, setLastCheckResult] = useState<CheckResult | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Load settings into local state when available
   useEffect(() => {
