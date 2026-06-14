@@ -587,6 +587,7 @@ const AutoLinenOrderSettingsCard = () => {
             </div>
           </div>
         </CardContent>
+        )}
       </Card>
 
       <ExternalArticleMappingDialog 
