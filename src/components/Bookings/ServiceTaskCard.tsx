@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { CardContent } from '@/components/ui/card';
 import { ClickableCard } from '@/components/ui/clickable-card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { FileText } from 'lucide-react';
+import { StickyNote } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditCleaningTaskDialog from '@/components/Cleaning/EditCleaningTaskDialog';
+import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ServiceTaskCardProps {
   task: any;
@@ -18,6 +20,29 @@ interface ServiceTaskCardProps {
 
 const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNameProp }: ServiceTaskCardProps) => {
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const handleSaveNotes = async (val: string) => {
+    setSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('service_tasks')
+        .update({ notes: val || null })
+        .eq('id', task.id);
+      if (error) throw error;
+      task.notes = val || null;
+      queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
+      onTaskUpdated?.();
+      toast({ title: 'Notiz gespeichert' });
+    } catch (err: any) {
+      toast({ title: 'Fehler beim Speichern', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   const getBorderColor = (variant: string) => {
     switch (variant) {
@@ -98,6 +123,20 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
               {getServiceShortLabel(task.service_type)}
             </div>
           </div>
+          <button
+            type="button"
+            aria-label="Notiz anzeigen/bearbeiten"
+            onClick={(e) => {
+              e.stopPropagation();
+              setNotesOpen(true);
+            }}
+            className="relative grid place-items-center w-7 h-7 rounded-md bg-white/15 hover:bg-white/25 transition-colors shrink-0"
+          >
+            <StickyNote className="w-4 h-4" />
+            {task.notes && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-300 border border-white" />
+            )}
+          </button>
           <span
             className="text-[10px] font-extrabold px-2 py-1 rounded-full bg-white/95 shrink-0"
             style={{ color: '#2563eb' }}
@@ -185,21 +224,6 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
               </div>
             )}
 
-            {/* Notes */}
-            {task.notes && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="inline-flex cursor-help">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="max-w-[200px] whitespace-pre-wrap">{task.notes}</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
           </div>
         </CardContent>
       </ClickableCard>
@@ -212,6 +236,14 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
           setShowEditDialog(false);
           onTaskUpdated?.();
         }}
+      />
+      <NotesQuickDialog
+        open={notesOpen}
+        onOpenChange={setNotesOpen}
+        title="Notiz"
+        value={task.notes ?? ''}
+        saving={savingNotes}
+        onSave={handleSaveNotes}
       />
     </>
   );

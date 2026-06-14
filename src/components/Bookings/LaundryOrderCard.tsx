@@ -4,12 +4,16 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Trash2, CheckCircle, Link2, RotateCcw, ChevronDown, FileText } from 'lucide-react';
+import { Trash2, CheckCircle, Link2, RotateCcw, ChevronDown, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 import { translateItemType } from '@/lib/linenOrderHelpers';
 import { getGuestName } from '@/lib/guestHelpers';
 import { getExternalStatusBadgeInfo } from '@/hooks/useExternalOrderStatus';
+import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 const ITEM_DISPLAY_ORDER = [
   'bedding',
@@ -56,6 +60,31 @@ interface LaundryOrderCardProps {
 
 const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false, externalStatus = null }: LaundryOrderCardProps) => {
   const [isItemsOpen, setIsItemsOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const handleSaveNotes = async (val: string) => {
+    if (isPending || !order?.id) return;
+    setSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('linen_orders')
+        .update({ notes: val || null })
+        .eq('id', order.id);
+      if (error) throw error;
+      // Optimistic local update so the dot reflects state immediately
+      order.notes = val || null;
+      queryClient.invalidateQueries({ queryKey: ['linen-orders-list'] });
+      queryClient.invalidateQueries({ queryKey: ['linen-orders'] });
+      toast({ title: 'Notiz gespeichert' });
+    } catch (err: any) {
+      toast({ title: 'Fehler beim Speichern', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   const getBorderColor = (variant: string) => {
     switch (variant) {
@@ -152,6 +181,22 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             Lieferschein{order.external_bestellnummer ? ` · #${order.external_bestellnummer}` : ''}
           </div>
         </div>
+        {!isPending && (
+          <button
+            type="button"
+            aria-label="Notiz anzeigen/bearbeiten"
+            onClick={(e) => {
+              e.stopPropagation();
+              setNotesOpen(true);
+            }}
+            className="relative grid place-items-center w-7 h-7 rounded-md bg-white/15 hover:bg-white/25 transition-colors shrink-0"
+          >
+            <StickyNote className="w-4 h-4" />
+            {order.notes && (
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-300 border border-white" />
+            )}
+          </button>
+        )}
         <span
           className="text-[10px] font-extrabold px-2 py-1 rounded-full bg-white/95 shrink-0"
           style={{ color: '#059669' }}
@@ -162,39 +207,30 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
 
       <CardContent className="p-3">
         <div className="space-y-2">
-          {/* Guest + Delivery Date side by side */}
-          <div className="grid grid-cols-2 gap-2 text-sm">
+          {/* Compact fields grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
             {guestName && (
               <div>
-                <span className="text-muted-foreground text-xs">Gast</span>
-                <div className="truncate">{guestName}</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Gast</div>
+                <div className="text-sm truncate">{guestName}</div>
               </div>
             )}
             {deliveryDate && (
               <div>
-                <span className="text-muted-foreground text-xs">Lieferdatum</span>
-                <div className="flex items-center gap-1.5">
-                  <span>{deliveryDate}</span>
-                  {order.notes && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div
-                            className="inline-flex cursor-help"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="max-w-[200px] whitespace-pre-wrap">{order.notes}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Lieferdatum</div>
+                <div className="text-sm">{deliveryDate}</div>
               </div>
             )}
+            {typeof order.total_cost === 'number' && order.total_cost > 0 && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Kosten</div>
+                <div className="text-sm font-semibold text-green-700">{order.total_cost.toFixed(2)} EUR</div>
+              </div>
+            )}
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Artikel</div>
+              <div className="text-sm">{getTotalItems()}</div>
+            </div>
           </div>
 
           {/* Items Collapsible */}
@@ -436,6 +472,14 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
           </div>
         )}
       </CardContent>
+      <NotesQuickDialog
+        open={notesOpen}
+        onOpenChange={setNotesOpen}
+        title="Notiz zur Wäschebestellung"
+        value={order.notes ?? ''}
+        saving={savingNotes}
+        onSave={handleSaveNotes}
+      />
     </Card>
   );
 };

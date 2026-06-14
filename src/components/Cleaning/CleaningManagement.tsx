@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info as InfoIcon } from 'lucide-react';
+import { Info as InfoIcon, StickyNote } from 'lucide-react';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +15,8 @@ import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
 import EditCleaningTaskDialog from './EditCleaningTaskDialog';
 import AutoCleaningSettingsCard from './AutoCleaningSettingsCard';
 import { getGuestName } from '@/lib/guestHelpers';
+import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import { useToast } from '@/hooks/use-toast';
 
 const CleaningManagement = () => {
   const location = useLocation();
@@ -36,6 +38,26 @@ const CleaningManagement = () => {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [selectedBookingForCreation, setSelectedBookingForCreation] = useState<any>(null);
+  const [notesTask, setNotesTask] = useState<{ id: string; notes: string | null } | null>(null);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const { toast } = useToast();
+
+  const saveTaskNotes = async (taskId: string, newNotes: string) => {
+    setSavingNotes(true);
+    try {
+      const { error } = await supabase
+        .from('service_tasks')
+        .update({ notes: newNotes || null })
+        .eq('id', taskId);
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
+      toast({ title: 'Notiz gespeichert' });
+    } catch (err: any) {
+      toast({ title: 'Fehler beim Speichern', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingNotes(false);
+    }
+  };
 
   // Auto-open task dialog when navigating from chat
   useEffect(() => {
@@ -615,6 +637,20 @@ const CleaningManagement = () => {
                         Reinigung
                       </div>
                     </div>
+                    <button
+                      type="button"
+                      aria-label="Notiz anzeigen/bearbeiten"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setNotesTask({ id: task.id, notes: task.notes ?? null });
+                      }}
+                      className="relative grid place-items-center w-7 h-7 rounded-md bg-white/15 hover:bg-white/25 transition-colors shrink-0"
+                    >
+                      <StickyNote className="w-4 h-4" />
+                      {task.notes && (
+                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-300 border border-white" />
+                      )}
+                    </button>
                     <span
                       className="text-[10px] font-extrabold px-2 py-1 rounded-full bg-white/95 shrink-0"
                       style={{ color: '#2563eb' }}
@@ -627,88 +663,78 @@ const CleaningManagement = () => {
                     <div className="space-y-2">
                       {/* Address */}
                       {task.houses?.address && (
-                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <div className="flex items-start gap-2 text-xs text-muted-foreground">
                           <span className="shrink-0">📍</span>
                           <span className="break-words">{task.houses.address}</span>
                         </div>
                       )}
 
-                      {/* Service date + Booking range side by side */}
-                      <div className="grid grid-cols-2 gap-2 text-sm">
+                      {/* Compact fields grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
                         <div>
-                          <span className="text-muted-foreground text-xs">Service</span>
-                          <div>
+                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Service</div>
+                          <div className="text-sm">
                             {new Date(task.scheduled_date).toLocaleDateString('de-DE')}
                             {task.scheduled_time ? ` ${task.scheduled_time.slice(0,5)}` : ''}
                           </div>
                         </div>
+
                         {task.bookings && (
                           <div>
-                            <span className="text-muted-foreground text-xs">Buchung</span>
-                            <div className="truncate">
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Buchung</div>
+                            <div className="text-sm truncate">
                               {new Date(task.bookings.check_in).toLocaleDateString('de-DE')} – {new Date(task.bookings.check_out).toLocaleDateString('de-DE')}
                             </div>
                           </div>
                         )}
+
+                        {task.bookings && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Gast</div>
+                            <div className="text-sm truncate">
+                              {getGuestName(task.bookings)}
+                              <span className="text-muted-foreground"> ({task.bookings.number_of_guests})</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {task.service_providers && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Provider</div>
+                            <div className="text-sm truncate">{task.service_providers.name}</div>
+                          </div>
+                        )}
+
+                        {task.cleaning_cost && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Kosten</div>
+                            <div className="text-sm font-semibold text-green-700">{task.cleaning_cost.toFixed(2)} EUR</div>
+                          </div>
+                        )}
+
+                        {task.payment_status && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Bezahlung</div>
+                            <div className="text-sm">{getPaymentStatusBadge(task.payment_status)}</div>
+                          </div>
+                        )}
+
+                        {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Personal</div>
+                            <div className="text-sm truncate">{task.cleaning_assignments[0].cleaning_staff.name}</div>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Guest */}
-                      {task.bookings && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-base shrink-0">👤</span>
-                          <span className="text-muted-foreground text-xs">Gast:</span>
-                          <span className="font-medium truncate">{getGuestName(task.bookings)}</span>
-                          <span className="text-muted-foreground text-xs ml-1">({task.bookings.number_of_guests} Gäste)</span>
-                        </div>
-                      )}
-
-                      {/* Provider */}
-                      {task.service_providers && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-base shrink-0">👤</span>
-                          <span className="text-muted-foreground text-xs">Provider:</span>
-                          <span className="font-medium truncate">{task.service_providers.name}</span>
-                        </div>
-                      )}
-
-                      {/* Status change */}
+                      {/* Status change footer */}
                       {task.status_changed_by && (
-                        <div className="flex items-center gap-2 text-sm flex-wrap">
-                          <span className="shrink-0">📊</span>
-                          {getStatusBadge(task.status)}
-                          <span
-                            className="text-xs text-muted-foreground"
-                            title={task.status_changed_at ? `Geändert am ${new Date(task.status_changed_at).toLocaleDateString('de-DE')} um ${new Date(task.status_changed_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : undefined}
-                          >
-                            ({task.status_changed_by})
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Cost */}
-                      {task.cleaning_cost && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="shrink-0">💶</span>
-                          <span className="text-muted-foreground text-xs">Kosten:</span>
-                          <span className="font-semibold text-green-700">{task.cleaning_cost.toFixed(2)} EUR</span>
-                        </div>
-                      )}
-
-                      {/* Payment */}
-                      {task.payment_status && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="shrink-0">💳</span>
-                          <span className="text-muted-foreground text-xs">Bezahlung:</span>
-                          {getPaymentStatusBadge(task.payment_status)}
-                        </div>
-                      )}
-
-                      {/* Staff */}
-                      {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-base shrink-0">👤</span>
-                          <span className="text-muted-foreground text-xs">Personal:</span>
-                          <span className="font-medium truncate">{task.cleaning_assignments[0].cleaning_staff.name}</span>
+                        <div className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap pt-1 border-t border-muted/40">
+                          <span>Status geändert von</span>
+                          <span className="font-medium">{task.status_changed_by}</span>
+                          {task.status_changed_at && (
+                            <span>· {new Date(task.status_changed_at).toLocaleDateString('de-DE')} {new Date(task.status_changed_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -746,6 +772,17 @@ const CleaningManagement = () => {
           }}
         />
       )}
+
+      <NotesQuickDialog
+        open={!!notesTask}
+        onOpenChange={(open) => !open && setNotesTask(null)}
+        title="Notiz zur Reinigung"
+        value={notesTask?.notes ?? ''}
+        saving={savingNotes}
+        onSave={async (val) => {
+          if (notesTask) await saveTaskNotes(notesTask.id, val);
+        }}
+      />
     </div>
   );
 };
