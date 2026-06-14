@@ -608,8 +608,8 @@ const LinenDashboard = () => {
         </Alert>
       )}
 
-      {/* Houses - 2-column compact layout */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Houses - stacked on mobile, 2-column on larger screens */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {houseStatuses.map((houseStatus) => (
           <Card
             key={houseStatus.house.id}
