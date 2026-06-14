@@ -946,6 +946,76 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     }
   };
 
+  // === Delta-Panel Handler ===
+  const handleConfirmDeltaCharges = () => {
+    toast({
+      title: 'Forderungen angelegt',
+      description: `${deltaResult?.charges.length || 0} Posten wurden als offene Forderung gespeichert.`,
+    });
+    setDeltaResult(null);
+    onSuccess();
+  };
+
+  const handleCreateAndSendPaymentLink = async () => {
+    if (!deltaResult || !initialData?.id) return;
+    setIsSendingPaymentLink(true);
+    try {
+      const paymentUrls: string[] = [];
+      for (const charge of deltaResult.charges) {
+        const { data: linkData, error: linkError } = await supabase.functions.invoke(
+          'create-payment-link',
+          { body: { booking_charge_id: charge.id } }
+        );
+        if (linkError) throw linkError;
+        if (linkData?.payment_url) paymentUrls.push(linkData.payment_url);
+      }
+
+      const guestEmail = form.getValues('guest_email');
+      if (!guestEmail) {
+        toast({
+          title: 'Zahlungslink erstellt',
+          description: 'Keine Gast-E-Mail hinterlegt – Link nicht versendet.',
+          variant: 'destructive',
+        });
+      } else {
+        const linksHtml = paymentUrls
+          .map((u, i) => `<p>Zahlungslink ${i + 1}: <a href="${u}">${u}</a></p>`)
+          .join('');
+        const totalFmt = (deltaResult.total_amount).toFixed(2).replace('.', ',') + ' €';
+        const html = `
+          <p>Hallo ${form.getValues('guest_name') || ''},</p>
+          <p>aufgrund der Änderung Ihrer Buchung fallen Zusatzkosten in Höhe von <strong>${totalFmt}</strong> an.</p>
+          ${linksHtml}
+          <p>Vielen Dank!</p>
+        `;
+        const { error: mailError } = await supabase.functions.invoke('send-gmail', {
+          body: {
+            to: guestEmail,
+            subject: 'Zusatzkosten zu Ihrer Buchung',
+            html,
+          },
+        });
+        if (mailError) throw mailError;
+        toast({
+          title: 'Zahlungslink versendet',
+          description: `E-Mail mit ${paymentUrls.length} Link(s) an ${guestEmail} gesendet.`,
+        });
+      }
+
+      setDeltaResult(null);
+      onSuccess();
+    } catch (err: any) {
+      console.error('Payment-Link/E-Mail Fehler:', err);
+      toast({
+        title: 'Fehler',
+        description: err.message || 'Zahlungslink konnte nicht erstellt/versendet werden.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSendingPaymentLink(false);
+    }
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 min-w-0">
