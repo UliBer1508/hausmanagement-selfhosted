@@ -101,7 +101,7 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
               Buchung · {booking.houses?.name || 'Unbekannt'}
             </div>
             <div className="text-[14px] font-extrabold leading-tight truncate">
-              Reservierung{nights > 0 ? ` · ${nights} Nächte` : ''}
+              Reservierung
             </div>
           </div>
           <span
@@ -137,6 +137,9 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
               <span className="text-base">👥</span>
               <span>
                 {booking.number_of_guests}
+                {nights > 0 && (
+                  <span className="text-muted-foreground ml-1">({nights} N)</span>
+                )}
                 {booking.number_of_children !== undefined && booking.number_of_children > 0 && (
                   <span className="text-muted-foreground ml-1">
                     ({booking.number_of_adults ?? booking.number_of_guests} Erw., {booking.number_of_children} Ki.)
