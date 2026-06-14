@@ -186,6 +186,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       </div>
 
       <div className="space-y-6">
+        <div>
         <div className="space-y-6">
             {filteredBookings?.map((booking, index) => {
               const { tasks, laundry } = getBookingRelatedData(booking.id);
