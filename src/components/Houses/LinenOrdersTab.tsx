@@ -235,11 +235,12 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
 
       const fullEmailText = `${emailData.customText ? `${emailData.customText}\n\n` : ''}${emailData.orderDetails}\n\nBitte bestätigen Sie den Erhalt dieser Bestellung.\n\nMit freundlichen Grüßen\nSteinbock Chalets Team`;
 
-      const { openInMailClient } = await import('@/lib/mailtoHelper');
-      openInMailClient({
+      const { openEmail } = await import('@/lib/mailtoHelper');
+      openEmail({
         to: emailData.to,
         subject: emailData.subject,
         text: fullEmailText,
+        preferLocalClient: true,
       });
 
       // Update email_sent_at timestamp

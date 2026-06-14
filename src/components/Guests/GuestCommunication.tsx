@@ -12,7 +12,7 @@ import GuestPersonalization from './GuestPersonalization';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useGuestSegments, GuestSegmentData } from '@/hooks/useGuests';
 import { supabase } from '@/integrations/supabase/client';
-import { openInMailClient } from '@/lib/mailtoHelper';
+import { openEmail } from '@/lib/mailtoHelper';
 
 const GuestCommunication = () => {
   const [selectedTemplate, setSelectedTemplate] = useState('');

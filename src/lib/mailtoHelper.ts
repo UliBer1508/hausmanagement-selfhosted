@@ -1,11 +1,10 @@
 /**
- * mailto:-Helper — alle E-Mail-Kommunikation läuft über den lokalen
- * Mail-Client (Outlook). Es gibt KEINEN serverseitigen E-Mail-Versand mehr.
+ * E-Mail-Helper — Standard: Gmail-Web mit festem Absender
+ * (steinbockchalets@gmail.com). Betreff & Text bleiben erhalten, kein
+ * manueller Kontowechsel nötig.
  *
- * WICHTIG zum Absender: Der mailto:-Standard erlaubt es nicht, den Absender
- * festzulegen. Outlook ignoriert nicht-standardisierte Parameter wie ?from=.
- * Der User muss im Outlook-Compose-Fenster ggf. manuell über das "Von"-Dropdown
- * auf steinbockchalets@gmail.com wechseln.
+ * Optional: lokaler Mail-Client (Outlook) via mailto: über
+ * `openEmail({ preferLocalClient: true })` bzw. `openInMailClient(...)`.
  */
 
 /** Fester Absender für ALLE E-Mails aus der App. */
@@ -108,10 +107,33 @@ export function buildMailtoHref(opts: MailtoOptions): string {
 }
 
 /**
- * Alias für Abwärtskompatibilität — verwendet jetzt mailto:.
- * @deprecated Verwende buildMailtoHref.
+ * Baut einen Gmail-Web-Compose-Link mit festem Absender-Konto.
+ * Öffnet sich im Browser (Gmail) — kein lokaler Client, kein Kontowechsel.
  */
-export const buildGmailComposeHref = buildMailtoHref;
+export function buildGmailComposeHref(opts: MailtoOptions): string {
+  const toArr = Array.isArray(opts.to) ? opts.to : [opts.to];
+  const toStr = toArr.filter(Boolean).join(',');
+  const body = opts.text ?? htmlToPlainText(opts.html ?? '');
+
+  const params = new URLSearchParams();
+  params.set('view', 'cm');
+  params.set('fs', '1');
+  params.set('tf', '1');
+  params.set('authuser', SENDER_EMAIL);
+  if (toStr) params.set('to', toStr);
+  if (opts.subject) params.set('su', opts.subject);
+  if (body) params.set('body', body);
+  if (opts.cc) {
+    const cc = Array.isArray(opts.cc) ? opts.cc.join(',') : opts.cc;
+    if (cc) params.set('cc', cc);
+  }
+  if (opts.bcc) {
+    const bcc = Array.isArray(opts.bcc) ? opts.bcc.join(',') : opts.bcc;
+    if (bcc) params.set('bcc', bcc);
+  }
+
+  return `https://mail.google.com/mail/u/${encodeURIComponent(SENDER_EMAIL)}/?${params.toString()}`;
+}
 
 /**
  * Öffnet den lokal installierten Mail-Client (Outlook) mit vorausgefüllter Nachricht.
@@ -131,5 +153,37 @@ export function openInMailClient(opts: MailtoOptions): boolean {
     console.warn(`[mailHelper] mailto-URL ist ${href.length} Zeichen lang — wird ggf. abgeschnitten.`);
   }
   window.location.href = href;
+  return true;
+}
+
+export interface OpenEmailOptions extends MailtoOptions {
+  /** true → lokaler Mail-Client (Outlook) via mailto:. Default: Gmail-Web. */
+  preferLocalClient?: boolean;
+}
+
+/**
+ * Standard-Einstiegspunkt für E-Mail-Versand aus der App.
+ * - Default: öffnet Gmail-Web mit festem Absender steinbockchalets@gmail.com
+ * - preferLocalClient: true → öffnet lokalen Mail-Client (Outlook)
+ */
+export function openEmail(opts: OpenEmailOptions): boolean {
+  const toArr = Array.isArray(opts.to) ? opts.to : [opts.to];
+  const toStr = toArr.filter(Boolean).join(',');
+  if (!toStr) {
+    console.warn('[mailHelper] Keine Empfänger-Adresse angegeben.');
+    return false;
+  }
+
+  if (opts.preferLocalClient) {
+    return openInMailClient(opts);
+  }
+
+  const href = buildGmailComposeHref(opts);
+  if (href.length > 2000) {
+    console.warn(
+      `[mailHelper] Gmail-Web-URL ist ${href.length} Zeichen lang — Body kann von Gmail gekürzt werden.`
+    );
+  }
+  window.open(href, '_blank', 'noopener,noreferrer');
   return true;
 }
