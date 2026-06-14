@@ -6,7 +6,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Sparkles, Send, Loader2, RefreshCw, Eye, CheckCircle, XCircle, AlertTriangle, ChevronDown, Tag } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Sparkles, Send, Loader2, RefreshCw, Eye, CheckCircle, XCircle, AlertTriangle, ChevronDown, Tag, User, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
@@ -19,6 +21,8 @@ interface GuestPersonalizationProps {
 
 const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizationProps) => {
   const [selectedSegment, setSelectedSegment] = useState('all');
+  const [selectedGuestKey, setSelectedGuestKey] = useState<string | null>(null);
+  const [guestPickerOpen, setGuestPickerOpen] = useState(false);
   const [messageType, setMessageType] = useState('welcome');
   const [personalizedContent, setPersonalizedContent] = useState('');
   const [generatedSubject, setGeneratedSubject] = useState('');
@@ -46,6 +50,13 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
     if (!segmentData?.allGuests) return [];
     
     switch (segment) {
+      case 'single': {
+        if (!selectedGuestKey) return [];
+        const found = segmentData.allGuests.find(
+          (g) => `${g.guest_name}|${g.guest_email || ''}` === selectedGuestKey
+        );
+        return found ? [found] : [];
+      }
       case 'vip':
         return segmentData.allGuests.filter(g => g.total_revenue >= 2000);
       case 'returning':
@@ -71,6 +82,7 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
 
     try {
       const targetGuests = getFilteredGuests(selectedSegment);
+      const singleGuest = selectedSegment === 'single' ? targetGuests[0] : null;
 
       // Analyze segment characteristics for AI prompt
       const segmentAnalysis = {
@@ -101,6 +113,9 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
             preferred_seasons: g.preferred_seasons,
             loyalty_level: g.loyalty_level
           })),
+          targetGuest: singleGuest
+            ? { name: singleGuest.guest_name, email: singleGuest.guest_email }
+            : undefined,
           offer: {
             discount_percent: offer.discount_percent ? Number(offer.discount_percent) : undefined,
             voucher: offer.voucher || undefined,
@@ -220,6 +235,11 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
     let description = '';
     
     switch (segment) {
+      case 'single':
+        description = filtered[0]
+          ? `Nachricht für ${filtered[0].guest_name}${filtered[0].guest_email ? ` (${filtered[0].guest_email})` : ''}`
+          : 'Bitte wählen Sie einen Gast aus';
+        break;
       case 'vip':
         description = 'Hochwertige Gäste mit über €2000 Gesamtumsatz';
         break;
@@ -238,6 +258,13 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
 
   const segmentInfo = getSegmentInfo(selectedSegment);
   const targetGuests = getFilteredGuests(selectedSegment);
+  const sortedGuestList = (segmentData?.allGuests || [])
+    .slice()
+    .filter((g) => g.guest_email)
+    .sort((a, b) => a.guest_name.localeCompare(b.guest_name));
+  const selectedGuest = selectedSegment === 'single' ? targetGuests[0] : null;
+  const isGenerateDisabled =
+    isGenerating || !segmentData || (selectedSegment === 'single' && !selectedGuest);
 
   return (
     <div className="space-y-6">
@@ -269,6 +296,7 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="single">Einzelner Gast</SelectItem>
                   <SelectItem value="all">Alle Gäste ({getSegmentInfo('all').count})</SelectItem>
                   <SelectItem value="vip">VIP Gäste ({getSegmentInfo('vip').count})</SelectItem>
                   <SelectItem value="returning">Stammgäste ({getSegmentInfo('returning').count})</SelectItem>
@@ -279,6 +307,65 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
                 {segmentInfo.description}
               </p>
             </div>
+
+            {selectedSegment === 'single' && (
+              <div>
+                <label className="text-sm font-medium">Gast auswählen</label>
+                <Popover open={guestPickerOpen} onOpenChange={setGuestPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between mt-1 font-normal"
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        <User className="w-4 h-4 shrink-0" />
+                        {selectedGuest
+                          ? `${selectedGuest.guest_name}${selectedGuest.guest_email ? ` · ${selectedGuest.guest_email}` : ''}`
+                          : 'Gast suchen...'}
+                      </span>
+                      <ChevronDown className="w-4 h-4 opacity-50 shrink-0" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Name oder E-Mail suchen..." />
+                      <CommandList>
+                        <CommandEmpty>Kein Gast gefunden.</CommandEmpty>
+                        <CommandGroup>
+                          {sortedGuestList.map((g) => {
+                            const key = `${g.guest_name}|${g.guest_email || ''}`;
+                            const isActive = key === selectedGuestKey;
+                            return (
+                              <CommandItem
+                                key={key}
+                                value={`${g.guest_name} ${g.guest_email || ''}`}
+                                onSelect={() => {
+                                  setSelectedGuestKey(key);
+                                  setGuestPickerOpen(false);
+                                }}
+                              >
+                                <Check className={`mr-2 h-4 w-4 ${isActive ? 'opacity-100' : 'opacity-0'}`} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate">{g.guest_name}</div>
+                                  <div className="text-xs text-muted-foreground truncate">
+                                    {g.guest_email || 'Keine E-Mail'} · {g.stay_count} Aufenthalt{g.stay_count === 1 ? '' : 'e'} · €{Math.round(g.total_revenue)}
+                                  </div>
+                                </div>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Nur Gäste mit hinterlegter E-Mail-Adresse werden angezeigt.
+                </p>
+              </div>
+            )}
 
             {/* Intent (free text + quick chips) */}
             <div>
@@ -420,7 +507,7 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
             {/* Generate Button */}
             <Button 
               onClick={generatePersonalizedMessage} 
-              disabled={isGenerating || !segmentData}
+              disabled={isGenerateDisabled}
               className="w-full"
             >
               {isGenerating ? (
@@ -437,7 +524,7 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
             </Button>
 
             {/* Segment Analytics */}
-            {targetGuests.length > 0 && (
+            {targetGuests.length > 0 && selectedSegment !== 'single' && (
               <div className="pt-4 border-t">
                 <h4 className="text-sm font-medium mb-2">Segment-Analyse</h4>
                 <div className="space-y-2 text-xs">
@@ -453,6 +540,34 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
                       {Math.round(targetGuests.reduce((sum, g) => sum + g.average_stay_duration, 0) / targetGuests.length || 0)} Nächte
                     </Badge>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {selectedGuest && (
+              <div className="pt-4 border-t">
+                <h4 className="text-sm font-medium mb-2">Gast-Info</h4>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span>Aufenthalte:</span>
+                    <Badge variant="secondary">{selectedGuest.stay_count}</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Gesamtumsatz:</span>
+                    <Badge variant="secondary">€{Math.round(selectedGuest.total_revenue)}</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Ø Aufenthaltsdauer:</span>
+                    <Badge variant="secondary">{Math.round(selectedGuest.average_stay_duration)} Nächte</Badge>
+                  </div>
+                  {selectedGuest.last_booking && (
+                    <div className="flex justify-between">
+                      <span>Letzter Aufenthalt:</span>
+                      <Badge variant="secondary">
+                        {new Date(selectedGuest.last_booking).toLocaleDateString('de-DE')}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
