@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
         charges.push({
           booking_id, house_id: house.id,
           charge_type: 'linen',
-          description: `${delta} zusätzliche Person${delta > 1 ? 'en' : ''}: Wäsche-Pauschale`,
+          description: `${delta} zusätzliche Person${delta > 1 ? 'en' : ''}: Bettwäsche / ${delta} additional guest${delta > 1 ? 's' : ''}: bed linen`,
           quantity: delta,
           unit_amount: round2(linen.amount),
           amount,
@@ -81,7 +81,7 @@ Deno.serve(async (req) => {
         charges.push({
           booking_id, house_id: house.id,
           charge_type: 'tourist_tax',
-          description: `${delta} zusätzliche Person${delta > 1 ? 'en' : ''}: Ortstaxe ${new_nights} Nächte`,
+          description: `${delta} zusätzliche Person${delta > 1 ? 'en' : ''}: Ortstaxe (${new_nights} Nächte) / ${delta} additional guest${delta > 1 ? 's' : ''}: city tax (${new_nights} nights)`,
           quantity: qty,
           unit_amount: round2(tax.amount),
           amount,
