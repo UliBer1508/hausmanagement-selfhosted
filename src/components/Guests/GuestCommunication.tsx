@@ -13,6 +13,7 @@ import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { useGuestSegments, GuestSegmentData } from '@/hooks/useGuests';
 import { supabase } from '@/integrations/supabase/client';
 import { openEmail } from '@/lib/mailtoHelper';
+import { logCommunication } from '@/hooks/useGuestCommunications';
 
 const GuestCommunication = () => {
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -108,6 +109,25 @@ const GuestCommunication = () => {
         html: content,
       });
 
+      // Verlauf pro Empfänger speichern
+      const recipientsByEmail = new Map(
+        (segmentData?.allGuests ?? [])
+          .filter((g) => g.guest_email)
+          .map((g) => [g.guest_email!.toLowerCase(), g] as const),
+      );
+      await Promise.all(
+        targetGuests.map((email) => {
+          const g = recipientsByEmail.get(email.toLowerCase());
+          return logCommunication({
+            guestEmail: email,
+            guestName: g?.guest_name ?? null,
+            direction: 'outbound',
+            subject: subject ?? null,
+            body: content,
+          });
+        }),
+      );
+
       toast({
         title: "E-Mail-Entwurf geöffnet",
         description: `Entwurf für ${targetGuests.length} Gäste im Mail-Client geöffnet. Bitte prüfen und manuell senden.`,
@@ -145,6 +165,25 @@ const GuestCommunication = () => {
         subject,
         html: content,
       });
+
+      // Verlauf pro Empfänger speichern
+      const personalizedByEmail = new Map(
+        (segmentData?.allGuests ?? [])
+          .filter((g) => g.guest_email)
+          .map((g) => [g.guest_email!.toLowerCase(), g] as const),
+      );
+      await Promise.all(
+        targetGuests.map((email) => {
+          const g = personalizedByEmail.get(email.toLowerCase());
+          return logCommunication({
+            guestEmail: email,
+            guestName: g?.guest_name ?? null,
+            direction: 'outbound',
+            subject: subject ?? null,
+            body: content,
+          });
+        }),
+      );
 
       toast({
         title: "Personalisierter Entwurf geöffnet",
