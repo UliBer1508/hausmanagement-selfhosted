@@ -32,6 +32,9 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
     validity: string;
     extra_note: string;
   }>({ discount_percent: '', voucher: '', validity: '', extra_note: '' });
+  const [intent, setIntent] = useState('');
+  const [tone, setTone] = useState<'herzlich' | 'sachlich' | 'exklusiv' | 'humorvoll'>('herzlich');
+  const [length, setLength] = useState<'kurz' | 'mittel' | 'ausführlich'>('mittel');
   const { toast } = useToast();
 
   // Use the centralized guest segments hook (includes tourist filter!)
@@ -101,7 +104,10 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
             voucher: offer.voucher || undefined,
             validity: offer.validity || undefined,
             extra_note: offer.extra_note || undefined,
-          }
+          },
+          intent: intent.trim() || undefined,
+          tone,
+          length,
         }
       });
 
