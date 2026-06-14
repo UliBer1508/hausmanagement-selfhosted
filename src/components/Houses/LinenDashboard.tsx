@@ -256,10 +256,19 @@ const LinenDashboard = () => {
 
   const getStatusColor = (status: HouseLinenStatus['status']) => {
     switch (status) {
-      case 'good': return 'border-green-200 bg-green-50';
-      case 'warning': return 'border-yellow-200 bg-yellow-50';
-      case 'critical': return 'border-red-200 bg-blue-50 dark:bg-blue-950/20';
-      default: return 'border-gray-200 bg-gray-50';
+      case 'good': return 'border-l-4 border-l-green-600 bg-green-50';
+      case 'warning': return 'border-l-4 border-l-yellow-500 bg-green-50';
+      case 'critical': return 'border-l-4 border-l-red-500 bg-green-50';
+      default: return 'border-l-4 border-l-gray-300 bg-green-50';
+    }
+  };
+
+  const getStatusPillText = (status: HouseLinenStatus['status']) => {
+    switch (status) {
+      case 'good': return 'OK';
+      case 'warning': return 'Zu prüfen';
+      case 'critical': return 'Dringend';
+      default: return '—';
     }
   };
 
