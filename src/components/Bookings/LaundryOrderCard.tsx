@@ -149,7 +149,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             Wäsche · {houseName}
           </div>
           <div className="text-[14px] font-extrabold leading-tight truncate">
-            Lieferschein · {getTotalItems()} Artikel
+            Lieferschein{order.external_bestellnummer ? ` · #${order.external_bestellnummer}` : ''}
           </div>
         </div>
         <span
