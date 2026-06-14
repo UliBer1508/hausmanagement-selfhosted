@@ -127,7 +127,7 @@ export const useBookingInquiries = () => {
 
       // 2. Reinigungsauftrag erstellen
       const checkOutDate = new Date(inquiry.check_out);
-      const { error: cleaningError } = await supabase
+      const { data: createdTask, error: cleaningError } = await supabase
         .from('service_tasks')
         .insert({
           house_id: inquiry.house_id,
@@ -137,10 +137,27 @@ export const useBookingInquiries = () => {
           scheduled_date: toISODate(checkOutDate),
           scheduled_time: '10:00:00',
           notes: `Abreise-Reinigung für ${inquiry.guest_name}`
-        });
+        })
+        .select('id')
+        .single();
 
       if (cleaningError) {
         console.error('Fehler beim Erstellen des Reinigungsauftrags:', cleaningError);
+      } else if (createdTask?.id) {
+        // Standard-Reinigungskraft Amela zuweisen
+        const { data: amela } = await supabase
+          .from('cleaning_staff')
+          .select('id')
+          .ilike('name', 'Amela')
+          .eq('is_active', true)
+          .maybeSingle();
+        if (amela?.id) {
+          await supabase.from('cleaning_assignments').insert({
+            service_task_id: createdTask.id,
+            cleaning_staff_id: amela.id,
+            status: 'assigned',
+          });
+        }
       }
 
       // 3. Anfrage-Status auf confirmed setzen
