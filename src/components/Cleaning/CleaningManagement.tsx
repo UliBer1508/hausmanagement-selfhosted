@@ -267,6 +267,17 @@ const CleaningManagement = () => {
     },
   });
 
+  const getStatusText = (status: string) => {
+    switch(status) {
+      case 'draft': return 'Entwurf';
+      case 'scheduled': return 'Geplant';
+      case 'in_progress': return 'In Bearbeitung';
+      case 'completed': return 'Abgeschlossen';
+      case 'cancelled': return 'Storniert';
+      default: return status;
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch(status) {
       case 'draft':
