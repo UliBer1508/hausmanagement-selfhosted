@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { openInMailClient } from '@/lib/mailtoHelper';
+import { openEmail } from '@/lib/mailtoHelper';
 
 export interface GuestRebookingData {
   guest_key: string;
@@ -197,7 +197,7 @@ export function useSendRebookingOffer() {
       }
 
       // Mail wird im lokalen E-Mail-Client geöffnet (kein Server-Versand)
-      openInMailClient({
+      openEmail({
         to: guest.guest_email,
         subject: aiSubject,
         text: aiContent,

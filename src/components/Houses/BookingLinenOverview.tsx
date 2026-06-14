@@ -143,11 +143,12 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
       // Vollständigen E-Mail-Text aus Komponenten zusammensetzen
       const fullEmailText = `${emailData.customText ? `${emailData.customText}\n\n` : ''}${emailData.orderDetails}\n\nBitte bestätigen Sie den Erhalt dieser Bestellung.\n\nMit freundlichen Grüßen\nSteinbock Chalets Team`;
 
-      const { openInMailClient } = await import('@/lib/mailtoHelper');
-      openInMailClient({
+      const { openEmail } = await import('@/lib/mailtoHelper');
+      openEmail({
         to: emailData.to,
         subject: emailData.subject,
         text: fullEmailText,
+        preferLocalClient: true,
       });
 
       // E-Mail-Zeitstempel aktualisieren
