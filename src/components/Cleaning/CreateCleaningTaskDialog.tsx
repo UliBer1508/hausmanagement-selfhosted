@@ -225,13 +225,28 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
 
       if (error) throw error;
 
-      // Handle cleaning staff assignment if provided
-      if (data.assigned_staff_id && data.assigned_staff_id !== 'none') {
+      // Handle cleaning staff assignment - default to Amela if none provided
+      let staffId =
+        data.assigned_staff_id && data.assigned_staff_id !== 'none'
+          ? data.assigned_staff_id
+          : null;
+
+      if (!staffId) {
+        const { data: amela } = await supabase
+          .from('cleaning_staff')
+          .select('id')
+          .ilike('name', 'Amela')
+          .eq('is_active', true)
+          .maybeSingle();
+        if (amela?.id) staffId = amela.id;
+      }
+
+      if (staffId) {
         const { error: assignmentError } = await supabase
           .from('cleaning_assignments')
           .insert({
             service_task_id: result.id,
-            cleaning_staff_id: data.assigned_staff_id,
+            cleaning_staff_id: staffId,
             status: 'assigned',
           });
 
