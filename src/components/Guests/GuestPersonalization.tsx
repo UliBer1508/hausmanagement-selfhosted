@@ -16,7 +16,7 @@ import { useGuestSegments } from '@/hooks/useGuests';
 import { supabase } from '@/integrations/supabase/client';
 
 interface GuestPersonalizationProps {
-  onSendPersonalizedMessage: (content: string, subject: string, segment: string) => void;
+  onSendPersonalizedMessage: (content: string, subject: string, segment: string, recipientEmails?: string[]) => void;
 }
 
 const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizationProps) => {
@@ -212,7 +212,10 @@ const GuestPersonalization = ({ onSendPersonalizedMessage }: GuestPersonalizatio
       return;
     }
 
-    onSendPersonalizedMessage(personalizedContent, generatedSubject, selectedSegment);
+    const recipientEmails = targetGuests
+      .map((g) => g.guest_email)
+      .filter((e): e is string => !!e);
+    onSendPersonalizedMessage(personalizedContent, generatedSubject, selectedSegment, recipientEmails);
     
     // Reset state after sending
     setShowPreview(false);
