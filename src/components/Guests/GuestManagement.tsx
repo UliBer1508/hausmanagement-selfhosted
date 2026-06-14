@@ -125,7 +125,7 @@ const GuestManagement = () => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold">Gäste-Management</h1>
