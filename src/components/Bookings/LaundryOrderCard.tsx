@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Trash2, CheckCircle, Link2, RotateCcw, ChevronDown } from 'lucide-react';
+import { Trash2, CheckCircle, Link2, RotateCcw, ChevronDown, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 import { translateItemType } from '@/lib/linenOrderHelpers';
@@ -273,12 +273,20 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             </Collapsible>
           )}
 
-          {/* Notes */}
+            {/* Notes */}
           {order.notes && (
-            <div>
-              <p className="text-xs text-muted-foreground">Notizen:</p>
-              <p className="text-xs line-clamp-2">{order.notes}</p>
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="inline-flex cursor-help">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-[200px] whitespace-pre-wrap">{order.notes}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
 
           {/* Created by */}

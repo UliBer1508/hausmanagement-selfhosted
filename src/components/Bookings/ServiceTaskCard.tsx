@@ -3,6 +3,8 @@ import { CardContent } from '@/components/ui/card';
 import { ClickableCard } from '@/components/ui/clickable-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditCleaningTaskDialog from '@/components/Cleaning/EditCleaningTaskDialog';
@@ -182,6 +184,22 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
                   <span> · {format(new Date(task.status_changed_at), 'dd.MM.yy HH:mm', { locale: de })}</span>
                 )}
               </div>
+            )}
+
+            {/* Notes */}
+            {task.notes && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="inline-flex cursor-help">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-[200px] whitespace-pre-wrap">{task.notes}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
           </div>
         </CardContent>

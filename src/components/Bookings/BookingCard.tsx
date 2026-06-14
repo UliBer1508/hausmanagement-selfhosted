@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { FileText } from 'lucide-react';
 import { format, parseISO, differenceInCalendarDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditBookingDialog from './EditBookingDialog';
@@ -147,6 +149,22 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
                 )}
               </span>
             </div>
+
+            {/* Notes */}
+            {(booking as any).notes && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="inline-flex cursor-help">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-[200px] whitespace-pre-wrap">{(booking as any).notes}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         </CardContent>
       </Card>
