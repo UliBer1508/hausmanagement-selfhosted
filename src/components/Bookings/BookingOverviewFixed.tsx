@@ -28,8 +28,8 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { Plus, Search, Edit, Trash2, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp, ArrowUpDown } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Plus, Search, Edit, Trash2, Calendar as CalendarIcon, Filter, ChevronDown, ChevronUp, ArrowUpDown, StickyNote } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parse, parseISO, isAfter, isBefore, isValid, startOfDay, endOfDay, addMonths, startOfYear, endOfYear } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -38,6 +38,7 @@ import { useDeleteBooking } from '@/hooks/useBookings';
 import CreateBookingDialog from './CreateBookingDialog';
 import EditBookingDialog from './EditBookingDialog';
 import { getGuestName } from '@/lib/guestHelpers';
+import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
 
 // Länderliste für Nationalität (gleiche wie in CreateBookingForm)
 const countries = [
