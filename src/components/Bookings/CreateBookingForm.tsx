@@ -449,6 +449,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
 
   const performBookingUpdate = async (data: BookingFormData) => {
     try {
+      let createdBookingId: string | undefined;
       console.log('performBookingUpdate - check_in:', data.check_in.toISOString());
       console.log('performBookingUpdate - check_out:', data.check_out.toISOString());
       
