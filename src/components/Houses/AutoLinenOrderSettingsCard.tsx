@@ -164,11 +164,24 @@ const AutoLinenOrderSettingsCard = () => {
     <>
       <Card>
         <CardHeader className="flex flex-col gap-3 pb-4 p-3 sm:p-6">
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5 shrink-0" />
-            Automatisierung
-          </CardTitle>
+          <button
+            type="button"
+            onClick={() => setIsExpanded((v) => !v)}
+            className="flex items-center justify-between gap-2 w-full text-left"
+            aria-expanded={isExpanded}
+          >
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5 shrink-0" />
+              Automatisierung
+            </CardTitle>
+            {isExpanded ? (
+              <ChevronUp className="h-5 w-5 text-muted-foreground shrink-0" />
+            ) : (
+              <ChevronDown className="h-5 w-5 text-muted-foreground shrink-0" />
+            )}
+          </button>
 
+          {isExpanded && (
           <div className="flex flex-col gap-3 w-full sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <Switch
@@ -225,8 +238,10 @@ const AutoLinenOrderSettingsCard = () => {
               </Button>
             </div>
           </div>
+          )}
         </CardHeader>
 
+        {isExpanded && (
         <CardContent className="space-y-4 sm:space-y-6 p-3 sm:p-6 pt-0 sm:pt-0">
           {/* Lokale Automatisierung */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
