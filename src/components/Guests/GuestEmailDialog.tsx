@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { buildGmailComposeHref } from '@/lib/mailtoHelper';
 import { supabase } from '@/integrations/supabase/client';
+import { logCommunication } from '@/hooks/useGuestCommunications';
 
 interface Guest {
   guest_name: string;
@@ -203,6 +204,16 @@ const GuestEmailDialog = ({
       text: processedMessage,
     });
     window.open(href, '_blank', 'noopener,noreferrer');
+
+    if (guest.guest_email) {
+      void logCommunication({
+        guestEmail: guest.guest_email,
+        guestName: guest.guest_name,
+        direction: 'outbound',
+        subject: processedSubject,
+        body: processedMessage,
+      });
+    }
 
     toast({
       title: 'Gmail-Entwurf geöffnet',
