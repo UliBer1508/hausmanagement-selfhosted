@@ -267,6 +267,17 @@ const CleaningManagement = () => {
     },
   });
 
+  const getStatusText = (status: string) => {
+    switch(status) {
+      case 'draft': return 'Entwurf';
+      case 'scheduled': return 'Geplant';
+      case 'in_progress': return 'In Bearbeitung';
+      case 'completed': return 'Abgeschlossen';
+      case 'cancelled': return 'Storniert';
+      default: return status;
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch(status) {
       case 'draft':
@@ -581,78 +592,96 @@ const CleaningManagement = () => {
                     setEditTaskId(task.id);
                     setShowEditDialog(true);
                   }}
-                  showChevron
-                  className="border-l-4 border-l-blue-600 bg-blue-50 dark:bg-blue-950/20 hover:border-l-blue-700 hover:bg-blue-100/60 dark:hover:bg-blue-950/40"
+                  className="border-l-4 border-l-blue-600 bg-blue-50 overflow-hidden hover:border-l-blue-700 hover:bg-blue-100/60"
                 >
-                  <CardContent className="p-4">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
-                      <div className="flex-1">
-                        <h4 className="font-semibold mb-3">
-                          Reinigung - {task.houses?.name}
-                        </h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span>📍</span>
-                            {task.houses?.address}
-                          </div>
+                  {/* Kopfbalken */}
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 text-white"
+                    style={{ background: 'linear-gradient(100deg,#2563eb,#3b82f6)' }}
+                  >
+                    <div
+                      className="w-7 h-7 rounded-lg grid place-items-center text-[15px] shrink-0"
+                      style={{ background: 'rgba(255,255,255,.22)' }}
+                    >
+                      🧹
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[9px] font-bold uppercase tracking-wider opacity-90">
+                        Reinigung · {task.houses?.name || 'Unbekannt'}
+                      </div>
+                      <div className="text-[14px] font-extrabold leading-tight truncate">
+                        Reinigungsauftrag
+                      </div>
+                    </div>
+                    <span
+                      className="text-[10px] font-extrabold px-2 py-1 rounded-full bg-white/95 shrink-0"
+                      style={{ color: '#2563eb' }}
+                    >
+                      {getStatusText(task.status)}
+                    </span>
+                  </div>
+
+                  <CardContent className="p-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span>📍</span>
+                        {task.houses?.address}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <span>📅</span>
+                        Service: {new Date(task.scheduled_date).toLocaleDateString('de-DE')} {task.scheduled_time ? `${task.scheduled_time.slice(0,5)}` : ''}
+                      </div>
+                      {task.bookings && (
+                        <>
                           <div className="flex items-center gap-2 text-sm">
                             <span>📅</span>
-                            Service: {new Date(task.scheduled_date).toLocaleDateString('de-DE')} {task.scheduled_time ? `${task.scheduled_time.slice(0,5)}` : ''} 
+                            Buchung: {new Date(task.bookings.check_in).toLocaleDateString('de-DE')} - {new Date(task.bookings.check_out).toLocaleDateString('de-DE')}
                           </div>
-                          {task.bookings && (
-                            <>
-                              <div className="flex items-center gap-2 text-sm">
-                                <span>📅</span>
-                                Buchung: {new Date(task.bookings.check_in).toLocaleDateString('de-DE')} - {new Date(task.bookings.check_out).toLocaleDateString('de-DE')}
-                              </div>
-                              <div className="flex items-center gap-2 text-sm">
-                                <span>👤</span>
-                                Gast: {getGuestName(task.bookings)}
-                              </div>
-                              <div className="flex items-center gap-2 text-sm">
-                                <span>👤</span>
-                                {task.bookings.number_of_guests} Gäste
-                              </div>
-                            </>
-                          )}
-                          {task.service_providers && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <span>👤</span>
-                              Provider: {task.service_providers.name}
-                            </div>
-                          )}
                           <div className="flex items-center gap-2 text-sm">
-                            <span>📊</span>
-                            Status: {getStatusBadge(task.status)}
-                            {task.status_changed_by && (
-                              <span 
-                                className="text-muted-foreground"
-                                title={task.status_changed_at ? `Geändert am ${new Date(task.status_changed_at).toLocaleDateString('de-DE')} um ${new Date(task.status_changed_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : undefined}
-                              >
-                                ({task.status_changed_by})
-                              </span>
-                            )}
+                            <span>👤</span>
+                            Gast: {getGuestName(task.bookings)}
                           </div>
-                          {task.cleaning_cost && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <span>💶</span>
-                              Kosten: <span className="font-semibold text-green-700">{task.cleaning_cost.toFixed(2)} EUR</span>
-                            </div>
-                          )}
-                          {task.payment_status && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <span>💳</span>
-                              Bezahlung: {getPaymentStatusBadge(task.payment_status)}
-                            </div>
-                          )}
-                          {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <span>👤</span>
-                              Personal: {task.cleaning_assignments[0].cleaning_staff.name}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2 text-sm">
+                            <span>👤</span>
+                            {task.bookings.number_of_guests} Gäste
+                          </div>
+                        </>
+                      )}
+                      {task.service_providers && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span>👤</span>
+                          Provider: {task.service_providers.name}
                         </div>
-                      </div>
+                      )}
+                      {task.status_changed_by && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>📊</span>
+                          {getStatusBadge(task.status)}
+                          <span
+                            title={task.status_changed_at ? `Geändert am ${new Date(task.status_changed_at).toLocaleDateString('de-DE')} um ${new Date(task.status_changed_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}` : undefined}
+                          >
+                            ({task.status_changed_by})
+                          </span>
+                        </div>
+                      )}
+                      {task.cleaning_cost && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span>💶</span>
+                          Kosten: <span className="font-semibold text-green-700">{task.cleaning_cost.toFixed(2)} EUR</span>
+                        </div>
+                      )}
+                      {task.payment_status && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span>💳</span>
+                          Bezahlung: {getPaymentStatusBadge(task.payment_status)}
+                        </div>
+                      )}
+                      {task.cleaning_assignments && task.cleaning_assignments.length > 0 && task.cleaning_assignments[0].cleaning_staff && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <span>👤</span>
+                          Personal: {task.cleaning_assignments[0].cleaning_staff.name}
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </ClickableCard>
