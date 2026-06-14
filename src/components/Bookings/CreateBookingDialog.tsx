@@ -27,7 +27,7 @@ export interface BookingPrefillData {
 }
 
 interface CreateBookingDialogProps {
-  onBookingCreated?: () => void;
+  onBookingCreated?: (bookingId?: string) => void;
   // For controlled dialog (e.g., from inquiry banner)
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -47,9 +47,9 @@ const CreateBookingDialog = ({
   const open = isControlled ? controlledOpen : internalOpen;
   const setOpen = isControlled ? controlledOnOpenChange! : setInternalOpen;
 
-  const handleBookingCreated = () => {
+  const handleBookingCreated = (bookingId?: string) => {
     setOpen(false);
-    onBookingCreated?.();
+    onBookingCreated?.(bookingId);
   };
 
   const dialogTitle = prefillData?.inquiry_id 
