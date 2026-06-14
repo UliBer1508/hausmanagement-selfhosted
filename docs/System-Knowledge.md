@@ -299,7 +299,10 @@ offen -> ausstehend -> delivered
 **linen_order_status:** `offen`, `ausstehend`, `delivered`, `cancelled`
 > ⚠️ **WICHTIG:** Niemals 'pending', 'bestellt' oder 'assigned' verwenden!
 
-**payment_status:** `pending`, `paid`, `partial`, `overdue`
+**booking_charge_status:** `open`, `paid`, `cancelled`
+
+**payment_status:** `created`, `paid`, `failed`, `refunded`
+> ⚠️ **WICHTIG:** `bookings.payment_status` verwendet weiterhin `pending`, `paid`, `partial`.
 
 **service_type:** `cleaning`, `laundry`
 
