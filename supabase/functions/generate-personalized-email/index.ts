@@ -185,7 +185,7 @@ function stripTrailingSignature(text: string): string {
     .trim();
 }
 
-function createPersonalizationPrompt(messageType: string, selectedSegment: string, segmentAnalysis: any, sampleGuests: any[], offer: any = {}) {
+function createPersonalizationPrompt(messageType: string, selectedSegment: string, segmentAnalysis: any, sampleGuests: any[], offer: any = {}, intent?: string, tone?: string, length?: string) {
   const segmentDescription = getSegmentDescription(selectedSegment);
   const messageTypeDescription = getMessageTypeDescription(messageType);
 
@@ -200,6 +200,25 @@ function createPersonalizationPrompt(messageType: string, selectedSegment: strin
 ${hasDiscount ? `- Rabatt: ${offer.discount_percent}% (genau diesen Wert nennen, keinen anderen)\n` : ''}${hasVoucher ? `- Gutschein/Extra: ${String(offer.voucher).trim()}\n` : ''}${hasValidity ? `- Gültigkeit: ${String(offer.validity).trim()}\n` : ''}${hasNote ? `- Zusätzlicher Hinweis: ${String(offer.extra_note).trim()}\n` : ''}`
     : `\n\nANGEBOTSDETAILS: KEIN Rabatt, KEIN Gutschein, KEIN Geschenk vorgegeben.
 → Schreibe eine warme, persönliche Wiedersehens-Nachricht OHNE jedes konkrete Angebot, OHNE Rabatte, OHNE Prozente, OHNE Geschenke. Lade den Gast freundlich zur Rückkehr ein und biete an, bei Fragen persönlich zur Verfügung zu stehen.`;
+
+  const trimmedIntent = (intent || '').trim();
+  const effectiveTone = tone || 'herzlich';
+  const effectiveLength = length || 'mittel';
+  const lengthHint =
+    effectiveLength === 'kurz' ? 'kurz ≈ 60–90 Wörter' :
+    effectiveLength === 'ausführlich' ? 'ausführlich ≈ 200+ Wörter' :
+    'mittel ≈ 120–160 Wörter';
+
+  const intentBlock = trimmedIntent
+    ? `\n\nABSICHT DES VERMIETERS (höchste Priorität, leitet Ton und Inhalt – aber NICHT für harte Fakten wie Preise/Rabatte/Termine):
+"${trimmedIntent}"
+
+STILVORGABEN:
+- Tonalität: ${effectiveTone}
+- Länge: ${effectiveLength} (${lengthHint})`
+    : `\n\nSTILVORGABEN:
+- Tonalität: ${effectiveTone}
+- Länge: ${effectiveLength} (${lengthHint})`;
 
   return `
 Erstelle eine personalisierte E-Mail für Steinbock Chalets:
@@ -216,7 +235,7 @@ BEISPIEL-GÄSTE (für Kontext):
 ${sampleGuests.map(guest => `
 - ${guest.guest_name}: ${guest.bookings.length} Buchung(en), €${guest.total_revenue} Gesamtumsatz, Bevorzugte Saison: ${Array.from(guest.preferred_seasons).join('/')}, Loyalitätslevel: ${guest.loyalty_level}
 `).join('')}
-${offerBlock}
+${offerBlock}${intentBlock}
 
 ANFORDERUNGEN:
 - Persönliche, warme, einladende Sprache
