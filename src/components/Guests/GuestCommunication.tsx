@@ -102,7 +102,7 @@ const GuestCommunication = () => {
       }
 
       // Öffnet lokalen Mail-Client mit vorausgefülltem Entwurf
-      openInMailClient({
+      openEmail({
         to: targetGuests,
         subject,
         html: content,
@@ -140,7 +140,7 @@ const GuestCommunication = () => {
         return;
       }
 
-      openInMailClient({
+      openEmail({
         to: targetGuests,
         subject,
         html: content,
