@@ -103,7 +103,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
       <ClickableCard
         aria-label={`${getServiceLabel(task.service_type)} bearbeiten`}
         onActivate={() => setShowEditDialog(true)}
-        className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50 overflow-hidden`}
+        className={`border-l-4 ${getBorderColor(colorVariant)} bg-blue-50 overflow-hidden flex flex-col h-full`}
       >
         {/* Kopfbalken */}
         <div
@@ -146,8 +146,8 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
           </span>
         </div>
 
-        <CardContent className="p-3">
-          <div className="space-y-2">
+        <CardContent className="p-3 flex-1 flex flex-col">
+          <div className="space-y-2 flex-1 flex flex-col min-h-[150px]">
             {/* Gastname oben links */}
             {task.bookings && (
               <div className="text-lg font-bold leading-tight truncate">
@@ -212,7 +212,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
 
             {/* Status changed by */}
             {task.status_changed_by && (
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-[10px] text-muted-foreground mt-auto pt-2">
                 Geändert von: {task.status_changed_by}
                 {task.status_changed_at && (
                   <span> · {format(new Date(task.status_changed_at), 'dd.MM.yy HH:mm', { locale: de })}</span>

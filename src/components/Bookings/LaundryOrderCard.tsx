@@ -157,7 +157,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
         }
       } : undefined}
       className={cn(
-        `border-l-4 ${getBorderColor(colorVariant)} bg-laundry-bg relative`,
+        `border-l-4 ${getBorderColor(colorVariant)} bg-laundry-bg relative flex flex-col h-full`,
         isPending && "border-dashed opacity-90",
         isClickable && "cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       )}
@@ -205,8 +205,8 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
         </span>
       </div>
 
-      <CardContent className="p-3">
-        <div className="space-y-2">
+      <CardContent className="p-3 flex-1 flex flex-col">
+        <div className="space-y-2 flex-1 flex flex-col min-h-[150px]">
           {order.houses?.address && (
             <div className="flex items-start gap-2 text-xs text-muted-foreground">
               <span className="shrink-0">📍</span>
@@ -245,28 +245,30 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             )}
             <div>
               <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Artikel</div>
-              <div className="text-sm">{getTotalItems()}</div>
+              {order.items ? (
+                <Collapsible open={isItemsOpen} onOpenChange={setIsItemsOpen}>
+                  <CollapsibleTrigger
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-1 text-sm hover:underline"
+                  >
+                    <span>{getTotalItems()}</span>
+                    <ChevronDown
+                      className={cn(
+                        "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                        isItemsOpen && "rotate-180"
+                      )}
+                    />
+                  </CollapsibleTrigger>
+                </Collapsible>
+              ) : (
+                <div className="text-sm">{getTotalItems()}</div>
+              )}
             </div>
           </div>
 
-          {/* Items Collapsible */}
+          {/* Items list (controlled by Artikel trigger above) */}
           {order.items && (
             <Collapsible open={isItemsOpen} onOpenChange={setIsItemsOpen}>
-              <CollapsibleTrigger
-                onClick={(e) => e.stopPropagation()}
-                className="flex items-center gap-2 w-full hover:bg-muted/50 rounded p-1 -ml-1 transition-colors"
-              >
-                <ChevronDown
-                  className={cn(
-                    "h-4 w-4 text-muted-foreground transition-transform duration-200",
-                    isItemsOpen && "rotate-180"
-                  )}
-                />
-                <span className="text-xs text-muted-foreground font-medium">
-                  Artikel ({getTotalItems()})
-                </span>
-              </CollapsibleTrigger>
-
               <CollapsibleContent className="mt-1">
                 <table className="w-full text-sm hidden lg:table">
                   <thead>
@@ -346,14 +348,14 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
 
           {/* Created by */}
           {order.created_by_name && (
-            <div className="text-[10px] text-muted-foreground">
+            <div className="text-[10px] text-muted-foreground mt-auto">
               Erstellt von: {order.created_by_name}
             </div>
           )}
 
           {/* Status changed by */}
           {order.status_changed_by && (
-            <div className="text-[10px] text-muted-foreground">
+            <div className={cn("text-[10px] text-muted-foreground", !order.created_by_name && "mt-auto")}>
               Geändert von: {order.status_changed_by}
             </div>
           )}
