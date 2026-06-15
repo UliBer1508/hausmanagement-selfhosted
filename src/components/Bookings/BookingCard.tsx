@@ -111,7 +111,7 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
             setEditOpen(true);
           }
         }}
-        className={`border-l-4 ${getBorderColor(colorVariant)} bg-yellow-50 relative cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring overflow-hidden`}
+        className={`border-l-4 ${getBorderColor(colorVariant)} bg-yellow-50 relative cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring overflow-hidden flex flex-col h-full`}
       >
         {/* Kopfbalken */}
         <div
@@ -154,8 +154,8 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
           </span>
         </div>
 
-        <CardContent className="p-3">
-          <div className="space-y-2">
+        <CardContent className="p-3 flex-1 flex flex-col">
+          <div className="space-y-2 flex-1 flex flex-col min-h-[150px]">
             {/* Guest name + count */}
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-lg font-bold">{getGuestName(booking)}</h3>
@@ -189,6 +189,11 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
               </div>
             </div>
 
+            {(booking as any).updated_at && (
+              <div className="text-[10px] text-muted-foreground mt-auto pt-2">
+                Aktualisiert: {format(parseISO((booking as any).updated_at), 'dd.MM.yy HH:mm', { locale: de })}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
