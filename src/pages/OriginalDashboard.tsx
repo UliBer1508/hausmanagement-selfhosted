@@ -608,6 +608,7 @@ const OriginalDashboard = () => {
           status,
           scheduled_date,
           service_type,
+          notes,
           booking_id,
           house_id,
           provider_id,
