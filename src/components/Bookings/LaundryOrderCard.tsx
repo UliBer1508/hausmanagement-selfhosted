@@ -207,12 +207,31 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
 
       <CardContent className="p-3">
         <div className="space-y-2">
+          {order.houses?.address && (
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <span className="shrink-0">📍</span>
+              <span className="break-words">{order.houses.address}</span>
+            </div>
+          )}
           {/* Compact fields grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
             {guestName && (
               <div>
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Gast</div>
-                <div className="text-sm truncate">{guestName}</div>
+                <div className="text-sm truncate">
+                  {guestName}
+                  {order.bookings?.number_of_guests != null && (
+                    <span className="text-muted-foreground"> ({order.bookings.number_of_guests})</span>
+                  )}
+                </div>
+              </div>
+            )}
+            {order.bookings?.check_in && order.bookings?.check_out && (
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Buchung</div>
+                <div className="text-sm truncate">
+                  {new Date(order.bookings.check_in).toLocaleDateString('de-DE')} – {new Date(order.bookings.check_out).toLocaleDateString('de-DE')}
+                </div>
               </div>
             )}
             {deliveryDate && (
