@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditCleaningTaskDialog from '@/components/Cleaning/EditCleaningTaskDialog';
 import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import { getGuestName } from '@/lib/guestHelpers';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -147,6 +148,28 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
 
         <CardContent className="p-3">
           <div className="space-y-2">
+            {/* Gast (Verbindung zur Buchung) */}
+            {task.bookings && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-base shrink-0">👤</span>
+                <span className="text-muted-foreground text-xs">Gast:</span>
+                <span className="font-medium truncate">
+                  {getGuestName(task.bookings)}
+                  {task.bookings?.number_of_guests != null && (
+                    <span className="text-muted-foreground"> ({task.bookings.number_of_guests})</span>
+                  )}
+                </span>
+              </div>
+            )}
+            {task.bookings?.check_in && task.bookings?.check_out && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-base shrink-0">📅</span>
+                <span className="text-muted-foreground text-xs">Buchung:</span>
+                <span className="truncate">
+                  {new Date(task.bookings.check_in).toLocaleDateString('de-DE')} – {new Date(task.bookings.check_out).toLocaleDateString('de-DE')}
+                </span>
+              </div>
+            )}
             {/* Date & Provider side by side */}
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>
