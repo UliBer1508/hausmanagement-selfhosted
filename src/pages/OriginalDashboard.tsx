@@ -620,6 +620,14 @@ const OriginalDashboard = () => {
             service_type,
             contact_email,
             contact_phone
+          ),
+          bookings:booking_id (
+            id,
+            guest_name,
+            check_in,
+            check_out,
+            number_of_guests,
+            guests (*)
           )
         `)
         .order('scheduled_date', { ascending: true });

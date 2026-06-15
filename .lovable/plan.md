@@ -1,59 +1,50 @@
-## Ziel
+## Problem
+Reinigungskarte (`ServiceTaskCard`) im Übersicht-Tab zeigt keinen Gastnamen, obwohl der Render-Code bereits vorhanden ist:
 
-Die große Reinigungs- und Wäschekarte sollen:
-1. Ein **Notiz-Icon** im Kopfbereich erhalten. Klick öffnet einen kleinen Dialog, in dem die Notiz angezeigt UND direkt bearbeitet/gespeichert werden kann (auch wenn noch keine existiert → „Notiz hinzufügen").
-2. Den **Karteninhalt deutlich kompakter** zeigen, indem die einzelnen Angaben (Datum, Buchung, Gast, Provider, Kosten, Bezahlung, Personal) auf einem responsiven **Mehrspalten-Grid** nebeneinander angeordnet werden statt jede Zeile untereinander.
-
-## Konzept der neuen Karte
-
-```text
-┌─ Kopfbalken (Gradient blau) ────────────────────────────────────┐
-│ 🧹  REINIGUNG · WALD CHALET                       [📝]  [Geplant]│
-│     Reinigung                                                    │
-└──────────────────────────────────────────────────────────────────┘
-📍 Trattenbach 299/17, 5741 Neukirchen am GV
-┌─────────────┬─────────────┬─────────────┬─────────────┐
-│ Service     │ Buchung     │ Gast        │ Provider    │
-│ 20.6. 10:00 │ 20.–27.6.   │ Dot Shaw(3) │ Amela       │
-├─────────────┼─────────────┼─────────────┼─────────────┤
-│ Kosten      │ Bezahlung   │ Personal    │             │
-│ 90,00 EUR   │ [Offen]     │ Amela       │             │
-└─────────────┴─────────────┴─────────────┴─────────────┘
+```tsx
+{task.bookings && ( ...getGuestName(task.bookings)... )}
 ```
 
-- Layout: `grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2`.
-- Jede Zelle: kleines Label (text-xs muted) oben, Wert (text-sm) darunter — Icons werden inline ins Label gehoben statt eine eigene Spalte zu verbrauchen.
-- Adresse bleibt als schmale Zeile darüber (volle Breite).
-- Statuswechsel-Info („Geändert von …") rutscht als dezente Fußzeile unter das Grid.
-- Höhe der Karte reduziert sich um ~40–50 %.
+Ursache: Die Query, die der Übersicht-Tab nutzt (`['dashboard-service-tasks']` in `src/pages/OriginalDashboard.tsx`, Zeile 601–632), lädt nur `booking_id` — die `bookings`-Relation fehlt. Damit ist `task.bookings` undefined und der Gast-Block rendert nie.
 
-## Notiz-Icon
+Die parallele Query in `ConnectedBookingView.tsx` lädt die Relation bereits korrekt — deshalb funktioniert die Anzeige in der Buchungsseite, aber nicht im Übersicht-Tab.
 
-- Position: rechts im Kopfbalken, **vor dem Status-Badge**.
-- Icon: `StickyNote` (Lucide). Badge-Punkt rechts oben, wenn `task.notes`/`order.notes` vorhanden.
-- Klick: stoppt Card-onActivate (kein Edit-Dialog), öffnet `NotesQuickDialog`:
-  - Textarea, „Speichern" / „Abbrechen".
-  - Speichern → Supabase-Update auf `service_tasks.notes` bzw. `linen_orders.notes` + React-Query-Invalidation.
+## Lösung — eine Datei, minimal-invasiv
 
-## Umsetzung (technisch)
+**Datei:** `src/pages/OriginalDashboard.tsx` (Query `['dashboard-service-tasks']`, ab Zeile 606)
 
-1. **Neue Komponente** `src/components/shared/NotesQuickDialog.tsx`
-   - Props: `open`, `onOpenChange`, `value`, `onSave(value)`.
-   - Wiederverwendbar für Reinigung & Wäsche.
+Im `.select(...)` die `bookings`-Relation analog zu `ConnectedBookingView` ergänzen:
 
-2. **Reinigungskarte** — `src/components/Cleaning/CleaningManagement.tsx` (Zeilen ~590–717)
-   - Kopfbalken: Notiz-Icon-Button einfügen (mit `e.stopPropagation()`).
-   - `CardContent`-Block durch das neue Grid ersetzen.
-   - State + `useMutation` für Notiz-Update (`service_tasks`).
-   - Gleiche Anpassung in `src/components/Bookings/ServiceTaskCard.tsx`, damit die Karte überall konsistent aussieht (FileText-Tooltip dort entfällt zugunsten Icon im Header).
+```ts
+.select(`
+  id,
+  status,
+  scheduled_date,
+  service_type,
+  notes,
+  booking_id,
+  house_id,
+  provider_id,
+  status_changed_by,
+  status_changed_at,
+  service_providers!service_tasks_provider_id_fkey (
+    id, name, service_type, contact_email, contact_phone
+  ),
+  bookings:booking_id (
+    id,
+    guest_name,
+    check_in,
+    check_out,
+    number_of_guests,
+    guests (*)
+  )
+`)
+```
 
-3. **Wäschekarte** — `src/components/Houses/LinenOrdersList.tsx` (bzw. die Stelle, die die große Bestell-Karte rendert)
-   - Gleiches Kopfbalken-Pattern + Notiz-Icon.
-   - Felder (Bestelldatum, Lieferdatum, Buchung, Gast, Menge, Kosten, Bezahlstatus, Status) ins 2/3/4-Spalten-Grid.
-   - Notiz-Update auf `linen_orders.notes`.
+Keine Änderung an `ServiceTaskCard.tsx` nötig — der Render-Code ist bereits korrekt und fällt sauber zurück, wenn `task.bookings` null ist (Reinigungen ohne Buchung).
 
-4. **DB**: `service_tasks.notes` und `linen_orders.notes` existieren bereits — keine Migration nötig (wird beim Bauen verifiziert; falls `linen_orders.notes` fehlt, wird eine Migration mit Spalte + GRANTs ergänzt).
-
-## Vor dem Bauen — kurze Rückfrage
-
-Bevor ich umsetze: soll ich beide Karten gleichzeitig umbauen oder erstmal nur die Reinigungskarte als Muster, das du absegnest, und danach die Wäschekarte analog?
+## Abnahme
+- Reinigungskarte in der Übersicht zeigt „Gast: Dot Shaw (3)" und Buchungszeitraum, identisch zur Wäschekarte derselben Zeile.
+- Reinigungen ohne verknüpfte Buchung rendern weiterhin ohne Gast-/Buchungszeile.
+- Verhalten auf der Buchungsseite und in der Reinigungsverwaltung bleibt unverändert.
+- Build grün.
