@@ -168,6 +168,9 @@ const ConnectedBookingView = () => {
           bookings:booking_id (
             id,
             guest_name,
+            check_in,
+            check_out,
+            number_of_guests,
             guests (*)
           )
         `);
