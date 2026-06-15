@@ -156,21 +156,23 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
 
         <CardContent className="p-3">
           <div className="space-y-2">
-            {/* Guest Name */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="font-semibold text-base">{getGuestName(booking)}</h3>
-              {stayCounts && categoryBadge}
-            </div>
-
-            {/* Dates side by side */}
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <span className="text-muted-foreground text-xs">Check-in</span>
-                <div>{format(parseISO(booking.check_in), 'dd.MM.yy', { locale: de })}</div>
+            {/* Guest Name + Dates in one row */}
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-semibold text-base">{getGuestName(booking)}</h3>
+                {stayCounts && categoryBadge}
               </div>
-              <div>
-                <span className="text-muted-foreground text-xs">Check-out</span>
-                <div>{format(parseISO(booking.check_out), 'dd.MM.yy', { locale: de })}</div>
+
+              {/* Dates side by side */}
+              <div className="flex items-start gap-4 text-sm">
+                <div>
+                  <div className="font-bold text-sm text-muted-foreground">Check-in</div>
+                  <div>{format(parseISO(booking.check_in), 'dd.MM.yy', { locale: de })}</div>
+                </div>
+                <div>
+                  <div className="font-bold text-sm text-muted-foreground">Check-out</div>
+                  <div>{format(parseISO(booking.check_out), 'dd.MM.yy', { locale: de })}</div>
+                </div>
               </div>
             </div>
 
