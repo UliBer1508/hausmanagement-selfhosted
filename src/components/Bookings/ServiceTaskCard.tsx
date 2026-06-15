@@ -148,7 +148,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
 
         <CardContent className="p-3">
           <div className="space-y-2">
-            {/* Gast (Verbindung zur Buchung) */}
+            {/* Gast (Verbindung zur Buchung) + Datum */}
             {task.bookings && (
               <div className="flex items-center gap-2 text-sm">
                 <span className="text-base shrink-0">👤</span>
@@ -159,30 +159,19 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
                     <span className="text-muted-foreground"> ({task.bookings.number_of_guests})</span>
                   )}
                 </span>
-              </div>
-            )}
-            {task.bookings?.check_in && task.bookings?.check_out && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-base shrink-0">📅</span>
-                <span className="text-muted-foreground text-xs">Buchung:</span>
-                <span className="truncate">
-                  {new Date(task.bookings.check_in).toLocaleDateString('de-DE')} – {new Date(task.bookings.check_out).toLocaleDateString('de-DE')}
+                <span className="ml-auto text-muted-foreground text-xs whitespace-nowrap">
+                  {format(new Date(task.scheduled_date), 'dd.MM.yy', { locale: de })}
                 </span>
               </div>
             )}
-            {/* Date & Provider side by side */}
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <span className="text-muted-foreground text-xs">Datum</span>
-                <div>{format(new Date(task.scheduled_date), 'dd.MM.yy', { locale: de })}</div>
+            {/* Provider */}
+            {task.service_providers && (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-base shrink-0">🏢</span>
+                <span className="text-muted-foreground text-xs">Provider:</span>
+                <span className="truncate">{task.service_providers.name}</span>
               </div>
-              {task.service_providers && (
-                <div>
-                  <span className="text-muted-foreground text-xs">Provider</span>
-                  <div className="truncate">{task.service_providers.name}</div>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Payment */}
             {task.cleaning_cost && (
