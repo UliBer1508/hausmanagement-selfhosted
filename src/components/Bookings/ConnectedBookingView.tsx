@@ -131,7 +131,17 @@ const ConnectedBookingView = () => {
       // Vereinfachte Query zum Debuggen - nur Haupttabelle
       const { data, error } = await supabase
         .from('service_tasks')
-        .select('*');
+        .select(`
+          *,
+          bookings:booking_id (
+            id,
+            guest_name,
+            check_in,
+            check_out,
+            number_of_guests,
+            guests (*)
+          )
+        `);
       
       if (error) {
         console.error('❌ Error fetching service tasks:', error);
