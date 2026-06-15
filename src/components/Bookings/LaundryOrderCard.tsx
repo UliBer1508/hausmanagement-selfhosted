@@ -213,41 +213,38 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
               <span className="break-words">{order.houses.address}</span>
             </div>
           )}
+          {/* Gastname oben links */}
+          {guestName && (
+            <div className="text-lg font-bold leading-tight truncate">
+              {guestName}
+              {order.bookings?.number_of_guests != null && (
+                <span className="text-muted-foreground font-normal text-base"> ({order.bookings.number_of_guests})</span>
+              )}
+            </div>
+          )}
+
           {/* Compact fields grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
-            {guestName && (
+            {order.service_providers?.name && (
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Gast</div>
-                <div className="text-sm truncate">
-                  {guestName}
-                  {order.bookings?.number_of_guests != null && (
-                    <span className="text-muted-foreground"> ({order.bookings.number_of_guests})</span>
-                  )}
-                </div>
-              </div>
-            )}
-            {order.bookings?.check_in && order.bookings?.check_out && (
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Buchung</div>
-                <div className="text-sm truncate">
-                  {new Date(order.bookings.check_in).toLocaleDateString('de-DE')} – {new Date(order.bookings.check_out).toLocaleDateString('de-DE')}
-                </div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Provider</div>
+                <div className="text-sm truncate">{order.service_providers.name}</div>
               </div>
             )}
             {deliveryDate && (
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Lieferdatum</div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Lieferdatum</div>
                 <div className="text-sm">{deliveryDate}</div>
               </div>
             )}
             {typeof order.total_cost === 'number' && order.total_cost > 0 && (
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Kosten</div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Kosten</div>
                 <div className="text-sm font-semibold text-green-700">{order.total_cost.toFixed(2)} EUR</div>
               </div>
             )}
             <div>
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Artikel</div>
+              <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Artikel</div>
               <div className="text-sm">{getTotalItems()}</div>
             </div>
           </div>
