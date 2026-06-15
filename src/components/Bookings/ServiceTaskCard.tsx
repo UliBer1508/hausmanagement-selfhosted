@@ -148,28 +148,45 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
 
         <CardContent className="p-3">
           <div className="space-y-2">
-            {/* Gast (Verbindung zur Buchung) + Datum */}
-            {task.bookings && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-base shrink-0">👤</span>
-                <span className="text-muted-foreground text-xs">Gast:</span>
-                <span className="font-medium truncate">
-                  {getGuestName(task.bookings)}
-                  {task.bookings?.number_of_guests != null && (
-                    <span className="text-muted-foreground"> ({task.bookings.number_of_guests})</span>
-                  )}
-                </span>
-                <span className="ml-auto text-muted-foreground text-xs whitespace-nowrap">
-                  {format(new Date(task.scheduled_date), 'dd.MM.yy', { locale: de })}
-                </span>
+            {/* Gast + Reinigungsdatum (gleicher Stil wie Buchungs-/Wäschekarte) */}
+            {(task.bookings || task.scheduled_date) && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
+                {task.bookings && (
+                  <div>
+                    <div className="text-lg font-bold leading-tight truncate">
+                      {getGuestName(task.bookings)}
+                      {task.bookings?.number_of_guests != null && (
+                        <span className="text-muted-foreground font-normal text-base"> ({task.bookings.number_of_guests})</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {task.scheduled_date && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Reinigungsdatum</div>
+                    <div className="text-sm">{format(new Date(task.scheduled_date), 'dd.MM.yyyy', { locale: de })}</div>
+                  </div>
+                )}
               </div>
             )}
-            {/* Provider */}
-            {task.service_providers && (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-base shrink-0">🏢</span>
-                <span className="text-muted-foreground text-xs">Provider:</span>
-                <span className="truncate">{task.service_providers.name}</span>
+
+            {/* Provider + Putzkraft (gleiche Zeile) */}
+            {(task.service_providers || task.cleaning_assignments?.length > 0 || task.direct_assigned_staff) && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
+                {task.service_providers && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Provider</div>
+                    <div className="text-sm truncate">{task.service_providers.name}</div>
+                  </div>
+                )}
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Putzkraft</div>
+                  <div className="text-sm truncate">
+                    {task.cleaning_assignments?.[0]?.cleaning_staff?.name
+                      || task.direct_assigned_staff?.name
+                      || 'Amlea'}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -189,40 +206,15 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
               </div>
             )}
 
-            {/* Staff */}
-            {task.cleaning_assignments && task.cleaning_assignments.length > 0 ? (
-              <div className="space-y-1">
-                {task.cleaning_assignments.map((assignment: any, index: number) => (
-                  <div key={index} className="text-sm space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base shrink-0">👤</span>
-                      <span className="text-muted-foreground text-xs">Putzkraft:</span>
-                      <span className="font-medium truncate">{assignment.cleaning_staff?.name || 'Amlea'}</span>
-                    </div>
-                    {assignment.estimated_duration && (
-                      <div className="text-xs text-muted-foreground">
-                        Dauer: {assignment.estimated_duration}min
-                      </div>
-                    )}
-                    {assignment.special_instructions && (
-                      <div className="text-xs text-muted-foreground break-words">
-                        Anweisungen: {assignment.special_instructions}
-                      </div>
-                    )}
-                  </div>
-                ))}
+            {/* Zusatzinfos Putzkraft */}
+            {task.cleaning_assignments?.[0]?.estimated_duration && (
+              <div className="text-xs text-muted-foreground">
+                Dauer: {task.cleaning_assignments[0].estimated_duration}min
               </div>
-            ) : task.direct_assigned_staff ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-base shrink-0">👤</span>
-                <span className="text-muted-foreground text-xs">Putzkraft:</span>
-                <span className="font-medium truncate">{task.direct_assigned_staff.name}</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-base shrink-0">👤</span>
-                <span className="text-muted-foreground text-xs">Putzkraft:</span>
-                <span className="font-medium truncate">Amlea</span>
+            )}
+            {task.cleaning_assignments?.[0]?.special_instructions && (
+              <div className="text-xs text-muted-foreground break-words">
+                Anweisungen: {task.cleaning_assignments[0].special_instructions}
               </div>
             )}
 
