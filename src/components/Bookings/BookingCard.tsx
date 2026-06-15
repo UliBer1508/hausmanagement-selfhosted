@@ -156,40 +156,37 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
 
         <CardContent className="p-3">
           <div className="space-y-2">
-            {/* Guest Name + Dates in one row */}
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="font-semibold text-base">{getGuestName(booking)}</h3>
-                {stayCounts && categoryBadge}
-              </div>
-
-              {/* Dates side by side */}
-              <div className="flex items-start gap-4 text-sm">
-                <div>
-                  <div className="font-bold text-sm text-muted-foreground">Check-in</div>
-                  <div>{format(parseISO(booking.check_in), 'dd.MM.yy', { locale: de })}</div>
-                </div>
-                <div>
-                  <div className="font-bold text-sm text-muted-foreground">Check-out</div>
-                  <div>{format(parseISO(booking.check_out), 'dd.MM.yy', { locale: de })}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Guests */}
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-base">👥</span>
-              <span>
-                {booking.number_of_guests}
+            {/* Guest name + count */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-lg font-bold">{getGuestName(booking)}</h3>
+              <span className="text-sm font-bold">
+                {booking.number_of_guests} {booking.number_of_guests === 1 ? 'Gast' : 'Gäste'}
                 {nights > 0 && (
-                  <span className="text-muted-foreground ml-1">({nights} N)</span>
+                  <span className="text-muted-foreground font-normal ml-1">({nights} N)</span>
                 )}
                 {booking.number_of_children !== undefined && booking.number_of_children > 0 && (
-                  <span className="text-muted-foreground ml-1">
+                  <span className="text-muted-foreground font-normal ml-1">
                     ({booking.number_of_adults ?? booking.number_of_guests} Erw., {booking.number_of_children} Ki.)
                   </span>
                 )}
               </span>
+              {stayCounts && categoryBadge}
+            </div>
+
+            {/* Felder-Raster: Chalet, Check-in, Check-out */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Chalet</div>
+                <div className="text-sm truncate">{booking.houses?.name || 'Unbekannt'}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Check-in</div>
+                <div className="text-sm">{format(parseISO(booking.check_in), 'dd.MM.yy', { locale: de })}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Check-out</div>
+                <div className="text-sm">{format(parseISO(booking.check_out), 'dd.MM.yy', { locale: de })}</div>
+              </div>
             </div>
 
           </div>
