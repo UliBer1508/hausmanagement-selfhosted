@@ -148,7 +148,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
 
         <CardContent className="p-3">
           <div className="space-y-2">
-            {/* Gast + Reinigungsdatum (gleicher Stil wie Buchungs-/Wäschekarte) */}
+            {/* Gast + Check-in/Check-out + Reinigungsdatum (gleicher Stil wie Buchungs-/Wäschekarte) */}
             {(task.bookings || task.scheduled_date) && (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
                 {task.bookings && (
@@ -158,6 +158,14 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
                       {task.bookings?.number_of_guests != null && (
                         <span className="text-muted-foreground font-normal text-base"> ({task.bookings.number_of_guests})</span>
                       )}
+                    </div>
+                  </div>
+                )}
+                {task.bookings?.check_in && task.bookings?.check_out && (
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Check-in – Check-out</div>
+                    <div className="text-sm">
+                      {format(new Date(task.bookings.check_in), 'dd.MM.yy', { locale: de })} – {format(new Date(task.bookings.check_out), 'dd.MM.yy', { locale: de })}
                     </div>
                   </div>
                 )}
