@@ -173,7 +173,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
                 </div>
               )}
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Putzkraft</div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground pr-2">Putzkraft</div>
                 <div className="text-sm truncate">
                   {task.cleaning_assignments?.[0]?.cleaning_staff?.name
                     || task.direct_assigned_staff?.name
