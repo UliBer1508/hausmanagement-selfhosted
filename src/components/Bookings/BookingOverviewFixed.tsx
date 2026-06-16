@@ -121,6 +121,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
   const [relatedItems, setRelatedItems] = useState<{ cleanings: number; orders: number }>({ cleanings: 0, orders: 0 });
   const [notesBooking, setNotesBooking] = useState<any | null>(null);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [cardHouseFilter, setCardHouseFilter] = useState('all');
   const queryClient = useQueryClient();
 
   const handleSaveNotes = async (val: string) => {
@@ -423,10 +424,10 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
     return bookingsData?.filter(b => {
       const checkOutDate = new Date(b.check_out);
       if (checkOutDate.getFullYear() !== selectedYear) return false;
-      if (houseFilter !== 'all' && b.house_id !== houseFilter) return false;
+      if (cardHouseFilter !== 'all' && b.house_id !== cardHouseFilter) return false;
       return true;
     }) || [];
-  }, [bookingsData, selectedYear, houseFilter]);
+  }, [bookingsData, selectedYear, cardHouseFilter]);
 
   // Statistics for selected year - for display in cards
   // Reinigungskosten für gewähltes Jahr
@@ -437,12 +438,12 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
       t.scheduled_date && 
       t.status !== 'cancelled' &&
       new Date(t.scheduled_date).getFullYear() === selectedYear &&
-      (houseFilter === 'all' || t.house_id === houseFilter)
+      (cardHouseFilter === 'all' || t.house_id === cardHouseFilter)
     );
     const total = yearTasks.reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
     const paid = yearTasks.filter(t => t.payment_status === 'paid').reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
     return { total, paid };
-  }, [serviceTasks, selectedYear, houseFilter]);
+  }, [serviceTasks, selectedYear, cardHouseFilter]);
 
   // Wäschekosten für gewähltes Jahr (geschätzt aus linen_orders.total_cost)
   const laundryCostsForYear = useMemo(() => {
@@ -451,11 +452,11 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
       o.delivery_date &&
       new Date(o.delivery_date).getFullYear() === selectedYear &&
       typeof o.total_cost === 'number' &&
-      (houseFilter === 'all' || o.house_id === houseFilter)
+      (cardHouseFilter === 'all' || o.house_id === cardHouseFilter)
     );
     const total = yearOrders.reduce((sum: number, o: any) => sum + (o.total_cost || 0), 0);
     return { total };
-  }, [linenOrders, selectedYear, houseFilter]);
+  }, [linenOrders, selectedYear, cardHouseFilter]);
 
   const yearStats = {
     total: yearFilteredBookings.length,
@@ -579,6 +580,27 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
           </Select>
           <CreateBookingDialog onBookingCreated={() => window.location.reload()} />
         </div>
+      </div>
+
+      {/* House toggle buttons for stats cards */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={cardHouseFilter === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setCardHouseFilter('all')}
+        >
+          Gesamt
+        </Button>
+        {houses?.map((house) => (
+          <Button
+            key={house.id}
+            variant={cardHouseFilter === house.id ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCardHouseFilter(house.id)}
+          >
+            {house.name}
+          </Button>
+        ))}
       </div>
 
       {/* Statistics - Shows selected year bookings */}
