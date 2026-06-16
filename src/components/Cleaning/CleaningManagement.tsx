@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info as InfoIcon, StickyNote } from 'lucide-react';
+import { Info as InfoIcon, StickyNote, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +23,13 @@ import { useToast } from '@/hooks/use-toast';
 const CleaningManagement = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
+  const [openCheck, setOpenCheck] = useState(true);
+  const [openTasks, setOpenTasks] = useState(true);
+  useEffect(() => {
+    setOpenCheck(!isMobile);
+    setOpenTasks(!isMobile);
+  }, [isMobile]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedHouse, setSelectedHouse] = useState('all');
   const [timeFilter, setTimeFilter] = useState('24months');
@@ -341,9 +350,16 @@ const CleaningManagement = () => {
 
       {/* Buchungen auf Reinigungsaufträge prüfen */}
       <Card>
-        <CardHeader>
-          <CardTitle>Buchungen auf Reinigungsaufträge prüfen</CardTitle>
-        </CardHeader>
+        <Collapsible open={openCheck} onOpenChange={setOpenCheck}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-muted/40 transition-colors">
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Buchungen auf Reinigungsaufträge prüfen</CardTitle>
+              <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${openCheck ? 'rotate-180' : ''}`} />
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
@@ -514,6 +530,8 @@ const CleaningManagement = () => {
             </>
           )}
         </CardContent>
+        </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       {/* Automatisierung */}
@@ -521,13 +539,20 @@ const CleaningManagement = () => {
 
       {/* Reinigungsaufträge */}
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <CardTitle>Reinigungsaufträge</CardTitle>
-          <div className="w-full sm:w-auto">
-            <CreateCleaningTaskDialog />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <Collapsible open={openTasks} onOpenChange={setOpenTasks}>
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <CollapsibleTrigger asChild>
+              <button type="button" className="flex items-center gap-2 w-full sm:w-auto text-left">
+                <CardTitle className="flex-1">Reinigungsaufträge</CardTitle>
+                <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${openTasks ? 'rotate-180' : ''}`} />
+              </button>
+            </CollapsibleTrigger>
+            <div className="w-full sm:w-auto" onClick={(e) => e.stopPropagation()}>
+              <CreateCleaningTaskDialog />
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+          <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="text-sm font-medium mb-2 block">🔍 Suchen</label>
@@ -602,9 +627,9 @@ const CleaningManagement = () => {
             </div>
           </div>
         </CardContent>
-      </Card>
 
-      {/* Results for cleaning tasks (außerhalb der Karte für volle Breite) */}
+      {/* Results for cleaning tasks */}
+      <div className="px-3 sm:px-6 pb-6">
       {loadingTasks ? (
         <div className="text-center py-8">Lädt...</div>
       ) : (
@@ -743,6 +768,10 @@ const CleaningManagement = () => {
               ))}
         </div>
       )}
+      </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
 
       {/* Edit Task Dialog */}
       {editTaskId && (
