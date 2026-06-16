@@ -3031,6 +3031,7 @@ export type Database = {
           status_changed_at: string | null
           status_changed_by: string | null
           suggested_at: string | null
+          total_cost: number | null
           total_items: number
           updated_at: string | null
         }
@@ -3058,6 +3059,7 @@ export type Database = {
           status_changed_at?: string | null
           status_changed_by?: string | null
           suggested_at?: string | null
+          total_cost?: number | null
           total_items: number
           updated_at?: string | null
         }
@@ -3085,6 +3087,7 @@ export type Database = {
           status_changed_at?: string | null
           status_changed_by?: string | null
           suggested_at?: string | null
+          total_cost?: number | null
           total_items?: number
           updated_at?: string | null
         }
