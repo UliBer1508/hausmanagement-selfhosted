@@ -17,7 +17,7 @@ interface LinenOrdersListProps {
 
 const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('pending');
+  const [statusFilter, setStatusFilter] = useState<string>('offen');
   const [houseFilter, setHouseFilter] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [syncingOrderId, setSyncingOrderId] = useState<string | null>(null);
