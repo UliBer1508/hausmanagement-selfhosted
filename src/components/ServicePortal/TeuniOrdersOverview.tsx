@@ -71,6 +71,8 @@ export function TeuniOrdersOverview() {
           delivery_date,
           status,
           total_items,
+          total_cost,
+          laundry_invoice_id,
           created_at,
           houses:house_id (name),
           bookings:booking_id (guest_name, check_in, number_of_guests)
