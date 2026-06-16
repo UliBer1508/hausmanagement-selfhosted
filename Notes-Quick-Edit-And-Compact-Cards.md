@@ -1,10 +1,6 @@
 # Notiz-Schnellbearbeitung & kompakte Kartenansicht
 
-Letzte Aktualisierung: 15.06.2026
-
-> **Änderung 15.06.2026:** Buchungsinfos auf der Wäschekarte (Lieferschein in der
-> Wäschebestellung) an die Reinigungskarte angeglichen. Siehe Abschnitt
-> „Feld-Angleichung Wäschekarte ↔ Reinigungskarte" weiter unten.
+Letzte Aktualisierung: 14.06.2026
 
 ## Zweck
 Einheitliches Notiz-Icon und kompakte, mehrspaltige Darstellung auf den drei
@@ -12,8 +8,13 @@ wichtigsten Übersichtskarten:
 
 - Reinigungskarte (Endreinigung)
 - Wäschekarte (Lieferschein)
-- Buchungskarte (Reservierung) — sowohl in der „Verknüpften Ansicht" als auch
+- Buchungskarte (Reservierung) — sowohl in der Dashboard-Übersicht als auch
   im Buchungs-Tab
+
+> **Benennung:** Für die eindeutige Bezeichnung dieser Karten (Übersicht- vs.
+> Tabkarte je Typ) gilt `docs/Karten-Namenskonvention.md`. Die Karten werden
+> schrittweise auf einen `variant`-Prop (`"overview"` / `"full"`) umgestellt;
+> als erstes die Wäschekarte (`LaundryOrderCard.tsx`).
 
 ## UI-Konzept
 
@@ -36,7 +37,7 @@ Platz zu sparen, ohne Informationen zu verlieren.
 | `src/components/shared/NotesQuickDialog.tsx` | Wiederverwendbarer Dialog (Textarea + Speichern/Abbrechen) |
 | `src/components/Cleaning/CleaningManagement.tsx` | Reinigungskarte: Notiz-Icon + Kompakt-Grid, Update auf `service_tasks.notes` |
 | `src/components/Bookings/ServiceTaskCard.tsx` | Reinigungs-Card-Variante in der Verknüpften Ansicht |
-| `src/components/Bookings/LaundryOrderCard.tsx` | Wäschekarte: Notiz-Icon + Kompakt-Grid, Update auf `linen_orders.notes` |
+| `src/components/Bookings/LaundryOrderCard.tsx` | Wäschekarte (Übersicht **und** Wäsche-Tab über `variant`-Prop): Notiz-Icon + Kompakt-Grid, Update auf `linen_orders.notes` |
 | `src/components/Bookings/BookingCard.tsx` | Buchungskarte (Verknüpfte Ansicht): Notiz-Icon, Update auf `bookings.notes` |
 | `src/components/Bookings/BookingOverviewFixed.tsx` | Buchungskarte im Buchungs-Tab: gleiches Icon + Dialog |
 
@@ -48,80 +49,6 @@ Platz zu sparen, ohne Informationen zu verlieren.
 Keine Migration nötig. Nach jedem Speichern wird die zugehörige
 React-Query-Cache invalidiert (`cleaning-tasks`, `linen-orders`, `bookings`,
 `bookings-overview`).
-
-## Feld-Angleichung Wäschekarte ↔ Reinigungskarte (15.06.2026)
-
-### Problem
-In der **Wäschebestellung** (Tab „Wäsche", Liste `LinenOrdersList.tsx`) zeigte
-die Wäschekarte (`LaundryOrderCard.tsx`) deutlich weniger Buchungsinfos als die
-Reinigungskarte in der Reinigungsverwaltung (`CleaningManagement.tsx`). Beide
-Karten nutzen dasselbe Kompakt-Grid, aber die Wäschekarte gab nur `Gast`,
-`Lieferdatum`, `Kosten` und `Artikel` aus.
-
-**Fehlende Felder auf der Wäschekarte:**
-- **Buchung** (Zeitraum `Check-in – Check-out`)
-- **Personenzahl** beim Gast (z. B. „Dot Shaw (3)")
-- optional: **Adresse** des Hauses (📍-Zeile wie bei der Reinigungskarte)
-
-### Wichtig: Keine Datenbank- oder Query-Änderung nötig
-Die Query in `LinenOrdersList.tsx` lädt die benötigten Felder bereits mit:
-
-```ts
-bookings (
-  id, guest_name, guest_email,
-  check_in, check_out, number_of_guests,
-  guest_id, guests (*)
-)
-```
-
-Die Werte stehen also im `order.bookings`-Objekt zur Verfügung und müssen nur in
-der Karte ausgegeben werden. Es handelt sich um eine reine Anzeige-Ergänzung.
-
-### Referenz-Layout (korrekt befüllt)
-Die Reinigungskarte in `CleaningManagement.tsx` dient als Vorlage. Ihr
-Kompakt-Grid enthält (in dieser Reihenfolge): 📍 Adresse, `Service` (Datum +
-Uhrzeit), `Buchung` (`check_in – check_out`), `Gast` (Name + `(number_of_guests)`),
-`Provider`, `Kosten`, `Bezahlung`, `Personal`.
-
-### Umsetzung in `LaundryOrderCard.tsx`
-Im Kompakt-Grid (Block „Compact fields grid", aktuell `Gast` / `Lieferdatum` /
-`Kosten` / `Artikel`):
-
-1. **Personenzahl an den Gastnamen anhängen** (nur wenn `order.bookings` vorhanden):
-   ```tsx
-   <div className="text-sm truncate">
-     {guestName}
-     {order.bookings?.number_of_guests != null && (
-       <span className="text-muted-foreground"> ({order.bookings.number_of_guests})</span>
-     )}
-   </div>
-   ```
-2. **Neues Feld „Buchung"** (Zeitraum) ergänzen, analog zur Reinigungskarte:
-   ```tsx
-   {order.bookings?.check_in && order.bookings?.check_out && (
-     <div>
-       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Buchung</div>
-       <div className="text-sm truncate">
-         {new Date(order.bookings.check_in).toLocaleDateString('de-DE')} – {new Date(order.bookings.check_out).toLocaleDateString('de-DE')}
-       </div>
-     </div>
-   )}
-   ```
-3. **Optional — Adresse** (📍) oberhalb des Grids, wenn `order.houses?.address`
-   vorhanden ist, wie bei der Reinigungskarte.
-
-### Betroffene Dateien
-| Datei | Änderung |
-|---|---|
-| `src/components/Bookings/LaundryOrderCard.tsx` | Grid um `Buchung` + Personenzahl (und optional Adresse) erweitern |
-| `src/components/Houses/LinenOrdersList.tsx` | **keine** — lädt die Daten bereits |
-| `src/components/Houses/BookingLinenOverview.tsx` | prüfen, ob `order.bookings` dort ebenfalls geladen wird (falls die Karte auch dort genutzt wird) |
-
-### Hinweis zur Datenverfügbarkeit
-`order.bookings` kann `null` sein (Wäschebestellung ohne verknüpfte Buchung,
-z. B. manuell angelegte Bestellung). Alle neuen Felder daher konsequent mit
-`order.bookings?.…` und Bedingungs-Rendering absichern, damit leere Karten nicht
-brechen.
 
 ---
 

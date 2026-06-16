@@ -78,6 +78,13 @@ src/main.tsx
 
 ## 3. Verwechslungsgefahr — die „Doppelgänger" (zuerst lesen!)
 
+> **Verbindliche Kartennamen:** Für die drei Karten-Typen (Buchung, Reinigung,
+> Wäsche) und ihre zwei Erscheinungsorte (Dashboard-Übersicht vs. Detail-Tab)
+> gilt `docs/Karten-Namenskonvention.md`. Zielbild: **eine Datei pro Typ**,
+> gesteuert über `variant="overview" | "full"`. Umstellung erfolgt schrittweise,
+> beginnend mit der **Wäschekarte** (`LaundryOrderCard.tsx`). Solange ein Typ
+> noch nicht umgestellt ist, gelten die unten genannten Doppelgänger weiter.
+
 ### „Reinigungskarte" existiert DREIMAL
 | Sichtbar in | Datei | Layout | Wann diese? |
 |---|---|---|---|
@@ -88,7 +95,7 @@ src/main.tsx
 ### „Wäschekarte / Linen"
 | Sichtbar in | Datei | Rolle |
 |---|---|---|
-| Wäschebestellung + verknüpfte Ansicht | `Bookings/LaundryOrderCard.tsx` | **DIE** Karte (Lieferschein) |
+| Wäschebestellung + verknüpfte Ansicht | `Bookings/LaundryOrderCard.tsx` | **DIE** Karte (Lieferschein). Übersicht **und** Wäsche-Tab über `variant`-Prop (`overview`/`full`) — kein Doppelgänger mehr. |
 | (Wrapper) | `Bookings/LaundryOrderCardWithStatus.tsx` | zieht externen Portalstatus, reicht durch |
 | Tab „Übersicht" | `Operations/LinenDeliveriesCard.tsx` | Dashboard-Kachel |
 | Tab „Wäsche" (Container) | `Houses/LinenDashboard.tsx` | Seite mit Liste/Kennzahlen/Dialog |
