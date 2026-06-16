@@ -303,6 +303,11 @@ export function TeuniOrdersOverview() {
                     <TableCell>{order.bookings?.check_in ? format(new Date(order.bookings.check_in), 'dd.MM.yyyy', { locale: de }) : '-'}</TableCell>
                     <TableCell>{order.bookings?.number_of_guests || '-'}</TableCell>
                     <TableCell>{order.total_items || '-'}</TableCell>
+                    <TableCell>
+                      {typeof order.total_cost === 'number' && order.total_cost > 0
+                        ? `${order.total_cost.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`
+                        : '-'}
+                    </TableCell>
                     <TableCell><Badge className={badgeInfo.className}>{badgeInfo.label}</Badge></TableCell>
                     <TableCell className="text-sm text-muted-foreground">{order.created_at ? format(new Date(order.created_at), 'dd.MM.yy HH:mm', { locale: de }) : '-'}</TableCell>
                   </TableRow>
