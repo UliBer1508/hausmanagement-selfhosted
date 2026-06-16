@@ -122,7 +122,7 @@ Diese Werte sind **NICHT MEHR ERLAUBT** und werden bei Datenbank-Migrationen aut
 - `src/components/Houses/LinenOrdersList.tsx`
 - `src/components/Houses/LinenOrdersTab.tsx`
 - `src/components/Houses/LinenOrderDialog.tsx`
-- `src/components/Bookings/LaundryOrderCard.tsx`
+- `src/components/Bookings/LaundryOrderCard.tsx` (beide Varianten `overview`/`full` — Status-Badge in BEIDEN über `getLinenStatusBadge()`)
 - `src/components/Bookings/ConnectedBookingView.tsx`
 - `src/components/Houses/AutoLinenOrderSettingsCard.tsx`
 

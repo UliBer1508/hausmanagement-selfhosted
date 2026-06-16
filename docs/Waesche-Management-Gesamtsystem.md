@@ -354,10 +354,10 @@ SELECT cron.schedule(
                          │ User prüft und bestätigt
                          │ (Status-Änderung in UI)
                          ▼
-                    ┌─────────┐
-                    │ pending │ ← Bereit für externe Sync
-                    │         │   "An Portal senden" möglich
-                    └────┬────┘
+                    ┌────────────┐
+                    │ ausstehend │ ← Bereit für externe Sync
+                    │            │   "An Portal senden" möglich
+                    └─────┬──────┘
                          │
            ┌─────────────┴─────────────┐
            │                           │
@@ -371,10 +371,15 @@ SELECT cron.schedule(
 
 ### Status-Bedeutungen
 
+> **Hinweis (korrigiert 16.06.2026):** Der verbindliche Status-Wert ist
+> `ausstehend` (nicht `pending`). `pending`/`bestellt` sind Legacy und wurden
+> migriert. Maßgeblich ist `docs/Linen-Order-Status-Standard.md` und
+> `src/lib/linenOrderHelpers.ts`.
+
 | Status | Bedeutung | UI-Darstellung | Aktionen möglich |
 |--------|-----------|----------------|------------------|
 | `offen` | Automatisch erstellt, wartet auf Prüfung | 📝 Gelb/Orange Badge | Bearbeiten, Bestätigen, Stornieren |
-| `pending` | Vom User bestätigt, bereit für Sync | ⏳ Blau Badge | An Portal senden, Bearbeiten, Stornieren |
+| `ausstehend` | Vom User bestätigt, bereit für Sync | ⏳ Blau Badge | An Portal senden, Bearbeiten, Stornieren |
 | `delivered` | Geliefert/Abgeschlossen | ✅ Grün Badge | Nur ansehen |
 | `cancelled` | Storniert | ❌ Rot Badge | Nur ansehen |
 
@@ -479,7 +484,7 @@ large_towels         grey          →   WA011
 | `SmartLinenDashboardWithTabs` | `src/components/Houses/` | Hauptansicht mit allen Tabs |
 | `BookingLinenOverview` | `src/components/Houses/` | Übersicht/Fehlend/Aktiv Tabs |
 | `LinenOrderDialog` | `src/components/Houses/` | Bestellung erstellen/bearbeiten/Preview |
-| `LaundryOrderCard` | `src/components/Bookings/` | Einzelne Bestellung als Card |
+| `LaundryOrderCard` | `src/components/Bookings/` | Einzelne Bestellung als Card. `variant="overview"` (Dashboard-Übersicht, kompakt) / `variant="full"` (Wäsche-Tab, vollständig). Siehe `docs/Karten-Namenskonvention.md`. |
 | `LinenOrdersList` | `src/components/Houses/` | Liste aller Bestellungen |
 | `AutoLinenOrderSettingsCard` | `src/components/Houses/` | Automatisierung konfigurieren |
 | `LinenSetRulesTab` | `src/components/Houses/` | Wäsche-Regeln bearbeiten |

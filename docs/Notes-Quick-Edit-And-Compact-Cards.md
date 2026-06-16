@@ -8,8 +8,13 @@ wichtigsten Übersichtskarten:
 
 - Reinigungskarte (Endreinigung)
 - Wäschekarte (Lieferschein)
-- Buchungskarte (Reservierung) — sowohl in der „Verknüpften Ansicht" als auch
+- Buchungskarte (Reservierung) — sowohl in der Dashboard-Übersicht als auch
   im Buchungs-Tab
+
+> **Benennung:** Für die eindeutige Bezeichnung dieser Karten (Übersicht- vs.
+> Tabkarte je Typ) gilt `docs/Karten-Namenskonvention.md`. Die Karten werden
+> schrittweise auf einen `variant`-Prop (`"overview"` / `"full"`) umgestellt;
+> als erstes die Wäschekarte (`LaundryOrderCard.tsx`).
 
 ## UI-Konzept
 
@@ -32,7 +37,7 @@ Platz zu sparen, ohne Informationen zu verlieren.
 | `src/components/shared/NotesQuickDialog.tsx` | Wiederverwendbarer Dialog (Textarea + Speichern/Abbrechen) |
 | `src/components/Cleaning/CleaningManagement.tsx` | Reinigungskarte: Notiz-Icon + Kompakt-Grid, Update auf `service_tasks.notes` |
 | `src/components/Bookings/ServiceTaskCard.tsx` | Reinigungs-Card-Variante in der Verknüpften Ansicht |
-| `src/components/Bookings/LaundryOrderCard.tsx` | Wäschekarte: Notiz-Icon + Kompakt-Grid, Update auf `linen_orders.notes` |
+| `src/components/Bookings/LaundryOrderCard.tsx` | Wäschekarte (Übersicht **und** Wäsche-Tab über `variant`-Prop): Notiz-Icon + Kompakt-Grid, Update auf `linen_orders.notes` |
 | `src/components/Bookings/BookingCard.tsx` | Buchungskarte (Verknüpfte Ansicht): Notiz-Icon, Update auf `bookings.notes` |
 | `src/components/Bookings/BookingOverviewFixed.tsx` | Buchungskarte im Buchungs-Tab: gleiches Icon + Dialog |
 
