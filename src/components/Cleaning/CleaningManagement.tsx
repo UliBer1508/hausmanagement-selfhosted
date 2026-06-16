@@ -539,13 +539,20 @@ const CleaningManagement = () => {
 
       {/* Reinigungsaufträge */}
       <Card>
-        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <CardTitle>Reinigungsaufträge</CardTitle>
-          <div className="w-full sm:w-auto">
-            <CreateCleaningTaskDialog />
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <Collapsible open={openTasks} onOpenChange={setOpenTasks}>
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <CollapsibleTrigger asChild>
+              <button type="button" className="flex items-center gap-2 w-full sm:w-auto text-left">
+                <CardTitle className="flex-1">Reinigungsaufträge</CardTitle>
+                <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${openTasks ? 'rotate-180' : ''}`} />
+              </button>
+            </CollapsibleTrigger>
+            <div className="w-full sm:w-auto" onClick={(e) => e.stopPropagation()}>
+              <CreateCleaningTaskDialog />
+            </div>
+          </CardHeader>
+          <CollapsibleContent>
+          <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="text-sm font-medium mb-2 block">🔍 Suchen</label>
@@ -620,9 +627,9 @@ const CleaningManagement = () => {
             </div>
           </div>
         </CardContent>
-      </Card>
 
-      {/* Results for cleaning tasks (außerhalb der Karte für volle Breite) */}
+      {/* Results for cleaning tasks */}
+      <div className="px-3 sm:px-6 pb-6">
       {loadingTasks ? (
         <div className="text-center py-8">Lädt...</div>
       ) : (
@@ -761,6 +768,10 @@ const CleaningManagement = () => {
               ))}
         </div>
       )}
+      </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
 
       {/* Edit Task Dialog */}
       {editTaskId && (
