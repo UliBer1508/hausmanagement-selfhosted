@@ -424,10 +424,10 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
     return bookingsData?.filter(b => {
       const checkOutDate = new Date(b.check_out);
       if (checkOutDate.getFullYear() !== selectedYear) return false;
-      if (houseFilter !== 'all' && b.house_id !== houseFilter) return false;
+      if (cardHouseFilter !== 'all' && b.house_id !== cardHouseFilter) return false;
       return true;
     }) || [];
-  }, [bookingsData, selectedYear, houseFilter]);
+  }, [bookingsData, selectedYear, cardHouseFilter]);
 
   // Statistics for selected year - for display in cards
   // Reinigungskosten für gewähltes Jahr
