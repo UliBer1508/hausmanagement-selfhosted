@@ -567,7 +567,28 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
           <h1 className="text-2xl font-bold text-foreground">Buchungsübersicht</h1>
           <p className="text-muted-foreground">Alle Buchungen verwalten und bearbeiten</p>
         </div>
-        <div className="flex items-center gap-4 sm:ml-auto">
+        <div className="flex flex-wrap items-center gap-4 sm:ml-auto">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            <Button
+              className="flex-1 sm:flex-none"
+              variant={cardHouseFilter === 'all' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setCardHouseFilter('all')}
+            >
+              Gesamt
+            </Button>
+            {houses?.map((house) => (
+              <Button
+                className="flex-1 sm:flex-none"
+                key={house.id}
+                variant={cardHouseFilter === house.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setCardHouseFilter(house.id)}
+              >
+                {house.name}
+              </Button>
+            ))}
+          </div>
           <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
             <SelectTrigger className="w-[100px] bg-background">
               <SelectValue />
@@ -580,27 +601,6 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
           </Select>
           <CreateBookingDialog onBookingCreated={() => window.location.reload()} />
         </div>
-      </div>
-
-      {/* House toggle buttons for stats cards */}
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant={cardHouseFilter === 'all' ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => setCardHouseFilter('all')}
-        >
-          Gesamt
-        </Button>
-        {houses?.map((house) => (
-          <Button
-            key={house.id}
-            variant={cardHouseFilter === house.id ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setCardHouseFilter(house.id)}
-          >
-            {house.name}
-          </Button>
-        ))}
       </div>
 
       {/* Statistics - Shows selected year bookings */}
