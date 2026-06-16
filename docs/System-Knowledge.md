@@ -129,12 +129,22 @@ cleaning_hours, cleaning_cost, payment_status, notes, completed_at
 
 #### linen_orders (Wäschebestellungen)
 ```
-id, house_id (FK), booking_id (FK), order_date, delivery_date, delivery_time,
-status (offen/ausstehend/delivered/cancelled), items (JSONB),
-item_variants (JSONB - Farbvarianten), linen_color, total_items,
+id, house_id (FK), booking_id (FK), provider_id (FK), order_date, delivery_date,
+delivery_time, delivery_type, status (offen/ausstehend/delivered/cancelled),
+items (JSONB), item_variants (JSONB - Farbvarianten), linen_color, total_items,
+total_cost (numeric, nullable - GESCHÄTZTE Kosten = Menge × Stückpreis),
 order_source (manual/booking_required/buffer_refill/auto_booking_lookahead),
-external_bestellnummer, external_synced_at, provider_id (FK), notes
+suggested_at, assigned_staff_id (FK), notes,
+external_bestellnummer, external_synced_at,
+status_changed_by, status_changed_at,
+laundry_invoice_id (FK - Zuordnung zur Teuni-Rechnung),
+email_sent_at, created_at, updated_at
 ```
+> **total_cost** ist die GESCHÄTZTE Größe (Stückpreise aus ai_linen_settings.prices),
+> seit 16.06.2026 als DB-Spalte vorhanden und befüllt (Auto-Flow, manueller Flow,
+> Backfill). Die IST-Kosten stehen in laundry_invoices.bruttobetrag (echte
+> Teuni-Rechnungen), NICHT hier. Teuni-Rechnungen haben KEIN house_id und sind
+> daher nicht pro Haus aufteilbar. Details: docs/Kostenwahrheit-Waesche-Reinigung-Konzept.md.
 
 ### Konfigurations-Tabellen
 
