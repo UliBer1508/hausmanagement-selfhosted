@@ -68,6 +68,11 @@ Es gibt damit **keine** zweite Karten-Datei für denselben Zweck mehr
 > Die genaue Feldauswahl je Variante wird pro Karten-Typ in der jeweiligen
 > Umsetzung festgelegt und hier nachgetragen.
 
+**Wäschekarte:** `variant="full"` zeigt zusätzlich Check-in und Check-out
+neben dem Gastnamen. Das Status-Badge nutzt in beiden Varianten
+`getLinenStatusBadge()` aus `@/lib/linenOrderHelpers` (statt hartkodierter
+grüner Farbe) — offen orange, ausstehend gelb, geliefert grün, storniert rot.
+
 ---
 
 ## 5. Migrationsstand (ehrlich dokumentiert)
@@ -76,7 +81,7 @@ Stand 16.06.2026 ist die `variant`-Lösung **noch nicht überall** umgesetzt:
 
 | Karten-Typ | Status |
 |---|---|
-| Wäschekarte | **wird zuerst umgestellt** (eine Datei existiert bereits, nur `variant` ergänzen) |
+| Wäschekarte | **umgestellt ✅** (`variant="overview"` / `variant="full"`) |
 | Buchungskarte | noch getrennt: Übersicht über `BookingCard.tsx`, Tab über `BookingOverviewFixed.tsx`. `variant`-Zusammenführung später. |
 | Reinigungskarte | noch getrennt: Übersicht über `ServiceTaskCard.tsx`, Tab über inline-Karte in `Cleaning/CleaningManagement.tsx`. `variant`-Zusammenführung später. |
 
