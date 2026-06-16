@@ -582,6 +582,27 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
         </div>
       </div>
 
+      {/* House toggle buttons for stats cards */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={cardHouseFilter === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setCardHouseFilter('all')}
+        >
+          Gesamt
+        </Button>
+        {houses?.map((house) => (
+          <Button
+            key={house.id}
+            variant={cardHouseFilter === house.id ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCardHouseFilter(house.id)}
+          >
+            {house.name}
+          </Button>
+        ))}
+      </div>
+
       {/* Statistics - Shows selected year bookings */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {/* Widget 1: Buchungsübersicht (kombiniert) */}
