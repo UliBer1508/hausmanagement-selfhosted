@@ -350,9 +350,16 @@ const CleaningManagement = () => {
 
       {/* Buchungen auf Reinigungsaufträge prüfen */}
       <Card>
-        <CardHeader>
-          <CardTitle>Buchungen auf Reinigungsaufträge prüfen</CardTitle>
-        </CardHeader>
+        <Collapsible open={openCheck} onOpenChange={setOpenCheck}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-muted/40 transition-colors">
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>Buchungen auf Reinigungsaufträge prüfen</CardTitle>
+              <ChevronDown className={`h-5 w-5 shrink-0 transition-transform ${openCheck ? 'rotate-180' : ''}`} />
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
             <div>
@@ -523,6 +530,8 @@ const CleaningManagement = () => {
             </>
           )}
         </CardContent>
+        </CollapsibleContent>
+        </Collapsible>
       </Card>
 
       {/* Automatisierung */}
