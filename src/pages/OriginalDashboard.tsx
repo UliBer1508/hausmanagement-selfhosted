@@ -457,6 +457,7 @@ const OriginalDashboard = () => {
           status_changed_at: new Date().toISOString(),
           linen_color: orderData.linenColor || null,      // NEU: Hauptfarbe
           item_variants: orderData.itemColors || null,    // NEU: Artikelfarben
+          total_cost: orderData.estimatedCost ?? null,
         };
 
         console.log('📝 Update Payload:', updatePayload);
@@ -486,6 +487,7 @@ const OriginalDashboard = () => {
           status: 'offen' as const,
           linen_color: orderData.linenColor || null,      // NEU: Hauptfarbe
           item_variants: orderData.itemColors || null,    // NEU: Artikelfarben
+          total_cost: orderData.estimatedCost ?? null,
         };
 
         console.log('➕ Insert Payload:', insertPayload);
