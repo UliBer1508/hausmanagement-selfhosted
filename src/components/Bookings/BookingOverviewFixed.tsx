@@ -121,6 +121,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
   const [relatedItems, setRelatedItems] = useState<{ cleanings: number; orders: number }>({ cleanings: 0, orders: 0 });
   const [notesBooking, setNotesBooking] = useState<any | null>(null);
   const [savingNotes, setSavingNotes] = useState(false);
+  const [cardHouseFilter, setCardHouseFilter] = useState('all');
   const queryClient = useQueryClient();
 
   const handleSaveNotes = async (val: string) => {
