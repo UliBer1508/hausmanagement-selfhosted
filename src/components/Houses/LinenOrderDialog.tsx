@@ -138,6 +138,7 @@ interface LinenOrderDialogProps {
     sendEmail?: boolean;
     linenColor?: LinenColor;
     itemColors?: Record<string, ItemColor | LinenColor>;
+    estimatedCost?: number;
   }) => void;
   onSendEmail?: (orderId: string) => void;
   isCreating?: boolean;
@@ -511,6 +512,7 @@ const LinenOrderDialog = ({
           sendEmail: sendToTeuni,
           linenColor: null,
           itemColors: itemColors,
+          estimatedCost: estimatedCost,
         });
       } else {
         const validatedData = exceptionalLinenOrderSchema.parse({
@@ -526,6 +528,7 @@ const LinenOrderDialog = ({
           sendEmail: sendToTeuni,
           linenColor: null,
           itemColors: itemColors,
+          estimatedCost: estimatedCost,
         });
       }
 
