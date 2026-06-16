@@ -3,14 +3,19 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Save, Settings } from 'lucide-react';
+import { Loader2, Save, Settings, ChevronDown } from 'lucide-react';
 import { useCleaningAutomationSettings } from '@/hooks/useCleaningAutomationSettings';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const AutoCleaningSettingsCard = () => {
   const { settings, isLoading, updateSettings, isUpdating } = useCleaningAutomationSettings();
+  const isMobile = useIsMobile();
+  const [open, setOpen] = useState(true);
+  useEffect(() => { setOpen(!isMobile); }, [isMobile]);
   
   const [localProviderId, setLocalProviderId] = useState<string>('');
   const [localScheduleTiming, setLocalScheduleTiming] = useState<'on_checkin' | 'on_checkout'>('on_checkin');
@@ -78,11 +83,15 @@ const AutoCleaningSettingsCard = () => {
 
   return (
     <Card>
+      <Collapsible open={open} onOpenChange={setOpen}>
       <CardHeader className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 lg:gap-4 pb-4">
-        <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-          <Settings className="h-5 w-5 shrink-0" />
-          Automatisierung
-        </CardTitle>
+        <CollapsibleTrigger asChild>
+          <button type="button" className="flex items-center gap-2 text-lg sm:text-xl font-semibold w-full lg:w-auto text-left">
+            <Settings className="h-5 w-5 shrink-0" />
+            <span className="flex-1">Automatisierung</span>
+            <ChevronDown className={`h-5 w-5 transition-transform ${open ? 'rotate-180' : ''}`} />
+          </button>
+        </CollapsibleTrigger>
 
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
           <div className="flex items-center gap-2 min-w-0">
@@ -119,7 +128,8 @@ const AutoCleaningSettingsCard = () => {
           </Button>
         </div>
       </CardHeader>
-      
+
+      <CollapsibleContent>
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Standard Provider */}
@@ -194,6 +204,8 @@ const AutoCleaningSettingsCard = () => {
           </div>
         </div>
       </CardContent>
+      </CollapsibleContent>
+      </Collapsible>
     </Card>
   );
 };
