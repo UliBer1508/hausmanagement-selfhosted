@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Info as InfoIcon, StickyNote } from 'lucide-react';
+import { Info as InfoIcon, StickyNote, ChevronDown } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +23,13 @@ import { useToast } from '@/hooks/use-toast';
 const CleaningManagement = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
+  const [openCheck, setOpenCheck] = useState(true);
+  const [openTasks, setOpenTasks] = useState(true);
+  useEffect(() => {
+    setOpenCheck(!isMobile);
+    setOpenTasks(!isMobile);
+  }, [isMobile]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedHouse, setSelectedHouse] = useState('all');
   const [timeFilter, setTimeFilter] = useState('24months');
