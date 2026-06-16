@@ -102,16 +102,20 @@ export function TeuniOrdersOverview() {
   }, [linenOrders, houseFilter, statusFilter, dateFrom, dateTo]);
 
   const stats = useMemo(() => {
-    if (!linenOrders) return { total: 0, offen: 0, ausstehend: 0, bestellt: 0, geliefert: 0 };
+    if (!linenOrders) return { total: 0, offen: 0, ausstehend: 0, bestellt: 0, geliefert: 0, gesamtKosten: 0 };
     let offen = 0, ausstehend = 0, bestellt = 0, geliefert = 0;
+    let gesamtKosten = 0;
     linenOrders.forEach((order: any) => {
       const s = order.status?.toLowerCase();
       if (s === 'offen') offen++;
       if (s === 'ausstehend') ausstehend++;
       if (s === 'bestellt') bestellt++;
       if (s === 'delivered') geliefert++;
+      if (typeof order.total_cost === 'number' && order.total_cost > 0) {
+        gesamtKosten += order.total_cost;
+      }
     });
-    return { total: linenOrders.length, offen, ausstehend, bestellt, geliefert };
+    return { total: linenOrders.length, offen, ausstehend, bestellt, geliefert, gesamtKosten: Math.round(gesamtKosten * 100) / 100 };
   }, [linenOrders]);
 
   const toggleSelect = (id: string) => {
