@@ -166,7 +166,7 @@ export function TeuniOrdersOverview() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-6 gap-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Gesamt</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold">{stats.total}</div><p className="text-xs text-muted-foreground">Bestellungen</p></CardContent>
@@ -186,6 +186,10 @@ export function TeuniOrdersOverview() {
         <Card className="border-green-200 bg-green-50 dark:bg-green-950/30">
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-green-700 dark:text-green-400">✅ Geliefert</CardTitle></CardHeader>
           <CardContent><div className="text-2xl font-bold text-green-700 dark:text-green-400">{stats.geliefert}</div><p className="text-xs text-muted-foreground">Bestellungen</p></CardContent>
+        </Card>
+        <Card className="border-orange-200 bg-orange-50 dark:bg-orange-950/30">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-orange-700 dark:text-orange-400">💰 Kosten gesamt (geschätzt)</CardTitle></CardHeader>
+          <CardContent><div className="text-2xl font-bold text-orange-700 dark:text-orange-400">{stats.gesamtKosten.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR</div><p className="text-xs text-muted-foreground">Geschätzte Wäschekosten</p></CardContent>
         </Card>
       </div>
 
