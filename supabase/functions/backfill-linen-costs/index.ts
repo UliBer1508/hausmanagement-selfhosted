@@ -23,7 +23,7 @@ serve(async (req) => {
       .from('linen_orders')
       .select('id, booking_id, total_cost, created_at')
       .not('booking_id', 'is', null)
-      .gte('created_at', '2026-01-01')
+      .gte('delivery_date', '2026-01-01')
       .or('total_cost.is.null,total_cost.eq.0');
 
     if (error) throw error;
