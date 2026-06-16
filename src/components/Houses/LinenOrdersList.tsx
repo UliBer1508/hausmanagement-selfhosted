@@ -249,6 +249,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
               key={order.id}
               order={order}
               colorVariant="purple"
+              variant="full"
               onEdit={onEditOrder}
               onDelete={onDeleteOrder}
               onConfirm={(order) => confirmOrderMutation.mutate(order.id)}

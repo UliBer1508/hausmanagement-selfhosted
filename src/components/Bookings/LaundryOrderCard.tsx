@@ -7,13 +7,15 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { Trash2, CheckCircle, Link2, RotateCcw, ChevronDown, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
-import { translateItemType } from '@/lib/linenOrderHelpers';
+import { translateItemType, getLinenStatusBadge } from '@/lib/linenOrderHelpers';
 import { getGuestName } from '@/lib/guestHelpers';
 import { getExternalStatusBadgeInfo } from '@/hooks/useExternalOrderStatus';
 import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
 
 const ITEM_DISPLAY_ORDER = [
   'bedding',
@@ -47,6 +49,7 @@ const hasItemColor = (itemType: string): boolean => {
 interface LaundryOrderCardProps {
   order: any;
   colorVariant: 'green' | 'blue' | 'purple';
+  variant?: 'overview' | 'full';
   isPending?: boolean;
   onEdit?: (order: any) => Promise<void> | void;
   onDelete?: (order: any) => Promise<void> | void;
@@ -58,7 +61,7 @@ interface LaundryOrderCardProps {
   externalStatus?: { status: string; totalPrice: number } | null;
 }
 
-const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false, externalStatus = null }: LaundryOrderCardProps) => {
+const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = false, onEdit, onDelete, onConfirm, onSync, onResetSync, isSyncing = false, externalSyncEnabled = false, externalStatus = null }: LaundryOrderCardProps) => {
   const [isItemsOpen, setIsItemsOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
@@ -197,10 +200,7 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
             )}
           </button>
         )}
-        <span
-          className="text-[10px] font-extrabold px-2 py-1 rounded-full bg-white/95 shrink-0"
-          style={{ color: '#059669' }}
-        >
+        <span className={cn('text-xs font-bold px-2 py-1 rounded-full border shrink-0', getLinenStatusBadge(order.status).className)}>
           {getStatusText(order.status, isPending)}
         </span>
       </div>
@@ -220,6 +220,19 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
               {order.bookings?.number_of_guests != null && (
                 <span className="text-muted-foreground font-normal text-base"> ({order.bookings.number_of_guests})</span>
               )}
+            </div>
+          )}
+
+          {variant === 'full' && order.bookings?.check_in && order.bookings?.check_out && (
+            <div className="flex gap-4">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Check-in</div>
+                <div className="text-sm">{format(new Date(order.bookings.check_in), 'dd.MM.yy', { locale: de })}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Check-out</div>
+                <div className="text-sm">{format(new Date(order.bookings.check_out), 'dd.MM.yy', { locale: de })}</div>
+              </div>
             </div>
           )}
 
@@ -348,14 +361,14 @@ const LaundryOrderCard = ({ order, colorVariant, isPending = false, onEdit, onDe
 
           {/* Created by */}
           {order.created_by_name && (
-            <div className="text-[10px] text-muted-foreground mt-auto">
+            <div className="text-xs text-muted-foreground mt-auto">
               Erstellt von: {order.created_by_name}
             </div>
           )}
 
           {/* Status changed by */}
           {order.status_changed_by && (
-            <div className={cn("text-[10px] text-muted-foreground", !order.created_by_name && "mt-auto")}>
+            <div className={cn("text-xs text-muted-foreground", !order.created_by_name && "mt-auto")}>
               Geändert von: {order.status_changed_by}
             </div>
           )}
