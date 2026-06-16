@@ -89,6 +89,11 @@ sich nahtlos einfügt.
 - `components/ui/*` nur **verwenden**, nicht umbauen.
 - Responsives Raster wie im Bestand (`grid-cols-2 sm:grid-cols-3 lg:grid-cols-4`);
   für gleichartige Karten dasselbe Muster nutzen (Konsistenz vor Kreativität).
+- **Mobile-First ist verbindlich.** Jede UI muss auf dem Handy sauber funktionieren:
+  Button-/Filter-Gruppen mit `flex-wrap` und `w-full sm:w-auto`, damit sie auf
+  schmalen Bildschirmen umbrechen statt zu überlappen. KEIN horizontales Scrollen,
+  nichts abgeschnitten auf ~360px. Kopfzeilen mit `flex-col sm:flex-row`. Touch-Ziele
+  ausreichend groß. Diese Anforderung gehört in JEDEN UI-bezogenen Lovable-Prompt.
 
 ### B5. Feedback, Fehler, Logging
 - Nutzer-Feedback über **`useToast`** (`@/hooks/use-toast`); Titel deutsch,

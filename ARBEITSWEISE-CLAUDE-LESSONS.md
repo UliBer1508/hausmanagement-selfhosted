@@ -37,6 +37,31 @@ aus einem Konzeptdokument — aus dem echten, aktuellen Stand im Repo.
 6. **Annahmen statt Verifikation.** Felder/Verknüpfungen behauptet, ohne sie im
    Schema/Code zu belegen (z. B. ob `bookings` ein `status_changed_by` hat).
 
+### Nachtrag 16.06.2026 — drei Fehler aus der Kosten-/Auswertungs-Session
+
+1. **Feld behauptet, ohne Schema zu prüfen.** Beim Thema „Wäschekosten speichern"
+   wurde angenommen, die Spalte `total_cost` existiere in `linen_orders`, weil die
+   Karte `order.total_cost` liest. Daraufhin wurden ein Auto-Fix und ein Backfill
+   gebaut, die in dieses Feld schreiben — die Spalte existierte aber NICHT. Beide
+   liefen ins Leere und kosteten Credits. Erst eine SQL-Abfrage
+   (`column does not exist`) deckte es auf. **Lektion:** Dass Code ein Feld liest,
+   beweist NICHT, dass die Spalte existiert. Vor jeder Änderung, die auf ein
+   DB-Feld schreibt, die Spaltenexistenz im Schema belegen.
+
+2. **„Erledigt" geglaubt statt verifiziert — und Commit-Verzögerung.** Eine
+   Lovable-Rückmeldung „erledigt" stimmte nicht mit dem Code überein; umgekehrt
+   war eine andere Änderung doch umgesetzt, der Commit aber erst verzögert auf
+   `main` sichtbar. **Lektion:** Nach jedem Lovable-Lauf den Ist-Stand frisch lesen
+   und verifizieren. Bei „nicht gefunden" einmal kurz warten / erneut abrufen
+   (Cache/Commit-Verzögerung), bevor man auf „nicht umgesetzt" schließt.
+
+3. **Vereinbartes Mockup eigenmächtig anders gebaut.** Im Mockup waren sichtbare
+   Umschalt-Buttons oben vereinbart und vom Nutzer genehmigt; im Prompt wurde
+   stattdessen ein vorhandenes Dropdown wiederverwendet („spart Credits"). Das wich
+   vom Genehmigten ab. **Lektion:** Ein genehmigtes Mockup ist die Abmachung. Nicht
+   eigenmächtig davon abweichen — wenn eine günstigere Variante sinnvoll scheint,
+   vorher fragen, nicht einfach anders bauen.
+
 Gemeinsamer Nenner: **Reden vor Lesen.** Jeder einzelne Fehler wäre durch
 „zuerst die richtige Datei im Ist-Zustand lesen" vermieden worden.
 
@@ -86,6 +111,13 @@ ausgeführt:
 
 ---
 
+- **Mobile-Ansicht ist Pflicht in JEDEM UI-Prompt.** Laut CODING-GUIDE (B4) gilt
+  responsives Verhalten wie im Bestand (`grid-cols-… sm:… lg:…`). Jeder Prompt, der
+  UI verändert, MUSS explizit fordern: saubere Darstellung auf schmalen Bildschirmen
+  (Umbruch via `flex-wrap`, `w-full sm:w-auto` für Button-Gruppen), Touch-freundliche
+  Größen, KEIN horizontales Scrollen, nichts abgeschnitten auf ~360px Breite. Nicht
+  darauf warten, dass der Nutzer es anmahnt — von vornherein reinschreiben.
+
 ## 4. Verbindlicher Selbst-Check vor dem Absenden einer Antwort
 
 Claude beantwortet diese Fragen für sich, bevor es eine Code-Aussage oder einen
@@ -100,6 +132,11 @@ Prompt herausgibt. Wenn eine Antwort „nein/unklar“ ist → zurück zu Abschn
 - [ ] Behaupte ich nur, was ich im Code/Schema **belegt** habe?
 - [ ] Enthält mein Prompt **keine** ungeprüften Zeilennummern und **keine**
       „A oder B“-Wege?
+- [ ] Bei DB-Feldern: Habe ich die **Spaltenexistenz im Schema** belegt, bevor ich
+      Code baue, der darauf schreibt?
+- [ ] Bei UI-Änderungen: Enthält mein Prompt **explizite Mobile-Vorgaben**?
+- [ ] Habe ich nach dem letzten Lovable-Lauf den **Ist-Stand verifiziert** (statt
+      „erledigt" zu glauben)?
 
 ---
 
