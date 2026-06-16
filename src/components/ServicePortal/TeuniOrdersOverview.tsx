@@ -139,8 +139,8 @@ export function TeuniOrdersOverview() {
   if (isLoading) {
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-5 gap-4">
-          {[1, 2, 3, 4, 5].map(i => (
+        <div className="grid grid-cols-6 gap-4">
+          {[1, 2, 3, 4, 5, 6].map(i => (
             <Card key={i}><CardContent className="p-4"><Skeleton className="h-8 w-24 mb-2" /><Skeleton className="h-4 w-16" /></CardContent></Card>
           ))}
         </div>
