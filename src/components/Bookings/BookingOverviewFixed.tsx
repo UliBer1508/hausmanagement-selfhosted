@@ -438,12 +438,12 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
       t.scheduled_date && 
       t.status !== 'cancelled' &&
       new Date(t.scheduled_date).getFullYear() === selectedYear &&
-      (houseFilter === 'all' || t.house_id === houseFilter)
+      (cardHouseFilter === 'all' || t.house_id === cardHouseFilter)
     );
     const total = yearTasks.reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
     const paid = yearTasks.filter(t => t.payment_status === 'paid').reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
     return { total, paid };
-  }, [serviceTasks, selectedYear, houseFilter]);
+  }, [serviceTasks, selectedYear, cardHouseFilter]);
 
   // Wäschekosten für gewähltes Jahr (geschätzt aus linen_orders.total_cost)
   const laundryCostsForYear = useMemo(() => {
@@ -452,11 +452,11 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
       o.delivery_date &&
       new Date(o.delivery_date).getFullYear() === selectedYear &&
       typeof o.total_cost === 'number' &&
-      (houseFilter === 'all' || o.house_id === houseFilter)
+      (cardHouseFilter === 'all' || o.house_id === cardHouseFilter)
     );
     const total = yearOrders.reduce((sum: number, o: any) => sum + (o.total_cost || 0), 0);
     return { total };
-  }, [linenOrders, selectedYear, houseFilter]);
+  }, [linenOrders, selectedYear, cardHouseFilter]);
 
   const yearStats = {
     total: yearFilteredBookings.length,
