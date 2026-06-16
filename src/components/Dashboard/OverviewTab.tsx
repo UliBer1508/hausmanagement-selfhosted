@@ -237,6 +237,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                               key={order.id}
                               order={order}
                               colorVariant={colorVariant as any}
+                              variant="overview"
                               onEdit={handleEditLinenOrder}
                               onSync={async (order) => {
                                 setSyncingOrderId(order.id);
@@ -325,6 +326,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                       key={order.id}
                       order={order}
                       colorVariant="purple"
+                      variant="overview"
                       onEdit={handleEditLinenOrder}
                       onSync={async (o) => {
                         setSyncingOrderId(o.id);
