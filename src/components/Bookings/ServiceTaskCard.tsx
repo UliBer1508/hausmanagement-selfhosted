@@ -168,7 +168,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
               )}
               {task.scheduled_date && (
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Reinigungsdatum</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground pr-2">Reinigungsdatum</div>
                   <div className="text-sm">{format(new Date(task.scheduled_date), 'dd.MM.yyyy', { locale: de })}</div>
                 </div>
               )}
