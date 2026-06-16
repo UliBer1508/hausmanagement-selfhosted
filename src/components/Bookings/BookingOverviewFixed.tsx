@@ -636,16 +636,9 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
             <div className="text-2xl font-bold">
               {laundryCostsForYear.total.toLocaleString('de-DE')} EUR
             </div>
-            <p className="text-xs text-muted-foreground">Wäschekosten {selectedYear}</p>
-            <div className="mt-2 pt-2 border-t space-y-1 text-xs">
-              <p className="text-green-600 flex justify-between">
-                <span>✅ Bezahlt:</span>
-                <span className="font-medium">{laundryCostsForYear.paid.toLocaleString('de-DE')} EUR</span>
-              </p>
-              <p className="text-orange-600 flex justify-between">
-                <span>⚠️ Offen:</span>
-                <span className="font-medium">{(laundryCostsForYear.total - laundryCostsForYear.paid).toLocaleString('de-DE')} EUR</span>
-              </p>
+            <p className="text-xs text-muted-foreground">Wäschekosten {selectedYear} (geschätzt)</p>
+            <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+              geschätzt aus Stückpreisen
             </div>
           </CardContent>
         </Card>
