@@ -243,6 +243,8 @@ serve(async (req) => {
 
         console.log(`  📦 Delivery date: ${deliveryDateStr}`);
 
+        console.log(`  💶 Order cost: ${orderData.estimated_cost} EUR`);
+
         // Create linen_order with status "offen"
         const { error: insertError } = await supabase
           .from('linen_orders')
@@ -254,6 +256,7 @@ serve(async (req) => {
             item_variants: orderData.item_variants,
             linen_color: orderData.linen_color || 'white_striped', // NEU: Haupt-Wäschefarbe aus Regeln
             total_items: orderData.total_items,
+            total_cost: orderData.estimated_cost ?? null,
             status: 'offen',
             order_source: 'auto_booking_lookahead',
             suggested_at: new Date().toISOString(),
