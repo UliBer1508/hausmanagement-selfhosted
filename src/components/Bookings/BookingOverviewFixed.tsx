@@ -263,7 +263,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
     queryFn: async () => {
       const { data, error } = await supabase
         .from('linen_orders')
-        .select('id, booking_id, status');
+        .select('id, booking_id, status, house_id, total_cost, delivery_date');
       if (error) throw error;
       return data;
     },
@@ -422,9 +422,11 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
   const yearFilteredBookings = useMemo(() => {
     return bookingsData?.filter(b => {
       const checkOutDate = new Date(b.check_out);
-      return checkOutDate.getFullYear() === selectedYear;
+      if (checkOutDate.getFullYear() !== selectedYear) return false;
+      if (houseFilter !== 'all' && b.house_id !== houseFilter) return false;
+      return true;
     }) || [];
-  }, [bookingsData, selectedYear]);
+  }, [bookingsData, selectedYear, houseFilter]);
 
   // Statistics for selected year - for display in cards
   // Reinigungskosten für gewähltes Jahr
@@ -434,24 +436,26 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
       t.service_type === 'cleaning' && 
       t.scheduled_date && 
       t.status !== 'cancelled' &&
-      new Date(t.scheduled_date).getFullYear() === selectedYear
+      new Date(t.scheduled_date).getFullYear() === selectedYear &&
+      (houseFilter === 'all' || t.house_id === houseFilter)
     );
     const total = yearTasks.reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
     const paid = yearTasks.filter(t => t.payment_status === 'paid').reduce((sum, t) => sum + (t.cleaning_cost || 0), 0);
     return { total, paid };
-  }, [serviceTasks, selectedYear]);
+  }, [serviceTasks, selectedYear, houseFilter]);
 
-  // Wäschekosten für gewähltes Jahr
+  // Wäschekosten für gewähltes Jahr (geschätzt aus linen_orders.total_cost)
   const laundryCostsForYear = useMemo(() => {
-    if (!laundryInvoices) return { total: 0, paid: 0 };
-    const yearInvoices = laundryInvoices.filter(i => 
-      i.rechnungsdatum && 
-      new Date(i.rechnungsdatum).getFullYear() === selectedYear
+    if (!linenOrders) return { total: 0 };
+    const yearOrders = linenOrders.filter((o: any) =>
+      o.delivery_date &&
+      new Date(o.delivery_date).getFullYear() === selectedYear &&
+      typeof o.total_cost === 'number' &&
+      (houseFilter === 'all' || o.house_id === houseFilter)
     );
-    const total = yearInvoices.reduce((sum, i) => sum + (i.bruttobetrag || 0), 0);
-    const paid = yearInvoices.filter(i => i.status === 'bezahlt').reduce((sum, i) => sum + (i.bruttobetrag || 0), 0);
-    return { total, paid };
-  }, [laundryInvoices, selectedYear]);
+    const total = yearOrders.reduce((sum: number, o: any) => sum + (o.total_cost || 0), 0);
+    return { total };
+  }, [linenOrders, selectedYear, houseFilter]);
 
   const yearStats = {
     total: yearFilteredBookings.length,
