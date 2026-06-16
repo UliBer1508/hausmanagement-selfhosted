@@ -159,21 +159,21 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
             )}
 
             {/* Felder-Raster: Provider, Reinigungsdatum, Putzkraft */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2">
               {task.service_providers && (
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Provider</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground pr-2">Provider</div>
                   <div className="text-sm truncate">{task.service_providers.name}</div>
                 </div>
               )}
               {task.scheduled_date && (
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Reinigungsdatum</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground pr-2">Reinigungsdatum</div>
                   <div className="text-sm">{format(new Date(task.scheduled_date), 'dd.MM.yyyy', { locale: de })}</div>
                 </div>
               )}
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Putzkraft</div>
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground pr-2">Putzkraft</div>
                 <div className="text-sm truncate">
                   {task.cleaning_assignments?.[0]?.cleaning_staff?.name
                     || task.direct_assigned_staff?.name
