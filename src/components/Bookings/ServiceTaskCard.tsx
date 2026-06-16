@@ -159,7 +159,7 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
             )}
 
             {/* Felder-Raster: Provider, Reinigungsdatum, Putzkraft */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2">
               {task.service_providers && (
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Provider</div>
