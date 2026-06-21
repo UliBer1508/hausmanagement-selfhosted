@@ -5355,6 +5355,33 @@ export type Database = {
         }[]
       }
       get_database_size: { Args: never; Returns: number }
+      get_guest_session: {
+        Args: { _session_id: string }
+        Returns: {
+          booking_id: string | null
+          completed_onboarding: boolean | null
+          created_at: string | null
+          device_type: string | null
+          furthest_step: string | null
+          guest_email: string | null
+          guest_name: string | null
+          house_id: string | null
+          id: string
+          language: string | null
+          last_activity_at: string | null
+          referrer: string | null
+          session_id: string
+          started_at: string | null
+          updated_at: string | null
+          user_agent: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "guest_app_sessions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -5365,6 +5392,41 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      touch_guest_session: {
+        Args: {
+          _completed_onboarding?: boolean
+          _device_type?: string
+          _furthest_step?: string
+          _language?: string
+          _referrer?: string
+          _session_id: string
+          _user_agent?: string
+        }
+        Returns: {
+          booking_id: string | null
+          completed_onboarding: boolean | null
+          created_at: string | null
+          device_type: string | null
+          furthest_step: string | null
+          guest_email: string | null
+          guest_name: string | null
+          house_id: string | null
+          id: string
+          language: string | null
+          last_activity_at: string | null
+          referrer: string | null
+          session_id: string
+          started_at: string | null
+          updated_at: string | null
+          user_agent: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "guest_app_sessions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       track_token_usage: {
         Args: { token_hash_param: string }
