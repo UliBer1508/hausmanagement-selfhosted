@@ -109,6 +109,22 @@ export function buildMailtoHref(opts: MailtoOptions): string {
 }
 
 /**
+ * Öffnet eine URL zuverlässig in einem neuen Top-Level-Tab.
+ * Nutzt einen echten Anker-Klick mit target="_blank" und rel="noopener".
+ * Das umgeht iframe-/Vorschau-Einschränkungen (z. B. ERR_BLOCKED_BY_RESPONSE),
+ * die bei window.open(...) mit Feature-Parametern auftreten können.
+ */
+function openUrlTopLevel(url: string): void {
+  const a = document.createElement('a');
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+/**
  * Öffnet die E-Mail standardmäßig in Gmail-Web (fester Absender).
  * Mit preferLocalClient=true wird stattdessen der lokale Client (mailto:) genutzt.
  */
@@ -121,7 +137,7 @@ export function openEmail(opts: MailtoOptions & { preferLocalClient?: boolean })
   if (opts.preferLocalClient) {
     window.location.href = buildMailtoHref(opts);
   } else {
-    window.open(buildGmailComposeHref(opts), '_blank', 'noopener,noreferrer');
+    openUrlTopLevel(buildGmailComposeHref(opts));
   }
   return true;
 }

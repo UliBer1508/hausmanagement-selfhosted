@@ -879,6 +879,47 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_change_notifications: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          booking_id: string
+          change_type: string
+          created_at: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          booking_id: string
+          change_type: string
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          booking_id?: string
+          change_type?: string
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_change_notifications_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_charges: {
         Row: {
           amount: number
