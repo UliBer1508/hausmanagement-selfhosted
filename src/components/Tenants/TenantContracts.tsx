@@ -12,7 +12,7 @@ import { House } from "@/types";
 import EditHouseDialog from "@/components/Houses/EditHouseDialog";
 import { RentHistoryDialog } from "./RentHistoryDialog";
 import { useTenantRentChanges, getActiveRent, getActiveAdditionalCosts, getPendingRentChanges } from "@/hooks/useTenantRentChanges";
-import { buildMailtoHref } from "@/lib/mailtoHelper";
+import { openEmail } from "@/lib/mailtoHelper";
 
 const TenantContracts = () => {
   const { data: houses } = useHouses();
@@ -168,14 +168,16 @@ const TenantContracts = () => {
               {tenantInfo?.tenant_email && (
                 <div className="flex items-center gap-2 mb-3">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  <a 
-                    href={buildMailtoHref({ to: tenantInfo.tenant_email })}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary hover:underline"
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void openEmail({ to: tenantInfo.tenant_email });
+                    }}
+                    className="text-sm text-primary hover:underline text-left"
                   >
                     {tenantInfo.tenant_email}
-                  </a>
+                  </button>
                 </div>
               )}
 
@@ -271,11 +273,7 @@ const TenantContracts = () => {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      window.open(
-                        buildMailtoHref({ to: tenantInfo.tenant_email }),
-                        '_blank',
-                        'noopener,noreferrer',
-                      );
+                      void openEmail({ to: tenantInfo.tenant_email });
                     }}
                   >
                     <Mail className="h-4 w-4 mr-1" />
