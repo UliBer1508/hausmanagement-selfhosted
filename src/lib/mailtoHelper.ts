@@ -65,6 +65,13 @@ export interface MailtoOptions {
   html?: string;
   cc?: string | string[];
   bcc?: string | string[];
+  recipients?: Array<{
+    email: string;
+    guestName?: string;
+    checkIn?: string;
+    checkOut?: string;
+    houseName?: string;
+  }>;
 }
 
 function joinAddrs(v?: string | string[]): string {
@@ -185,7 +192,9 @@ export async function openEmail(
 
   // Standard: Outlook nur mit Empfänger + App-Vorschaufenster
   if (mailPreviewHandler) {
-    const recipients = Array.isArray(opts.to)
+    const recipients = opts.recipients?.length
+      ? opts.recipients
+      : Array.isArray(opts.to)
       ? opts.to.filter(Boolean).map((email) => ({ email }))
       : opts.to
       ? [{ email: opts.to }]
