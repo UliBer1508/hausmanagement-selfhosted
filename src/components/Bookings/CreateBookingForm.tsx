@@ -1030,17 +1030,17 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           ${linksHtml}
           <p>Vielen Dank!</p>
         `;
-        const { error: mailError } = await supabase.functions.invoke('send-gmail', {
-          body: {
-            to: guestEmail,
-            subject: 'Zusatzkosten zu Ihrer Buchung',
-            html,
-          },
+        const { openEmail } = await import('@/lib/mailtoHelper');
+        const { copied } = await openEmail({
+          to: guestEmail,
+          subject: 'Zusatzkosten zu Ihrer Buchung',
+          html,
         });
-        if (mailError) throw mailError;
         toast({
-          title: 'Zahlungslink versendet',
-          description: `E-Mail mit ${paymentUrls.length} Link(s) an ${guestEmail} gesendet.`,
+          title: 'Gmail geöffnet',
+          description: copied
+            ? 'Der Text liegt in der Zwischenablage — im Mailfenster mit Strg+V einfügen und senden.'
+            : `Bitte den Text mit ${paymentUrls.length} Link(s) manuell einfügen und senden.`,
         });
       }
 

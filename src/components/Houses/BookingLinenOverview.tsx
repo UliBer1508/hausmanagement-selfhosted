@@ -148,7 +148,6 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
         to: emailData.to,
         subject: emailData.subject,
         text: fullEmailText,
-        preferLocalClient: true,
       });
 
       // E-Mail-Zeitstempel aktualisieren

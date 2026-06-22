@@ -293,7 +293,8 @@ Basis: `use-toast`, `use-mobile`.
 ### lib (`src/lib/`) — reine Helfer (keine UI, kein State)
 `guestHelpers` (getGuestName/Email/Phone mit Fallback), `dateHelpers`,
 `holidayCalendar`, `schoolHolidays`, `linenCalculation`, `linenOrderHelpers`,
-`linenMigration`, `mailtoHelper`, `nameNormalization`, `ratingHelpers`,
+`linenMigration`, `mailtoHelper` (async `openEmail` → Gmail-Web mit Text in
+Zwischenablage, Body NICHT in URL), `nameNormalization`, `ratingHelpers`,
 `utilityStatementPdf`, `utils` (`cn()`).
 
 ### Integrationen / Backend

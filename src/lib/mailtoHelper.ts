@@ -126,20 +126,36 @@ function openUrlTopLevel(url: string): void {
 
 /**
  * Öffnet die E-Mail standardmäßig in Gmail-Web (fester Absender).
+ * Der Mailtext wird NICHT in die URL gepackt (Gmail-URL-Längenlimit) —
+ * stattdessen wird er in die Zwischenablage geschrieben; der Nutzer fügt
+ * ihn im Gmail-Fenster mit Strg+V ein.
  * Mit preferLocalClient=true wird stattdessen der lokale Client (mailto:) genutzt.
  */
-export function openEmail(opts: MailtoOptions & { preferLocalClient?: boolean }): boolean {
+export async function openEmail(
+  opts: MailtoOptions & { preferLocalClient?: boolean },
+): Promise<{ opened: boolean; copied: boolean }> {
   const toStr = joinAddrs(opts.to);
   if (!toStr) {
     console.warn('[mailHelper] Keine Empfänger-Adresse angegeben.');
-    return false;
+    return { opened: false, copied: false };
   }
   if (opts.preferLocalClient) {
     window.location.href = buildMailtoHref(opts);
-  } else {
-    openUrlTopLevel(buildGmailComposeHref(opts));
+    return { opened: true, copied: false };
   }
-  return true;
+  const body = opts.text ?? htmlToPlainText(opts.html ?? '');
+  let copied = false;
+  if (body) {
+    try {
+      await navigator.clipboard.writeText(body);
+      copied = true;
+    } catch (e) {
+      console.warn('[mailHelper] Zwischenablage nicht verfügbar:', e);
+    }
+  }
+  const gmailHref = buildGmailComposeHref({ ...opts, text: '', html: '' });
+  openUrlTopLevel(gmailHref);
+  return { opened: true, copied };
 }
 
 /**
