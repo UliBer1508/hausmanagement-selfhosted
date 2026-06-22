@@ -123,21 +123,20 @@ const TenantPayments = () => {
   // Get overdue payments count
   const overduePayments = filteredPayments.filter(p => p.status === 'overdue');
 
-  const handleSendReminder = (payment: TenantPayment) => {
+  const handleSendReminder = async (payment: TenantPayment) => {
     const house = payment.houses;
     const tenantInfo = house?.tenant_info as any;
     const subject = `Zahlungserinnerung - ${house?.name}`;
     const body = `Sehr geehrte/r ${tenantInfo?.tenant_name},\n\nwir möchten Sie freundlich an die ausstehende Mietzahlung erinnern:\n\nObjekt: ${house?.name}\nBetrag: ${payment.amount.toLocaleString('de-DE')} €\nFällig am: ${format(new Date(payment.due_date), 'dd.MM.yyyy', { locale: de })}\n\nMit freundlichen Grüßen`;
 
-    const params = new URLSearchParams({
-      authuser: 'steinbockchalets@gmail.com',
-      view: 'cm',
-      fs: '1',
-      to: tenantInfo?.tenant_email ?? '',
-      su: subject,
-      body,
-    });
-    window.open(`https://mail.google.com/mail/?${params.toString()}`, '_blank', 'noopener,noreferrer');
+    const { opened, copied } = await openEmail({ to: tenantInfo?.tenant_email ?? '', subject, text: body });
+    if (opened) {
+      toast.success(
+        copied
+          ? "Gmail geöffnet. Der Text liegt in der Zwischenablage — im Mailfenster mit Strg+V einfügen und senden."
+          : "Gmail geöffnet. Bitte Text manuell einfügen."
+      );
+    }
   };
 
   const handleDeletePayment = (payment: TenantPayment) => {
