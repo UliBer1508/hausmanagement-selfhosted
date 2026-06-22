@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { Copy, Mail as MailIcon } from 'lucide-react';
+import { Mail as MailIcon } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,6 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
-  buildMailtoHref,
   setMailPreviewHandler,
   SENDER_EMAIL,
 } from '@/lib/mailtoHelper';
@@ -64,19 +63,6 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
     return () => setMailPreviewHandler(null);
   }, [showMailPreview]);
 
-  const copyToClipboard = async (text: string, label: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success(`${label} kopiert`);
-    } catch {
-      toast.error('Zwischenablage nicht verfügbar');
-    }
-  };
-
-  const openOutlook = () => {
-    window.location.href = buildMailtoHref({ to: preview.to });
-  };
-
   const handleSendViaGmail = async () => {
     setSending(true);
     try {
@@ -124,8 +110,7 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
               E-Mail vorbereiten
             </DialogTitle>
             <DialogDescription>
-              Mit „Per Gmail senden" geht die E-Mail direkt über <strong>{SENDER_EMAIL}</strong> raus.
-              Alternativ in Outlook öffnen.
+              Die E-Mail wird direkt über <strong>{SENDER_EMAIL}</strong> versendet.
             </DialogDescription>
           </DialogHeader>
 
@@ -136,19 +121,7 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
             </div>
 
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <Label>Betreff</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => copyToClipboard(preview.subject, 'Betreff')}
-                  disabled={!preview.subject}
-                >
-                  <Copy className="w-3.5 h-3.5 mr-1.5" />
-                  Betreff kopieren
-                </Button>
-              </div>
+              <Label>Betreff</Label>
               <Input
                 value={preview.subject}
                 onChange={(e) => setPreview((p) => ({ ...p, subject: e.target.value }))}
@@ -156,19 +129,7 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
             </div>
 
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-2">
-                <Label>Nachricht</Label>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => copyToClipboard(preview.body, 'Text')}
-                  disabled={!preview.body}
-                >
-                  <Copy className="w-3.5 h-3.5 mr-1.5" />
-                  Text kopieren
-                </Button>
-              </div>
+              <Label>Nachricht</Label>
               <Textarea
                 value={preview.body}
                 onChange={(e) => setPreview((p) => ({ ...p, body: e.target.value }))}
@@ -180,10 +141,6 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
           <DialogFooter className="gap-2 sm:gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={sending}>
               Schließen
-            </Button>
-            <Button type="button" variant="outline" onClick={openOutlook} disabled={sending}>
-              <MailIcon className="w-4 h-4 mr-2" />
-              In Outlook öffnen
             </Button>
             <Button
               type="button"
