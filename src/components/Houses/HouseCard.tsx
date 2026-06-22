@@ -5,7 +5,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Edit, RefreshCw, Trash2, Users, MapPin, Package, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import EditHouseDialog from './EditHouseDialog';
-import { buildMailtoHref } from '@/lib/mailtoHelper';
+import { openEmail } from '@/lib/mailtoHelper';
 import CompetitorAnalysisDashboard from './CompetitorAnalysis/CompetitorAnalysisDashboard';
 
 interface HouseCardProps {
@@ -164,14 +164,16 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
                       {house.tenant_info.tenant_email && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Email:</span>
-                          <a 
-                            href={buildMailtoHref({ to: house.tenant_info.tenant_email })}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium text-primary hover:underline"
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEmail({ to: house.tenant_info!.tenant_email });
+                            }}
+                            className="font-medium text-primary hover:underline text-left"
                           >
                             {house.tenant_info.tenant_email}
-                          </a>
+                          </button>
                         </div>
                       )}
                       {house.tenant_info.tenant_phone && (
