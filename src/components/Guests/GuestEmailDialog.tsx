@@ -17,6 +17,7 @@ import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 import { openEmail } from '@/lib/mailtoHelper';
 import { supabase } from '@/integrations/supabase/client';
 import { logCommunication } from '@/hooks/useGuestCommunications';
+import { replacePlaceholders } from '@/lib/emailPlaceholders';
 
 interface Guest {
   guest_name: string;
@@ -164,15 +165,13 @@ const GuestEmailDialog = ({
   };
 
   const replaceTemplatePlaceholders = (text: string): string => {
-    let result = text
-      .replace(/{guestName}/g, guest.guest_name || 'Gast')
-      .replace(/{GUEST_NAME}/g, guest.guest_name || 'Gast');
-    
+    let result = replacePlaceholders(text, { guestName: guest.guest_name || 'Gast' });
+
     // Replace additional custom placeholders
     Object.entries(templatePlaceholders).forEach(([key, value]) => {
       result = result.replace(new RegExp(`{${key}}`, 'g'), value);
     });
-    
+
     return result;
   };
 
