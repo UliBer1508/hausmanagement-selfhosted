@@ -77,12 +77,10 @@ const GuestContactAlertBanner = () => {
     const houseName = booking.houses?.name ?? '';
     const subject = `Ihre Anreise am ${checkInDate}${houseName ? ` – ${houseName}` : ''}`;
     const body = `Liebe/r ${booking.guest_name},\n\nwir freuen uns auf Ihre Anreise am ${checkInDate}${houseName ? ` in ${houseName}` : ''}.\n\nFür Rückfragen sind wir jederzeit erreichbar.\n\nHerzliche Grüße\nSteinbock Chalets`;
-    const { copied } = await openEmail({ to: booking.guest_email, subject, text: body });
+    await openEmail({ to: booking.guest_email, subject, text: body });
     toast({
-      title: 'Gmail geöffnet',
-      description: copied
-        ? 'Text liegt in der Zwischenablage — in Gmail mit Strg+V einfügen und senden.'
-        : 'Bitte Text manuell einfügen und senden.',
+      title: 'E-Mail vorbereitet',
+      description: 'Outlook geöffnet — Betreff und Text aus dem Vorschaufenster übernehmen, Absender auf steinbockchalets@gmail.com stellen.',
     });
   };
 
