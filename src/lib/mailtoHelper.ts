@@ -133,6 +133,13 @@ export type MailPreviewHandler = (preview: {
   to: string;
   subject: string;
   body: string;
+  recipients?: Array<{
+    email: string;
+    guestName?: string;
+    checkIn?: string;
+    checkOut?: string;
+    houseName?: string;
+  }>;
 }) => void;
 
 let mailPreviewHandler: MailPreviewHandler | null = null;
@@ -179,7 +186,12 @@ export async function openEmail(
   // Standard: Outlook nur mit Empfänger + App-Vorschaufenster
   window.location.href = buildMailtoHref({ to: opts.to, cc: opts.cc, bcc: opts.bcc });
   if (mailPreviewHandler) {
-    mailPreviewHandler({ to: toStr, subject, body });
+    const recipients = Array.isArray(opts.to)
+      ? opts.to.filter(Boolean).map((email) => ({ email }))
+      : opts.to
+      ? [{ email: opts.to }]
+      : [];
+    mailPreviewHandler({ to: toStr, subject, body, recipients });
   }
   return { opened: true, copied: false };
 }
