@@ -12,6 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -24,10 +31,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  setMailPreviewHandler,
-  SENDER_EMAIL,
-} from '@/lib/mailtoHelper';
+import { setMailPreviewHandler, SENDER_EMAIL } from '@/lib/mailtoHelper';
+import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 
 interface MailRecipient {
   email: string;
