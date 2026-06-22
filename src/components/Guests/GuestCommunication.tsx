@@ -102,19 +102,25 @@ const GuestCommunication = () => {
         return;
       }
 
-      // Öffnet lokalen Mail-Client mit vorausgefülltem Entwurf
-      openEmail({
-        to: targetGuests,
-        subject,
-        html: content,
-      });
-
-      // Verlauf pro Empfänger speichern
+      // Empfänger-Map vorab bauen (für Personalisierung + Verlauf)
       const recipientsByEmail = new Map(
         (segmentData?.allGuests ?? [])
           .filter((g) => g.guest_email)
           .map((g) => [g.guest_email!.toLowerCase(), g] as const),
       );
+
+      // Vorschaufenster mit personalisierten Empfängern öffnen
+      openEmail({
+        to: targetGuests,
+        subject,
+        html: content,
+        recipients: targetGuests.map((email) => {
+          const g = recipientsByEmail.get(email.toLowerCase());
+          return { email, guestName: g?.guest_name ?? undefined };
+        }),
+      });
+
+      // Verlauf pro Empfänger speichern
       await Promise.all(
         targetGuests.map((email) => {
           const g = recipientsByEmail.get(email.toLowerCase());
@@ -129,17 +135,16 @@ const GuestCommunication = () => {
       );
 
       toast({
-        title: "E-Mail-Entwurf geöffnet",
-        description: `Entwurf für ${targetGuests.length} Gäste im Mail-Client geöffnet. Bitte prüfen und manuell senden.`,
+        title: "Vorschau geöffnet",
+        description: `Vorschau für ${targetGuests.length} Gäste — im Fenster prüfen und „Per Gmail senden".`,
       });
 
       setCustomMessage('');
       setSelectedTemplate('');
-    } catch (error) {
-      console.error('Error sending email:', error);
+    } catch {
       toast({
         title: "Fehler",
-        description: "Der E-Mail-Entwurf konnte nicht geöffnet werden.",
+        description: "Die Vorschau konnte nicht geöffnet werden.",
         variant: "destructive"
       });
     }
@@ -160,18 +165,24 @@ const GuestCommunication = () => {
         return;
       }
 
-      openEmail({
-        to: targetGuests,
-        subject,
-        html: content,
-      });
-
-      // Verlauf pro Empfänger speichern
+      // Empfänger-Map vorab bauen (für Personalisierung + Verlauf)
       const personalizedByEmail = new Map(
         (segmentData?.allGuests ?? [])
           .filter((g) => g.guest_email)
           .map((g) => [g.guest_email!.toLowerCase(), g] as const),
       );
+
+      openEmail({
+        to: targetGuests,
+        subject,
+        html: content,
+        recipients: targetGuests.map((email) => {
+          const g = personalizedByEmail.get(email.toLowerCase());
+          return { email, guestName: g?.guest_name ?? undefined };
+        }),
+      });
+
+      // Verlauf pro Empfänger speichern
       await Promise.all(
         targetGuests.map((email) => {
           const g = personalizedByEmail.get(email.toLowerCase());
@@ -186,14 +197,13 @@ const GuestCommunication = () => {
       );
 
       toast({
-        title: "Personalisierter Entwurf geöffnet",
-        description: `KI-optimierter Entwurf für ${targetGuests.length} Gäste im Mail-Client geöffnet.`,
+        title: "Vorschau geöffnet",
+        description: `KI-optimierte Vorschau für ${targetGuests.length} Gäste — im Fenster prüfen und „Per Gmail senden".`,
       });
-    } catch (error) {
-      console.error('Error sending personalized email:', error);
+    } catch {
       toast({
         title: "Fehler",
-        description: "Der Entwurf konnte nicht geöffnet werden.",
+        description: "Die Vorschau konnte nicht geöffnet werden.",
         variant: "destructive"
       });
     }
