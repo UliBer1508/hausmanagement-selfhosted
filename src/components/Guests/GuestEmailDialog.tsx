@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useEmailTemplates } from '@/hooks/useEmailTemplates';
-import { buildGmailComposeHref } from '@/lib/mailtoHelper';
+import { openEmail } from '@/lib/mailtoHelper';
 import { supabase } from '@/integrations/supabase/client';
 import { logCommunication } from '@/hooks/useGuestCommunications';
 
@@ -176,7 +176,7 @@ const GuestEmailDialog = ({
     return result;
   };
 
-  const handleOpenInMailClient = () => {
+  const handleOpenInMailClient = async () => {
     if (!guest.guest_email) {
       toast({
         title: 'Keine E-Mail-Adresse',
@@ -198,12 +198,11 @@ const GuestEmailDialog = ({
     const processedSubject = replaceTemplatePlaceholders(customSubject);
     const processedMessage = replaceTemplatePlaceholders(customMessage);
 
-    const href = buildGmailComposeHref({
+    const { copied } = await openEmail({
       to: guest.guest_email,
       subject: processedSubject,
       text: processedMessage,
     });
-    window.open(href, '_blank', 'noopener,noreferrer');
 
     if (guest.guest_email) {
       void logCommunication({
@@ -216,8 +215,10 @@ const GuestEmailDialog = ({
     }
 
     toast({
-      title: 'Gmail-Entwurf geöffnet',
-      description: 'Die E-Mail wurde in Gmail (steinbockchalets@gmail.com) vorbereitet.',
+      title: 'Gmail geöffnet',
+      description: copied
+        ? 'Text liegt in der Zwischenablage — in Gmail mit Strg+V einfügen und senden.'
+        : 'Bitte Text manuell einfügen und senden.',
     });
     
     onOpenChange(false);
