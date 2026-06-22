@@ -295,7 +295,9 @@ Basis: `use-toast`, `use-mobile`.
 `holidayCalendar`, `schoolHolidays`, `linenCalculation`, `linenOrderHelpers`,
 `linenMigration`, `mailtoHelper` (async `openEmail` → öffnet Outlook nur mit
 Empfänger + zeigt App-Vorschaufenster mit Betreff/Text zum Kopieren via
-`MailPreviewProvider`; Gmail-Web nur noch optional via `preferGmailWeb`),
+`MailPreviewProvider` — Betreff/Text editierbar, „Per Gmail senden" ruft
+`send-guest-email` direkt auf, „In Outlook öffnen" als Alternative;
+Gmail-Web-Compose-URL nur noch optional via `preferGmailWeb`),
 `nameNormalization`, `ratingHelpers`, `emailPlaceholders`
 (`replacePlaceholders` — vereinheitlicht `{guestName}/{GUEST_NAME}`,
 `{checkIn}/{CHECK_IN}`, `{checkOut}/{CHECK_OUT}`, `{houseName}/{HOUSE_NAME}`),
