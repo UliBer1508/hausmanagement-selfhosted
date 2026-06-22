@@ -147,6 +147,48 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="flex items-center gap-2 pt-1">
+              <Label className="text-muted-foreground">Vorlagensprache:</Label>
+              <div className="flex border rounded-md">
+                <Button
+                  type="button"
+                  variant={language === 'de' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setLanguage('de')}
+                >
+                  🇩🇪 DE
+                </Button>
+                <Button
+                  type="button"
+                  variant={language === 'en' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setLanguage('en')}
+                >
+                  🇬🇧 EN
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Vorlage wählen (optional)</Label>
+              <Select
+                value={selectedTemplate}
+                onValueChange={handleTemplateChange}
+                disabled={templatesLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Vorlage auswählen..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(emailTemplates).map(([key, t]) => (
+                    <SelectItem key={key} value={key}>
+                      {t.language === 'en' ? '🇬🇧' : '🇩🇪'} {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-1.5">
               <Label>Empfänger</Label>
               <Input
