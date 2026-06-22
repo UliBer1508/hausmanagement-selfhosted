@@ -240,7 +240,6 @@ const LinenOrdersTab = ({ house }: LinenOrdersTabProps) => {
         to: emailData.to,
         subject: emailData.subject,
         text: fullEmailText,
-        preferLocalClient: true,
       });
 
       // Update email_sent_at timestamp
