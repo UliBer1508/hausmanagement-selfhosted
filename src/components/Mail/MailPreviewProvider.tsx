@@ -68,11 +68,28 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [preview, setPreview] = useState<MailPreview>({ to: '', subject: '', body: '' });
   const [sending, setSending] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [language, setLanguage] = useState<'de' | 'en'>('de');
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+
+  const { templates: emailTemplates, isLoading: templatesLoading } = useEmailTemplates(language);
 
   const showMailPreview = useCallback((p: MailPreview) => {
     setPreview(p);
+    setSelectedTemplate('');
     setOpen(true);
   }, []);
+
+  useEffect(() => {
+    setSelectedTemplate('');
+  }, [language]);
+
+  const handleTemplateChange = (templateKey: string) => {
+    setSelectedTemplate(templateKey);
+    const t = emailTemplates[templateKey];
+    if (t) {
+      setPreview((prev) => ({ ...prev, subject: t.subject, body: t.content }));
+    }
+  };
 
   useEffect(() => {
     setMailPreviewHandler(showMailPreview);
