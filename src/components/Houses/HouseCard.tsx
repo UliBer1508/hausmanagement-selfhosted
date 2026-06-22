@@ -5,7 +5,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Edit, RefreshCw, Trash2, Users, MapPin, Package, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import EditHouseDialog from './EditHouseDialog';
-import { buildGmailComposeHref } from '@/lib/mailtoHelper';
+import { buildMailtoHref } from '@/lib/mailtoHelper';
 import CompetitorAnalysisDashboard from './CompetitorAnalysis/CompetitorAnalysisDashboard';
 
 interface HouseCardProps {
@@ -165,7 +165,7 @@ const HouseCard = ({ house, inventoryCount }: HouseCardProps) => {
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Email:</span>
                           <a 
-                            href={buildGmailComposeHref({ to: house.tenant_info.tenant_email })}
+                            href={buildMailtoHref({ to: house.tenant_info.tenant_email })}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="font-medium text-primary hover:underline"

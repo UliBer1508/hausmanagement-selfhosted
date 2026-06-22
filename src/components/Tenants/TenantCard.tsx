@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import EditHouseDialog from "@/components/Houses/EditHouseDialog";
 import { useState } from "react";
-import { buildGmailComposeHref } from "@/lib/mailtoHelper";
+import { buildMailtoHref } from "@/lib/mailtoHelper";
 
 interface TenantCardProps {
   house: House;
@@ -38,7 +38,7 @@ const TenantCard = ({ house }: TenantCardProps) => {
 
   const handleEmailClick = () => {
     window.open(
-      buildGmailComposeHref({ to: tenantInfo?.tenant_email ?? '' }),
+      buildMailtoHref({ to: tenantInfo?.tenant_email ?? '' }),
       '_blank',
       'noopener,noreferrer',
     );
@@ -68,7 +68,7 @@ const TenantCard = ({ house }: TenantCardProps) => {
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
               <a 
-                href={buildGmailComposeHref({ to: tenantInfo.tenant_email })}
+                href={buildMailtoHref({ to: tenantInfo.tenant_email })}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-primary hover:underline"

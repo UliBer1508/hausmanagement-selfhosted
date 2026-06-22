@@ -6,7 +6,7 @@ import { Smartphone, Star, Mail, Phone, TrendingUp, Users, Calendar, MessageSqua
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useState } from 'react';
-import { buildGmailComposeHref } from '@/lib/mailtoHelper';
+import { buildMailtoHref } from '@/lib/mailtoHelper';
 
 interface AppReviewsSectionProps {
   selectedHouseId: string;
@@ -298,7 +298,7 @@ export const AppReviewsSection = ({ selectedHouseId }: AppReviewsSectionProps) =
                       <td className="p-4">
                         <div className="flex flex-col gap-2">
                           <a
-                            href={buildGmailComposeHref({ to: booking.guest_email })}
+                            href={buildMailtoHref({ to: booking.guest_email })}
                             target="_blank"
                             rel="noopener noreferrer"
                           >
