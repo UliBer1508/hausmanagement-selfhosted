@@ -9,6 +9,7 @@ import { de } from 'date-fns/locale';
 import { useBookingCharges } from '@/hooks/useBookingCharges';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { openEmail } from '@/lib/mailtoHelper';
 
 interface Props {
   bookingId: string;
@@ -83,11 +84,17 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
         <p><a href="${url}">${url}</a></p>
         <p>Vielen Dank!</p>
       `;
-      const { error } = await supabase.functions.invoke('send-gmail', {
-        body: { to: guestEmail, subject: 'Ihr Zahlungslink', html },
+      const { copied } = await openEmail({
+        to: guestEmail,
+        subject: 'Ihr Zahlungslink',
+        html,
       });
-      if (error) throw error;
-      toast({ title: 'E-Mail gesendet', description: `An ${guestEmail}` });
+      toast({
+        title: 'Gmail geöffnet',
+        description: copied
+          ? 'Der Text liegt in der Zwischenablage — im Mailfenster mit Strg+V einfügen und senden.'
+          : 'Bitte den Text manuell einfügen und senden.',
+      });
     } catch (e: any) {
       toast({ title: 'Fehler', description: e.message, variant: 'destructive' });
     } finally {
