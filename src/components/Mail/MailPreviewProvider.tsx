@@ -13,16 +13,26 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import {
   buildMailtoHref,
   setMailPreviewHandler,
   SENDER_EMAIL,
 } from '@/lib/mailtoHelper';
 
+interface MailRecipient {
+  email: string;
+  guestName?: string;
+  checkIn?: string;
+  checkOut?: string;
+  houseName?: string;
+}
+
 interface MailPreview {
   to: string;
   subject: string;
   body: string;
+  recipients?: MailRecipient[];
 }
 
 interface MailPreviewContextValue {
@@ -42,6 +52,7 @@ export function useMailPreview(): MailPreviewContextValue {
 export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<MailPreview>({ to: '', subject: '', body: '' });
+  const [sending, setSending] = useState(false);
 
   const showMailPreview = useCallback((p: MailPreview) => {
     setPreview(p);
@@ -66,6 +77,42 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
     window.location.href = buildMailtoHref({ to: preview.to });
   };
 
+  const handleSendViaGmail = async () => {
+    setSending(true);
+    try {
+      const recips: MailRecipient[] = preview.recipients?.length
+        ? preview.recipients
+        : preview.to
+            .split(',')
+            .map((e) => ({ email: e.trim() }))
+            .filter((r) => r.email);
+
+      const { data, error } = await supabase.functions.invoke('send-guest-email', {
+        body: {
+          recipients: recips,
+          subjectTemplate: preview.subject,
+          bodyTemplate: preview.body,
+        },
+      });
+
+      if (error || data?.error) {
+        toast.error('Versand fehlgeschlagen: ' + (error?.message ?? data?.error));
+        return;
+      }
+
+      const failedCount = data?.failed?.length ?? 0;
+      toast.success(
+        `${data?.sent ?? 0} E-Mail(s) gesendet` +
+          (failedCount ? `, ${failedCount} fehlgeschlagen` : ''),
+      );
+      setOpen(false);
+    } catch (e) {
+      toast.error('Versand fehlgeschlagen: ' + (e instanceof Error ? e.message : 'Unbekannter Fehler'));
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <MailPreviewContext.Provider value={{ showMailPreview }}>
       {children}
@@ -77,7 +124,8 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
               E-Mail vorbereiten
             </DialogTitle>
             <DialogDescription>
-              Absender in Outlook auf <strong>{SENDER_EMAIL}</strong> stellen, dann Betreff und Text einfügen.
+              Mit „Per Gmail senden" geht die E-Mail direkt über <strong>{SENDER_EMAIL}</strong> raus.
+              Alternativ in Outlook öffnen.
             </DialogDescription>
           </DialogHeader>
 
@@ -101,7 +149,10 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
                   Betreff kopieren
                 </Button>
               </div>
-              <Input value={preview.subject} readOnly />
+              <Input
+                value={preview.subject}
+                onChange={(e) => setPreview((p) => ({ ...p, subject: e.target.value }))}
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -120,19 +171,27 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
               </div>
               <Textarea
                 value={preview.body}
-                readOnly
+                onChange={(e) => setPreview((p) => ({ ...p, body: e.target.value }))}
                 className="min-h-[260px] max-h-[50vh] font-mono text-sm"
               />
             </div>
           </div>
 
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={sending}>
               Schließen
             </Button>
-            <Button type="button" onClick={openOutlook}>
+            <Button type="button" variant="outline" onClick={openOutlook} disabled={sending}>
               <MailIcon className="w-4 h-4 mr-2" />
               In Outlook öffnen
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSendViaGmail}
+              disabled={sending || !preview.subject || !preview.body || !preview.to}
+            >
+              <MailIcon className="w-4 h-4 mr-2" />
+              {sending ? 'Senden …' : 'Per Gmail senden'}
             </Button>
           </DialogFooter>
         </DialogContent>
