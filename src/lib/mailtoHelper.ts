@@ -125,37 +125,66 @@ function openUrlTopLevel(url: string): void {
 }
 
 /**
- * Öffnet die E-Mail standardmäßig in Gmail-Web (fester Absender).
- * Der Mailtext wird NICHT in die URL gepackt (Gmail-URL-Längenlimit) —
- * stattdessen wird er in die Zwischenablage geschrieben; der Nutzer fügt
- * ihn im Gmail-Fenster mit Strg+V ein.
- * Mit preferLocalClient=true wird stattdessen der lokale Client (mailto:) genutzt.
+ * Modul-Singleton: Wird vom MailPreviewProvider beim Mount registriert.
+ * openEmail() ruft diesen Handler nach dem Öffnen von Outlook auf, damit
+ * der Nutzer Betreff und Text aus der Vorschau in Outlook kopieren kann.
+ */
+export type MailPreviewHandler = (preview: {
+  to: string;
+  subject: string;
+  body: string;
+}) => void;
+
+let mailPreviewHandler: MailPreviewHandler | null = null;
+
+export function setMailPreviewHandler(fn: MailPreviewHandler | null): void {
+  mailPreviewHandler = fn;
+}
+
+/**
+ * Öffnet die E-Mail standardmäßig im lokalen Mail-Client (Outlook) — NUR
+ * mit Empfänger in der mailto:-URL (kein Betreff/Body, um Längen- und
+ * Verlustprobleme zu vermeiden). Parallel wird ein App-internes
+ * Vorschaufenster mit Betreff und Text geöffnet, aus dem der Nutzer beides
+ * mit Kopier-Buttons übernehmen kann.
+ *
+ * Der Gmail-Web-Zweig bleibt für Sonderfälle verfügbar
+ * (preferGmailWeb=true), ist aber nicht mehr der Standard.
  */
 export async function openEmail(
-  opts: MailtoOptions & { preferLocalClient?: boolean },
+  opts: MailtoOptions & { preferLocalClient?: boolean; preferGmailWeb?: boolean },
 ): Promise<{ opened: boolean; copied: boolean }> {
   const toStr = joinAddrs(opts.to);
   if (!toStr) {
     console.warn('[mailHelper] Keine Empfänger-Adresse angegeben.');
     return { opened: false, copied: false };
   }
-  if (opts.preferLocalClient) {
-    window.location.href = buildMailtoHref(opts);
-    return { opened: true, copied: false };
-  }
   const body = opts.text ?? htmlToPlainText(opts.html ?? '');
-  let copied = false;
-  if (body) {
-    try {
-      await navigator.clipboard.writeText(body);
-      copied = true;
-    } catch (e) {
-      console.warn('[mailHelper] Zwischenablage nicht verfügbar:', e);
+  const subject = opts.subject ?? '';
+
+  if (opts.preferGmailWeb) {
+    let copied = false;
+    if (body) {
+      try {
+        await navigator.clipboard.writeText(body);
+        copied = true;
+      } catch (e) {
+        console.warn('[mailHelper] Zwischenablage nicht verfügbar:', e);
+      }
     }
+    const gmailHref = buildGmailComposeHref({ ...opts, text: '', html: '' });
+    openUrlTopLevel(gmailHref);
+    return { opened: true, copied };
   }
-  const gmailHref = buildGmailComposeHref({ ...opts, text: '', html: '' });
-  openUrlTopLevel(gmailHref);
-  return { opened: true, copied };
+
+  // Standard: Outlook nur mit Empfänger + App-Vorschaufenster
+  window.location.href = buildMailtoHref({ to: opts.to, cc: opts.cc, bcc: opts.bcc });
+  if (mailPreviewHandler) {
+    mailPreviewHandler({ to: toStr, subject, body });
+  } else {
+    console.warn('[mailHelper] Kein MailPreviewHandler registriert — Vorschau wird übersprungen.');
+  }
+  return { opened: true, copied: false };
 }
 
 /**

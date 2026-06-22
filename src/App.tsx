@@ -8,6 +8,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AppStatusBar from "@/components/PWA/AppStatusBar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { MailPreviewProvider } from "./components/Mail/MailPreviewProvider";
 
 const Index = lazy(() => import("./pages/Index"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -48,6 +49,7 @@ const App = () => {
     <ErrorBoundary level="root">
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          <MailPreviewProvider>
           <Toaster />
           <Sonner />
           <AppStatusBar />
@@ -82,6 +84,7 @@ const App = () => {
               </Suspense>
             </ErrorBoundary>
           </BrowserRouter>
+          </MailPreviewProvider>
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>

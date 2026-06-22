@@ -293,8 +293,10 @@ Basis: `use-toast`, `use-mobile`.
 ### lib (`src/lib/`) — reine Helfer (keine UI, kein State)
 `guestHelpers` (getGuestName/Email/Phone mit Fallback), `dateHelpers`,
 `holidayCalendar`, `schoolHolidays`, `linenCalculation`, `linenOrderHelpers`,
-`linenMigration`, `mailtoHelper` (async `openEmail` → Gmail-Web mit Text in
-Zwischenablage, Body NICHT in URL), `nameNormalization`, `ratingHelpers`,
+`linenMigration`, `mailtoHelper` (async `openEmail` → öffnet Outlook nur mit
+Empfänger + zeigt App-Vorschaufenster mit Betreff/Text zum Kopieren via
+`MailPreviewProvider`; Gmail-Web nur noch optional via `preferGmailWeb`),
+`nameNormalization`, `ratingHelpers`,
 `utilityStatementPdf`, `utils` (`cn()`).
 
 ### Integrationen / Backend

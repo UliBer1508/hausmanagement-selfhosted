@@ -12,7 +12,7 @@ import { House } from "@/types";
 import EditHouseDialog from "@/components/Houses/EditHouseDialog";
 import { RentHistoryDialog } from "./RentHistoryDialog";
 import { useTenantRentChanges, getActiveRent, getActiveAdditionalCosts, getPendingRentChanges } from "@/hooks/useTenantRentChanges";
-import { buildGmailComposeHref } from "@/lib/mailtoHelper";
+import { buildMailtoHref } from "@/lib/mailtoHelper";
 
 const TenantContracts = () => {
   const { data: houses } = useHouses();
@@ -169,7 +169,7 @@ const TenantContracts = () => {
                 <div className="flex items-center gap-2 mb-3">
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <a 
-                    href={buildGmailComposeHref({ to: tenantInfo.tenant_email })}
+                    href={buildMailtoHref({ to: tenantInfo.tenant_email })}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-primary hover:underline"
@@ -272,7 +272,7 @@ const TenantContracts = () => {
                     onClick={(e) => {
                       e.stopPropagation();
                       window.open(
-                        buildGmailComposeHref({ to: tenantInfo.tenant_email }),
+                        buildMailtoHref({ to: tenantInfo.tenant_email }),
                         '_blank',
                         'noopener,noreferrer',
                       );
