@@ -26,6 +26,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useContactSettings, ContactSettings } from '@/hooks/useSystemSettings';
 import { Input } from '@/components/ui/input';
+import { replacePlaceholders } from '@/lib/emailPlaceholders';
 
 function ScoreBadge({ score, label }: { score: number; label: GuestRebookingData['score_label'] }) {
   const config = {
@@ -223,11 +224,10 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
             }
           } catch { /* fall through */ }
         }
-        return s
-          .replace(/\{GUEST_NAME\}/g, guest.guest_name)
-          .replace(/\{HOUSE_NAME\}/g, guest.last_house || '')
-          .replace(/\{CHECK_IN\}/g, '')
-          .replace(/\{CHECK_OUT\}/g, '');
+        return replacePlaceholders(s, {
+          guestName: guest.guest_name,
+          houseName: guest.last_house || '',
+        });
       };
 
       setSubject(sanitize(data.subject) || `Wir vermissen Sie, ${guest.guest_name.split(' ')[0]}!`);
@@ -238,7 +238,6 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
           : 'Ohne konkretes Angebot generiert.';
       toast({ title: 'KI-Angebot generiert', description: offerSummary });
     } catch (err) {
-      console.error(err);
       toast({
         title: 'Fehler bei KI-Generierung',
         description: 'Bitte versuchen Sie es erneut.',
