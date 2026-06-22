@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import EditHouseDialog from "@/components/Houses/EditHouseDialog";
 import { useState } from "react";
-import { buildMailtoHref } from "@/lib/mailtoHelper";
+import { openEmail } from "@/lib/mailtoHelper";
 
 interface TenantCardProps {
   house: House;
@@ -37,11 +37,7 @@ const TenantCard = ({ house }: TenantCardProps) => {
   const status = getContractStatus();
 
   const handleEmailClick = () => {
-    window.open(
-      buildMailtoHref({ to: tenantInfo?.tenant_email ?? '' }),
-      '_blank',
-      'noopener,noreferrer',
-    );
+    void openEmail({ to: tenantInfo?.tenant_email ?? '' });
   };
 
   return (
@@ -67,14 +63,16 @@ const TenantCard = ({ house }: TenantCardProps) => {
           {tenantInfo?.tenant_email && (
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
-              <a 
-                href={buildMailtoHref({ to: tenantInfo.tenant_email })}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-primary hover:underline"
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void openEmail({ to: tenantInfo.tenant_email });
+                }}
+                className="text-sm text-primary hover:underline text-left"
               >
                 {tenantInfo.tenant_email}
-              </a>
+              </button>
             </div>
           )}
 

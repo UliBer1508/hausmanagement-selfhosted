@@ -215,7 +215,7 @@ const GuestEmailDialog = ({
 
     toast({
       title: 'E-Mail vorbereitet',
-      description: 'Outlook geöffnet — Betreff und Text aus dem Vorschaufenster übernehmen, Absender auf steinbockchalets@gmail.com stellen.',
+      description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden‘.',
     });
     
     onOpenChange(false);

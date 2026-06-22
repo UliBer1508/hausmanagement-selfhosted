@@ -91,7 +91,7 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
       });
       toast({
         title: 'E-Mail vorbereitet',
-        description: 'Outlook geöffnet — Betreff und Text aus dem Vorschaufenster übernehmen, Absender auf steinbockchalets@gmail.com stellen.',
+        description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden‘.',
       });
     } catch (e: any) {
       toast({ title: 'Fehler', description: e.message, variant: 'destructive' });

@@ -251,16 +251,15 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                 <span className="text-sm font-medium">Status</span>
                 <Badge variant="outline" className="text-green-600">
                   <CheckCircle className="w-3 h-3 mr-1" />
-                  Outlook + Vorschaufenster
+                  Vorschaufenster + Gmail-Versand
                 </Badge>
               </div>
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Alle E-Mails öffnen Outlook nur mit dem Empfänger. Parallel erscheint
-              ein Vorschaufenster mit Betreff und Text samt Kopier-Buttons. Absender
-              in Outlook auf steinbockchalets@gmail.com stellen, dann Betreff und
-              Text einfügen.
+              Alle E-Mails öffnen das zentrale Vorschaufenster. Empfänger, Betreff
+              und Text dort prüfen und über „Per Gmail senden“ direkt von
+              steinbockchalets@gmail.com versenden.
             </p>
 
             <div className="space-y-2">
@@ -281,7 +280,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
                   toast({
                     title: 'Test-Entwurf geöffnet',
                     description:
-                      'Outlook wurde geöffnet. Betreff und Text bitte aus dem Vorschaufenster kopieren und einfügen.',
+                      'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden‘.',
                   });
                 }}
               >
