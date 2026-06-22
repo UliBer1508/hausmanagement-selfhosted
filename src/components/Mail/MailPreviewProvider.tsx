@@ -12,6 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -24,10 +31,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  setMailPreviewHandler,
-  SENDER_EMAIL,
-} from '@/lib/mailtoHelper';
+import { setMailPreviewHandler, SENDER_EMAIL } from '@/lib/mailtoHelper';
+import { useEmailTemplates } from '@/hooks/useEmailTemplates';
 
 interface MailRecipient {
   email: string;
@@ -63,11 +68,28 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [preview, setPreview] = useState<MailPreview>({ to: '', subject: '', body: '' });
   const [sending, setSending] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [language, setLanguage] = useState<'de' | 'en'>('de');
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+
+  const { templates: emailTemplates, isLoading: templatesLoading } = useEmailTemplates(language);
 
   const showMailPreview = useCallback((p: MailPreview) => {
     setPreview(p);
+    setSelectedTemplate('');
     setOpen(true);
   }, []);
+
+  useEffect(() => {
+    setSelectedTemplate('');
+  }, [language]);
+
+  const handleTemplateChange = (templateKey: string) => {
+    setSelectedTemplate(templateKey);
+    const t = emailTemplates[templateKey];
+    if (t) {
+      setPreview((prev) => ({ ...prev, subject: t.subject, body: t.content }));
+    }
+  };
 
   useEffect(() => {
     setMailPreviewHandler(showMailPreview);
@@ -125,6 +147,48 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="flex items-center gap-2 pt-1">
+              <Label className="text-muted-foreground">Vorlagensprache:</Label>
+              <div className="flex border rounded-md">
+                <Button
+                  type="button"
+                  variant={language === 'de' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setLanguage('de')}
+                >
+                  🇩🇪 DE
+                </Button>
+                <Button
+                  type="button"
+                  variant={language === 'en' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setLanguage('en')}
+                >
+                  🇬🇧 EN
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Vorlage wählen (optional)</Label>
+              <Select
+                value={selectedTemplate}
+                onValueChange={handleTemplateChange}
+                disabled={templatesLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Vorlage auswählen..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(emailTemplates).map(([key, t]) => (
+                    <SelectItem key={key} value={key}>
+                      {t.language === 'en' ? '🇬🇧' : '🇩🇪'} {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-1.5">
               <Label>Empfänger</Label>
               <Input
