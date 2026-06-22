@@ -132,7 +132,7 @@ const TenantPayments = () => {
     const { opened } = await openEmail({ to: tenantInfo?.tenant_email ?? '', subject, text: body });
     if (opened) {
       toast.success('E-Mail vorbereitet', {
-        description: 'Outlook geöffnet — Betreff und Text aus dem Vorschaufenster übernehmen, Absender auf steinbockchalets@gmail.com stellen.',
+        description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden'.',
       });
     }
   };
