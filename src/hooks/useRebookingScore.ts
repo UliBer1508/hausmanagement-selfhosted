@@ -197,7 +197,7 @@ export function useSendRebookingOffer() {
         throw new Error('Für diesen Gast ist keine E-Mail-Adresse hinterlegt.');
       }
 
-      // Mail wird im lokalen E-Mail-Client geöffnet (kein Server-Versand)
+      // E-Mail wird im zentralen Vorschaufenster geöffnet (kein Direktversand)
       openEmail({
         to: guest.guest_email,
         subject: aiSubject,
