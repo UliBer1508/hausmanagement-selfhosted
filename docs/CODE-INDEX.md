@@ -296,7 +296,9 @@ Basis: `use-toast`, `use-mobile`.
 `linenMigration`, `mailtoHelper` (async `openEmail` → öffnet Outlook nur mit
 Empfänger + zeigt App-Vorschaufenster mit Betreff/Text zum Kopieren via
 `MailPreviewProvider`; Gmail-Web nur noch optional via `preferGmailWeb`),
-`nameNormalization`, `ratingHelpers`,
+`nameNormalization`, `ratingHelpers`, `emailPlaceholders`
+(`replacePlaceholders` — vereinheitlicht `{guestName}/{GUEST_NAME}`,
+`{checkIn}/{CHECK_IN}`, `{checkOut}/{CHECK_OUT}`, `{houseName}/{HOUSE_NAME}`),
 `utilityStatementPdf`, `utils` (`cn()`).
 
 ### Integrationen / Backend
@@ -304,6 +306,8 @@ Empfänger + zeigt App-Vorschaufenster mit Betreff/Text zum Kopieren via
 - Supabase Typen (generiert, **nicht** händisch editieren): `integrations/supabase/types.ts`
 - Externes Wäsche-Portal: `integrations/externalLaundry/client.ts`
 - Edge Functions / Migrationen / RPCs: Ordner `supabase/` im Repo-Root
+  (u. a. `send-guest-email` — serverseitiger Gmail-SMTP-Versand mit
+  Platzhalter-Ersetzung pro Empfänger; Absender fest `GMAIL_USER`)
 - Tiefen-Doku: `System-Knowledge.md`, `docs/` (z. B.
   `Database-Relational-Assessment.md`, `Waesche-Management-Gesamtsystem.md`,
   `Linen-Order-Status-Standard.md`)
