@@ -7,7 +7,7 @@ import { useBookingMarketingActions } from '@/hooks/useBookingMarketingActions';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { buildGmailComposeHref } from '@/lib/mailtoHelper';
+import { openEmail } from '@/lib/mailtoHelper';
 
 const GuestContactAlertBanner = () => {
   const { guestsToContact, isLoading, markAsContacted, markAsNotRequired, isUpdating } = useGuestContactReminders();
@@ -64,7 +64,7 @@ const GuestContactAlertBanner = () => {
     );
   };
 
-  const handleCardClick = (booking: typeof guestsToContact[number]) => {
+  const handleCardClick = async (booking: typeof guestsToContact[number]) => {
     if (!booking.guest_email) {
       toast({
         title: "Keine E-Mail-Adresse hinterlegt",
@@ -76,7 +76,14 @@ const GuestContactAlertBanner = () => {
     const checkInDate = format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de });
     const houseName = booking.houses?.name ?? '';
     const subject = `Ihre Anreise am ${checkInDate}${houseName ? ` – ${houseName}` : ''}`;
-    window.open(buildGmailComposeHref({ to: booking.guest_email, subject }), '_blank', 'noopener,noreferrer');
+    const body = `Liebe/r ${booking.guest_name},\n\nwir freuen uns auf Ihre Anreise am ${checkInDate}${houseName ? ` in ${houseName}` : ''}.\n\nFür Rückfragen sind wir jederzeit erreichbar.\n\nHerzliche Grüße\nSteinbock Chalets`;
+    const { copied } = await openEmail({ to: booking.guest_email, subject, text: body });
+    toast({
+      title: 'Gmail geöffnet',
+      description: copied
+        ? 'Text liegt in der Zwischenablage — in Gmail mit Strg+V einfügen und senden.'
+        : 'Bitte Text manuell einfügen und senden.',
+    });
   };
 
   return (
@@ -145,17 +152,18 @@ const GuestContactAlertBanner = () => {
                       
                       <div className="flex items-center gap-2 sm:gap-3 mt-2">
                         {booking.guest_email && (
-                          <a 
-                            href={buildGmailComposeHref({ to: booking.guest_email })}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleCardClick(booking);
+                            }}
                             className="flex items-center gap-1 text-sm text-primary hover:underline"
                             title={booking.guest_email}
                           >
                             <Mail className="h-4 w-4 sm:h-3 sm:w-3 flex-shrink-0" />
                             <span className="hidden sm:inline truncate max-w-[150px]">{booking.guest_email}</span>
-                          </a>
+                          </button>
                         )}
                         {booking.guest_phone && (
                           <a 
