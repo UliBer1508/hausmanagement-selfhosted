@@ -6,7 +6,7 @@
 > Widerspricht der Index dem Code: **Code gewinnt**, Index danach korrigieren
 > (Abschnitt 14 „Pflege").
 >
-> Letzte Aktualisierung: 15.06.2026 · Stand-Commit: `83b07ce`
+> Letzte Aktualisierung: 22.06.2026 · Stand-Commit: `aktuell`
 
 ---
 
@@ -300,7 +300,8 @@ Empfänger + zeigt App-Vorschaufenster mit Betreff/Text zum Kopieren via
 Gmail-Web-Compose-URL nur noch optional via `preferGmailWeb`),
 `nameNormalization`, `ratingHelpers`, `emailPlaceholders`
 (`replacePlaceholders` — vereinheitlicht `{guestName}/{GUEST_NAME}`,
-`{checkIn}/{CHECK_IN}`, `{checkOut}/{CHECK_OUT}`, `{houseName}/{HOUSE_NAME}`),
+`{checkIn}/{CHECK_IN}`, `{checkOut}/{CHECK_OUT}`, `{houseName}/{HOUSE_NAME}`;
+genutzt in `GuestEmailDialog` und `RebookingCampaign`),
 `utilityStatementPdf`, `utils` (`cn()`).
 
 ### Integrationen / Backend
