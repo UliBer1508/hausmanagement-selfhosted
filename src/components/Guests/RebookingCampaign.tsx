@@ -271,7 +271,7 @@ function OfferDialog({ guest, open, onOpenChange }: OfferDialogProps) {
         .join('');
       const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#1a1a1a">${paragraphs}</div>`;
       await sendOffer.mutateAsync({ guest, aiContent: content, aiSubject: subject, aiHtml: html });
-      toast({ title: 'E-Mail vorbereitet', description: 'In Outlook prüfen und senden.' });
+      toast({ title: 'E-Mail vorbereitet', description: 'E-Mail vorbereitet — im Vorschaufenster prüfen und ‚Per Gmail senden‘.' });
       handleClose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
