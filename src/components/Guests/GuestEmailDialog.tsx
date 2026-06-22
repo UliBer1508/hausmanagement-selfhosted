@@ -215,7 +215,7 @@ const GuestEmailDialog = ({
 
     toast({
       title: 'E-Mail vorbereitet',
-      description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden'.',
+      description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden‘.',
     });
     
     onOpenChange(false);

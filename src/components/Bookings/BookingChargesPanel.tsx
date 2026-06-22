@@ -91,7 +91,7 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
       });
       toast({
         title: 'E-Mail vorbereitet',
-        description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden'.',
+        description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden‘.',
       });
     } catch (e: any) {
       toast({ title: 'Fehler', description: e.message, variant: 'destructive' });

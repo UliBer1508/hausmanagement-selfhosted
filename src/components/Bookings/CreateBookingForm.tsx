@@ -1038,7 +1038,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         });
         toast({
           title: 'E-Mail vorbereitet',
-          description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden'.',
+          description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden‘.',
         });
       }
 

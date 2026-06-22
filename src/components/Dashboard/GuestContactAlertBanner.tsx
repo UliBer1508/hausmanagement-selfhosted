@@ -80,7 +80,7 @@ const GuestContactAlertBanner = () => {
     await openEmail({ to: booking.guest_email, subject, text: body });
     toast({
       title: 'E-Mail vorbereitet',
-      description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden'.',
+      description: 'Vorschaufenster geöffnet — Betreff und Text prüfen, dann ‚Per Gmail senden‘.',
     });
   };
 
