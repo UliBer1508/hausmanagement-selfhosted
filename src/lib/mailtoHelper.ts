@@ -184,7 +184,6 @@ export async function openEmail(
   }
 
   // Standard: Outlook nur mit Empfänger + App-Vorschaufenster
-  window.location.href = buildMailtoHref({ to: opts.to, cc: opts.cc, bcc: opts.bcc });
   if (mailPreviewHandler) {
     const recipients = Array.isArray(opts.to)
       ? opts.to.filter(Boolean).map((email) => ({ email }))
@@ -192,6 +191,8 @@ export async function openEmail(
       ? [{ email: opts.to }]
       : [];
     mailPreviewHandler({ to: toStr, subject, body, recipients });
+  } else {
+    window.location.href = buildMailtoHref({ to: opts.to, cc: opts.cc, bcc: opts.bcc });
   }
   return { opened: true, copied: false };
 }
