@@ -293,12 +293,11 @@ Basis: `use-toast`, `use-mobile`.
 ### lib (`src/lib/`) — reine Helfer (keine UI, kein State)
 `guestHelpers` (getGuestName/Email/Phone mit Fallback), `dateHelpers`,
 `holidayCalendar`, `schoolHolidays`, `linenCalculation`, `linenOrderHelpers`,
-`linenMigration`, `mailtoHelper` (async `openEmail` → öffnet Outlook nur mit
-Empfänger + zeigt App-Vorschaufenster mit Betreff/Text zum Kopieren via
-`MailPreviewProvider` — Betreff/Text editierbar, „Per Gmail senden" ruft
-`send-guest-email` direkt auf, „In Outlook öffnen" als Alternative;
-Gmail-Web-Compose-URL nur noch optional via `preferGmailWeb`),
-`nameNormalization`, `ratingHelpers`, `emailPlaceholders`
+`linenMigration`, `mailtoHelper` (async `openEmail` → öffnet zentrales
+Vorschaufenster `MailPreviewProvider` mit Empfänger/Betreff/Text; im Fenster
+editierbar, Sprache DE/EN + E-Mail-Vorlagen-Dropdown, Senden über „Per Gmail
+senden" ruft `send-guest-email` direkt auf und erst nach Bestätigungs-Dialog;
+Outlook-Code entfernt), `nameNormalization`, `ratingHelpers`, `emailPlaceholders`
 (`replacePlaceholders` — vereinheitlicht `{guestName}/{GUEST_NAME}`,
 `{checkIn}/{CHECK_IN}`, `{checkOut}/{CHECK_OUT}`, `{houseName}/{HOUSE_NAME}`;
 genutzt in `GuestEmailDialog` und `RebookingCampaign`),
