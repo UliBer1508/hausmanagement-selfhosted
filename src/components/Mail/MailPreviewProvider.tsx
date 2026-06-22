@@ -15,6 +15,16 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   setMailPreviewHandler,
   SENDER_EMAIL,
 } from '@/lib/mailtoHelper';
@@ -52,6 +62,7 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<MailPreview>({ to: '', subject: '', body: '' });
   const [sending, setSending] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const showMailPreview = useCallback((p: MailPreview) => {
     setPreview(p);
@@ -66,12 +77,10 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const handleSendViaGmail = async () => {
     setSending(true);
     try {
-      const recips: MailRecipient[] = preview.recipients?.length
-        ? preview.recipients
-        : preview.to
-            .split(',')
-            .map((e) => ({ email: e.trim() }))
-            .filter((r) => r.email);
+      const recips: MailRecipient[] = preview.to
+        .split(',')
+        .map((e) => ({ email: e.trim() }))
+        .filter((r) => r.email);
 
       const { data, error } = await supabase.functions.invoke('send-guest-email', {
         body: {
@@ -92,6 +101,7 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
           (failedCount ? `, ${failedCount} fehlgeschlagen` : ''),
       );
       setOpen(false);
+      setConfirmOpen(false);
     } catch (e) {
       toast.error('Versand fehlgeschlagen: ' + (e instanceof Error ? e.message : 'Unbekannter Fehler'));
     } finally {
@@ -117,7 +127,11 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Empfänger</Label>
-              <Input value={preview.to} readOnly />
+              <Input
+                value={preview.to}
+                onChange={(e) => setPreview((p) => ({ ...p, to: e.target.value }))}
+                placeholder="empfaenger@example.com"
+              />
             </div>
 
             <div className="space-y-1.5">
@@ -144,7 +158,7 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
             </Button>
             <Button
               type="button"
-              onClick={handleSendViaGmail}
+              onClick={() => setConfirmOpen(true)}
               disabled={sending || !preview.subject || !preview.body || !preview.to}
             >
               <MailIcon className="w-4 h-4 mr-2" />
@@ -153,6 +167,29 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>E-Mail wirklich senden?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die E-Mail wird jetzt direkt an <strong>{preview.to}</strong> über{' '}
+              <strong>{SENDER_EMAIL}</strong> versendet. Das kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={sending}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={sending}
+              onClick={(e) => {
+                e.preventDefault();
+                handleSendViaGmail();
+              }}
+            >
+              {sending ? 'Senden …' : 'Ja, senden'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MailPreviewContext.Provider>
   );
 };
