@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { openEmail } from "@/lib/mailtoHelper";
 import { useHouses } from "@/hooks/useHouses";
 import { useTenantPayments, useDeletePayment, useUpdatePayment } from "@/hooks/useTenantPayments";
 import { useTenantRentChanges, getActiveRent, getActiveAdditionalCosts } from "@/hooks/useTenantRentChanges";
