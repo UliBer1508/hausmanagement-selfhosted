@@ -1031,16 +1031,14 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           <p>Vielen Dank!</p>
         `;
         const { openEmail } = await import('@/lib/mailtoHelper');
-        const { copied } = await openEmail({
+        await openEmail({
           to: guestEmail,
           subject: 'Zusatzkosten zu Ihrer Buchung',
           html,
         });
         toast({
-          title: 'Gmail geöffnet',
-          description: copied
-            ? 'Der Text liegt in der Zwischenablage — im Mailfenster mit Strg+V einfügen und senden.'
-            : `Bitte den Text mit ${paymentUrls.length} Link(s) manuell einfügen und senden.`,
+          title: 'E-Mail vorbereitet',
+          description: 'Outlook geöffnet — Betreff und Text aus dem Vorschaufenster übernehmen, Absender auf steinbockchalets@gmail.com stellen.',
         });
       }
 

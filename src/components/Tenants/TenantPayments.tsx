@@ -129,13 +129,11 @@ const TenantPayments = () => {
     const subject = `Zahlungserinnerung - ${house?.name}`;
     const body = `Sehr geehrte/r ${tenantInfo?.tenant_name},\n\nwir möchten Sie freundlich an die ausstehende Mietzahlung erinnern:\n\nObjekt: ${house?.name}\nBetrag: ${payment.amount.toLocaleString('de-DE')} €\nFällig am: ${format(new Date(payment.due_date), 'dd.MM.yyyy', { locale: de })}\n\nMit freundlichen Grüßen`;
 
-    const { opened, copied } = await openEmail({ to: tenantInfo?.tenant_email ?? '', subject, text: body });
+    const { opened } = await openEmail({ to: tenantInfo?.tenant_email ?? '', subject, text: body });
     if (opened) {
-      toast.success(
-        copied
-          ? "Gmail geöffnet. Der Text liegt in der Zwischenablage — im Mailfenster mit Strg+V einfügen und senden."
-          : "Gmail geöffnet. Bitte Text manuell einfügen."
-      );
+      toast.success('E-Mail vorbereitet', {
+        description: 'Outlook geöffnet — Betreff und Text aus dem Vorschaufenster übernehmen, Absender auf steinbockchalets@gmail.com stellen.',
+      });
     }
   };
 

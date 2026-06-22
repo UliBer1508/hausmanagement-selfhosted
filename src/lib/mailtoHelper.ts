@@ -156,7 +156,6 @@ export async function openEmail(
 ): Promise<{ opened: boolean; copied: boolean }> {
   const toStr = joinAddrs(opts.to);
   if (!toStr) {
-    console.warn('[mailHelper] Keine Empfänger-Adresse angegeben.');
     return { opened: false, copied: false };
   }
   const body = opts.text ?? htmlToPlainText(opts.html ?? '');
@@ -168,8 +167,8 @@ export async function openEmail(
       try {
         await navigator.clipboard.writeText(body);
         copied = true;
-      } catch (e) {
-        console.warn('[mailHelper] Zwischenablage nicht verfügbar:', e);
+    } catch {
+        // Zwischenablage nicht verfügbar – wird ignoriert
       }
     }
     const gmailHref = buildGmailComposeHref({ ...opts, text: '', html: '' });
@@ -181,8 +180,6 @@ export async function openEmail(
   window.location.href = buildMailtoHref({ to: opts.to, cc: opts.cc, bcc: opts.bcc });
   if (mailPreviewHandler) {
     mailPreviewHandler({ to: toStr, subject, body });
-  } else {
-    console.warn('[mailHelper] Kein MailPreviewHandler registriert — Vorschau wird übersprungen.');
   }
   return { opened: true, copied: false };
 }
@@ -193,7 +190,6 @@ export async function openEmail(
 export function openInMailClient(opts: MailtoOptions): boolean {
   const toStr = joinAddrs(opts.to);
   if (!toStr) {
-    console.warn('[mailHelper] Keine Empfänger-Adresse angegeben.');
     return false;
   }
   window.location.href = buildMailtoHref(opts);

@@ -84,16 +84,14 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
         <p><a href="${url}">${url}</a></p>
         <p>Vielen Dank!</p>
       `;
-      const { copied } = await openEmail({
+      await openEmail({
         to: guestEmail,
         subject: 'Ihr Zahlungslink',
         html,
       });
       toast({
-        title: 'Gmail geöffnet',
-        description: copied
-          ? 'Der Text liegt in der Zwischenablage — im Mailfenster mit Strg+V einfügen und senden.'
-          : 'Bitte den Text manuell einfügen und senden.',
+        title: 'E-Mail vorbereitet',
+        description: 'Outlook geöffnet — Betreff und Text aus dem Vorschaufenster übernehmen, Absender auf steinbockchalets@gmail.com stellen.',
       });
     } catch (e: any) {
       toast({ title: 'Fehler', description: e.message, variant: 'destructive' });

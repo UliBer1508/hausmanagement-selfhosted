@@ -198,7 +198,7 @@ const GuestEmailDialog = ({
     const processedSubject = replaceTemplatePlaceholders(customSubject);
     const processedMessage = replaceTemplatePlaceholders(customMessage);
 
-    const { copied } = await openEmail({
+    await openEmail({
       to: guest.guest_email,
       subject: processedSubject,
       text: processedMessage,
@@ -215,10 +215,8 @@ const GuestEmailDialog = ({
     }
 
     toast({
-      title: 'Gmail geöffnet',
-      description: copied
-        ? 'Text liegt in der Zwischenablage — in Gmail mit Strg+V einfügen und senden.'
-        : 'Bitte Text manuell einfügen und senden.',
+      title: 'E-Mail vorbereitet',
+      description: 'Outlook geöffnet — Betreff und Text aus dem Vorschaufenster übernehmen, Absender auf steinbockchalets@gmail.com stellen.',
     });
     
     onOpenChange(false);
