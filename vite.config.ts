@@ -78,10 +78,10 @@ export default defineConfig(({ mode }) => ({
         ]
       },
       manifest: {
-        name: 'Steinbock Chalets Manager',
-        short_name: 'Steinbock',
+        name: 'Steinbockchalets-Hausverwaltung',
+        short_name: 'Hausverwaltung',
         description: 'Ferienhäuser und Mietobjekte professionell verwalten',
-        theme_color: '#0b3d2e',
+        theme_color: '#c2410c',
         background_color: '#f5f1e8',
         display: 'standalone',
         orientation: 'any',
