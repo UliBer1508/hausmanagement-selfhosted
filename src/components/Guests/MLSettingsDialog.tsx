@@ -8,6 +8,7 @@ import { Slider } from '@/components/ui/slider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, Globe, TrendingUp, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { COUNTRIES } from '@/lib/countries';
 
 export interface MLSettings {
   // Grundeinstellungen
@@ -44,13 +45,6 @@ const WEEKDAYS = [
   { value: 4, label: 'Donnerstag' },
   { value: 5, label: 'Freitag' },
   { value: 6, label: 'Samstag' },
-];
-
-const COUNTRIES = [
-  { code: 'DE', name: 'Deutschland', flag: '🇩🇪' },
-  { code: 'NL', name: 'Niederlande', flag: '🇳🇱' },
-  { code: 'BE', name: 'Belgien', flag: '🇧🇪' },
-  { code: 'AT', name: 'Österreich', flag: '🇦🇹' },
 ];
 
 interface MLSettingsDialogProps {
