@@ -13,6 +13,7 @@ import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, XCircle, Loader2, Tr
 import { supabase } from '@/integrations/supabase/client';
 import { useHouses } from '@/hooks/useHouses';
 import * as XLSX from 'xlsx';
+import { COUNTRIES } from '@/lib/countries';
 
 interface ExcelRow {
   'Blatt-Nr.'?: string;
@@ -59,22 +60,6 @@ interface ImportResult {
     reason?: string;
   }[];
 }
-
-const NATIONALITY_OPTIONS = [
-  { code: 'DE', label: 'Deutschland' },
-  { code: 'NL', label: 'Niederlande' },
-  { code: 'AT', label: 'Österreich' },
-  { code: 'CH', label: 'Schweiz' },
-  { code: 'BE', label: 'Belgien' },
-  { code: 'FR', label: 'Frankreich' },
-  { code: 'IT', label: 'Italien' },
-  { code: 'GB', label: 'Großbritannien' },
-  { code: 'ES', label: 'Spanien' },
-  { code: 'US', label: 'USA' },
-  { code: 'PL', label: 'Polen' },
-  { code: 'CZ', label: 'Tschechien' },
-  { code: 'DK', label: 'Dänemark' },
-];
 
 // Helper functions
 const parseGermanDate = (dateStr: string): string => {
@@ -644,7 +629,7 @@ const GuestImportCard = () => {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {NATIONALITY_OPTIONS.map(opt => (
+                                {COUNTRIES.map(opt => (
                                   <SelectItem key={opt.code} value={opt.code}>{opt.code}</SelectItem>
                                 ))}
                               </SelectContent>
