@@ -12,6 +12,7 @@ import { useCreateBooking, useUpdateBooking, useDeleteBooking } from '@/hooks/us
 import { useUpdateServiceTask } from '@/hooks/useServiceTasks';
 import { Booking, BookingWithHouse } from '@/types';
 import { normalizeRating, getMaxRatingForPlatform } from '@/lib/ratingHelpers';
+import { COUNTRIES } from '@/lib/countries';
 import { GuestSuggestions } from './GuestSuggestions';
 import BookingChargesPanel from './BookingChargesPanel';
 
@@ -85,85 +86,6 @@ const bookingSchema = z.object({
   message: 'Check-out muss nach Check-in liegen',
   path: ['check_out'],
 });
-
-// Länderliste für Nationalität
-const countries = [
-  { code: 'EG', name: 'Ägypten' },
-  { code: 'AL', name: 'Albanien' },
-  { code: 'AR', name: 'Argentinien' },
-  { code: 'AM', name: 'Armenien' },
-  { code: 'AZ', name: 'Aserbaidschan' },
-  { code: 'AU', name: 'Australien' },
-  { code: 'BY', name: 'Belarus' },
-  { code: 'BE', name: 'Belgien' },
-  { code: 'BA', name: 'Bosnien-Herzegowina' },
-  { code: 'BR', name: 'Brasilien' },
-  { code: 'BG', name: 'Bulgarien' },
-  { code: 'CL', name: 'Chile' },
-  { code: 'CN', name: 'China' },
-  { code: 'DK', name: 'Dänemark' },
-  { code: 'DE', name: 'Deutschland' },
-  { code: 'EE', name: 'Estland' },
-  { code: 'FI', name: 'Finnland' },
-  { code: 'FR', name: 'Frankreich' },
-  { code: 'GE', name: 'Georgien' },
-  { code: 'GR', name: 'Griechenland' },
-  { code: 'HK', name: 'Hongkong' },
-  { code: 'IN', name: 'Indien' },
-  { code: 'ID', name: 'Indonesien' },
-  { code: 'IE', name: 'Irland' },
-  { code: 'IS', name: 'Island' },
-  { code: 'IL', name: 'Israel' },
-  { code: 'IT', name: 'Italien' },
-  { code: 'JP', name: 'Japan' },
-  { code: 'CA', name: 'Kanada' },
-  { code: 'CO', name: 'Kolumbien' },
-  { code: 'XK', name: 'Kosovo' },
-  { code: 'HR', name: 'Kroatien' },
-  { code: 'LV', name: 'Lettland' },
-  { code: 'LI', name: 'Liechtenstein' },
-  { code: 'LT', name: 'Litauen' },
-  { code: 'LU', name: 'Luxemburg' },
-  { code: 'MT', name: 'Malta' },
-  { code: 'MA', name: 'Marokko' },
-  { code: 'MX', name: 'Mexiko' },
-  { code: 'MD', name: 'Moldau' },
-  { code: 'MC', name: 'Monaco' },
-  { code: 'ME', name: 'Montenegro' },
-  { code: 'NZ', name: 'Neuseeland' },
-  { code: 'NL', name: 'Niederlande' },
-  { code: 'MK', name: 'Nordmazedonien' },
-  { code: 'NO', name: 'Norwegen' },
-  { code: 'AT', name: 'Österreich' },
-  { code: 'PE', name: 'Peru' },
-  { code: 'PH', name: 'Philippinen' },
-  { code: 'PL', name: 'Polen' },
-  { code: 'PT', name: 'Portugal' },
-  { code: 'RO', name: 'Rumänien' },
-  { code: 'RU', name: 'Russland' },
-  { code: 'SA', name: 'Saudi-Arabien' },
-  { code: 'SE', name: 'Schweden' },
-  { code: 'CH', name: 'Schweiz' },
-  { code: 'RS', name: 'Serbien' },
-  { code: 'SG', name: 'Singapur' },
-  { code: 'SK', name: 'Slowakei' },
-  { code: 'SI', name: 'Slowenien' },
-  { code: 'ES', name: 'Spanien' },
-  { code: 'ZA', name: 'Südafrika' },
-  { code: 'KR', name: 'Südkorea' },
-  { code: 'TW', name: 'Taiwan' },
-  { code: 'TH', name: 'Thailand' },
-  { code: 'CZ', name: 'Tschechien' },
-  { code: 'TN', name: 'Tunesien' },
-  { code: 'TR', name: 'Türkei' },
-  { code: 'UA', name: 'Ukraine' },
-  { code: 'HU', name: 'Ungarn' },
-  { code: 'US', name: 'USA' },
-  { code: 'AE', name: 'Vereinigte Arabische Emirate' },
-  { code: 'UK', name: 'Vereinigtes Königreich' },
-  { code: 'VN', name: 'Vietnam' },
-  { code: 'CY', name: 'Zypern' },
-];
 
 type BookingFormData = z.infer<typeof bookingSchema>;
 
@@ -1354,7 +1276,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
                   </FormControl>
                   <SelectContent className="bg-background border shadow-lg z-50 max-h-60">
                     <SelectItem value="none">Keine Angabe</SelectItem>
-                    {countries.map((country) => (
+                    {COUNTRIES.map((country) => (
                       <SelectItem key={country.code} value={country.code}>
                         {country.code} - {country.name}
                       </SelectItem>
