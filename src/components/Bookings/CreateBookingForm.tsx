@@ -141,6 +141,21 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   const [deltaResult, setDeltaResult] = useState<{ charges: any[]; total_amount: number } | null>(null);
   const [isCalculatingDelta, setIsCalculatingDelta] = useState(false);
   const [isSendingPaymentLink, setIsSendingPaymentLink] = useState(false);
+
+  // Baseline = die GEBUCHTE Personenzahl beim Öffnen des Dialogs (eingefroren).
+  // Verhindert, dass sich das Delta an einem Zwischenstand aufhängt
+  // (das war die Ursache der 14-Personen-Fehlberechnung).
+  const baselineGuests = mode === 'edit' && initialData
+    ? (initialData.number_of_guests || 0)
+    : 0;
+
+  // Ja/Nein-Frage "Zusatzkosten erheben?" vor dem Aufrechnen
+  const [showChargeAskDialog, setShowChargeAskDialog] = useState(false);
+  const [pendingDelta, setPendingDelta] = useState<{ new_guests: number; new_nights: number } | null>(null);
+
+  // Freies Reinigungs-/Sonstiges-Feld im Aufrechnen-Schritt
+  const [extraDesc, setExtraDesc] = useState('');
+  const [extraAmount, setExtraAmount] = useState('');
   
   const { toast } = useToast();
 
@@ -617,56 +632,21 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           description: 'Die Buchung wurde erfolgreich aktualisiert.',
         });
 
-        // === Zusatzkosten-Erkennung (calculate-booking-delta) ===
-        try {
-          const old_guests = initialData.number_of_guests || 0;
-          const new_guests = numberOfGuests;
-          const msPerDay = 1000 * 60 * 60 * 24;
-          const old_nights = Math.max(
-            0,
-            Math.round(
-              (new Date(initialData.check_out).getTime() - new Date(initialData.check_in).getTime()) / msPerDay
-            )
-          );
-          const new_nights = Math.max(
-            0,
-            Math.round((data.check_out.getTime() - data.check_in.getTime()) / msPerDay)
-          );
-
-          const isIncrease = new_guests > old_guests || new_nights > old_nights;
-          if (isIncrease) {
-            setIsCalculatingDelta(true);
-            const { data: deltaData, error: deltaError } = await supabase.functions.invoke(
-              'calculate-booking-delta',
-              {
-                body: {
-                  booking_id: initialData.id,
-                  old_guests,
-                  new_guests,
-                  old_nights,
-                  new_nights,
-                },
-              }
-            );
-            if (deltaError) throw deltaError;
-            if (deltaData?.charges && deltaData.charges.length > 0) {
-              setDeltaResult({
-                charges: deltaData.charges,
-                total_amount: deltaData.total_amount || 0,
-              });
-              // Panel anzeigen statt direkt zu schließen
-              return;
-            }
-          }
-        } catch (deltaErr: any) {
-          console.error('Delta-Berechnung fehlgeschlagen:', deltaErr);
-          toast({
-            title: 'Hinweis',
-            description: 'Zusatzkosten konnten nicht berechnet werden: ' + (deltaErr.message || 'unbekannter Fehler'),
-            variant: 'destructive',
-          });
-        } finally {
-          setIsCalculatingDelta(false);
+        // === Zusatzkosten: nur bei ECHTER Erhöhung über die gebuchte Zahl fragen ===
+        // Delta wird gegen die eingefrorene Baseline gemessen, nicht gegen einen Zwischenstand.
+        const new_guests = numberOfGuests;
+        const msPerDay = 1000 * 60 * 60 * 24;
+        const new_nights = Math.max(
+          0,
+          Math.round((data.check_out.getTime() - data.check_in.getTime()) / msPerDay)
+        );
+        const isIncrease = new_guests > baselineGuests;
+        if (isIncrease) {
+          // Erst fragen, ob Zusatzkosten erhoben werden sollen.
+          // (Reduzierung tut bewusst nichts — man erstattet Gästen nichts zurück.)
+          setPendingDelta({ new_guests, new_nights });
+          setShowChargeAskDialog(true);
+          return; // Dialog übernimmt; onSuccess folgt nach der Entscheidung.
         }
       } else {
         console.log('Creating new booking');
@@ -911,24 +891,140 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   };
 
   // === Delta-Panel Handler ===
-  const handleConfirmDeltaCharges = () => {
-    toast({
-      title: 'Forderungen angelegt',
-      description: `${deltaResult?.charges.length || 0} Posten wurden als offene Forderung gespeichert.`,
-    });
-    setDeltaResult(null);
+
+  // "Ja, Zusatzkosten berechnen" -> Vorschau holen (persist=false, schreibt nichts)
+  const handleAskYes = async () => {
+    setShowChargeAskDialog(false);
+    if (!pendingDelta || !initialData?.id) { onSuccess(); return; }
+    setIsCalculatingDelta(true);
+    try {
+      const { data: deltaData, error } = await supabase.functions.invoke(
+        'calculate-booking-delta',
+        {
+          body: {
+            booking_id: initialData.id,
+            baseline_guests: baselineGuests,
+            new_guests: pendingDelta.new_guests,
+            new_nights: pendingDelta.new_nights,
+            persist: false,
+          },
+        }
+      );
+      if (error) throw error;
+      const charges = deltaData?.charges || [];
+      if (charges.length > 0) {
+        setDeltaResult({ charges, total_amount: deltaData.total_amount || 0 });
+        // Panel offen lassen zum Korrigieren; NICHT schließen.
+      } else {
+        toast({ title: 'Keine Zusatzkosten', description: 'Für diese Änderung fallen keine Posten an.' });
+        onSuccess();
+      }
+    } catch (e: any) {
+      toast({
+        title: 'Hinweis',
+        description: 'Zusatzkosten konnten nicht berechnet werden: ' + (e.message || 'Fehler'),
+        variant: 'destructive',
+      });
+      onSuccess();
+    } finally {
+      setIsCalculatingDelta(false);
+      setPendingDelta(null);
+    }
+  };
+
+  // "Nein, nicht berechnen" -> nur merken (Notiz), nichts anlegen
+  const handleAskNo = () => {
+    setShowChargeAskDialog(false);
+    setPendingDelta(null);
+    toast({ title: 'Notiz', description: 'Mehr Gäste erfasst — keine Zusatzkosten berechnet.' });
     onSuccess();
+  };
+
+  // Betrag eines Vorschau-Postens im Panel korrigieren (vor dem Anlegen)
+  const updatePreviewCharge = (idx: number, newAmount: number) => {
+    setDeltaResult((prev) => {
+      if (!prev) return prev;
+      const charges = prev.charges.map((c, i) =>
+        i === idx ? { ...c, amount: Math.round(newAmount * 100) / 100 } : c
+      );
+      const total = charges.reduce((s, c) => s + Number(c.amount || 0), 0);
+      return { charges, total_amount: Math.round(total * 100) / 100 };
+    });
+  };
+
+  // Freien Reinigungs-/Sonstiges-Posten zur Vorschau hinzufügen
+  const addExtraCharge = () => {
+    const amt = parseFloat(extraAmount);
+    if (!extraDesc.trim() || !Number.isFinite(amt) || amt <= 0) {
+      toast({
+        title: 'Eingabe unvollständig',
+        description: 'Bezeichnung und Betrag > 0 erforderlich.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setDeltaResult((prev) => {
+      const base = prev || { charges: [], total_amount: 0 };
+      const charges = [...base.charges, {
+        booking_id: initialData?.id,
+        house_id: null,
+        charge_type: 'other',
+        description: extraDesc.trim(),
+        quantity: 1,
+        unit_amount: Math.round(amt * 100) / 100,
+        amount: Math.round(amt * 100) / 100,
+        status: 'open',
+        origin: 'auto_delta',
+      }];
+      const total = charges.reduce((s, c) => s + Number(c.amount || 0), 0);
+      return { charges, total_amount: Math.round(total * 100) / 100 };
+    });
+    setExtraDesc('');
+    setExtraAmount('');
+  };
+
+  // Bestätigte (ggf. korrigierte) Posten wirklich anlegen (persist=true)
+  const persistCharges = async () => {
+    if (!deltaResult || !initialData?.id) return null;
+    const { data, error } = await supabase.functions.invoke('calculate-booking-delta', {
+      body: { booking_id: initialData.id, persist: true, charges: deltaResult.charges },
+    });
+    if (error) throw error;
+    return data;
+  };
+
+  const handleConfirmDeltaCharges = async () => {
+    try {
+      await persistCharges();
+      toast({
+        title: 'Forderungen angelegt',
+        description: `${deltaResult?.charges.length || 0} Posten wurden als offene Forderung gespeichert.`,
+      });
+      setDeltaResult(null);
+      onSuccess();
+    } catch (e: any) {
+      toast({
+        title: 'Fehler',
+        description: e.message || 'Konnte nicht gespeichert werden.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleCreateAndSendPaymentLink = async () => {
     if (!deltaResult || !initialData?.id) return;
     setIsSendingPaymentLink(true);
     try {
+      // Zuerst die (korrigierten) Vorschau-Posten anlegen — sie haben noch keine id.
+      const persisted = await persistCharges();
+      if (!persisted?.charges?.length) throw new Error('Keine Forderungen angelegt.');
+
+      // EINEN gebündelten Link für alle offenen Forderungen der Buchung erzeugen.
       const paymentUrls: string[] = [];
-      for (const charge of deltaResult.charges) {
+      {
         const { data: linkData, error: linkError } = await supabase.functions.invoke(
           'create-payment-link',
-          { body: { booking_charge_id: charge.id } }
+          { body: { booking_id: initialData.id } }
         );
         if (linkError) throw linkError;
         if (linkData?.payment_url) paymentUrls.push(linkData.payment_url);
@@ -1558,15 +1654,59 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
                   <p className="font-semibold text-amber-900">
                     Diese Änderung erzeugt {deltaResult.total_amount.toFixed(2).replace('.', ',')} € Zusatzkosten:
                   </p>
-                  <ul className="mt-2 space-y-1 text-sm text-amber-900">
-                    {deltaResult.charges.map((c: any) => (
-                      <li key={c.id}>
-                        • {c.description}: {Number(c.amount).toFixed(2).replace('.', ',')} €
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="text-xs text-amber-800 mt-1">
+                    Beträge bei Bedarf anpassen, dann als Forderung anlegen oder Zahlungslink senden.
+                  </p>
                 </div>
               </div>
+
+              {/* Editierbare Posten */}
+              <div className="space-y-2 mb-3">
+                {deltaResult.charges.map((c: any, idx: number) => (
+                  <div key={idx} className="flex items-center gap-2 text-sm text-amber-900">
+                    <span className="flex-1 min-w-0 truncate">{c.description}</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={c.amount}
+                      onChange={(e) => updatePreviewCharge(idx, parseFloat(e.target.value) || 0)}
+                      className="w-28 h-8 bg-white"
+                    />
+                    <span>€</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Freies Feld: Reinigung / Sonstiges (pro Buchung) */}
+              <div className="flex flex-wrap items-end gap-2 mb-3 border-t border-amber-200 pt-3">
+                <div className="flex-1 min-w-[140px]">
+                  <label className="text-xs text-amber-800">Reinigung / Sonstiges (Bezeichnung)</label>
+                  <Input
+                    type="text"
+                    placeholder="z.B. Endreinigung"
+                    value={extraDesc}
+                    onChange={(e) => setExtraDesc(e.target.value)}
+                    className="h-8 bg-white"
+                  />
+                </div>
+                <div className="w-28">
+                  <label className="text-xs text-amber-800">Betrag €</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={extraAmount}
+                    onChange={(e) => setExtraAmount(e.target.value)}
+                    className="h-8 bg-white"
+                  />
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addExtraCharge}>
+                  Posten hinzufügen
+                </Button>
+              </div>
+
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" onClick={handleConfirmDeltaCharges}>
                   Als Forderung anlegen
@@ -1664,6 +1804,32 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
             </Button>
             <AlertDialogAction onClick={handleCancelCleaningTasks}>
               Ja, stornieren
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* AlertDialog: Zusatzkosten berechnen? (bei Erhöhung der Personenzahl) */}
+      <AlertDialog open={showChargeAskDialog} onOpenChange={setShowChargeAskDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Zusatzkosten berechnen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Es kommen{' '}
+              <strong>
+                {pendingDelta ? Math.max(0, pendingDelta.new_guests - baselineGuests) : 0}
+              </strong>{' '}
+              zusätzliche Person(en) gegenüber der gebuchten Zahl ({baselineGuests}).
+              Sollen dafür Zusatzkosten (Bettwäsche, Ortstaxe, ggf. Reinigung) berechnet
+              und ein Zahlungslink vorbereitet werden?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={handleAskNo}>
+              Nein, nur merken
+            </Button>
+            <AlertDialogAction onClick={handleAskYes}>
+              Ja, Zusatzkosten berechnen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
