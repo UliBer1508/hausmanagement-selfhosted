@@ -146,7 +146,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   // Verhindert, dass sich das Delta an einem Zwischenstand aufhängt
   // (das war die Ursache der 14-Personen-Fehlberechnung).
   const baselineGuests = mode === 'edit' && initialData
-    ? (initialData.number_of_guests || 0)
+    ? ((initialData as any).booked_guests ?? initialData.number_of_guests ?? 0)
     : 0;
 
   // Ja/Nein-Frage "Zusatzkosten erheben?" vor dem Aufrechnen
@@ -584,7 +584,12 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
       }
 
       // Prepare booking data
-      const numberOfGuests = data.number_of_adults + data.number_of_children;
+      // Leere Felder beim Absenden absichern (Erwachsene min. 1, Kinder min. 0)
+      const safeAdults = Number.isFinite(data.number_of_adults) ? data.number_of_adults : 1;
+      const safeChildren = Number.isFinite(data.number_of_children) ? data.number_of_children : 0;
+      data.number_of_adults = safeAdults;
+      data.number_of_children = safeChildren;
+      const numberOfGuests = safeAdults + safeChildren;
       // Modell B: Wenn Buchung aus einer Anfrage stammt UND ein Betrag hinterlegt ist,
       // wird der Betrag als booking_charge angelegt. booking_amount bleibt 0/null,
       // damit es nicht doppelt zählt — der Webhook addiert den Betrag bei Zahlung.
@@ -1147,8 +1152,11 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
                     min="1"
                     max="20"
                     {...field}
-                    onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                    value={field.value ?? 1}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      field.onChange(v === '' ? undefined : parseInt(v, 10));
+                    }}
+                    value={field.value ?? ''}
                   />
                 </FormControl>
                 <FormMessage />
@@ -1170,8 +1178,11 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
                     min="0"
                     max="20"
                     {...field}
-                    onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                    value={field.value ?? 0}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      field.onChange(v === '' ? undefined : parseInt(v, 10));
+                    }}
+                    value={field.value ?? ''}
                   />
                 </FormControl>
                 <FormMessage />
