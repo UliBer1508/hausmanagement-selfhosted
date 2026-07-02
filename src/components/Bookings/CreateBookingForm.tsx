@@ -984,12 +984,31 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   };
 
   // Bestätigte (ggf. korrigierte) Posten wirklich anlegen (persist=true)
+  // und den ÜBERGANG der Gästezahl strukturiert in der Buchung festhalten.
   const persistCharges = async () => {
     if (!deltaResult || !initialData?.id) return null;
     const { data, error } = await supabase.functions.invoke('calculate-booking-delta', {
       body: { booking_id: initialData.id, persist: true, charges: deltaResult.charges },
     });
     if (error) throw error;
+
+    // Übergang dokumentieren: booked_guests (das "vorher") NUR setzen, wenn noch leer,
+    // damit es bei weiteren Änderungen nicht überschrieben wird.
+    try {
+      const surcharge = (deltaResult.charges || [])
+        .reduce((s: number, c: any) => s + Number(c.amount || 0), 0);
+      const patch: Record<string, unknown> = {
+        guests_changed_at: new Date().toISOString(),
+        guest_surcharge_amount: Math.round(surcharge * 100) / 100,
+      };
+      if ((initialData as any).booked_guests == null) {
+        patch.booked_guests = baselineGuests;
+      }
+      await supabase.from('bookings').update(patch).eq('id', initialData.id);
+    } catch (e) {
+      console.error('Konnte Gästezahl-Übergang nicht speichern:', e);
+    }
+
     return data;
   };
 
