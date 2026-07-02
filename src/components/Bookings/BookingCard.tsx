@@ -171,6 +171,15 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
                 )}
               </span>
               {stayCounts && categoryBadge}
+              {(booking as any).booked_guests != null &&
+                (booking as any).booked_guests < booking.number_of_guests && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
+                  ⚠️ gebucht {(booking as any).booked_guests} → {booking.number_of_guests}
+                  {(booking as any).guest_surcharge_amount
+                    ? ` · +${Number((booking as any).guest_surcharge_amount).toLocaleString('de-DE')} €`
+                    : ''}
+                </span>
+              )}
             </div>
 
             {/* Felder-Raster: Chalet, Check-in, Check-out */}
