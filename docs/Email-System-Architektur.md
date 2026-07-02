@@ -1,6 +1,10 @@
 # E-Mail-System — Architektur, Ist-Stand & offene Punkte
 
-> Stand: Juni 2026 · Repo: `my-sweet-home-manager` (Supabase `usblrulkcgucxtkhugck`)
+> Stand: Juni 2026 · Repo: `hausmanagement-selfhosted` (Supabase `usblrulkcgucxtkhugck`)
+>
+> ⚠️ **Hinweis (aktualisiert):** Das früher genannte Repo `my-sweet-home-manager`
+> (Lovable) wird **nicht mehr verwendet** und ist stillgelegt/gelöscht. Es wird
+> ausschließlich im `-selfhosted`-Repo gearbeitet.
 > Diese Datei ist die **maßgebliche Beschreibung** des E-Mail-Versands.
 > Sie ersetzt die früheren Outlook-/Gmail-Web-Annahmen in älteren Konzepten.
 

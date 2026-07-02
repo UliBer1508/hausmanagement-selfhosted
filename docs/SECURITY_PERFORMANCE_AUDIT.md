@@ -1,6 +1,13 @@
 # Prüfdokumentation — Datenbank-Sicherheit & Performance
 
-**Projekte:** `my-sweet-home-manager` (Haus-Management), `fresh-spin-portal` (Teuni-Portal)
+**Projekte:** `hausmanagement-selfhosted` (Haus-Management), `fresh-spin-portal-selfhosted` (Teuni-Portal)
+
+> ⚠️ **Hinweis (aktualisiert):** Die früher genannten Repos `my-sweet-home-manager`
+> und `fresh-spin-portal` (beide Lovable) werden **nicht mehr verwendet** und sind
+> stillgelegt/gelöscht (Abruf liefert 404). Es wird ausschließlich in den
+> `-selfhosted`-Repos gearbeitet. Ältere Nennungen des alten Namens unten sind
+> historisch und beziehen sich auf denselben Code, der heute in
+> `hausmanagement-selfhosted` liegt.
 **Supabase-Projekt Haus-Management:** `usblrulkcgucxtkhugck`
 **Erstellt:** Juni 2026
 **Geprüft von:** Uli Berresheim (Admin)
@@ -33,7 +40,7 @@ Leitprinzip bei allen Eingriffen: **Sicherheit und Funktion vor Vollständigkeit
 
 ---
 
-## 3. Haus-Management (`my-sweet-home-manager`) — Row Level Security
+## 3. Haus-Management (`hausmanagement-selfhosted`) — Row Level Security
 
 ### Ausgangslage (kritisch)
 Zahlreiche Tabellen waren über die öffentliche API ohne Anmeldung les- und teils schreibbar (Linter-Fehler `rls_disabled_in_public`, `policy_exists_rls_disabled`, `sensitive_columns_exposed`). Betroffen waren u. a. Gäste- und Mieterdaten (`guests`, `guest_preferences`, `saved_trip_plans`). Der öffentliche anon-Key liegt im Frontend-Code und ist damit für jeden einsehbar — der Frontend-Login allein bot daher keinen echten Schutz.
@@ -65,7 +72,7 @@ Funktion zum kaskadierenden Löschen von Buchungen ist theoretisch ohne Login ü
 In der „Angemeldet bleiben"-Funktion wird das Passwort base64-kodiert (nicht verschlüsselt) im localStorage gespeichert. Hinweis dokumentiert; Behebung noch offen. Konsequenz: Wer kurzzeitig Zugriff auf das Gerät hat, könnte das Passwort auslesen. Empfehlung weiterhin: „Angemeldet bleiben"-Logik entfernen, da die Supabase-Session ohnehin dauerhaft erhalten bleibt.
 
 ### Repo-Sichtbarkeit
-`my-sweet-home-manager` wurde für die Analyse mehrfach auf öffentlich gestellt. Empfehlung: nach Abschluss wieder auf **privat** setzen, da der anon-Key in der `.env` sonst öffentlich auf GitHub liegt.
+`hausmanagement-selfhosted` wurde für die Analyse mehrfach auf öffentlich gestellt. Empfehlung: nach Abschluss wieder auf **privat** setzen, da der anon-Key in der `.env` sonst öffentlich auf GitHub liegt.
 
 ### Dashboard-Punkte (kein Code)
 - Leaked-Password-Schutz (HaveIBeenPwned) ist deaktiviert — Aktivierung empfohlen (Authentication → Settings).
@@ -115,7 +122,7 @@ Migration ausgeführt. **6 von 9 Indizes angelegt:**
 ## 6. Architektur-Erkenntnisse (für künftige Arbeiten)
 
 - Es existieren **mehrere getrennte Supabase-Projekte / Apps**:
-  - `usblrulkcgucxtkhugck` — Haus-Management (`my-sweet-home-manager`)
+  - `usblrulkcgucxtkhugck` — Haus-Management (`hausmanagement-selfhosted`)
   - `fresh-spin-portal` — Teuni-Portal (Login abgesichert)
   - `pkpnowevagxmhyqlawng` — externe Wäsche-Management-App (API-Empfänger)
   - separate Gäste-App (Aktivitäts-Empfehlungen; nutzt `guest_app_*`, `activity_*`, `recommendation_*`, `saved_trip_plans` etc.)
