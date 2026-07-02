@@ -1096,7 +1096,10 @@ export type Database = {
       bookings: {
         Row: {
           app_identified_at: string | null
+          booked_guests: number | null
           booking_amount: number | null
+          guest_surcharge_amount: number | null
+          guests_changed_at: string | null
           cancellation_date: string | null
           cancellation_reason: string | null
           cancelled_by: string | null
@@ -1137,6 +1140,9 @@ export type Database = {
         Insert: {
           app_identified_at?: string | null
           booking_amount?: number | null
+          booked_guests?: number | null
+          guest_surcharge_amount?: number | null
+          guests_changed_at?: string | null
           cancellation_date?: string | null
           cancellation_reason?: string | null
           cancelled_by?: string | null
@@ -1177,6 +1183,9 @@ export type Database = {
         Update: {
           app_identified_at?: string | null
           booking_amount?: number | null
+          booked_guests?: number | null
+          guest_surcharge_amount?: number | null
+          guests_changed_at?: string | null
           cancellation_date?: string | null
           cancellation_reason?: string | null
           cancelled_by?: string | null
