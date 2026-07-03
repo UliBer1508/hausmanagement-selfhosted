@@ -1237,7 +1237,7 @@ const OriginalDashboard = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50 relative">
+    <div className="min-h-screen bg-gray-50 relative -mt-3 sm:-mt-4 lg:-mt-6">
       {/* Mobile-First Header */}
       <div className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between">
