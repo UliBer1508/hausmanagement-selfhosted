@@ -1378,6 +1378,100 @@ function getToolDefinitions() {
 
 // ==================== MAIN SERVE FUNCTION ====================
 
+/**
+ * Baut aus den Tool-Ergebnissen klickbare Sprung-Buttons (Schnellzugriff) für das Frontend.
+ * Das Frontend (ChatMessage.tsx) erwartet am Textende: ___ENTITIES___\n[JSON-Array]
+ * Format je Link: { id, type, label }
+ * type: 'booking' | 'cleaning_task' | 'laundry_order' | 'house' | 'guest' | 'calendar'
+ * WICHTIG: bei 'guest' ist die id die E-Mail (Frontend navigiert per openGuestEmail).
+ */
+function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string; label: string }> {
+  const links: Array<{ id: string; type: string; label: string }> = [];
+  const seen = new Set<string>();
+
+  const add = (id: string | null | undefined, type: string, label: string) => {
+    if (!id) return;
+    const key = `${type}:${id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    links.push({ id: String(id), type, label });
+  };
+
+  const fmtDate = (d: string | null | undefined) => {
+    if (!d) return '';
+    try {
+      const dt = new Date(d);
+      return dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    } catch { return ''; }
+  };
+
+  for (const tr of toolResults || []) {
+    const result = tr?.result;
+    if (!result || result.success === false) continue;
+    const data = result.data;
+    if (!data) continue;
+
+    switch (tr.tool) {
+      case 'get_booking_full_context': {
+        // data ist ein Array von { booking, cleanings, linen_orders, ... }
+        const arr = Array.isArray(data) ? data : [data];
+        for (const ctx of arr) {
+          const b = ctx.booking;
+          if (b?.id) add(b.id, 'booking', `Buchung ${b.guest_name || ''}`.trim());
+          for (const c of ctx.cleanings || []) {
+            add(c.id, 'cleaning_task', `Reinigung ${fmtDate(c.scheduled_date)}`.trim());
+          }
+          for (const lo of ctx.linen_orders || []) {
+            add(lo.id, 'laundry_order', `Wäsche ${fmtDate(lo.delivery_date)}`.trim());
+          }
+        }
+        break;
+      }
+      case 'search_bookings': {
+        const arr = Array.isArray(data) ? data : [];
+        for (const b of arr.slice(0, 5)) {
+          add(b.id, 'booking', `Buchung ${b.guest_name || fmtDate(b.check_in)}`.trim());
+        }
+        break;
+      }
+      case 'search_cleaning_tasks': {
+        const arr = Array.isArray(data) ? data : [];
+        for (const c of arr.slice(0, 5)) {
+          const name = c.bookings?.guest_name || fmtDate(c.scheduled_date);
+          add(c.id, 'cleaning_task', `Reinigung ${name}`.trim());
+        }
+        break;
+      }
+      case 'search_linen_orders': {
+        const arr = Array.isArray(data) ? data : [];
+        for (const lo of arr.slice(0, 5)) {
+          const name = lo.bookings?.guest_name || fmtDate(lo.delivery_date);
+          add(lo.id, 'laundry_order', `Wäsche ${name}`.trim());
+        }
+        break;
+      }
+      case 'search_guests': {
+        const arr = Array.isArray(data) ? data : [];
+        for (const g of arr.slice(0, 5)) {
+          // Frontend navigiert per E-Mail -> id = email
+          add(g.email || g.guest_email, 'guest', `${g.name || g.guest_name || 'Gast'}`.trim());
+        }
+        break;
+      }
+      case 'search_houses': {
+        const arr = Array.isArray(data) ? data : [];
+        for (const h of arr.slice(0, 3)) {
+          add(h.id, 'house', `${h.name || 'Haus'}`.trim());
+        }
+        break;
+      }
+    }
+  }
+
+  // Nicht mehr als 6 Buttons, damit die Ansicht im schmalen Fenster nicht überläuft
+  return links.slice(0, 6);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1637,8 +1731,15 @@ ob sie schon geliefert ist oder nicht.`;
         
         console.log('Final response received:', { textLength: finalContent.length });
         
+        // Sprung-Buttons (Schnellzugriff) aus den Tool-Ergebnissen anhängen.
+        // Das Frontend (ChatMessage.tsx) erkennt den ___ENTITIES___-Marker und rendert Buttons.
+        const entityLinks = buildEntityLinks(toolResults);
+        const responseWithEntities = entityLinks.length > 0
+          ? `${finalContent}\n___ENTITIES___\n${JSON.stringify(entityLinks)}`
+          : finalContent;
+        
         return new Response(
-          JSON.stringify({ response: finalContent, toolResults }),
+          JSON.stringify({ response: responseWithEntities, toolResults }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
