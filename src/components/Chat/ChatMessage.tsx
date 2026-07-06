@@ -56,7 +56,7 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
   const handleEntityClick = (link: EntityLink) => {
     switch (link.type) {
       case 'booking':
-        navigate('/', { state: { activeTab: 'Buchungen', openBookingId: link.id } });
+        navigate('/', { state: { activeTab: 'Buchungen', editBookingId: link.id } });
         break;
       case 'cleaning_task':
         navigate('/', { state: { activeTab: 'Reinigung', openTaskId: link.id } });
