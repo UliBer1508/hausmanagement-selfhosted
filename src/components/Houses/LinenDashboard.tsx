@@ -51,15 +51,44 @@ const LinenDashboard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  // Automatisches Öffnen einer spezifischen Bestellung
+  // Automatisches Öffnen einer spezifischen Bestellung (aus dem KI-Assistenten / Schnellzugriff)
   useEffect(() => {
-    if (location.state?.openOrderId) {
-      setHighlightedOrderId(location.state.openOrderId);
-      // Nach 3 Sekunden Highlight entfernen
-      setTimeout(() => setHighlightedOrderId(null), 3000);
-      // State zurücksetzen
+    const orderId = location.state?.openOrderId;
+    if (!orderId) return;
+
+    let cancelled = false;
+    (async () => {
+      // Bestellung gezielt per ID laden (inkl. der Joins, die das Bestellformular braucht)
+      const { data: order, error } = await supabase
+        .from('linen_orders')
+        .select(`
+          *,
+          houses!linen_orders_house_id_fkey(id, name),
+          bookings!linen_orders_booking_id_fkey(guest_name, check_in, check_out)
+        `)
+        .eq('id', orderId)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (order && !error) {
+        // Bestellformular im Bearbeiten-Modus öffnen (gleiches Verhalten wie handleEditOrder)
+        setEditingOrder(order);
+        setEditMode(true);
+        setOrderHouse({ id: order.house_id, name: order.houses?.name });
+        setCalculatedOrderItems(order.items || {});
+        setSelectedBooking(order.bookings || null);
+        setShowOrderDialog(true);
+      } else {
+        // Fallback: wenigstens hervorheben, falls das Laden fehlschlägt
+        setHighlightedOrderId(orderId);
+        setTimeout(() => setHighlightedOrderId(null), 3000);
+      }
+      // State zurücksetzen, damit es beim Refresh nicht erneut aufgeht
       window.history.replaceState({}, document.title);
-    }
+    })();
+
+    return () => { cancelled = true; };
   }, [location.state]);
   const { createOptimizedOrderMutation } = useOptimizedLinenManagement();
 
