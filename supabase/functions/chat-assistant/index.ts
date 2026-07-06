@@ -700,7 +700,7 @@ async function executeSearchLinenOrders(params: any) {
   
   let query = supabase
     .from('linen_orders')
-    .select('*, houses(name), bookings(guest_name)')
+    .select('*, houses(name), bookings(guest_name, check_in, check_out)')
     .order('order_date', { ascending: false });
   
   if (params.status) {
@@ -716,13 +716,139 @@ async function executeSearchLinenOrders(params: any) {
     query = query.lte('delivery_date', params.date_to);
   }
   
-  const { data, error } = await query.limit(params.limit || 20);
+  const { data, error } = await query.limit(params.limit || 50);
   
   if (error) {
     return { success: false, error: error.message };
   }
+
+  // Gastname-Filter über die verknüpfte Buchung (post-query, wie bei search_cleaning_tasks)
+  let filtered = data || [];
+  if (params.guest_name) {
+    const needle = params.guest_name.toLowerCase();
+    filtered = filtered.filter((o: any) =>
+      o.bookings?.guest_name?.toLowerCase().includes(needle)
+    );
+  }
   
-  return { success: true, data, count: data?.length || 0 };
+  return { success: true, data: filtered, count: filtered.length };
+}
+
+/**
+ * ZENTRALES VERKNÜPFUNGS-TOOL
+ * Beantwortet "Zeig mir alles zu Gast X / Buchung Y" in EINEM Aufruf:
+ * Buchung -> Reinigung (service_tasks) + Wäsche (linen_orders) + Kosten (booking_charges)
+ * + Zahlung (payments) + Vorlieben (guest_preferences) + Rebooking-Tracking.
+ * Nimmt guest_name ODER booking_id. Das Modell muss NICHT mehrstufig verketten.
+ */
+async function executeGetBookingFullContext(params: any) {
+  console.log('Executing get_booking_full_context with params:', params);
+
+  // 1) Buchung(en) finden
+  let bookingQuery = supabase
+    .from('bookings')
+    .select('*, houses(name)')
+    .order('check_in', { ascending: false });
+
+  if (params.booking_id) {
+    bookingQuery = bookingQuery.eq('id', params.booking_id);
+  } else if (params.guest_name) {
+    bookingQuery = bookingQuery.ilike('guest_name', `%${params.guest_name}%`);
+  } else {
+    return { success: false, error: 'guest_name oder booking_id erforderlich' };
+  }
+
+  // Standardmäßig stornierte ausblenden, außer explizit gewünscht
+  if (params.include_cancelled !== true) {
+    bookingQuery = bookingQuery.neq('status', 'cancelled');
+  }
+
+  const { data: bookings, error: bookingErr } = await bookingQuery.limit(params.limit || 5);
+  if (bookingErr) return { success: false, error: bookingErr.message };
+  if (!bookings || bookings.length === 0) {
+    return { success: true, data: [], count: 0, message: 'Keine passende Buchung gefunden.' };
+  }
+
+  // 2) Für jede Buchung den verknüpften Kontext laden
+  const results = [];
+  for (const b of bookings) {
+    const [cleanings, linen, charges, prefs, tracking] = await Promise.all([
+      supabase.from('service_tasks')
+        .select('id, service_type, status, scheduled_date, scheduled_time, completed_at, notes, service_providers!service_tasks_provider_id_fkey(name)')
+        .eq('booking_id', b.id).eq('service_type', 'cleaning')
+        .order('scheduled_date', { ascending: true }),
+      supabase.from('linen_orders')
+        .select('id, status, order_date, delivery_date, delivery_time, total_items, total_cost, notes')
+        .eq('booking_id', b.id)
+        .order('delivery_date', { ascending: true }),
+      supabase.from('booking_charges')
+        .select('id, charge_type, description, amount, currency, status, payment_id')
+        .eq('booking_id', b.id),
+      supabase.from('guest_preferences')
+        .select('activity_level, budget_range, group_type, preferred_categories')
+        .eq('booking_id', b.id).maybeSingle(),
+      supabase.from('booking_action_tracking')
+        .select('action_id, action_applied, applied_at')
+        .eq('booking_id', b.id),
+    ]);
+
+    // Zahlungen zu den Forderungen (falls vorhanden)
+    let payments: any[] = [];
+    const chargeIds = (charges.data || []).map((c: any) => c.id);
+    if (chargeIds.length > 0) {
+      const { data: pay } = await supabase
+        .from('payments')
+        .select('id, amount, currency, status, purpose, paid_at, booking_charge_id')
+        .eq('booking_id', b.id);
+      payments = pay || [];
+    }
+
+    // Wäsche-Status klar interpretieren (für die Kernfrage "schon geliefert?")
+    const linenOrders = (linen.data || []).map((lo: any) => ({
+      ...lo,
+      _geliefert: lo.status === 'delivered',
+      _status_klartext:
+        lo.status === 'delivered' ? 'geliefert'
+        : (lo.status === 'offen' || lo.status === 'ausstehend' || lo.status === 'bestellt') ? 'noch nicht geliefert'
+        : lo.status === 'cancelled' ? 'storniert'
+        : (lo.status || 'unbekannt'),
+    }));
+
+    // Koordination Reinigung <-> Wäsche: kommt die Wäsche VOR dem Reinigungstag?
+    const cleaningDates = (cleanings.data || []).map((c: any) => c.scheduled_date).filter(Boolean).sort();
+    const firstCleaning = cleaningDates[0] || null;
+    const linenTimingWarnings = linenOrders
+      .filter((lo: any) => lo.delivery_date && firstCleaning && lo.delivery_date > firstCleaning)
+      .map((lo: any) => `Wäsche-Lieferung (${lo.delivery_date}) liegt NACH der Reinigung (${firstCleaning})`);
+
+    results.push({
+      booking: {
+        id: b.id,
+        guest_name: b.guest_name,
+        guest_email: b.guest_email,
+        house: b.houses?.name || null,
+        check_in: b.check_in,
+        check_out: b.check_out,
+        number_of_guests: b.number_of_guests,
+        booked_guests: b.booked_guests,
+        guest_surcharge_amount: b.guest_surcharge_amount,
+        status: b.status,
+        payment_status: b.payment_status,
+      },
+      cleanings: cleanings.data || [],
+      linen_orders: linenOrders,
+      charges: charges.data || [],
+      payments,
+      preferences: prefs.data || null,
+      rebooking_tracking: tracking.data || [],
+      koordination: {
+        erster_reinigungstag: firstCleaning,
+        warnungen: linenTimingWarnings,
+      },
+    });
+  }
+
+  return { success: true, data: results, count: results.length };
 }
 
 async function executeGetRevenueStats(params: any) {
@@ -876,6 +1002,18 @@ async function executeGetDailyOverview(params: any) {
     }
   }
   
+  // 5. Wäsche-Lieferungen an diesem Tag (fehlte bisher!)
+  const { data: linenDeliveries, error: linenError } = await supabase
+    .from('linen_orders')
+    .select('id, status, delivery_date, delivery_time, total_items, houses(name), bookings(guest_name)')
+    .gte('delivery_date', `${targetDate}T00:00:00`)
+    .lt('delivery_date', `${targetDate}T23:59:59`)
+    .order('delivery_time', { ascending: true });
+
+  if (linenError) {
+    console.error('Error fetching linen deliveries:', linenError);
+  }
+
   return {
     success: true,
     data: {
@@ -883,11 +1021,13 @@ async function executeGetDailyOverview(params: any) {
       cleanings: cleanings || [],
       check_ins: checkIns || [],
       check_outs: checkOuts || [],
+      linen_deliveries: linenDeliveries || [],
       guest_changes: guestChanges,
       summary: {
         cleaning_count: cleanings?.length || 0,
         check_in_count: checkIns?.length || 0,
         check_out_count: checkOuts?.length || 0,
+        linen_delivery_count: linenDeliveries?.length || 0,
         guest_change_count: guestChanges.length
       }
     }
@@ -973,6 +1113,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeGetLinenOverview(args);
     case 'search_linen_orders':
       return await executeSearchLinenOrders(args);
+    case 'get_booking_full_context':
+      return await executeGetBookingFullContext(args);
     case 'get_calendar_events':
       return await executeGetCalendarEvents(args);
     case 'get_revenue_stats':
@@ -1077,7 +1219,7 @@ function getToolDefinitions() {
           type: "object",
           properties: {
             guest_name: { type: "string", description: "Name des Gastes" },
-            status: { type: "string", enum: ["confirmed", "cancelled", "completed"], description: "Buchungsstatus" },
+            status: { type: "string", enum: ["confirmed", "checked_in", "completed", "cancelled"], description: "Buchungsstatus. 'checked_in'=eingecheckt" },
             house_id: { type: "string", description: "UUID des Hauses" },
             has_children: { type: "boolean", description: "NUR Familien mit Kindern (number_of_children > 0)" },
             date_from: { type: "string", description: "Check-in ab Datum (ISO)" },
@@ -1099,7 +1241,7 @@ function getToolDefinitions() {
         parameters: {
           type: "object",
           properties: {
-            status: { type: "string", enum: ["scheduled", "in_progress", "completed", "cancelled"] },
+            status: { type: "string", enum: ["scheduled", "in_progress", "completed", "delayed", "cancelled", "draft"] },
             house_id: { type: "string" },
             date_from: { type: "string" },
             date_to: { type: "string" },
@@ -1159,14 +1301,30 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "search_linen_orders",
-        description: "Sucht Wäschebestellungen",
+        description: "Sucht Wäschebestellungen. Kann nach Gastname filtern (findet die Bestellung über die verknüpfte Buchung). WICHTIG: 'delivered' = geliefert, 'offen'/'ausstehend' = noch nicht geliefert.",
         parameters: {
           type: "object",
           properties: {
-            status: { type: "string", enum: ["offen", "bestätigt", "geliefert", "storniert"] },
+            guest_name: { type: "string", description: "Name des Gastes (filtert über die verknüpfte Buchung)" },
+            status: { type: "string", enum: ["offen", "bestellt", "ausstehend", "delivered", "cancelled"], description: "Wäsche-Status. 'delivered'=geliefert, 'offen'/'ausstehend'/'bestellt'=noch offen, 'cancelled'=storniert" },
             house_id: { type: "string" },
             date_from: { type: "string" },
             date_to: { type: "string" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_booking_full_context",
+        description: "WICHTIGSTES Tool für verknüpfte Fragen zu EINEM Gast oder EINER Buchung. Liefert in einem Aufruf ALLES: Buchung + Reinigung + Wäsche (inkl. ob schon geliefert!) + Kosten + Zahlung + Vorlieben + Koordinations-Warnungen. IMMER benutzen bei Fragen wie 'Ist für Gast X die Bettwäsche/Wäsche schon geliefert/da?', 'Zeig mir alles zu Buchung X', 'Ist die Wäsche rechtzeitig vor der Reinigung da?', 'Wurde für Gast X schon gereinigt?', 'Welche Kosten hat Gast X'. NICHT einzeln search_linen_orders/search_cleaning_tasks aufrufen, wenn nach einem konkreten Gast gefragt wird.",
+        parameters: {
+          type: "object",
+          properties: {
+            guest_name: { type: "string", description: "Name des Gastes (Teilname genügt)" },
+            booking_id: { type: "string", description: "UUID der Buchung (Alternative zu guest_name)" },
+            include_cancelled: { type: "boolean", description: "Stornierte Buchungen einschließen (Standard: false)" }
           }
         }
       }
@@ -1325,24 +1483,46 @@ Morgen: ${tomorrowDate}
 • Nächste 30 Tage: ${currentDate} bis ${formatDate(in30Days)}
 
 ⛔ KRITISCHE REGEL ⛔
-Du MUSST für JEDE Anfrage ein Tool verwenden! 
-Du darfst NIEMALS direkt antworten ohne Tool-Call!
+Für Fragen zu Daten (Buchungen, Reinigung, Wäsche, Gäste, Umsatz …) MUSST du ein Tool verwenden.
+Rate NIEMALS Daten aus dem Gedächtnis – hole sie immer per Tool.
+
+🎯 WICHTIGSTE REGEL FÜR VERKNÜPFTE FRAGEN:
+Buchung, Reinigung und Wäsche gehören IMMER zusammen (über die Buchung verknüpft).
+Wenn nach EINEM konkreten Gast oder EINER Buchung gefragt wird und dabei Wäsche,
+Reinigung, Kosten oder Zahlung eine Rolle spielen → benutze IMMER
+get_booking_full_context. Dieses eine Tool liefert alles zusammen.
+NICHT mehrere Einzel-Tools hintereinander aufrufen.
+
+Beispiele, die IMMER get_booking_full_context brauchen:
+- "Ist für Gast Niels die Bettwäsche/Wäsche schon geliefert/da?"
+- "Wurde für Gast X schon gereinigt?"
+- "Zeig mir alles zu Buchung/Gast X"
+- "Ist die Wäsche rechtzeitig vor der Reinigung da?"
+- "Welche Kosten/Zahlungen hat Gast X?"
 
 🔍 TOOL-AUSWAHL:
-- Buchungen/Reservierungen → search_bookings
-- Reinigungen → search_cleaning_tasks  
+- Alles zu EINEM Gast/EINER Buchung (Wäsche+Reinigung+Kosten) → get_booking_full_context ⭐
+- Listen von Buchungen (mehrere) → search_bookings
+- Listen von Reinigungen → search_cleaning_tasks
+- Listen von Wäschebestellungen → search_linen_orders (kann auch nach guest_name filtern)
 - Häuser/Chalets → search_houses
 - Gäste → search_guests
 - Statistiken → get_dashboard_stats
-- Wäsche → get_linen_overview oder search_linen_orders
+- Wäsche-Bestand aller Häuser → get_linen_overview
 - Kalender → get_calendar_events
 - Umsatz → get_revenue_stats
-- Tagesübersicht → get_daily_overview
+- Tagesübersicht (inkl. Wäsche-Lieferungen) → get_daily_overview
 - Buchungsanfragen → search_booking_inquiries
 - Bulk Reinigungen → create_bulk_cleaning_tasks
 - Bulk Wäsche → create_bulk_linen_orders
 
-Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
+📦 WÄSCHE-STATUS richtig deuten:
+- 'delivered' = geliefert / ist da
+- 'offen', 'ausstehend', 'bestellt' = noch NICHT geliefert
+- 'cancelled' = storniert
+
+Du antwortest auf Deutsch, klar und konkret. Nenne bei Wäsche immer eindeutig,
+ob sie schon geliefert ist oder nicht.`;
 
     const tools = getToolDefinitions();
 
@@ -1367,6 +1547,8 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
     let iteration = 0;
     const maxIterations = 5;
     let toolResults: any[] = [];
+    let rateLimitRetried = false; // erlaubt genau einen 429-Retry pro Anfrage
+    let toolNudged = false; // erlaubt genau einen sanften Tool-Hinweis pro Anfrage
     
     while (iteration < maxIterations) {
       iteration++;
@@ -1381,7 +1563,7 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
         tools: geminiTools,
         toolConfig: { 
           functionCallingConfig: { 
-            mode: iteration === 1 ? 'ANY' : 'AUTO'  // Force tool call on first iteration
+            mode: 'AUTO'  // AUTO statt ANY: Modell entscheidet selbst, ob ein Tool nötig ist (verhindert unnötige Extra-Calls -> weniger 429-Rate-Limit)
           } 
         },
         generationConfig: {
@@ -1404,8 +1586,17 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
         console.error('Gemini API error:', response.status, errorText);
         
         if (response.status === 429) {
+          // Rate-Limit: einmalig kurz warten und dieselbe Iteration erneut versuchen,
+          // statt sofort abzubrechen. Das fängt kurzzeitige Limits (Free-Tier) ab.
+          if (!rateLimitRetried) {
+            rateLimitRetried = true;
+            console.log('Rate limit (429) - warte 2s und versuche erneut...');
+            await new Promise((r) => setTimeout(r, 2000));
+            iteration--; // diese Iteration wiederholen, nicht verbrauchen
+            continue;
+          }
           return new Response(
-            JSON.stringify({ error: 'Rate limit erreicht. Bitte versuche es später erneut.' }),
+            JSON.stringify({ error: 'Der Assistent ist gerade stark ausgelastet. Bitte versuche es in einer Minute erneut.' }),
             { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -1431,12 +1622,15 @@ Du antwortest auf Deutsch. WICHTIG: ERST Tool aufrufen, DANN antworten!`;
         const textPart = parts.find((p: GeminiPart) => p.text);
         const finalContent = textPart?.text || 'Ich konnte keine passende Antwort generieren.';
         
-        if (iteration === 1) {
-          // Force tool usage on first iteration
-          console.log('AI tried to answer without tool call in first iteration - forcing tool usage');
+        if (iteration === 1 && !toolNudged) {
+          // Einmaliger sanfter Stupser: Wenn das Modell bei der ersten Runde ohne Tool
+          // antwortet, obwohl es eine Datenfrage ist, einmal zum passenden Tool anstoßen.
+          // (Kein harter Zwang mehr wie bei mode:'ANY' - das sparte 429-Rate-Limits.)
+          toolNudged = true;
+          console.log('AI antwortete ohne Tool - einmaliger Hinweis auf passendes Tool');
           contents.push({
             role: 'user',
-            parts: [{ text: 'Du MUSST ein Tool verwenden um diese Frage zu beantworten. Bitte rufe das passende Tool auf.' }]
+            parts: [{ text: 'Falls dies eine Frage zu konkreten Daten (Buchung, Gast, Wäsche, Reinigung, Kosten) ist: bitte das passende Tool aufrufen. Bei Fragen zu einem konkreten Gast/einer Buchung: get_booking_full_context.' }]
           });
           continue;
         }
