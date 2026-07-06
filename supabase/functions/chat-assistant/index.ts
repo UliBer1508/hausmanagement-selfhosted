@@ -1121,6 +1121,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeGetRevenueStats(args);
     case 'get_daily_overview':
       return await executeGetDailyOverview(args);
+    case 'send_provider_message':
+      return await executeSendProviderMessage(args);
     
     default:
       console.warn(`Unknown tool: ${toolName}`);
@@ -1372,6 +1374,24 @@ function getToolDefinitions() {
           }
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "send_provider_message",
+        description: "Sendet eine Nachricht an einen Dienstleister (Amela = Reinigung, Teuni = Wäsche) in dessen Portal-Posteingang. Die Nachricht erscheint dort als 'Max (Assistent)'. WICHTIGE REGEL: Nur echte TERMINFRAGEN (z.B. 'Passt dir der Reinigungstermin am 18.7.?') dürfen mit ist_terminfrage=true direkt gesendet werden. JEDE andere Nachricht muss mit ist_terminfrage=false erstellt werden - dann wird sie NICHT gesendet, sondern nur als Entwurf zurückgegeben, den du dem Nutzer zur Freigabe zeigst. Sende eine Nicht-Terminfrage erst, wenn der Nutzer sie ausdrücklich bestätigt hat.",
+        parameters: {
+          type: "object",
+          properties: {
+            provider_name: { type: "string", description: "Name des Dienstleisters, z.B. 'Amela' oder 'Teuni'" },
+            message: { type: "string", description: "Der Nachrichtentext auf Deutsch, höflich und klar" },
+            ist_terminfrage: { type: "boolean", description: "true NUR bei echten Terminfragen (direkt senden). Bei allem anderen false (nur Entwurf zur Freigabe)." },
+            related_task_id: { type: "string", description: "Optional: ID der zugehörigen Reinigung (service_task), damit die Nachricht direkt daran hängt" },
+            related_linen_order_id: { type: "string", description: "Optional: ID der zugehörigen Wäschebestellung" }
+          },
+          required: ["provider_name", "message", "ist_terminfrage"]
+        }
+      }
     }
   ];
 }
@@ -1385,6 +1405,86 @@ function getToolDefinitions() {
  * type: 'booking' | 'cleaning_task' | 'laundry_order' | 'house' | 'guest' | 'calendar'
  * WICHTIG: bei 'guest' ist die id die E-Mail (Frontend navigiert per openGuestEmail).
  */
+/**
+ * ETAPPE 1 — Max schreibt Amela/Teuni.
+ * Findet den Dienstleister über den Namen und schreibt eine Nachricht in provider_messages
+ * als sender_type 'assistant'. Optional verknüpft mit einer Reinigung (related_task_id).
+ *
+ * Freigabe-Logik:
+ *  - ist_terminfrage = true  -> Nachricht wird DIREKT gesendet (z.B. "Termin am 18.7. ok?")
+ *  - ist_terminfrage = false -> es wird NICHTS gesendet; die Nachricht wird nur als Entwurf
+ *    zurückgegeben, damit Max sie dem Nutzer zur Freigabe vorlegt.
+ */
+async function executeSendProviderMessage(params: any) {
+  console.log('Executing send_provider_message with params:', params);
+
+  const providerName = params.provider_name;
+  const message = params.message;
+  if (!providerName || !message) {
+    return { success: false, error: 'provider_name und message sind erforderlich' };
+  }
+
+  // Dienstleister über den Namen finden (Amela, Teuni ...)
+  const { data: providers, error: provErr } = await supabase
+    .from('service_providers')
+    .select('id, name')
+    .ilike('name', `%${providerName}%`)
+    .eq('is_active', true);
+
+  if (provErr) return { success: false, error: provErr.message };
+  if (!providers || providers.length === 0) {
+    return { success: false, error: `Kein aktiver Dienstleister gefunden für "${providerName}".` };
+  }
+  if (providers.length > 1) {
+    return {
+      success: false,
+      error: `Mehrere Dienstleister passen zu "${providerName}": ${providers.map((p: any) => p.name).join(', ')}. Bitte genauer angeben.`
+    };
+  }
+
+  const provider = providers[0];
+
+  // Freigabe-Logik: nur Terminfragen direkt senden, alles andere zur Freigabe zurückgeben.
+  if (params.ist_terminfrage !== true) {
+    return {
+      success: true,
+      gesendet: false,
+      freigabe_erforderlich: true,
+      entwurf: {
+        an: provider.name,
+        provider_id: provider.id,
+        nachricht: message,
+        related_task_id: params.related_task_id || null,
+      },
+      hinweis: `Diese Nachricht ist keine Terminfrage und wurde NICHT gesendet. Zeige dem Nutzer den Entwurf und sende erst, nachdem er ausdrücklich bestätigt hat.`,
+    };
+  }
+
+  // Terminfrage -> direkt senden
+  const { data: inserted, error: insErr } = await supabase
+    .from('provider_messages')
+    .insert({
+      provider_id: provider.id,
+      sender_type: 'assistant',
+      message: message,
+      related_task_id: params.related_task_id || null,
+      related_linen_order_id: params.related_linen_order_id || null,
+      is_read: false,
+    })
+    .select('id')
+    .single();
+
+  if (insErr) return { success: false, error: insErr.message };
+
+  return {
+    success: true,
+    gesendet: true,
+    an: provider.name,
+    message_id: inserted?.id,
+    bestaetigung: `Nachricht an ${provider.name} wurde gesendet.`,
+  };
+}
+
 function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string; label: string }> {
   const links: Array<{ id: string; type: string; label: string }> = [];
   const seen = new Set<string>();
@@ -1614,6 +1714,15 @@ Beispiele, die IMMER get_booking_full_context brauchen:
 - 'delivered' = geliefert / ist da
 - 'offen', 'ausstehend', 'bestellt' = noch NICHT geliefert
 - 'cancelled' = storniert
+
+✉️ NACHRICHTEN AN DIENSTLEISTER (Amela/Teuni) — send_provider_message:
+Du kannst Amela (Reinigung) oder Teuni (Wäsche) eine Nachricht in ihr Portal schreiben.
+Sie erscheint dort als "Max (Assistent)".
+STRENGE FREIGABE-REGEL:
+- Echte Terminfragen (z.B. "Passt dir der Reinigungstermin am 18.7.?") → ist_terminfrage=true, wird direkt gesendet.
+- ALLES ANDERE → ist_terminfrage=false. Die Nachricht wird dann NICHT gesendet, sondern als Entwurf zurückgegeben. Zeige dem Nutzer den Entwurf und sende ihn erst, nachdem der Nutzer ausdrücklich "ja, senden" o.ä. bestätigt hat (dann erneut send_provider_message, weiterhin ist_terminfrage=false, aber jetzt mit Bestätigung des Nutzers).
+- Formuliere Nachrichten höflich, auf Deutsch, und stelle dich als Max vor, wenn es die erste Nachricht ist.
+- Wenn du eine Reinigung ansprichst, gib wenn möglich related_task_id mit, damit die Nachricht daran hängt.
 
 Du antwortest auf Deutsch, klar und konkret. Nenne bei Wäsche immer eindeutig,
 ob sie schon geliefert ist oder nicht.`;
