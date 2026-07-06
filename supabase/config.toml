@@ -3,9 +3,6 @@ project_id = "usblrulkcgucxtkhugck"
 [functions.auto-create-linen-orders]
 verify_jwt = false
 
-[functions.auto-create-linen-orders.cron]
-schedule = "0 6 * * *"
-
 [functions.generate-personalized-email]
 verify_jwt = false
 
