@@ -164,7 +164,7 @@ serve(async (req) => {
       const timeStr = task.scheduled_time ? ` um ${task.scheduled_time.slice(0, 5)} Uhr` : '';
 
       const message =
-        `Hallo ${provider.name}, Max hier. ` +
+        `Hallo ${provider.name}, ich bin Max, der KI-Assistent von Uli. ` +
         `Am ${dateStr}${timeStr} steht die Reinigung im ${houseName} an (für Gast ${guestName}). ` +
         `${laundryInfo} ` +
         `Passt dir der Termin, oder sollen wir ihn ändern?`;
