@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import CreateCleaningTaskDialog from './CreateCleaningTaskDialog';
 import EditCleaningTaskDialog from './EditCleaningTaskDialog';
 import AutoCleaningSettingsCard from './AutoCleaningSettingsCard';
+import MaxReminderSettingsCard from './MaxReminderSettingsCard';
 import { getGuestName } from '@/lib/guestHelpers';
 import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
 import { useToast } from '@/hooks/use-toast';
@@ -536,6 +537,9 @@ const CleaningManagement = () => {
 
       {/* Automatisierung */}
       <AutoCleaningSettingsCard />
+
+      {/* Max: Automatische Terminfragen */}
+      <MaxReminderSettingsCard />
 
       {/* Reinigungsaufträge */}
       <Card>
