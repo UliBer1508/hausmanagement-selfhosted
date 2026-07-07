@@ -1123,6 +1123,12 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeGetDailyOverview(args);
     case 'send_provider_message':
       return await executeSendProviderMessage(args);
+    case 'check_upcoming_bookings':
+      return await executeCheckUpcomingBookings(args);
+    case 'create_cleaning_for_booking':
+      return await executeCreateCleaningForBooking(args);
+    case 'create_linen_for_booking':
+      return await executeCreateLinenForBooking(args);
     
     default:
       console.warn(`Unknown tool: ${toolName}`);
@@ -1392,6 +1398,46 @@ function getToolDefinitions() {
           required: ["provider_name", "message", "ist_terminfrage"]
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "check_upcoming_bookings",
+        description: "Tägliche Kontrolle: Prüft alle kommenden, bestätigten Buchungen und meldet, wo etwas fehlt oder nicht stimmt. Vier Prüfungen: (1) keine Reinigung angelegt, (2) keine Wäsche bestellt, (3) Wäsche käme nach der Reinigung, (4) noch nicht bezahlt. Nutze dieses Tool bei Fragen wie 'Ist alles für die kommenden Buchungen vorbereitet?', 'Fehlt irgendwo eine Reinigung?', 'Gibt es offene Zahlungen?', 'Kontrolliere die nächsten Anreisen'. Reine Prüfung - es wird nichts verändert. Fasse das Ergebnis übersichtlich zusammen; wenn alles_ok true ist, sag klar 'alles in Ordnung'.",
+        parameters: {
+          type: "object",
+          properties: {
+            advance_days: { type: "number", description: "Optional: wie viele Tage vorausgeschaut wird (Standard aus den Einstellungen, meist 7)" }
+          }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "create_cleaning_for_booking",
+        description: "Erstellt eine Reinigung für eine Buchung (nutzt die vorhandene Auto-Erstellung). Die Reinigung wird als ENTWURF (draft) angelegt - der Nutzer prüft sie und setzt sie auf 'geplant'. WICHTIG: Rufe dieses Tool NUR auf, nachdem der Nutzer ausdrücklich zugestimmt hat. Wenn du eine fehlende Reinigung entdeckst, FRAGE zuerst 'Soll ich sie anlegen?' und erstelle sie erst nach einem klaren 'ja'. Melde danach ehrlich, dass es ein Entwurf ist, den der Nutzer prüfen und auf 'geplant' setzen muss.",
+        parameters: {
+          type: "object",
+          properties: {
+            booking_id: { type: "string", description: "Die ID der Buchung, für die die Reinigung erstellt werden soll" }
+          },
+          required: ["booking_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "create_linen_for_booking",
+        description: "Löst die Wäsche-Automatik aus, die fehlende Wäschebestellungen für die kommenden Buchungen anlegt (Status 'offen', mit Duplikat-Schutz - bestehende Bestellungen bleiben unverändert). Der Nutzer prüft die neuen Bestellungen und setzt sie auf 'ausstehend'. WICHTIG: Rufe dieses Tool NUR auf, nachdem der Nutzer ausdrücklich zugestimmt hat. Wenn du eine fehlende Wäsche entdeckst, FRAGE zuerst 'Soll ich die Wäsche-Automatik auslösen?' und handle erst nach einem klaren 'ja'. Hinweis: Die Automatik arbeitet pro Haus über die nächsten Buchungen, nicht gezielt für eine einzelne. Melde ehrlich, dass die neuen Bestellungen 'offen' sind und geprüft werden müssen.",
+        parameters: {
+          type: "object",
+          properties: {
+            booking_id: { type: "string", description: "Optional: die Buchung, die den Anlass gab (zur Nachvollziehbarkeit)" }
+          }
+        }
+      }
     }
   ];
 }
@@ -1483,6 +1529,188 @@ async function executeSendProviderMessage(params: any) {
     message_id: inserted?.id,
     bestaetigung: `Nachricht an ${provider.name} wurde gesendet.`,
   };
+}
+
+/**
+ * WÄCHTER-FUNKTIONEN ("Max: Tägliche Kontrolle")
+ * ------------------------------------------------
+ * Liest die Einstellungen aus system_settings (Schlüssel 'max_control_settings').
+ * Struktur ist zukunftssicher: dieselbe Prüflogik kann später ein Cron-Job nutzen.
+ * Bei Weg A (Chat-Tool) sind 'enabled' und 'time' noch ungenutzt — nur vorbereitet.
+ */
+async function getControlSettings() {
+  const defaults = {
+    enabled: false,          // für spätere Automatik (Weg B)
+    time: '06:00',           // für spätere Automatik (Weg B)
+    advance_days: 7,         // wie weit voraus wird geschaut
+    checks: {
+      missing_cleaning: true,
+      missing_linen: true,
+      linen_timing: true,
+      unpaid: true,
+    },
+  };
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'max_control_settings')
+      .maybeSingle();
+    if (data?.value && typeof data.value === 'object') {
+      const v: any = data.value;
+      return {
+        enabled: v.enabled ?? defaults.enabled,
+        time: v.time ?? defaults.time,
+        advance_days: v.advance_days ?? defaults.advance_days,
+        checks: { ...defaults.checks, ...(v.checks || {}) },
+      };
+    }
+  } catch (_) {
+    // Tabelle/Schlüssel fehlt -> Standardwerte verwenden
+  }
+  return defaults;
+}
+
+/**
+ * Die eigentliche Prüflogik — wiederverwendbar (Chat-Tool jetzt, Cron später).
+ * Reine Lese-Operation: prüft kommende Buchungen und meldet, was fehlt.
+ */
+async function runUpcomingBookingsControl(overrideAdvanceDays?: number) {
+  const settings = await getControlSettings();
+  const advanceDays = overrideAdvanceDays ?? settings.advance_days;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const windowEnd = new Date(today);
+  windowEnd.setDate(windowEnd.getDate() + advanceDays);
+  const todayStr = today.toISOString().split('T')[0];
+  const windowEndStr = windowEnd.toISOString().split('T')[0];
+
+  // Kommende, aktive Buchungen im Fenster
+  const { data: bookings, error } = await supabase
+    .from('bookings')
+    .select('id, guest_name, check_in, check_out, status, payment_status, house_id, houses(name)')
+    .eq('status', 'confirmed')
+    .gte('check_in', todayStr)
+    .lte('check_in', windowEndStr)
+    .order('check_in', { ascending: true });
+
+  if (error) return { success: false, error: error.message };
+
+  const findings: any[] = [];
+
+  for (const b of bookings || []) {
+    const houseName = (b as any).houses?.name || 'Objekt';
+    const label = `${b.guest_name} (Anreise ${formatDateDE(b.check_in)}, ${houseName})`;
+    const issues: string[] = [];
+
+    // Reinigung + Wäsche einmal laden
+    const [cleaning, linen] = await Promise.all([
+      supabase.from('service_tasks').select('id, scheduled_date').eq('booking_id', b.id).eq('service_type', 'cleaning'),
+      supabase.from('linen_orders').select('id, status, delivery_date').eq('booking_id', b.id),
+    ]);
+
+    const cleanings = cleaning.data || [];
+    const linens = linen.data || [];
+
+    // 1. Fehlende Reinigung
+    if (settings.checks.missing_cleaning && cleanings.length === 0) {
+      issues.push('keine Reinigung angelegt');
+    }
+    // 2. Fehlende Wäsche
+    if (settings.checks.missing_linen && linens.length === 0) {
+      issues.push('keine Wäsche bestellt');
+    }
+    // 3. Wäsche-Timing: Wäsche käme nach der Reinigung
+    if (settings.checks.linen_timing && cleanings.length > 0 && linens.length > 0) {
+      const firstCleaning = cleanings.map((c: any) => c.scheduled_date).filter(Boolean).sort()[0];
+      const late = linens.some((l: any) => l.status !== 'delivered' && l.delivery_date && firstCleaning && l.delivery_date > firstCleaning);
+      if (late) issues.push('Wäsche käme nach der Reinigung');
+    }
+    // 4. Offene Zahlung
+    if (settings.checks.unpaid && b.payment_status !== 'paid') {
+      issues.push('noch nicht bezahlt');
+    }
+
+    if (issues.length > 0) {
+      findings.push({ buchung: label, booking_id: b.id, probleme: issues });
+    }
+  }
+
+  return {
+    success: true,
+    fenster: `${todayStr} bis ${windowEndStr}`,
+    tage_voraus: advanceDays,
+    geprueft: bookings?.length || 0,
+    auffaellig: findings.length,
+    alles_ok: findings.length === 0,
+    details: findings,
+  };
+}
+
+/** Chat-Tool: Max prüft die kommenden Buchungen auf Anfrage. */
+async function executeCheckUpcomingBookings(params: any) {
+  console.log('Executing check_upcoming_bookings with params:', params);
+  const advance = typeof params?.advance_days === 'number' ? params.advance_days : undefined;
+  return await runUpcomingBookingsControl(advance);
+}
+
+/**
+ * Erstellt eine Reinigung für eine Buchung, indem die vorhandene Funktion
+ * create-cleaning-task-for-booking aufgerufen wird.
+ * Ergebnis: Reinigung im Status 'draft' (Entwurf). Uli prüft und setzt auf 'geplant'.
+ * NUR nach ausdrücklicher Bestätigung des Nutzers aufrufen (siehe Prompt-Regel).
+ */
+async function executeCreateCleaningForBooking(params: any) {
+  console.log('Executing create_cleaning_for_booking:', params);
+  if (!params?.booking_id) {
+    return { success: false, error: 'booking_id ist erforderlich' };
+  }
+  try {
+    const { data, error } = await supabase.functions.invoke('create-cleaning-task-for-booking', {
+      body: { booking_id: params.booking_id },
+    });
+    if (error) return { success: false, error: error.message };
+    return {
+      success: true,
+      erstellt: true,
+      status: 'draft',
+      hinweis: 'Die Reinigung wurde als ENTWURF (draft) angelegt. Bitte prüfe sie in der Reinigungs-Verwaltung und setze sie auf "geplant", um sie zu bestätigen.',
+      details: data,
+    };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+/**
+ * Löst die Wäsche-Automatik (auto-create-linen-orders) aus.
+ * Diese arbeitet pro Haus, geht die nächsten Buchungen durch und legt fehlende
+ * Bestellungen mit Status 'offen' an (mit eingebautem Duplikat-Schutz).
+ * Ergebnis: neue Bestellung(en) im Status 'offen'. Uli prüft und setzt auf 'ausstehend'.
+ * NUR nach ausdrücklicher Bestätigung des Nutzers aufrufen.
+ */
+async function executeCreateLinenForBooking(params: any) {
+  console.log('Executing create_linen_for_booking:', params);
+  try {
+    const { data, error } = await supabase.functions.invoke('auto-create-linen-orders', {
+      body: {},
+    });
+    if (error) return { success: false, error: error.message };
+    return {
+      success: true,
+      ausgeloest: true,
+      status: 'offen',
+      hinweis: 'Die Wäsche-Automatik wurde ausgelöst. Fehlende Bestellungen wurden mit Status "offen" angelegt (bestehende bleiben unverändert, Duplikat-Schutz). Bitte prüfe die neuen Bestellungen und setze sie auf "ausstehend", um sie zu bestätigen.',
+      details: data,
+    };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
+function formatDateDE(iso: string): string {
+  try { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; } catch { return iso; }
 }
 
 function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string; label: string }> {
@@ -1725,7 +1953,14 @@ STRENGE FREIGABE-REGEL:
 - Wenn du eine Reinigung ansprichst, gib wenn möglich related_task_id mit, damit die Nachricht daran hängt.
 
 Du antwortest auf Deutsch, klar und konkret. Nenne bei Wäsche immer eindeutig,
-ob sie schon geliefert ist oder nicht.`;
+ob sie schon geliefert ist oder nicht.
+
+🛠️ FEHLENDES ANLEGEN (create_cleaning_for_booking / create_linen_for_booking):
+Wenn du über check_upcoming_bookings feststellst, dass eine Reinigung oder Wäsche fehlt, darfst du anbieten, sie anzulegen - aber NIEMALS ungefragt.
+- Frage IMMER zuerst: "Soll ich die Reinigung/Wäsche anlegen?" und warte auf ein klares "ja".
+- Erst nach der Zustimmung rufst du das Tool auf.
+- Danach meldest du EHRLICH den Status: Reinigung ist ein ENTWURF (draft), den Uli prüfen und auf "geplant" setzen muss; Wäsche ist "offen" und muss auf "ausstehend" gesetzt werden.
+- Du ÄNDERST NIEMALS bestehende Bestellungen (geänderte Gästezahl/Check-in) - das ist noch nicht deine Aufgabe. Melde solche Fälle nur an Uli.`;
 
     const tools = getToolDefinitions();
 
