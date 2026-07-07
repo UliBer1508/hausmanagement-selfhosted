@@ -8,6 +8,8 @@ export interface CleaningAutomationSettings {
   schedule_timing: 'on_checkin' | 'on_checkout';
   default_time: string;
   is_enabled: boolean;
+  max_reminder_enabled: boolean;
+  max_reminder_days_before: number;
   created_at: string;
   updated_at: string;
 }
