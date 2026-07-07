@@ -1123,6 +1123,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeGetDailyOverview(args);
     case 'send_provider_message':
       return await executeSendProviderMessage(args);
+    case 'check_upcoming_bookings':
+      return await executeCheckUpcomingBookings(args);
     
     default:
       console.warn(`Unknown tool: ${toolName}`);
@@ -1392,6 +1394,19 @@ function getToolDefinitions() {
           required: ["provider_name", "message", "ist_terminfrage"]
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "check_upcoming_bookings",
+        description: "Tägliche Kontrolle: Prüft alle kommenden, bestätigten Buchungen und meldet, wo etwas fehlt oder nicht stimmt. Vier Prüfungen: (1) keine Reinigung angelegt, (2) keine Wäsche bestellt, (3) Wäsche käme nach der Reinigung, (4) noch nicht bezahlt. Nutze dieses Tool bei Fragen wie 'Ist alles für die kommenden Buchungen vorbereitet?', 'Fehlt irgendwo eine Reinigung?', 'Gibt es offene Zahlungen?', 'Kontrolliere die nächsten Anreisen'. Reine Prüfung - es wird nichts verändert. Fasse das Ergebnis übersichtlich zusammen; wenn alles_ok true ist, sag klar 'alles in Ordnung'.",
+        parameters: {
+          type: "object",
+          properties: {
+            advance_days: { type: "number", description: "Optional: wie viele Tage vorausgeschaut wird (Standard aus den Einstellungen, meist 7)" }
+          }
+        }
+      }
     }
   ];
 }
@@ -1483,6 +1498,134 @@ async function executeSendProviderMessage(params: any) {
     message_id: inserted?.id,
     bestaetigung: `Nachricht an ${provider.name} wurde gesendet.`,
   };
+}
+
+/**
+ * WÄCHTER-FUNKTIONEN ("Max: Tägliche Kontrolle")
+ * ------------------------------------------------
+ * Liest die Einstellungen aus system_settings (Schlüssel 'max_control_settings').
+ * Struktur ist zukunftssicher: dieselbe Prüflogik kann später ein Cron-Job nutzen.
+ * Bei Weg A (Chat-Tool) sind 'enabled' und 'time' noch ungenutzt — nur vorbereitet.
+ */
+async function getControlSettings() {
+  const defaults = {
+    enabled: false,          // für spätere Automatik (Weg B)
+    time: '06:00',           // für spätere Automatik (Weg B)
+    advance_days: 7,         // wie weit voraus wird geschaut
+    checks: {
+      missing_cleaning: true,
+      missing_linen: true,
+      linen_timing: true,
+      unpaid: true,
+    },
+  };
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'max_control_settings')
+      .maybeSingle();
+    if (data?.value && typeof data.value === 'object') {
+      const v: any = data.value;
+      return {
+        enabled: v.enabled ?? defaults.enabled,
+        time: v.time ?? defaults.time,
+        advance_days: v.advance_days ?? defaults.advance_days,
+        checks: { ...defaults.checks, ...(v.checks || {}) },
+      };
+    }
+  } catch (_) {
+    // Tabelle/Schlüssel fehlt -> Standardwerte verwenden
+  }
+  return defaults;
+}
+
+/**
+ * Die eigentliche Prüflogik — wiederverwendbar (Chat-Tool jetzt, Cron später).
+ * Reine Lese-Operation: prüft kommende Buchungen und meldet, was fehlt.
+ */
+async function runUpcomingBookingsControl(overrideAdvanceDays?: number) {
+  const settings = await getControlSettings();
+  const advanceDays = overrideAdvanceDays ?? settings.advance_days;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const windowEnd = new Date(today);
+  windowEnd.setDate(windowEnd.getDate() + advanceDays);
+  const todayStr = today.toISOString().split('T')[0];
+  const windowEndStr = windowEnd.toISOString().split('T')[0];
+
+  // Kommende, aktive Buchungen im Fenster
+  const { data: bookings, error } = await supabase
+    .from('bookings')
+    .select('id, guest_name, check_in, check_out, status, payment_status, house_id, houses(name)')
+    .eq('status', 'confirmed')
+    .gte('check_in', todayStr)
+    .lte('check_in', windowEndStr)
+    .order('check_in', { ascending: true });
+
+  if (error) return { success: false, error: error.message };
+
+  const findings: any[] = [];
+
+  for (const b of bookings || []) {
+    const houseName = (b as any).houses?.name || 'Objekt';
+    const label = `${b.guest_name} (Anreise ${formatDateDE(b.check_in)}, ${houseName})`;
+    const issues: string[] = [];
+
+    // Reinigung + Wäsche einmal laden
+    const [cleaning, linen] = await Promise.all([
+      supabase.from('service_tasks').select('id, scheduled_date').eq('booking_id', b.id).eq('service_type', 'cleaning'),
+      supabase.from('linen_orders').select('id, status, delivery_date').eq('booking_id', b.id),
+    ]);
+
+    const cleanings = cleaning.data || [];
+    const linens = linen.data || [];
+
+    // 1. Fehlende Reinigung
+    if (settings.checks.missing_cleaning && cleanings.length === 0) {
+      issues.push('keine Reinigung angelegt');
+    }
+    // 2. Fehlende Wäsche
+    if (settings.checks.missing_linen && linens.length === 0) {
+      issues.push('keine Wäsche bestellt');
+    }
+    // 3. Wäsche-Timing: Wäsche käme nach der Reinigung
+    if (settings.checks.linen_timing && cleanings.length > 0 && linens.length > 0) {
+      const firstCleaning = cleanings.map((c: any) => c.scheduled_date).filter(Boolean).sort()[0];
+      const late = linens.some((l: any) => l.status !== 'delivered' && l.delivery_date && firstCleaning && l.delivery_date > firstCleaning);
+      if (late) issues.push('Wäsche käme nach der Reinigung');
+    }
+    // 4. Offene Zahlung
+    if (settings.checks.unpaid && b.payment_status !== 'paid') {
+      issues.push('noch nicht bezahlt');
+    }
+
+    if (issues.length > 0) {
+      findings.push({ buchung: label, booking_id: b.id, probleme: issues });
+    }
+  }
+
+  return {
+    success: true,
+    fenster: `${todayStr} bis ${windowEndStr}`,
+    tage_voraus: advanceDays,
+    geprueft: bookings?.length || 0,
+    auffaellig: findings.length,
+    alles_ok: findings.length === 0,
+    details: findings,
+  };
+}
+
+/** Chat-Tool: Max prüft die kommenden Buchungen auf Anfrage. */
+async function executeCheckUpcomingBookings(params: any) {
+  console.log('Executing check_upcoming_bookings with params:', params);
+  const advance = typeof params?.advance_days === 'number' ? params.advance_days : undefined;
+  return await runUpcomingBookingsControl(advance);
+}
+
+function formatDateDE(iso: string): string {
+  try { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; } catch { return iso; }
 }
 
 function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string; label: string }> {
