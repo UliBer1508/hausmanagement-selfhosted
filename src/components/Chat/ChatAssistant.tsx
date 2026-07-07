@@ -148,7 +148,7 @@ const ChatAssistant = () => {
 
   // Render Chat Content as a reusable section
   const renderChatContent = (isEmbedded = false) => (
-    <div className={`flex flex-col ${isEmbedded ? 'h-full' : ''}`}>
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="p-4 border-b bg-card flex flex-col gap-3">
         <div className="flex items-center justify-between">
