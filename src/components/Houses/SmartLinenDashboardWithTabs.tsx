@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { BookingLinenOverview } from "./BookingLinenOverview";
 import SmartLinenDashboard from "./SmartLinenDashboard";
 import AutoLinenOrderSettingsCard from "./AutoLinenOrderSettingsCard";
+import MaxLinenReminderSettingsCard from "../Cleaning/MaxLinenReminderSettingsCard";
 import { useHouses } from "@/hooks/useHouses";
 import { useBookingLinenOrders } from "@/hooks/useBookingLinenOrders";
 import { useMemo } from "react";
@@ -43,6 +44,9 @@ export const SmartLinenDashboardWithTabs = () => {
               Keine Häuser gefunden. Bitte fügen Sie zuerst ein Haus hinzu.
             </div>
           )}
+
+          {/* Max: Wäsche-Erinnerungen an Teuni */}
+          <MaxLinenReminderSettingsCard />
         </TabsContent>
 
         <TabsContent value="inventory">
