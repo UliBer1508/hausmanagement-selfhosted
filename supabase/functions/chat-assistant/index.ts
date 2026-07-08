@@ -1131,6 +1131,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeCreateLinenForBooking(args);
     case 'update_linen_for_booking':
       return await executeUpdateLinenForBooking(args);
+    case 'reschedule_cleaning':
+      return await executeRescheduleCleaning(args);
     
     default:
       console.warn(`Unknown tool: ${toolName}`);
@@ -1452,6 +1454,22 @@ function getToolDefinitions() {
             booking_id: { type: "string", description: "Die ID der Buchung, deren Wäsche angepasst werden soll" }
           },
           required: ["booking_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "reschedule_cleaning",
+        description: "Verschiebt eine Reinigung auf ein neues Datum. Anlass: Amela hat (über Uli) um eine Terminänderung gebeten. Der Termin wird geändert und als ENTWURF (draft) markiert - Uli prüft und setzt ihn auf 'geplant'. WICHTIG: (1) Rufe dieses Tool NUR nach ausdrücklicher Zustimmung von Uli auf - bestätige vorher das genaue alte und neue Datum ('Soll ich die Reinigung für X von TT.MM. auf TT.MM. verschieben?'). (2) Gib new_date immer im Format YYYY-MM-DD an. (3) Wenn du die Buchung nicht eindeutig identifizieren kannst, frage nach oder nutze zuerst search_bookings/search_cleaning_tasks, um die richtige task_id zu finden. Melde danach ehrlich, dass die Änderung ein Entwurf ist, den Uli auf 'geplant' setzen muss.",
+        parameters: {
+          type: "object",
+          properties: {
+            booking_id: { type: "string", description: "Die ID der Buchung, deren Reinigung verschoben werden soll" },
+            task_id: { type: "string", description: "Optional: die ID der Reinigung direkt (eindeutiger als booking_id, falls mehrere Reinigungen existieren)" },
+            new_date: { type: "string", description: "Das neue Datum im Format YYYY-MM-DD" }
+          },
+          required: ["new_date"]
         }
       }
     }
@@ -1812,6 +1830,74 @@ async function executeUpdateLinenForBooking(params: any) {
   }
 }
 
+/**
+ * Verschiebt eine Reinigung auf ein neues Datum.
+ * Anlass: Amela hat (über Uli) um eine Terminänderung gebeten.
+ * Setzt scheduled_date neu UND Status auf 'draft' (Entwurf) - Uli prüft die
+ * Änderung und setzt sie auf 'geplant', um sie zu bestätigen.
+ * NUR nach ausdrücklicher Zustimmung von Uli aufrufen.
+ * new_date muss im Format YYYY-MM-DD übergeben werden.
+ */
+async function executeRescheduleCleaning(params: any) {
+  console.log('Executing reschedule_cleaning:', params);
+  if (!params?.new_date || !/^\d{4}-\d{2}-\d{2}$/.test(params.new_date)) {
+    return { success: false, error: 'new_date im Format YYYY-MM-DD ist erforderlich' };
+  }
+  if (!params?.booking_id && !params?.task_id) {
+    return { success: false, error: 'booking_id oder task_id ist erforderlich' };
+  }
+  try {
+    // Reinigung finden (per task_id oder über booking_id)
+    let query = supabase
+      .from('service_tasks')
+      .select('id, scheduled_date, status, booking_id, bookings(guest_name), houses(name)')
+      .eq('service_type', 'cleaning');
+    query = params.task_id
+      ? query.eq('id', params.task_id)
+      : query.eq('booking_id', params.booking_id);
+
+    const { data: tasks, error: findErr } = await query.limit(2);
+    if (findErr) return { success: false, error: findErr.message };
+    if (!tasks || tasks.length === 0) {
+      return { success: false, error: 'Keine Reinigung gefunden. Bitte booking_id/task_id prüfen.' };
+    }
+    if (tasks.length > 1) {
+      return { success: false, error: 'Mehrere Reinigungen gefunden. Bitte über task_id eindeutig angeben.' };
+    }
+
+    const task = tasks[0];
+    const oldDate = task.scheduled_date;
+    const guestName = (task as any).bookings?.guest_name || 'Gast';
+    const houseName = (task as any).houses?.name || 'Objekt';
+    const nowIso = new Date().toISOString();
+
+    const { error: updErr } = await supabase
+      .from('service_tasks')
+      .update({
+        scheduled_date: params.new_date,
+        status: 'draft',
+        status_changed_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq('id', task.id);
+    if (updErr) return { success: false, error: updErr.message };
+
+    return {
+      success: true,
+      geaendert: true,
+      task_id: task.id,
+      gast: guestName,
+      haus: houseName,
+      altes_datum: formatDateDE(oldDate),
+      neues_datum: formatDateDE(params.new_date),
+      status: 'draft',
+      hinweis: `Der Reinigungstermin für ${guestName} (${houseName}) wurde von ${formatDateDE(oldDate)} auf ${formatDateDE(params.new_date)} geändert und als ENTWURF (draft) markiert. Bitte prüfe die Änderung und setze den Status auf "geplant", um sie zu bestätigen.`,
+    };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
 function formatDateDE(iso: string): string {
   try { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; } catch { return iso; }
 }
@@ -2069,7 +2155,14 @@ Wenn du über check_upcoming_bookings feststellst, dass eine Reinigung oder Wäs
 Wenn eine Buchung eine geänderte (erhöhte) Gästezahl hat, ist mehr Wäsche nötig.
 - Frage zuerst: "Soll ich die Wäschebestellung auf X Gäste anpassen?" und warte auf ein klares "ja".
 - Erst dann rufst du update_linen_for_booking auf. Die bestehende Bestellung wird ersetzt (mehr Wäsche), egal welcher Status.
-- Danach MUSST du anbieten, Teuni zu informieren: sende ihr per send_provider_message die geänderte Menge. Teuni muss die Änderung sehen.`;
+- Danach MUSST du anbieten, Teuni zu informieren: sende ihr per send_provider_message die geänderte Menge. Teuni muss die Änderung sehen.
+
+📅 REINIGUNGSTERMIN VERSCHIEBEN (reschedule_cleaning):
+Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst du die Reinigung verschieben.
+- Bestätige zuerst das genaue alte und neue Datum: "Soll ich die Reinigung für [Gast] von [alt] auf [neu] verschieben?" und warte auf ein klares "ja".
+- Erst dann rufst du reschedule_cleaning auf (new_date im Format YYYY-MM-DD).
+- Der Termin wird als ENTWURF (draft) markiert. Melde Uli ehrlich, dass er die Änderung prüfen und auf "geplant" setzen muss.
+- Wenn die Buchung nicht eindeutig ist, nutze zuerst search_bookings, um die richtige zu finden.`;
 
     const tools = getToolDefinitions();
 
