@@ -1133,6 +1133,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeUpdateLinenForBooking(args);
     case 'reschedule_cleaning':
       return await executeRescheduleCleaning(args);
+    case 'read_provider_replies':
+      return await executeReadProviderReplies(args);
     
     default:
       console.warn(`Unknown tool: ${toolName}`);
@@ -1470,6 +1472,19 @@ function getToolDefinitions() {
             new_date: { type: "string", description: "Das neue Datum im Format YYYY-MM-DD" }
           },
           required: ["new_date"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "read_provider_replies",
+        description: "Liest die jüngsten Antworten von Amela/Teuni und verknüpft jede mit der Reinigung, auf die sie sich bezieht (über related_task_id - so ist eindeutig klar, welche Reinigung gemeint ist). Nutze dieses Tool bei Fragen wie 'Hat Amela geantwortet?', 'Gibt es neue Rückmeldungen?', 'Was hat Teuni geschrieben?'. Wenn eine Antwort einen Terminänderungswunsch enthält, fasse ihn mit dem konkreten Bezug zusammen (Gast, Haus, aktuelles Datum) und frage Uli, ob du die Änderung mit reschedule_cleaning durchführen sollst. Reine Leseoperation.",
+        parameters: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Optional: wie viele der jüngsten Antworten gelesen werden (Standard 10, max 20)" }
+          }
         }
       }
     }
@@ -1838,6 +1853,65 @@ async function executeUpdateLinenForBooking(params: any) {
  * NUR nach ausdrücklicher Zustimmung von Uli aufrufen.
  * new_date muss im Format YYYY-MM-DD übergeben werden.
  */
+/**
+ * Liest die jüngsten Antworten von Amela/Teuni (sender_type 'provider') und
+ * verknüpft sie mit der Reinigung, auf die sie sich beziehen (related_task_id).
+ * So bleibt die Kette intakt: Max weiß eindeutig, welche Reinigung gemeint ist.
+ * Reine Lese-Operation.
+ */
+async function executeReadProviderReplies(params: any) {
+  console.log('Executing read_provider_replies:', params);
+  const limit = typeof params?.limit === 'number' ? Math.min(params.limit, 20) : 10;
+  try {
+    const { data: replies, error } = await supabase
+      .from('provider_messages')
+      .select('id, message, created_at, related_task_id, provider_id, service_providers(name)')
+      .eq('sender_type', 'provider')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) return { success: false, error: error.message };
+
+    const results: any[] = [];
+    for (const r of replies || []) {
+      let context: any = null;
+      if (r.related_task_id) {
+        // Die zugeordnete Reinigung + Buchung laden
+        const { data: task } = await supabase
+          .from('service_tasks')
+          .select('id, scheduled_date, status, booking_id, bookings(guest_name), houses(name)')
+          .eq('id', r.related_task_id)
+          .maybeSingle();
+        if (task) {
+          context = {
+            task_id: task.id,
+            booking_id: task.booking_id,
+            gast: (task as any).bookings?.guest_name,
+            haus: (task as any).houses?.name,
+            aktuelles_datum: task.scheduled_date ? formatDateDE(task.scheduled_date) : null,
+            status: task.status,
+          };
+        }
+      }
+      results.push({
+        von: (r as any).service_providers?.name || 'Dienstleister',
+        antwort: r.message,
+        gesendet: formatDateDE((r.created_at || '').split('T')[0]),
+        bezug: context,  // null = Antwort ohne Reinigungs-Bezug
+      });
+    }
+
+    return {
+      success: true,
+      anzahl: results.length,
+      hinweis: 'Antworten mit "bezug" beziehen sich eindeutig auf die genannte Reinigung. Wenn eine Antwort eine Terminänderung wünscht, frage Uli, ob du sie mit reschedule_cleaning durchführen sollst.',
+      antworten: results,
+    };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
 async function executeRescheduleCleaning(params: any) {
   console.log('Executing reschedule_cleaning:', params);
   if (!params?.new_date || !/^\d{4}-\d{2}-\d{2}$/.test(params.new_date)) {
