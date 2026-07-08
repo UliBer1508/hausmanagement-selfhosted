@@ -33,3 +33,6 @@ bun.lockb
 .env
 .env.local
 .env.*.local
+
+# Datenbank-Backups (enthalten Gästedaten - niemals committen!)
+backup-*.sql
