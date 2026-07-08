@@ -20,6 +20,7 @@ import LinenInventoryDialog from './LinenInventoryDialog';
 import LinenOrderDialog from './LinenOrderDialog';
 import LinenOrdersList from './LinenOrdersList';
 import AutoLinenOrderSettingsCard from './AutoLinenOrderSettingsCard';
+import MaxLinenReminderSettingsCard from '../Cleaning/MaxLinenReminderSettingsCard';
 
 interface HouseLinenStatus {
   house: any;
@@ -792,6 +793,9 @@ const LinenDashboard = () => {
 
       {/* Wäschebestellungs-Automatisierung */}
       <AutoLinenOrderSettingsCard />
+
+      {/* Max: Wäsche-Erinnerungen an Teuni */}
+      <MaxLinenReminderSettingsCard />
 
       {/* Linen Orders with Bookings Section */}
       <div className="mt-8">
