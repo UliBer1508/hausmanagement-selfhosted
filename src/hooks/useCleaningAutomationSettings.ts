@@ -10,6 +10,8 @@ export interface CleaningAutomationSettings {
   is_enabled: boolean;
   max_reminder_enabled: boolean;
   max_reminder_days_before: number;
+  max_linen_reminder_enabled: boolean;
+  max_linen_reminder_days_before: number;
   created_at: string;
   updated_at: string;
 }
