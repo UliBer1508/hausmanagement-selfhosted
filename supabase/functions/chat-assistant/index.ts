@@ -1129,6 +1129,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeCreateCleaningForBooking(args);
     case 'create_linen_for_booking':
       return await executeCreateLinenForBooking(args);
+    case 'update_linen_for_booking':
+      return await executeUpdateLinenForBooking(args);
     
     default:
       console.warn(`Unknown tool: ${toolName}`);
@@ -1438,6 +1440,20 @@ function getToolDefinitions() {
           }
         }
       }
+    },
+    {
+      type: "function",
+      function: {
+        name: "update_linen_for_booking",
+        description: "Passt die Wäschebestellung einer Buchung an die aktuelle (geänderte) Gästezahl an. Anlass: Uli hat die Gästezahl erhöht und braucht mehr Wäsche. Berechnet die neue Menge und ERSETZT die bestehende Bestellung (items + total_items werden aktualisiert) - unabhängig vom Status (auch wenn bereits in Bearbeitung oder geliefert, denn es wird mehr Wäsche gebraucht). Nutze dieses Tool, wenn eine Buchung eine geänderte Gästezahl hat und die Wäsche angepasst werden muss. WICHTIG: (1) Rufe es NUR nach ausdrücklicher Zustimmung von Uli auf - frage zuerst 'Soll ich die Wäschebestellung auf X Gäste anpassen?'. (2) Nach der Anpassung MUSST du anbieten, Teuni per Nachricht zu informieren (send_provider_message an Teuni), damit sie die geänderte Menge sieht.",
+        parameters: {
+          type: "object",
+          properties: {
+            booking_id: { type: "string", description: "Die ID der Buchung, deren Wäsche angepasst werden soll" }
+          },
+          required: ["booking_id"]
+        }
+      }
     }
   ];
 }
@@ -1709,6 +1725,93 @@ async function executeCreateLinenForBooking(params: any) {
   }
 }
 
+/**
+ * Passt die Wäschebestellung einer Buchung an die aktuelle Gästezahl an.
+ * Anlass: Uli hat die Gästezahl händisch erhöht -> mehr Wäsche nötig.
+ * Ablauf: neue Menge berechnen (generate-booking-linen-order, rechnet per_guest),
+ * bestehende Bestellung ERSETZEN (items/total_items aktualisieren) - egal welcher
+ * Status. Falls keine Bestellung existiert, wird eine neue angelegt.
+ * Danach: Teuni muss informiert werden (Max sendet die Nachricht separat).
+ * NUR nach ausdrücklicher Zustimmung des Nutzers aufrufen.
+ */
+async function executeUpdateLinenForBooking(params: any) {
+  console.log('Executing update_linen_for_booking:', params);
+  if (!params?.booking_id) {
+    return { success: false, error: 'booking_id ist erforderlich' };
+  }
+  try {
+    // 1. Neue Menge berechnen (nutzt aktuelle number_of_guests der Buchung)
+    const { data: calc, error: calcErr } = await supabase.functions.invoke('generate-booking-linen-order', {
+      body: { booking_id: params.booking_id },
+    });
+    if (calcErr || !calc?.success) {
+      return { success: false, error: calcErr?.message || 'Mengenberechnung fehlgeschlagen' };
+    }
+
+    const newItems = calc.order_items ?? calc.items ?? {};
+    const newTotal = calc.total_items ?? 0;
+    const guests = calc.booking?.number_of_guests ?? null;
+    const nowIso = new Date().toISOString();
+    const note = `Wäschemenge angepasst an ${guests ?? '?'} Gäste (durch Max, ${formatDateDE(nowIso.split('T')[0])}). Grund: geänderte Gästezahl.`;
+
+    // 2. Bestehende Bestellung suchen (nicht storniert)
+    const { data: existing } = await supabase
+      .from('linen_orders')
+      .select('id, status, total_items')
+      .eq('booking_id', params.booking_id)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      const order = existing[0];
+      const oldTotal = order.total_items;
+      // 3a. Ersetzen: items + total aktualisieren, egal welcher Status
+      const { error: updErr } = await supabase
+        .from('linen_orders')
+        .update({
+          items: newItems,
+          total_items: newTotal,
+          item_variants: calc.item_variants ?? undefined,
+          linen_color: calc.linen_color ?? undefined,
+          notes: note,
+          updated_at: nowIso,
+          status_changed_at: nowIso,
+        })
+        .eq('id', order.id);
+      if (updErr) return { success: false, error: updErr.message };
+      return {
+        success: true,
+        aktion: 'aktualisiert',
+        order_id: order.id,
+        alter_status: order.status,
+        alte_menge: oldTotal,
+        neue_menge: newTotal,
+        gaeste: guests,
+        teuni_informieren: true,
+        hinweis: `Wäschebestellung aktualisiert (von ${oldTotal} auf ${newTotal} Teile, Status war "${order.status}"). WICHTIG: Teuni muss über die Änderung informiert werden - biete an, ihr eine Nachricht zu senden.`,
+      };
+    } else {
+      // 3b. Keine Bestellung vorhanden -> neu anlegen über die Automatik
+      const { data: created, error: createErr } = await supabase.functions.invoke('auto-create-linen-orders', {
+        body: {},
+      });
+      if (createErr) return { success: false, error: createErr.message };
+      return {
+        success: true,
+        aktion: 'neu_angelegt',
+        neue_menge: newTotal,
+        gaeste: guests,
+        teuni_informieren: true,
+        hinweis: 'Es gab noch keine Bestellung - die Wäsche-Automatik wurde ausgelöst (Status "offen"). Bitte prüfen und Teuni informieren.',
+        details: created,
+      };
+    }
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
 function formatDateDE(iso: string): string {
   try { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; } catch { return iso; }
 }
@@ -1960,7 +2063,13 @@ Wenn du über check_upcoming_bookings feststellst, dass eine Reinigung oder Wäs
 - Frage IMMER zuerst: "Soll ich die Reinigung/Wäsche anlegen?" und warte auf ein klares "ja".
 - Erst nach der Zustimmung rufst du das Tool auf.
 - Danach meldest du EHRLICH den Status: Reinigung ist ein ENTWURF (draft), den Uli prüfen und auf "geplant" setzen muss; Wäsche ist "offen" und muss auf "ausstehend" gesetzt werden.
-- Du ÄNDERST NIEMALS bestehende Bestellungen (geänderte Gästezahl/Check-in) - das ist noch nicht deine Aufgabe. Melde solche Fälle nur an Uli.`;
+- Bei geänderter Gästezahl darfst du die WÄSCHE anpassen (siehe unten). Reinigungen und andere Bestellungen änderst du nicht - solche Fälle meldest du nur an Uli.
+
+🧺 WÄSCHE BEI GÄSTEZAHL-ÄNDERUNG (update_linen_for_booking):
+Wenn eine Buchung eine geänderte (erhöhte) Gästezahl hat, ist mehr Wäsche nötig.
+- Frage zuerst: "Soll ich die Wäschebestellung auf X Gäste anpassen?" und warte auf ein klares "ja".
+- Erst dann rufst du update_linen_for_booking auf. Die bestehende Bestellung wird ersetzt (mehr Wäsche), egal welcher Status.
+- Danach MUSST du anbieten, Teuni zu informieren: sende ihr per send_provider_message die geänderte Menge. Teuni muss die Änderung sehen.`;
 
     const tools = getToolDefinitions();
 
