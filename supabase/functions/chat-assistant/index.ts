@@ -2365,6 +2365,54 @@ function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string;
   return links.slice(0, 6);
 }
 
+// ===== DETERMINISTISCHE AKTIONEN (ohne Gemini) =====
+// Erkennt den Befehl "erstelle/schreibe eine (Begrüßungs-)E-Mail an/für <Gast>".
+function isWelcomeEmailCommand(text: string): boolean {
+  const t = text || '';
+  const hasEmailWord = /(e-?mail|email|mail|begrüßung|begruessung|begrüss|willkommen|welcome|anschreiben)/i.test(t);
+  const hasTarget = /\b(an|für|fuer)\s+\S+/i.test(t);
+  return hasEmailWord && hasTarget;
+}
+// Extrahiert den Gastnamen nach "an"/"für" (bis zu vier Wörter).
+function extractGuestNameFromCommand(text: string): string | null {
+  const m = (text || '').match(/\b(?:an|für|fuer)\s+([A-Za-zÄÖÜäöüß.\-]+(?:\s+[A-Za-zÄÖÜäöüß.\-]+){0,3})/i);
+  return m ? m[1].trim() : null;
+}
+
+// Schreibt einen Eintrag in den Auftragsverlauf (Tabelle max_actions).
+// Rein additiv: schlägt es fehl, wird nur geloggt — die Aktion läuft trotzdem weiter.
+async function logMaxAction(entry: {
+  action_type: string;
+  status: string;
+  booking_id?: string | null;
+  guest_name?: string | null;
+  details?: any;
+  created_by?: string;
+}): Promise<string | null> {
+  try {
+    const { data, error } = await supabase
+      .from('max_actions')
+      .insert({
+        action_type: entry.action_type,
+        status: entry.status,
+        booking_id: entry.booking_id ?? null,
+        guest_name: entry.guest_name ?? null,
+        details: entry.details ?? null,
+        created_by: entry.created_by ?? 'max',
+      })
+      .select('id')
+      .single();
+    if (error) {
+      console.error('logMaxAction error:', error);
+      return null;
+    }
+    return data?.id ?? null;
+  } catch (e) {
+    console.error('logMaxAction exception:', e);
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -2375,6 +2423,45 @@ serve(async (req) => {
 
   try {
     const { messages, context } = await req.json();
+
+    // ===== DETERMINISTISCHE AKTION: Begrüßungs-E-Mail — DIREKT ausführen, OHNE Gemini. =====
+    // Wenn der letzte Nutzer-Text ein E-Mail-Befehl ist, ruft das Backend die Funktion
+    // executeDraftGuestWelcomeEmail selbst auf und gibt "Auftrag ausgeführt" + Button zurück.
+    // Gemini wird dabei NICHT gefragt (zuverlässig statt Zufall).
+    const latestUserText = [...messages].reverse().find((m: any) => m.role === 'user')?.content || '';
+    if (isWelcomeEmailCommand(latestUserText)) {
+      const guestName = extractGuestNameFromCommand(latestUserText);
+      const result = await executeDraftGuestWelcomeEmail({ guest_name: guestName || undefined });
+      const toolResults = [{ tool: 'draft_guest_welcome_email', args: { guest_name: guestName }, result }];
+
+      let responseText: string;
+      if (result.success && (result as any).draft) {
+        const d = (result as any).draft;
+        // Status-Verlauf: Auftrag protokollieren (Entwurf erstellt, wartet auf Prüfung/Senden).
+        await logMaxAction({
+          action_type: 'welcome_email',
+          status: 'zur_pruefung',
+          booking_id: d.booking_id ?? null,
+          guest_name: d.guest_name ?? null,
+          details: { to: d.to, subject: d.subject, language: d.language, house: d.house },
+          created_by: 'uli',
+        });
+        responseText = `✅ Auftrag ausgeführt: Begrüßungs-E-Mail (${String(d.language || 'de').toUpperCase()}) für ${d.guest_name} vorbereitet. Klick auf den Button, prüfe Betreff/Text im Vorschaufenster und sende mit „Per Gmail senden".`;
+      } else {
+        responseText = (result as any).error || 'Ich konnte die Begrüßungs-E-Mail nicht vorbereiten.';
+      }
+
+      const entityLinks = buildEntityLinks(toolResults);
+      const responseWithEntities = entityLinks.length > 0
+        ? `${responseText}\n___ENTITIES___\n${JSON.stringify(entityLinks)}`
+        : responseText;
+
+      return new Response(
+        JSON.stringify({ response: responseWithEntities, toolResults }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 
     if (!GEMINI_API_KEY) {
@@ -2599,8 +2686,8 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
     // sonst den E-Mail-Text selbst schreibt, statt das Tool (und damit den Button) zu nutzen.
     const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user')?.content || '';
     const wantsWelcomeEmail =
-      /(begrüßung|begruessung|willkommen|welcome|anreise)/i.test(lastUserMsg) &&
-      /(e-?mail|mail|client|vorlage)/i.test(lastUserMsg);
+      /(begrüßung|begruessung|begrüss|begruess|willkommen|welcome)/i.test(lastUserMsg) ||
+      (/(anreise)/i.test(lastUserMsg) && /(e-?mail|mail|schreib|vorlage|client|nachricht)/i.test(lastUserMsg));
 
     // Tool-calling loop
     let iteration = 0;
