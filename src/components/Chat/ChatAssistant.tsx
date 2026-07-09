@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, GripVertical, Bot, MessagesSquare, LayoutDashboard } from 'lucide-react';
+import { MessageCircle, X, GripVertical, Bot, MessagesSquare, LayoutDashboard, Settings } from 'lucide-react';
 import { OperationsDashboard } from '@/components/Operations/OperationsDashboard';
+import MaxActionsPanel from './MaxActionsPanel';
 import { Button } from '@/components/ui/button';
 import { CloseButton } from '@/components/ui/close-button';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +32,7 @@ const ChatAssistant = () => {
   const [chatMode, setChatMode] = useState<ChatMode>('ai');
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
+  const [isMaxActionsOpen, setIsMaxActionsOpen] = useState(false);
   const location = useLocation();
   const isMobileRaw = useIsMobile();
   const isMobile = isMobileRaw === undefined ? false : isMobileRaw;
@@ -156,7 +158,16 @@ const ChatAssistant = () => {
             {chatMode === 'ai' ? (
               <>
                 <Bot className="h-5 w-5 text-primary" />
-                <h2 className="font-semibold">AI Assistent</h2>
+                <h2 className="font-semibold">Max</h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setIsMaxActionsOpen(true)}
+                  title="Max: Aktionen anzeigen"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
               </>
             ) : (
               <>
@@ -251,7 +262,7 @@ const ChatAssistant = () => {
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
                 <Bot className="h-12 w-12 mb-4 opacity-50" />
-                <p className="text-sm">Hallo! Ich bin dein AI-Assistent.</p>
+                <p className="text-sm">Hallo! Ich bin Max, dein Assistent.</p>
                 <p className="text-xs mt-2">Stelle mir Fragen zu Buchungen, Reinigungen oder Häusern.</p>
               </div>
             )}
@@ -493,6 +504,9 @@ const ChatAssistant = () => {
       {isMobile && (
         <OperationsDashboard isOpen={isDashboardOpen} onClose={() => setIsDashboardOpen(false)} />
       )}
+
+      {/* Max: Aktionen-Protokoll (unabhängig von Mobile/Desktop) */}
+      <MaxActionsPanel open={isMaxActionsOpen} onOpenChange={setIsMaxActionsOpen} />
     </>
   );
 };
