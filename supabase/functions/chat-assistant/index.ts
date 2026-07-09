@@ -1223,21 +1223,41 @@ async function executeGetRatingReminders(_params: any) {
 // ("Per Gmail senden") vorausgefüllt öffnet. Uli prüft Betreff/Text und sendet dort.
 async function executeDraftGuestWelcomeEmail(params: any) {
   console.log('Executing draft_guest_welcome_email:', params);
-  if (!params?.booking_id) {
-    return { success: false, error: 'booking_id ist erforderlich' };
-  }
   const lang = params?.language === 'en' ? 'en' : 'de';
 
-  // 1) Buchung + Haus laden
-  const { data: booking, error: bErr } = await supabase
-    .from('bookings')
-    .select('id, guest_name, guest_email, check_in, check_out, nationality, houses(name)')
-    .eq('id', params.booking_id)
-    .maybeSingle();
-  if (bErr) return { success: false, error: bErr.message };
-  if (!booking) return { success: false, error: 'Buchung nicht gefunden' };
+  // 1) Buchung ermitteln — per booking_id ODER per guest_name (automatische Auswahl).
+  let booking: any = null;
+  if (params?.booking_id) {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, guest_name, guest_email, check_in, check_out, nationality, houses(name)')
+      .eq('id', params.booking_id)
+      .maybeSingle();
+    if (error) return { success: false, error: error.message };
+    booking = data;
+  } else if (params?.guest_name) {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, guest_name, guest_email, check_in, check_out, nationality, status, houses(name)')
+      .ilike('guest_name', `%${params.guest_name}%`)
+      .neq('status', 'cancelled')
+      .order('check_in', { ascending: true });
+    if (error) return { success: false, error: error.message };
+    const list = data || [];
+    // Bevorzugt: KOMMENDE Buchung (check_in >= heute) MIT E-Mail-Adresse; sonst
+    // irgendeine mit E-Mail; sonst die erste.
+    booking =
+      list.find((b: any) => b.guest_email && String(b.check_in || '').split('T')[0] >= todayStr) ||
+      list.find((b: any) => b.guest_email) ||
+      list[0] || null;
+  } else {
+    return { success: false, error: 'booking_id oder guest_name erforderlich' };
+  }
+
+  if (!booking) return { success: false, error: 'Keine passende Buchung gefunden' };
   if (!booking.guest_email) {
-    return { success: false, error: 'Für diesen Gast ist keine E-Mail-Adresse hinterlegt. Es reicht die telefonische Erinnerung.' };
+    return { success: false, error: `Für ${booking.guest_name || 'diesen Gast'} ist keine E-Mail-Adresse hinterlegt. Es reicht die telefonische Erinnerung.` };
   }
 
   // 2) Passende Begrüßungs-/Anreise-Vorlage in der gewählten Sprache suchen
@@ -1738,14 +1758,14 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "draft_guest_welcome_email",
-        description: "Bereitet für EINEN Gast eine Begrüßungs-/Anreise-E-Mail als ENTWURF vor (aus den vorhandenen Vorlagen in der gewählten Sprache, DE oder EN, mit eingesetzten Platzhaltern). Es wird NICHTS gesendet: Im Chat erscheint anschließend ein Button, der das Vorschaufenster VORAUSGEFÜLLT öffnet, wo Uli Betreff/Text prüft und selbst 'Per Gmail senden' klickt. Rufe dieses Tool NUR auf, nachdem Uli ausdrücklich zugestimmt hat ('ja, bereite die Begrüßungs-E-Mail vor'). Wähle language='en' für Gäste aus englischsprachigen Ländern (siehe Nationalität), sonst 'de'. Voraussetzung: der Gast hat eine E-Mail-Adresse (has_email=true).",
+        description: "Bereitet für EINEN Gast eine Begrüßungs-/Anreise-E-Mail als ENTWURF vor (aus den vorhandenen Vorlagen in der gewählten Sprache, DE oder EN, mit eingesetzten Platzhaltern). Es wird NICHTS gesendet: Im Chat erscheint anschließend ein Button, der das Vorschaufenster VORAUSGEFÜLLT öffnet, wo Uli Betreff/Text prüft und selbst 'Per Gmail senden' klickt. Rufe dieses Tool auf, sobald Uli eine Begrüßungs-/Willkommens-/Anreise-E-Mail für einen Gast will — am einfachsten mit guest_name; das Tool wählt automatisch die passende kommende Buchung mit E-Mail-Adresse. Schreibe die E-Mail NIEMALS selbst als Text. Wähle language='en' für Gäste aus englischsprachigen Ländern (Nationalität), sonst 'de'.",
         parameters: {
           type: "object",
           properties: {
-            booking_id: { type: "string", description: "Die ID der Buchung des anzuschreibenden Gastes" },
+            guest_name: { type: "string", description: "Name des Gastes (Teilname genügt). Bevorzugt verwenden — das Tool wählt automatisch die passende kommende Buchung mit E-Mail-Adresse." },
+            booking_id: { type: "string", description: "Optional: UUID der Buchung, falls bekannt (Alternative zu guest_name)." },
             language: { type: "string", enum: ["de", "en"], description: "Sprache der Vorlage. 'en' für Gäste aus englischsprachigen Ländern, sonst 'de' (Standard)." }
-          },
-          required: ["booking_id"]
+          }
         }
       }
     }
@@ -2574,6 +2594,14 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
       }
     }
 
+    // Absicht "Begrüßungs-E-Mail vorbereiten" in der letzten Nutzer-Nachricht erkennen.
+    // In dem Fall erzwingen wir den Aufruf von draft_guest_welcome_email, weil Gemini
+    // sonst den E-Mail-Text selbst schreibt, statt das Tool (und damit den Button) zu nutzen.
+    const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user')?.content || '';
+    const wantsWelcomeEmail =
+      /(begrüßung|begruessung|willkommen|welcome|anreise)/i.test(lastUserMsg) &&
+      /(e-?mail|mail|client|vorlage)/i.test(lastUserMsg);
+
     // Tool-calling loop
     let iteration = 0;
     const maxIterations = 5;
@@ -2588,14 +2616,19 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
       // Build request for Gemini
       const geminiTools = convertToolsToGemini(tools);
 
+      // Wurde in dieser Anfrage schon ein Begrüßungs-Entwurf erzeugt? Dann nicht mehr erzwingen.
+      const draftDone = toolResults.some((t: any) => t.tool === 'draft_guest_welcome_email' && t.result?.success);
+      // Bei erkannter E-Mail-Absicht: draft_guest_welcome_email ERZWINGEN (mode ANY), sonst AUTO.
+      const functionCallingConfig = (wantsWelcomeEmail && !draftDone)
+        ? { mode: 'ANY', allowedFunctionNames: ['draft_guest_welcome_email'] }
+        : { mode: 'AUTO' };  // AUTO: Modell entscheidet selbst (spart 429-Rate-Limit)
+
       const requestBody = {
         contents,
         systemInstruction: { parts: [{ text: systemPrompt }] },
         tools: geminiTools,
         toolConfig: {
-          functionCallingConfig: {
-            mode: 'AUTO'  // AUTO statt ANY: Modell entscheidet selbst, ob ein Tool nötig ist (verhindert unnötige Extra-Calls -> weniger 429-Rate-Limit)
-          }
+          functionCallingConfig
         },
         generationConfig: {
           maxOutputTokens: 2048,
@@ -2654,56 +2687,4 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
         const finalContent = textPart?.text || 'Ich konnte keine passende Antwort generieren.';
 
         if (iteration === 1 && !toolNudged) {
-          // Einmaliger sanfter Stupser: Wenn das Modell bei der ersten Runde ohne Tool
-          // antwortet, obwohl es eine Datenfrage ist, einmal zum passenden Tool anstoßen.
-          // (Kein harter Zwang mehr wie bei mode:'ANY' - das sparte 429-Rate-Limits.)
-          toolNudged = true;
-          console.log('AI antwortete ohne Tool - einmaliger Hinweis auf passendes Tool');
-          contents.push({
-            role: 'user',
-            parts: [{ text: 'Falls dies eine Frage zu konkreten Daten (Buchung, Gast, Wäsche, Reinigung, Kosten) ist: bitte das passende Tool aufrufen. Bei Fragen zu einem konkreten Gast/einer Buchung: get_booking_full_context.' }]
-          });
-          continue;
-        }
-
-        console.log('Final response received:', { textLength: finalContent.length });
-
-        // Sprung-Buttons (Schnellzugriff) aus den Tool-Ergebnissen anhängen.
-        // Das Frontend (ChatMessage.tsx) erkennt den ___ENTITIES___-Marker und rendert Buttons.
-        const entityLinks = buildEntityLinks(toolResults);
-        const responseWithEntities = entityLinks.length > 0
-          ? `${finalContent}\n___ENTITIES___\n${JSON.stringify(entityLinks)}`
-          : finalContent;
-
-        return new Response(
-          JSON.stringify({ response: responseWithEntities, toolResults }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Process function calls
-      // Add model response to contents
-      contents.push({
-        role: 'model',
-        parts: parts
-      });
-
-      console.log('Processing function calls:', functionCalls.map((fc: any) => fc.functionCall.name));
-
-      const functionResponses: GeminiPart[] = [];
-
-      for (const fc of functionCalls) {
-        const toolName = fc.functionCall.name;
-        const args = fc.functionCall.args || {};
-
-        console.log(`Executing tool: ${toolName}`, args);
-
-        const result = await executeTool(toolName, args);
-
-        console.log(`Tool result for ${toolName}:`, {
-          success: result.success,
-          dataCount: result.data?.length || result.count || 0,
-          error: result.error
-        });
-
-        toolResults.push({ tool: 
+          // Einmaliger sanfter Stupser: Wenn das
