@@ -2413,6 +2413,87 @@ async function logMaxAction(entry: {
   }
 }
 
+// Erkennt ein Datum aus freiem Text: TT.MM.JJJJ, TT.MM., "TT. Monat [JJJJ]".
+// Gibt ISO 'YYYY-MM-DD' zurück oder null. Fehlt das Jahr, wird das nächste
+// zukünftige Jahr gewählt.
+function parseGermanDate(text: string): string | null {
+  const t = text || '';
+  const months: Record<string, number> = {
+    januar: 1, jänner: 1, februar: 2, märz: 3, maerz: 3, april: 4, mai: 5, juni: 6,
+    juli: 7, august: 8, september: 9, oktober: 10, november: 11, dezember: 12,
+  };
+  const futureYear = (mon: number, day: number): number => {
+    const now = new Date();
+    let year = now.getFullYear();
+    const candidate = new Date(year, mon - 1, day);
+    if (candidate.getTime() < now.getTime() - 86400000) year += 1;
+    return year;
+  };
+  // 1) TT.MM.JJJJ
+  let m = t.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  // 2) TT.MM. (ohne Jahr)
+  m = t.match(/(\d{1,2})\.(\d{1,2})\.?(?!\d)/);
+  if (m) {
+    const day = parseInt(m[1], 10), mon = parseInt(m[2], 10);
+    const year = futureYear(mon, day);
+    return `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  // 3) TT. Monat [JJJJ]
+  m = t.match(/(\d{1,2})\.?\s+(januar|jänner|februar|märz|maerz|april|mai|juni|juli|august|september|oktober|november|dezember)(?:\s+(\d{4}))?/i);
+  if (m) {
+    const day = parseInt(m[1], 10);
+    const mon = months[m[2].toLowerCase()];
+    const year = m[3] ? parseInt(m[3], 10) : futureYear(mon, day);
+    return `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  return null;
+}
+
+// Findet offene Termin-Vorschläge von Dienstleistern (Amela/Teuni):
+// provider-Nachrichten "Neuer Termin: TT.MM.JJJJ" mit Reinigungsbezug,
+// die noch nicht angewandt wurden (aktuelles Datum != Vorschlag).
+async function findAmelaRescheduleProposals(): Promise<any[]> {
+  const { data: msgs } = await supabase
+    .from('provider_messages')
+    .select('id, message, related_task_id, created_at, provider_id, service_providers(name)')
+    .eq('sender_type', 'provider')
+    .not('related_task_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  const re = /Neuer Termin:\s*(\d{1,2})\.(\d{1,2})\.(\d{4})/i;
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const msg of msgs || []) {
+    const mm = re.exec((msg as any).message || '');
+    if (!mm) continue;
+    const taskId = (msg as any).related_task_id;
+    if (seen.has(taskId)) continue; // pro Reinigung nur der jüngste Vorschlag
+    seen.add(taskId);
+    const iso = `${mm[3]}-${mm[2].padStart(2, '0')}-${mm[1].padStart(2, '0')}`;
+    const { data: task } = await supabase
+      .from('service_tasks')
+      .select('id, scheduled_date, booking_id, service_type, bookings(guest_name), houses(name)')
+      .eq('id', taskId)
+      .maybeSingle();
+    if (!task || (task as any).service_type !== 'cleaning') continue;
+    if (String((task as any).scheduled_date) === iso) continue; // schon angewandt
+    out.push({
+      task_id: (task as any).id,
+      booking_id: (task as any).booking_id,
+      iso,
+      new_date_de: `${mm[1].padStart(2, '0')}.${mm[2].padStart(2, '0')}.${mm[3]}`,
+      old_date_de: formatDateDE(String((task as any).scheduled_date)),
+      guest: (task as any).bookings?.guest_name || 'Gast',
+      haus: (task as any).houses?.name || '',
+      provider_name: (msg as any).service_providers?.name || 'Amela',
+      provider_id: (msg as any).provider_id,
+    });
+  }
+  return out;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -2460,6 +2541,104 @@ serve(async (req) => {
         JSON.stringify({ response: responseWithEntities, toolResults }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // ===== DETERMINISTISCHE AKTION: Reinigungstermin ändern (ohne Gemini) =====
+    const dateInMsg = parseGermanDate(latestUserText);
+    const mentionsReschedule = /(verschieb|reinigungstermin|reinigung.*termin|termin.*reinigung)/i.test(latestUserText);
+    const mentionsAmelaChange =
+      /amela/i.test(latestUserText) &&
+      /(änder|termin|geantwortet|vorschlag|neuer termin|was möchte|was will)/i.test(latestUserText);
+    const jsonHeaders = { headers: { ...corsHeaders, 'Content-Type': 'application/json' } };
+
+    // A) Direkter Befehl MIT Datum: "verschiebe die Reinigung von <Gast> auf <Datum>"
+    if (mentionsReschedule && dateInMsg) {
+      const guestName = extractGuestNameFromCommand(latestUserText);
+      if (!guestName) {
+        return new Response(JSON.stringify({ response: 'Für welchen Gast soll ich die Reinigung verschieben? Bitte den Namen nennen, z.B. „verschiebe die Reinigung von Niels auf 18.07.2026".', toolResults: [] }), jsonHeaders);
+      }
+      const { data: tasks } = await supabase
+        .from('service_tasks')
+        .select('id, scheduled_date, booking_id, bookings(guest_name), houses(name)')
+        .eq('service_type', 'cleaning')
+        .order('scheduled_date', { ascending: true });
+      const list = (tasks || []).filter((t: any) =>
+        (t.bookings?.guest_name || '').toLowerCase().includes(guestName.toLowerCase())
+      );
+      const todayStr = new Date().toISOString().split('T')[0];
+      const task = list.find((t: any) => String(t.scheduled_date) >= todayStr) || list[0];
+      const toolResults: any[] = [];
+      let text: string;
+      if (!task) {
+        text = `Ich habe keine Reinigung für „${guestName}" gefunden.`;
+      } else {
+        const rr = await executeRescheduleCleaning({ task_id: (task as any).id, new_date: dateInMsg });
+        toolResults.push({ tool: 'reschedule_cleaning', args: { task_id: (task as any).id, new_date: dateInMsg }, result: rr });
+        if (rr.success) {
+          await logMaxAction({
+            action_type: 'reschedule_cleaning',
+            status: 'zur_pruefung',
+            booking_id: (task as any).booking_id ?? null,
+            guest_name: (rr as any).gast ?? guestName,
+            details: { task_id: (task as any).id, altes_datum: (rr as any).altes_datum, neues_datum: (rr as any).neues_datum, quelle: 'uli' },
+            created_by: 'uli',
+          });
+          text = `✅ Auftrag ausgeführt: Reinigung für ${(rr as any).gast || guestName} von ${(rr as any).altes_datum} auf ${(rr as any).neues_datum} verschoben (als Entwurf). Bitte in der Reinigungs-Verwaltung auf „geplant" setzen.`;
+        } else {
+          text = `Konnte die Reinigung nicht verschieben: ${(rr as any).error || 'unbekannter Fehler'}`;
+        }
+      }
+      return new Response(JSON.stringify({ response: text, toolResults }), jsonHeaders);
+    }
+
+    // B) Bestätigung OHNE Datum ("verschieben" / "ja verschieben"): Amelas jüngsten Vorschlag anwenden
+    if (mentionsReschedule && !dateInMsg) {
+      const proposals = await findAmelaRescheduleProposals();
+      const p = proposals[0];
+      const toolResults: any[] = [];
+      let text: string;
+      if (!p) {
+        text = 'Ich habe keinen offenen Termin-Vorschlag von Amela gefunden. Wenn du direkt verschieben willst, nenne Gast und Datum, z.B. „verschiebe die Reinigung von Niels auf 18.07.2026".';
+      } else {
+        const rr = await executeRescheduleCleaning({ task_id: p.task_id, new_date: p.iso });
+        toolResults.push({ tool: 'reschedule_cleaning', args: { task_id: p.task_id, new_date: p.iso }, result: rr });
+        if (rr.success) {
+          // Amela bestätigen (direkt senden)
+          await executeSendProviderMessage({
+            provider_name: p.provider_name,
+            message: `Hallo ${p.provider_name}, ich bin Max, der KI-Assistent von Uli. Der Reinigungstermin für ${p.guest} wurde auf ${p.new_date_de} geändert. Danke für den Hinweis!`,
+            ist_terminfrage: true,
+            related_task_id: p.task_id,
+          });
+          await logMaxAction({
+            action_type: 'reschedule_cleaning',
+            status: 'zur_pruefung',
+            booking_id: p.booking_id ?? null,
+            guest_name: p.guest,
+            details: { task_id: p.task_id, altes_datum: p.old_date_de, neues_datum: p.new_date_de, quelle: 'amela' },
+            created_by: 'amela',
+          });
+          text = `✅ Auftrag ausgeführt: Reinigung für ${p.guest} von ${p.old_date_de} auf ${p.new_date_de} verschoben (als Entwurf). ${p.provider_name} wurde informiert. Bitte in der Reinigungs-Verwaltung auf „geplant" setzen.`;
+        } else {
+          text = `Konnte die Reinigung nicht verschieben: ${(rr as any).error || 'unbekannter Fehler'}`;
+        }
+      }
+      return new Response(JSON.stringify({ response: text, toolResults }), jsonHeaders);
+    }
+
+    // C) Nachfrage "was möchte Amela ändern?": offene Vorschläge auflisten
+    if (mentionsAmelaChange) {
+      const proposals = await findAmelaRescheduleProposals();
+      let text: string;
+      if (proposals.length === 0) {
+        text = 'Aktuell gibt es keinen offenen Termin-Vorschlag von Amela.';
+      } else {
+        const lines = proposals
+          .map((p) => `• Reinigung für ${p.guest}${p.haus ? ` (${p.haus})` : ''}: von ${p.old_date_de} auf ${p.new_date_de}`)
+          .join('\n');
+        text = `Amela möchte folgende Reinigung(en) verschieben:\n${lines}\n\nSoll ich das durchführen? Antworte mit „verschieben".`;
+      }
+      return new Response(JSON.stringify({ response: text, toolResults: [] }), jsonHeaders);
     }
 
     const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
