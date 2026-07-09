@@ -2,9 +2,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAdmin } from "../_shared/auth.ts";
-import { 
-  callGemini, 
-  extractTextFromResponse, 
+import {
+  callGemini,
+  extractTextFromResponse,
   extractFunctionCalls,
   hasFunctionCalls,
   convertToolsToGemini,
@@ -43,12 +43,12 @@ const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
 // Booking Inquiries Tools
 async function executeSearchBookingInquiries(params: any) {
   console.log('Executing search_booking_inquiries with params:', params);
-  
+
   let query = supabase
     .from('booking_inquiries')
     .select('*, houses(name)')
     .order('created_at', { ascending: false });
-  
+
   if (params.status) {
     query = query.eq('status', params.status);
   }
@@ -64,38 +64,38 @@ async function executeSearchBookingInquiries(params: any) {
   if (params.date_to) {
     query = query.lte('check_in', params.date_to);
   }
-  
+
   const { data, error } = await query.limit(20);
-  
+
   if (error) {
     console.error('Error searching booking inquiries:', error);
     return { success: false, error: error.message };
   }
-  
+
   console.log(`Found ${data?.length || 0} booking inquiries`);
   return { success: true, data, count: data?.length || 0 };
 }
 
 async function executeAcceptBookingInquiry(params: any) {
   console.log('Executing accept_booking_inquiry with params:', params);
-  
+
   const { inquiry_id } = params;
-  
+
   // 1. Get the inquiry
   const { data: inquiry, error: inquiryError } = await supabase
     .from('booking_inquiries')
     .select('*, houses(name)')
     .eq('id', inquiry_id)
     .single();
-  
+
   if (inquiryError || !inquiry) {
     return { success: false, error: 'Buchungsanfrage nicht gefunden' };
   }
-  
+
   if (inquiry.status !== 'pending') {
     return { success: false, error: `Anfrage ist bereits ${inquiry.status}` };
   }
-  
+
   // 2. Create the booking
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
@@ -116,12 +116,12 @@ async function executeAcceptBookingInquiry(params: any) {
     })
     .select()
     .single();
-  
+
   if (bookingError) {
     console.error('Error creating booking:', bookingError);
     return { success: false, error: 'Fehler beim Erstellen der Buchung: ' + bookingError.message };
   }
-  
+
   // 3. Create cleaning task for check-out
   const { error: cleaningError } = await supabase
     .from('service_tasks')
@@ -134,20 +134,20 @@ async function executeAcceptBookingInquiry(params: any) {
       status: 'scheduled',
       notes: `Reinigung nach Abreise von ${inquiry.guest_name}`
     });
-  
+
   if (cleaningError) {
     console.warn('Error creating cleaning task:', cleaningError);
     // Don't fail the whole operation
   }
-  
+
   // 4. Update inquiry status
   await supabase
     .from('booking_inquiries')
     .update({ status: 'confirmed' })
     .eq('id', inquiry_id);
-  
-  return { 
-    success: true, 
+
+  return {
+    success: true,
     booking_id: booking.id,
     guest_name: inquiry.guest_name,
     house_name: inquiry.houses?.name,
@@ -158,25 +158,25 @@ async function executeAcceptBookingInquiry(params: any) {
 
 async function executeRejectBookingInquiry(params: any) {
   console.log('Executing reject_booking_inquiry with params:', params);
-  
+
   const { inquiry_id, reason } = params;
-  
+
   const { data, error } = await supabase
     .from('booking_inquiries')
-    .update({ 
+    .update({
       status: 'rejected',
       message: reason ? `[Abgelehnt: ${reason}] ${params.original_message || ''}` : undefined
     })
     .eq('id', inquiry_id)
     .select('*, houses(name)')
     .single();
-  
+
   if (error) {
     return { success: false, error: error.message };
   }
-  
-  return { 
-    success: true, 
+
+  return {
+    success: true,
     guest_name: data.guest_name,
     house_name: data.houses?.name
   };
@@ -185,9 +185,9 @@ async function executeRejectBookingInquiry(params: any) {
 // Bulk Action Tools
 async function executeCreateBulkCleaningTasks(params: any) {
   console.log('Executing create_bulk_cleaning_tasks with params:', params);
-  
+
   const { for_date, trigger, house_id } = params;
-  
+
   // Calculate the target date
   let targetDate = for_date;
   if (for_date === 'tomorrow') {
@@ -197,13 +197,13 @@ async function executeCreateBulkCleaningTasks(params: any) {
   } else if (for_date === 'today') {
     targetDate = new Date().toISOString().split('T')[0];
   }
-  
+
   // Find bookings based on trigger
   let query = supabase
     .from('bookings')
     .select('id, guest_name, house_id, check_in, check_out, houses(name)')
     .neq('status', 'cancelled');
-  
+
   if (trigger === 'checkout') {
     query = query
       .gte('check_out', `${targetDate}T00:00:00`)
@@ -213,26 +213,26 @@ async function executeCreateBulkCleaningTasks(params: any) {
       .gte('check_in', `${targetDate}T00:00:00`)
       .lt('check_in', `${targetDate}T23:59:59`);
   }
-  
+
   if (house_id) {
     query = query.eq('house_id', house_id);
   }
-  
+
   const { data: bookings, error: bookingsError } = await query;
-  
+
   if (bookingsError) {
     return { success: false, error: bookingsError.message };
   }
-  
+
   if (!bookings || bookings.length === 0) {
-    return { 
-      success: true, 
-      created: 0, 
-      skipped: 0, 
+    return {
+      success: true,
+      created: 0,
+      skipped: 0,
       message: `Keine ${trigger === 'checkout' ? 'Abreisen' : 'Ankünfte'} am ${targetDate} gefunden`
     };
   }
-  
+
   // Check which bookings already have cleaning tasks
   const bookingIds = bookings.map(b => b.id);
   const { data: existingTasks } = await supabase
@@ -241,14 +241,14 @@ async function executeCreateBulkCleaningTasks(params: any) {
     .in('booking_id', bookingIds)
     .eq('service_type', 'cleaning')
     .neq('status', 'cancelled');
-  
+
   const existingBookingIds = new Set(existingTasks?.map(t => t.booking_id) || []);
-  
+
   // Create missing tasks
   const tasksToCreate = [];
   const createdDetails = [];
   const skippedDetails = [];
-  
+
   for (const booking of bookings) {
     if (existingBookingIds.has(booking.id)) {
       skippedDetails.push({
@@ -258,7 +258,7 @@ async function executeCreateBulkCleaningTasks(params: any) {
       });
       continue;
     }
-    
+
     tasksToCreate.push({
       house_id: booking.house_id,
       booking_id: booking.id,
@@ -268,24 +268,24 @@ async function executeCreateBulkCleaningTasks(params: any) {
       status: 'scheduled',
       notes: `Reinigung nach ${trigger === 'checkout' ? 'Abreise' : 'Ankunft'} von ${booking.guest_name}`
     });
-    
+
     createdDetails.push({
       house_name: booking.houses?.name,
       guest_name: booking.guest_name,
       date: targetDate
     });
   }
-  
+
   if (tasksToCreate.length > 0) {
     const { error: insertError } = await supabase
       .from('service_tasks')
       .insert(tasksToCreate);
-    
+
     if (insertError) {
       return { success: false, error: insertError.message };
     }
   }
-  
+
   return {
     success: true,
     created: createdDetails.length,
@@ -299,9 +299,9 @@ async function executeCreateBulkCleaningTasks(params: any) {
 
 async function executeCreateBulkLinenOrders(params: any) {
   console.log('Executing create_bulk_linen_orders with params:', params);
-  
+
   const { date_from, date_to, house_id } = params;
-  
+
   // Find bookings in date range that don't have linen orders
   let query = supabase
     .from('bookings')
@@ -309,45 +309,45 @@ async function executeCreateBulkLinenOrders(params: any) {
     .neq('status', 'cancelled')
     .gte('check_in', date_from)
     .lte('check_in', date_to);
-  
+
   if (house_id) {
     query = query.eq('house_id', house_id);
   }
-  
+
   const { data: bookings, error } = await query;
-  
+
   if (error) {
     return { success: false, error: error.message };
   }
-  
+
   if (!bookings || bookings.length === 0) {
     return { success: true, created: 0, message: 'Keine Buchungen im Zeitraum gefunden' };
   }
-  
+
   // Check for existing orders
   const bookingIds = bookings.map(b => b.id);
   const { data: existingOrders } = await supabase
     .from('linen_orders')
     .select('booking_id')
     .in('booking_id', bookingIds);
-  
+
   const existingBookingIds = new Set(existingOrders?.map(o => o.booking_id) || []);
-  
+
   const ordersCreated = [];
   let totalCost = 0;
-  
+
   for (const booking of bookings) {
     if (existingBookingIds.has(booking.id)) continue;
-    
+
     // Get linen set definitions
     const { data: linenDef } = await supabase
       .from('linen_set_definitions')
       .select('*')
       .eq('house_id', booking.house_id)
       .single();
-    
+
     if (!linenDef) continue;
-    
+
     const guests = booking.number_of_guests || 2;
     const items = {
       bedding: guests * (linenDef.bedding_per_guest || 1),
@@ -358,21 +358,21 @@ async function executeCreateBulkLinenOrders(params: any) {
       sink_towels: linenDef.sink_towels_per_booking || 2,
       kitchen_towels: linenDef.kitchen_towels_per_booking || 2
     };
-    
+
     // Get prices
     const { data: settings } = await supabase
       .from('ai_linen_settings')
       .select('prices')
       .eq('house_id', booking.house_id)
       .single();
-    
+
     const prices = settings?.prices || { bedding: 30, large_towels: 18, small_towels: 10, sauna_towels: 20, bath_mats: 15, sink_towels: 8, kitchen_towels: 5 };
-    
+
     let orderTotal = 0;
     for (const [key, qty] of Object.entries(items)) {
       orderTotal += (qty as number) * (prices[key] || 0);
     }
-    
+
     const { error: orderError } = await supabase
       .from('linen_orders')
       .insert({
@@ -384,7 +384,7 @@ async function executeCreateBulkLinenOrders(params: any) {
         items,
         total_cost: orderTotal
       });
-    
+
     if (!orderError) {
       ordersCreated.push({
         house_name: booking.houses?.name,
@@ -394,7 +394,7 @@ async function executeCreateBulkLinenOrders(params: any) {
       totalCost += orderTotal;
     }
   }
-  
+
   return {
     success: true,
     created: ordersCreated.length,
@@ -407,40 +407,40 @@ async function executeCreateBulkLinenOrders(params: any) {
 // Enhanced search_bookings with new parameters
 async function executeSearchBookings(params: any) {
   console.log('Executing search_bookings with params:', params);
-  
+
   let query = supabase
     .from('bookings')
     .select('*, houses(name, rental_type)')
     .order('check_in', { ascending: true });
-  
+
   // Filter for tourist rentals only
   query = query.eq('houses.rental_type', 'tourist');
-  
+
   // Guest name search
   if (params.guest_name) {
     query = query.ilike('guest_name', `%${params.guest_name}%`);
   }
-  
+
   // Status filter
   if (params.status) {
     query = query.eq('status', params.status);
   }
-  
+
   // Exclude cancelled (default: true)
   if (params.exclude_cancelled !== false && !params.status) {
     query = query.neq('status', 'cancelled');
   }
-  
+
   // House filter
   if (params.house_id) {
     query = query.eq('house_id', params.house_id);
   }
-  
+
   // Has children filter (CRITICAL!)
   if (params.has_children === true) {
     query = query.gt('number_of_children', 0);
   }
-  
+
   // Date range filters (overlap detection)
   if (params.date_from && params.date_to) {
     query = query
@@ -451,27 +451,27 @@ async function executeSearchBookings(params: any) {
   } else if (params.date_to) {
     query = query.lte('check_out', params.date_to);
   }
-  
+
   // Exact check-in date (NEW!)
   if (params.check_in_date) {
     query = query
       .gte('check_in', `${params.check_in_date}T00:00:00`)
       .lt('check_in', `${params.check_in_date}T23:59:59`);
   }
-  
+
   // Exact check-out date (NEW!)
   if (params.check_out_date) {
     query = query
       .gte('check_out', `${params.check_out_date}T00:00:00`)
       .lt('check_out', `${params.check_out_date}T23:59:59`);
   }
-  
+
   // Upcoming only (NEW!)
   if (params.upcoming_only) {
     const today = new Date().toISOString().split('T')[0];
     query = query.gte('check_in', today);
   }
-  
+
   // Updated timestamp filters
   if (params.updated_from) {
     query = query.gte('updated_at', params.updated_from);
@@ -479,25 +479,25 @@ async function executeSearchBookings(params: any) {
   if (params.updated_to) {
     query = query.lte('updated_at', params.updated_to);
   }
-  
+
   const limit = params.limit || 20;
   const { data, error } = await query.limit(limit);
-  
+
   if (error) {
     console.error('Error searching bookings:', error);
     return { success: false, error: error.message };
   }
-  
+
   // Filter out bookings where house is null (not tourist rental)
   const filteredData = data?.filter(b => b.houses !== null) || [];
-  
+
   console.log(`Found ${filteredData.length} bookings`);
   return { success: true, data: filteredData, count: filteredData.length };
 }
 
 async function executeSearchCleaningTasks(params: any) {
   console.log('Executing search_cleaning_tasks with params:', params);
-  
+
   let query = supabase
     .from('service_tasks')
     .select(`
@@ -508,7 +508,7 @@ async function executeSearchCleaningTasks(params: any) {
     `)
     .eq('service_type', 'cleaning')
     .order('scheduled_date', { ascending: true });
-  
+
   if (params.status) {
     query = query.eq('status', params.status);
   }
@@ -524,64 +524,64 @@ async function executeSearchCleaningTasks(params: any) {
   if (params.payment_status) {
     query = query.eq('payment_status', params.payment_status);
   }
-  
+
   const { data, error } = await query.limit(params.limit || 20);
-  
+
   if (error) {
     console.error('Error searching cleaning tasks:', error);
     return { success: false, error: error.message };
   }
-  
+
   // Filter by guest_name or staff_name if provided
   let filteredData = data || [];
   if (params.guest_name) {
-    filteredData = filteredData.filter(t => 
+    filteredData = filteredData.filter(t =>
       t.bookings?.guest_name?.toLowerCase().includes(params.guest_name.toLowerCase())
     );
   }
   if (params.provider_name) {
-    filteredData = filteredData.filter(t => 
+    filteredData = filteredData.filter(t =>
       t.service_providers?.name?.toLowerCase().includes(params.provider_name.toLowerCase())
     );
   }
-  
+
   return { success: true, data: filteredData, count: filteredData.length };
 }
 
 async function executeSearchHouses(params: any) {
   console.log('Executing search_houses with params:', params);
-  
+
   let query = supabase
     .from('houses')
     .select('*')
     .eq('rental_type', 'tourist')
     .order('name');
-  
+
   if (params.name) {
     query = query.ilike('name', `%${params.name}%`);
   }
   if (params.address) {
     query = query.ilike('address', `%${params.address}%`);
   }
-  
+
   const { data, error } = await query.limit(params.limit || 20);
-  
+
   if (error) {
     console.error('Error searching houses:', error);
     return { success: false, error: error.message };
   }
-  
+
   return { success: true, data, count: data?.length || 0 };
 }
 
 async function executeSearchGuests(params: any) {
   console.log('Executing search_guests with params:', params);
-  
+
   let query = supabase
     .from('bookings')
     .select('guest_name, guest_email, guest_phone, nationality, houses(name)')
     .order('created_at', { ascending: false });
-  
+
   if (params.name) {
     query = query.ilike('guest_name', `%${params.name}%`);
   }
@@ -591,14 +591,14 @@ async function executeSearchGuests(params: any) {
   if (params.nationality) {
     query = query.ilike('nationality', `%${params.nationality}%`);
   }
-  
+
   const { data, error } = await query.limit(100);
-  
+
   if (error) {
     console.error('Error searching guests:', error);
     return { success: false, error: error.message };
   }
-  
+
   // Group by email to get unique guests with booking counts
   const guestMap = new Map();
   for (const b of data || []) {
@@ -615,41 +615,41 @@ async function executeSearchGuests(params: any) {
       guestMap.get(key).booking_count++;
     }
   }
-  
+
   const guests = Array.from(guestMap.values()).slice(0, params.limit || 20);
   return { success: true, data: guests, count: guests.length };
 }
 
 async function executeGetDashboardStats(params: any) {
   console.log('Executing get_dashboard_stats');
-  
+
   const today = new Date().toISOString().split('T')[0];
-  
+
   // Count houses
   const { count: houseCount } = await supabase
     .from('houses')
     .select('*', { count: 'exact', head: true })
     .eq('rental_type', 'tourist');
-  
+
   // Count active bookings
   const { count: activeBookings } = await supabase
     .from('bookings')
     .select('*', { count: 'exact', head: true })
     .gte('check_out', today)
     .neq('status', 'cancelled');
-  
+
   // Count pending tasks
   const { count: pendingTasks } = await supabase
     .from('service_tasks')
     .select('*', { count: 'exact', head: true })
     .in('status', ['scheduled', 'in_progress']);
-  
+
   // Count pending inquiries
   const { count: pendingInquiries } = await supabase
     .from('booking_inquiries')
     .select('*', { count: 'exact', head: true })
     .eq('status', 'pending');
-  
+
   // Calculate revenue this month
   const firstOfMonth = new Date();
   firstOfMonth.setDate(1);
@@ -658,9 +658,9 @@ async function executeGetDashboardStats(params: any) {
     .select('booking_amount')
     .gte('check_in', firstOfMonth.toISOString())
     .neq('status', 'cancelled');
-  
+
   const monthlyRevenue = revenueData?.reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0;
-  
+
   return {
     success: true,
     data: {
@@ -675,34 +675,34 @@ async function executeGetDashboardStats(params: any) {
 
 async function executeGetLinenOverview(params: any) {
   console.log('Executing get_linen_overview');
-  
+
   const { data: houses, error } = await supabase
     .from('houses')
     .select('id, name, linen_stock')
     .eq('rental_type', 'tourist');
-  
+
   if (error) {
     return { success: false, error: error.message };
   }
-  
+
   const overview = houses?.map(h => ({
     house_name: h.name,
     house_id: h.id,
     stock: h.linen_stock || {},
     status: 'ok' // Could be enhanced with actual status calculation
   })) || [];
-  
+
   return { success: true, data: overview };
 }
 
 async function executeSearchLinenOrders(params: any) {
   console.log('Executing search_linen_orders with params:', params);
-  
+
   let query = supabase
     .from('linen_orders')
     .select('*, houses(name), bookings(guest_name, check_in, check_out)')
     .order('order_date', { ascending: false });
-  
+
   if (params.status) {
     query = query.eq('status', params.status);
   }
@@ -715,9 +715,9 @@ async function executeSearchLinenOrders(params: any) {
   if (params.date_to) {
     query = query.lte('delivery_date', params.date_to);
   }
-  
+
   const { data, error } = await query.limit(params.limit || 50);
-  
+
   if (error) {
     return { success: false, error: error.message };
   }
@@ -730,7 +730,7 @@ async function executeSearchLinenOrders(params: any) {
       o.bookings?.guest_name?.toLowerCase().includes(needle)
     );
   }
-  
+
   return { success: true, data: filtered, count: filtered.length };
 }
 
@@ -853,14 +853,14 @@ async function executeGetBookingFullContext(params: any) {
 
 async function executeGetRevenueStats(params: any) {
   console.log('Executing get_revenue_stats with params:', params);
-  
+
   const now = new Date();
   const currentYear = now.getFullYear();
-  
+
   let startDate: string;
   let endDate: string;
   let periodLabel: string;
-  
+
   if (params.year && params.month) {
     // Spezifischer Monat: z.B. März 2026
     const year = params.year;
@@ -868,7 +868,7 @@ async function executeGetRevenueStats(params: any) {
     startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const lastDay = new Date(year, month, 0).getDate();
     endDate = `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
-    const monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 
+    const monthNames = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
                         'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
     periodLabel = `${monthNames[month - 1]} ${year}`;
   } else if (params.quarter && params.year) {
@@ -894,7 +894,7 @@ async function executeGetRevenueStats(params: any) {
     endDate = `${currentYear}-12-31`;
     periodLabel = `Jahr ${currentYear}`;
   }
-  
+
   // Buchungen im Zeitraum abrufen (nur Tourist-Häuser)
   const { data: bookings, error } = await supabase
     .from('bookings')
@@ -903,26 +903,26 @@ async function executeGetRevenueStats(params: any) {
     .lte('check_in', endDate + 'T23:59:59')
     .neq('status', 'cancelled')
     .eq('houses.rental_type', 'tourist');
-  
+
   if (error) {
     console.error('Error fetching revenue:', error);
     return { success: false, error: error.message };
   }
-  
+
   // Berechnungen
   const totalRevenue = bookings?.reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0;
   const paidRevenue = bookings?.filter(b => b.payment_status === 'paid')
     .reduce((sum, b) => sum + (b.booking_amount || 0), 0) || 0;
   const openRevenue = totalRevenue - paidRevenue;
   const bookingCount = bookings?.length || 0;
-  
+
   // Umsatz pro Haus
   const revenueByHouse: Record<string, number> = {};
   bookings?.forEach(b => {
     const houseName = (b.houses as any)?.name || 'Unbekannt';
     revenueByHouse[houseName] = (revenueByHouse[houseName] || 0) + (b.booking_amount || 0);
   });
-  
+
   return {
     success: true,
     data: {
@@ -939,9 +939,9 @@ async function executeGetRevenueStats(params: any) {
 
 async function executeGetDailyOverview(params: any) {
   console.log('Executing get_daily_overview with params:', params);
-  
+
   const targetDate = params.date || new Date().toISOString().split('T')[0];
-  
+
   // 1. Reinigungen heute
   const { data: cleanings, error: cleaningError } = await supabase
     .from('service_tasks')
@@ -955,11 +955,11 @@ async function executeGetDailyOverview(params: any) {
     .eq('scheduled_date', targetDate)
     .neq('status', 'cancelled')
     .order('scheduled_time', { ascending: true });
-  
+
   if (cleaningError) {
     console.error('Error fetching cleanings:', cleaningError);
   }
-  
+
   // 2. Check-ins heute (neue Gäste)
   const { data: checkIns, error: checkInError } = await supabase
     .from('bookings')
@@ -968,11 +968,11 @@ async function executeGetDailyOverview(params: any) {
     .lt('check_in', `${targetDate}T23:59:59`)
     .neq('status', 'cancelled')
     .order('check_in', { ascending: true });
-  
+
   if (checkInError) {
     console.error('Error fetching check-ins:', checkInError);
   }
-  
+
   // 3. Check-outs heute (abreisende Gäste)
   const { data: checkOuts, error: checkOutError } = await supabase
     .from('bookings')
@@ -981,11 +981,11 @@ async function executeGetDailyOverview(params: any) {
     .lt('check_out', `${targetDate}T23:59:59`)
     .neq('status', 'cancelled')
     .order('check_out', { ascending: true });
-  
+
   if (checkOutError) {
     console.error('Error fetching check-outs:', checkOutError);
   }
-  
+
   // 4. Gästewechsel identifizieren (Check-out + Check-in am selben Haus)
   const guestChanges: any[] = [];
   if (checkOuts && checkIns) {
@@ -1001,7 +1001,7 @@ async function executeGetDailyOverview(params: any) {
       }
     }
   }
-  
+
   // 5. Wäsche-Lieferungen an diesem Tag (fehlte bisher!)
   const { data: linenDeliveries, error: linenError } = await supabase
     .from('linen_orders')
@@ -1036,14 +1036,14 @@ async function executeGetDailyOverview(params: any) {
 
 async function executeGetCalendarEvents(params: any) {
   console.log('Executing get_calendar_events with params:', params);
-  
+
   const dateFrom = params.date_from || new Date().toISOString().split('T')[0];
   const dateTo = params.date_to || (() => {
     const d = new Date();
     d.setDate(d.getDate() + 7);
     return d.toISOString().split('T')[0];
   })();
-  
+
   // Get check-ins
   const { data: checkIns } = await supabase
     .from('bookings')
@@ -1051,7 +1051,7 @@ async function executeGetCalendarEvents(params: any) {
     .gte('check_in', dateFrom)
     .lte('check_in', dateTo)
     .neq('status', 'cancelled');
-  
+
   // Get check-outs
   const { data: checkOuts } = await supabase
     .from('bookings')
@@ -1059,7 +1059,7 @@ async function executeGetCalendarEvents(params: any) {
     .gte('check_out', dateFrom)
     .lte('check_out', dateTo)
     .neq('status', 'cancelled');
-  
+
   // Get cleanings
   const { data: cleanings } = await supabase
     .from('service_tasks')
@@ -1067,7 +1067,7 @@ async function executeGetCalendarEvents(params: any) {
     .eq('service_type', 'cleaning')
     .gte('scheduled_date', dateFrom)
     .lte('scheduled_date', dateTo);
-  
+
   return {
     success: true,
     data: {
@@ -1079,10 +1079,147 @@ async function executeGetCalendarEvents(params: any) {
   };
 }
 
+// ==================== MORGEN-ÜBERSICHT: GÄSTEKONTAKT ====================
+// Nächste anreisende Gäste, die vor der Anreise kontaktiert werden sollen.
+// Gespiegelt von src/hooks/useGuestContactReminders.ts (5–10 Tage vor Check-in).
+async function executeGetGuestContactReminders(_params: any) {
+  console.log('Executing get_guest_contact_reminders');
+
+  const now = new Date();
+  const fiveDaysFromNow = new Date(now);
+  fiveDaysFromNow.setDate(now.getDate() + 5);
+  const tenDaysFromNow = new Date(now);
+  tenDaysFromNow.setDate(now.getDate() + 10);
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(`
+      id, guest_name, guest_email, guest_phone, check_in, check_out,
+      number_of_guests, number_of_children, guest_contact_status, nationality,
+      houses(name, rental_type)
+    `)
+    .gte('check_in', fiveDaysFromNow.toISOString())
+    .lte('check_in', tenDaysFromNow.toISOString())
+    .eq('guest_contact_status', 'pending')
+    .eq('status', 'confirmed')
+    .eq('houses.rental_type', 'tourist')
+    .order('check_in', { ascending: true });
+
+  if (error) {
+    console.error('Error get_guest_contact_reminders:', error);
+    return { success: false, error: error.message };
+  }
+
+  // Nur Tourist-Häuser (houses !== null nach dem eq-Filter)
+  const filtered = (data || []).filter((b: any) => b.houses !== null);
+  const msPerDay = 1000 * 60 * 60 * 24;
+
+  const result = filtered.map((b: any) => {
+    const daysUntil = Math.ceil(
+      (new Date(b.check_in).getTime() - now.getTime()) / msPerDay
+    );
+    return {
+      booking_id: b.id,
+      guest_name: b.guest_name,
+      guest_email: b.guest_email || null,
+      has_email: !!b.guest_email,
+      guest_phone: b.guest_phone || null,
+      house: b.houses?.name || null,
+      check_in: b.check_in,
+      days_until_check_in: daysUntil,
+      number_of_guests: b.number_of_guests,
+      is_family: (b.number_of_children || 0) > 0,
+      nationality: b.nationality || null,
+    };
+  });
+
+  return { success: true, data: result, count: result.length };
+}
+
+// ==================== MORGEN-ÜBERSICHT: BEWERTUNGEN NACHTRAGEN ====================
+// Abgereiste Gäste im Einstellungs-Zeitfenster, bei denen noch keine Bewertung
+// hinterlegt ist. REINE ERINNERUNG — trägt nichts ein, sendet nichts.
+// Einstellungen gespiegelt von system_settings key 'rating_reminder_settings'.
+async function executeGetRatingReminders(_params: any) {
+  console.log('Executing get_rating_reminders');
+
+  const RATING_DEFAULTS = {
+    is_enabled: true,
+    min_days_after_checkout: 14,
+    max_days_after_checkout: 90,
+    require_platform: true,
+    rental_type_filter: 'tourist',
+  };
+
+  const { data: settingRow } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', 'rating_reminder_settings')
+    .maybeSingle();
+
+  const s = { ...RATING_DEFAULTS, ...((settingRow?.value as any) || {}) };
+
+  if (!s.is_enabled) {
+    return {
+      success: true,
+      enabled: false,
+      data: [],
+      count: 0,
+      message: 'Bewertungs-Erinnerungen sind in den Einstellungen deaktiviert.',
+    };
+  }
+
+  const now = new Date();
+  const minCheckout = new Date(now);
+  minCheckout.setDate(now.getDate() - s.max_days_after_checkout);
+  const maxCheckout = new Date(now);
+  maxCheckout.setDate(now.getDate() - s.min_days_after_checkout);
+
+  let query = supabase
+    .from('bookings')
+    .select('id, guest_name, check_out, platform, external_rating, houses(name, rental_type)')
+    .eq('status', 'completed')
+    .gte('check_out', minCheckout.toISOString())
+    .lte('check_out', maxCheckout.toISOString())
+    .is('external_rating', null);
+
+  if (s.rental_type_filter !== 'all') {
+    query = query.eq('houses.rental_type', s.rental_type_filter);
+  }
+  if (s.require_platform) {
+    query = query.not('platform', 'is', null);
+  }
+
+  const { data, error } = await query
+    .order('check_out', { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error('Error get_rating_reminders:', error);
+    return { success: false, error: error.message };
+  }
+
+  const filtered = (data || []).filter((b: any) => b.houses !== null);
+  const msPerDay = 1000 * 60 * 60 * 24;
+
+  const result = filtered.map((b: any) => ({
+    booking_id: b.id,
+    guest_name: b.guest_name,
+    house: b.houses?.name || null,
+    check_out: b.check_out,
+    platform: b.platform || null,
+    days_since_check_out: Math.floor(
+      (now.getTime() - new Date(b.check_out).getTime()) / msPerDay
+    ),
+  }));
+
+  return { success: true, enabled: true, data: result, count: result.length };
+}
+
 // Generic tool execution dispatcher
 async function executeTool(toolName: string, args: any): Promise<any> {
   console.log(`Executing tool: ${toolName}`, args);
-  
+
   switch (toolName) {
     // Booking Inquiries (NEW!)
     case 'search_booking_inquiries':
@@ -1091,13 +1228,13 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeAcceptBookingInquiry(args);
     case 'reject_booking_inquiry':
       return await executeRejectBookingInquiry(args);
-    
+
     // Bulk Actions (NEW!)
     case 'create_bulk_cleaning_tasks':
       return await executeCreateBulkCleaningTasks(args);
     case 'create_bulk_linen_orders':
       return await executeCreateBulkLinenOrders(args);
-    
+
     // Core search tools
     case 'search_bookings':
       return await executeSearchBookings(args);
@@ -1135,7 +1272,11 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeRescheduleCleaning(args);
     case 'read_provider_replies':
       return await executeReadProviderReplies(args);
-    
+    case 'get_guest_contact_reminders':
+      return await executeGetGuestContactReminders(args);
+    case 'get_rating_reminders':
+      return await executeGetRatingReminders(args);
+
     default:
       console.warn(`Unknown tool: ${toolName}`);
       return { success: false, error: `Tool ${toolName} nicht implementiert` };
@@ -1486,6 +1627,22 @@ function getToolDefinitions() {
             limit: { type: "number", description: "Optional: wie viele der jüngsten Antworten gelesen werden (Standard 10, max 20)" }
           }
         }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_guest_contact_reminders",
+        description: "Liefert die als Nächstes anreisenden Gäste, die noch VOR der Anreise kontaktiert werden sollen (5–10 Tage vor Check-in, guest_contact_status noch offen, nur Ferienvermietung). Pro Gast wird mitgeliefert, ob eine E-Mail-Adresse vorhanden ist (has_email) sowie Haus, Check-in, Tage bis Anreise, Personenzahl, Familie mit Kindern und Nationalität. Nutze dieses Tool für die morgendliche Übersicht und bei Fragen wie 'Welche Gäste muss ich kontaktieren?'. Für Gäste MIT E-Mail biete an, eine Begrüßungs-E-Mail zu erstellen; für Gäste OHNE E-Mail reicht die Erinnerung.",
+        parameters: { type: "object", properties: {} }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_rating_reminders",
+        description: "Liefert abgereiste Gäste, bei denen Uli im jeweiligen Portal nachschauen sollte, ob eine Bewertung abgegeben wurde, die er noch eintragen muss (Zeitfenster aus den Einstellungen, external_rating noch nicht hinterlegt). REINE ERINNERUNG — es wird nichts eingetragen und nichts gesendet. Nutze es für die morgendliche Übersicht und bei 'Welche Bewertungen muss ich nachtragen/prüfen?'.",
+        parameters: { type: "object", properties: {} }
       }
     }
   ];
@@ -2074,7 +2231,7 @@ serve(async (req) => {
   try {
     const { messages, context } = await req.json();
     const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
-    
+
     if (!GEMINI_API_KEY) {
       throw new Error('GOOGLE_GEMINI_API_KEY is not configured');
     }
@@ -2089,20 +2246,20 @@ serve(async (req) => {
       dateStyle: 'full',
       timeStyle: 'short'
     }).format(now);
-    
+
     // Hilfsfunktion für ISO-Format
     const formatDate = (d: Date) => d.toISOString().split('T')[0];
-    
+
     // Morgen
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowDate = formatDate(tomorrow);
-    
+
     // Gestern
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayDate = formatDate(yesterday);
-    
+
     // Diese Woche (Montag bis Sonntag)
     const dayOfWeek = now.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -2110,38 +2267,38 @@ serve(async (req) => {
     thisMonday.setDate(now.getDate() + mondayOffset);
     const thisSunday = new Date(thisMonday);
     thisSunday.setDate(thisMonday.getDate() + 6);
-    
+
     // Nächste Woche
     const nextMonday = new Date(thisMonday);
     nextMonday.setDate(thisMonday.getDate() + 7);
     const nextSunday = new Date(nextMonday);
     nextSunday.setDate(nextMonday.getDate() + 6);
-    
+
     // Letzte Woche
     const lastMonday = new Date(thisMonday);
     lastMonday.setDate(thisMonday.getDate() - 7);
     const lastSunday = new Date(lastMonday);
     lastSunday.setDate(lastMonday.getDate() + 6);
-    
+
     // Dieser Monat
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    
+
     // Nächster Monat
     const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
-    
+
     // Letzter Monat
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-    
+
     // Wochenende (nächstes Samstag/Sonntag)
     const daysUntilSat = (6 - dayOfWeek + 7) % 7 || 7;
     const nextSaturday = new Date(now);
     nextSaturday.setDate(now.getDate() + daysUntilSat);
     const nextSundayWE = new Date(nextSaturday);
     nextSundayWE.setDate(nextSaturday.getDate() + 1);
-    
+
     // Nächste 7 Tage / 30 Tage
     const in7Days = new Date(now);
     in7Days.setDate(now.getDate() + 7);
@@ -2200,6 +2357,20 @@ Beispiele, die IMMER get_booking_full_context brauchen:
 - Buchungsanfragen → search_booking_inquiries
 - Bulk Reinigungen → create_bulk_cleaning_tasks
 - Bulk Wäsche → create_bulk_linen_orders
+- Gäste vor Anreise kontaktieren → get_guest_contact_reminders
+- Bewertungen prüfen/nachtragen → get_rating_reminders
+
+📋 MORGEN-ÜBERSICHT ("Was steht heute an?", "Guten Morgen", "Tagesübersicht", "Zusammenfassung"):
+Stelle die Übersicht aus deinen vorhandenen Tools zusammen — baue NICHTS doppelt:
+1. Probleme kommender Buchungen → check_upcoming_bookings
+2. Heute (Check-ins/-outs, Reinigungen, Lieferungen, Gästewechsel) → get_daily_overview
+3. Offene Buchungsanfragen → search_booking_inquiries (status 'pending')
+4. Gäste vor Anreise kontaktieren → get_guest_contact_reminders
+5. Bewertungen prüfen/nachtragen → get_rating_reminders
+Beim Punkt Gästekontakt: Für jeden Gast MIT E-Mail (has_email=true) biete aktiv an, eine
+Begrüßungs-E-Mail zu erstellen ("Soll ich für <Gast> die Begrüßungs-E-Mail vorbereiten?").
+Für Gäste OHNE E-Mail nenne nur die Erinnerung (z. B. telefonisch kontaktieren).
+Bewertungen sind eine reine Erinnerung zum Nachschauen im Portal — trage nie selbst etwas ein.
 
 📦 WÄSCHE-STATUS richtig deuten:
 - 'delivered' = geliefert / ist da
@@ -2242,7 +2413,7 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
 
     // Build Gemini-compatible contents
     const contents: GeminiContent[] = [];
-    
+
     for (const m of messages) {
       if (m.role === 'user') {
         contents.push({
@@ -2263,22 +2434,22 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
     let toolResults: any[] = [];
     let rateLimitRetried = false; // erlaubt genau einen 429-Retry pro Anfrage
     let toolNudged = false; // erlaubt genau einen sanften Tool-Hinweis pro Anfrage
-    
+
     while (iteration < maxIterations) {
       iteration++;
       console.log(`Tool-calling iteration ${iteration}`);
-      
+
       // Build request for Gemini
       const geminiTools = convertToolsToGemini(tools);
-      
+
       const requestBody = {
         contents,
         systemInstruction: { parts: [{ text: systemPrompt }] },
         tools: geminiTools,
-        toolConfig: { 
-          functionCallingConfig: { 
+        toolConfig: {
+          functionCallingConfig: {
             mode: 'AUTO'  // AUTO statt ANY: Modell entscheidet selbst, ob ein Tool nötig ist (verhindert unnötige Extra-Calls -> weniger 429-Rate-Limit)
-          } 
+          }
         },
         generationConfig: {
           maxOutputTokens: 2048,
@@ -2298,7 +2469,7 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Gemini API error:', response.status, errorText);
-        
+
         if (response.status === 429) {
           // Rate-Limit: einmalig kurz warten und dieselbe Iteration erneut versuchen,
           // statt sofort abzubrechen. Das fängt kurzzeitige Limits (Free-Tier) ab.
@@ -2314,15 +2485,15 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
             { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        
+
         throw new Error(`Gemini API error: ${response.status}`);
       }
 
       const data = await response.json();
       const candidate = data.candidates?.[0];
       const parts = candidate?.content?.parts || [];
-      
-      console.log('Gemini response:', { 
+
+      console.log('Gemini response:', {
         finishReason: candidate?.finishReason,
         partsCount: parts.length,
         hasFunctionCall: parts.some((p: GeminiPart) => p.functionCall)
@@ -2330,12 +2501,12 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
 
       // Check for function calls
       const functionCalls = parts.filter((p: GeminiPart) => p.functionCall);
-      
+
       if (functionCalls.length === 0) {
         // No function calls - return text response
         const textPart = parts.find((p: GeminiPart) => p.text);
         const finalContent = textPart?.text || 'Ich konnte keine passende Antwort generieren.';
-        
+
         if (iteration === 1 && !toolNudged) {
           // Einmaliger sanfter Stupser: Wenn das Modell bei der ersten Runde ohne Tool
           // antwortet, obwohl es eine Datenfrage ist, einmal zum passenden Tool anstoßen.
@@ -2348,16 +2519,16 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
           });
           continue;
         }
-        
+
         console.log('Final response received:', { textLength: finalContent.length });
-        
+
         // Sprung-Buttons (Schnellzugriff) aus den Tool-Ergebnissen anhängen.
         // Das Frontend (ChatMessage.tsx) erkennt den ___ENTITIES___-Marker und rendert Buttons.
         const entityLinks = buildEntityLinks(toolResults);
         const responseWithEntities = entityLinks.length > 0
           ? `${finalContent}\n___ENTITIES___\n${JSON.stringify(entityLinks)}`
           : finalContent;
-        
+
         return new Response(
           JSON.stringify({ response: responseWithEntities, toolResults }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -2370,27 +2541,27 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
         role: 'model',
         parts: parts
       });
-      
+
       console.log('Processing function calls:', functionCalls.map((fc: any) => fc.functionCall.name));
-      
+
       const functionResponses: GeminiPart[] = [];
-      
+
       for (const fc of functionCalls) {
         const toolName = fc.functionCall.name;
         const args = fc.functionCall.args || {};
-        
+
         console.log(`Executing tool: ${toolName}`, args);
-        
+
         const result = await executeTool(toolName, args);
-        
-        console.log(`Tool result for ${toolName}:`, { 
-          success: result.success, 
+
+        console.log(`Tool result for ${toolName}:`, {
+          success: result.success,
           dataCount: result.data?.length || result.count || 0,
           error: result.error
         });
-        
+
         toolResults.push({ tool: toolName, args, result });
-        
+
         functionResponses.push({
           functionResponse: {
             name: toolName,
@@ -2398,7 +2569,7 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
           }
         });
       }
-      
+
       // Add function responses as user message
       contents.push({
         role: 'user',
@@ -2408,9 +2579,9 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
 
     // Max iterations reached
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         response: 'Die Anfrage konnte nicht vollständig bearbeitet werden. Bitte versuche es erneut.',
-        toolResults 
+        toolResults
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
