@@ -2687,4 +2687,89 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
         const finalContent = textPart?.text || 'Ich konnte keine passende Antwort generieren.';
 
         if (iteration === 1 && !toolNudged) {
-          // Einmaliger sanfter Stupser: Wenn das
+          // Einmaliger sanfter Stupser: Wenn das Modell bei der ersten Runde ohne Tool
+          // antwortet, obwohl es eine Datenfrage ist, einmal zum passenden Tool anstoßen.
+          // (Kein harter Zwang mehr wie bei mode:'ANY' - das sparte 429-Rate-Limits.)
+          toolNudged = true;
+          console.log('AI antwortete ohne Tool - einmaliger Hinweis auf passendes Tool');
+          contents.push({
+            role: 'user',
+            parts: [{ text: 'Falls dies eine Frage zu konkreten Daten (Buchung, Gast, Wäsche, Reinigung, Kosten) ist: bitte das passende Tool aufrufen. Bei Fragen zu einem konkreten Gast/einer Buchung: get_booking_full_context.' }]
+          });
+          continue;
+        }
+
+        console.log('Final response received:', { textLength: finalContent.length });
+
+        // Sprung-Buttons (Schnellzugriff) aus den Tool-Ergebnissen anhängen.
+        // Das Frontend (ChatMessage.tsx) erkennt den ___ENTITIES___-Marker und rendert Buttons.
+        const entityLinks = buildEntityLinks(toolResults);
+        const responseWithEntities = entityLinks.length > 0
+          ? `${finalContent}\n___ENTITIES___\n${JSON.stringify(entityLinks)}`
+          : finalContent;
+
+        return new Response(
+          JSON.stringify({ response: responseWithEntities, toolResults }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Process function calls
+      // Add model response to contents
+      contents.push({
+        role: 'model',
+        parts: parts
+      });
+
+      console.log('Processing function calls:', functionCalls.map((fc: any) => fc.functionCall.name));
+
+      const functionResponses: GeminiPart[] = [];
+
+      for (const fc of functionCalls) {
+        const toolName = fc.functionCall.name;
+        const args = fc.functionCall.args || {};
+
+        console.log(`Executing tool: ${toolName}`, args);
+
+        const result = await executeTool(toolName, args);
+
+        console.log(`Tool result for ${toolName}:`, {
+          success: result.success,
+          dataCount: result.data?.length || result.count || 0,
+          error: result.error
+        });
+
+        toolResults.push({ tool: toolName, args, result });
+
+        functionResponses.push({
+          functionResponse: {
+            name: toolName,
+            response: result
+          }
+        });
+      }
+
+      // Add function responses as user message
+      contents.push({
+        role: 'user',
+        parts: functionResponses
+      });
+    }
+
+    // Max iterations reached
+    return new Response(
+      JSON.stringify({
+        response: 'Die Anfrage konnte nicht vollständig bearbeitet werden. Bitte versuche es erneut.',
+        toolResults
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Chat assistant error:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
