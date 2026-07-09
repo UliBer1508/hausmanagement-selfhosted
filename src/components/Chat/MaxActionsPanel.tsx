@@ -164,7 +164,7 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
             <SelectTrigger className="w-[190px]">
               <SelectValue placeholder="Art" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[210]">
               <SelectItem value="all">Alle Arten</SelectItem>
               {types.map((t) => (
                 <SelectItem key={t} value={t}>
@@ -178,7 +178,7 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
             <SelectTrigger className="w-[170px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[210]">
               <SelectItem value="all">Alle Status</SelectItem>
               {statuses.map((s) => (
                 <SelectItem key={s} value={s}>
