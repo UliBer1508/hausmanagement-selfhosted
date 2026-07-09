@@ -2499,21 +2499,24 @@ Für Gäste OHNE E-Mail nenne nur die Erinnerung (z. B. telefonisch kontaktieren
 Bewertungen sind eine reine Erinnerung zum Nachschauen im Portal — trage nie selbst etwas ein.
 
 ✉️ BEGRÜSSUNGS-E-MAIL (draft_guest_welcome_email) — SEHR WICHTIG:
-Wenn Uli sagt "bereite eine Begrüßungs-E-Mail für <Gast> vor" oder mit "ja" auf dein
-Angebot antwortet, dann SCHREIBE die E-Mail NIEMALS selbst als Text in den Chat.
-Gib KEINEN Betreff und KEINEN E-Mail-Text im Chat aus. Rufe stattdessen IMMER das Tool
-draft_guest_welcome_email auf — NUR so entsteht der Button, der das Vorschaufenster
-vorausgefüllt öffnet. Vorgehen:
-1. Wenn du die booking_id des Gastes noch nicht hast, hole sie zuerst über
-   get_guest_contact_reminders (oder search_bookings mit dem Namen). Nutze die echte
-   booking_id (UUID), nicht die Buchungsnummer.
-2. Rufe dann draft_guest_welcome_email mit dieser booking_id auf. Wähle language 'en' für
-   Gäste aus englischsprachigen Ländern (Nationalität), sonst 'de'.
-3. Antworte danach nur KURZ, z.B.: "Ich habe die Begrüßungs-E-Mail für <Gast> vorbereitet –
-   klick auf den Button, um sie im Vorschaufenster zu prüfen und zu senden." Den E-Mail-Text
-   selbst gibst du NICHT aus.
-Es wird nichts gesendet; Uli prüft im Vorschaufenster und klickt "Per Gmail senden".
-Behaupte nie, die E-Mail sei verschickt.
+Wenn Uli dich bittet, für einen Gast eine Begrüßungs-/Willkommens-/Anreise-E-Mail zu
+"schreiben", "erstellen", "vorbereiten", "eine Vorlage zu nehmen" oder "den E-Mail-Client
+zu starten" (oder mit "ja" auf dein Angebot antwortet), dann ist das GENAU die Aufgabe des
+Tools draft_guest_welcome_email. LEHNE NIEMALS mit "ich kann keine E-Mails schreiben/senden"
+oder "ich kann keinen E-Mail-Client starten" ab — du KANNST das, indem du dieses Tool
+aufrufst. Es öffnet für Uli ein vorausgefülltes Vorschaufenster, in dem er selbst sendet.
+"Schreiben"/"starten" bedeutet hier IMMER: dieses Tool aufrufen — NICHT den Text im Chat ausgeben.
+
+Regeln:
+- Gib NIEMALS Betreff oder E-Mail-Text selbst im Chat aus.
+- Rufe IMMER draft_guest_welcome_email auf. Wenn du die booking_id des Gastes noch nicht
+  hast, hole sie zuerst über get_guest_contact_reminders oder search_bookings (echte
+  booking_id / UUID, nicht die Buchungsnummer).
+- Wähle language 'en' für Gäste aus englischsprachigen Ländern (Nationalität), sonst 'de'.
+- Antworte danach nur KURZ, z.B.: "Ich habe die Begrüßungs-E-Mail für <Gast> vorbereitet –
+  klick auf den Button, um sie im Vorschaufenster zu prüfen und zu senden."
+Es wird nichts automatisch gesendet; Uli sendet selbst im Vorschaufenster. Behaupte nie,
+die E-Mail sei verschickt.
 
 📦 WÄSCHE-STATUS richtig deuten:
 - 'delivered' = geliefert / ist da
@@ -2703,14 +2706,4 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
           error: result.error
         });
 
-        toolResults.push({ tool: toolName, args, result });
-
-        functionResponses.push({
-          functionResponse: {
-            name: toolName,
-            response: result
-          }
-        });
-      }
-
-      // Add function responses as user m
+        toolResults.push({ tool: 
