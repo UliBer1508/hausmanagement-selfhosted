@@ -135,7 +135,7 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
     <MailPreviewContext.Provider value={{ showMailPreview }}>
       {children}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] sm:w-full">
+        <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] sm:w-full z-[300]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MailIcon className="w-5 h-5" />
@@ -232,7 +232,7 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
         </DialogContent>
       </Dialog>
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[310]">
           <AlertDialogHeader>
             <AlertDialogTitle>E-Mail wirklich senden?</AlertDialogTitle>
             <AlertDialogDescription>
