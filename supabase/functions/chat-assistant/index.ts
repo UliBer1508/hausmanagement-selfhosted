@@ -2301,6 +2301,17 @@ function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string;
       continue;
     }
 
+    // Reinigungstermin verschoben: Button, der die Reinigungskarte (Edit-Dialog) öffnet.
+    // Der Handler liefert task_id + gast direkt (nicht unter result.data).
+    if (tr.tool === 'reschedule_cleaning' && result.task_id) {
+      links.push({
+        id: String(result.task_id),
+        type: 'cleaning_task',
+        label: `Reinigung für ${result.gast || 'Gast'} öffnen (${result.neues_datum || ''})`.trim(),
+      });
+      continue;
+    }
+
     const data = result.data;
     if (!data) continue;
 
@@ -2588,7 +2599,11 @@ serve(async (req) => {
           text = `Konnte die Reinigung nicht verschieben: ${(rr as any).error || 'unbekannter Fehler'}`;
         }
       }
-      return new Response(JSON.stringify({ response: text, toolResults }), jsonHeaders);
+      const entityLinksA = buildEntityLinks(toolResults);
+      const responseA = entityLinksA.length > 0
+        ? `${text}\n___ENTITIES___\n${JSON.stringify(entityLinksA)}`
+        : text;
+      return new Response(JSON.stringify({ response: responseA, toolResults }), jsonHeaders);
     }
 
     // B) Bestätigung OHNE Datum ("verschieben" / "ja verschieben"): Amelas jüngsten Vorschlag anwenden
@@ -2603,13 +2618,9 @@ serve(async (req) => {
         const rr = await executeRescheduleCleaning({ task_id: p.task_id, new_date: p.iso });
         toolResults.push({ tool: 'reschedule_cleaning', args: { task_id: p.task_id, new_date: p.iso }, result: rr });
         if (rr.success) {
-          // Amela bestätigen (direkt senden)
-          await executeSendProviderMessage({
-            provider_name: p.provider_name,
-            message: `Hallo ${p.provider_name}, ich bin Max, der KI-Assistent von Uli. Der Reinigungstermin für ${p.guest} wurde auf ${p.new_date_de} geändert. Danke für den Hinweis!`,
-            ist_terminfrage: true,
-            related_task_id: p.task_id,
-          });
+          // HINWEIS: Amela wird NICHT mehr sofort bestätigt.
+          // Die Bestätigung übernimmt der DB-Trigger, NACHDEM Uli den Status
+          // in der Reinigungskarte auf "Geplant" (scheduled) gesetzt hat.
           await logMaxAction({
             action_type: 'reschedule_cleaning',
             status: 'zur_pruefung',
@@ -2618,12 +2629,16 @@ serve(async (req) => {
             details: { task_id: p.task_id, altes_datum: p.old_date_de, neues_datum: p.new_date_de, quelle: 'amela' },
             created_by: 'amela',
           });
-          text = `✅ Auftrag ausgeführt: Reinigung für ${p.guest} von ${p.old_date_de} auf ${p.new_date_de} verschoben (als Entwurf). ${p.provider_name} wurde informiert. Bitte in der Reinigungs-Verwaltung auf „geplant" setzen.`;
+          text = `✅ Reinigung für ${p.guest} von ${p.old_date_de} auf ${p.new_date_de} geändert (Entwurf). Öffne die Reinigungskarte, prüfe das Datum und setze den Status auf „Geplant" — erst dann wird ${p.provider_name} automatisch informiert.`;
         } else {
           text = `Konnte die Reinigung nicht verschieben: ${(rr as any).error || 'unbekannter Fehler'}`;
         }
       }
-      return new Response(JSON.stringify({ response: text, toolResults }), jsonHeaders);
+      const entityLinksB = buildEntityLinks(toolResults);
+      const responseB = entityLinksB.length > 0
+        ? `${text}\n___ENTITIES___\n${JSON.stringify(entityLinksB)}`
+        : text;
+      return new Response(JSON.stringify({ response: responseB, toolResults }), jsonHeaders);
     }
 
     // C) Nachfrage "was möchte Amela ändern?": offene Vorschläge auflisten
