@@ -158,7 +158,7 @@ const ChatAssistant = () => {
             {chatMode === 'ai' ? (
               <>
                 <Bot className="h-5 w-5 text-primary" />
-                <h2 className="font-semibold">Max</h2>
+                <h2 className="font-semibold">Max, dein AI Assistent</h2>
                 <Button
                   variant="ghost"
                   size="icon"
