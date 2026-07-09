@@ -1,13 +1,24 @@
-import { Bot, User, ExternalLink } from 'lucide-react';
+import { Bot, User, ExternalLink, Mail } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { openEmail } from '@/lib/mailtoHelper';
 import ActionCard from './ActionCard';
 
 interface EntityLink {
   id: string;
-  type: 'booking' | 'cleaning_task' | 'laundry_order' | 'house' | 'guest' | 'calendar';
+  type: 'booking' | 'cleaning_task' | 'laundry_order' | 'house' | 'guest' | 'calendar' | 'email_draft';
   label: string;
+  // Nur bei type === 'email_draft': vorausgefüllter Begrüßungs-E-Mail-Entwurf.
+  email?: {
+    to: string;
+    subject: string;
+    body: string;
+    guestName?: string;
+    checkIn?: string;
+    checkOut?: string;
+    houseName?: string;
+  };
 }
 
 interface Message {
@@ -36,12 +47,12 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
   const parseEntityLinks = (content: string): { text: string; links: EntityLink[] } => {
     const marker = '___ENTITIES___\n';
     const index = content.indexOf(marker);
-    
+
     if (index === -1) return { text: content, links: [] };
-    
+
     const text = content.substring(0, index).trim();
     const jsonStr = content.substring(index + marker.length);
-    
+
     try {
       const links = JSON.parse(jsonStr) as EntityLink[];
       return { text, links };
@@ -70,6 +81,27 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
       case 'guest':
         navigate('/', { state: { activeTab: 'Gäste', openGuestEmail: link.id } });
         break;
+      case 'email_draft':
+        // Öffnet das Vorschaufenster VORAUSGEFÜLLT (Betreff/Text aus dem Entwurf).
+        // Es wird nichts gesendet — Uli prüft und klickt dort "Per Gmail senden".
+        if (link.email?.to) {
+          void openEmail({
+            to: link.email.to,
+            subject: link.email.subject,
+            text: link.email.body,
+            recipients: [
+              {
+                email: link.email.to,
+                guestName: link.email.guestName,
+                checkIn: link.email.checkIn,
+                checkOut: link.email.checkOut,
+                houseName: link.email.houseName,
+              },
+            ],
+          });
+        }
+        // Chat NICHT schließen: Das Vorschaufenster erscheint darüber.
+        return;
       case 'calendar':
         navigate('/');
         break;
@@ -105,7 +137,7 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
           )}
         >
           <p className="whitespace-pre-wrap break-words">{text}</p>
-          
+
           {/* Entity Action Links */}
           {links.length > 0 && (
             <div className="mt-3 pt-3 border-t border-border/50 space-y-2">
@@ -119,7 +151,11 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
                     onClick={() => handleEntityClick(link)}
                     className="h-7 text-xs gap-1"
                   >
-                    <ExternalLink className="h-3 w-3" />
+                    {link.type === 'email_draft' ? (
+                      <Mail className="h-3 w-3" />
+                    ) : (
+                      <ExternalLink className="h-3 w-3" />
+                    )}
                     {link.label}
                   </Button>
                 ))}
