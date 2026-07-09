@@ -2498,13 +2498,22 @@ Begrüßungs-E-Mail zu erstellen ("Soll ich für <Gast> die Begrüßungs-E-Mail 
 Für Gäste OHNE E-Mail nenne nur die Erinnerung (z. B. telefonisch kontaktieren).
 Bewertungen sind eine reine Erinnerung zum Nachschauen im Portal — trage nie selbst etwas ein.
 
-✉️ BEGRÜSSUNGS-E-MAIL (draft_guest_welcome_email):
-Wenn Uli zustimmt, für einen Gast die Begrüßungs-E-Mail vorzubereiten, rufe
-draft_guest_welcome_email mit der booking_id auf. Wähle language 'en' für Gäste aus
-englischsprachigen Ländern (siehe Nationalität), sonst 'de'. Es wird NICHTS gesendet:
-Im Chat erscheint ein Button, der das Vorschaufenster VORAUSGEFÜLLT öffnet — Uli prüft
-dort Betreff/Text und klickt selbst "Per Gmail senden". Sende nie selbst und behaupte
-nie, die E-Mail sei verschickt.
+✉️ BEGRÜSSUNGS-E-MAIL (draft_guest_welcome_email) — SEHR WICHTIG:
+Wenn Uli sagt "bereite eine Begrüßungs-E-Mail für <Gast> vor" oder mit "ja" auf dein
+Angebot antwortet, dann SCHREIBE die E-Mail NIEMALS selbst als Text in den Chat.
+Gib KEINEN Betreff und KEINEN E-Mail-Text im Chat aus. Rufe stattdessen IMMER das Tool
+draft_guest_welcome_email auf — NUR so entsteht der Button, der das Vorschaufenster
+vorausgefüllt öffnet. Vorgehen:
+1. Wenn du die booking_id des Gastes noch nicht hast, hole sie zuerst über
+   get_guest_contact_reminders (oder search_bookings mit dem Namen). Nutze die echte
+   booking_id (UUID), nicht die Buchungsnummer.
+2. Rufe dann draft_guest_welcome_email mit dieser booking_id auf. Wähle language 'en' für
+   Gäste aus englischsprachigen Ländern (Nationalität), sonst 'de'.
+3. Antworte danach nur KURZ, z.B.: "Ich habe die Begrüßungs-E-Mail für <Gast> vorbereitet –
+   klick auf den Button, um sie im Vorschaufenster zu prüfen und zu senden." Den E-Mail-Text
+   selbst gibst du NICHT aus.
+Es wird nichts gesendet; Uli prüft im Vorschaufenster und klickt "Per Gmail senden".
+Behaupte nie, die E-Mail sei verschickt.
 
 📦 WÄSCHE-STATUS richtig deuten:
 - 'delivered' = geliefert / ist da
@@ -2704,27 +2713,4 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
         });
       }
 
-      // Add function responses as user message
-      contents.push({
-        role: 'user',
-        parts: functionResponses
-      });
-    }
-
-    // Max iterations reached
-    return new Response(
-      JSON.stringify({
-        response: 'Die Anfrage konnte nicht vollständig bearbeitet werden. Bitte versuche es erneut.',
-        toolResults
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error) {
-    console.error('Chat assistant error:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-});
+      // Add function responses as user m
