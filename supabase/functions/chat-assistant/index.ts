@@ -1034,6 +1034,57 @@ async function executeGetDailyOverview(params: any) {
   };
 }
 
+async function executeSaveKnowledge(params: any) {
+  console.log('Executing save_knowledge:', params);
+
+  const term = (params.term || '').trim();
+  const meaning = (params.meaning || '').trim();
+  const category = (params.category || 'sonstiges').trim();
+
+  if (!term || !meaning) {
+    return { success: false, error: 'term und meaning sind erforderlich.' };
+  }
+
+  // Gibt es den Begriff schon aktiv? Dann aktualisieren statt doppelt anlegen.
+  try {
+    const { data: existing } = await supabase
+      .from('assistant_knowledge')
+      .select('id')
+      .eq('is_active', true)
+      .ilike('term', term)
+      .maybeSingle();
+
+    if (existing) {
+      const { error: updErr } = await supabase
+        .from('assistant_knowledge')
+        .update({ meaning, category })
+        .eq('id', existing.id);
+      if (updErr) return { success: false, error: updErr.message };
+      return {
+        success: true,
+        aktualisiert: true,
+        gespeichert: { term, meaning, category },
+        hinweis: `Wissen aktualisiert: "${term}" bedeutet jetzt "${meaning}".`,
+      };
+    }
+
+    const { error: insErr } = await supabase
+      .from('assistant_knowledge')
+      .insert({ term, meaning, category, created_by: 'max' });
+    if (insErr) return { success: false, error: insErr.message };
+
+    return {
+      success: true,
+      aktualisiert: false,
+      gespeichert: { term, meaning, category },
+      hinweis: `Gespeichert: "${term}" bedeutet "${meaning}". Ab jetzt weiß ich das.`,
+    };
+  } catch (e) {
+    console.error('Exception save_knowledge:', e);
+    return { success: false, error: 'Wissen konnte nicht gespeichert werden.' };
+  }
+}
+
 async function executeGetMorningSummary(params: any) {
   console.log('Executing get_morning_summary');
 
@@ -1414,6 +1465,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeDraftGuestWelcomeEmail(args);
     case 'get_morning_summary':
       return await executeGetMorningSummary(args);
+    case 'save_knowledge':
+      return await executeSaveKnowledge(args);
 
     default:
       console.warn(`Unknown tool: ${toolName}`);
@@ -1806,6 +1859,22 @@ function getToolDefinitions() {
         parameters: {
           type: "object",
           properties: {}
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "save_knowledge",
+        description: "Speichert dauerhaft eine Erklärung/Bedeutung, die Uli dir beigebracht hat (dein lernendes Gedächtnis). Nutze dies NUR, nachdem Uli ausdrücklich mit 'ja' bestätigt hat, dass du dir etwas merken sollst. Beispiel: term='Wald', meaning='das Haus Wald Chalet'. Für Dinge, die nicht schon strukturiert in der Datenbank stehen (Spitznamen, Abkürzungen, Betriebsregeln).",
+        parameters: {
+          type: "object",
+          properties: {
+            term: { type: "string", description: "Der Begriff/Auslöser, z. B. 'Wald'." },
+            meaning: { type: "string", description: "Die Bedeutung/Erklärung, z. B. 'das Haus Wald Chalet'." },
+            category: { type: "string", enum: ["haus", "dienstleister", "regel", "abkuerzung", "sonstiges"], description: "Grobe Einordnung (optional, Standard: sonstiges)." }
+          },
+          required: ["term", "meaning"]
         }
       }
     }
@@ -2771,8 +2840,95 @@ serve(async (req) => {
     const in30Days = new Date(now);
     in30Days.setDate(now.getDate() + 30);
 
+    // ============================================================
+    // DYNAMISCHER KONTEXT — aus der aktuellen Datenbank gelesen.
+    // Der System-Prompt wird NICHT hart eingetippt, sondern setzt sich
+    // aus lebenden Daten zusammen: echte Häuser, echte Dienstleister und
+    // das gelernte Wissen aus assistant_knowledge. Ändert sich der Betrieb,
+    // ändert sich Max' Wissen automatisch mit.
+    // ============================================================
+    let housesContext = '';
+    try {
+      const { data: housesData } = await supabase
+        .from('houses')
+        .select('id, name, rental_type, max_guests, property_type')
+        .order('name');
+      if (housesData && housesData.length > 0) {
+        housesContext = housesData
+          .map((h: any) => {
+            const parts = [`"${h.name}" (ID: ${h.id}`];
+            if (h.max_guests) parts.push(`max. ${h.max_guests} Gäste`);
+            if (h.rental_type) parts.push(`${h.rental_type}`);
+            return parts.join(', ') + ')';
+          })
+          .join('\n- ');
+      }
+    } catch (e) {
+      console.error('Kontext: houses konnten nicht geladen werden:', e);
+    }
+
+    let providersContext = '';
+    try {
+      const { data: provData } = await supabase
+        .from('service_providers')
+        .select('id, name, alias, service_type, is_active, has_portal')
+        .eq('is_active', true)
+        .order('name');
+      if (provData && provData.length > 0) {
+        providersContext = provData
+          .map((p: any) => {
+            const parts = [`"${p.name}"`];
+            if (p.alias) parts.push(`alias "${p.alias}"`);
+            if (p.service_type) parts.push(`Bereich: ${p.service_type}`);
+            parts.push(`ID: ${p.id}`);
+            if (p.has_portal) parts.push('hat Portal');
+            return parts.join(', ');
+          })
+          .join('\n- ');
+      }
+    } catch (e) {
+      console.error('Kontext: service_providers konnten nicht geladen werden:', e);
+    }
+
+    let learnedContext = '';
+    try {
+      const { data: knowData } = await supabase
+        .from('assistant_knowledge')
+        .select('term, meaning, category')
+        .eq('is_active', true)
+        .order('category');
+      if (knowData && knowData.length > 0) {
+        learnedContext = knowData
+          .map((k: any) => `- "${k.term}" bedeutet: ${k.meaning}${k.category ? ` [${k.category}]` : ''}`)
+          .join('\n');
+      }
+    } catch (e) {
+      console.error('Kontext: assistant_knowledge konnte nicht geladen werden:', e);
+    }
+
     // System prompt
-    const systemPrompt = `Du bist ein Datenbank-Assistent für eine Ferienhaus-Verwaltungssoftware.
+    const systemPrompt = `Du bist Max, der KI-Assistent von Uli für seine Ferienhaus-Verwaltung (Steinbock Chalets).
+
+🏡 DEINE HÄUSER (aktueller Stand aus der Datenbank):
+${housesContext ? '- ' + housesContext : '(keine Häuser gefunden)'}
+Wenn ein Nutzer einen Hausnamen verkürzt nennt (z. B. nur "Wald" statt "Wald Chalet"),
+ordne ihn dem passenden Haus oben zu. Für Tools, die eine house_id (UUID) brauchen,
+verwende die ID aus dieser Liste — oder hole sie sonst über search_houses.
+
+🧹🧺 DEINE DIENSTLEISTER (aktueller Stand aus der Datenbank):
+${providersContext ? '- ' + providersContext : '(keine aktiven Dienstleister gefunden)'}
+Nutze für send_provider_message immer den echten Namen aus dieser Liste.
+
+🧠 GELERNTES WISSEN (von Uli beigebracht — beachte es immer):
+${learnedContext || '(noch kein gelerntes Wissen vorhanden)'}
+
+📚 SO LERNST DU DAZU:
+Wenn du einen Begriff, eine Abkürzung oder eine Anweisung NICHT sicher verstehst,
+rate NICHT. Frage kurz nach, was gemeint ist. Wenn Uli es dir erklärt, biete an,
+es dauerhaft zu speichern: "Soll ich mir merken, dass <Begriff> = <Bedeutung> ist?".
+Erst nach einem klaren "ja" rufst du save_knowledge auf. So wächst dein Wissen mit.
+
+Du bist ein Datenbank-Assistent für eine Ferienhaus-Verwaltungssoftware.
 
 📅 AKTUELLES DATUM & BERECHNETE ZEITRÄUME:
 Heute: ${berlinTime} (ISO: ${currentDate})
