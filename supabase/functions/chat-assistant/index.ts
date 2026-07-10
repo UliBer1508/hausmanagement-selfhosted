@@ -1034,6 +1034,33 @@ async function executeGetDailyOverview(params: any) {
   };
 }
 
+async function executeGetMorningSummary(params: any) {
+  console.log('Executing get_morning_summary');
+
+  // Ruft die Edge Function morning-summary im ABRUF-Modus auf (deliver=false).
+  // So bleibt die Sammel-/Formatier-Logik an EINER Stelle (keine Doppellogik).
+  try {
+    const { data, error } = await supabase.functions.invoke('morning-summary', {
+      body: { deliver: false },
+    });
+
+    if (error) {
+      console.error('Error get_morning_summary:', error);
+      return { success: false, error: 'Morgen-Übersicht konnte nicht geladen werden.' };
+    }
+
+    return {
+      success: true,
+      summary: data?.summary_markdown ?? '',
+      hasData: data?.hasData ?? false,
+      sections: data?.sections ?? null,
+    };
+  } catch (e) {
+    console.error('Exception get_morning_summary:', e);
+    return { success: false, error: 'Morgen-Übersicht konnte nicht geladen werden.' };
+  }
+}
+
 async function executeGetCalendarEvents(params: any) {
   console.log('Executing get_calendar_events with params:', params);
 
@@ -1385,6 +1412,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeGetRatingReminders(args);
     case 'draft_guest_welcome_email':
       return await executeDraftGuestWelcomeEmail(args);
+    case 'get_morning_summary':
+      return await executeGetMorningSummary(args);
 
     default:
       console.warn(`Unknown tool: ${toolName}`);
@@ -1766,6 +1795,17 @@ function getToolDefinitions() {
             booking_id: { type: "string", description: "Optional: UUID der Buchung, falls bekannt (Alternative zu guest_name)." },
             language: { type: "string", enum: ["de", "en"], description: "Sprache der Vorlage. 'en' für Gäste aus englischsprachigen Ländern, sonst 'de' (Standard)." }
           }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "get_morning_summary",
+        description: "Liefert die vollständige Morgen-/Tagesübersicht in EINEM Schritt: Gäste vor Anreise kontaktieren, Bewertungen nachtragen, offene Wäschebestellungen, kommende Buchungen (7 Tage), Reinigungen heute + kommend, bestätigte Wäsche-Lieferungen. Nutze dieses Tool für 'Guten Morgen', 'Was steht heute an?', 'Tagesübersicht', 'Zusammenfassung'. Gib den zurückgegebenen Text 'summary' unverändert und vollständig aus.",
+        parameters: {
+          type: "object",
+          properties: {}
         }
       }
     }
@@ -2788,15 +2828,13 @@ Beispiele, die IMMER get_booking_full_context brauchen:
 - Begrüßungs-E-Mail für einen Gast vorbereiten → draft_guest_welcome_email
 
 📋 MORGEN-ÜBERSICHT ("Was steht heute an?", "Guten Morgen", "Tagesübersicht", "Zusammenfassung"):
-Stelle die Übersicht aus deinen vorhandenen Tools zusammen — baue NICHTS doppelt:
-1. Probleme kommender Buchungen → check_upcoming_bookings
-2. Heute (Check-ins/-outs, Reinigungen, Lieferungen, Gästewechsel) → get_daily_overview
-3. Offene Buchungsanfragen → search_booking_inquiries (status 'pending')
-4. Gäste vor Anreise kontaktieren → get_guest_contact_reminders
-5. Bewertungen prüfen/nachtragen → get_rating_reminders
-Beim Punkt Gästekontakt: Für jeden Gast MIT E-Mail (has_email=true) biete aktiv an, eine
-Begrüßungs-E-Mail zu erstellen ("Soll ich für <Gast> die Begrüßungs-E-Mail vorbereiten?").
-Für Gäste OHNE E-Mail nenne nur die Erinnerung (z. B. telefonisch kontaktieren).
+Rufe get_morning_summary auf und gib den zurückgegebenen Text 'summary' vollständig und
+unverändert aus. Das Tool enthält bereits alles: Gästekontakt vor Anreise, Bewertungen,
+offene Wäsche, kommende Buchungen (7 Tage), Reinigungen heute + kommend, bestätigte
+Lieferungen. Baue die Übersicht NICHT aus Einzel-Tools zusammen.
+Danach gilt weiterhin: Für jeden im Abschnitt Gästekontakt genannten Gast MIT E-Mail biete
+aktiv an, die Begrüßungs-E-Mail zu erstellen ("Soll ich für <Gast> die Begrüßungs-E-Mail
+vorbereiten?"). Für Gäste OHNE E-Mail nenne nur die Erinnerung (z. B. telefonisch kontaktieren).
 Bewertungen sind eine reine Erinnerung zum Nachschauen im Portal — trage nie selbst etwas ein.
 
 ✉️ BEGRÜSSUNGS-E-MAIL (draft_guest_welcome_email) — SEHR WICHTIG:
