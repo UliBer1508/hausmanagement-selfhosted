@@ -5,7 +5,7 @@
 > Arbeitsweise und die offenen Punkte. Andere Einzeldokumente in `docs/` können
 > nach Übernahme in dieses Dokument gelöscht werden.
 >
-> **Stand:** 08.07.2026 · **Haupt-Repo:** github.com/UliBer1508/hausmanagement-selfhosted
+> **Stand:** 10.07.2026 · **Haupt-Repo:** github.com/UliBer1508/hausmanagement-selfhosted
 
 ---
 
@@ -120,7 +120,8 @@ hinzu, ohne Bestehendes anzufassen.
 **Lesen/Suchen:** search_bookings, search_cleaning_tasks, search_linen_orders,
 search_guests, search_houses, search_booking_inquiries, get_calendar_events,
 get_daily_overview, get_dashboard_stats, get_linen_overview, get_revenue_stats,
-get_booking_full_context (alles zu einer Buchung inkl. "Wäsche liegt nach Reinigung").
+get_booking_full_context (alles zu einer Buchung inkl. "Wäsche liegt nach Reinigung"),
+get_morning_summary (vollständige Tagesübersicht in einem Schritt — siehe Abschnitt 4a).
 
 **Buchungsanfragen:** accept_booking_inquiry, reject_booking_inquiry.
 **Bulk:** create_bulk_cleaning_tasks, create_bulk_linen_orders.
@@ -188,6 +189,49 @@ Zeitstempel "Gesendet: TT.MM.JJJJ, HH:MM". Max-Nachrichten zählen im unread-Zä
 
 ---
 
+## 4a. MORGEN-ASSISTENT & AKTIONEN-FENSTER (umgesetzt 10.07.2026)
+
+### Morgen-/Tagesübersicht — jetzt EINE Quelle der Wahrheit
+Früher gab es die Tagesübersicht doppelt: einmal als reiche Frontend-Logik im
+Hook `useMorningSummary.ts` (467 Zeilen, lief nur bei App-Öffnung) und die
+Einzel-Tools von Max. Das ist zusammengeführt.
+
+- **Edge Function `morning-summary`** (`supabase/functions/morning-summary/index.ts`)
+  ist die EINZIGE Quelle. Sie enthält die gesamte Sammel-/Formatier-Logik
+  (1:1 aus dem alten Hook portiert: Gästekontakt vor Anreise, Bewertungen mit
+  Marketing-Priorität, offene Wäsche, kommende Buchungen 7 Tage, Reinigungen
+  heute + kommend, bestätigte Lieferungen).
+  - Betriebsart über Body: `{ deliver: false }` = nur Abruf (sendet nichts,
+    Standard); `{ deliver: true }` = zusätzlich Zustellung — aber nur wenn
+    `system_settings.morning_summary_settings.enabled = true`.
+  - Liest optional `morning_summary_settings` und `rating_reminder_settings`;
+    fehlen sie, greifen dieselben Defaults wie der alte Hook.
+- **Max-Tool `get_morning_summary`** ruft diese Function im Abruf-Modus. Damit
+  liefert Max die volle Übersicht auf Anfrage ("Was steht heute an?", "Guten Morgen").
+- **Frontend-Hook `useMorningSummary.ts`** wurde von 467 auf 80 Zeilen reduziert:
+  er ruft jetzt nur noch die Edge Function auf (keine eigene DB-Logik mehr).
+  Schnittstelle unverändert (summaryMessage/isLoading/shouldShow/markAsShown),
+  daher `ChatAssistant.tsx` NICHT angefasst. Die Begrüßung beim Öffnen und Max'
+  Antwort auf Anfrage kommen jetzt aus DERSELBEN Function.
+
+**Stand:** A (Edge Function) + B (Max-Tool) + C (Frontend-Umstellung) deployt und
+live verifiziert. NOCH offen: proaktive tägliche Zustellung per E-Mail + Cron
+(Bausteine D+E) und eine Einstellungskarte für `morning_summary_settings`.
+
+### max_actions — Protokoll aller Max-Transaktionen
+- Tabelle `max_actions` (`id, action_type, status, booking_id, guest_name,
+  details JSON, created_by, created_at, updated_at`) protokolliert von Max
+  ausgeführte Vorgänge (z. B. `welcome_email`).
+- Anzeige: `src/components/Chat/MaxActionsPanel.tsx` — reines Protokoll-Fenster
+  zum ANSEHEN (kein Prüf-Workflow), gefiltert nach Art und Status. Geöffnet über
+  ein Zahnrad-Icon im Chat-Header. Header heißt jetzt "Max, dein AI Assistent"
+  (vorher "AI Assistent"). z-index-Falle: Chat liegt auf z-[100], daher
+  DialogContent auf z-[200] und SelectContent auf z-[210] gehoben.
+- OFFEN zu verifizieren: ob Max ALLE Transaktionstypen (nicht nur welcome_email)
+  in max_actions schreibt.
+
+---
+
 ## 5. WEITERE SYSTEME (bestehend, ausgereift — Max soll sie NICHT ersetzen)
 
 - **Preisgestaltung:** pricing-engine, daily-pricing, expand-daily-prices,
@@ -251,6 +295,12 @@ Zeitstempel "Gesendet: TT.MM.JJJJ, HH:MM". Max-Nachrichten zählen im unread-Zä
   "— Fronius Smart AI" (Umbenennung auf Steinbockchalets-Heizungsmanagement offen).
 
 ### Mittelfristig
+- **Morgen-Übersicht proaktiv zustellen (Bausteine D+E):** Die Übersicht selbst ist
+  bereits über `morning-summary` + `get_morning_summary` umgesetzt (Abschnitt 4a).
+  OFFEN bleibt nur noch die proaktive tägliche Zustellung: E-Mail-Versand scharf
+  schalten (deliver=true + `morning_summary_settings.enabled=true`), Cron-Job
+  (z. B. 06:30, nicht mit Amela 07:00 / Teuni 07:30 kollidierend) und eine
+  Einstellungskarte für `morning_summary_settings`.
 - **Wächter zur Automatik** (Weg B): check_upcoming_bookings läuft als Cron mit
   Morgen-Übersicht. Prüflogik (runUpcomingBookingsControl) + Einstellungs-Struktur
   (system_settings key `max_control_settings`: enabled/time/advance_days/checks) sind
