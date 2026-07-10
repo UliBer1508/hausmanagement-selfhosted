@@ -1583,15 +1583,15 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "search_cleaning_tasks",
-        description: "Sucht Reinigungsaufträge",
+        description: "Sucht Reinigungsaufträge. Für Fragen wie 'Wann wird [Haus] gereinigt?' IMMER nach house_id filtern (NICHT guest_name). Den Hausnamen (auch verkürzt wie 'Wald') zuerst über die Häuser-Liste im System-Prompt in die house_id-UUID auflösen, oder mit search_houses holen.",
         parameters: {
           type: "object",
           properties: {
             status: { type: "string", enum: ["scheduled", "in_progress", "completed", "delayed", "cancelled", "draft"] },
-            house_id: { type: "string" },
+            house_id: { type: "string", description: "UUID des Hauses. Für einen Hausnamen (z. B. 'Wald' = 'Wald Chalet') die passende ID aus der Häuser-Liste im System-Prompt verwenden. NIEMALS einen Hausnamen in guest_name schreiben." },
             date_from: { type: "string" },
             date_to: { type: "string" },
-            guest_name: { type: "string" },
+            guest_name: { type: "string", description: "NUR echte Gästenamen (Personen), niemals Hausnamen." },
             provider_name: { type: "string", description: "Name des verantwortlichen Providers (z.B. Amela)" },
             payment_status: { type: "string", enum: ["paid", "unpaid", "pending"] }
           }
@@ -1651,9 +1651,9 @@ function getToolDefinitions() {
         parameters: {
           type: "object",
           properties: {
-            guest_name: { type: "string", description: "Name des Gastes (filtert über die verknüpfte Buchung)" },
+            guest_name: { type: "string", description: "NUR echte Gästenamen (Personen), niemals Hausnamen. Filtert über die verknüpfte Buchung." },
             status: { type: "string", enum: ["offen", "bestellt", "ausstehend", "delivered", "cancelled"], description: "Wäsche-Status. 'delivered'=geliefert, 'offen'/'ausstehend'/'bestellt'=noch offen, 'cancelled'=storniert" },
-            house_id: { type: "string" },
+            house_id: { type: "string", description: "UUID des Hauses. Für einen Hausnamen (z. B. 'Wald' = 'Wald Chalet') die passende ID aus der Häuser-Liste im System-Prompt verwenden. NIEMALS einen Hausnamen in guest_name schreiben." },
             date_from: { type: "string" },
             date_to: { type: "string" }
           }
@@ -2914,6 +2914,9 @@ ${housesContext ? '- ' + housesContext : '(keine Häuser gefunden)'}
 Wenn ein Nutzer einen Hausnamen verkürzt nennt (z. B. nur "Wald" statt "Wald Chalet"),
 ordne ihn dem passenden Haus oben zu. Für Tools, die eine house_id (UUID) brauchen,
 verwende die ID aus dieser Liste — oder hole sie sonst über search_houses.
+⚠️ Ein Hausname ist NIEMALS ein Gästename. Bei Fragen wie "Wann wird Wald gereinigt?"
+oder "Ist die Wäsche für Wald da?" nutze IMMER house_id (aus der Liste oben),
+NIEMALS guest_name. guest_name ist ausschließlich für echte Personen.
 
 🧹🧺 DEINE DIENSTLEISTER (aktueller Stand aus der Datenbank):
 ${providersContext ? '- ' + providersContext : '(keine aktiven Dienstleister gefunden)'}
