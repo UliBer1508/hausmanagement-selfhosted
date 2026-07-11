@@ -257,4 +257,13 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
       <NotesQuickDialog
         open={notesOpen}
         onOpenChange={setNotesOpen}
-   
+        title="Notiz"
+        value={task.notes ?? ''}
+        saving={savingNotes}
+        onSave={handleSaveNotes}
+      />
+    </>
+  );
+};
+
+export default ServiceTaskCard;
