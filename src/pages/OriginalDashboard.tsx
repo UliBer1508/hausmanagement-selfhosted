@@ -583,6 +583,7 @@ const OriginalDashboard = () => {
           payment_status,
           notes,
           status,
+          updated_at,
           houses!bookings_house_id_fkey (
             id,
             name,
