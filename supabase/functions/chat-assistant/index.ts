@@ -2631,6 +2631,15 @@ async function logMaxAction(entry: {
   due_at?: string | null;
 }): Promise<string | null> {
   try {
+    // Verlaufs-Kette anlegen: der erste Schritt ist last_step (falls vorhanden).
+    const nowIso = new Date().toISOString();
+    const baseDetails = entry.details && typeof entry.details === 'object' ? { ...entry.details } : (entry.details ? { info: entry.details } : {});
+    const verlauf = Array.isArray(baseDetails.verlauf) ? baseDetails.verlauf : [];
+    if (entry.last_step) {
+      verlauf.push({ schritt: entry.last_step, zeitpunkt: nowIso, akteur: entry.created_by ?? 'max' });
+    }
+    baseDetails.verlauf = verlauf;
+
     const { data, error } = await supabase
       .from('max_actions')
       .insert({
@@ -2638,7 +2647,7 @@ async function logMaxAction(entry: {
         status: entry.status,
         booking_id: entry.booking_id ?? null,
         guest_name: entry.guest_name ?? null,
-        details: entry.details ?? null,
+        details: baseDetails,
         created_by: entry.created_by ?? 'max',
         related_task_id: entry.related_task_id ?? null,
         last_step: entry.last_step ?? null,
@@ -2655,6 +2664,50 @@ async function logMaxAction(entry: {
   } catch (e) {
     console.error('logMaxAction exception:', e);
     return null;
+  }
+}
+
+// Hängt einen weiteren Schritt an die Verlaufs-Kette eines bestehenden Workflows an
+// (via related_task_id ODER id) und aktualisiert Status/waiting_for/last_step.
+// Rein additiv/robust: Fehler brechen die eigentliche Aktion nicht ab.
+async function appendWorkflowStep(
+  match: { related_task_id?: string | null; id?: string | null },
+  step: {
+    schritt: string;
+    akteur?: string;
+    status?: string;
+    waiting_for?: string | null;
+    due_at?: string | null;
+  }
+): Promise<boolean> {
+  try {
+    if (!match.related_task_id && !match.id) return false;
+    // Bestehenden Eintrag laden (neuester, falls mehrere).
+    let sel = supabase.from('max_actions').select('id, details').order('created_at', { ascending: false }).limit(1);
+    sel = match.id ? sel.eq('id', match.id) : sel.eq('related_task_id', match.related_task_id as string);
+    const { data: rows, error: selErr } = await sel;
+    if (selErr || !rows || rows.length === 0) return false;
+
+    const row = rows[0] as any;
+    const details = row.details && typeof row.details === 'object' ? { ...row.details } : {};
+    const verlauf = Array.isArray(details.verlauf) ? details.verlauf : [];
+    verlauf.push({ schritt: step.schritt, zeitpunkt: new Date().toISOString(), akteur: step.akteur ?? 'max' });
+    details.verlauf = verlauf;
+
+    const patch: any = { details, last_step: step.schritt, updated_at: new Date().toISOString() };
+    if (step.status !== undefined) patch.status = step.status;
+    if (step.waiting_for !== undefined) patch.waiting_for = step.waiting_for;
+    if (step.due_at !== undefined) patch.due_at = step.due_at;
+
+    const { error: updErr } = await supabase.from('max_actions').update(patch).eq('id', row.id);
+    if (updErr) {
+      console.error('appendWorkflowStep update error:', updErr);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('appendWorkflowStep exception:', e);
+    return false;
   }
 }
 
