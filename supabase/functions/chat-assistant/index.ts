@@ -1764,13 +1764,14 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "send_provider_message",
-        description: "Sendet eine Nachricht an einen Dienstleister (Amela = Reinigung, Teuni = Wäsche) in dessen Portal-Posteingang. Die Nachricht erscheint dort als 'Max (Assistent)'. WICHTIGE REGEL: Nur echte TERMINFRAGEN (z.B. 'Passt dir der Reinigungstermin am 18.7.?') dürfen mit ist_terminfrage=true direkt gesendet werden. JEDE andere Nachricht muss mit ist_terminfrage=false erstellt werden - dann wird sie NICHT gesendet, sondern nur als Entwurf zurückgegeben, den du dem Nutzer zur Freigabe zeigst. Sende eine Nicht-Terminfrage erst, wenn der Nutzer sie ausdrücklich bestätigt hat.",
+        description: "Sendet eine Nachricht an einen Dienstleister (Amela = Reinigung, Teuni = Wäsche) in dessen Portal-Posteingang. Die Nachricht erscheint dort als 'Max (Assistent)'. FREIGABE-REGELN: (1) Echte TERMINFRAGEN (z.B. 'Passt dir der Reinigungstermin am 18.7.?') mit ist_terminfrage=true werden direkt gesendet. (2) JEDE andere Nachricht (z.B. Info über eine geänderte Wäschemenge) rufst du ZUERST mit ist_terminfrage=false und OHNE freigegeben auf - dann wird sie NICHT gesendet, sondern nur als Entwurf zurückgegeben, den du dem Nutzer zeigst. (3) Sobald der Nutzer den Entwurf ausdrücklich bestätigt ('ja, sende'), rufst du das Tool ERNEUT mit demselben Text und freigegeben=true auf - ERST DANN wird wirklich gesendet.",
         parameters: {
           type: "object",
           properties: {
             provider_name: { type: "string", description: "Name des Dienstleisters, z.B. 'Amela' oder 'Teuni'" },
             message: { type: "string", description: "Der Nachrichtentext auf Deutsch, höflich und klar" },
             ist_terminfrage: { type: "boolean", description: "true NUR bei echten Terminfragen (direkt senden). Bei allem anderen false (nur Entwurf zur Freigabe)." },
+            freigegeben: { type: "boolean", description: "true, wenn der Nutzer eine Nicht-Terminfrage ausdrücklich zum Senden freigegeben hat. Weglassen/false = nur Entwurf zurückgeben." },
             related_task_id: { type: "string", description: "Optional: ID der zugehörigen Reinigung (service_task), damit die Nachricht direkt daran hängt" },
             related_linen_order_id: { type: "string", description: "Optional: ID der zugehörigen Wäschebestellung" }
           },
@@ -1970,8 +1971,8 @@ async function executeSendProviderMessage(params: any) {
 
   const provider = providers[0];
 
-  // Freigabe-Logik: nur Terminfragen direkt senden, alles andere zur Freigabe zurückgeben.
-  if (params.ist_terminfrage !== true) {
+  // Freigabe-Logik: Terminfragen ODER ausdrücklich freigegebene Nachrichten senden; sonst nur Entwurf.
+  if (params.ist_terminfrage !== true && params.freigegeben !== true) {
     return {
       success: true,
       gesendet: false,
@@ -2002,7 +2003,9 @@ async function executeSendProviderMessage(params: any) {
 
   if (insErr) return { success: false, error: insErr.message };
 
-  // Workflow eröffnen/fortschreiben: eine gesendete Terminfrage wartet auf den Provider.
+  // Workflow nur für echte Terminfragen (die auf eine Antwort warten). Reine, vom Nutzer
+  // freigegebene Info-Nachrichten erwarten keine Antwort und dürfen keinen "keine Antwort"-Alarm auslösen.
+  if (params.ist_terminfrage === true) {
   // Fälligkeit: 2 Tage — danach kann der Wächter "keine Antwort" erkennen.
   const dueAt = new Date();
   dueAt.setDate(dueAt.getDate() + 2);
@@ -2042,6 +2045,7 @@ async function executeSendProviderMessage(params: any) {
       created_by: 'max',
     });
   }
+  } // Ende: Workflow nur bei Terminfragen
 
   return {
     success: true,
