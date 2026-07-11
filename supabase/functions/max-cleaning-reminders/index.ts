@@ -195,6 +195,28 @@ serve(async (req) => {
         } else {
           sentCount++;
           results.push({ gesendet_an: provider.name, reinigung: `${dateStr} – ${houseName}`, gast: guestName });
+
+          // Workflow eröffnen: die Terminfrage wartet jetzt auf den Provider.
+          // due_at +2 Tage -> danach erkennt der Wächter "keine Antwort".
+          try {
+            const dueAt = new Date();
+            dueAt.setDate(dueAt.getDate() + 2);
+            const waitingFor = /teuni/i.test(provider.name) ? 'teuni' : /amela/i.test(provider.name) ? 'amela' : 'provider';
+            await supabase.from('max_actions').insert({
+              action_type: 'cleaning_termin_check',
+              status: 'wartet_provider',
+              booking_id: task.booking_id ?? null,
+              guest_name: guestName,
+              related_task_id: task.id,
+              waiting_for: waitingFor,
+              last_step: `Terminfrage an ${provider.name} gesendet (${dateStr})`,
+              due_at: dueAt.toISOString(),
+              details: { reinigung: `${dateStr}${timeStr} – ${houseName}`, an: provider.name },
+              created_by: 'max',
+            });
+          } catch (logErr) {
+            console.error('max_actions-Log (cleaning) fehlgeschlagen:', logErr);
+          }
         }
       }
     }
