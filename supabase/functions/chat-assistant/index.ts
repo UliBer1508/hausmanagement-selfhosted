@@ -2223,15 +2223,18 @@ async function executeCreateCleaningForBooking(params: any) {
 async function executeCreateLinenForBooking(params: any) {
   console.log('Executing create_linen_for_booking:', params);
   try {
-    const { data, error } = await supabase.functions.invoke('auto-create-linen-orders', {
-      body: {},
+    if (!params?.booking_id) {
+      return { success: false, error: 'booking_id ist erforderlich' };
+    }
+    const { data, error } = await supabase.functions.invoke('create-linen-order-for-booking', {
+      body: { booking_id: params.booking_id },
     });
     if (error) return { success: false, error: error.message };
     await logMaxAction({
       action_type: 'create_linen_for_booking',
       status: 'wartet_uli',
       waiting_for: 'uli',
-      last_step: 'Wäsche-Automatik ausgelöst — Uli muss auf "ausstehend" setzen',
+      last_step: 'Wäschebestellung angelegt (offen) — Uli muss auf "ausstehend" setzen',
       details: data,
       created_by: 'uli',
     });
@@ -2534,6 +2537,24 @@ function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string;
         id: String(result.task_id),
         type: 'cleaning_task',
         label: `Reinigung für ${result.gast || 'Gast'} öffnen (${result.neues_datum || ''})`.trim(),
+      });
+      continue;
+    }
+
+    if (tr.tool === 'create_cleaning_for_booking' && result?.details?.service_task_id) {
+      links.push({
+        id: String(result.details.service_task_id),
+        type: 'cleaning_task',
+        label: `Reinigung öffnen${result.details.scheduled_date ? ` (${result.details.scheduled_date})` : ''}`.trim(),
+      });
+      continue;
+    }
+
+    if (tr.tool === 'create_linen_for_booking' && result?.details?.linen_order_id) {
+      links.push({
+        id: String(result.details.linen_order_id),
+        type: 'laundry_order',
+        label: `Wäschebestellung öffnen${result.details.house_name ? ` – ${result.details.house_name}` : ''}`,
       });
       continue;
     }
