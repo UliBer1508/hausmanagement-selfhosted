@@ -24,11 +24,19 @@ import {
   RefreshCw,
   Loader2,
   ListChecks,
+  MessageSquare,
+  ArrowRight,
 } from 'lucide-react';
 
 interface MaxActionsPanelProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+interface WorkflowStep {
+  schritt: string;
+  zeitpunkt: string;
+  akteur?: string;
 }
 
 interface MaxAction {
@@ -37,10 +45,14 @@ interface MaxAction {
   status: string;
   booking_id: string | null;
   guest_name: string | null;
-  details: Record<string, unknown> | null;
+  details: (Record<string, unknown> & { verlauf?: WorkflowStep[] }) | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  last_step: string | null;
+  waiting_for: string | null;
+  due_at: string | null;
+  related_task_id: string | null;
 }
 
 // Deutsche Klartext-Labels für die action_type-Werte.
@@ -53,6 +65,17 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   provider_message: 'Nachricht an Dienstleister',
   termin_frage: 'Terminfrage',
   termin_geaendert: 'Termin geändert',
+  reschedule_cleaning: 'Reinigung verschoben',
+  accept_booking_inquiry: 'Buchungsanfrage angenommen',
+  reject_booking_inquiry: 'Buchungsanfrage abgelehnt',
+  create_cleaning_for_booking: 'Reinigung angelegt',
+  create_linen_for_booking: 'Wäsche angelegt',
+  update_linen_for_booking: 'Wäsche angepasst',
+  create_bulk_cleaning_tasks: 'Reinigungen (Sammel)',
+  create_bulk_linen_orders: 'Wäsche (Sammel)',
+  cleaning_termin_check: 'Reinigung: Terminfrage an Dienstleister',
+  linen_termin_check: 'Wäsche: Liefer-Erinnerung an Teuni',
+  auto_linen_created: 'Wäsche automatisch angelegt',
 };
 
 // Status-Werte -> Anzeige (Label, Farbe, Icon). Reine Darstellung, kein Eingriff.
@@ -65,6 +88,46 @@ const STATUS_CONFIG: Record<
     label: 'Zur Prüfung',
     variant: 'secondary',
     icon: <Clock className="h-3 w-3 mr-1" />,
+  },
+  wartet_uli: {
+    label: 'Wartet auf dich',
+    variant: 'secondary',
+    icon: <Clock className="h-3 w-3 mr-1" />,
+  },
+  wartet_provider: {
+    label: 'Wartet auf Dienstleister',
+    variant: 'secondary',
+    icon: <Clock className="h-3 w-3 mr-1" />,
+  },
+  wartet_gast: {
+    label: 'Wartet auf Gast',
+    variant: 'secondary',
+    icon: <Clock className="h-3 w-3 mr-1" />,
+  },
+  beantwortet: {
+    label: 'Beantwortet',
+    variant: 'default',
+    icon: <CheckCircle className="h-3 w-3 mr-1" />,
+  },
+  ueberfaellig: {
+    label: 'Überfällig',
+    variant: 'destructive',
+    icon: <Clock className="h-3 w-3 mr-1" />,
+  },
+  abgeschlossen: {
+    label: 'Abgeschlossen',
+    variant: 'default',
+    icon: <CheckCircle className="h-3 w-3 mr-1" />,
+  },
+  abgelehnt: {
+    label: 'Abgelehnt',
+    variant: 'outline',
+    icon: <XCircle className="h-3 w-3 mr-1" />,
+  },
+  problem: {
+    label: 'Problem',
+    variant: 'destructive',
+    icon: <XCircle className="h-3 w-3 mr-1" />,
   },
   gesendet: {
     label: 'Gesendet',
@@ -99,6 +162,34 @@ const formatDateTimeDE = (iso: string): string => {
 
 const getActionLabel = (type: string): string =>
   ACTION_TYPE_LABELS[type] ?? type;
+
+// Farbe/Icon eines Kettenschritts anhand von Schlüsselwörtern im Text.
+// Grün = erledigt, Gelb = wartend/offen, Rot = Problem/überfällig.
+const stepStyle = (schritt: string): { cls: string; icon: React.ReactNode } => {
+  const s = schritt.toLowerCase();
+  if (/(überfällig|ueberfaellig|keine antwort|fehler|problem|abgelehnt|nicht möglich)/.test(s)) {
+    return {
+      cls: 'bg-destructive/10 text-destructive',
+      icon: <XCircle className="h-3 w-3 mr-1 shrink-0" />,
+    };
+  }
+  if (/(wartet|offen|nötig|freigabe|prüfen|ausstehend)/.test(s)) {
+    return {
+      cls: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+      icon: <Clock className="h-3 w-3 mr-1 shrink-0" />,
+    };
+  }
+  if (/(geantwortet|antwort)/.test(s)) {
+    return {
+      cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+      icon: <MessageSquare className="h-3 w-3 mr-1 shrink-0" />,
+    };
+  }
+  return {
+    cls: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
+    icon: <CheckCircle className="h-3 w-3 mr-1 shrink-0" />,
+  };
+};
 
 // Baut die dynamische Liste der vorhandenen Status für den Filter,
 // damit auch neue Status-Werte automatisch auswählbar sind.
@@ -247,12 +338,72 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
                     </Badge>
                   </div>
 
-                  {/* Details (z. B. Empfänger, Betreff, Haus) */}
-                  {action.details && (
-                    <pre className="mt-2 bg-muted p-2 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(action.details, null, 2)}
-                    </pre>
+                  {/* Workflow-Kette: alle Schritte von Anfang bis Ende in einer Zeile */}
+                  {Array.isArray(action.details?.verlauf) &&
+                    action.details!.verlauf!.length > 0 && (
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
+                        {action.details!.verlauf!.map((step, i) => {
+                          const st = stepStyle(step.schritt);
+                          return (
+                            <span key={i} className="flex items-center gap-1.5">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 ${st.cls}`}
+                                title={formatDateTimeDE(step.zeitpunkt)}
+                              >
+                                {st.icon}
+                                {step.schritt}
+                              </span>
+                              {i < action.details!.verlauf!.length - 1 && (
+                                <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                  {/* Falls (noch) keine Kette vorhanden: letzten Schritt zeigen */}
+                  {(!action.details?.verlauf ||
+                    action.details.verlauf.length === 0) &&
+                    action.last_step && (
+                      <p className="mt-2 text-sm">
+                        <span className="text-muted-foreground">
+                          Letzter Schritt:{' '}
+                        </span>
+                        {action.last_step}
+                      </p>
+                    )}
+
+                  {/* Auf wen gewartet wird (+ Fälligkeit) */}
+                  {action.waiting_for && (
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Wartet auf:{' '}
+                      {action.waiting_for === 'uli'
+                        ? 'dich'
+                        : action.waiting_for === 'amela'
+                        ? 'Amela'
+                        : action.waiting_for === 'teuni'
+                        ? 'Teuni'
+                        : action.waiting_for === 'gast'
+                        ? 'Gast'
+                        : action.waiting_for}
+                      {action.due_at
+                        ? ` · fällig bis ${formatDateTimeDE(action.due_at)}`
+                        : ''}
+                    </p>
                   )}
+
+                  {/* Details (z. B. Empfänger, Betreff, Haus) — ohne verlauf (steht schon als Kette) */}
+                  {action.details &&
+                    (() => {
+                      const rest: Record<string, unknown> = { ...action.details };
+                      delete (rest as { verlauf?: unknown }).verlauf;
+                      return Object.keys(rest).length > 0 ? (
+                        <pre className="mt-2 bg-muted p-2 rounded text-xs overflow-x-auto">
+                          {JSON.stringify(rest, null, 2)}
+                        </pre>
+                      ) : null;
+                    })()}
 
                   {/* Wenn zwischenzeitlich aktualisiert: Zeitpunkt zeigen */}
                   {action.updated_at &&
