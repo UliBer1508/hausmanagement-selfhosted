@@ -187,7 +187,7 @@ async function executeRejectBookingInquiry(params: any) {
 
   await logMaxAction({
     action_type: 'reject_booking_inquiry',
-    status: 'abgeschlossen',
+    status: 'abgelehnt',
     guest_name: data.guest_name,
     last_step: 'Buchungsanfrage abgelehnt',
     details: { house_name: data.houses?.name, grund: reason || null },
@@ -2047,6 +2047,19 @@ async function executeSendProviderMessage(params: any) {
   }
   } // Ende: Workflow nur bei Terminfragen
 
+  // Reine Info-Nachricht (kein Terminfrage-Workflow): trotzdem protokollieren,
+  // aber als abgeschlossen und OHNE due_at/waiting_for (erwartet keine Antwort).
+  if (params.ist_terminfrage !== true) {
+    await logMaxAction({
+      action_type: 'provider_message',
+      status: 'abgeschlossen',
+      related_task_id: params.related_task_id || null,
+      last_step: `Info an ${provider.name} gesendet`,
+      details: { an: provider.name, nachricht: message, art: 'info' },
+      created_by: 'max',
+    });
+  }
+
   return {
     success: true,
     gesendet: true,
@@ -2876,7 +2889,8 @@ serve(async (req) => {
         // Status-Verlauf: Auftrag protokollieren (Entwurf erstellt, wartet auf Prüfung/Senden).
         await logMaxAction({
           action_type: 'welcome_email',
-          status: 'zur_pruefung',
+          status: 'wartet_uli',
+          waiting_for: 'uli',
           booking_id: d.booking_id ?? null,
           guest_name: d.guest_name ?? null,
           details: { to: d.to, subject: d.subject, language: d.language, house: d.house },
@@ -2932,7 +2946,8 @@ serve(async (req) => {
         if (rr.success) {
           await logMaxAction({
             action_type: 'reschedule_cleaning',
-            status: 'zur_pruefung',
+            status: 'wartet_uli',
+            waiting_for: 'uli',
             booking_id: (task as any).booking_id ?? null,
             guest_name: (rr as any).gast ?? guestName,
             details: { task_id: (task as any).id, altes_datum: (rr as any).altes_datum, neues_datum: (rr as any).neues_datum, quelle: 'uli' },
@@ -2967,7 +2982,8 @@ serve(async (req) => {
           // in der Reinigungskarte auf "Geplant" (scheduled) gesetzt hat.
           await logMaxAction({
             action_type: 'reschedule_cleaning',
-            status: 'zur_pruefung',
+            status: 'wartet_uli',
+            waiting_for: 'uli',
             booking_id: p.booking_id ?? null,
             guest_name: p.guest,
             details: { task_id: p.task_id, altes_datum: p.old_date_de, neues_datum: p.new_date_de, quelle: 'amela' },
