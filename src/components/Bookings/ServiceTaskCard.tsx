@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditCleaningTaskDialog from '@/components/Cleaning/EditCleaningTaskDialog';
 import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import ChangedByLine from '@/components/shared/ChangedByLine';
 import { getGuestName } from '@/lib/guestHelpers';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -98,6 +99,20 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
 
   const houseName = houseNameProp || task.houses?.name || task.bookings?.houses?.name || 'Unbekannt';
 
+  // Provider-Name der Reinigung
+  const providerName: string | undefined = task.service_providers?.name;
+  // Problem b): Provider "Boris" optisch hervorheben (leicht roter Hintergrund).
+  const highlightProvider = (providerName || '').trim().toLowerCase() === 'boris';
+
+  // Problem a): Putzkraft folgt dem Provider. Ist keine konkrete Person
+  // zugewiesen, zeigen wir den Provider-Namen statt eines fest verdrahteten
+  // "Amela". So steht bei Provider Boris auch Boris (bzw. dessen Putzkraft).
+  const putzkraftName =
+    task.cleaning_assignments?.[0]?.cleaning_staff?.name
+    || task.direct_assigned_staff?.name
+    || providerName
+    || '—';
+
   return (
     <>
       <ClickableCard
@@ -158,27 +173,36 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
               </div>
             )}
 
-            {/* Felder-Raster: Provider, Reinigungsdatum, Putzkraft */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2">
+            {/* Felder-Raster: Provider, Datum, Putzkraft.
+                Standard-Raster wie im Bestand (grid-cols-2 sm:grid-cols-3
+                lg:grid-cols-4), aber Problem c) behoben: gap-x-4 statt gap-x-6,
+                jede Zelle min-w-0 + truncate und Label "Datum" statt
+                "Reinigungsdatum" – so überschneiden sich die Texte auf schmalen
+                Karten nicht mehr. */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
               {task.service_providers && (
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground pr-2">Provider</div>
-                  <div className="text-sm truncate">{task.service_providers.name}</div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Provider</div>
+                  <div className="text-sm truncate">
+                    {highlightProvider ? (
+                      <span className="inline-block max-w-full truncate align-bottom bg-red-50 text-red-800 border border-red-200 rounded px-1.5 py-0.5 font-medium dark:bg-red-900/20 dark:text-red-300 dark:border-red-800">
+                        {providerName}
+                      </span>
+                    ) : (
+                      providerName
+                    )}
+                  </div>
                 </div>
               )}
               {task.scheduled_date && (
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground pr-2">Reinigungsdatum</div>
-                  <div className="text-sm">{format(new Date(task.scheduled_date), 'dd.MM.yyyy', { locale: de })}</div>
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Datum</div>
+                  <div className="text-sm truncate">{format(new Date(task.scheduled_date), 'dd.MM.yyyy', { locale: de })}</div>
                 </div>
               )}
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground pr-2">Putzkraft</div>
-                <div className="text-sm truncate">
-                  {task.cleaning_assignments?.[0]?.cleaning_staff?.name
-                    || task.direct_assigned_staff?.name
-                    || 'Amela'}
-                </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Putzkraft</div>
+                <div className="text-sm truncate">{putzkraftName}</div>
               </div>
             </div>
 
@@ -210,15 +234,12 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
               </div>
             )}
 
-            {/* Status changed by */}
-            {task.status_changed_by && (
-              <div className="text-[10px] text-muted-foreground mt-auto pt-2">
-                Geändert von: {task.status_changed_by}
-                {task.status_changed_at && (
-                  <span> · {format(new Date(task.status_changed_at), 'dd.MM.yy HH:mm', { locale: de })}</span>
-                )}
-              </div>
-            )}
+            {/* Einheitliche "Geändert von"-Zeile (mit Datum aus updated_at) */}
+            <ChangedByLine
+              by={task.status_changed_by}
+              at={task.updated_at || task.status_changed_at}
+              className="mt-auto pt-2"
+            />
 
           </div>
         </CardContent>
@@ -236,13 +257,4 @@ const ServiceTaskCard = ({ task, colorVariant, onTaskUpdated, houseName: houseNa
       <NotesQuickDialog
         open={notesOpen}
         onOpenChange={setNotesOpen}
-        title="Notiz"
-        value={task.notes ?? ''}
-        saving={savingNotes}
-        onSave={handleSaveNotes}
-      />
-    </>
-  );
-};
-
-export default ServiceTaskCard;
+   

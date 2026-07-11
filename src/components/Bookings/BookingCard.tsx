@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { StickyNote } from 'lucide-react';
-import { format, parseISO, differenceInCalendarDays } from 'date-fns';
+import { parseISO, differenceInCalendarDays } from 'date-fns';
+import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import EditBookingDialog from './EditBookingDialog';
 import { BookingWithHouse } from '@/types';
 import { getGuestName } from '@/lib/guestHelpers';
 import { useGuestStayCounts, getGuestCategory } from '@/hooks/useGuestStayCounts';
 import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import ChangedByLine from '@/components/shared/ChangedByLine';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -184,25 +186,26 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
 
             {/* Felder-Raster: Chalet, Check-in, Check-out */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
-              <div>
+              <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Chalet</div>
                 <div className="text-sm truncate">{booking.houses?.name || 'Unbekannt'}</div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Check-in</div>
-                <div className="text-sm">{format(parseISO(booking.check_in), 'dd.MM.yy', { locale: de })}</div>
+                <div className="text-sm truncate">{format(parseISO(booking.check_in), 'dd.MM.yy', { locale: de })}</div>
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Check-out</div>
-                <div className="text-sm">{format(parseISO(booking.check_out), 'dd.MM.yy', { locale: de })}</div>
+                <div className="text-sm truncate">{format(parseISO(booking.check_out), 'dd.MM.yy', { locale: de })}</div>
               </div>
             </div>
 
-            {(booking as any).updated_at && (
-              <div className="text-[10px] text-muted-foreground mt-auto pt-2">
-                Aktualisiert: {format(parseISO((booking as any).updated_at), 'dd.MM.yy HH:mm', { locale: de })}
-              </div>
-            )}
+            {/* Einheitliche "Geändert von"-Zeile (mit Datum aus updated_at) */}
+            <ChangedByLine
+              by={(booking as any).status_changed_by}
+              at={(booking as any).updated_at}
+              className="mt-auto pt-2"
+            />
           </div>
         </CardContent>
       </Card>

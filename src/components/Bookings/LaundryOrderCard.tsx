@@ -11,6 +11,7 @@ import { translateItemType, getLinenStatusBadge } from '@/lib/linenOrderHelpers'
 import { getGuestName } from '@/lib/guestHelpers';
 import { getExternalStatusBadgeInfo } from '@/hooks/useExternalOrderStatus';
 import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import ChangedByLine from '@/components/shared/ChangedByLine';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -239,24 +240,24 @@ const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = f
           {/* Compact fields grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2">
             {order.service_providers?.name && (
-              <div>
+              <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Provider</div>
                 <div className="text-sm truncate">{order.service_providers.name}</div>
               </div>
             )}
             {deliveryDate && (
-              <div>
+              <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Lieferdatum</div>
-                <div className="text-sm">{deliveryDate}</div>
+                <div className="text-sm truncate">{deliveryDate}</div>
               </div>
             )}
             {typeof order.total_cost === 'number' && order.total_cost > 0 && (
-              <div>
+              <div className="min-w-0">
                 <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Kosten</div>
-                <div className="text-sm font-semibold text-green-700">{order.total_cost.toFixed(2)} EUR</div>
+                <div className="text-sm font-semibold text-green-700 truncate">{order.total_cost.toFixed(2)} EUR</div>
               </div>
             )}
-            <div>
+            <div className="min-w-0">
               <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Artikel</div>
               {order.items ? (
                 <Collapsible open={isItemsOpen} onOpenChange={setIsItemsOpen}>
@@ -359,18 +360,19 @@ const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = f
             </Collapsible>
           )}
 
-          {/* Created by */}
+          {/* Erstellt von / Geändert von — einheitliche Größe (text-[11px]).
+              Problem: bei "Geändert von: Admin" fehlte bisher das Datum. */}
           {order.created_by_name && (
-            <div className="text-xs text-muted-foreground mt-auto">
+            <div className={cn("text-[11px] leading-tight text-muted-foreground", !order.status_changed_by && "mt-auto")}>
               Erstellt von: {order.created_by_name}
             </div>
           )}
-
-          {/* Status changed by */}
           {order.status_changed_by && (
-            <div className={cn("text-xs text-muted-foreground", !order.created_by_name && "mt-auto")}>
-              Geändert von: {order.status_changed_by}
-            </div>
+            <ChangedByLine
+              by={order.status_changed_by}
+              at={order.updated_at || order.status_changed_at}
+              className={cn(!order.created_by_name && "mt-auto")}
+            />
           )}
         </div>
 
