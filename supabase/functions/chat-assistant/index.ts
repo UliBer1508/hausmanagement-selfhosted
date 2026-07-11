@@ -146,6 +146,16 @@ async function executeAcceptBookingInquiry(params: any) {
     .update({ status: 'confirmed' })
     .eq('id', inquiry_id);
 
+  await logMaxAction({
+    action_type: 'accept_booking_inquiry',
+    status: 'abgeschlossen',
+    booking_id: booking.id,
+    guest_name: inquiry.guest_name,
+    last_step: 'Buchungsanfrage angenommen',
+    details: { house_name: inquiry.houses?.name, check_in: inquiry.check_in, check_out: inquiry.check_out },
+    created_by: 'uli',
+  });
+
   return {
     success: true,
     booking_id: booking.id,
@@ -174,6 +184,15 @@ async function executeRejectBookingInquiry(params: any) {
   if (error) {
     return { success: false, error: error.message };
   }
+
+  await logMaxAction({
+    action_type: 'reject_booking_inquiry',
+    status: 'abgeschlossen',
+    guest_name: data.guest_name,
+    last_step: 'Buchungsanfrage abgelehnt',
+    details: { house_name: data.houses?.name, grund: reason || null },
+    created_by: 'uli',
+  });
 
   return {
     success: true,
@@ -286,6 +305,17 @@ async function executeCreateBulkCleaningTasks(params: any) {
     }
   }
 
+  if (createdDetails.length > 0) {
+    await logMaxAction({
+      action_type: 'create_bulk_cleaning_tasks',
+      status: 'wartet_uli',
+      waiting_for: 'uli',
+      last_step: `${createdDetails.length} Reinigung(en) angelegt`,
+      details: { created: createdDetails, target_date: targetDate, trigger },
+      created_by: 'uli',
+    });
+  }
+
   return {
     success: true,
     created: createdDetails.length,
@@ -393,6 +423,17 @@ async function executeCreateBulkLinenOrders(params: any) {
       });
       totalCost += orderTotal;
     }
+  }
+
+  if (ordersCreated.length > 0) {
+    await logMaxAction({
+      action_type: 'create_bulk_linen_orders',
+      status: 'wartet_uli',
+      waiting_for: 'uli',
+      last_step: `${ordersCreated.length} Wäschebestellung(en) angelegt`,
+      details: { created: ordersCreated, total_cost: totalCost },
+      created_by: 'uli',
+    });
   }
 
   return {
@@ -1583,15 +1624,15 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "search_cleaning_tasks",
-        description: "Sucht Reinigungsaufträge. Für Fragen wie 'Wann wird [Haus] gereinigt?' IMMER nach house_id filtern (NICHT guest_name). Den Hausnamen (auch verkürzt wie 'Wald') zuerst über die Häuser-Liste im System-Prompt in die house_id-UUID auflösen, oder mit search_houses holen.",
+        description: "Sucht Reinigungsaufträge",
         parameters: {
           type: "object",
           properties: {
             status: { type: "string", enum: ["scheduled", "in_progress", "completed", "delayed", "cancelled", "draft"] },
-            house_id: { type: "string", description: "UUID des Hauses. Für einen Hausnamen (z. B. 'Wald' = 'Wald Chalet') die passende ID aus der Häuser-Liste im System-Prompt verwenden. NIEMALS einen Hausnamen in guest_name schreiben." },
+            house_id: { type: "string" },
             date_from: { type: "string" },
             date_to: { type: "string" },
-            guest_name: { type: "string", description: "NUR echte Gästenamen (Personen), niemals Hausnamen." },
+            guest_name: { type: "string" },
             provider_name: { type: "string", description: "Name des verantwortlichen Providers (z.B. Amela)" },
             payment_status: { type: "string", enum: ["paid", "unpaid", "pending"] }
           }
@@ -1651,9 +1692,9 @@ function getToolDefinitions() {
         parameters: {
           type: "object",
           properties: {
-            guest_name: { type: "string", description: "NUR echte Gästenamen (Personen), niemals Hausnamen. Filtert über die verknüpfte Buchung." },
+            guest_name: { type: "string", description: "Name des Gastes (filtert über die verknüpfte Buchung)" },
             status: { type: "string", enum: ["offen", "bestellt", "ausstehend", "delivered", "cancelled"], description: "Wäsche-Status. 'delivered'=geliefert, 'offen'/'ausstehend'/'bestellt'=noch offen, 'cancelled'=storniert" },
-            house_id: { type: "string", description: "UUID des Hauses. Für einen Hausnamen (z. B. 'Wald' = 'Wald Chalet') die passende ID aus der Häuser-Liste im System-Prompt verwenden. NIEMALS einen Hausnamen in guest_name schreiben." },
+            house_id: { type: "string" },
             date_from: { type: "string" },
             date_to: { type: "string" }
           }
@@ -1961,6 +2002,47 @@ async function executeSendProviderMessage(params: any) {
 
   if (insErr) return { success: false, error: insErr.message };
 
+  // Workflow eröffnen/fortschreiben: eine gesendete Terminfrage wartet auf den Provider.
+  // Fälligkeit: 2 Tage — danach kann der Wächter "keine Antwort" erkennen.
+  const dueAt = new Date();
+  dueAt.setDate(dueAt.getDate() + 2);
+  const waitingFor = /teuni/i.test(provider.name) ? 'teuni' : /amela/i.test(provider.name) ? 'amela' : 'provider';
+  if (params.related_task_id) {
+    // Gehört zu einem bestehenden Reinigungs-/Wäsche-Workflow → fortschreiben.
+    const ok = await updateMaxAction(
+      { related_task_id: params.related_task_id },
+      {
+        status: 'wartet_provider',
+        waiting_for: waitingFor,
+        last_step: `Frage an ${provider.name} gesendet`,
+        due_at: dueAt.toISOString(),
+      }
+    );
+    // Falls es noch keinen Eintrag gab, einen neuen eröffnen.
+    if (!ok) {
+      await logMaxAction({
+        action_type: 'provider_message',
+        status: 'wartet_provider',
+        related_task_id: params.related_task_id,
+        waiting_for: waitingFor,
+        last_step: `Frage an ${provider.name} gesendet`,
+        due_at: dueAt.toISOString(),
+        details: { an: provider.name, nachricht: message },
+        created_by: 'max',
+      });
+    }
+  } else {
+    await logMaxAction({
+      action_type: 'provider_message',
+      status: 'wartet_provider',
+      waiting_for: waitingFor,
+      last_step: `Nachricht an ${provider.name} gesendet`,
+      due_at: dueAt.toISOString(),
+      details: { an: provider.name, nachricht: message },
+      created_by: 'max',
+    });
+  }
+
   return {
     success: true,
     gesendet: true,
@@ -2110,6 +2192,15 @@ async function executeCreateCleaningForBooking(params: any) {
       body: { booking_id: params.booking_id },
     });
     if (error) return { success: false, error: error.message };
+    await logMaxAction({
+      action_type: 'create_cleaning_for_booking',
+      status: 'wartet_uli',
+      booking_id: params.booking_id,
+      waiting_for: 'uli',
+      last_step: 'Reinigung als Entwurf angelegt — Uli muss auf "geplant" setzen',
+      details: data,
+      created_by: 'uli',
+    });
     return {
       success: true,
       erstellt: true,
@@ -2136,6 +2227,14 @@ async function executeCreateLinenForBooking(params: any) {
       body: {},
     });
     if (error) return { success: false, error: error.message };
+    await logMaxAction({
+      action_type: 'create_linen_for_booking',
+      status: 'wartet_uli',
+      waiting_for: 'uli',
+      last_step: 'Wäsche-Automatik ausgelöst — Uli muss auf "ausstehend" setzen',
+      details: data,
+      created_by: 'uli',
+    });
     return {
       success: true,
       ausgeloest: true,
@@ -2203,6 +2302,15 @@ async function executeUpdateLinenForBooking(params: any) {
         })
         .eq('id', order.id);
       if (updErr) return { success: false, error: updErr.message };
+      await logMaxAction({
+        action_type: 'update_linen_for_booking',
+        status: 'wartet_uli',
+        booking_id: params.booking_id,
+        waiting_for: 'teuni',
+        last_step: `Wäschemenge angepasst (${oldTotal} → ${newTotal}) — Teuni muss informiert werden`,
+        details: { order_id: order.id, alte_menge: oldTotal, neue_menge: newTotal, gaeste: guests },
+        created_by: 'uli',
+      });
       return {
         success: true,
         aktion: 'aktualisiert',
@@ -2220,6 +2328,15 @@ async function executeUpdateLinenForBooking(params: any) {
         body: {},
       });
       if (createErr) return { success: false, error: createErr.message };
+      await logMaxAction({
+        action_type: 'update_linen_for_booking',
+        status: 'wartet_uli',
+        booking_id: params.booking_id,
+        waiting_for: 'teuni',
+        last_step: `Wäsche neu angelegt (${newTotal} Teile) — Teuni muss informiert werden`,
+        details: { neue_menge: newTotal, gaeste: guests },
+        created_by: 'uli',
+      });
       return {
         success: true,
         aktion: 'neu_angelegt',
@@ -2508,6 +2625,10 @@ async function logMaxAction(entry: {
   guest_name?: string | null;
   details?: any;
   created_by?: string;
+  related_task_id?: string | null;
+  last_step?: string | null;
+  waiting_for?: string | null;
+  due_at?: string | null;
 }): Promise<string | null> {
   try {
     const { data, error } = await supabase
@@ -2519,6 +2640,10 @@ async function logMaxAction(entry: {
         guest_name: entry.guest_name ?? null,
         details: entry.details ?? null,
         created_by: entry.created_by ?? 'max',
+        related_task_id: entry.related_task_id ?? null,
+        last_step: entry.last_step ?? null,
+        waiting_for: entry.waiting_for ?? null,
+        due_at: entry.due_at ?? null,
       })
       .select('id')
       .single();
@@ -2530,6 +2655,38 @@ async function logMaxAction(entry: {
   } catch (e) {
     console.error('logMaxAction exception:', e);
     return null;
+  }
+}
+
+// Schreibt einen bestehenden Workflow fort (via related_task_id ODER id).
+// Rein additiv/robust: Fehler brechen die eigentliche Aktion nicht ab.
+async function updateMaxAction(
+  match: { related_task_id?: string | null; id?: string | null },
+  patch: {
+    status?: string;
+    last_step?: string | null;
+    waiting_for?: string | null;
+    due_at?: string | null;
+    details?: any;
+  }
+): Promise<boolean> {
+  try {
+    if (!match.related_task_id && !match.id) return false;
+    let q = supabase.from('max_actions').update({ ...patch, updated_at: new Date().toISOString() });
+    if (match.id) {
+      q = q.eq('id', match.id);
+    } else {
+      q = q.eq('related_task_id', match.related_task_id as string);
+    }
+    const { error } = await q;
+    if (error) {
+      console.error('updateMaxAction error:', error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('updateMaxAction exception:', e);
+    return false;
   }
 }
 
@@ -2914,9 +3071,6 @@ ${housesContext ? '- ' + housesContext : '(keine Häuser gefunden)'}
 Wenn ein Nutzer einen Hausnamen verkürzt nennt (z. B. nur "Wald" statt "Wald Chalet"),
 ordne ihn dem passenden Haus oben zu. Für Tools, die eine house_id (UUID) brauchen,
 verwende die ID aus dieser Liste — oder hole sie sonst über search_houses.
-⚠️ Ein Hausname ist NIEMALS ein Gästename. Bei Fragen wie "Wann wird Wald gereinigt?"
-oder "Ist die Wäsche für Wald da?" nutze IMMER house_id (aus der Liste oben),
-NIEMALS guest_name. guest_name ist ausschließlich für echte Personen.
 
 🧹🧺 DEINE DIENSTLEISTER (aktueller Stand aus der Datenbank):
 ${providersContext ? '- ' + providersContext : '(keine aktiven Dienstleister gefunden)'}
