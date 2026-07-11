@@ -118,53 +118,6 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     enabled: open,
   });
 
-  // Fetch cleaning staff for selected provider AND currently assigned staff
-  const { data: cleaningStaff } = useQuery({
-    queryKey: ['cleaning-staff', task?.provider_id, task?.cleaning_assignments?.[0]?.cleaning_staff_id],
-    queryFn: async () => {
-      const queries = [];
-      
-      // Get staff for current provider
-      if (task?.provider_id) {
-        queries.push(
-          supabase
-            .from('cleaning_staff')
-            .select('id, name, email, phone, hourly_rate, availability_days, quality_rating')
-            .eq('service_provider_id', task.provider_id)
-            .eq('is_active', true)
-        );
-      }
-      
-      // Get currently assigned staff (even if from different provider)
-      const assignedStaffId = task?.cleaning_assignments?.[0]?.cleaning_staff_id;
-      if (assignedStaffId && assignedStaffId !== 'none') {
-        queries.push(
-          supabase
-            .from('cleaning_staff')
-            .select('id, name, email, phone, hourly_rate, availability_days, quality_rating')
-            .eq('id', assignedStaffId)
-            .eq('is_active', true)
-        );
-      }
-      
-      if (queries.length === 0) return [];
-      
-      const results = await Promise.all(queries);
-      const allStaff = results.flatMap(result => result.data || []);
-      
-      // Remove duplicates based on id
-      const uniqueStaff = allStaff.reduce((acc, staff) => {
-        if (!acc.find(existing => existing.id === staff.id)) {
-          acc.push(staff);
-        }
-        return acc;
-      }, [] as any[]);
-      
-      return uniqueStaff;
-    },
-    enabled: open && !!task,
-  });
-
   const form = useForm<EditTaskForm>({
     resolver: zodResolver(editTaskSchema),
     defaultValues: {
@@ -179,12 +132,66 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     },
   });
 
+  // WICHTIG (Problem a): Die Putzkraft-Liste muss dem im Formular AKTUELL
+  // gewählten Provider folgen – nicht dem gespeicherten task.provider_id.
+  // Vorher lud die Liste anhand von task.provider_id, deshalb erschien beim
+  // Provider-Wechsel (z. B. auf Boris) dessen Personal gar nicht.
+  const watchedProviderId = form.watch('provider_id');
+
+  // Fetch cleaning staff for the CURRENTLY selected provider AND the currently
+  // assigned staff (damit die bereits zugewiesene Person sichtbar bleibt).
+  const { data: cleaningStaff } = useQuery({
+    queryKey: ['cleaning-staff', watchedProviderId, task?.cleaning_assignments?.[0]?.cleaning_staff_id],
+    queryFn: async () => {
+      const queries = [];
+
+      // Staff des aktuell gewählten Providers
+      if (watchedProviderId) {
+        queries.push(
+          supabase
+            .from('cleaning_staff')
+            .select('id, name, email, phone, hourly_rate, availability_days, quality_rating')
+            .eq('service_provider_id', watchedProviderId)
+            .eq('is_active', true)
+        );
+      }
+
+      // Aktuell zugewiesene Person (auch falls von anderem Provider)
+      const assignedStaffId = task?.cleaning_assignments?.[0]?.cleaning_staff_id;
+      if (assignedStaffId && assignedStaffId !== 'none') {
+        queries.push(
+          supabase
+            .from('cleaning_staff')
+            .select('id, name, email, phone, hourly_rate, availability_days, quality_rating')
+            .eq('id', assignedStaffId)
+            .eq('is_active', true)
+        );
+      }
+
+      if (queries.length === 0) return [];
+
+      const results = await Promise.all(queries);
+      const allStaff = results.flatMap(result => result.data || []);
+
+      // Duplikate anhand id entfernen
+      const uniqueStaff = allStaff.reduce((acc, staff) => {
+        if (!acc.find(existing => existing.id === staff.id)) {
+          acc.push(staff);
+        }
+        return acc;
+      }, [] as any[]);
+
+      return uniqueStaff;
+    },
+    enabled: open && !!task,
+  });
+
   // Update form when task data loads
   useEffect(() => {
     if (task) {
       // Get assigned staff ID from either direct field or cleaning_assignments
       const assignedStaffId = task.assigned_staff_id || task.cleaning_assignments?.[0]?.cleaning_staff_id || 'none';
-      
+
       form.reset({
         provider_id: task.provider_id || '',
         assigned_staff_id: assignedStaffId,
@@ -201,18 +208,18 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
   // Calculate cleaning cost
   const selectedProvider = providers?.find(p => p.id === form.watch('provider_id'));
   const cleaningHours = form.watch('cleaning_hours');
-  const cleaningCost = selectedProvider?.hourly_rate && cleaningHours 
+  const cleaningCost = selectedProvider?.hourly_rate && cleaningHours
     ? (selectedProvider.hourly_rate * cleaningHours)
     : null;
 
   // Track if status changed
   const originalStatus = task?.status;
-  
+
   // Update task mutation
   const updateTaskMutation = useMutation({
     mutationFn: async (data: EditTaskForm) => {
       const statusChanged = data.status !== originalStatus;
-      
+
       // Update service task
       const { error: taskError } = await supabase
         .from('service_tasks')
@@ -487,7 +494,20 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Service Provider</FormLabel>
-                            <Select value={field.value} onValueChange={field.onChange}>
+                            <Select
+                              value={field.value}
+                              onValueChange={(value) => {
+                                field.onChange(value);
+                                // Problem a): Beim Provider-Wechsel die zugewiesene
+                                // Putzkraft zurücksetzen, damit nicht die Putzkraft
+                                // des alten Providers (z. B. Amela) hängen bleibt.
+                                // Die Putzkraft-Liste lädt anschließend das Personal
+                                // des neuen Providers.
+                                if (value !== task.provider_id) {
+                                  form.setValue('assigned_staff_id', 'none');
+                                }
+                              }}
+                            >
                               <FormControl>
                                 <SelectTrigger>
                                   <SelectValue placeholder="Provider auswählen" />
