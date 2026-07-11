@@ -168,6 +168,26 @@ serve(async (req) => {
         } else {
           sentCount++;
           results.push({ gesendet_an: 'Teuni', reinigung: `${dateStr} – ${houseName}`, gast: guestName });
+
+          // Workflow eröffnen: die Wäsche-/Liefer-Frage wartet jetzt auf Teuni.
+          try {
+            const dueAt = new Date();
+            dueAt.setDate(dueAt.getDate() + 2);
+            await supabase.from('max_actions').insert({
+              action_type: 'linen_termin_check',
+              status: 'wartet_provider',
+              booking_id: task.booking_id ?? null,
+              guest_name: guestName,
+              related_task_id: task.id,
+              waiting_for: 'teuni',
+              last_step: `Liefer-Erinnerung an Teuni gesendet (${dateStr})`,
+              due_at: dueAt.toISOString(),
+              details: { reinigung: `${dateStr}${timeStr} – ${houseName}` },
+              created_by: 'max',
+            });
+          } catch (logErr) {
+            console.error('max_actions-Log (linen) fehlgeschlagen:', logErr);
+          }
         }
       }
     }
