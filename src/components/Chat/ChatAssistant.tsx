@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, GripVertical, Bot, MessagesSquare, LayoutDashboard, Settings } from 'lucide-react';
+import { MessageCircle, X, GripVertical, Bot, MessagesSquare, LayoutDashboard, Settings, Workflow } from 'lucide-react';
 import { OperationsDashboard } from '@/components/Operations/OperationsDashboard';
 import MaxActionsPanel from './MaxActionsPanel';
+import MaxAblaeufePanel from './MaxAblaeufePanel';
 import { Button } from '@/components/ui/button';
 import { CloseButton } from '@/components/ui/close-button';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +34,7 @@ const ChatAssistant = () => {
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isMaxActionsOpen, setIsMaxActionsOpen] = useState(false);
+  const [isMaxAblaeufeOpen, setIsMaxAblaeufeOpen] = useState(false);
   const location = useLocation();
   const isMobileRaw = useIsMobile();
   const isMobile = isMobileRaw === undefined ? false : isMobileRaw;
@@ -56,7 +58,7 @@ const ChatAssistant = () => {
       }
     }, 300);
   };
-  
+
   // Load active providers with portal
   const { data: providers = [] } = useQuery({
     queryKey: ['providers-with-portal'],
@@ -67,7 +69,7 @@ const ChatAssistant = () => {
         .eq('is_active', true)
         .eq('has_portal', true)
         .order('name');
-      
+
       if (error) throw error;
       return data;
     },
@@ -90,7 +92,7 @@ const ChatAssistant = () => {
         content: summaryMessage,
         timestamp: new Date(),
       };
-      
+
       setMessages(prev => {
         // Nur hinzufügen wenn noch keine Summary vorhanden
         if (prev.length === 0 || !prev.some(m => m.content.includes('Guten Morgen'))) {
@@ -126,7 +128,7 @@ const ChatAssistant = () => {
       const unreadMessages = providerMessages
         .filter((msg) => msg.sender_type === 'provider' && !msg.is_read)
         .map((msg) => msg.id);
-      
+
       if (unreadMessages.length > 0) {
         markAsRead(unreadMessages);
       }
@@ -168,6 +170,15 @@ const ChatAssistant = () => {
                 >
                   <Settings className="h-4 w-4" />
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setIsMaxAblaeufeOpen(true)}
+                  title="Max: Abläufe anzeigen"
+                >
+                  <Workflow className="h-4 w-4" />
+                </Button>
               </>
             ) : (
               <>
@@ -202,7 +213,7 @@ const ChatAssistant = () => {
             )}
           </div>
         </div>
-        
+
         {/* Mode Toggle */}
         <div className="flex gap-2">
           <Button
@@ -266,10 +277,10 @@ const ChatAssistant = () => {
                 <p className="text-xs mt-2">Stelle mir Fragen zu Buchungen, Reinigungen oder Häusern.</p>
               </div>
             )}
-            
+
             {messages.map((message) => (
-              <ChatMessage 
-                key={message.id} 
+              <ChatMessage
+                key={message.id}
                 message={message}
                 onClose={() => setIsOpen(false)}
               />
@@ -357,8 +368,8 @@ const ChatAssistant = () => {
 
       {/* Input Area */}
       <div className="border-t p-4 bg-card">
-        <ChatInput 
-          onSendMessage={handleSendMessage} 
+        <ChatInput
+          onSendMessage={handleSendMessage}
           disabled={chatMode === 'ai' ? isStreaming : !selectedProvider}
           onFocus={scrollToBottom}
         />
@@ -380,7 +391,7 @@ const ChatAssistant = () => {
             >
               <MessageCircle className="h-6 w-6" />
               {totalUnread > 0 && (
-                <Badge 
+                <Badge
                   className="absolute -top-1 -right-1 h-6 w-6 flex items-center justify-center p-0 bg-destructive text-destructive-foreground animate-pulse"
                 >
                   {totalUnread}
@@ -393,31 +404,35 @@ const ChatAssistant = () => {
         {/* Split-View Container */}
         <div className="fixed inset-0 z-[100]">
           {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/50" 
+          <div
+            className="absolute inset-0 bg-black/50"
             onClick={() => {
               setIsDashboardOpen(false);
               setIsOpen(false);
             }}
           />
-          
+
           {/* Split Panels */}
           <div className="relative flex w-full h-full p-4 gap-4">
             {/* Dashboard Panel (75%) */}
             <div className="flex-[3] bg-background rounded-lg shadow-2xl overflow-hidden">
-              <OperationsDashboard 
-                isOpen={true} 
-                onClose={() => setIsDashboardOpen(false)} 
-                embedded 
+              <OperationsDashboard
+                isOpen={true}
+                onClose={() => setIsDashboardOpen(false)}
+                embedded
               />
             </div>
-            
+
             {/* Chat Panel (25%) */}
             <div className="flex-1 min-w-[350px] bg-background rounded-lg shadow-2xl overflow-hidden">
               {renderChatContent(true)}
             </div>
           </div>
         </div>
+
+        {/* Max: Aktionen-Protokoll + Abläufe (auch im Split-View verfügbar) */}
+        <MaxActionsPanel open={isMaxActionsOpen} onOpenChange={setIsMaxActionsOpen} />
+        <MaxAblaeufePanel open={isMaxAblaeufeOpen} onOpenChange={setIsMaxAblaeufeOpen} />
       </>
     );
   }
@@ -434,7 +449,7 @@ const ChatAssistant = () => {
           >
             <MessageCircle className="h-6 w-6" />
             {totalUnread > 0 && (
-              <Badge 
+              <Badge
                 className="absolute -top-1 -right-1 h-6 w-6 flex items-center justify-center p-0 bg-destructive text-destructive-foreground animate-pulse"
               >
                 {totalUnread}
@@ -463,10 +478,10 @@ const ChatAssistant = () => {
             }
           }}
         />
-          
+
           {/* Chat Window - Full Screen on Mobile, Draggable on Desktop */}
           {isMobile ? (
-            <div 
+            <div
               className="fixed inset-0 h-[100dvh] pointer-events-auto bg-background flex flex-col z-[100] touch-manipulation pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]"
               onClick={(e) => e.stopPropagation()}
               onTouchStart={(e) => e.stopPropagation()}
@@ -507,6 +522,9 @@ const ChatAssistant = () => {
 
       {/* Max: Aktionen-Protokoll (unabhängig von Mobile/Desktop) */}
       <MaxActionsPanel open={isMaxActionsOpen} onOpenChange={setIsMaxActionsOpen} />
+
+      {/* Max: Abläufe (Kontrolle) */}
+      <MaxAblaeufePanel open={isMaxAblaeufeOpen} onOpenChange={setIsMaxAblaeufeOpen} />
     </>
   );
 };
