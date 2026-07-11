@@ -5,7 +5,8 @@ import { de } from 'date-fns/locale';
  * Einheitliche "Geändert von: {Name} · {Datum}"-Zeile für alle Karten
  * (Buchung, Reinigung, Wäsche).
  *
- * - Gleiche Schrift und Größe überall: text-[11px] text-muted-foreground.
+ * - Optik wie im abgestimmten Mockup: leicht grün hinterlegte Pille,
+ *   Textgröße text-xs (eine Stufe größer als der übrige Fußzeilen-Text).
  * - `at` = echter Zeitpunkt der letzten Änderung. Wir nutzen bewusst
  *   `updated_at` (wird bei jeder Speicherung aktualisiert) und fallen nur
  *   ersatzweise auf `status_changed_at` zurück. Dadurch zeigt die Zeile
@@ -35,9 +36,11 @@ const ChangedByLine = ({ by, at, className = '' }: ChangedByLineProps) => {
   const name = by || 'Admin';
 
   return (
-    <div className={`text-[11px] leading-tight text-muted-foreground ${className}`}>
-      Geändert von: {name}
-      {parsed && <span> · {format(parsed, 'dd.MM.yy HH:mm', { locale: de })}</span>}
+    <div className={className}>
+      <span className="inline-block rounded bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900/20 dark:text-green-300">
+        Geändert von: {name}
+        {parsed && <> · {format(parsed, 'dd.MM.yy HH:mm', { locale: de })}</>}
+      </span>
     </div>
   );
 };
