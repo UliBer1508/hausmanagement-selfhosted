@@ -291,6 +291,22 @@ serve(async (req) => {
             items_count: orderData.total_items
           });
           console.log(`  ✅ Created order with status "offen" (${newOrdersCreatedForHouse}/${slotsAvailable} slots filled)`);
+
+          // Workflow eröffnen: neue Wäschebestellung wartet auf Uli (prüfen/bestätigen).
+          try {
+            await supabase.from('max_actions').insert({
+              action_type: 'auto_linen_created',
+              status: 'wartet_uli',
+              booking_id: booking.id,
+              guest_name: guestName,
+              waiting_for: 'uli',
+              last_step: `Wäsche automatisch angelegt (${orderData.total_items} Teile) — Uli muss auf "ausstehend" setzen`,
+              details: { house: house.name, delivery_date: deliveryDateStr, items_count: orderData.total_items },
+              created_by: 'max',
+            });
+          } catch (logErr) {
+            console.error('max_actions-Log (auto_linen) fehlgeschlagen:', logErr);
+          }
         }
       }
     }
