@@ -26,6 +26,7 @@ import {
   ListChecks,
   MessageSquare,
   ArrowRight,
+  Trash2,
 } from 'lucide-react';
 
 interface MaxActionsPanelProps {
@@ -202,6 +203,12 @@ const collectStatuses = (actions: MaxAction[]): string[] => {
 const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  // Lösch-Steuerung: welche Zeile fragt gerade nach ("Löschen?"), welche wird gelöscht.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [bulkConfirm, setBulkConfirm] = useState<boolean>(false);
+  const [bulkDeleting, setBulkDeleting] = useState<boolean>(false);
 
   const {
     data: actions = [],
@@ -232,6 +239,35 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
     return true;
   });
 
+  // Einzelnen Eintrag löschen.
+  const handleDelete = async (id: string) => {
+    setActionError(null);
+    setDeletingId(id);
+    const { error: delErr } = await supabase.from('max_actions').delete().eq('id', id);
+    setDeletingId(null);
+    setConfirmId(null);
+    if (delErr) {
+      setActionError(`Löschen fehlgeschlagen: ${delErr.message}`);
+      return;
+    }
+    await refetch();
+  };
+
+  // Alle aktuell gefilterten Einträge löschen (schnelles Aufräumen vieler Fehl-Einträge).
+  const handleBulkDelete = async () => {
+    setActionError(null);
+    setBulkDeleting(true);
+    const ids = filtered.map((a) => a.id);
+    const { error: delErr } = await supabase.from('max_actions').delete().in('id', ids);
+    setBulkDeleting(false);
+    setBulkConfirm(false);
+    if (delErr) {
+      setActionError(`Löschen fehlgeschlagen: ${delErr.message}`);
+      return;
+    }
+    await refetch();
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col z-[200]">
@@ -245,11 +281,11 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
           </DialogTitle>
           <DialogDescription>
             Protokoll aller von Max ausgeführten Vorgänge (E-Mails, Termine,
-            Wäsche u. a.) mit ihrem aktuellen Status. Nur zur Ansicht.
+            Wäsche u. a.) mit ihrem aktuellen Status. Einträge lassen sich löschen.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Filter + Aktualisieren */}
+        {/* Filter + Aktualisieren + gefilterte löschen */}
         <div className="flex flex-wrap items-center gap-2">
           <Select value={typeFilter} onValueChange={setTypeFilter}>
             <SelectTrigger className="w-[190px]">
@@ -289,7 +325,55 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
               className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`}
             />
           </Button>
+
+          {/* Gefilterte löschen — nur sinnvoll, wenn etwas gefiltert/vorhanden ist */}
+          {filtered.length > 0 &&
+            (bulkConfirm ? (
+              <div className="flex items-center gap-1 ml-auto">
+                <span className="text-xs text-muted-foreground">
+                  {filtered.length} löschen?
+                </span>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="h-7 px-2 text-xs"
+                  disabled={bulkDeleting}
+                  onClick={handleBulkDelete}
+                >
+                  {bulkDeleting ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    'Ja, löschen'
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setBulkConfirm(false)}
+                >
+                  Abbrechen
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 ml-auto text-xs text-destructive hover:text-destructive"
+                onClick={() => setBulkConfirm(true)}
+                title="Alle aktuell angezeigten (gefilterten) Einträge löschen"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                Gefilterte löschen ({filtered.length})
+              </Button>
+            ))}
         </div>
+
+        {actionError && (
+          <div className="bg-destructive/10 text-destructive p-2 rounded text-xs">
+            {actionError}
+          </div>
+        )}
 
         {/* Liste */}
         <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pr-1">
@@ -332,10 +416,50 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
                         {action.created_by ? ` · ${action.created_by}` : ''}
                       </p>
                     </div>
-                    <Badge variant={statusCfg.variant} className="shrink-0">
-                      {statusCfg.icon}
-                      {statusCfg.label}
-                    </Badge>
+
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <Badge variant={statusCfg.variant} className="shrink-0">
+                        {statusCfg.icon}
+                        {statusCfg.label}
+                      </Badge>
+
+                      {/* Löschen pro Eintrag (mit kurzer Rückfrage) */}
+                      {confirmId === action.id ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-6 px-2 text-xs"
+                            disabled={deletingId === action.id}
+                            onClick={() => handleDelete(action.id)}
+                          >
+                            {deletingId === action.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              'Löschen'
+                            )}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => setConfirmId(null)}
+                          >
+                            Abbrechen
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                          title="Eintrag löschen"
+                          onClick={() => setConfirmId(action.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Workflow-Kette: alle Schritte von Anfang bis Ende in einer Zeile */}
