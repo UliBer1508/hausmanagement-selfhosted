@@ -102,6 +102,16 @@ electricity_fee/linen_fee je flat|per_person + vat_percentage).
 - Der sichtbare Wäsche-Screen ist `LinenDashboard.tsx` (NICHT das ungenutzte
   `SmartLinenDashboardWithTabs.tsx`).
 
+
+**z-Index-Falle bei Select-im-Dialog (12.07.2026):** Im `MailPreviewProvider.tsx`
+ging das Vorlagen-Dropdown nicht auf (nur blauer Rand, keine Liste). Ursache: Der
+`DialogContent` hat `z-[300]`; das Select-Popover (per Portal gerendert) lag mit
+`z-50` DAHINTER und war unsichtbar. Lösung:
+`<SelectContent position="popper" className="z-[400]">` — höherer z-Index (über dem
+Dialog) plus `position="popper"` (sonst schneidet `overflow-y-auto` des Dialogs
+das Popover ab).
+**Merke:** `modal={false}` am Dialog ist KEINE Lösung — dann wertet der Dialog den
+Klick aufs Popover als „Klick nach draußen" und schließt sich.
 ---
 
 ## 4. MAX — DER KI-ASSISTENT (Herzstück der letzten Entwicklung)
@@ -145,6 +155,39 @@ create_linen_for_booking (→ löst Wäsche-Automatik aus, Status `offen`).
 **Antworten lesen:** read_provider_replies — liest Amelas/Teunis Antworten und
 verknüpft jede über `related_task_id` mit der zugehörigen Reinigung.
 
+### Sonderfall „Reinigung existiert bereits" (NEU 12.07.2026)
+Früher legte `create_cleaning_for_booking` IMMER eine neue Reinigung an — auch
+wenn für die Buchung schon eine existierte (Gefahr: Doppelanlage).
+
+Jetzt prüft `executeCreateCleaningForBooking` VOR dem Anlegen, ob es zu dieser
+Buchung bereits eine Reinigung gibt (`service_tasks`, `service_type=cleaning`,
+nicht storniert):
+- **Ja** → legt KEINE zweite an, liefert `bereits_vorhanden=true` mit Datum, Haus,
+  Status. Max meldet das, fragt „Möchtest du die vorhandene ändern?" und zeigt bei
+  „ja" den Button „Vorhandene Reinigung öffnen" (→ EditCleaningTaskDialog).
+  Danach läuft alles wie beim Ablauf `reschedule_cleaning`.
+- **Nein** → legt wie bisher als `draft` an.
+- **Ausnahme:** Nur wenn Uli ausdrücklich eine ZUSÄTZLICHE Reinigung will, ruft Max
+  das Tool mit `force=true` auf.
+
+Umgesetzt an vier Stellen in `chat-assistant/index.ts`: Prüfung in der
+execute-Funktion, Button in `buildEntityLinks`, `force`-Parameter in der
+Tool-Definition, Prompt-Regel „SONDERFALL: REINIGUNG EXISTIERT SCHON".
+
+### Workflow-Kette schließen (DB-Trigger, NEU 12.07.2026)
+**Problem:** Legte Max eine Reinigung an, entstand ein `max_actions`-Eintrag mit
+`status='wartet_uli'`. Setzte Uli die Reinigung dann auf „geplant", passierte in
+`max_actions` NICHTS — der Vorgang blieb ewig offen, die Kette brach ab.
+
+**Lösung:** Trigger `trg_close_max_action_on_cleaning_scheduled` auf `service_tasks`.
+Bei `draft → scheduled` (nur Reinigungen) setzt er den offenen Vorgang (`wartet_uli`,
+Typ `create_cleaning_for_booking` oder `reschedule_cleaning`, verknüpft über
+`related_task_id` oder `booking_id`) auf `abgeschlossen` und ergänzt die Kette um
+„Uli hat auf 'geplant' gesetzt". Leert `waiting_for` und `due_at`.
+
+Läuft parallel zu `trg_notify_amela_on_cleaning_release` (gleicher Auslöser, aber
+andere Tabelle — kein Konflikt).
+
 ### Die geschlossene Terminänderungs-Kette (Kern-Erkenntnis)
 Das Zuordnungsproblem "welche Reinigung meint Amela?" wird gelöst, indem die
 **Reinigungs-ID durch die ganze Kommunikationskette getragen wird** (relationaler
@@ -177,6 +220,30 @@ nicht geliefert. Eigene Edge Function.
   (`LinenDashboard.tsx`).
 - **STAND: max_linen_reminder_enabled = FALSE** (vorbereitet, Cron noch nicht
   eingerichtet). Im Testlauf bewiesen.
+
+### Automatik 3: overdue-watch (Überfällig-Wächter) — NEU 12.07.2026
+Schließt die Lücke „Provider antwortet nicht". Bisher blieb eine unbeantwortete
+Terminfrage liegen — niemand erfuhr davon.
+
+- **Edge Function `overdue-watch`** (`supabase/functions/overdue-watch/index.ts`).
+- **Was sie tut:** sucht in `max_actions` Einträge mit `status='wartet_provider'`
+  UND abgelaufener Frist (`due_at < jetzt`) → setzt sie auf **`ueberfaellig`**,
+  ergänzt `last_step` um „X hat nicht geantwortet (fällig war TT.MM.JJJJ)".
+- **Fristen:** Max setzt beim Fragen `due_at = jetzt + 2 Tage` (logMaxAction).
+- **Sichtbarkeit:** (1) Max-Aktionen-Fenster: rotes Badge „Überfällig"
+  (`MaxActionsPanel.tsx`). (2) `morning-summary` zeigt sie ganz oben → Morgen-E-Mail.
+- **Cron `overdue-watch-daily`** — täglich **06:15**, VOR der Morgen-Übersicht.
+- **Sicherheit:** dry_run ist Standard. Ändert ohnehin NUR den Status in
+  `max_actions` — sendet keine Nachrichten, verschiebt keine Termine.
+- **STAND: LIVE und scharf.** Am 12.07.2026 im echten Test bewiesen.
+
+### Tagesablauf der Automatik (Stand 12.07.2026)
+```
+06:15  overdue-watch-daily     → markiert überfällige Vorgänge
+06:30  morning-summary-daily   → Tagesübersicht per E-Mail (inkl. Überfällige)
+07:00  max-cleaning-reminders  → Amela: „Passt der Termin?"      [SCHARF]
+07:30  max-linen-reminders     → Teuni: „Wäsche liefern"         [noch AUS]
+```
 
 ### Sicherheits-Mechanismen der Automatik (dreifach)
 - dry_run (Testlauf) ist Standard — sendet nichts.
@@ -214,9 +281,22 @@ Einzel-Tools von Max. Das ist zusammengeführt.
   daher `ChatAssistant.tsx` NICHT angefasst. Die Begrüßung beim Öffnen und Max'
   Antwort auf Anfrage kommen jetzt aus DERSELBEN Function.
 
-**Stand:** A (Edge Function) + B (Max-Tool) + C (Frontend-Umstellung) deployt und
-live verifiziert. NOCH offen: proaktive tägliche Zustellung per E-Mail + Cron
-(Bausteine D+E) und eine Einstellungskarte für `morning_summary_settings`.
+**Stand (12.07.2026): VOLLSTÄNDIG UMGESETZT UND LIVE.** Alle Bausteine A–E fertig,
+im echten Test bewiesen (E-Mail angekommen).
+
+**Proaktive Zustellung (ergänzt 12.07.2026):**
+- **Einstellungen:** `system_settings` Schlüssel `morning_summary_settings`
+  `{ enabled, time, channel, email_to, include{...} }`. **STAND: enabled = TRUE.**
+- **Einstellungskarte** `src/components/Settings/MaxMorningSummaryCard.tsx`
+  (Einstellungen-Tab): Not-Aus-Schalter, Empfänger, Uhrzeit. Hook
+  `useMorningSummarySettings()` in `useSystemSettings.ts`.
+- **Zustellung:** bei `deliver=true` UND `enabled=true` → `send-guest-email`
+  (Gmail SMTP), Betreff „Guten Morgen – deine Tagesübersicht".
+- **Cron `morning-summary-daily`** — täglich **06:30**.
+- **Zwei Sicherheitsgurte (getestet):** Standard ist Abruf-Modus (sendet nichts);
+  selbst bei `deliver=true` wird nur gesendet, wenn `enabled=true`.
+- **Überfällige Vorgänge:** `morning-summary` liest zusätzlich `max_actions` mit
+  `status='ueberfaellig'` und zeigt sie mit HÖCHSTER Priorität ganz oben.
 
 ### max_actions — Protokoll aller Max-Transaktionen
 - Tabelle `max_actions` (`id, action_type, status, booking_id, guest_name,
@@ -288,19 +368,15 @@ live verifiziert. NOCH offen: proaktive tägliche Zustellung per E-Mail + Cron
 ## 7. OFFENE PUNKTE / AUF DER ROADMAP
 
 ### Kurzfristig
-- **Teuni scharf schalten:** Cron für `max-linen-reminders` einrichten (z.B. 07:30,
-  nicht mit Amelas 07:00 kollidierend) + `max_linen_reminder_enabled = true` +
-  Einführungsnachricht an Teuni. (Alles vorbereitet, Schalter aus.)
-- `smartfox-insight-ai-selfhosted`: 4 Tab-Titel in Index.tsx tragen noch
-  "— Fronius Smart AI" (Umbenennung auf Steinbockchalets-Heizungsmanagement offen).
-
-### Mittelfristig
-- **Morgen-Übersicht proaktiv zustellen (Bausteine D+E):** Die Übersicht selbst ist
-  bereits über `morning-summary` + `get_morning_summary` umgesetzt (Abschnitt 4a).
-  OFFEN bleibt nur noch die proaktive tägliche Zustellung: E-Mail-Versand scharf
-  schalten (deliver=true + `morning_summary_settings.enabled=true`), Cron-Job
-  (z. B. 06:30, nicht mit Amela 07:00 / Teuni 07:30 kollidierend) und eine
-  Einstellungskarte für `morning_summary_settings`.
+- **Teuni scharf schalten:** Alles gebaut (Edge Function, Einstellungskarte,
+  Cron `max-linen-reminders-daily` 07:30). Es fehlt nur: (1) Teuni persönlich
+  einführen (wie bei Amela), (2) Schalter `max_linen_reminder_enabled = true`.
+- **Absage an Amela (`reject_reschedule`) — NOCH NICHT GEBAUT:** Wenn Amela einen
+  neuen Termin vorschlägt und Uli ihn ABLEHNT, gibt es bisher kein Werkzeug, um ihr
+  das mitzuteilen und die Reinigung zurückzusetzen. (Der DB-Trigger
+  `notify_amela_on_cleaning_release` sendet zwar „Termin konnte leider nicht geändert
+  werden", wenn Uli ein ANDERES Datum setzt — aber es fehlt der Fall „gar keine
+  Änderung".) In `max_ablaeufe` als 4 rote Zeilen dokumentiert.
 - **Wächter zur Automatik** (Weg B): check_upcoming_bookings läuft als Cron mit
   Morgen-Übersicht. Prüflogik (runUpcomingBookingsControl) + Einstellungs-Struktur
   (system_settings key `max_control_settings`: enabled/time/advance_days/checks) sind
