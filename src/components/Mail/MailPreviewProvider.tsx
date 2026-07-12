@@ -134,10 +134,7 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
   return (
     <MailPreviewContext.Provider value={{ showMailPreview }}>
       {children}
-      {/* modal={false}: Ohne das faengt der Dialog alle Klicks ab und das
-          Select-Popover (wird per Portal AUSSERHALB des Dialogs gerendert)
-          laesst sich nicht oeffnen - man sieht nur den blauen Rand. */}
-      <Dialog open={open} onOpenChange={setOpen} modal={false}>
+      <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl w-[calc(100vw-2rem)] sm:w-full z-[300]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -182,7 +179,10 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 <SelectTrigger>
                   <SelectValue placeholder="Vorlage auswählen..." />
                 </SelectTrigger>
-                <SelectContent>
+                {/* position="popper" + hoher z-Index: Der DialogContent hat
+                    overflow-y-auto und wuerde das Popover sonst abschneiden.
+                    So schwebt die Liste ueber dem Dialog statt darin. */}
+                <SelectContent position="popper" className="z-[100]">
                   {Object.entries(emailTemplates).map(([key, t]) => (
                     <SelectItem key={key} value={key}>
                       {t.language === 'en' ? '🇬🇧' : '🇩🇪'} {t.name}
