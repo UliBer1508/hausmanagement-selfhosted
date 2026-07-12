@@ -33,7 +33,14 @@ export interface ContactSettings {
   signature_role: string;
 }
 
-type SettingsValue = EmailSettings | ProfileSettings | AppearanceSettings | RatingReminderSettings | ContactSettings | Record<string, unknown>;
+export interface MorningSummarySettings {
+  enabled: boolean;              // proaktive Zustellung an/aus (Not-Aus)
+  time: string;                  // Uhrzeit des Cron-Laufs, z.B. "06:30"
+  channel: 'email' | 'chat' | 'both';
+  email_to: string;              // Empfänger der Morgen-Übersicht
+}
+
+type SettingsValue = EmailSettings | ProfileSettings | AppearanceSettings | RatingReminderSettings | ContactSettings | MorningSummarySettings | Record<string, unknown>;
 
 export function useSystemSettings<T extends SettingsValue>(key: string) {
   const queryClient = useQueryClient();
@@ -120,6 +127,17 @@ export function useRatingReminderSettings() {
 export function useContactSettings() {
   return useSystemSettings<ContactSettings>('contact_settings');
 }
+
+export function useMorningSummarySettings() {
+  return useSystemSettings<MorningSummarySettings>('morning_summary_settings');
+}
+
+export const DEFAULT_MORNING_SUMMARY_SETTINGS: MorningSummarySettings = {
+  enabled: false,          // Sicherheitsgurt: standardmäßig AUS
+  time: '06:30',
+  channel: 'email',
+  email_to: '',
+};
 
 export const DEFAULT_RATING_REMINDER_SETTINGS: RatingReminderSettings = {
   is_enabled: true,
