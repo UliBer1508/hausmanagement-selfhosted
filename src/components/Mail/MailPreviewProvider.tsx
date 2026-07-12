@@ -179,10 +179,11 @@ export const MailPreviewProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 <SelectTrigger>
                   <SelectValue placeholder="Vorlage auswählen..." />
                 </SelectTrigger>
-                {/* position="popper" + hoher z-Index: Der DialogContent hat
-                    overflow-y-auto und wuerde das Popover sonst abschneiden.
-                    So schwebt die Liste ueber dem Dialog statt darin. */}
-                <SelectContent position="popper" className="z-[100]">
+                {/* Der DialogContent hat z-[300] (siehe oben) UND overflow-y-auto.
+                    Das Popover muss deshalb:
+                      (a) einen HOEHEREN z-Index haben (sonst liegt es dahinter -> unsichtbar)
+                      (b) position="popper" nutzen (sonst wird es vom overflow abgeschnitten) */}
+                <SelectContent position="popper" className="z-[400]">
                   {Object.entries(emailTemplates).map(([key, t]) => (
                     <SelectItem key={key} value={key}>
                       {t.language === 'en' ? '🇬🇧' : '🇩🇪'} {t.name}
