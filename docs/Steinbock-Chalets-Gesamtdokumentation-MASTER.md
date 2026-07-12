@@ -218,8 +218,8 @@ nicht geliefert. Eigene Edge Function.
 - Einstellungen: `max_linen_reminder_enabled`, `max_linen_reminder_days_before`
   (Standard 5). Einstellungskarte "Max: Wäsche-Erinnerungen an Teuni" im Wäsche-Tab
   (`LinenDashboard.tsx`).
-- **STAND: max_linen_reminder_enabled = FALSE** (vorbereitet, Cron noch nicht
-  eingerichtet). Im Testlauf bewiesen.
+- **STAND (12.07.2026): SCHARF.** `max_linen_reminder_enabled = TRUE`, Vorlaufzeit
+  5 Tage, Cron `max-linen-reminders-daily` (07:30) aktiv.
 
 ### Automatik 3: overdue-watch (Überfällig-Wächter) — NEU 12.07.2026
 Schließt die Lücke „Provider antwortet nicht". Bisher blieb eine unbeantwortete
@@ -242,7 +242,7 @@ Terminfrage liegen — niemand erfuhr davon.
 06:15  overdue-watch-daily     → markiert überfällige Vorgänge
 06:30  morning-summary-daily   → Tagesübersicht per E-Mail (inkl. Überfällige)
 07:00  max-cleaning-reminders  → Amela: „Passt der Termin?"      [SCHARF]
-07:30  max-linen-reminders     → Teuni: „Wäsche liefern"         [noch AUS]
+07:30  max-linen-reminders     → Teuni: „Wäsche liefern"         [SCHARF]
 ```
 
 ### Sicherheits-Mechanismen der Automatik (dreifach)
@@ -368,9 +368,6 @@ im echten Test bewiesen (E-Mail angekommen).
 ## 7. OFFENE PUNKTE / AUF DER ROADMAP
 
 ### Kurzfristig
-- **Teuni scharf schalten:** Alles gebaut (Edge Function, Einstellungskarte,
-  Cron `max-linen-reminders-daily` 07:30). Es fehlt nur: (1) Teuni persönlich
-  einführen (wie bei Amela), (2) Schalter `max_linen_reminder_enabled = true`.
 - **Absage an Amela (`reject_reschedule`) — NOCH NICHT GEBAUT:** Wenn Amela einen
   neuen Termin vorschlägt und Uli ihn ABLEHNT, gibt es bisher kein Werkzeug, um ihr
   das mitzuteilen und die Reinigung zurückzusetzen. (Der DB-Trigger
