@@ -312,12 +312,27 @@ serve(async (req) => {
       linenOrders = data || [];
     }
 
+    // ---- ÜBERFÄLLIGE WORKFLOWS (vom overdue-watch markiert) ----
+    // Vorgänge, bei denen ein Dienstleister nicht innerhalb der Frist geantwortet hat.
+    // Der Wächter `overdue-watch` setzt sie auf status='ueberfaellig'.
+    let overdueActions: any[] = [];
+    if (includeCfg.overdue !== false) {
+      const { data: od } = await supabase
+        .from('max_actions')
+        .select('id, action_type, guest_name, waiting_for, due_at, last_step')
+        .eq('status', 'ueberfaellig')
+        .order('due_at', { ascending: true })
+        .limit(10);
+      overdueActions = od ?? [];
+    }
+
     // ---- hasAnyData (identisch zum Hook) ----
     const hasAnyData =
       upcomingBookings.length > 0 ||
       cleanings.length > 0 ||
       linenOrders.length > 0 ||
       guestContactReminders.length > 0 ||
+      overdueActions.length > 0 ||
       (ratingsEnabled && ratingReminders.length > 0);
 
     // ---- Marketing-Helfer (identisch zum Hook) ----
@@ -346,6 +361,20 @@ serve(async (req) => {
     // ============================================================
     let message = '🏠 **Guten Morgen! Deine anstehenden Aufgaben**\n\n';
     message += `📅 ${formatLongDE(now)}\n\n`;
+
+    // ÜBERFÄLLIG (höchste Priorität — jemand hat nicht geantwortet)
+    if (overdueActions.length > 0) {
+      message += `⚠️ **${overdueActions.length} überfällige(r) Vorgang/Vorgänge**\n`;
+      overdueActions.forEach((a: any) => {
+        const wer = a.waiting_for === 'amela' ? 'Amela'
+          : a.waiting_for === 'teuni' ? 'Teuni'
+          : (a.waiting_for || 'Dienstleister');
+        const seit = a.due_at ? formatDE(new Date(a.due_at)) : 'unbekannt';
+        const gast = a.guest_name || 'Buchung';
+        message += `• **${wer} hat nicht geantwortet** – ${gast} (fällig war ${seit})\n`;
+      });
+      message += '\n';
+    }
 
     // GÄSTE VOR ANREISE KONTAKTIEREN
     if (guestContactReminders.length > 0) {
@@ -530,6 +559,7 @@ serve(async (req) => {
         summary_markdown: message,
         hasData: hasAnyData,
         sections: {
+          overdue: overdueActions.length,
           guest_contact: guestContactReminders.length,
           ratings: ratingReminders.length,
           open_linen: openOrders.length,
