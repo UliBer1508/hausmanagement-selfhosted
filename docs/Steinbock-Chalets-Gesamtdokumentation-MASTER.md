@@ -103,6 +103,37 @@ electricity_fee/linen_fee je flat|per_person + vat_percentage).
   `SmartLinenDashboardWithTabs.tsx`).
 
 
+**Check-Constraint-Falle `order_source` (12.07.2026):** Die Edge Function
+`create-linen-order-for-booking` setzte `order_source: 'manual_max'` — ein Wert, den
+der Check-Constraint `linen_orders_order_source_check` NICHT erlaubte (nur
+`booking_required`, `manual`, `buffer_refill`, `auto_booking_lookahead`). Jeder Insert
+scheiterte mit „violates check constraint". **Die Funktion konnte seit ihrem Umbau
+(11.07.) NIE eine Bestellung anlegen** — Max meldete nur „Bestellung konnte nicht
+angelegt werden", ohne den echten Grund.
+**Lösung:** `'manual_max'` zur erlaubten Liste hinzugefügt (ALTER TABLE … CHECK …),
+damit die Herkunft „von Max angelegt" nachvollziehbar bleibt.
+**Merke:** Neue Werte für Spalten mit Check-Constraint IMMER gegen den Constraint
+prüfen: `SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = '…';`
+**Merke 2:** Max verschluckt Fehlermeldungen. Bei „Funktion schlägt fehl" die Edge
+Function DIREKT aufrufen (Dashboard → Send Request) — dort kommt der echte Fehler.
+
+**Falle: unvollständige Feldlisten bei verschachtelten Supabase-Abfragen
+(12.07.2026):** Im Wäsche-Dialog stand „Gäste: N/A", obwohl die Buchung
+`number_of_guests = 6` hatte. Ursache: `LinenDashboard.tsx` lud die Buchung mit
+`bookings!…(guest_name, check_in)` — die übrigen Felder fehlten schlicht. Supabase
+liefert bei Joins NUR die ausdrücklich genannten Felder, ohne Fehlermeldung.
+Betroffen waren alle drei Ladestellen (Max-Button UND normaler Bearbeiten-Weg).
+**Lösung:** Feldliste vervollständigt auf
+`(id, guest_name, number_of_guests, check_in, check_out, external_booking_id)` —
+genau das, was `LinenOrderDialog.tsx` anzeigt.
+**Merke:** Wer eine Karte/einen Dialog um ein Feld erweitert, MUSS die Ladeabfrage
+mitziehen. Prüfmethode: alle `<objekt>.<feld>`-Zugriffe im Dialog sammeln und gegen
+die `select(...)`-Liste des Aufrufers abgleichen.
+**Gegenbeispiel (richtig gemacht):** `EditCleaningTaskDialog.tsx` lädt die Reinigung
+SELBST anhand der ID (mit vollständigem Join) — dadurch kann kein Aufrufer eine
+beschnittene Version hereinreichen. Dieses Muster ist dem „Objekt durchreichen"
+vorzuziehen.
+
 **z-Index-Falle bei Select-im-Dialog (12.07.2026):** Im `MailPreviewProvider.tsx`
 ging das Vorlagen-Dropdown nicht auf (nur blauer Rand, keine Liste). Ursache: Der
 `DialogContent` hat `z-[300]`; das Select-Popover (per Portal gerendert) lag mit
@@ -337,6 +368,25 @@ im echten Test bewiesen (E-Mail angekommen).
   oder Live-Verhalten).
 - In kleinen, verifizierten Schritten arbeiten.
 - **Code-Existenz ≠ aktive Nutzung** — reale Verwendung erfragen.
+
+### Fehlersuche: konkrete Lehren (12.07.2026, teuer erkauft)
+Drei Fehler an einem Tag, alle mit derselben Wurzel: **geschlossen statt nachgesehen.**
+
+1. **Erfolglose Suche ist KEIN Beweis.** Suche nach `openBookingId` blieb leer →
+   daraus wurde „der Button führt ins Leere". Falsch: der Parameter heißt
+   `editBookingId`. **Regel:** Bevor man etwas für kaputt erklärt, die aufrufende
+   Stelle selbst öffnen und lesen — nicht auf einen Suchbegriff verlassen.
+2. **Bei Laufzeitfehlern die Funktion DIREKT aufrufen**, statt Theorien zu bauen.
+   Beim `order_source`-Fehler wurden nacheinander RLS, leere Daten und
+   Artikelnamen verdächtigt — alle falsch. Ein einziger Direktaufruf im Dashboard
+   (Send Request) lieferte den echten Fehler im Klartext.
+3. **Erst die vorhandene Doku lesen, dann Code ändern.** Beim Dropdown-Problem
+   wurde dreimal auf Verdacht geändert (einmal verschlimmernd: `modal={false}`),
+   bevor die entscheidende Zeile (`DialogContent` hat bereits `z-[300]`) überhaupt
+   gelesen wurde. Sie stand die ganze Zeit da.
+
+**Merksatz:** Eine Vermutung, die man nicht am Code belegen kann, ist keine
+Diagnose — und darf keine Änderung auslösen.
 
 ### Deploy-Wege
 - **Edge Functions:** `supabase functions deploy <name> --project-ref usblrulkcgucxtkhugck`
