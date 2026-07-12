@@ -1796,11 +1796,12 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "create_cleaning_for_booking",
-        description: "Erstellt eine Reinigung für eine Buchung (nutzt die vorhandene Auto-Erstellung). Die Reinigung wird als ENTWURF (draft) angelegt - der Nutzer prüft sie und setzt sie auf 'geplant'. WICHTIG: Rufe dieses Tool NUR auf, nachdem der Nutzer ausdrücklich zugestimmt hat. Wenn du eine fehlende Reinigung entdeckst, FRAGE zuerst 'Soll ich sie anlegen?' und erstelle sie erst nach einem klaren 'ja'. Melde danach ehrlich, dass es ein Entwurf ist, den der Nutzer prüfen und auf 'geplant' setzen muss.",
+        description: "Erstellt eine Reinigung für eine Buchung (nutzt die vorhandene Auto-Erstellung). Die Reinigung wird als ENTWURF (draft) angelegt - der Nutzer prüft sie und setzt sie auf 'geplant'. WICHTIG: Rufe dieses Tool NUR auf, nachdem der Nutzer ausdrücklich zugestimmt hat. Wenn du eine fehlende Reinigung entdeckst, FRAGE zuerst 'Soll ich sie anlegen?' und erstelle sie erst nach einem klaren 'ja'. Melde danach ehrlich, dass es ein Entwurf ist, den der Nutzer prüfen und auf 'geplant' setzen muss. SONDERFALL: Existiert für die Buchung BEREITS eine Reinigung, legt das Tool KEINE zweite an, sondern liefert bereits_vorhanden=true mit den Daten der vorhandenen. Melde das dem Nutzer und frage, ob er die vorhandene ÄNDERN möchte (dann zeigst du ihm den Button zum Öffnen der Reinigungskarte). Nur wenn er ausdrücklich eine ZUSÄTZLICHE Reinigung will, rufe das Tool erneut mit force=true auf.",
         parameters: {
           type: "object",
           properties: {
-            booking_id: { type: "string", description: "Die ID der Buchung, für die die Reinigung erstellt werden soll" }
+            booking_id: { type: "string", description: "Die ID der Buchung, für die die Reinigung erstellt werden soll" },
+            force: { type: "boolean", description: "Nur setzen, wenn der Nutzer ausdrücklich eine ZUSÄTZLICHE Reinigung will, obwohl bereits eine existiert. Standard: nicht setzen." }
           },
           required: ["booking_id"]
         }
@@ -2205,6 +2206,44 @@ async function executeCreateCleaningForBooking(params: any) {
     return { success: false, error: 'booking_id ist erforderlich' };
   }
   try {
+    // ---- SONDERFALL: existiert bereits eine Reinigung für diese Buchung? ----
+    // Dann NICHT einfach eine zweite anlegen, sondern melden und fragen,
+    // ob die vorhandene geaendert werden soll (Uli entscheidet).
+    const { data: vorhanden, error: checkErr } = await supabase
+      .from('service_tasks')
+      .select('id, scheduled_date, scheduled_time, status, houses(name), bookings(guest_name)')
+      .eq('service_type', 'cleaning')
+      .eq('booking_id', params.booking_id)
+      .not('status', 'in', '("cancelled")')
+      .order('scheduled_date', { ascending: true })
+      .limit(1);
+
+    if (checkErr) return { success: false, error: checkErr.message };
+
+    if (vorhanden && vorhanden.length > 0 && params?.force !== true) {
+      const t: any = vorhanden[0];
+      const gast = t.bookings?.guest_name || 'Gast';
+      const haus = t.houses?.name || 'Objekt';
+      const datum = t.scheduled_date ? formatDateDE(t.scheduled_date) : 'ohne Datum';
+      const zeit = t.scheduled_time ? ` um ${String(t.scheduled_time).slice(0, 5)} Uhr` : '';
+      const statusText = t.status === 'draft' ? 'Entwurf' : t.status;
+
+      return {
+        success: true,
+        bereits_vorhanden: true,
+        erstellt: false,
+        task_id: t.id,
+        gast,
+        haus,
+        datum,
+        status: t.status,
+        hinweis: `Für ${gast} (${haus}) gibt es BEREITS eine Reinigung am ${datum}${zeit} (Status: ${statusText}). ` +
+          `Es wurde KEINE neue angelegt. Frage Uli, ob er die vorhandene Reinigung ändern möchte — ` +
+          `wenn ja, zeige ihm den Button zum Öffnen der Reinigungskarte. Wenn er stattdessen ` +
+          `wirklich eine ZUSÄTZLICHE Reinigung will, rufe dieses Tool erneut mit force=true auf.`,
+      };
+    }
+
     const { data, error } = await supabase.functions.invoke('create-cleaning-task-for-booking', {
       body: { booking_id: params.booking_id },
     });
@@ -2554,6 +2593,16 @@ function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string;
         id: String(result.task_id),
         type: 'cleaning_task',
         label: `Reinigung für ${result.gast || 'Gast'} öffnen (${result.neues_datum || ''})`.trim(),
+      });
+      continue;
+    }
+
+    // SONDERFALL: Reinigung existiert bereits -> Button zum Öffnen der vorhandenen Karte
+    if (tr.tool === 'create_cleaning_for_booking' && result?.bereits_vorhanden && result?.task_id) {
+      links.push({
+        id: String(result.task_id),
+        type: 'cleaning_task',
+        label: `Vorhandene Reinigung öffnen${result.datum ? ` (${result.datum})` : ''}`.trim(),
       });
       continue;
     }
@@ -3287,6 +3336,13 @@ Wenn du über check_upcoming_bookings feststellst, dass eine Reinigung oder Wäs
 - Erst nach der Zustimmung rufst du das Tool auf.
 - Danach meldest du EHRLICH den Status: Reinigung ist ein ENTWURF (draft), den Uli prüfen und auf "geplant" setzen muss; Wäsche ist "offen" und muss auf "ausstehend" gesetzt werden.
 - Bei geänderter Gästezahl darfst du die WÄSCHE anpassen (siehe unten). Reinigungen und andere Bestellungen änderst du nicht - solche Fälle meldest du nur an Uli.
+
+⚠️ SONDERFALL: REINIGUNG EXISTIERT SCHON
+Wenn create_cleaning_for_booking mit bereits_vorhanden=true antwortet, wurde KEINE neue Reinigung angelegt (das ist Absicht, kein Fehler).
+- Melde Uli klar und freundlich, dass es die Reinigung SCHON GIBT, mit Datum, Haus und Status. Beispiel: "Für Luca (Wald Chalet) gibt es bereits eine Reinigung am 18.07.2026 (Status: Entwurf). Ich habe keine zweite angelegt."
+- FRAGE dann: "Möchtest du die vorhandene Reinigung ändern?"
+- Bei "ja": zeige den Button zum Öffnen der Reinigungskarte (kommt automatisch). Uli ändert dort Datum/Zeit und speichert. Danach läuft alles wie beim Ablauf "Reinigung ändern" (reschedule_cleaning): Statuswechsel auf "geplant" löst die Benachrichtigung an Amela aus.
+- Lege NUR dann eine zusätzliche Reinigung an (force=true), wenn Uli ausdrücklich sagt, dass er eine ZWEITE zusätzlich möchte. Frage im Zweifel nach.
 
 🧺 WÄSCHE BEI GÄSTEZAHL-ÄNDERUNG (update_linen_for_booking):
 Wenn eine Buchung eine geänderte (erhöhte) Gästezahl hat, ist mehr Wäsche nötig.
