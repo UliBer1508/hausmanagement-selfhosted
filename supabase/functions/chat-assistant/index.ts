@@ -2289,6 +2289,9 @@ async function executeCreateLinenForBooking(params: any) {
     await logMaxAction({
       action_type: 'create_linen_for_booking',
       status: 'wartet_uli',
+      booking_id: params.booking_id,   // WICHTIG: ohne das findet der DB-Trigger
+                                        // trg_close_max_action_on_linen_confirmed
+                                        // den Vorgang nicht und er bleibt ewig offen.
       waiting_for: 'uli',
       last_step: 'Wäschebestellung angelegt (offen) — Uli muss auf "ausstehend" setzen',
       details: data,
