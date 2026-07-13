@@ -2283,10 +2283,17 @@ async function executeCreateCleaningForBooking(params: any) {
 }
 
 /**
- * Löst die Wäsche-Automatik (auto-create-linen-orders) aus.
- * Diese arbeitet pro Haus, geht die nächsten Buchungen durch und legt fehlende
- * Bestellungen mit Status 'offen' an (mit eingebautem Duplikat-Schutz).
- * Ergebnis: neue Bestellung(en) im Status 'offen'. Uli prüft und setzt auf 'ausstehend'.
+ * Legt gezielt EINE Wäschebestellung für EINE Buchung an.
+ *
+ * Ruft `create-linen-order-for-booking` (Haus + Menge kommen aus der Buchung,
+ * Mengenberechnung über `generate-booking-linen-order`, Status 'offen',
+ * Teuni als Provider). Uli prüft und setzt auf 'ausstehend'.
+ *
+ * ACHTUNG — nicht verwechseln: `auto-create-linen-orders` ist die BATCH-Automatik
+ * (Cron 06:00, läuft über alle Häuser, begrenzt durch lookahead_bookings) und
+ * nimmt KEINE booking_id entgegen. Sie wurde hier früher fälschlich aufgerufen;
+ * der Doc-Kommentar beschrieb bis 13.07.2026 noch dieses alte Verhalten.
+ *
  * NUR nach ausdrücklicher Bestätigung des Nutzers aufrufen.
  */
 async function executeCreateLinenForBooking(params: any) {
@@ -2299,6 +2306,17 @@ async function executeCreateLinenForBooking(params: any) {
       body: { booking_id: params.booking_id },
     });
     if (error) return { success: false, error: error.message };
+
+    // Die Function meldet Fehler auch im Body (success:false), nicht nur als
+    // Transportfehler. Ohne diese Prüfung meldet Max einen Misserfolg als Erfolg.
+    // (Genau so blieb der order_source-Check-Constraint-Fehler am 12.07. unsichtbar.)
+    if (!data?.success) {
+      return {
+        success: false,
+        error: data?.error || 'Wäschebestellung konnte nicht angelegt werden.',
+      };
+    }
+
     await logMaxAction({
       action_type: 'create_linen_for_booking',
       status: 'wartet_uli',
@@ -2313,8 +2331,12 @@ async function executeCreateLinenForBooking(params: any) {
     return {
       success: true,
       ausgeloest: true,
+      order_id: data.linen_order_id,
       status: 'offen',
-      hinweis: 'Die Wäsche-Automatik wurde ausgelöst. Fehlende Bestellungen wurden mit Status "offen" angelegt (bestehende bleiben unverändert, Duplikat-Schutz). Bitte prüfe die neuen Bestellungen und setze sie auf "ausstehend", um sie zu bestätigen.',
+      // Der Text beschrieb bis 13.07.2026 noch die BATCH-Automatik ("fehlende
+      // Bestellungen", "Duplikat-Schutz") — das stimmte nicht mehr, seit hier
+      // gezielt create-linen-order-for-booking gerufen wird (Umbau 11.07.).
+      hinweis: `Wäschebestellung für ${data.guest_name || 'den Gast'} angelegt (${data.total_items ?? '?'} Teile, Status "offen"). Bitte prüfe sie und setze sie auf "ausstehend", um sie zu bestätigen.`,
       details: data,
     };
   } catch (e) {
@@ -2398,28 +2420,56 @@ async function executeUpdateLinenForBooking(params: any) {
         hinweis: `Wäschebestellung aktualisiert (von ${oldTotal} auf ${newTotal} Teile, Status war "${order.status}"). WICHTIG: Teuni muss über die Änderung informiert werden - biete an, ihr eine Nachricht zu senden.`,
       };
     } else {
-      // 3b. Keine Bestellung vorhanden -> neu anlegen über die Automatik
-      const { data: created, error: createErr } = await supabase.functions.invoke('auto-create-linen-orders', {
-        body: {},
-      });
+      // 3b. Keine Bestellung vorhanden -> gezielt EINE für DIESE Buchung anlegen.
+      //
+      // FRÜHER (Fehler, behoben 13.07.2026): hier wurde 'auto-create-linen-orders'
+      // mit leerem Body aufgerufen. Das ist die BATCH-AUTOMATIK über alle Häuser —
+      // sie nimmt gar keine booking_id entgegen, sondern iteriert selbst und ist
+      // durch lookahead_bookings begrenzt (max. 3 offene Bestellungen pro Haus).
+      // Für die konkrete Buchung wurde deshalb womöglich NICHTS angelegt, während
+      // Max trotzdem "Wäsche neu angelegt (X Teile)" meldete — eine Falschmeldung.
+      //
+      // Richtig ist 'create-linen-order-for-booking' (dieselbe Function, die auch
+      // create_linen_for_booking nutzt): legt gezielt eine Bestellung für genau
+      // diese Buchung an und meldet zurück, ob es geklappt hat.
+      const { data: created, error: createErr } = await supabase.functions.invoke(
+        'create-linen-order-for-booking',
+        { body: { booking_id: params.booking_id } },
+      );
       if (createErr) return { success: false, error: createErr.message };
+
+      // Die Function meldet Fehler auch im Body (success:false) — nicht nur als
+      // Transportfehler. Ohne diese Prüfung würde Max einen Misserfolg als Erfolg melden.
+      if (!created?.success) {
+        return {
+          success: false,
+          error: created?.error || 'Wäschebestellung konnte nicht angelegt werden.',
+        };
+      }
+
+      // Menge aus der ANGELEGTEN Bestellung nehmen, nicht aus der Vorab-Berechnung.
+      const angelegteMenge = created.total_items ?? newTotal;
+
       await logMaxAction({
         action_type: 'update_linen_for_booking',
         status: 'wartet_uli',
         booking_id: params.booking_id,
-        waiting_for: 'teuni',
-        last_step: `Wäsche neu angelegt (${newTotal} Teile) — Teuni muss informiert werden`,
-        details: { neue_menge: newTotal, gaeste: guests },
+        waiting_for: 'uli',   // Die Bestellung steht auf 'offen' und wartet auf ULIS
+                              // Freigabe ('ausstehend'), NICHT auf Teuni. Erst diese
+                              // Freigabe schließt den Vorgang (DB-Trigger
+                              // trg_close_max_action_on_linen_confirmed).
+        last_step: `Wäsche neu angelegt (${angelegteMenge} Teile, Status "offen") — Uli muss auf "ausstehend" setzen`,
+        details: { order_id: created.linen_order_id, neue_menge: angelegteMenge, gaeste: guests },
         created_by: 'uli',
       });
       return {
         success: true,
         aktion: 'neu_angelegt',
-        neue_menge: newTotal,
+        order_id: created.linen_order_id,
+        neue_menge: angelegteMenge,
         gaeste: guests,
         teuni_informieren: true,
-        hinweis: 'Es gab noch keine Bestellung - die Wäsche-Automatik wurde ausgelöst (Status "offen"). Bitte prüfen und Teuni informieren.',
-        details: created,
+        hinweis: `Es gab noch keine Bestellung — es wurde eine neue für ${created.guest_name || 'den Gast'} angelegt (${angelegteMenge} Teile, Status "offen"). Bitte prüfe sie und setze sie auf "ausstehend". Danach sollte Teuni informiert werden.`,
       };
     }
   } catch (e) {
@@ -2537,6 +2587,36 @@ async function executeRescheduleCleaning(params: any) {
       })
       .eq('id', task.id);
     if (updErr) return { success: false, error: updErr.message };
+
+    // Vorgang protokollieren — FEHLTE BIS 13.07.2026 komplett.
+    //
+    // Warum das ein echter Fehler war (nicht nur Kosmetik):
+    // Der DB-Trigger trg_close_max_action_on_cleaning_scheduled sucht bei
+    // draft -> scheduled einen offenen Vorgang vom Typ 'reschedule_cleaning'
+    // mit status='wartet_uli'. Ohne diesen logMaxAction-Aufruf gab es nie
+    // einen — der Trigger fand nichts zu schließen, die Workflow-Kette brach
+    // bei JEDER Terminverschiebung ab. Im Max-Aktionen-Fenster tauchte die
+    // Verschiebung gar nicht erst auf.
+    //
+    // Beide IDs sind nötig, weil zwei verschiedene Trigger sie brauchen:
+    //   booking_id      -> trg_close_max_action_on_cleaning_scheduled (Abschluss)
+    //   related_task_id -> trg_max_actions_on_provider_reply (Amelas Antwort)
+    await logMaxAction({
+      action_type: 'reschedule_cleaning',
+      status: 'wartet_uli',
+      booking_id: task.booking_id,
+      related_task_id: task.id,
+      guest_name: guestName,
+      waiting_for: 'uli',
+      last_step: `Termin verschoben: ${formatDateDE(oldDate)} → ${formatDateDE(params.new_date)} (Entwurf) — Uli muss auf "geplant" setzen`,
+      details: {
+        task_id: task.id,
+        haus: houseName,
+        altes_datum: oldDate,
+        neues_datum: params.new_date,
+      },
+      created_by: 'uli',
+    });
 
     return {
       success: true,
