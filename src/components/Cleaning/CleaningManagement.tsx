@@ -19,6 +19,7 @@ import AutoCleaningSettingsCard from './AutoCleaningSettingsCard';
 import MaxReminderSettingsCard from './MaxReminderSettingsCard';
 import { getGuestName } from '@/lib/guestHelpers';
 import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
+import ChangedByLine from '@/components/shared/ChangedByLine';
 import { useToast } from '@/hooks/use-toast';
 
 const CleaningManagement = () => {
@@ -756,16 +757,16 @@ const CleaningManagement = () => {
                         )}
                       </div>
 
-                      {/* Status change footer */}
-                      {task.status_changed_by && (
-                        <div className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap pt-1 border-t border-muted/40">
-                          <span>Status geändert von</span>
-                          <span className="font-medium">{task.status_changed_by}</span>
-                          {task.status_changed_at && (
-                            <span>· {new Date(task.status_changed_at).toLocaleDateString('de-DE')} {new Date(task.status_changed_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
-                          )}
-                        </div>
-                      )}
+                      {/* Einheitliche „Geändert von"-Zeile.
+                          WICHTIG: updated_at (wird bei JEDER Speicherung vom
+                          DB-Trigger aktualisiert), NICHT status_changed_at —
+                          das ändert sich nur bei Status-Wechseln und zeigte
+                          sonst ein veraltetes Datum. */}
+                      <ChangedByLine
+                        by={task.status_changed_by}
+                        at={task.updated_at || task.status_changed_at}
+                        className="pt-1 border-t border-muted/40"
+                      />
                     </div>
                   </CardContent>
                 </ClickableCard>
