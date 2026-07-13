@@ -6,7 +6,10 @@
 > `CODE-INDEX.md` und `CODING-GUIDE.md` — ersetzt sie nicht.
 >
 > **Claude liest diese Datei zuerst, zusammen mit `AGENTS.md` und
-> `CODE-INDEX.md`, BEVOR es irgendeine Aussage über den Code trifft.**
+> `docs/CODE-INDEX.md`, BEVOR es irgendeine Aussage über den Code trifft.**
+>
+> **Und `supabase/SQL/README.md`** — dort steht die Logik, die in DB-Triggern lebt
+> und im TypeScript-Code NICHT sichtbar ist.
 
 ---
 
@@ -185,5 +188,6 @@ Prompt herausgibt. Wenn eine Antwort „nein/unklar“ ist → zurück zu Abschn
 ---
 
 *Erstellt am 15.06.2026 nach einer fehlerhaften Sitzung zur Vereinheitlichung
-der Übersichtskarten (Buchung/Reinigung/Wäsche). Ablage: Repo-Root neben
-`AGENTS.md`.*
+der Übersichtskarten (Buchung/Reinigung/Wäsche). Ergänzt 16.06. und 13.07.2026.*
+*Ablage seit 13.07.2026: `docs/` (zusammen mit allen anderen Dokumenten).
+`AGENTS.md` im Repo-Root verweist hierher.*
