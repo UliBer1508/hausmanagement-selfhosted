@@ -1455,11 +1455,15 @@ async function executeTool(toolName: string, args: any): Promise<any> {
     case 'reject_booking_inquiry':
       return await executeRejectBookingInquiry(args);
 
-    // Bulk Actions (NEW!)
+    // STILLGELEGT 12.07.2026 (siehe Kommentar bei den Tool-Definitionen).
+    // Sicherheitsnetz: falls das Modell die Namen doch halluziniert.
     case 'create_bulk_cleaning_tasks':
-      return await executeCreateBulkCleaningTasks(args);
     case 'create_bulk_linen_orders':
-      return await executeCreateBulkLinenOrders(args);
+      return {
+        success: false,
+        error: 'Sammelaktionen sind stillgelegt. Bitte Reinigungen/Wäsche einzeln ' +
+               'anlegen (create_cleaning_for_booking / create_linen_for_booking).',
+      };
 
     // Core search tools
     case 'search_bookings':
@@ -1564,38 +1568,22 @@ function getToolDefinitions() {
       }
     },
     // Bulk Actions
-    {
-      type: "function",
-      function: {
-        name: "create_bulk_cleaning_tasks",
-        description: "Erstellt Reinigungsaufträge für alle Buchungen an einem Datum. Für 'morgige Abreisen' nutze for_date='tomorrow' und trigger='checkout'",
-        parameters: {
-          type: "object",
-          properties: {
-            for_date: { type: "string", description: "Datum: 'today', 'tomorrow' oder ISO-Datum" },
-            trigger: { type: "string", enum: ["checkout", "checkin"], description: "checkout=Abreisen, checkin=Ankünfte" },
-            house_id: { type: "string", description: "Optional: nur für dieses Haus" }
-          },
-          required: ["for_date", "trigger"]
-        }
-      }
-    },
-    {
-      type: "function",
-      function: {
-        name: "create_bulk_linen_orders",
-        description: "Erstellt Wäschebestellungen für alle Buchungen in einem Zeitraum",
-        parameters: {
-          type: "object",
-          properties: {
-            date_from: { type: "string", description: "Start-Datum (ISO)" },
-            date_to: { type: "string", description: "End-Datum (ISO)" },
-            house_id: { type: "string", description: "Optional: nur für dieses Haus" }
-          },
-          required: ["date_from", "date_to"]
-        }
-      }
-    },
+    // ---------------------------------------------------------------
+    // STILLGELEGT 12.07.2026: create_bulk_cleaning_tasks + create_bulk_linen_orders
+    //
+    // GRUND: Beide waren Altlast — in KEINER Doku definiert (weder MASTER noch
+    // max_ablaeufe) und nie durchdacht. Sie schrieben EINEN Sammel-Eintrag in
+    // max_actions mit status='wartet_uli', aber OHNE booking_id. Ein solcher
+    // Vorgang ist nicht zuordenbar und kann NIE abgeschlossen werden — er bleibt
+    // ewig auf „Wartet auf dich" stehen.
+    //
+    // Die execute-Funktionen (executeCreateBulkCleaningTasks /
+    // executeCreateBulkLinenOrders) bleiben im Code erhalten, sind aber ohne
+    // Tool-Definition für Max unerreichbar.
+    //
+    // Falls Sammelaktionen gewünscht sind: BEWUSST neu bauen — mit Ablauf in
+    // max_ablaeufe, Freigabe pro Reinigung und sauberem Protokoll.
+    // ---------------------------------------------------------------
     // Core Search Tools
     {
       type: "function",
@@ -1764,7 +1752,7 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "send_provider_message",
-        description: "Sendet eine Nachricht an einen Dienstleister (Amela = Reinigung, Teuni = Wäsche) in dessen Portal-Posteingang. Die Nachricht erscheint dort als 'Max (Assistent)'. FREIGABE-REGELN: (1) Echte TERMINFRAGEN (z.B. 'Passt dir der Reinigungstermin am 18.7.?') mit ist_terminfrage=true werden direkt gesendet. (2) JEDE andere Nachricht (z.B. Info über eine geänderte Wäschemenge) rufst du ZUERST mit ist_terminfrage=false und OHNE freigegeben auf - dann wird sie NICHT gesendet, sondern nur als Entwurf zurückgegeben, den du dem Nutzer zeigst. (3) Sobald der Nutzer den Entwurf ausdrücklich bestätigt ('ja, sende'), rufst du das Tool ERNEUT mit demselben Text und freigegeben=true auf - ERST DANN wird wirklich gesendet.",
+        description: "Sendet eine Nachricht an einen Dienstleister (Amela = Reinigung, Teuni = Wäsche) in dessen Portal-Posteingang. Die Nachricht erscheint dort als 'Max (Assistent)'. FREIGABE-REGELN: (1) Echte TERMINFRAGEN (z.B. 'Passt dir der Reinigungstermin am 18.7.?') mit ist_terminfrage=true werden direkt gesendet. (2) JEDE andere Nachricht (z.B. Info über eine geänderte Wäschemenge) rufst du ZUERST mit ist_terminfrage=false und OHNE freigegeben auf - dann wird sie NICHT gesendet, sondern nur als Entwurf zurückgegeben, den du dem Nutzer zeigst. (3) Sobald der Nutzer den Entwurf ausdrücklich bestätigt ('ja, sende'), rufst du das Tool ERNEUT mit demselben Text und freigegeben=true auf - ERST DANN wird wirklich gesendet. PFLICHT-BEZUG: Bei ist_terminfrage=true MUSST du related_task_id (Reinigung) ODER related_linen_order_id (Wäschebestellung) mitgeben - sonst wird der Versand ABGELEHNT. Ohne Bezug kann die Antwort des Dienstleisters keiner Reinigung zugeordnet werden. Wenn du die ID nicht kennst, suche sie zuerst (search_cleaning_tasks / search_linen_orders) oder frage den Nutzer.",
         parameters: {
           type: "object",
           properties: {
@@ -1772,8 +1760,8 @@ function getToolDefinitions() {
             message: { type: "string", description: "Der Nachrichtentext auf Deutsch, höflich und klar" },
             ist_terminfrage: { type: "boolean", description: "true NUR bei echten Terminfragen (direkt senden). Bei allem anderen false (nur Entwurf zur Freigabe)." },
             freigegeben: { type: "boolean", description: "true, wenn der Nutzer eine Nicht-Terminfrage ausdrücklich zum Senden freigegeben hat. Weglassen/false = nur Entwurf zurückgeben." },
-            related_task_id: { type: "string", description: "Optional: ID der zugehörigen Reinigung (service_task), damit die Nachricht direkt daran hängt" },
-            related_linen_order_id: { type: "string", description: "Optional: ID der zugehörigen Wäschebestellung" }
+            related_task_id: { type: "string", description: "ID der zugehörigen Reinigung (service_task). PFLICHT bei ist_terminfrage=true (alternativ related_linen_order_id). Verknüpft Frage und Antwort - Kern der geschlossenen Kommunikationskette." },
+            related_linen_order_id: { type: "string", description: "ID der zugehörigen Wäschebestellung. PFLICHT bei ist_terminfrage=true, falls es um Wäsche geht (alternativ related_task_id)." }
           },
           required: ["provider_name", "message", "ist_terminfrage"]
         }
@@ -1988,6 +1976,29 @@ async function executeSendProviderMessage(params: any) {
     };
   }
 
+  // ---------------------------------------------------------------
+  // SPERRE (12.07.2026): Eine Terminfrage MUSS einen Bezug haben.
+  //
+  // GRUND: Ohne related_task_id kann die Antwort des Dienstleisters keiner
+  // Reinigung zugeordnet werden — die geschlossene Kommunikationskette bricht.
+  // Der Vorgang landet dann als 'wartet_provider' mit due_at in max_actions,
+  // der Überfällig-Wächter meldet ihn nach 2 Tagen, aber NIEMAND kann ihn je
+  // abschließen, weil unklar ist, worauf er sich bezieht.
+  //
+  // Regel: related_task_id (Reinigung) ODER related_linen_order_id (Wäsche).
+  // ---------------------------------------------------------------
+  if (params.ist_terminfrage === true && !params.related_task_id && !params.related_linen_order_id) {
+    return {
+      success: false,
+      error: 'Terminfrage ohne Bezug nicht möglich.',
+      hinweis: 'Eine Terminfrage an einen Dienstleister braucht IMMER einen Bezug: ' +
+               'related_task_id (Reinigung) oder related_linen_order_id (Wäschebestellung). ' +
+               'Sonst kann die Antwort später nicht zugeordnet werden. ' +
+               'Frage den Nutzer, um welche Reinigung/Bestellung es geht, ' +
+               'oder suche sie zuerst (search_cleaning_tasks / search_linen_orders).',
+    };
+  }
+
   // Terminfrage -> direkt senden
   const { data: inserted, error: insErr } = await supabase
     .from('provider_messages')
@@ -2036,12 +2047,14 @@ async function executeSendProviderMessage(params: any) {
       });
     }
   } else {
+    // UNERREICHBAR seit der Sperre oben (Terminfrage ohne Bezug wird abgewiesen).
+    // Bleibt als Sicherheitsnetz stehen — protokolliert dann OHNE due_at, damit
+    // kein unabschließbarer Vorgang entsteht, den der Überfällig-Wächter meldet.
     await logMaxAction({
       action_type: 'provider_message',
-      status: 'wartet_provider',
-      waiting_for: waitingFor,
-      last_step: `Nachricht an ${provider.name} gesendet`,
-      due_at: dueAt.toISOString(),
+      status: 'abgeschlossen',
+      waiting_for: null,
+      last_step: `Nachricht an ${provider.name} gesendet (ohne Bezug — nicht nachverfolgbar)`,
       details: { an: provider.name, nachricht: message },
       created_by: 'max',
     });
@@ -3221,6 +3234,17 @@ verwende die ID aus dieser Liste — oder hole sie sonst über search_houses.
 🧹🧺 DEINE DIENSTLEISTER (aktueller Stand aus der Datenbank):
 ${providersContext ? '- ' + providersContext : '(keine aktiven Dienstleister gefunden)'}
 Nutze für send_provider_message immer den echten Namen aus dieser Liste.
+
+REGEL — TERMINFRAGE BRAUCHT IMMER EINEN BEZUG:
+Wenn du send_provider_message mit ist_terminfrage=true aufrufst, MUSST du
+related_task_id (Reinigung) oder related_linen_order_id (Wäschebestellung)
+mitgeben. Ohne Bezug wird der Versand ABGELEHNT.
+Grund: Die Antwort des Dienstleisters muss später eindeutig einer Reinigung
+zugeordnet werden können — sonst weiß niemand, worauf sich ein "Ja, passt"
+bezieht.
+Kennst du die ID nicht? Dann suche sie zuerst (search_cleaning_tasks /
+search_linen_orders) oder frage den Nutzer, um welche Reinigung es geht.
+Erfinde NIEMALS eine ID.
 
 🧠 GELERNTES WISSEN (von Uli beigebracht — beachte es immer):
 ${learnedContext || '(noch kein gelerntes Wissen vorhanden)'}
