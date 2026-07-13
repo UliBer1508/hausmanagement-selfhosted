@@ -7,7 +7,8 @@ import ActionCard from './ActionCard';
 
 interface EntityLink {
   id: string;
-  type: 'booking' | 'cleaning_task' | 'laundry_order' | 'house' | 'guest' | 'calendar' | 'email_draft';
+  // Nur diese vier Typen erzeugt Max (buildEntityLinks im chat-assistant).
+  type: 'booking' | 'cleaning_task' | 'laundry_order' | 'email_draft';
   label: string;
   // Nur bei type === 'email_draft': vorausgefüllter Begrüßungs-E-Mail-Entwurf.
   email?: {
@@ -75,12 +76,11 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
       case 'laundry_order':
         navigate('/', { state: { activeTab: 'Wäsche', openOrderId: link.id } });
         break;
-      case 'house':
-        navigate('/', { state: { activeTab: 'Häuser', openHouseId: link.id } });
-        break;
-      case 'guest':
-        navigate('/', { state: { activeTab: 'Gäste', openGuestEmail: link.id } });
-        break;
+      // ENTFERNT 13.07.2026: 'house', 'guest', 'calendar'.
+      // Max erzeugt diese Button-Typen NIE (buildEntityLinks liefert nur
+      // booking, cleaning_task, laundry_order, email_draft). Ausserdem wurden
+      // die Parameter openHouseId / openGuestEmail von KEINER Komponente
+      // verarbeitet — die Buttons haetten nur den Tab gewechselt.
       case 'email_draft':
         // Öffnet das Vorschaufenster VORAUSGEFÜLLT (Betreff/Text aus dem Entwurf).
         // Es wird nichts gesendet — Uli prüft und klickt dort "Per Gmail senden".
@@ -102,9 +102,6 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
         }
         // Chat NICHT schließen: Das Vorschaufenster erscheint darüber.
         return;
-      case 'calendar':
-        navigate('/');
-        break;
     }
     // Chat schließen nach Navigation
     onClose?.();
