@@ -361,19 +361,28 @@ const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = f
           )}
 
           {/* Erstellt von / Geändert von — einheitliche Größe (text-[11px]).
-              Problem: bei "Geändert von: Admin" fehlte bisher das Datum. */}
+              13.07.2026: Die Zeile hing an `order.status_changed_by`. Dieses Feld
+              wird aber NUR bei einem manuellen Status-Wechsel gefüllt. Bei
+              automatisch angelegten Bestellungen (Status "offen", nie angefasst)
+              blieb es leer — die Zeile fehlte dann komplett, obwohl `updated_at`
+              sehr wohl gesetzt war. Dieselbe Ursache wie zuvor bei der
+              Reinigungskarte (ServiceTaskCard).
+              ChangedByLine kommt selbst damit klar: fehlt der Name, zeigt es
+              "Admin"; fehlen Name UND Datum, rendert es nichts. Die Bedingung
+              hier war also überflüssig und schädlich.
+              Datenquelle geprüft: alle vier Aufrufer (LinenOrdersList,
+              ConnectedBookingView, OriginalDashboard ×2) laden mit select('*') —
+              `updated_at` ist überall vorhanden. */}
           {order.created_by_name && (
-            <div className={cn("text-[11px] leading-tight text-muted-foreground", !order.status_changed_by && "mt-auto")}>
+            <div className="text-[11px] leading-tight text-muted-foreground">
               Erstellt von: {order.created_by_name}
             </div>
           )}
-          {order.status_changed_by && (
-            <ChangedByLine
-              by={order.status_changed_by}
-              at={order.updated_at || order.status_changed_at}
-              className={cn(!order.created_by_name && "mt-auto")}
-            />
-          )}
+          <ChangedByLine
+            by={order.status_changed_by}
+            at={order.updated_at || order.status_changed_at}
+            className={cn(!order.created_by_name && "mt-auto")}
+          />
         </div>
 
         {/* Action Buttons - aligned right below content */}
