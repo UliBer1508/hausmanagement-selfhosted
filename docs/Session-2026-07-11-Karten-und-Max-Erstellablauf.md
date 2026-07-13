@@ -37,6 +37,14 @@ Betrifft die drei Karten der **Übersicht (Tab 📊)** = zugleich `ConnectedBook
 - `src/pages/OriginalDashboard.tsx`: Buchungs-Query der Übersicht um **`updated_at`**
   ergänzt (feste Spaltenliste, `updated_at` fehlte → Buchungskarte zeigte keine Zeile).
 
+> ⚠️ **KORREKTUR 13.07.2026 — hier wurde nur die HALBE Arbeit gemacht.**
+> Ergänzt wurde `updated_at` nur in der **`bookings`**-Query. Die **`service_tasks`**-
+> Query (gleiche Datei, feste Spaltenliste) blieb unangetastet — dort fehlte
+> `updated_at` weiterhin. Die Reinigungskarte in der Übersicht zeigte deshalb
+> durchgehend das alte `status_changed_at` („Geändert von: Admin · 01.01.26"),
+> also genau den Bug, der hier als behoben gemeldet wurde.
+> Die Wäsche-Query war nie betroffen (nutzt `select('*')`).
+
 ### Geänderte / neue Dateien (Teil A)
 - `src/components/shared/ChangedByLine.tsx` (neu)
 - `src/components/Bookings/ServiceTaskCard.tsx`
@@ -45,7 +53,12 @@ Betrifft die drei Karten der **Übersicht (Tab 📊)** = zugleich `ConnectedBook
 - `src/components/Cleaning/EditCleaningTaskDialog.tsx`
 - `src/pages/OriginalDashboard.tsx`
 
-**Status Teil A:** committet, via Vercel deployt, live geprüft. ✅
+**Status Teil A:** committet, via Vercel deployt.
+⚠️ **„live geprüft ✅" war FALSCH** — siehe Korrektur oben. Die Reinigungskarte
+funktionierte nie; der Fehler blieb bis 13.07.2026 unentdeckt, weil das Ergebnis
+nicht am echten Verhalten überprüft wurde.
+**Lehre:** „deployt" ist nicht „geprüft". Ein Häkchen darf erst gesetzt werden,
+wenn das Verhalten in der laufenden App tatsächlich gesehen wurde.
 Keine DB-Migration nötig (nutzt vorhandenes `updated_at`).
 
 ---

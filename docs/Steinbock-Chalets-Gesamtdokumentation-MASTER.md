@@ -165,7 +165,11 @@ get_booking_full_context (alles zu einer Buchung inkl. "Wäsche liegt nach Reini
 get_morning_summary (vollständige Tagesübersicht in einem Schritt — siehe Abschnitt 4a).
 
 **Buchungsanfragen:** accept_booking_inquiry, reject_booking_inquiry.
-**Bulk:** create_bulk_cleaning_tasks, create_bulk_linen_orders.
+
+**Stillgelegt (12.07.2026):** `create_bulk_cleaning_tasks` und
+`create_bulk_linen_orders` — Sammelaktionen werden nicht benötigt. Aus den
+Tool-Definitionen entfernt (Gemini kennt sie nicht mehr); der Dispatcher fängt sie
+nur noch als Sicherheitsnetz ab. Aktueller Stand: **26 Werkzeuge**, nicht 28.
 
 **Kommunikation:** send_provider_message (schreibt Amela/Teuni; erscheint als
 "Max (Assistent)" lila; Terminfragen direkt, Rest als Entwurf zur Freigabe).
@@ -438,6 +442,48 @@ Diagnose — und darf keine Änderung auslösen.
 - **Änderung bei Check-in-Verschiebung** (analog zur Gästezahl bei Wäsche).
 - **Max als Preis-Erklärer** (liest/zusammenfasst vorhandene Preis-Empfehlungen).
 - **Zweiter AI-Provider** (größerer Umbau wegen Gemini-spezifischem Tool-Format).
+
+### Behoben am 13.07.2026 (Prüfsitzung)
+Eine systematische Prüfung nach vollständiger Doku-Lektüre förderte vier Fehler
+zutage, die alle DASSELBE Muster hatten: **ein Fix wurde an einer Stelle gemacht
+und als erledigt dokumentiert, während die Zwillingsstelle unberührt blieb.**
+
+1. **Reinigungskarte (Übersicht) zeigte falsches Datum.** Die `service_tasks`-Query
+   in `OriginalDashboard.tsx` lud `updated_at` nicht (feste Spaltenliste). Am 11.07.
+   war nur die `bookings`-Query gefixt worden — und trotzdem „live geprüft ✅"
+   gemeldet worden.
+2. **`update_linen_for_booking` rief die Batch-Automatik.** Existierte keine
+   Bestellung, wurde `auto-create-linen-orders` mit leerem Body aufgerufen — die
+   iteriert über ALLE Häuser, nimmt keine `booking_id` und ist durch
+   `lookahead_bookings` begrenzt. Für die konkrete Buchung wurde womöglich nichts
+   angelegt, während **Max trotzdem Erfolg meldete**. Derselbe Fehler war am 11.07.
+   in `create_linen_for_booking` behoben worden — die Zwillingsstelle blieb.
+   Jetzt: `create-linen-order-for-booking` + Prüfung von `success` im Body.
+3. **`reschedule_cleaning` schrieb kein `max_actions`-Protokoll.** Der Trigger
+   `trg_close_max_action_on_cleaning_scheduled` sucht bei `draft→scheduled` einen
+   Vorgang vom Typ `reschedule_cleaning` — den es nie gab. Die Workflow-Kette brach
+   bei **jeder** Terminverschiebung ab. Jetzt: `logMaxAction` mit `booking_id`
+   (für den Abschluss-Trigger) **und** `related_task_id` (für den Antwort-Trigger).
+4. **Wäschekarte zeigte keine „Geändert von"-Zeile.** Sie hing an
+   `status_changed_by`, das bei automatisch angelegten Bestellungen leer ist —
+   exakt die Bedingung, die bei der Reinigungskarte längst entfernt worden war.
+
+**Zusätzlich:** Die DB-Trigger und Max-Tabellen wurden aus der Produktions-DB
+gezogen und liegen jetzt in `supabase/sql/`. Dabei fielen **zwei Trigger auf, die
+in keinem Dokument standen**: `trg_close_max_action_on_linen_confirmed` und
+`trg_close_max_action_on_guest_contacted`.
+
+### Offen / noch nicht angefasst (Befunde 13.07.2026)
+- **Doppelter Trigger auf `bookings`:** `sync_booking_guest_trigger` UND
+  `sync_guest_on_booking_change` rufen beide `sync_guest_from_booking()` auf, beide
+  `BEFORE INSERT OR UPDATE`. Die Funktion läuft doppelt. Vermutlich harmlos, aber
+  ein Kandidat für Gäste-Dubletten. **Bewusst nicht angefasst** — Gästedaten sind
+  zu heikel für einen Nebenbei-Fix. Prüfen, ob einer der beiden entfallen kann.
+- **anon-key im Klartext** in `trigger_translate_new_activity()`. Öffentlich, also
+  kein echtes Geheimnis — aber unsauber. Diese Funktion wurde deshalb bewusst NICHT
+  in `supabase/sql/` abgelegt.
+- **`console.log('✅ [DEBUG] …')`** in `ConnectedBookingView.tsx` — verstößt gegen
+  AGENTS.md („kein `console.log`").
 
 ### Bekannte Sicherheits-Punkte (dokumentiert, akzeptiert)
 - `delete_booking_cascade` durch eine Migration wieder für `anon` geöffnet.

@@ -343,17 +343,23 @@ Typen — `booking` (→ `editBookingId`), `cleaning_task` (→ `openTaskId`),
 Modell: **Gemini 2.5 Flash**. Enthält Tool-Definitionen, Dispatcher,
 execute-Funktionen, `buildEntityLinks` (Buttons), dynamischen System-Prompt.
 
-**28 Werkzeuge:**
+**26 Werkzeuge:**
 | Gruppe | Werkzeuge |
 |---|---|
 | Lesen | `search_bookings`, `search_cleaning_tasks`, `search_linen_orders`, `search_guests`, `search_houses`, `search_booking_inquiries`, `get_booking_full_context`, `get_dashboard_stats`, `get_revenue_stats`, `get_linen_overview`, `get_calendar_events`, `get_daily_overview` |
 | Übersicht | `get_morning_summary` (→ Edge Fn `morning-summary`), `get_guest_contact_reminders`, `get_rating_reminders` |
 | Wächter | `check_upcoming_bookings` (4 Prüfungen: fehlende Reinigung/Wäsche, Timing, offene Zahlung) |
-| Anlegen | `create_cleaning_for_booking` (→ `create-cleaning-task-for-booking`, Status `draft`), `create_linen_for_booking` (→ `create-linen-order-for-booking`), `create_bulk_cleaning_tasks`, `create_bulk_linen_orders` |
+| Anlegen | `create_cleaning_for_booking` (→ `create-cleaning-task-for-booking`, Status `draft`), `create_linen_for_booking` (→ `create-linen-order-for-booking`) |
 | Ändern | `reschedule_cleaning` (Termin → `draft`), `update_linen_for_booking` (→ `generate-booking-linen-order`) |
 | Anfragen | `accept_booking_inquiry`, `reject_booking_inquiry` |
 | Kommunikation | `send_provider_message`, `read_provider_replies` |
 | Sonstiges | `draft_guest_welcome_email`, `save_knowledge` |
+
+**Stillgelegt (12.07.2026):** `create_bulk_cleaning_tasks` und
+`create_bulk_linen_orders` wurden bewusst abgeschaltet — Sammelaktionen werden
+nicht gebraucht. Sie stehen NICHT mehr in den Tool-Definitionen (Gemini kennt sie
+nicht), der Dispatcher fängt sie nur noch als Sicherheitsnetz ab. Daher 26 statt
+früher 28 Werkzeuge.
 
 **Modell A (nicht verhandelbar):** Max handelt NUR nach ausdrücklicher Freigabe
 durch Uli. Er liest Antworten nur auf Nachfrage.
@@ -385,10 +391,23 @@ durch Uli. Er liest Antworten nur auf Nachfrage.
 - Einstellungskarte: `Settings/MaxMorningSummaryCard.tsx` (Einstellungen-Tab).
 
 ### DB-Trigger (Kern der Ketten)
+
+> **Die SQL liegt seit 13.07.2026 im Repo:** `supabase/sql/` (mit README, die den
+> Ablauf als Diagramm erklärt). Vorher existierte diese Logik NUR in der Datenbank
+> — nicht nachlesbar, nicht wiederherstellbar. Die Dateien sind idempotent; sie
+> dokumentieren den Ist-Stand und dienen der Wiederherstellung.
+
 | Trigger | Auf | Was |
 |---|---|---|
-| `trg_notify_amela_on_cleaning_release` | `service_tasks` | Bei `draft→scheduled`: benachrichtigt Amela (nur wenn sie via `related_task_id` gefragt hatte) |
-| `trg_close_max_action_on_cleaning_scheduled` | `service_tasks` | **NEU 12.07.:** Bei `draft→scheduled`: schließt den offenen `max_actions`-Vorgang ab |
+| `trg_notify_amela_on_cleaning_release` | `service_tasks` | Bei `draft→scheduled`: benachrichtigt Amela (nur wenn sie via `related_task_id` einen „Neuer Termin: …"-Wunsch gestellt hatte) |
+| `trg_close_max_action_on_cleaning_scheduled` | `service_tasks` | Bei `draft→scheduled`: schließt den offenen `max_actions`-Vorgang ab |
+| `trg_close_max_action_on_linen_confirmed` | `linen_orders` | Bei `offen→ausstehend`: schließt den Wäsche-Vorgang ab |
+| `trg_close_max_action_on_guest_contacted` | `bookings` | Bei `guest_contact_status` → `contacted`/`not_required`: schließt den `welcome_email`-Vorgang ab |
+| `trg_max_actions_on_provider_reply` | `provider_messages` | Antwortet Amela/Teuni: hängt „X hat geantwortet" an die Verlaufskette, Status → `beantwortet` |
+
+> ⚠️ **Die beiden `linen`- und `guest`-Trigger standen bis 13.07.2026 in KEINEM
+> Dokument** — sie existierten still in der DB. Beim Ziehen der Trigger-SQL sind
+> sie aufgefallen.
 
 ---
 
@@ -430,7 +449,7 @@ Basis: `use-toast`, `use-mobile`.
 **Edge Functions (33, Stand 12.07.2026)** — die wichtigsten:
 | Function | Zweck |
 |---|---|
-| `chat-assistant` | **Max' Gehirn** (Gemini 2.5 Flash, 28 Werkzeuge) |
+| `chat-assistant` | **Max' Gehirn** (Gemini 2.5 Flash, 26 Werkzeuge) |
 | `morning-summary` | Tagesübersicht (einzige Quelle der Wahrheit) — NEU 10.07. |
 | `overdue-watch` | Überfällig-Wächter — NEU 12.07. |
 | `max-cleaning-reminders` | Amela: Terminfrage (Cron 07:00) |
