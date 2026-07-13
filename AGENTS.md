@@ -4,6 +4,8 @@ Diese Datei wird vom Lovable-Agenten immer gelesen (unabhängig von der
 Session-Länge) und gilt zusätzlich für Claude. Sie ist verbindlich.
 
 ## Vor JEDER Code-Änderung
+0. `docs/ARBEITSWEISE-CLAUDE-LESSONS.md` lesen. Dort stehen die Fehler, die schon
+   gemacht wurden — sie wiederholen sich sonst. Nicht optional.
 1. `docs/CODE-INDEX.md` lesen und die richtige Datei bestimmen
    (Tab -> Kette -> Doppelgänger). Nicht raten, welche von mehreren ähnlichen
    Dateien gemeint ist.
@@ -16,6 +18,10 @@ Session-Länge) und gilt zusätzlich für Claude. Sie ist verbindlich.
 - KEIN Seiten-Routing. Alles hängt an Tabs in `src/pages/OriginalDashboard.tsx`
   (`switch(activeTab)`). Immer fragen "welcher Tab?", nicht "welche Route?".
 - Details und vollständige Tab->Komponente-Liste: `docs/CODE-INDEX.md`.
+- **Ein Teil der Geschäftslogik liegt NICHT im Code, sondern in DB-Triggern**
+  (Max' Kommunikationskette: Amela benachrichtigen, Vorgänge abschließen,
+  Provider-Antworten fortschreiben). Nachzulesen in `supabase/SQL/`. Wer nur den
+  TypeScript-Code liest, übersieht die Hälfte der Wirkung.
 
 ## Häufigste Fehlerquelle: Doppelgänger-Komponenten
 - "Reinigungskarte" existiert dreimal: `Cleaning/CleaningManagement.tsx`
@@ -58,4 +64,6 @@ Session-Länge) und gilt zusätzlich für Claude. Sie ist verbindlich.
 ## Ausführliche Referenzen im Repo
 - `docs/CODE-INDEX.md` — vollständige Landkarte des Codes
 - `docs/CODING-GUIDE.md` — vollständiger Coding-Standard
-- `docs/System-Knowledge.md` — Architektur-/System-Doku
+- `docs/Steinbock-Chalets-Gesamtdokumentation-MASTER.md` — Architektur-/System-Doku
+- `docs/ARBEITSWEISE-CLAUDE-LESSONS.md` — Lehren aus fehlgelaufenen Sitzungen (PFLICHT)
+- `supabase/SQL/README.md` — die DB-Trigger, die Max' Kommunikationskette steuern

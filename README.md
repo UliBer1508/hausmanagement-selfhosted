@@ -1,101 +1,84 @@
-# Welcome to your Lovable project
+# Hausverwaltung — Steinbock Chalets
 
-## Project info
+Zentrale Verwaltungs-App für zwei Ferienobjekte in Österreich (Wald Chalet,
+Venediger Chalet): Buchungen, Gäste, Reinigung, Wäsche, Preise, Zahlungen —
+plus **Max**, den KI-Assistenten.
 
-**URL**: https://lovable.dev/projects/0a55b3b7-98cb-4fe5-aff9-419ea27d0cf7
+**Live:** hausmanagement.steinbockchalets-charge.com
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## ⚠️ Vor jeder Code-Änderung lesen (Pflicht)
 
-**Use Lovable**
+Diese Reihenfolge ist verbindlich. Sie existiert, weil das Überspringen schon
+mehrfach Fehler verursacht hat:
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/0a55b3b7-98cb-4fe5-aff9-419ea27d0cf7) and start prompting.
+| # | Datei | Wofür |
+|---|-------|-------|
+| 0 | [`docs/ARBEITSWEISE-CLAUDE-LESSONS.md`](docs/ARBEITSWEISE-CLAUDE-LESSONS.md) | Die Fehler, die schon gemacht wurden |
+| 1 | [`docs/CODE-INDEX.md`](docs/CODE-INDEX.md) | Landkarte: „Wo ist X?" — inkl. Doppelgänger-Warnungen |
+| 2 | [`docs/CODING-GUIDE.md`](docs/CODING-GUIDE.md) | Verbindlicher Standard (Teil A = Muss-Block) |
+| 3 | [`docs/Steinbock-Chalets-Gesamtdokumentation-MASTER.md`](docs/Steinbock-Chalets-Gesamtdokumentation-MASTER.md) | Gesamtbild: System, Datenmodell, Max |
+| 4 | [`supabase/SQL/README.md`](supabase/SQL/README.md) | **Die Logik in DB-Triggern** — im Code nicht sichtbar! |
 
-Changes made via Lovable will be committed automatically to this repo.
+[`AGENTS.md`](AGENTS.md) im Root fasst die Regeln kurz zusammen (wird von
+KI-Werkzeugen automatisch gelesen).
 
-**Use your preferred IDE**
+### Die zwei teuersten Lehren
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+**Fehlt ein Feld in der UI → zuerst die Supabase-Query prüfen, nicht die Anzeige.**
+Supabase liefert bei Joins nur die ausdrücklich genannten Felder — ohne Fehlermeldung.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+**Ein Teil der Geschäftslogik liegt in DB-Triggern, nicht im TypeScript-Code.**
+Wer nur den Code liest, übersieht die Hälfte der Wirkung. Siehe `supabase/SQL/`.
 
-Follow these steps:
+---
+
+## Architektur in drei Sätzen
+
+**Kein Seiten-Routing.** Alles hängt an Tabs in `src/pages/OriginalDashboard.tsx`
+(`switch(activeTab)`). Die Frage lautet nie „welche Route?", sondern „welcher Tab?".
+
+**Max** lebt in der Edge Function `supabase/functions/chat-assistant/` (Gemini 2.5
+Flash, 26 Werkzeuge). Er handelt nur nach ausdrücklicher Freigabe.
+
+**Die Kommunikationskette** zu den Dienstleistern (Amela = Reinigung, Teuni =
+Wäsche) wird durch **eine ID** zusammengehalten: `related_task_id`. Sie wandert
+durch jede Nachricht und löst das Problem „welche Reinigung ist gemeint?".
+
+---
+
+## Stack
+
+React 18 · TypeScript · Vite · TailwindCSS · shadcn/ui · TanStack React Query
+Supabase (PostgreSQL + Edge Functions) · Vercel · Cloudflare · PWA
+KI: Gemini 2.5 Flash · Zahlungen: Stripe · E-Mail: Gmail SMTP
+
+---
+
+## Verwandte Apps (gemeinsame Datenbank)
+
+| App | Repo | Zweck |
+|-----|------|-------|
+| Amela-Portal | `amela-clean-hub-selfhosted` | Reinigung |
+| Teuni-Portal | `fresh-spin-portal-selfhosted` | Wäsche |
+| Heizung/PV | `smartfox-insight-ai-selfhosted` | Energie-Monitoring |
+| Website | `web-takeover-buddy` | öffentlich (eigene DB) |
+
+---
+
+## Lokal entwickeln
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## Environment Variables
-
-Dieses Projekt nutzt **keine `.env`-Datei**. Alle Environment-Variablen werden
-von Lovable Cloud automatisch zur Build-Zeit injiziert. Für lokale
-Entwicklung außerhalb von Lovable müssten folgende Variablen gesetzt sein
-(verwendet via `import.meta.env.*`):
-
-| Variable | Zweck |
-|---|---|
-| `VITE_SUPABASE_URL` | Supabase Project URL (publishable) |
-| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase Anon Key (publishable) |
-| `VITE_SUPABASE_PROJECT_ID` | Supabase Project ID |
-
-> Server-seitige Secrets (z. B. `GOOGLE_GEMINI_API_KEY`, `RESEND_API_KEY`)
-> werden ausschließlich in **Edge Functions** verwendet und über die
-> Lovable-Cloud Secrets verwaltet — niemals im Client-Code.
-
-## Package Manager
-
-Dieses Projekt nutzt **Bun** (siehe `bun.lock` und `packageManager`-Feld in
-`package.json`). Bitte `bun install` statt `npm install` verwenden.
-
-## Tests
-
+**Deploy:** Frontend baut Vercel automatisch bei jedem Push.
+Edge Functions:
 ```sh
-bunx vitest run
+supabase functions deploy <name> --project-ref usblrulkcgucxtkhugck
 ```
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/0a55b3b7-98cb-4fe5-aff9-419ea27d0cf7) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+**Migrationen:** Wegen desynchroner Historie **kein** `db push` — SQL direkt im
+Supabase SQL-Editor ausführen.
