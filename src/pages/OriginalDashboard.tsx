@@ -617,6 +617,7 @@ const OriginalDashboard = () => {
           provider_id,
           status_changed_by,
           status_changed_at,
+          updated_at,
           service_providers!service_tasks_provider_id_fkey (
             id,
             name,
