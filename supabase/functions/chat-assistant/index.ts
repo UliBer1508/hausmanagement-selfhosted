@@ -2601,6 +2601,17 @@ async function executeRescheduleCleaning(params: any) {
     // Beide IDs sind nötig, weil zwei verschiedene Trigger sie brauchen:
     //   booking_id      -> trg_close_max_action_on_cleaning_scheduled (Abschluss)
     //   related_task_id -> trg_max_actions_on_provider_reply (Amelas Antwort)
+    //
+    // EINE STELLE, EIN LOG (korrigiert 13.07.2026):
+    // Das Protokoll wird NUR hier geschrieben — nicht zusätzlich bei den Aufrufern.
+    // Die deterministischen Pfade A und B loggten früher selbst; nachdem hier ein
+    // logMaxAction ergänzt wurde, entstanden ZWEI Einträge pro Verschiebung und der
+    // Vorgang erschien im Max-Aktionen-Fenster doppelt.
+    //
+    // Die HERKUNFT (Uli direkt vs. Amelas Portal-Wunsch) reichen die Aufrufer über
+    // params.quelle durch — max_ablaeufe, Schritt 1 unterscheidet beide Fälle
+    // ausdrücklich ("Uli direkt ODER Amela via Portal").
+    const quelle = params.quelle === 'amela' ? 'amela' : 'uli';
     await logMaxAction({
       action_type: 'reschedule_cleaning',
       status: 'wartet_uli',
@@ -2614,8 +2625,9 @@ async function executeRescheduleCleaning(params: any) {
         haus: houseName,
         altes_datum: oldDate,
         neues_datum: params.new_date,
+        quelle,
       },
-      created_by: 'uli',
+      created_by: quelle,
     });
 
     return {
@@ -2797,6 +2809,69 @@ function isWelcomeEmailCommand(text: string): boolean {
 function extractGuestNameFromCommand(text: string): string | null {
   const m = (text || '').match(/\b(?:an|für|fuer)\s+([A-Za-zÄÖÜäöüß.\-]+(?:\s+[A-Za-zÄÖÜäöüß.\-]+){0,3})/i);
   return m ? m[1].trim() : null;
+}
+
+/**
+ * Extrahiert den Gastnamen aus einem RESCHEDULE-Befehl.
+ *
+ * WARUM EIGENE FUNKTION (13.07.2026):
+ * extractGuestNameFromCommand() oben sucht nur nach "an"/"für" — passend für
+ * E-Mail-Befehle ("E-Mail AN Luca"), aber NICHT für Verschiebe-Befehle. Die
+ * Soll-Definition (Tabelle max_ablaeufe, reschedule_cleaning, Schritt 1) nennt
+ * den Auslöser wörtlich: "ändere Reinigung VON <Gast> auf <Datum>".
+ *
+ * Das Wort "von" fehlte im alten Muster. Folge: guestName blieb null, und Max
+ * fragte nach einer UUID, statt den Gast zu suchen — genau der Fehler, den Uli
+ * am 13.07.2026 mit "Luca" gemeldet hat.
+ *
+ * Stoppwörter verhindern, dass Füllwörter oder Verben als Name durchgehen
+ * ("Reinigungstermin verschieben" darf keinen Gast namens "verschieben" liefern).
+ * Sie werden nur am ANFANG und ENDE geschnitten, nie mittendrin — sonst würde
+ * aus "Christiaan Van Der Horst" ein "Christiaan Van Horst".
+ */
+function extractGuestNameFromReschedule(text: string): string | null {
+  const t = (text || '').trim();
+
+  const STOPP = new Set([
+    'die', 'der', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einen',
+    'reinigung', 'reinigungstermin', 'termin', 'putzen', 'putz',
+    'auf', 'am', 'um', 'zum', 'zur', 'nach', 'bitte', 'mal',
+    'heute', 'morgen', 'übermorgen', 'uebermorgen',
+    'wald', 'venediger', 'chalet',   // Häuser sind keine Gäste
+    // Verben aus dem Befehl selbst:
+    'verschieben', 'verschiebe', 'verschieb', 'ändern', 'aendern', 'ändere',
+    'aendere', 'anpassen', 'passe', 'setzen', 'setze', 'legen', 'lege',
+  ]);
+
+  const istName = (w: string) => w.length >= 2 && !STOPP.has(w.toLowerCase()) && !/^\d/.test(w);
+
+  // Füllwörter nur vorn und hinten abschneiden — die Mitte bleibt (siehe "Van Der").
+  const saeubern = (roh: string): string | null => {
+    const w = roh.split(/\s+/).filter(Boolean);
+    while (w.length && !istName(w[0])) w.shift();
+    while (w.length && !istName(w[w.length - 1])) w.pop();
+    return w.length ? w.join(' ') : null;
+  };
+
+  // 1) Mit Präposition: "von/an/für <Name>" — der Normalfall laut Definition.
+  let m = t.match(/\b(?:von|an|für|fuer)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\-]*(?:\s+[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\-]*){0,3})/i);
+  if (m) {
+    const name = saeubern(m[1]);
+    if (name) return name;
+  }
+
+  // 2) Genitiv: "verschiebe Lucas Reinigung"
+  m = t.match(/\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\-]*)s\s+Reinigung/i);
+  if (m && istName(m[1])) return m[1];
+
+  // 3) Ohne Präposition: "Reinigung Luca auf 20.7."
+  m = t.match(/\bReinigung(?:stermin)?\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\-]*(?:\s+[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\-]*)?)/i);
+  if (m) {
+    const name = saeubern(m[1]);
+    if (name) return name;
+  }
+
+  return null;
 }
 
 // Schreibt einen Eintrag in den Auftragsverlauf (Tabelle max_actions).
@@ -3065,39 +3140,72 @@ serve(async (req) => {
       /(änder|termin|geantwortet|vorschlag|neuer termin|was möchte|was will)/i.test(latestUserText);
     const jsonHeaders = { headers: { ...corsHeaders, 'Content-Type': 'application/json' } };
 
+    // =========================================================================
     // A) Direkter Befehl MIT Datum: "verschiebe die Reinigung von <Gast> auf <Datum>"
+    //
+    // SOLL-DEFINITION (Tabelle max_ablaeufe, reschedule_cleaning, standard):
+    //   1 uli    Änderungswunsch (Uli direkt oder Amela via Portal)
+    //   2 max    Ordnet die Reinigung über related_task_id zu      -> wartet_uli
+    //   3 max    Ändert auf neues Datum, Status draft
+    //   4 max    Zeigt Button "Reinigung öffnen"
+    //   5 uli    Prüft in der Karte, setzt Geplant
+    //   6 system DB-Trigger informiert Amela                       -> abgeschlossen
+    //
+    // KEINE Chat-Rückfrage vor Schritt 3 — und das ist KEIN Verstoß gegen Modell A:
+    // 'draft' IST die Freigabestufe. Die Änderung ist folgenlos, bis Uli in der
+    // Karte auf "Geplant" setzt (Schritt 5); erst dann wird Amela informiert.
+    // (Anders bei accept_booking_inquiry: dort steht eine Chat-Bestätigung in der
+    // Definition, weil eine Buchung anzulegen NICHT reversibel ist.)
+    // =========================================================================
     if (mentionsReschedule && dateInMsg) {
-      const guestName = extractGuestNameFromCommand(latestUserText);
+      // Eigener Parser: kennt "von <Gast>" — genau der Auslöser aus der Definition.
+      // Der alte (extractGuestNameFromCommand) kannte nur "an"/"für" und lieferte
+      // deshalb null. Max fragte dann nach einer UUID (Fehler vom 13.07.2026).
+      const guestName = extractGuestNameFromReschedule(latestUserText);
       if (!guestName) {
-        return new Response(JSON.stringify({ response: 'Für welchen Gast soll ich die Reinigung verschieben? Bitte den Namen nennen, z.B. „verschiebe die Reinigung von Niels auf 18.07.2026".', toolResults: [] }), jsonHeaders);
+        return new Response(JSON.stringify({ response: 'Für welchen Gast soll ich die Reinigung verschieben? Bitte den Namen nennen, z. B. „verschiebe die Reinigung von Niels auf 18.07.2026".', toolResults: [] }), jsonHeaders);
       }
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      // Nur ANSTEHENDE, aktive Reinigungen — Vergangenes/Storniertes ist nicht verschiebbar.
+      // (Filter in der DB statt in JS: vorher wurden ALLE Reinigungen geladen.)
       const { data: tasks } = await supabase
         .from('service_tasks')
-        .select('id, scheduled_date, booking_id, bookings(guest_name), houses(name)')
+        .select('id, scheduled_date, status, booking_id, bookings(guest_name), houses(name)')
         .eq('service_type', 'cleaning')
+        .not('status', 'in', '("cancelled","completed")')
+        .gte('scheduled_date', todayStr)
         .order('scheduled_date', { ascending: true });
       const list = (tasks || []).filter((t: any) =>
         (t.bookings?.guest_name || '').toLowerCase().includes(guestName.toLowerCase())
       );
-      const todayStr = new Date().toISOString().split('T')[0];
-      const task = list.find((t: any) => String(t.scheduled_date) >= todayStr) || list[0];
+
+      // MEHRERE TREFFER -> zur Auswahl vorlegen, nicht raten.
+      // Analog zur Definition (create_cleaning_for_booking, Schritt 3:
+      // "Mehrere Treffer: zeigt Buchungen zur Auswahl", wartet_uli).
+      // Vorher nahm der Code stillschweigend die nächstliegende — womöglich die falsche.
+      if (list.length > 1) {
+        const auswahl = list
+          .map((t: any, i: number) => `${i + 1}. ${t.bookings?.guest_name} — ${t.houses?.name || 'Objekt'}, ${formatDateDE(t.scheduled_date)}`)
+          .join('\n');
+        return new Response(JSON.stringify({
+          response: `Für „${guestName}" gibt es mehrere anstehende Reinigungen:\n${auswahl}\n\nWelche soll ich auf ${formatDateDE(dateInMsg)} verschieben? Nenne bitte das Haus oder das aktuelle Datum.`,
+          toolResults: [],
+        }), jsonHeaders);
+      }
+
+      const task = list[0];
       const toolResults: any[] = [];
       let text: string;
       if (!task) {
-        text = `Ich habe keine Reinigung für „${guestName}" gefunden.`;
+        text = `Ich habe keine anstehende Reinigung für „${guestName}" gefunden.`;
       } else {
-        const rr = await executeRescheduleCleaning({ task_id: (task as any).id, new_date: dateInMsg });
+        // quelle:'uli' -> der Wunsch kam direkt von Uli (nicht von Amela).
+        // KEIN logMaxAction hier: executeRescheduleCleaning protokolliert selbst
+        // (13.07.2026). Ein zweites Log hier erzeugte doppelte Vorgänge.
+        const rr = await executeRescheduleCleaning({ task_id: (task as any).id, new_date: dateInMsg, quelle: 'uli' });
         toolResults.push({ tool: 'reschedule_cleaning', args: { task_id: (task as any).id, new_date: dateInMsg }, result: rr });
         if (rr.success) {
-          await logMaxAction({
-            action_type: 'reschedule_cleaning',
-            status: 'wartet_uli',
-            waiting_for: 'uli',
-            booking_id: (task as any).booking_id ?? null,
-            guest_name: (rr as any).gast ?? guestName,
-            details: { task_id: (task as any).id, altes_datum: (rr as any).altes_datum, neues_datum: (rr as any).neues_datum, quelle: 'uli' },
-            created_by: 'uli',
-          });
           text = `✅ Auftrag ausgeführt: Reinigung für ${(rr as any).gast || guestName} von ${(rr as any).altes_datum} auf ${(rr as any).neues_datum} verschoben (als Entwurf). Bitte in der Reinigungs-Verwaltung auf „geplant" setzen.`;
         } else {
           text = `Konnte die Reinigung nicht verschieben: ${(rr as any).error || 'unbekannter Fehler'}`;
@@ -3119,21 +3227,15 @@ serve(async (req) => {
       if (!p) {
         text = 'Ich habe keinen offenen Termin-Vorschlag von Amela gefunden. Wenn du direkt verschieben willst, nenne Gast und Datum, z.B. „verschiebe die Reinigung von Niels auf 18.07.2026".';
       } else {
-        const rr = await executeRescheduleCleaning({ task_id: p.task_id, new_date: p.iso });
+        // quelle:'amela' -> der Wunsch kam aus Amelas Portal (max_ablaeufe, Schritt 1).
+        // KEIN logMaxAction hier: executeRescheduleCleaning protokolliert selbst
+        // (13.07.2026) und übernimmt die Herkunft aus params.quelle.
+        const rr = await executeRescheduleCleaning({ task_id: p.task_id, new_date: p.iso, quelle: 'amela' });
         toolResults.push({ tool: 'reschedule_cleaning', args: { task_id: p.task_id, new_date: p.iso }, result: rr });
         if (rr.success) {
           // HINWEIS: Amela wird NICHT mehr sofort bestätigt.
           // Die Bestätigung übernimmt der DB-Trigger, NACHDEM Uli den Status
           // in der Reinigungskarte auf "Geplant" (scheduled) gesetzt hat.
-          await logMaxAction({
-            action_type: 'reschedule_cleaning',
-            status: 'wartet_uli',
-            waiting_for: 'uli',
-            booking_id: p.booking_id ?? null,
-            guest_name: p.guest,
-            details: { task_id: p.task_id, altes_datum: p.old_date_de, neues_datum: p.new_date_de, quelle: 'amela' },
-            created_by: 'amela',
-          });
           text = `✅ Reinigung für ${p.guest} von ${p.old_date_de} auf ${p.new_date_de} geändert (Entwurf). Öffne die Reinigungskarte, prüfe das Datum und setze den Status auf „Geplant" — erst dann wird ${p.provider_name} automatisch informiert.`;
         } else {
           text = `Konnte die Reinigung nicht verschieben: ${(rr as any).error || 'unbekannter Fehler'}`;
