@@ -18,8 +18,9 @@ import {
  *             sendet die Edge Function `morning-summary` NICHTS —
  *             selbst wenn der Cron sie mit deliver=true aufruft.
  * - email_to: Empfänger der täglichen Übersicht.
- * - time:     Nur zur Anzeige/Dokumentation. Die tatsächliche Uhrzeit
- *             steuert der Cron-Job in der Datenbank (Änderung dort nötig).
+ * - time:     Wird hier NICHT mehr gesetzt. Die echten Uhrzeiten stehen in
+ *             `max_automation_schedule` und werden von der Karte
+ *             MaxAutomationScheduleCard.tsx gesteuert (deutsche Zeit).
  *
  * Die Übersicht im Chat (beim Öffnen der App) funktioniert unabhängig
  * von diesem Schalter — er betrifft nur die proaktive E-Mail.
@@ -104,7 +105,7 @@ const MaxMorningSummaryCard = () => {
             <Label className="text-sm font-medium">Tägliche E-Mail aktiv</Label>
             <p className="text-sm text-muted-foreground">
               {enabled
-                ? `Max sendet die Übersicht täglich um ${time} Uhr.`
+                ? 'Max sendet die Übersicht jeden Morgen (Uhrzeit siehe Karte „Zeiten der Automatik").'
                 : 'Max sendet nichts – die Übersicht erscheint nur im Chat, wenn du die App öffnest.'}
             </p>
           </div>
@@ -129,12 +130,12 @@ const MaxMorningSummaryCard = () => {
           />
         </div>
 
-        {/* Uhrzeit (Anzeige) */}
-        <div className="space-y-2 rounded-lg border p-4">
+        {/* Uhrzeit: wird in der Karte „Max: Zeiten der Automatik" gesteuert. */}
+        <div className="space-y-1 rounded-lg border border-dashed p-4">
           <Label className="text-sm font-medium">Uhrzeit</Label>
           <p className="text-sm text-muted-foreground">
-            Aktuell {time} Uhr. Die Uhrzeit wird vom Cron-Job in der Datenbank
-            gesteuert – eine Änderung hier dient nur der Dokumentation.
+            Die Uhrzeit stellst du in der Karte <strong>„Max: Zeiten der
+            Automatik"</strong> ein (weiter unten) — dort in deutscher Zeit.
           </p>
         </div>
 
