@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import RatingReminderSettingsCard from '@/components/Settings/RatingReminderSettingsCard';
 import MaxMorningSummaryCard from '@/components/Settings/MaxMorningSummaryCard';
+import MaxAutomationScheduleCard from '@/components/Settings/MaxAutomationScheduleCard';
 import GuestImportCard from '@/components/Settings/GuestImportCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -397,6 +398,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
         {/* Max: Morgen-Übersicht */}
         <MaxMorningSummaryCard />
+
+        {/* Uhrzeiten aller vier Max-Automatiken (deutsche Zeit) */}
+        <MaxAutomationScheduleCard />
 
         {/* Bewertungs-Erinnerungen */}
         <RatingReminderSettingsCard />
