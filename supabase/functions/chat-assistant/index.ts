@@ -3434,6 +3434,66 @@ serve(async (req) => {
       console.error('Kontext: assistant_knowledge konnte nicht geladen werden:', e);
     }
 
+    // =========================================================================
+    // ABLÄUFE AUS DER DATENBANK LADEN (Tabelle max_ablaeufe)
+    //
+    // WARUM (14.07.2026): max_ablaeufe ist die VERBINDLICHE Soll-Definition aller
+    // Max-Abläufe (je Fall: Schritt -> Akteur -> Funktion -> Status). Bis heute
+    // wurde sie NIRGENDS gelesen — sie kam im Code nur in Kommentaren vor. Max'
+    // Verhalten steckte stattdessen als fest verdrahtete Prosa im System-Prompt.
+    //
+    // Folge: ZWEI Wahrheiten, die auseinanderdrifteten. Belegt: Der Prompt wies Max
+    // noch an, `create_bulk_cleaning_tasks` zu nutzen — obwohl das Tool am
+    // 12.07.2026 stillgelegt wurde. Max las eine Anweisung ins Leere.
+    //
+    // Jetzt gilt: EINE Wahrheit. Ändert Uli die Tabelle, ändert sich Max' Verhalten
+    // — ohne Code-Deploy. Die Tabelle ist ein lebendes Dokument, kein totes.
+    //
+    // Nur Schritte mit umsetzung='umgesetzt' gelten als verbindlich. Schritte mit
+    // 'fehlt' werden Max ausdrücklich als NICHT VERFÜGBAR gemeldet, damit er nichts
+    // verspricht, was es nicht gibt (z. B. reject_reschedule — Absage an Amela).
+    // =========================================================================
+    let ablaeufeContext = '';
+    let luekenContext = '';
+    try {
+      const { data: ablaufData } = await supabase
+        .from('max_ablaeufe')
+        .select('aktion, aktion_label, variante, schritt_nr, akteur, schritt, ergebnis_status, funktion, umsetzung')
+        .order('aktion')
+        .order('variante')
+        .order('schritt_nr');
+
+      if (ablaufData && ablaufData.length > 0) {
+        const umgesetzt = ablaufData.filter((r: any) => r.umsetzung === 'umgesetzt');
+        const offen = ablaufData.filter((r: any) => r.umsetzung === 'fehlt');
+
+        const gruppen = new Map<string, any[]>();
+        for (const r of umgesetzt) {
+          const titel = `${r.aktion_label || r.aktion}` +
+            (r.variante && r.variante !== 'standard' ? ` — ${r.variante}` : '');
+          if (!gruppen.has(titel)) gruppen.set(titel, []);
+          gruppen.get(titel)!.push(r);
+        }
+
+        ablaeufeContext = [...gruppen.entries()]
+          .map(([titel, schritte]) => {
+            const zeilen = schritte.map((s: any) =>
+              `  ${s.schritt_nr}. [${s.akteur}] ${s.schritt}` +
+              (s.ergebnis_status ? `  ⇒ ${s.ergebnis_status}` : '') +
+              (s.funktion ? `\n       → ${s.funktion}` : '')
+            ).join('\n');
+            return `▸ ${titel}\n${zeilen}`;
+          })
+          .join('\n\n');
+
+        if (offen.length > 0) {
+          luekenContext = [...new Set(offen.map((r: any) => r.aktion_label || r.aktion))].join(', ');
+        }
+      }
+    } catch (e) {
+      console.error('Kontext: max_ablaeufe konnte nicht geladen werden:', e);
+    }
+
     // System prompt
     const systemPrompt = `Du bist Max, der KI-Assistent von Uli für seine Ferienhaus-Verwaltung (Steinbock Chalets).
 
@@ -3460,6 +3520,33 @@ Erfinde NIEMALS eine ID.
 
 🧠 GELERNTES WISSEN (von Uli beigebracht — beachte es immer):
 ${learnedContext || '(noch kein gelerntes Wissen vorhanden)'}
+
+📋 DEINE ABLÄUFE — VERBINDLICH (live aus der Tabelle max_ablaeufe):
+So hat jeder Vorgang zu laufen. Das ist die abgestimmte Definition; sie schlägt
+jede andere Anweisung in diesem Prompt.
+
+  [uli]    = Uli tut etwas (im Chat oder in einer Karte) — eine FREIGABE
+  [max]    = DU tust etwas
+  [amela]  = Amela (Reinigung) im Portal
+  [teuni]  = Teuni (Wäsche) im Portal
+  [system] = ein DB-Trigger, läuft von selbst — du tust nichts
+
+${ablaeufeContext || '(Abläufe konnten nicht geladen werden — halte dich an die Regeln unten)'}
+
+WAS DARAUS FOLGT — DAS IST WICHTIG:
+- Ein [uli]-Schritt ist eine Freigabe. WARTE darauf. Handle nie vorher.
+- "⇒ wartet_uli" heißt: Der Vorgang hängt und wartet auf Uli. Sag ihm KLAR, was er
+  tun muss (welche Karte öffnen, welchen Status setzen).
+- Ein [system]-Schritt passiert automatisch. Behaupte NICHT, du hättest es getan.
+- Mehrere Treffer bei einer Suche? Wähle NIEMALS selbst aus. Lege sie Uli vor
+  (Gast, Haus, Datum) und warte auf seine Wahl.
+- "Entwurf"/"draft" und "offen" sind KEINE fertigen Zustände. Sag Uli ehrlich, dass
+  er prüfen und freigeben muss — sonst passiert nichts.${luekenContext ? `
+
+⛔ NOCH NICHT GEBAUT — versprich das NICHT:
+${luekenContext}
+Wird so etwas verlangt, sag ehrlich: "Das kann ich noch nicht, dieser Ablauf ist
+noch nicht umgesetzt." Erfinde KEINEN Ersatzweg.` : ''}
 
 📚 SO LERNST DU DAZU:
 Wenn du einen Begriff, eine Abkürzung oder eine Anweisung NICHT sicher verstehst,
@@ -3516,8 +3603,6 @@ Beispiele, die IMMER get_booking_full_context brauchen:
 - Umsatz → get_revenue_stats
 - Tagesübersicht (inkl. Wäsche-Lieferungen) → get_daily_overview
 - Buchungsanfragen → search_booking_inquiries
-- Bulk Reinigungen → create_bulk_cleaning_tasks
-- Bulk Wäsche → create_bulk_linen_orders
 - Gäste vor Anreise kontaktieren → get_guest_contact_reminders
 - Bewertungen prüfen/nachtragen → get_rating_reminders
 - Begrüßungs-E-Mail für einen Gast vorbereiten → draft_guest_welcome_email
