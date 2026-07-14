@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, GripVertical, Bot, MessagesSquare, LayoutDashboard, Settings, Workflow } from 'lucide-react';
+import { MessageCircle, X, GripVertical, Bot, MessagesSquare, LayoutDashboard, Settings, Workflow, Brain } from 'lucide-react';
 import { OperationsDashboard } from '@/components/Operations/OperationsDashboard';
 import MaxActionsPanel from './MaxActionsPanel';
 import MaxAblaeufePanel from './MaxAblaeufePanel';
+import MaxWissenPanel from './MaxWissenPanel';
 import { Button } from '@/components/ui/button';
 import { CloseButton } from '@/components/ui/close-button';
 import { Badge } from '@/components/ui/badge';
@@ -35,6 +36,7 @@ const ChatAssistant = () => {
   const [isDashboardOpen, setIsDashboardOpen] = useState(false);
   const [isMaxActionsOpen, setIsMaxActionsOpen] = useState(false);
   const [isMaxAblaeufeOpen, setIsMaxAblaeufeOpen] = useState(false);
+  const [isMaxWissenOpen, setIsMaxWissenOpen] = useState(false);
   const location = useLocation();
   const isMobileRaw = useIsMobile();
   const isMobile = isMobileRaw === undefined ? false : isMobileRaw;
@@ -178,6 +180,15 @@ const ChatAssistant = () => {
                   title="Max: Abläufe anzeigen"
                 >
                   <Workflow className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setIsMaxWissenOpen(true)}
+                  title="Max: Gelerntes Wissen pflegen"
+                >
+                  <Brain className="h-4 w-4" />
                 </Button>
               </>
             ) : (
@@ -433,6 +444,7 @@ const ChatAssistant = () => {
         {/* Max: Aktionen-Protokoll + Abläufe (auch im Split-View verfügbar) */}
         <MaxActionsPanel open={isMaxActionsOpen} onOpenChange={setIsMaxActionsOpen} />
         <MaxAblaeufePanel open={isMaxAblaeufeOpen} onOpenChange={setIsMaxAblaeufeOpen} />
+        <MaxWissenPanel open={isMaxWissenOpen} onOpenChange={setIsMaxWissenOpen} />
       </>
     );
   }
@@ -525,6 +537,7 @@ const ChatAssistant = () => {
 
       {/* Max: Abläufe (Kontrolle) */}
       <MaxAblaeufePanel open={isMaxAblaeufeOpen} onOpenChange={setIsMaxAblaeufeOpen} />
+      <MaxWissenPanel open={isMaxWissenOpen} onOpenChange={setIsMaxWissenOpen} />
     </>
   );
 };
