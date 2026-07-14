@@ -1528,6 +1528,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeCreateLinenForBooking(args);
     case 'update_linen_for_booking':
       return await executeUpdateLinenForBooking(args);
+    case 'reject_reschedule':
+      return await executeRejectReschedule(args);
     case 'reschedule_cleaning':
       return await executeRescheduleCleaning(args);
     case 'read_provider_replies':
@@ -1871,6 +1873,20 @@ function getToolDefinitions() {
     {
       type: "function",
       function: {
+        name: "reject_reschedule",
+        description: "Lehnt einen Terminänderungswunsch des Dienstleisters (z.B. Amela) AB. Anlass: Amela hat über den Portal-Button \"Neuer Termin: TT.MM.JJJJ\" um eine Verschiebung gebeten, und Uli will NICHT verschieben — der ursprüngliche Termin bleibt. Das Tool sendet Amela die Absage (\"Der Termin konnte leider nicht geändert werden.\") und stellt sicher, dass die Reinigung wieder auf 'geplant' steht. WICHTIG: (1) Rufe dieses Tool NUR nach ausdrücklicher Ablehnung durch Uli auf — frage vorher klar nach ('Soll ich Amela absagen? Der Termin am TT.MM. bleibt dann bestehen.'). (2) DU BRAUCHST DIE task_id. Nennt Uli nur einen Gastnamen, dann SUCHE SIE SELBST mit search_cleaning_tasks({guest_name: '...'}). (3) Das Tool prüft selbst, ob überhaupt ein Änderungswunsch vorliegt — gibt es keinen, meldet es einen Fehler. Melde Uli danach, dass die Absage raus ist und welcher Termin bestehen bleibt.",
+        parameters: {
+          type: "object",
+          properties: {
+            task_id: { type: "string", description: "Die ID der Reinigung, deren Terminänderung abgelehnt wird" }
+          },
+          required: ["task_id"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
         name: "read_provider_replies",
         description: "Liest die jüngsten Antworten von Amela/Teuni und verknüpft jede mit der Reinigung, auf die sie sich bezieht (über related_task_id - so ist eindeutig klar, welche Reinigung gemeint ist). Nutze dieses Tool bei Fragen wie 'Hat Amela geantwortet?', 'Gibt es neue Rückmeldungen?', 'Was hat Teuni geschrieben?'. Wenn eine Antwort einen Terminänderungswunsch enthält, fasse ihn mit dem konkreten Bezug zusammen (Gast, Haus, aktuelles Datum) und frage Uli, ob du die Änderung mit reschedule_cleaning durchführen sollst. Reine Leseoperation.",
         parameters: {
@@ -1961,6 +1977,126 @@ function getToolDefinitions() {
  *  - ist_terminfrage = false -> es wird NICHTS gesendet; die Nachricht wird nur als Entwurf
  *    zurückgegeben, damit Max sie dem Nutzer zur Freigabe vorlegt.
  */
+async function executeRejectReschedule(params: any) {
+  console.log('Executing reject_reschedule with params:', params);
+
+  const taskId = params.task_id;
+  if (!taskId) {
+    return {
+      success: false,
+      error: 'task_id ist erforderlich. Suche die Reinigung zuerst mit search_cleaning_tasks.',
+    };
+  }
+
+  // Reinigung laden (mit Provider und Gast — für die Rückmeldung an Uli).
+  const { data: task, error: tErr } = await supabase
+    .from('service_tasks')
+    .select(`
+      id, status, scheduled_date, provider_id, booking_id,
+      houses!service_tasks_house_id_fkey(name),
+      bookings!service_tasks_booking_id_fkey(guest_name)
+    `)
+    .eq('id', taskId)
+    .eq('service_type', 'cleaning')
+    .maybeSingle();
+
+  if (tErr || !task) {
+    return { success: false, error: 'Reinigung nicht gefunden (task_id: ' + taskId + ')' };
+  }
+
+  if (!task.provider_id) {
+    return {
+      success: false,
+      error: 'Der Reinigung ist kein Dienstleister zugeordnet — es gibt niemanden zu benachrichtigen.',
+    };
+  }
+
+  // Gab es überhaupt einen Änderungswunsch? Ohne Wunsch keine Absage.
+  // (Dieselbe Prüfung wie im DB-Trigger notify_amela_on_cleaning_release.)
+  const { data: letzteAntwort } = await supabase
+    .from('provider_messages')
+    .select('id, message, created_at')
+    .eq('related_task_id', taskId)
+    .eq('sender_type', 'provider')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!letzteAntwort) {
+    return {
+      success: false,
+      error: 'Zu dieser Reinigung liegt keine Antwort des Dienstleisters vor. ' +
+             'Eine Absage ohne vorherigen Änderungswunsch ergibt keinen Sinn.',
+    };
+  }
+
+  if (!/Neuer Termin:\s*\d{1,2}\.\d{1,2}\.\d{4}/.test(letzteAntwort.message || '')) {
+    return {
+      success: false,
+      error: 'Die letzte Antwort war kein Terminänderungswunsch ("' +
+             (letzteAntwort.message || '').slice(0, 60) + '"). Es gibt nichts abzulehnen.',
+    };
+  }
+
+  // Absage an den Dienstleister — WORTGLEICH mit dem DB-Trigger (Fall 2),
+  // damit Amela immer denselben Satz sieht. related_task_id hält die Kette zusammen.
+  const { error: msgErr } = await supabase
+    .from('provider_messages')
+    .insert({
+      provider_id: task.provider_id,
+      sender_type: 'assistant',
+      message: 'Der Termin konnte leider nicht geändert werden.',
+      related_task_id: taskId,
+      is_read: false,
+    });
+
+  if (msgErr) {
+    return { success: false, error: 'Absage konnte nicht gesendet werden: ' + msgErr.message };
+  }
+
+  // Reinigung zurücksetzen: sie bleibt beim ALTEN Termin und ist wieder verbindlich.
+  // (Falls sie durch einen früheren Anlauf auf 'draft' steht, zurück auf 'scheduled'.)
+  let zurueckgesetzt = false;
+  if (task.status === 'draft') {
+    const { error: updErr } = await supabase
+      .from('service_tasks')
+      .update({ status: 'scheduled' })
+      .eq('id', taskId);
+    if (!updErr) zurueckgesetzt = true;
+  }
+
+  const gast = (task as any).bookings?.guest_name ?? 'Buchung';
+  const haus = (task as any).houses?.name ?? 'Haus';
+
+  await logMaxAction({
+    action_type: 'reject_reschedule',
+    status: 'abgelehnt',              // Endstatus laut max_ablaeufe (Schritt 4).
+                                      // Nichts bleibt offen; kein Trigger nötig.
+    booking_id: task.booking_id,
+    related_task_id: taskId,
+    waiting_for: null,
+    last_step: 'Uli hat die Terminänderung abgelehnt — Absage an den Dienstleister gesendet',
+    details: {
+      task_id: taskId,
+      gast,
+      haus,
+      termin_bleibt: task.scheduled_date,
+      zurueckgesetzt,
+    },
+    created_by: 'uli',
+  });
+
+  return {
+    success: true,
+    task_id: taskId,
+    guest_name: gast,
+    house_name: haus,
+    termin_bleibt: task.scheduled_date,
+    zurueckgesetzt,
+    nachricht_gesendet: 'Der Termin konnte leider nicht geändert werden.',
+  };
+}
+
 async function executeSendProviderMessage(params: any) {
   console.log('Executing send_provider_message with params:', params);
 
@@ -3679,7 +3815,17 @@ Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst
 - Bestätige zuerst das genaue alte und neue Datum: "Soll ich die Reinigung für [Gast] von [alt] auf [neu] verschieben?" und warte auf ein klares "ja".
 - Erst dann rufst du reschedule_cleaning auf (new_date im Format YYYY-MM-DD).
 - Der Termin wird als ENTWURF (draft) markiert. Melde Uli ehrlich, dass er die Änderung prüfen und auf "geplant" setzen muss.
-- Wenn die Buchung nicht eindeutig ist, nutze zuerst search_bookings, um die richtige zu finden.`;
+- Wenn die Buchung nicht eindeutig ist, nutze zuerst search_bookings, um die richtige zu finden.
+
+ABLEHNUNG EINER TERMINÄNDERUNG (reject_reschedule)
+Lehnt Uli Amelas Terminwunsch AB ("nein", "geht nicht", "soll bleiben"), dann darf
+das nicht einfach im Sande verlaufen — Amela wartet auf eine Antwort.
+- Frage klar nach: "Soll ich Amela absagen? Der Termin am [Datum] bleibt dann bestehen."
+- Nach einem klaren "ja" rufst du reject_reschedule({task_id}) auf.
+- Brauchst du die task_id, suche sie selbst mit search_cleaning_tasks({guest_name}).
+- Das Tool sendet Amela "Der Termin konnte leider nicht geändert werden." und stellt
+  sicher, dass die Reinigung wieder auf "geplant" steht.
+- Melde Uli danach: Absage ist raus, welcher Termin bestehen bleibt.`;
 
     const tools = getToolDefinitions();
 
