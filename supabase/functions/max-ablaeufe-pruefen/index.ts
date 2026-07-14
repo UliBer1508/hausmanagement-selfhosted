@@ -21,9 +21,17 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.0';
  * (Tools, Edge Functions, DB-Trigger) und prüft JEDEN einzeln gegen die
  * Wirklichkeit:
  *
- *   - Tool          -> existiert es in den Tool-Definitionen von chat-assistant?
- *   - Edge Function -> gibt es sie (antwortet sie auf OPTIONS)?
- *   - DB-Trigger    -> steht er in pg_trigger?
+ *   - Tool          -> steht es im ECHTEN chat-assistant-Code? (wird von GitHub
+ *                      geladen und ausgelesen — keine Handliste)
+ *   - Edge Function -> gibt es den Ordner im Repo? (GitHub-API)
+ *   - DB-Trigger    -> steht er in pg_trigger? (RPC max_pruefe_trigger_liste)
+ *
+ * KEINE HANDLISTEN (14.07.2026 umgebaut): Früher standen Tools und Edge Functions
+ * in fest einprogrammierten Listen. Die veralteten genau so, wie es diese Prüfung
+ * verhindern soll — reject_reschedule wurde gebaut und deployt, die Prüfung meldete
+ * es trotzdem als "existiert NICHT". Und in der Edge-Function-Liste stand eine
+ * Function, die es gar nicht gibt. Eine Wahrheitsprüfung, die selbst Unwahrheiten
+ * pflegt, ist wertlos. Jetzt wird beides aus der Quelle gelesen.
  *
  * Das Ergebnis landet in max_ablaeufe.geprueft_am / geprueft_status /
  * geprueft_befund. Damit ist `umsetzung` nicht mehr Ulis Behauptung, sondern
@@ -46,45 +54,83 @@ const supabase = createClient(
 );
 
 /**
- * Die Tools, die chat-assistant WIRKLICH kennt.
+ * Liest die Werkzeuge DIREKT aus dem echten chat-assistant-Code.
  *
- * WARUM HART HINTERLEGT: Eine Edge Function kann den Quelltext einer anderen
- * nicht lesen. Diese Liste MUSS mitgepflegt werden, wenn Tools dazukommen oder
- * wegfallen — sie ist der Prüfmaßstab.
+ * WARUM (14.07.2026 geändert):
+ * Vorher stand hier eine von Hand gepflegte Liste. Die veraltete genau so, wie es
+ * diese Prüfung eigentlich verhindern soll: reject_reschedule wurde gebaut und
+ * deployt — die Prüfung meldete es trotzdem als "existiert NICHT", weil niemand
+ * die Liste nachgezogen hatte. Eine Wahrheitsprüfung, die selbst eine
+ * Unwahrheit pflegt, ist wertlos.
  *
- * Stand 14.07.2026: 26 Tools.
- * Stillgelegt am 12.07.2026 (bewusst NICHT in der Liste, damit die Prüfung
- * anschlägt, falls sie irgendwo noch genannt werden):
- *   create_bulk_cleaning_tasks, create_bulk_linen_orders
+ * Jetzt holt sie die Quelldatei von GitHub (das Repo ist öffentlich) und liest
+ * die Tool-Namen aus den echten Definitionen. Dieselbe Idee wie bei den
+ * DB-Triggern, die schon immer dynamisch geprüft wurden.
+ *
+ * FALLBACK: Ist GitHub nicht erreichbar, wird NICHT geraten — die Tool-Prüfung
+ * wird dann übersprungen (Status 'unbekannt' statt 'fehler'). Lieber keine
+ * Aussage als eine falsche.
  */
-const VORHANDENE_TOOLS = new Set([
-  'accept_booking_inquiry',
-  'check_upcoming_bookings',
-  'create_cleaning_for_booking',
-  'create_linen_for_booking',
-  'draft_guest_welcome_email',
-  'get_booking_full_context',
-  'get_calendar_events',
-  'get_daily_overview',
-  'get_dashboard_stats',
-  'get_guest_contact_reminders',
-  'get_linen_overview',
-  'get_morning_summary',
-  'get_rating_reminders',
-  'get_revenue_stats',
-  'read_provider_replies',
-  'reject_booking_inquiry',
-  'reschedule_cleaning',
-  'save_knowledge',
-  'search_booking_inquiries',
-  'search_bookings',
-  'search_cleaning_tasks',
-  'search_guests',
-  'search_houses',
-  'search_linen_orders',
-  'send_provider_message',
-  'update_linen_for_booking',
-]);
+const CHAT_ASSISTANT_URL =
+  'https://raw.githubusercontent.com/UliBer1508/hausmanagement-selfhosted/main/supabase/functions/chat-assistant/index.ts';
+
+async function ladeVorhandeneTools(): Promise<Set<string> | null> {
+  try {
+    const res = await fetch(CHAT_ASSISTANT_URL, { cache: 'no-store' });
+    if (!res.ok) {
+      console.error('chat-assistant-Quelle nicht ladbar:', res.status);
+      return null;
+    }
+    const code = await res.text();
+
+    // Tool-Definitionen haben die Form:  name: "search_bookings",
+    const treffer = [...code.matchAll(/name:\s*"([a-z_]+)"\s*,/g)].map((m) => m[1]);
+
+    // Nur echte Tool-Namen: sie tauchen zusätzlich im Dispatcher auf (case '...':)
+    const tools = new Set<string>();
+    for (const t of treffer) {
+      if (code.includes(`case '${t}':`)) tools.add(t);
+    }
+
+    console.log(`${tools.size} Werkzeuge aus dem echten Code gelesen.`);
+    return tools.size > 0 ? tools : null;
+  } catch (e) {
+    console.error('Fehler beim Laden der chat-assistant-Quelle:', e);
+    return null;
+  }
+}
+
+/**
+ * Liest die vorhandenen Edge Functions DIREKT aus dem Repo (GitHub-API).
+ * Grund wie bei den Tools: Die Handliste war bereits veraltet.
+ * FALLBACK: null -> Prüfung wird übersprungen, statt Falsches zu melden.
+ */
+const FUNCTIONS_API =
+  'https://api.github.com/repos/UliBer1508/hausmanagement-selfhosted/contents/supabase/functions?ref=main';
+
+async function ladeVorhandeneEdgeFunctions(): Promise<Set<string> | null> {
+  try {
+    const res = await fetch(FUNCTIONS_API, {
+      headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'max-ablaeufe-pruefen' },
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      console.error('Edge-Function-Liste nicht ladbar:', res.status);
+      return null;
+    }
+    const eintraege = await res.json();
+    const namen = new Set<string>(
+      (Array.isArray(eintraege) ? eintraege : [])
+        .filter((e: any) => e.type === 'dir' && !e.name.startsWith('_'))
+        .map((e: any) => e.name as string),
+    );
+    console.log(`${namen.size} Edge Functions aus dem Repo gelesen.`);
+    return namen.size > 0 ? namen : null;
+  } catch (e) {
+    console.error('Fehler beim Laden der Edge-Function-Liste:', e);
+    return null;
+  }
+}
 
 /** Zerlegt das Freitext-Feld `funktion` in prüfbare Bausteine. */
 function extrahiereBausteine(funktion: string) {
@@ -104,29 +150,21 @@ serve(async (req) => {
   try {
     // ---- 1. Wirklichkeit erheben -------------------------------------------
 
+    // Welche Werkzeuge gibt es? Direkt aus dem echten chat-assistant-Code.
+    // null = Quelle nicht erreichbar -> Tool-Prüfung wird übersprungen (siehe unten).
+    const VORHANDENE_TOOLS = await ladeVorhandeneTools();
+
     // Welche DB-Trigger gibt es? (Eine einzige Abfrage statt 43 Einzelprüfungen.)
     const { data: triggerData } = await supabase.rpc('max_pruefe_trigger_liste');
     const vorhandeneTrigger = new Set<string>(
       (triggerData || []).map((t: any) => t.trigger_name),
     );
 
-    // Welche Edge Functions gibt es? Aus der Liste, die im Repo liegt.
-    // (Deno kann den Ordner zur Laufzeit nicht lesen — daher hart hinterlegt.
-    //  Muss mitgepflegt werden, wie VORHANDENE_TOOLS.)
-    const VORHANDENE_EDGE_FUNCTIONS = new Set([
-      'chat-assistant',
-      'create-cleaning-task-for-booking',
-      'create-linen-order-for-booking',
-      'generate-booking-linen-order',
-      'max-cleaning-reminders',
-      'max-linen-reminders',
-      'morning-summary',
-      'overdue-watch',
-      'send-guest-email',
-      'send-provider-message',
-      'auto-create-linen-orders',
-      'max-ablaeufe-pruefen',
-    ]);
+    // Welche Edge Functions gibt es? Direkt aus dem echten Repo (GitHub-API).
+    // Vorher stand hier eine Handliste — sie war bereits falsch: 'send-provider-message'
+    // war eingetragen, existiert aber nicht; über 20 echte Functions fehlten.
+    // null = nicht erreichbar -> keine Aussage treffen (siehe unten).
+    const VORHANDENE_EDGE_FUNCTIONS = await ladeVorhandeneEdgeFunctions();
 
     // ---- 2. Jede Zeile prüfen ----------------------------------------------
     const { data: zeilen, error } = await supabase
@@ -147,14 +185,19 @@ serve(async (req) => {
       const geprueft: string[] = [];
 
       for (const t of tools) {
-        if (VORHANDENE_TOOLS.has(t)) {
+        if (VORHANDENE_TOOLS === null) {
+          // Quelle nicht erreichbar -> keine Aussage treffen (lieber nichts als Falsches).
+          geprueft.push(`Tool ${t} (nicht prüfbar: Quelle nicht erreichbar)`);
+        } else if (VORHANDENE_TOOLS.has(t)) {
           geprueft.push(`Tool ${t}`);
         } else {
           probleme.push(`Tool "${t}" existiert NICHT in chat-assistant`);
         }
       }
       for (const e of edgeFunctions) {
-        if (VORHANDENE_EDGE_FUNCTIONS.has(e)) {
+        if (VORHANDENE_EDGE_FUNCTIONS === null) {
+          geprueft.push(`Edge Function ${e} (nicht prüfbar: Repo nicht erreichbar)`);
+        } else if (VORHANDENE_EDGE_FUNCTIONS.has(e)) {
           geprueft.push(`Edge Function ${e}`);
         } else {
           probleme.push(`Edge Function "${e}" existiert NICHT`);
@@ -218,7 +261,9 @@ serve(async (req) => {
     for (const z of zeilen || []) {
       extrahiereBausteine(z.funktion || '').tools.forEach((t) => genannteTools.add(t));
     }
-    const nichtDefiniert = [...VORHANDENE_TOOLS].filter((t) => !genannteTools.has(t));
+    const nichtDefiniert = VORHANDENE_TOOLS === null
+      ? []
+      : [...VORHANDENE_TOOLS].filter((t) => !genannteTools.has(t));
 
     const ergebnis = {
       geprueft_am: jetzt,
