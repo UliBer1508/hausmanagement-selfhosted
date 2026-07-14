@@ -326,6 +326,22 @@ serve(async (req) => {
       overdueActions = od ?? [];
     }
 
+    // ---- SYSTEM-BEFUNDE (von max-ablaeufe-pruefen) ----
+    // Die tägliche Wahrheitsprüfung schreibt geprueft_status in max_ablaeufe.
+    // 'fehler' heißt: Ein Ablauf verweist auf einen Baustein (Tool, Edge Function,
+    // DB-Trigger), den es NICHT (mehr) gibt. Das ist ein Systemfehler, kein
+    // Tagesgeschäft — er gehört ganz nach oben, noch vor die Überfälligen.
+    let systemBefunde: any[] = [];
+    if (includeCfg.system !== false) {
+      const { data: sb } = await supabase
+        .from('max_ablaeufe')
+        .select('aktion, aktion_label, variante, schritt_nr, geprueft_befund, geprueft_am')
+        .eq('geprueft_status', 'fehler')
+        .order('aktion')
+        .limit(10);
+      systemBefunde = sb ?? [];
+    }
+
     // ---- hasAnyData (identisch zum Hook) ----
     const hasAnyData =
       upcomingBookings.length > 0 ||
@@ -333,6 +349,7 @@ serve(async (req) => {
       linenOrders.length > 0 ||
       guestContactReminders.length > 0 ||
       overdueActions.length > 0 ||
+      systemBefunde.length > 0 ||
       (ratingsEnabled && ratingReminders.length > 0);
 
     // ---- Marketing-Helfer (identisch zum Hook) ----
@@ -363,6 +380,21 @@ serve(async (req) => {
     message += `📅 ${formatLongDE(now)}\n\n`;
 
     // ÜBERFÄLLIG (höchste Priorität — jemand hat nicht geantwortet)
+    // SYSTEMFEHLER zuerst — noch vor dem Tagesgeschäft.
+    // Ein Ablauf verweist auf einen Baustein, den es nicht (mehr) gibt.
+    // Das bedeutet: Max arbeitet womöglich mit einer Anweisung ins Leere.
+    if (systemBefunde.length > 0) {
+      message += `🔧 **${systemBefunde.length} Systemfehler in den Abläufen**\n`;
+      systemBefunde.forEach((b: any) => {
+        const name = b.aktion_label || b.aktion;
+        const wo = b.variante && b.variante !== 'standard'
+          ? `${name} (${b.variante}), Schritt ${b.schritt_nr}`
+          : `${name}, Schritt ${b.schritt_nr}`;
+        message += `• **${wo}** – ${b.geprueft_befund || 'Baustein fehlt'}\n`;
+      });
+      message += `_Prüfe das im Fenster „Max: Abläufe (Kontrolle)"._\n\n`;
+    }
+
     if (overdueActions.length > 0) {
       message += `⚠️ **${overdueActions.length} überfällige(r) Vorgang/Vorgänge**\n`;
       overdueActions.forEach((a: any) => {
@@ -559,6 +591,7 @@ serve(async (req) => {
         summary_markdown: message,
         hasData: hasAnyData,
         sections: {
+          system: systemBefunde.length,      // Systemfehler in den Abläufen
           overdue: overdueActions.length,
           guest_contact: guestContactReminders.length,
           ratings: ratingReminders.length,
