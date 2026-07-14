@@ -40,6 +40,36 @@ interface ChatMessageProps {
   onClose?: () => void;
 }
 
+/**
+ * Stellt **Fettdruck** dar, statt die Sternchen roh anzuzeigen.
+ *
+ * WARUM KEINE MARKDOWN-BIBLIOTHEK (13.07.2026):
+ * Max' Antworten (chat-assistant) und die Morgen-Übersicht (morning-summary)
+ * erzeugen Markdown — aber praktisch NUR `**fett**`. Keine Überschriften, keine
+ * Links, keine Tabellen; Aufzählungen laufen über das Zeichen „•", das ohnehin
+ * reiner Text ist.
+ *
+ * `react-markdown` wäre für diesen einen Effekt unverhältnismäßig: neues Paket,
+ * mehr Bundle-Gewicht, und es öffnet die Frage nach HTML-Injection. Diese
+ * Funktion splittet stattdessen am `**` und macht jeden zweiten Abschnitt fett —
+ * kein `dangerouslySetInnerHTML`, React escapt alles wie gewohnt.
+ *
+ * Sonderfall: Eine ungerade Zahl von `**` (z. B. ein einzelner Stern im Text)
+ * lässt den letzten Abschnitt normal — es geht kein Text verloren.
+ */
+const renderBold = (text: string) => {
+  const teile = text.split('**');
+  // Ohne Sternchen: unverändert zurückgeben (der Normalfall).
+  if (teile.length === 1) return text;
+
+  return teile.map((teil, i) =>
+    // Ungerade Indizes lagen ZWISCHEN zwei ** -> fett.
+    i % 2 === 1
+      ? <strong key={i} className="font-semibold">{teil}</strong>
+      : <span key={i}>{teil}</span>
+  );
+};
+
 const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
   const isUser = message.role === 'user';
   const navigate = useNavigate();
@@ -133,7 +163,11 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
               : 'bg-muted max-w-[90%]'
           )}
         >
-          <p className="whitespace-pre-wrap break-words">{text}</p>
+          {/* renderBold statt {text}: Max' Antworten und die Morgen-Übersicht
+              enthalten **Fettdruck**. Ohne Aufbereitung wurden die Sternchen
+              roh angezeigt („**2 Gäste vor Anreise**"). whitespace-pre-wrap
+              bleibt — die Zeilenumbrüche aus dem Text sind weiterhin nötig. */}
+          <p className="whitespace-pre-wrap break-words">{renderBold(text)}</p>
 
           {/* Entity Action Links */}
           {links.length > 0 && (
