@@ -25,6 +25,10 @@ import {
   Pencil,
   Save,
   X,
+  ShieldCheck,
+  ShieldAlert,
+  Minus,
+  SearchCheck,
 } from 'lucide-react';
 
 interface MaxAblaeufePanelProps {
@@ -48,6 +52,13 @@ interface Ablauf {
   funktion: string | null;
   created_at: string;
   updated_at: string;
+  // Prüfbefund (14.07.2026) — wird von der Edge Function max-ablaeufe-pruefen
+  // geschrieben, NICHT von Hand. Das ist der Unterschied zu `umsetzung`:
+  //   umsetzung       = was Uli WILL  (eine Absicht)
+  //   geprueft_status = was WIRKLICH da ist (ein Befund)
+  geprueft_am: string | null;
+  geprueft_status: string | null;   // 'ok' | 'fehler' | 'kein_code'
+  geprueft_befund: string | null;
 }
 
 // NUR diese beiden Felder sind unsere eigenen Pflege-/Kontrollfelder und
@@ -76,6 +87,39 @@ const MaxAblaeufePanel = ({ open, onOpenChange }: MaxAblaeufePanelProps) => {
   const [aktionFilter, setAktionFilter] = useState<string>('all');
   const [umsetzungFilter, setUmsetzungFilter] = useState<string>('all');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [pruefeLaeuft, setPruefeLaeuft] = useState(false);
+  const [pruefErgebnis, setPruefErgebnis] = useState<string | null>(null);
+
+  /**
+   * Prüft die Tabelle gegen den WIRKLICHEN Code.
+   *
+   * Bis 14.07.2026 war `umsetzung` eine reine Behauptung: Uli klickte
+   * "umgesetzt", und niemand prüfte nach. Diese Funktion ruft die Edge Function
+   * max-ablaeufe-pruefen auf, die jeden in `funktion` genannten Baustein
+   * (Tool / Edge Function / DB-Trigger) gegen die Wirklichkeit abgleicht und
+   * das Ergebnis in geprueft_status/geprueft_befund schreibt.
+   */
+  const pruefen = async () => {
+    setPruefeLaeuft(true);
+    setPruefErgebnis(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('max-ablaeufe-pruefen');
+      if (error) throw error;
+      const fehler = data?.fehler ?? 0;
+      const ok = data?.ok ?? 0;
+      setPruefErgebnis(
+        fehler > 0
+          ? `${fehler} Abweichung(en) gefunden — ${ok} Schritte in Ordnung.`
+          : `Alles stimmt: ${ok} Schritte geprüft, keine Abweichung.`,
+      );
+      await refetch();
+    } catch (e) {
+      console.error('[MaxAblaeufePanel] Prüfung fehlgeschlagen', e);
+      setPruefErgebnis('Die Prüfung konnte nicht ausgeführt werden.');
+    } finally {
+      setPruefeLaeuft(false);
+    }
+  };
   const [editNotizId, setEditNotizId] = useState<string | null>(null);
   const [notizDraft, setNotizDraft] = useState<string>('');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -213,9 +257,36 @@ const MaxAblaeufePanel = ({ open, onOpenChange }: MaxAblaeufePanelProps) => {
             </SelectContent>
           </Select>
 
+          <Button
+            size="sm"
+            variant="default"
+            onClick={pruefen}
+            disabled={pruefeLaeuft}
+            title="Prüft jeden Schritt gegen den wirklichen Code — statt zu glauben, was hier steht"
+          >
+            {pruefeLaeuft ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <SearchCheck className="mr-1 h-4 w-4" />
+            )}
+            Gegen Code prüfen
+          </Button>
+
           <Button variant="ghost" size="icon" onClick={() => refetch()} title="Aktualisieren">
             <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
           </Button>
+
+          {pruefErgebnis && (
+            <span
+              className={`ml-2 text-xs ${
+                pruefErgebnis.includes('Abweichung(en)')
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-emerald-600 dark:text-emerald-400'
+              }`}
+            >
+              {pruefErgebnis}
+            </span>
+          )}
 
           <div className="ml-auto flex items-center gap-2 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center rounded px-1.5 py-0.5 border bg-emerald-100 text-emerald-800 border-emerald-300">umgesetzt</span>
@@ -343,19 +414,49 @@ const MaxAblaeufePanel = ({ open, onOpenChange }: MaxAblaeufePanelProps) => {
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-start gap-1">
-                            <p className="text-amber-700 dark:text-amber-300 break-words flex-1">
-                              {r.notiz ? `📝 ${r.notiz}` : <span className="text-muted-foreground/50">keine Notiz</span>}
-                            </p>
-                            <button
-                              type="button"
-                              className="text-muted-foreground hover:text-foreground shrink-0"
-                              title="Notiz bearbeiten"
-                              onClick={() => startNotiz(r)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                          <>
+                            <div className="flex items-start gap-1">
+                              <p className="text-amber-700 dark:text-amber-300 break-words flex-1">
+                                {r.notiz ? `📝 ${r.notiz}` : <span className="text-muted-foreground/50">keine Notiz</span>}
+                              </p>
+                              <button
+                                type="button"
+                                className="text-muted-foreground hover:text-foreground shrink-0"
+                                title="Notiz bearbeiten"
+                                onClick={() => startNotiz(r)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+
+                            {/* PRÜFBEFUND — kommt von der Edge Function, nicht von Uli.
+                                Das ist der Unterschied zu `umsetzung`:
+                                  umsetzung  = was Uli WILL (Absicht)
+                                  hier unten = was WIRKLICH da ist (Befund) */}
+                            {r.geprueft_status === 'fehler' && (
+                              <p className="mt-1 flex items-start gap-1 text-red-700 dark:text-red-300 break-words">
+                                <ShieldAlert className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                <span>{r.geprueft_befund}</span>
+                              </p>
+                            )}
+                            {r.geprueft_status === 'ok' && (
+                              <p className="mt-1 flex items-start gap-1 text-emerald-700 dark:text-emerald-300 break-words">
+                                <ShieldCheck className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                <span>{r.geprueft_befund}</span>
+                              </p>
+                            )}
+                            {r.geprueft_status === 'kein_code' && (
+                              <p className="mt-1 flex items-start gap-1 text-muted-foreground/60 break-words">
+                                <Minus className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                                <span>Menschlicher Schritt — kein Code zu prüfen</span>
+                              </p>
+                            )}
+                            {!r.geprueft_status && (
+                              <p className="mt-1 text-muted-foreground/50">
+                                Noch nie gegen den Code geprüft.
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
