@@ -69,6 +69,7 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   reschedule_cleaning: 'Reinigung verschoben',
   accept_booking_inquiry: 'Buchungsanfrage angenommen',
   reject_booking_inquiry: 'Buchungsanfrage abgelehnt',
+  reject_reschedule: 'Terminänderung abgelehnt',
   create_cleaning_for_booking: 'Reinigung angelegt',
   create_linen_for_booking: 'Wäsche angelegt',
   update_linen_for_booking: 'Wäsche angepasst',
