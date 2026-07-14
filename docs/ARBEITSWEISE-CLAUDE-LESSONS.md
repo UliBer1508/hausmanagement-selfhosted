@@ -105,12 +105,93 @@ gefixt, Wäschekarte nicht. `create_linen` gefixt, `update_linen` nicht.
 
 ---
 
+### Nachtrag 2 vom 13.07.2026 — der schwerere Fehler: an der SOLL-DEFINITION vorbeigebaut
+
+Am selben Tag, nach der Prüfsitzung, passierte es ein zweites Mal — und diesmal
+gravierender.
+
+Claude untersuchte den Reschedule-Ablauf, fand, dass er „sofort ausführt, ohne zu
+fragen", hielt das für einen Verstoß gegen das Modell-A-Prinzip und **begann, eine
+Bestätigungs-Rückfrage einzubauen**.
+
+Uli hielt an: *„Wir haben die Tabelle `max_ablaeufe`, in der alle Prozessabläufe
+von Max definiert sind. Hast du diese gelesen? Ich glaube, wir ändern den Code
+ständig hin und her und beachten die klaren Definitionen nicht."*
+
+**Er hatte recht. Claude hatte sie nie gelesen.**
+
+Die Tabelle steht **nicht im Repo** — sie liegt in der Datenbank. Claude hatte
+sogar die SQL-Datei geschrieben, die sie als „Soll-Vorgabe, Checkliste"
+dokumentiert — und trotzdem nie hineingesehen.
+
+**Was die Definition sagt** (`reschedule_cleaning`, standard):
+
+| # | Akteur | Schritt |
+|---|---|---|
+| 1 | uli | Änderungswunsch (Uli direkt **oder Amela** via Portal) |
+| 2 | max | Ordnet die Reinigung über `related_task_id` zu |
+| 3 | max | **Ändert auf neues Datum, Status `draft`** |
+| 4 | max | Zeigt Button „Reinigung öffnen" |
+| 5 | uli | Prüft in der Karte, setzt „Geplant" |
+| 6 | system | DB-Trigger informiert Amela → abgeschlossen |
+
+**Es gibt keinen Bestätigungs-Schritt zwischen 1 und 3 — und das ist kein Verstoß
+gegen Modell A, sondern dessen Umsetzung: `draft` IST die Freigabestufe.** Die
+Änderung ist reversibel und folgenlos, bis Uli auf „Geplant" setzt.
+
+Bei `accept_booking_inquiry` steht sehr wohl eine Chat-Bestätigung in der
+Definition — weil eine Buchung anzulegen **nicht** reversibel ist. Der Unterschied
+ist bewusst gesetzt; Claude hätte ihn eingeebnet.
+
+**Der Umbau wurde verworfen.**
+
+---
+
+**Und ein Folgefehler, den Claude selbst verursachte:**
+
+Der Fix „`reschedule_cleaning` schreibt kein Protokoll" war richtig — die Tabelle
+sagte es selbst (Schritt 6, Notiz: *„Kette per appendWorkflowStep fortschreiben"*).
+Aber Claude ergänzte `logMaxAction` **in der Funktion**, ohne zu prüfen, **wer sie
+aufruft**. Die beiden deterministischen Pfade loggten bereits selbst.
+
+Folge: **zwei `max_actions`-Einträge pro Verschiebung**, der Vorgang erschien im
+Max-Aktionen-Fenster doppelt. Ein neuer Bug, erzeugt beim Beheben eines alten.
+
+---
+
+**Drei Regeln daraus:**
+
+> **1. `max_ablaeufe` ist die verbindliche Soll-Definition — und sie steht in der
+> DATENBANK, nicht im Repo.** Vor jeder Arbeit an Max abfragen:
+> `select * from max_ablaeufe order by aktion, variante, schritt_nr;`
+> Wer sie nicht liest, baut an der Definition vorbei. Der Code sagt, was IST —
+> die Tabelle sagt, was SEIN SOLL. Bei Widerspruch gewinnt die Tabelle (oder man
+> ändert sie bewusst, nach Rücksprache).
+
+> **2. Doppelgänger gibt es auch auf der AUFRUFER-Ebene.** Vor dem Ändern einer
+> Funktion prüfen: Wer ruft sie auf, und was tut der schon? Eine Funktion um
+> Logging zu ergänzen, obwohl die Aufrufer bereits loggen, erzeugt Doppel-Einträge.
+
+> **3. Nicht alles läuft über Gemini.** `serve()` hat deterministische Pfade
+> (Regex-Erkennung), die Gemini komplett umgehen — für Reschedule und
+> Begrüßungs-E-Mail. Tool-Definitionen zu ändern wirkt dort **überhaupt nicht**.
+> Wer nur die Tool-Liste liest, versteht den halben Assistenten.
+
+---
+
 ## 2. Pflicht-Reihenfolge VOR jeder Aussage/Änderung
 
 Diese Schritte sind **nicht optional** und werden **in dieser Reihenfolge**
 ausgeführt:
 
-1. **Regeln laden.** `AGENTS.md` + `CODE-INDEX.md` + diese Datei lesen.
+0. **Bei ALLEM, was Max betrifft: `max_ablaeufe` ABFRAGEN.** Die verbindliche
+   Soll-Definition liegt in der **Datenbank**, nicht im Repo:
+   `select * from max_ablaeufe order by aktion, variante, schritt_nr;`
+   Ebenso `assistant_knowledge` (Max' gelerntes Wissen). Ohne diese Tabelle baut
+   man an der Definition vorbei.
+1. **Regeln laden.** `AGENTS.md` + `CODE-INDEX.md` + diese Datei lesen. Bei
+   Max-Themen zusätzlich `docs/chat-assistant-aenderungen.md` (deterministische
+   Pfade!) und `supabase/SQL/README.md` (DB-Trigger).
 2. **Tab bestimmen.** „Welcher Tab?“ — nie „welche Route?“. Bei UI-Themen:
    den Screenshot/Tab eindeutig dem Einstiegspunkt zuordnen
    (`CODE-INDEX.md` Abschnitt 2).
@@ -173,8 +254,15 @@ Prompt herausgibt. Wenn eine Antwort „nein/unklar“ ist → zurück zu Abschn
 - [ ] Bei DB-Feldern: Habe ich die **Spaltenexistenz im Schema** belegt, bevor ich
       Code baue, der darauf schreibt?
 - [ ] Bei UI-Änderungen: Enthält mein Prompt **explizite Mobile-Vorgaben**?
-- [ ] Habe ich nach dem letzten Lovable-Lauf den **Ist-Stand verifiziert** (statt
+- [ ] Habe ich nach dem letzten Lauf den **Ist-Stand verifiziert** (statt
       „erledigt" zu glauben)?
+- [ ] Bei Max-Themen: Habe ich **`max_ablaeufe` abgefragt** und meine Änderung
+      gegen die Soll-Definition abgeglichen?
+- [ ] Bei Max-Themen: Weiß ich, ob der Befehl über **Gemini** oder über einen
+      **deterministischen Pfad** läuft? (Reschedule und Begrüßungs-E-Mail umgehen
+      Gemini komplett.)
+- [ ] Bevor ich eine Funktion ändere: Habe ich geprüft, **wer sie aufruft** und was
+      der Aufrufer schon tut?
 
 ---
 

@@ -392,6 +392,23 @@ Drei Fehler an einem Tag, alle mit derselben Wurzel: **geschlossen statt nachges
 **Merksatz:** Eine Vermutung, die man nicht am Code belegen kann, ist keine
 Diagnose — und darf keine Änderung auslösen.
 
+### ⚠️ Architektur-Kernfakt: Nicht alles läuft über Gemini
+
+`chat-assistant/serve()` hat **zwei Wege**:
+
+1. **Deterministische Pfade** — Regex-Erkennung im Nutzertext, führen **direkt
+   aus**. Gemini wird **nie gefragt**. Betrifft: **Begrüßungs-E-Mail** und
+   **Reschedule** (Pfade A/B/C).
+2. **Gemini-Pfad** — alles andere, mit den 26 Tools.
+
+Bewusst so gebaut („zuverlässig statt Zufall", siehe
+`docs/chat-assistant-aenderungen.md`). **Folge:** Wer nur die Tool-Definitionen
+liest, glaubt, Reschedule liefe über das Tool. Tut es nicht. Eine Änderung an der
+Tool-Beschreibung wirkt auf *„verschiebe die Reinigung von Luca"* **überhaupt
+nicht**.
+
+Dies stand bis 13.07.2026 in keiner Architektur-Doku.
+
 ### Deploy-Wege
 - **Edge Functions:** `supabase functions deploy <name> --project-ref usblrulkcgucxtkhugck`
 - **Migrationen:** wegen Lovable-Historie-Desync NICHT `db push`, sondern SQL direkt
@@ -442,6 +459,50 @@ Diagnose — und darf keine Änderung auslösen.
 - **Änderung bei Check-in-Verschiebung** (analog zur Gästezahl bei Wäsche).
 - **Max als Preis-Erklärer** (liest/zusammenfasst vorhandene Preis-Empfehlungen).
 - **Zweiter AI-Provider** (größerer Umbau wegen Gemini-spezifischem Tool-Format).
+
+### ⭐ NÄCHSTE AUFGABE (14.07.2026): Liefertermin-Änderung für Wäsche (Teuni)
+
+Uli: *„Wenn der Liefertermin geändert werden soll, gilt die gleiche Logik wie bei
+der Reinigungstermin-Änderung."*
+
+**Diese Logik existiert für Wäsche nicht.** Vier Bausteine fehlen:
+
+| Baustein | Reinigung (Amela) | Wäsche (Teuni) |
+|---|---|---|
+| Provider schlägt Termin vor | ✅ Button „Neuer Termin" | ❌ **fehlt** (nur Freitext) |
+| Max erkennt den Vorschlag | ✅ `findAmelaRescheduleProposals` | ❌ sucht nur `related_task_id` |
+| Tool zum Ändern | ✅ `reschedule_cleaning` | ❌ **kein `reschedule_linen_delivery`** |
+| Trigger meldet zurück | ✅ `notify_amela_on_cleaning_release` | ❌ **kein Gegenstück** |
+
+**Zusätzlich:** Teunis Portal (`fresh-spin-portal-selfhosted`,
+`usePortalMessages.ts`) hängt an Antworten **nur `related_task_id`** an — eine
+*Reinigungs*-ID. `related_linen_order_id` ist deklariert, wird aber **nie gesetzt**.
+Ohne diesen Bezug kann kein Trigger die Antwort einer Bestellung zuordnen.
+
+**Entscheidungen (Uli, 13.07.2026):**
+- Geänderter Liefertermin → Status zurück auf **`offen`** (wie neu angelegt)
+- Teuni **soll** im Portal einen Liefertermin vorschlagen können (Button wie Amela)
+
+**Zu beachten:** `offen` wird damit doppelt belegt („neu angelegt" **und** „Termin
+geändert, bitte prüfen"). Der bestehende Trigger
+`close_max_action_on_linen_confirmed` sucht Vorgänge vom Typ
+`create_linen_for_booking` / `update_linen_for_booking` — ein neuer Typ
+`reschedule_linen_delivery` **muss dort ergänzt werden**, sonst bleibt der Vorgang
+ewig offen.
+
+**Reihenfolge (nicht wieder an der Definition vorbeibauen):**
+1. **Zuerst `max_ablaeufe` ergänzen** — Soll-Ablauf definieren, von Uli prüfen
+   lassen, **bevor** Code entsteht.
+2. Dann Backend: Tool + zwei Trigger.
+3. Dann Teunis Portal (anderes Repo).
+
+**Nicht verwechseln — zwei verschiedene Abläufe:**
+- **Gästezahl ändern** → Menge ändert sich → Teuni wird informiert (Wunsch kommt
+  immer von Uli). **Funktioniert bereits.**
+- **Liefertermin ändern** → gleiche Logik wie Reinigungstermin (Wunsch kann von
+  Teuni kommen). **Existiert nicht.**
+
+---
 
 ### Behoben am 13.07.2026 (Prüfsitzung)
 Eine systematische Prüfung nach vollständiger Doku-Lektüre förderte vier Fehler

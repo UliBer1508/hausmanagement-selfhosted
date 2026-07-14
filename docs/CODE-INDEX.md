@@ -355,6 +355,22 @@ execute-Funktionen, `buildEntityLinks` (Buttons), dynamischen System-Prompt.
 | Kommunikation | `send_provider_message`, `read_provider_replies` |
 | Sonstiges | `draft_guest_welcome_email`, `save_knowledge` |
 
+> ## ⚠️ ZWEI DINGE, DIE MAN ÜBER MAX WISSEN MUSS
+>
+> **1. Die Soll-Definition steht in der DATENBANK, nicht hier.**
+> Tabelle **`max_ablaeufe`** — je Fall: Schritt → Akteur → Funktion → Status.
+> Vor jeder Arbeit an Max abfragen:
+> `select * from max_ablaeufe order by aktion, variante, schritt_nr;`
+> Der Code sagt, was IST. Die Tabelle sagt, was SEIN SOLL.
+>
+> **2. Nicht alles läuft über Gemini.**
+> `serve()` hat **deterministische Pfade** (Regex-Erkennung), die Gemini komplett
+> umgehen — für **Reschedule** (Pfade A/B/C) und die **Begrüßungs-E-Mail**.
+> Wer nur die Tool-Definitionen liest, versteht den halben Assistenten. Eine
+> Änderung an der Tool-Beschreibung von `reschedule_cleaning` wirkt auf
+> *„verschiebe die Reinigung von Luca"* **überhaupt nicht**.
+> Siehe `docs/chat-assistant-aenderungen.md`.
+
 **Stillgelegt (12.07.2026):** `create_bulk_cleaning_tasks` und
 `create_bulk_linen_orders` wurden bewusst abgeschaltet — Sammelaktionen werden
 nicht gebraucht. Sie stehen NICHT mehr in den Tool-Definitionen (Gemini kennt sie
