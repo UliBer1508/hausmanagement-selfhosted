@@ -228,7 +228,7 @@ const MaxWissenPanel = ({ open, onOpenChange }: MaxWissenPanelProps) => {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col z-[200]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Brain className="h-5 w-5" />
@@ -425,7 +425,7 @@ const MaxWissenPanel = ({ open, onOpenChange }: MaxWissenPanelProps) => {
 
       {/* Löschen ist endgültig — deshalb nachfragen. */}
       <AlertDialog open={!!loeschId} onOpenChange={(o) => !o && setLoeschId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="z-[230]">
           <AlertDialogHeader>
             <AlertDialogTitle>Eintrag löschen?</AlertDialogTitle>
             <AlertDialogDescription>
