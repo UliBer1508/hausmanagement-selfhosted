@@ -539,16 +539,42 @@ async function executeSearchBookings(params: any) {
 async function executeSearchCleaningTasks(params: any) {
   console.log('Executing search_cleaning_tasks with params:', params);
 
+  // ===========================================================================
+  // REIHENFOLGE IST ENTSCHEIDEND — Fehler behoben 14.07.2026
+  //
+  // Früher wurde der Gastname ERST NACH `.limit(20)` in JavaScript gefiltert:
+  // Die DB lieferte die 20 ÄLTESTEN Reinigungen (aufsteigend sortiert, ohne
+  // Datumsfilter) — und erst danach wurde nach dem Namen gesucht.
+  //
+  // Belegt an echten Daten: Lucas Reinigung stand auf POSITION 45. Sie fiel aus
+  // den ersten 20 heraus, BEVOR gefiltert wurde. Max meldete daraufhin
+  // "Es gibt keine Reinigung für Luca in meinen Aufzeichnungen" — obwohl sie
+  // existierte (Venediger Chalet, 16.08.2026, scheduled).
+  //
+  // Alles ab Position 21 war für Max unsichtbar.
+  //
+  // Jetzt filtert die DATENBANK — so wie search_bookings es immer richtig machte.
+  // Der Gastname liegt in der verknüpften Tabelle `bookings`, deshalb `!inner`:
+  // nur mit einem Inner-Join lässt sich in Supabase auf ein Feld der Relation
+  // filtern.
+  // ===========================================================================
+  const nachGast = typeof params.guest_name === 'string' && params.guest_name.trim() !== '';
+
   let query = supabase
     .from('service_tasks')
     .select(`
       *,
       houses(name),
-      bookings(guest_name, guest_email, guest_phone),
+      bookings${nachGast ? '!inner' : ''}(guest_name, guest_email, guest_phone),
       service_providers!service_tasks_provider_id_fkey(id, name, contact_email, contact_phone)
     `)
     .eq('service_type', 'cleaning')
     .order('scheduled_date', { ascending: true });
+
+  // Gastname direkt in der DB filtern — nicht erst nach dem Limit.
+  if (nachGast) {
+    query = query.ilike('bookings.guest_name', `%${params.guest_name.trim()}%`);
+  }
 
   if (params.status) {
     query = query.eq('status', params.status);
@@ -573,13 +599,10 @@ async function executeSearchCleaningTasks(params: any) {
     return { success: false, error: error.message };
   }
 
-  // Filter by guest_name or staff_name if provided
+  // Provider-Name liegt ebenfalls in einer Relation. Er wird selten genutzt und
+  // ist unkritisch (es gibt nur wenige Provider), deshalb bleibt dieser Filter
+  // in JS.
   let filteredData = data || [];
-  if (params.guest_name) {
-    filteredData = filteredData.filter(t =>
-      t.bookings?.guest_name?.toLowerCase().includes(params.guest_name.toLowerCase())
-    );
-  }
   if (params.provider_name) {
     filteredData = filteredData.filter(t =>
       t.service_providers?.name?.toLowerCase().includes(params.provider_name.toLowerCase())
@@ -739,10 +762,26 @@ async function executeGetLinenOverview(params: any) {
 async function executeSearchLinenOrders(params: any) {
   console.log('Executing search_linen_orders with params:', params);
 
+  // Gleicher Fehler wie in search_cleaning_tasks — behoben 14.07.2026.
+  // Der Gastname wurde ERST NACH `.limit(50)` in JavaScript gefiltert. Lag die
+  // gesuchte Bestellung außerhalb der 50 zuletzt bestellten, fand Max sie nie.
+  //
+  // Der alte Kommentar an dieser Stelle lautete wörtlich:
+  //   "Gastname-Filter über die verknüpfte Buchung (post-query, wie bei
+  //    search_cleaning_tasks)"
+  // Der Fehler wurde also bewusst vom kaputten Zwilling abgeschrieben. Ein
+  // Doppelgänger im Wortsinn. Beide sind jetzt korrekt.
+  const nachGast = typeof params.guest_name === 'string' && params.guest_name.trim() !== '';
+
   let query = supabase
     .from('linen_orders')
-    .select('*, houses(name), bookings(guest_name, check_in, check_out)')
+    .select(`*, houses(name), bookings${nachGast ? '!inner' : ''}(guest_name, check_in, check_out)`)
     .order('order_date', { ascending: false });
+
+  // Gastname direkt in der DB filtern (der !inner-Join oben macht das möglich).
+  if (nachGast) {
+    query = query.ilike('bookings.guest_name', `%${params.guest_name.trim()}%`);
+  }
 
   if (params.status) {
     query = query.eq('status', params.status);
@@ -763,16 +802,7 @@ async function executeSearchLinenOrders(params: any) {
     return { success: false, error: error.message };
   }
 
-  // Gastname-Filter über die verknüpfte Buchung (post-query, wie bei search_cleaning_tasks)
-  let filtered = data || [];
-  if (params.guest_name) {
-    const needle = params.guest_name.toLowerCase();
-    filtered = filtered.filter((o: any) =>
-      o.bookings?.guest_name?.toLowerCase().includes(needle)
-    );
-  }
-
-  return { success: true, data: filtered, count: filtered.length };
+  return { success: true, data: data || [], count: (data || []).length };
 }
 
 /**
