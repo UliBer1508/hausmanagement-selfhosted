@@ -39,6 +39,7 @@ interface ScheduleRow {
 }
 
 const LABELS: Record<string, string> = {
+  ablaeufe_pruefen:   'Wahrheitsprüfung der Abläufe',
   overdue_watch:      'Überfällig-Wächter',
   morning_summary:    'Morgen-Übersicht (E-Mail an dich)',
   cleaning_reminders: 'Amela: Termin-Nachfrage',
