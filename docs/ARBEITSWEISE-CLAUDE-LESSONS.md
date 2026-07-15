@@ -179,6 +179,33 @@ Max-Aktionen-Fenster doppelt. Ein neuer Bug, erzeugt beim Beheben eines alten.
 
 ---
 
+### Nachtrag 15.07.2026 — stornierte Zeilen gehören nie in eine Anzeige
+
+**Fall:** In den Portal-Kalendern (Amela/Teuni) erschienen Wäschelieferungen
+doppelt. Vermutung im Raum: Doppelgänger in der Erzeugung
+(`create_linen`/`update_linen`). **Falsch.** An der Quelle geprüft (DB-Abfrage
+auf `linen_orders` für den betroffenen Tag): zwei Zeilen, eine `cancelled`, eine
+`ausstehend`. Es gab real **eine** gültige Lieferung.
+
+**Ursache:** Der Anzeige-Code filterte `cancelled` bei `linen_orders` und
+`service_tasks` **nicht** — bei `bookings` schon (`status==='cancelled'` bzw.
+`.neq('status', BOOKING_STATUS.CANCELLED)`). Ein Badge pro Zeile = zwei Badges.
+
+**Lesson (verbindlich):**
+- Jede Query, die `linen_orders` oder `service_tasks` in eine **Anzeige** bringt,
+  muss stornierte Zeilen ausschließen. Status-Werte deutsch **und** englisch:
+  `cancelled`, `storniert`, `abgebrochen` — case-insensitive.
+- Gehört zur bestehenden Regel „Query-Feldlisten sind fragil": ein fehlender
+  Filter erzeugt **stille** Falschanzeigen, keine Fehlermeldung.
+- Bevor „Doppelgänger in der Erzeugung" vermutet wird: **erst an der DB-Quelle
+  zählen**, was real existiert. Die Doppelung war ein Anzeige-, kein Datenfehler.
+
+**Zweite Lesson (Verknüpfung nicht immer vorhanden):** `linen_orders.booking_id`
+ist **nicht immer gesetzt** (siehe `useDeliveryReminders`, das Zeilen ohne
+`o.bookings` verwirft). Wer die Buchung mitlädt (z. B. für Gastname/Gästezahl im
+Teuni-Detail), muss defensiv sein: fehlt die Buchung → „—" anzeigen, die
+Lieferung aber **sichtbar lassen**. Im Kalender wird nicht rausgefiltert.
+
 ## 2. Pflicht-Reihenfolge VOR jeder Aussage/Änderung
 
 Diese Schritte sind **nicht optional** und werden **in dieser Reihenfolge**
@@ -276,6 +303,6 @@ Prompt herausgibt. Wenn eine Antwort „nein/unklar“ ist → zurück zu Abschn
 ---
 
 *Erstellt am 15.06.2026 nach einer fehlerhaften Sitzung zur Vereinheitlichung
-der Übersichtskarten (Buchung/Reinigung/Wäsche). Ergänzt 16.06. und 13.07.2026.*
+der Übersichtskarten (Buchung/Reinigung/Wäsche). Ergänzt 16.06., 13.07. und 15.07.2026.*
 *Ablage seit 13.07.2026: `docs/` (zusammen mit allen anderen Dokumenten).
 `AGENTS.md` im Repo-Root verweist hierher.*
