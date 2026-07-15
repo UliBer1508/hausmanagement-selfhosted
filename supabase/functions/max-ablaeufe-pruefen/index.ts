@@ -71,12 +71,19 @@ const supabase = createClient(
  * wird dann übersprungen (Status 'unbekannt' statt 'fehler'). Lieber keine
  * Aussage als eine falsche.
  */
-const CHAT_ASSISTANT_URL =
+// WICHTIG: raw.githubusercontent.com hat ein CDN, das aggressiv cacht — es liefert
+// je nach Knoten MINUTENLANG einen alten Stand. Das ließ die Prüfung reject_reschedule
+// als "existiert NICHT" melden, obwohl es längst im Code stand. `cache: 'no-store'`
+// hilft NICHT (steuert nur den lokalen Fetch, nicht das CDN). Lösung: ein
+// Cache-Buster (Zeitstempel als Query-Parameter) zwingt frisches Laden.
+const CHAT_ASSISTANT_BASE =
   'https://raw.githubusercontent.com/UliBer1508/hausmanagement-selfhosted/main/supabase/functions/chat-assistant/index.ts';
 
 async function ladeVorhandeneTools(): Promise<Set<string> | null> {
   try {
-    const res = await fetch(CHAT_ASSISTANT_URL, { cache: 'no-store' });
+    // Cache-Buster: erzwingt den aktuellen main-Stand (siehe Kommentar oben).
+    const url = `${CHAT_ASSISTANT_BASE}?cb=${Date.now()}`;
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) {
       console.error('chat-assistant-Quelle nicht ladbar:', res.status);
       return null;
