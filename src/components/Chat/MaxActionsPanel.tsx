@@ -343,6 +343,12 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
     ablaufNachAktion.set(sch.aktion, arr);
   }
 
+  // Auswahllisten für die Filter-Dropdowns. Diese beiden Zeilen waren beim
+  // Umbau der Workflow-Kette versehentlich entfernt worden — ohne sie wirft
+  // die Komponente "types is not defined" und reißt den ganzen Chat mit.
+  const statuses = collectStatuses(actions);
+  const types = Array.from(new Set(actions.map((a) => a.action_type))).sort();
+
   const filtered = actions.filter((a) => {
     if (statusFilter !== 'all' && a.status !== statusFilter) return false;
     if (typeFilter !== 'all' && a.action_type !== typeFilter) return false;
