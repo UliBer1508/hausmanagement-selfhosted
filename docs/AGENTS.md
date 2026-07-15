@@ -39,7 +39,7 @@ Sie definiert je Fall: **Schritt → Akteur (uli/max/amela/teuni/system) → Fun
 1. **Deterministische Pfade** — Regex-Erkennung im Nutzertext, führen **direkt
    aus**. Gemini wird **nie gefragt**. Betrifft: **Begrüßungs-E-Mail** und
    **Reschedule** (Pfade A/B/C).
-2. **Gemini-Pfad** — alles andere, mit den 26 Tools.
+2. **Gemini-Pfad** — alles andere, mit den 27 Tools.
 
 **Folge:** Die Tool-Definitionen zu lesen genügt nicht. Eine Änderung an der
 Beschreibung von `reschedule_cleaning` wirkt auf *„verschiebe die Reinigung von

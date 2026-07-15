@@ -39,7 +39,7 @@ der Code bei jeder Anfrage frisches Wissen aus der DB in den Prompt-Text einsetz
    Rest weiter (Max funktioniert auch ohne den jeweiligen Block).
 3. **System-Prompt zusammensetzen** (`const systemPrompt`, ~Zeile 2910):
    Der feste Regel-Teil + die drei dynamischen Blöcke oben werden zu einem Text.
-4. **Werkzeuge bereitstellen** (`getToolDefinitions()`): 26 Tools (Stand 13.07.2026).
+4. **Werkzeuge bereitstellen** (`getToolDefinitions()`): 27 Tools (Stand 14.07.2026).
 5. **Tool-Calling-Schleife** (~Zeile 3080, max. 5 Iterationen):
    Gemini entscheidet, ob und welches Tool es ruft (mode AUTO). Ausnahme:
    Bei erkannter "Begrüßungs-E-Mail"-Absicht wird `draft_guest_welcome_email`
@@ -50,11 +50,13 @@ der Code bei jeder Anfrage frisches Wissen aus der DB in den Prompt-Text einsetz
 
 ## Die Werkzeuge (26) — grob gruppiert
 
-> **Stillgelegt 12.07.2026:** `create_bulk_cleaning_tasks` und
-> `create_bulk_linen_orders` — Sammelaktionen werden nicht gebraucht. Sie stehen
-> nicht mehr in `getToolDefinitions()`, Gemini kennt sie also nicht. Der
-> Dispatcher fängt die Namen nur noch ab, falls das Modell sie halluziniert.
-> Deshalb 26 statt vormals 28.
+> **ENTFERNT 14.07.2026:** `create_bulk_cleaning_tasks` und
+> `create_bulk_linen_orders` sind restlos aus dem Code gelöscht (224 Zeilen).
+> Sie waren nie in `max_ablaeufe` definiert und erzeugten unabschließbare
+> Sammel-Vorgänge. Der Dispatcher fängt die Namen nur noch ab, falls das Modell
+> sie halluziniert, und verweist auf die Einzel-Werkzeuge.
+>
+> **Neu 14.07.2026:** `reject_reschedule` (Absage an Amela). Deshalb **27 Werkzeuge**.
 
 Die vollständige, maßgebliche Liste steht im Code (`getToolDefinitions()`).
 Grobe Einteilung nach Wirkung:

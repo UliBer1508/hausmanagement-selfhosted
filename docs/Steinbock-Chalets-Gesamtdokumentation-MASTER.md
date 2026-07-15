@@ -166,10 +166,19 @@ get_morning_summary (vollständige Tagesübersicht in einem Schritt — siehe Ab
 
 **Buchungsanfragen:** accept_booking_inquiry, reject_booking_inquiry.
 
-**Stillgelegt (12.07.2026):** `create_bulk_cleaning_tasks` und
-`create_bulk_linen_orders` — Sammelaktionen werden nicht benötigt. Aus den
-Tool-Definitionen entfernt (Gemini kennt sie nicht mehr); der Dispatcher fängt sie
-nur noch als Sicherheitsnetz ab. Aktueller Stand: **26 Werkzeuge**, nicht 28.
+**ENTFERNT (14.07.2026) — kommen nicht zurück:** `create_bulk_cleaning_tasks` und
+`create_bulk_linen_orders`. Am 12.07. stillgelegt, am 14.07. **restlos aus dem Code
+gelöscht** (224 Zeilen). Sie waren in keiner Doku definiert (auch nicht in
+`max_ablaeufe`) und schrieben Sammel-Einträge OHNE `booking_id` — Vorgänge, die
+nie zugeordnet und nie abgeschlossen werden konnten. Stattdessen gibt es die
+Einzel-Werkzeuge mit geschlossener Kette. Im Dispatcher bleibt eine Sperre, falls
+das Modell die Namen halluziniert.
+
+**Neu (14.07.2026):** `reject_reschedule` — Absage an Amela, wenn Uli ihren
+Terminwunsch ablehnt (sendet „Der Termin konnte leider nicht geändert werden.",
+setzt die Reinigung zurück auf `scheduled`).
+
+Aktueller Stand: **27 Werkzeuge**.
 
 **Kommunikation:** send_provider_message (schreibt Amela/Teuni; erscheint als
 "Max (Assistent)" lila; Terminfragen direkt, Rest als Entwurf zur Freigabe).
@@ -399,7 +408,7 @@ Diagnose — und darf keine Änderung auslösen.
 1. **Deterministische Pfade** — Regex-Erkennung im Nutzertext, führen **direkt
    aus**. Gemini wird **nie gefragt**. Betrifft: **Begrüßungs-E-Mail** und
    **Reschedule** (Pfade A/B/C).
-2. **Gemini-Pfad** — alles andere, mit den 26 Tools.
+2. **Gemini-Pfad** — alles andere, mit den 27 Tools.
 
 Bewusst so gebaut („zuverlässig statt Zufall", siehe
 `docs/chat-assistant-aenderungen.md`). **Folge:** Wer nur die Tool-Definitionen

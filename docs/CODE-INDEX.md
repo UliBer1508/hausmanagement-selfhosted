@@ -343,14 +343,14 @@ Typen — `booking` (→ `editBookingId`), `cleaning_task` (→ `openTaskId`),
 Modell: **Gemini 2.5 Flash**. Enthält Tool-Definitionen, Dispatcher,
 execute-Funktionen, `buildEntityLinks` (Buttons), dynamischen System-Prompt.
 
-**26 Werkzeuge:**
+**27 Werkzeuge:**
 | Gruppe | Werkzeuge |
 |---|---|
 | Lesen | `search_bookings`, `search_cleaning_tasks`, `search_linen_orders`, `search_guests`, `search_houses`, `search_booking_inquiries`, `get_booking_full_context`, `get_dashboard_stats`, `get_revenue_stats`, `get_linen_overview`, `get_calendar_events`, `get_daily_overview` |
 | Übersicht | `get_morning_summary` (→ Edge Fn `morning-summary`), `get_guest_contact_reminders`, `get_rating_reminders` |
 | Wächter | `check_upcoming_bookings` (4 Prüfungen: fehlende Reinigung/Wäsche, Timing, offene Zahlung) |
 | Anlegen | `create_cleaning_for_booking` (→ `create-cleaning-task-for-booking`, Status `draft`), `create_linen_for_booking` (→ `create-linen-order-for-booking`) |
-| Ändern | `reschedule_cleaning` (Termin → `draft`), `update_linen_for_booking` (→ `generate-booking-linen-order`) |
+| Ändern | `reschedule_cleaning` (Termin → `draft`), **`reject_reschedule`** (Absage an Amela, setzt Reinigung zurück auf `scheduled`), `update_linen_for_booking` (→ `generate-booking-linen-order`) |
 | Anfragen | `accept_booking_inquiry`, `reject_booking_inquiry` |
 | Kommunikation | `send_provider_message`, `read_provider_replies` |
 | Sonstiges | `draft_guest_welcome_email`, `save_knowledge` |
@@ -371,11 +371,14 @@ execute-Funktionen, `buildEntityLinks` (Buttons), dynamischen System-Prompt.
 > *„verschiebe die Reinigung von Luca"* **überhaupt nicht**.
 > Siehe `docs/chat-assistant-aenderungen.md`.
 
-**Stillgelegt (12.07.2026):** `create_bulk_cleaning_tasks` und
-`create_bulk_linen_orders` wurden bewusst abgeschaltet — Sammelaktionen werden
-nicht gebraucht. Sie stehen NICHT mehr in den Tool-Definitionen (Gemini kennt sie
-nicht), der Dispatcher fängt sie nur noch als Sicherheitsnetz ab. Daher 26 statt
-früher 28 Werkzeuge.
+**ENTFERNT (14.07.2026):** `create_bulk_cleaning_tasks` und
+`create_bulk_linen_orders` sind **restlos aus dem Code gelöscht** (224 Zeilen).
+Grund: nie in `max_ablaeufe` definiert; erzeugten Sammel-Einträge ohne `booking_id`
+→ unabschließbar. Der Dispatcher hat nur noch eine Sperre (Halluzinations-Schutz),
+die auf die Einzel-Werkzeuge verweist. Auch die Labels in `MaxActionsPanel.tsx`
+sind entfernt.
+
+**Neu (14.07.2026):** `reject_reschedule` (Absage an Amela). Daher **27 Werkzeuge**.
 
 **Modell A (nicht verhandelbar):** Max handelt NUR nach ausdrücklicher Freigabe
 durch Uli. Er liest Antworten nur auf Nachfrage.
@@ -465,7 +468,7 @@ Basis: `use-toast`, `use-mobile`.
 **Edge Functions (33, Stand 12.07.2026)** — die wichtigsten:
 | Function | Zweck |
 |---|---|
-| `chat-assistant` | **Max' Gehirn** (Gemini 2.5 Flash, 26 Werkzeuge) |
+| `chat-assistant` | **Max' Gehirn** (Gemini 2.5 Flash, 27 Werkzeuge) |
 | `morning-summary` | Tagesübersicht (einzige Quelle der Wahrheit) — NEU 10.07. |
 | `overdue-watch` | Überfällig-Wächter — NEU 12.07. |
 | `max-cleaning-reminders` | Amela: Terminfrage (Cron 07:00) |
