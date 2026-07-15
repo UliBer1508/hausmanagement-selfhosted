@@ -202,248 +202,27 @@ async function executeRejectBookingInquiry(params: any) {
 }
 
 // Bulk Action Tools
-async function executeCreateBulkCleaningTasks(params: any) {
-  console.log('Executing create_bulk_cleaning_tasks with params:', params);
+// ===============================================================
+// ENTFERNT 14.07.2026 — kommen NICHT zurueck.
+//
+// executeCreateBulkCleaningTasks + executeCreateBulkLinenOrders (224 Zeilen)
+//
+// GRUND (Entscheidung Uli, 13.07.2026):
+// Sammelaktionen ohne echten Zweck. Sie waren in KEINER Doku definiert
+// (weder MASTER noch max_ablaeufe — die 12 definierten Ablaeufe kannten sie
+// nie). Sie schrieben EINEN Sammel-Eintrag in max_actions mit
+// status=wartet_uli, aber OHNE booking_id -> ein Vorgang, der nie zugeordnet
+// und nie abgeschlossen werden konnte. Er blieb ewig auf "Wartet auf dich".
+//
+// STATTDESSEN gibt es die sauberen Einzel-Werkzeuge:
+//   create_cleaning_for_booking  (Status draft, Freigabe durch Uli)
+//   create_linen_for_booking     (Status offen,  Freigabe durch Uli)
+// Beide mit geschlossener Kette: booking_id -> DB-Trigger -> abgeschlossen.
+//
+// Im Dispatcher bleibt eine Sperre stehen (falls das Modell die Namen
+// halluziniert) — sie verweist auf die Einzel-Werkzeuge.
+// ===============================================================
 
-  const { for_date, trigger, house_id } = params;
-
-  // Calculate the target date
-  let targetDate = for_date;
-  if (for_date === 'tomorrow') {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    targetDate = tomorrow.toISOString().split('T')[0];
-  } else if (for_date === 'today') {
-    targetDate = new Date().toISOString().split('T')[0];
-  }
-
-  // Find bookings based on trigger
-  let query = supabase
-    .from('bookings')
-    .select('id, guest_name, house_id, check_in, check_out, houses(name)')
-    .neq('status', 'cancelled');
-
-  if (trigger === 'checkout') {
-    query = query
-      .gte('check_out', `${targetDate}T00:00:00`)
-      .lt('check_out', `${targetDate}T23:59:59`);
-  } else if (trigger === 'checkin') {
-    query = query
-      .gte('check_in', `${targetDate}T00:00:00`)
-      .lt('check_in', `${targetDate}T23:59:59`);
-  }
-
-  if (house_id) {
-    query = query.eq('house_id', house_id);
-  }
-
-  const { data: bookings, error: bookingsError } = await query;
-
-  if (bookingsError) {
-    return { success: false, error: bookingsError.message };
-  }
-
-  if (!bookings || bookings.length === 0) {
-    return {
-      success: true,
-      created: 0,
-      skipped: 0,
-      message: `Keine ${trigger === 'checkout' ? 'Abreisen' : 'Ankünfte'} am ${targetDate} gefunden`
-    };
-  }
-
-  // Check which bookings already have cleaning tasks
-  const bookingIds = bookings.map(b => b.id);
-  const { data: existingTasks } = await supabase
-    .from('service_tasks')
-    .select('booking_id')
-    .in('booking_id', bookingIds)
-    .eq('service_type', 'cleaning')
-    .neq('status', 'cancelled');
-
-  const existingBookingIds = new Set(existingTasks?.map(t => t.booking_id) || []);
-
-  // Create missing tasks
-  const tasksToCreate = [];
-  const createdDetails = [];
-  const skippedDetails = [];
-
-  for (const booking of bookings) {
-    if (existingBookingIds.has(booking.id)) {
-      skippedDetails.push({
-        house_name: booking.houses?.name,
-        guest_name: booking.guest_name,
-        reason: 'Bereits Reinigung vorhanden'
-      });
-      continue;
-    }
-
-    tasksToCreate.push({
-      house_id: booking.house_id,
-      booking_id: booking.id,
-      service_type: 'cleaning',
-      scheduled_date: targetDate,
-      scheduled_time: '10:00',
-      status: 'scheduled',
-      notes: `Reinigung nach ${trigger === 'checkout' ? 'Abreise' : 'Ankunft'} von ${booking.guest_name}`
-    });
-
-    createdDetails.push({
-      house_name: booking.houses?.name,
-      guest_name: booking.guest_name,
-      date: targetDate
-    });
-  }
-
-  if (tasksToCreate.length > 0) {
-    const { error: insertError } = await supabase
-      .from('service_tasks')
-      .insert(tasksToCreate);
-
-    if (insertError) {
-      return { success: false, error: insertError.message };
-    }
-  }
-
-  if (createdDetails.length > 0) {
-    await logMaxAction({
-      action_type: 'create_bulk_cleaning_tasks',
-      status: 'wartet_uli',
-      waiting_for: 'uli',
-      last_step: `${createdDetails.length} Reinigung(en) angelegt`,
-      details: { created: createdDetails, target_date: targetDate, trigger },
-      created_by: 'uli',
-    });
-  }
-
-  return {
-    success: true,
-    created: createdDetails.length,
-    created_details: createdDetails,
-    skipped: skippedDetails.length,
-    skipped_details: skippedDetails,
-    target_date: targetDate,
-    trigger
-  };
-}
-
-async function executeCreateBulkLinenOrders(params: any) {
-  console.log('Executing create_bulk_linen_orders with params:', params);
-
-  const { date_from, date_to, house_id } = params;
-
-  // Find bookings in date range that don't have linen orders
-  let query = supabase
-    .from('bookings')
-    .select('id, guest_name, house_id, number_of_guests, check_in, check_out, houses(name)')
-    .neq('status', 'cancelled')
-    .gte('check_in', date_from)
-    .lte('check_in', date_to);
-
-  if (house_id) {
-    query = query.eq('house_id', house_id);
-  }
-
-  const { data: bookings, error } = await query;
-
-  if (error) {
-    return { success: false, error: error.message };
-  }
-
-  if (!bookings || bookings.length === 0) {
-    return { success: true, created: 0, message: 'Keine Buchungen im Zeitraum gefunden' };
-  }
-
-  // Check for existing orders
-  const bookingIds = bookings.map(b => b.id);
-  const { data: existingOrders } = await supabase
-    .from('linen_orders')
-    .select('booking_id')
-    .in('booking_id', bookingIds);
-
-  const existingBookingIds = new Set(existingOrders?.map(o => o.booking_id) || []);
-
-  const ordersCreated = [];
-  let totalCost = 0;
-
-  for (const booking of bookings) {
-    if (existingBookingIds.has(booking.id)) continue;
-
-    // Get linen set definitions
-    const { data: linenDef } = await supabase
-      .from('linen_set_definitions')
-      .select('*')
-      .eq('house_id', booking.house_id)
-      .single();
-
-    if (!linenDef) continue;
-
-    const guests = booking.number_of_guests || 2;
-    const items = {
-      bedding: guests * (linenDef.bedding_per_guest || 1),
-      large_towels: guests * (linenDef.large_towels_per_guest || 1),
-      small_towels: guests * (linenDef.small_towels_per_guest || 1),
-      sauna_towels: guests * (linenDef.sauna_towels_per_guest || 0),
-      bath_mats: linenDef.bath_mats_per_booking || 2,
-      sink_towels: linenDef.sink_towels_per_booking || 2,
-      kitchen_towels: linenDef.kitchen_towels_per_booking || 2
-    };
-
-    // Get prices
-    const { data: settings } = await supabase
-      .from('ai_linen_settings')
-      .select('prices')
-      .eq('house_id', booking.house_id)
-      .single();
-
-    const prices = settings?.prices || { bedding: 30, large_towels: 18, small_towels: 10, sauna_towels: 20, bath_mats: 15, sink_towels: 8, kitchen_towels: 5 };
-
-    let orderTotal = 0;
-    for (const [key, qty] of Object.entries(items)) {
-      orderTotal += (qty as number) * (prices[key] || 0);
-    }
-
-    const { error: orderError } = await supabase
-      .from('linen_orders')
-      .insert({
-        house_id: booking.house_id,
-        booking_id: booking.id,
-        order_date: new Date().toISOString().split('T')[0],
-        delivery_date: booking.check_in.split('T')[0],
-        status: 'offen',
-        items,
-        total_cost: orderTotal
-      });
-
-    if (!orderError) {
-      ordersCreated.push({
-        house_name: booking.houses?.name,
-        guest_name: booking.guest_name,
-        cost: orderTotal
-      });
-      totalCost += orderTotal;
-    }
-  }
-
-  if (ordersCreated.length > 0) {
-    await logMaxAction({
-      action_type: 'create_bulk_linen_orders',
-      status: 'wartet_uli',
-      waiting_for: 'uli',
-      last_step: `${ordersCreated.length} Wäschebestellung(en) angelegt`,
-      details: { created: ordersCreated, total_cost: totalCost },
-      created_by: 'uli',
-    });
-  }
-
-  return {
-    success: true,
-    created: ordersCreated.length,
-    created_details: ordersCreated,
-    total_cost: totalCost,
-    skipped: bookings.length - ordersCreated.length
-  };
-}
 
 // Enhanced search_bookings with new parameters
 async function executeSearchBookings(params: any) {
