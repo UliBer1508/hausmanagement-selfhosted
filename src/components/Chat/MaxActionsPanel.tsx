@@ -238,6 +238,51 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
     return true;
   });
 
+  // ---- Gruppierung: Vorgänge derselben Reinigung/Wäsche zusammenfassen ----
+  // Mehrere Einträge mit derselben related_task_id gehören zur SELBEN Reinigung
+  // (z.B. zweimal verschoben = zwei Vorgänge, aber eine Reinigung). Sie werden
+  // unter einer gemeinsamen Überschrift gebündelt. Jeder Vorgang bleibt seine
+  // eigene Karte mit eigener Kette und eigenem Status (Entscheidung Uli: Option 2 —
+  // jede Verschiebung ist ein eigener Vorgang, nur sichtbar als zusammengehörig).
+  // Einträge ohne task_id (z.B. Willkommens-E-Mail) bleiben je für sich.
+  type ActionGroup = {
+    key: string;
+    guest_name: string | null;
+    action_type: string;
+    entries: MaxAction[];
+  };
+
+  const groups: ActionGroup[] = [];
+  const byKey = new Map<string, ActionGroup>();
+
+  for (const a of filtered) {
+    // Nur bündeln, wenn eine task_id existiert UND mehr als ein Filter-neutraler
+    // Blick sinnvoll ist. Schlüssel = task_id (dieselbe Reinigung).
+    const groupKey = a.related_task_id
+      ? `task:${a.related_task_id}`
+      : `single:${a.id}`; // ohne task_id: eigene Gruppe pro Eintrag
+
+    let g = byKey.get(groupKey);
+    if (!g) {
+      g = {
+        key: groupKey,
+        guest_name: a.guest_name,
+        action_type: a.action_type,
+        entries: [],
+      };
+      byKey.set(groupKey, g);
+      groups.push(g);
+    }
+    g.entries.push(a);
+  }
+
+  // Innerhalb einer Gruppe: neueste Vorgänge zuerst (wie die Gesamtliste).
+  for (const g of groups) {
+    g.entries.sort(
+      (x, y) => new Date(y.created_at).getTime() - new Date(x.created_at).getTime(),
+    );
+  }
+
   // Einzelnen Eintrag löschen.
   const handleDelete = async (id: string) => {
     setActionError(null);
@@ -390,16 +435,34 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
               Keine Aktionen für diese Auswahl.
             </div>
           ) : (
-            filtered.map((action) => {
-              const statusCfg =
-                STATUS_CONFIG[action.status] ?? {
-                  label: action.status,
-                  variant: 'outline' as const,
-                  icon: null,
-                };
-
+            groups.map((group) => {
+              const mehrere = group.entries.length > 1;
               return (
-                <div key={action.id} className="border rounded-lg p-3 bg-card">
+                <div key={group.key} className={mehrere ? 'space-y-2' : ''}>
+                  {/* Überschrift NUR, wenn mehrere Vorgänge zur selben Reinigung
+                      gehören — dann sieht man: eine Reinigung, mehrere Vorgänge. */}
+                  {mehrere && (
+                    <div className="flex items-center gap-2 px-1 pt-1">
+                      <div className="h-px flex-1 bg-border" />
+                      <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                        {getActionLabel(group.action_type)}
+                        {group.guest_name ? ` · ${group.guest_name}` : ''}
+                        {` · ${group.entries.length} Vorgänge`}
+                      </span>
+                      <div className="h-px flex-1 bg-border" />
+                    </div>
+                  )}
+                  <div className={mehrere ? 'space-y-2 pl-2 border-l-2 border-muted' : ''}>
+                  {group.entries.map((action) => {
+                    const statusCfg =
+                      STATUS_CONFIG[action.status] ?? {
+                        label: action.status,
+                        variant: 'outline' as const,
+                        icon: null,
+                      };
+
+                    return (
+                      <div key={action.id} className="border rounded-lg p-3 bg-card">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="font-medium text-sm">
@@ -535,6 +598,10 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
                         Aktualisiert: {formatDateTimeDE(action.updated_at)}
                       </p>
                     )}
+                      </div>
+                    );
+                  })}
+                  </div>
                 </div>
               );
             })
