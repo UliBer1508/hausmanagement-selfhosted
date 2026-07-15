@@ -54,12 +54,63 @@ interface AblaufSchritt {
 // Original-Texte aus max_ablaeufe passen nicht in eine waagerechte Kette —
 // sie erscheinen beim Draufzeigen als Tooltip. Schlüssel: "aktion#schritt_nr".
 const STATION_KURZ: Record<string, string> = {
+  // Reinigung verschieben
   'reschedule_cleaning#1': 'Änderungswunsch',
   'reschedule_cleaning#2': 'Max ordnet zu',
   'reschedule_cleaning#3': 'Entwurf angelegt',
   'reschedule_cleaning#4': 'Button „öffnen"',
   'reschedule_cleaning#5': 'Uli prüft & „geplant"',
-  'reschedule_cleaning#6': 'Abgeschlossen',
+  'reschedule_cleaning#6': 'Amela informiert',
+
+  // Buchungsanfrage annehmen
+  'accept_booking_inquiry#1': 'Befehl annehmen',
+  'accept_booking_inquiry#2': 'Details zeigen',
+  'accept_booking_inquiry#3': 'Uli bestätigt',
+  'accept_booking_inquiry#4': 'Buchung angelegt',
+
+  // Buchungsanfrage ablehnen
+  'reject_booking_inquiry#1': 'Befehl ablehnen',
+  'reject_booking_inquiry#2': 'Anfrage zeigen',
+  'reject_booking_inquiry#3': 'Uli bestätigt',
+  'reject_booking_inquiry#4': 'Absage gesendet',
+
+  // Terminänderung ablehnen (Amela wollte neuen Termin)
+  'reject_reschedule#1': 'Amela: neuer Termin',
+  'reject_reschedule#2': 'Max fragt Uli',
+  'reject_reschedule#3': 'Uli lehnt ab',
+  'reject_reschedule#4': 'Amela: nicht möglich',
+
+  // Wäsche bestellen
+  'create_linen_for_booking#1': 'Befehl: Wäsche',
+  'create_linen_for_booking#2': 'Buchung suchen',
+  'create_linen_for_booking#3': 'Uli wählt Buchung',
+  'create_linen_for_booking#4': 'Bestellung „offen"',
+  'create_linen_for_booking#5': 'Uli prüft & „ausstehend"',
+  'create_linen_for_booking#6': 'Teuni informiert',
+
+  // Wäsche anpassen
+  'update_linen_for_booking#1': 'Befehl: anpassen',
+  'update_linen_for_booking#2': 'Neue Menge',
+  'update_linen_for_booking#3': 'Uli prüft & speichert',
+  'update_linen_for_booking#4': 'Teuni informiert',
+
+  // Reinigung anlegen (Normalfall — bei „existiert schon" greift Variante 2)
+  'create_cleaning_for_booking#1': 'Befehl: Reinigung',
+  'create_cleaning_for_booking#2': 'Buchung suchen',
+  'create_cleaning_for_booking#3': 'Uli wählt Buchung',
+  'create_cleaning_for_booking#4': 'Karte zeigen',
+  'create_cleaning_for_booking#5': 'Entwurf angelegt',
+  'create_cleaning_for_booking#6': 'Uli prüft & „geplant"',
+  'create_cleaning_for_booking#7': 'Abgeschlossen',
+
+  // Erinnerungen / Rückfragen an Dienstleister
+  'max_cleaning_reminders#1': 'Amela: Passt der Termin?',
+  'max_linen_reminders#1': 'Teuni: Wäsche liefern',
+
+  // Automatische Prüfungen
+  'check_upcoming_bookings#1': 'Prüft & meldet Uli',
+  'get_morning_summary#1': 'Tagesübersicht',
+  'overdue_watch#1': 'Überfällig → Übersicht',
 };
 
 // Wer ist am Zug? Für die kleine Akteur-Markierung an der Station.
