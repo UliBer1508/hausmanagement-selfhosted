@@ -11,6 +11,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import {
@@ -65,6 +68,15 @@ interface Wissen {
 
 // Kategorien, die Max beim Lernen vergibt. Freitext bleibt möglich.
 const KATEGORIEN = ['begriff', 'regel', 'dienstleister', 'haus', 'sonstiges'];
+
+// Lesbare Namen fürs Auswahlmenü (der DB-Wert bleibt kleingeschrieben).
+const KATEGORIE_LABELS: Record<string, string> = {
+  begriff: 'Begriff',
+  regel: 'Regel',
+  dienstleister: 'Dienstleister',
+  haus: 'Haus',
+  sonstiges: 'Sonstiges',
+};
 
 const KATEGORIE_FARBE: Record<string, string> = {
   regel: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -283,18 +295,18 @@ const MaxWissenPanel = ({ open, onOpenChange }: MaxWissenPanelProps) => {
                 rows={2}
               />
               <div className="flex items-center gap-2">
-                <Input
-                  className="max-w-[200px]"
-                  placeholder="Kategorie"
-                  list="wissen-kategorien"
-                  value={neuCategory}
-                  onChange={(e) => setNeuCategory(e.target.value)}
-                />
-                <datalist id="wissen-kategorien">
-                  {KATEGORIEN.map((k) => (
-                    <option key={k} value={k} />
-                  ))}
-                </datalist>
+                <Select value={neuCategory} onValueChange={setNeuCategory}>
+                  <SelectTrigger className="max-w-[200px]">
+                    <SelectValue placeholder="Kategorie" />
+                  </SelectTrigger>
+                  <SelectContent position="popper" className="z-[400]">
+                    {KATEGORIEN.map((k) => (
+                      <SelectItem key={k} value={k}>
+                        {KATEGORIE_LABELS[k] ?? k}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button size="sm" onClick={anlegen} disabled={savingId === 'neu'}>
                   {savingId === 'neu' ? (
                     <Loader2 className="mr-1 h-4 w-4 animate-spin" />
@@ -343,13 +355,18 @@ const MaxWissenPanel = ({ open, onOpenChange }: MaxWissenPanelProps) => {
                       placeholder="Bedeutung"
                     />
                     <div className="flex items-center gap-2">
-                      <Input
-                        className="max-w-[200px]"
-                        value={editCategory}
-                        onChange={(ev) => setEditCategory(ev.target.value)}
-                        placeholder="Kategorie"
-                        list="wissen-kategorien"
-                      />
+                      <Select value={editCategory} onValueChange={setEditCategory}>
+                        <SelectTrigger className="max-w-[200px]">
+                          <SelectValue placeholder="Kategorie" />
+                        </SelectTrigger>
+                        <SelectContent position="popper" className="z-[400]">
+                          {KATEGORIEN.map((k) => (
+                            <SelectItem key={k} value={k}>
+                              {KATEGORIE_LABELS[k] ?? k}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <Button
                         size="sm"
                         onClick={() => speichern(e.id)}
