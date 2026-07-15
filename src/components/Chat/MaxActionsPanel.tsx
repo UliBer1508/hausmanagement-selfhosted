@@ -73,8 +73,6 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
   create_cleaning_for_booking: 'Reinigung angelegt',
   create_linen_for_booking: 'Wäsche angelegt',
   update_linen_for_booking: 'Wäsche angepasst',
-  create_bulk_cleaning_tasks: 'Reinigungen (Sammel)',
-  create_bulk_linen_orders: 'Wäsche (Sammel)',
   cleaning_termin_check: 'Reinigung: Terminfrage an Dienstleister',
   linen_termin_check: 'Wäsche: Liefer-Erinnerung an Teuni',
   auto_linen_created: 'Wäsche automatisch angelegt',
