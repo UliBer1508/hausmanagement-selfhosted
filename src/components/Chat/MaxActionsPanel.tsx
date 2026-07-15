@@ -194,6 +194,113 @@ const formatDateTimeDE = (iso: string): string => {
 const getActionLabel = (type: string): string =>
   ACTION_TYPE_LABELS[type] ?? type;
 
+// Wandelt ein ISO-Datum (YYYY-MM-DD) in TT.MM.JJJJ. Andere Werte unverändert.
+const dateOnlyDE = (v: unknown): string => {
+  if (typeof v !== 'string') return String(v ?? '');
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : v;
+};
+
+// Technische Felder, die den Nutzer nie interessieren (IDs, Rohflags).
+const HIDE_KEYS = new Set([
+  'task_id', 'order_id', 'booking_id', 'linen_order_id', 'quelle',
+  'success', 'already_existed', 'order_created', 'zurueckgesetzt',
+]);
+
+// Deutsche Labels für generisch angezeigte Detail-Felder (Fallback-Fall).
+const DETAIL_LABELS: Record<string, string> = {
+  haus: 'Haus',
+  house_name: 'Haus',
+  gast: 'Gast',
+  guest_name: 'Gast',
+  check_in: 'Anreise',
+  check_out: 'Abreise',
+  delivery_date: 'Lieferung',
+  altes_datum: 'Altes Datum',
+  neues_datum: 'Neues Datum',
+  termin_bleibt: 'Termin bleibt',
+  grund: 'Grund',
+  an: 'An',
+  nachricht: 'Nachricht',
+  art: 'Art',
+  alte_menge: 'Alte Menge',
+  neue_menge: 'Neue Menge',
+  gaeste: 'Gäste',
+  total_items: 'Artikel',
+  estimated_cost: 'Kosten',
+  notes: 'Notiz',
+};
+
+// Baut aus den Roh-details eine oder mehrere lesbare Zeilen (statt JSON).
+// Pro Aktionstyp die wichtigsten Felder in Klartext; alles Technische fällt weg.
+const detailsLesbar = (
+  actionType: string,
+  details: Record<string, unknown> | null,
+): string[] => {
+  if (!details) return [];
+  const d = details as Record<string, unknown>;
+  const zeilen: string[] = [];
+  const haus = (d.haus ?? d.house_name) as string | undefined;
+
+  switch (actionType) {
+    case 'reschedule_cleaning':
+      if (haus) zeilen.push(`${haus}`);
+      if (d.altes_datum && d.neues_datum)
+        zeilen.push(`${dateOnlyDE(d.altes_datum)} → ${dateOnlyDE(d.neues_datum)}`);
+      break;
+
+    case 'reject_reschedule':
+      if (haus) zeilen.push(`${haus}`);
+      if (d.gast) zeilen.push(`Gast: ${d.gast}`);
+      if (d.termin_bleibt) zeilen.push(`Termin bleibt: ${dateOnlyDE(d.termin_bleibt)}`);
+      break;
+
+    case 'accept_booking_inquiry':
+      if (haus) zeilen.push(`${haus}`);
+      if (d.check_in && d.check_out)
+        zeilen.push(`${dateOnlyDE(d.check_in)} – ${dateOnlyDE(d.check_out)}`);
+      break;
+
+    case 'reject_booking_inquiry':
+      if (haus) zeilen.push(`${haus}`);
+      if (d.grund) zeilen.push(`Grund: ${d.grund}`);
+      break;
+
+    case 'provider_message':
+      if (d.an) zeilen.push(`An: ${d.an}`);
+      if (d.nachricht) zeilen.push(`${d.nachricht}`);
+      break;
+
+    case 'update_linen_for_booking':
+      if (haus) zeilen.push(`${haus}`);
+      if (d.alte_menge != null && d.neue_menge != null)
+        zeilen.push(`Menge: ${d.alte_menge} → ${d.neue_menge}`);
+      else if (d.neue_menge != null) zeilen.push(`Menge: ${d.neue_menge}`);
+      if (d.gaeste != null) zeilen.push(`Gäste: ${d.gaeste}`);
+      break;
+
+    case 'create_cleaning_for_booking':
+    case 'create_linen_for_booking':
+    case 'auto_linen_created':
+      if (haus) zeilen.push(`${haus}`);
+      if (d.guest_name) zeilen.push(`Gast: ${d.guest_name}`);
+      if (d.delivery_date) zeilen.push(`Lieferung: ${dateOnlyDE(d.delivery_date)}`);
+      if (d.total_items != null) zeilen.push(`${d.total_items} Artikel`);
+      break;
+
+    default: {
+      // Unbekannter Typ: Felder generisch als „Label: Wert", IDs/Flags weglassen.
+      for (const [k, v] of Object.entries(d)) {
+        if (HIDE_KEYS.has(k) || v == null || typeof v === 'object') continue;
+        const label = DETAIL_LABELS[k] ?? k;
+        const wert = /datum|date|check_/.test(k) ? dateOnlyDE(v) : String(v);
+        zeilen.push(`${label}: ${wert}`);
+      }
+    }
+  }
+  return zeilen;
+};
+
 // Farbe/Icon eines Kettenschritts anhand von Schlüsselwörtern im Text.
 // Grün = erledigt, Gelb = wartend/offen, Rot = Problem/überfällig.
 const stepStyle = (schritt: string): { cls: string; icon: React.ReactNode } => {
@@ -758,15 +865,19 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
                     </p>
                   )}
 
-                  {/* Details (z. B. Empfänger, Betreff, Haus) — ohne verlauf (steht schon als Kette) */}
+                  {/* Details in Klartext (statt Roh-JSON): pro Aktionstyp die
+                      wichtigsten Felder, technische IDs ausgeblendet. */}
                   {action.details &&
                     (() => {
-                      const rest: Record<string, unknown> = { ...action.details };
-                      delete (rest as { verlauf?: unknown }).verlauf;
-                      return Object.keys(rest).length > 0 ? (
-                        <pre className="mt-2 bg-muted p-2 rounded text-xs overflow-x-auto">
-                          {JSON.stringify(rest, null, 2)}
-                        </pre>
+                      const zeilen = detailsLesbar(action.action_type, action.details);
+                      return zeilen.length > 0 ? (
+                        <div className="mt-2 text-xs text-muted-foreground space-y-0.5">
+                          {zeilen.map((z, i) => (
+                            <p key={i} className={i === 0 ? 'font-medium text-foreground' : ''}>
+                              {z}
+                            </p>
+                          ))}
+                        </div>
                       ) : null;
                     })()}
 
