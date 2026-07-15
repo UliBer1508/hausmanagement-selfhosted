@@ -40,6 +40,37 @@ interface WorkflowStep {
   akteur?: string;
 }
 
+// Eine Station der SOLL-Kette (aus max_ablaeufe).
+interface AblaufSchritt {
+  aktion: string;
+  variante: string;
+  schritt_nr: number;
+  akteur: string;
+  schritt: string;
+  ergebnis_status: string | null;
+}
+
+// Kurze, lesbare Titel für die Stationen der Workflow-Kette. Die langen
+// Original-Texte aus max_ablaeufe passen nicht in eine waagerechte Kette —
+// sie erscheinen beim Draufzeigen als Tooltip. Schlüssel: "aktion#schritt_nr".
+const STATION_KURZ: Record<string, string> = {
+  'reschedule_cleaning#1': 'Änderungswunsch',
+  'reschedule_cleaning#2': 'Max ordnet zu',
+  'reschedule_cleaning#3': 'Entwurf angelegt',
+  'reschedule_cleaning#4': 'Button „öffnen"',
+  'reschedule_cleaning#5': 'Uli prüft & „geplant"',
+  'reschedule_cleaning#6': 'Abgeschlossen',
+};
+
+// Wer ist am Zug? Für die kleine Akteur-Markierung an der Station.
+const AKTEUR_KURZ: Record<string, string> = {
+  uli: 'Uli',
+  max: 'Max',
+  amela: 'Amela',
+  teuni: 'Teuni',
+  system: 'System',
+};
+
 interface MaxAction {
   id: string;
   action_type: string;
@@ -199,6 +230,40 @@ const collectStatuses = (actions: MaxAction[]): string[] => {
   return Array.from(set).sort();
 };
 
+/**
+ * Bestimmt für einen Vorgang, bei welcher Station der Workflow gerade steht.
+ * Rückgabe: Index der AKTUELLEN Station (0-basiert), oder anzahl = fertig.
+ *
+ * Beste Quelle ist waiting_for: Es sagt, WER als Nächstes handeln muss.
+ * Wartet der Vorgang z.B. auf Uli, ist die aktuelle Station die erste
+ * uli-Station, die noch nicht erledigt ist. Fällt das aus (kein waiting_for),
+ * zählen wir ersatzweise die protokollierten Schritte.
+ */
+function aktuelleStation(action: MaxAction, stationen: AblaufSchritt[]): number {
+  const anzahl = stationen.length;
+  if (anzahl === 0) return -1;
+
+  if (['abgeschlossen', 'abgelehnt'].includes(action.status)) return anzahl;
+
+  // waiting_for sagt, wer als Nächstes handeln muss. Kommt der Akteur mehrfach
+  // in der Kette vor (z.B. Uli am Anfang als Auslöser UND später als Prüfer),
+  // ist die SPÄTERE Station gemeint — der Anfang ist längst erledigt.
+  if (action.waiting_for) {
+    const indizes = stationen
+      .map((s, i) => (s.akteur === action.waiting_for ? i : -1))
+      .filter((i) => i >= 0);
+    if (indizes.length > 0) return indizes[indizes.length - 1];
+  }
+
+  // Fallback ohne waiting_for: so weit wie protokolliert.
+  const verlaufLen = Array.isArray(action.details?.verlauf)
+    ? action.details!.verlauf!.length
+    : action.last_step
+    ? 1
+    : 0;
+  return Math.min(verlaufLen, anzahl - 1);
+}
+
 const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -229,8 +294,29 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
     enabled: open,
   });
 
-  const statuses = collectStatuses(actions);
-  const types = Array.from(new Set(actions.map((a) => a.action_type))).sort();
+  // Die SOLL-Ketten (Workflow-Definitionen) aus max_ablaeufe.
+  // Damit zeichnen wir pro Vorgang den ganzen Ablauf von Anfang bis Ende und
+  // markieren, wie weit er ist.
+  const { data: ablaeufe = [] } = useQuery({
+    queryKey: ['max_ablaeufe_fuer_ketten'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('max_ablaeufe')
+        .select('aktion, variante, schritt_nr, akteur, schritt, ergebnis_status')
+        .order('schritt_nr', { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as AblaufSchritt[];
+    },
+    enabled: open,
+  });
+
+  // Schritte nach action_type gruppieren (Variante 'standard' bevorzugt).
+  const ablaufNachAktion = new Map<string, AblaufSchritt[]>();
+  for (const sch of ablaeufe) {
+    const arr = ablaufNachAktion.get(sch.aktion) ?? [];
+    arr.push(sch);
+    ablaufNachAktion.set(sch.aktion, arr);
+  }
 
   const filtered = actions.filter((a) => {
     if (statusFilter !== 'all' && a.status !== statusFilter) return false;
@@ -524,8 +610,54 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
                     </div>
                   </div>
 
-                  {/* Workflow-Kette: alle Schritte von Anfang bis Ende in einer Zeile */}
-                  {Array.isArray(action.details?.verlauf) &&
+                  {/* WORKFLOW-KETTE: der ganze Ablauf von Anfang bis Ende.
+                      Stationen aus max_ablaeufe; erledigte grün, aktuelle
+                      hervorgehoben, kommende blass. So sieht man auf einen
+                      Blick, wo der Vorgang steht. */}
+                  {(() => {
+                    const stationen = ablaufNachAktion.get(action.action_type) ?? [];
+                    if (stationen.length === 0) return null;
+                    const aktuell = aktuelleStation(action, stationen);
+
+                    return (
+                      <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
+                        {stationen.map((st, i) => {
+                          const erledigt = i < aktuell;
+                          const istAktuell = i === aktuell;
+                          const kurz =
+                            STATION_KURZ[`${action.action_type}#${st.schritt_nr}`] ??
+                            st.schritt.slice(0, 22);
+                          const akteur = AKTEUR_KURZ[st.akteur] ?? st.akteur;
+
+                          const cls = erledigt
+                            ? 'bg-green-100 text-green-800 border-green-200'
+                            : istAktuell
+                            ? 'bg-blue-600 text-white border-blue-700 font-medium shadow-sm'
+                            : 'bg-muted text-muted-foreground/60 border-transparent';
+
+                          return (
+                            <span key={st.schritt_nr} className="flex items-center gap-1">
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 ${cls}`}
+                                title={`${akteur}: ${st.schritt}`}
+                              >
+                                {erledigt && <CheckCircle className="h-3 w-3" />}
+                                {kurz}
+                              </span>
+                              {i < stationen.length - 1 && (
+                                <ArrowRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />
+                              )}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Fallback: Vorgang OHNE definierten Ablauf (z.B. Willkommens-
+                      E-Mail) — zeigt die tatsächlichen Schritte aus verlauf. */}
+                  {!ablaufNachAktion.get(action.action_type) &&
+                    Array.isArray(action.details?.verlauf) &&
                     action.details!.verlauf!.length > 0 && (
                       <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
                         {action.details!.verlauf!.map((step, i) => {
@@ -548,9 +680,10 @@ const MaxActionsPanel = ({ open, onOpenChange }: MaxActionsPanelProps) => {
                       </div>
                     )}
 
-                  {/* Falls (noch) keine Kette vorhanden: letzten Schritt zeigen */}
-                  {(!action.details?.verlauf ||
-                    action.details.verlauf.length === 0) &&
+                  {/* Falls gar nichts vorhanden: letzten Schritt zeigen */}
+                  {!ablaufNachAktion.get(action.action_type) &&
+                    (!action.details?.verlauf ||
+                      action.details.verlauf.length === 0) &&
                     action.last_step && (
                       <p className="mt-2 text-sm">
                         <span className="text-muted-foreground">
