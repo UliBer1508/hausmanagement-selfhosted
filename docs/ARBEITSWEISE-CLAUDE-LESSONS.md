@@ -302,7 +302,26 @@ Prompt herausgibt. Wenn eine Antwort „nein/unklar“ ist → zurück zu Abschn
 
 ---
 
+**Ergänzung 16.07.2026 (Wäsche-Reschedule-Kette):**
+- **Symmetrie prüfen, nicht kopieren.** Der Teuni-Bug war kopierter Amela-Code mit
+  der falschen Bezugsspalte (`related_task_id` statt `related_linen_order_id`).
+  Beim Spiegeln einer Kette JEDE spaltenspezifische Stelle einzeln gegen den echten
+  Kontext prüfen — nicht annehmen, „gleich wie Amela" heißt „gleiche Spalten".
+- **Neue Spalte akzeptiert der Insert nicht automatisch.** `logMaxAction` verschluckte
+  `related_linen_order_id` still, weil weder Signatur noch Insert es kannten. Vor dem
+  Übergeben eines neuen Feldes: existiert die DB-Spalte UND nimmt die schreibende
+  Funktion sie an? Beides am Code prüfen.
+- **Trigger-Reihenfolge ist alphabetisch.** Zwei Trigger auf demselben Ereignis:
+  der eine liest, was der andere schließt → Namens-Präfix (`aa`) erzwingt die
+  Reihenfolge. Bewusst benennen und dokumentieren.
+- **„Deployed" ≠ „funktioniert" — bewiesen.** Der DB-Teil war fertig, aber Max
+  *verstand* den Wunsch nicht (Prompt-Block fehlte). Erst der End-to-End-Test an
+  echten Daten deckte es auf. Kette immer ganz durchspielen, Glied für Glied mit Beleg.
+- **Nicht aus Code-Präsenz auf Nutzung schließen — an echten Daten verifiziert.**
+  Die „Provider antwortet per Button"-Prämisse aus Doku/Memory war real ungenutzt
+  (System noch nicht im Betrieb). Vor dem Bauen: was wird tatsächlich benutzt?
+
 *Erstellt am 15.06.2026 nach einer fehlerhaften Sitzung zur Vereinheitlichung
-der Übersichtskarten (Buchung/Reinigung/Wäsche). Ergänzt 16.06., 13.07. und 15.07.2026.*
+der Übersichtskarten (Buchung/Reinigung/Wäsche). Ergänzt 16.06., 13.07., 15.07. und 16.07.2026.*
 *Ablage seit 13.07.2026: `docs/` (zusammen mit allen anderen Dokumenten).
 `AGENTS.md` im Repo-Root verweist hierher.*

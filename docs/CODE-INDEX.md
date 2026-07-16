@@ -350,7 +350,7 @@ execute-Funktionen, `buildEntityLinks` (Buttons), dynamischen System-Prompt.
 | Übersicht | `get_morning_summary` (→ Edge Fn `morning-summary`), `get_guest_contact_reminders`, `get_rating_reminders` |
 | Wächter | `check_upcoming_bookings` (4 Prüfungen: fehlende Reinigung/Wäsche, Timing, offene Zahlung) |
 | Anlegen | `create_cleaning_for_booking` (→ `create-cleaning-task-for-booking`, Status `draft`), `create_linen_for_booking` (→ `create-linen-order-for-booking`) |
-| Ändern | `reschedule_cleaning` (Termin → `draft`), **`reject_reschedule`** (Absage an Amela, setzt Reinigung zurück auf `scheduled`), `update_linen_for_booking` (→ `generate-booking-linen-order`) |
+| Ändern | `reschedule_cleaning` (Reinigungstermin → `draft`), **`reschedule_linen_delivery`** (Wäsche-Liefertermin → `offen`; Wäsche-Gegenstück, NEU 16.07.), **`reject_reschedule`** (Absage an Amela, setzt Reinigung zurück auf `scheduled`), `update_linen_for_booking` (→ `generate-booking-linen-order`) |
 | Anfragen | `accept_booking_inquiry`, `reject_booking_inquiry` |
 | Kommunikation | `send_provider_message`, `read_provider_replies` |
 | Sonstiges | `draft_guest_welcome_email`, `save_knowledge` |
@@ -378,7 +378,11 @@ Grund: nie in `max_ablaeufe` definiert; erzeugten Sammel-Einträge ohne `booking
 die auf die Einzel-Werkzeuge verweist. Auch die Labels in `MaxActionsPanel.tsx`
 sind entfernt.
 
-**Neu (14.07.2026):** `reject_reschedule` (Absage an Amela). Daher **27 Werkzeuge**.
+**Neu (14.07.2026):** `reject_reschedule` (Absage an Amela). Daher 27 Werkzeuge.
+
+**Neu (16.07.2026):** `reschedule_linen_delivery` (Wäsche-Liefertermin verschieben,
+Gegenstück zu `reschedule_cleaning`). Daher **28 Werkzeuge**. Siehe Abschnitt
+„Wäsche-Reschedule-Kette" unten und `Session-2026-07-16`.
 
 **Modell A (nicht verhandelbar):** Max handelt NUR nach ausdrücklicher Freigabe
 durch Uli. Er liest Antworten nur auf Nachfrage.
@@ -386,10 +390,10 @@ durch Uli. Er liest Antworten nur auf Nachfrage.
 ### DB-Tabellen für Max
 | Tabelle | Zweck |
 |---|---|
-| `max_actions` | **Protokoll** aller Max-Vorgänge. Felder: `action_type, status, booking_id, guest_name, details, related_task_id, last_step, waiting_for, due_at`. Status: `wartet_uli`, `wartet_provider`, `ueberfaellig`, `abgeschlossen`. Angezeigt in `MaxActionsPanel.tsx`. |
+| `max_actions` | **Protokoll** aller Max-Vorgänge. Felder: `action_type, status, booking_id, guest_name, details, related_task_id, `**`related_linen_order_id`** (NEU 16.07., Wäsche-Bezug — Gegenstück zu `related_task_id`)`, last_step, waiting_for, due_at`. Status: `wartet_uli`, `wartet_provider`, `ueberfaellig`, `abgeschlossen`, `beantwortet`. Angezeigt in `MaxActionsPanel.tsx`. |
 | `max_ablaeufe` | **Soll-Vorgabe / Checkliste** (44 Zeilen). Spalten: `aktion, variante, schritt_nr, akteur, schritt, ergebnis_status, umsetzung, funktion, notiz`. **STEUERT MAX NICHT** — reine Doku, manuell gepflegt. Angezeigt in `MaxAblaeufePanel.tsx`. |
 | `assistant_knowledge` | Was Max sich dauerhaft merken soll (`save_knowledge`). |
-| `provider_messages` | Nachrichten Max ↔ Amela/Teuni. **`related_task_id` verknüpft jede Nachricht mit der Reinigung** — Kern der geschlossenen Kette. |
+| `provider_messages` | Nachrichten Max ↔ Amela/Teuni. **`related_task_id` verknüpft mit der Reinigung** (Amela), **`related_linen_order_id` mit der Wäschebestellung** (Teuni, korrekt gesetzt seit 15.07. in `usePortalMessages.ts`) — Kern der geschlossenen Ketten. |
 | `system_settings` | Schlüssel `max_control_settings`, `morning_summary_settings`. |
 
 ### Automatik (Edge Functions + Cron)
@@ -420,13 +424,55 @@ durch Uli. Er liest Antworten nur auf Nachfrage.
 |---|---|---|
 | `trg_notify_amela_on_cleaning_release` | `service_tasks` | Bei `draft→scheduled`: benachrichtigt Amela (nur wenn sie via `related_task_id` einen „Neuer Termin: …"-Wunsch gestellt hatte) |
 | `trg_close_max_action_on_cleaning_scheduled` | `service_tasks` | Bei `draft→scheduled`: schließt den offenen `max_actions`-Vorgang ab |
-| `trg_close_max_action_on_linen_confirmed` | `linen_orders` | Bei `offen→ausstehend`: schließt den Wäsche-Vorgang ab |
+| `trg_aa_notify_teuni_on_linen_release` | `linen_orders` | **(NEU 16.07.)** Bei `offen→ausstehend`: benachrichtigt Teuni (nur wenn sie via `related_linen_order_id` einen „Neuer Liefertermin: …"-Wunsch gestellt hatte UND ein offener `reschedule_linen_delivery`-Vorgang existiert). **`aa`-Präfix ist Absicht:** erzwingt Lauf VOR dem close-Trigger, damit notify den offenen Vorgang sieht, bevor close ihn schließt. Wäsche-Gegenstück zu `trg_notify_amela_on_cleaning_release`. |
+| `trg_close_max_action_on_linen_confirmed` | `linen_orders` | Bei `offen→ausstehend`: schließt den Wäsche-Vorgang ab. **(Erweitert 16.07.:** Filter kennt jetzt auch `reschedule_linen_delivery`, nicht nur create/update.) |
 | `trg_close_max_action_on_guest_contacted` | `bookings` | Bei `guest_contact_status` → `contacted`/`not_required`: schließt den `welcome_email`-Vorgang ab |
-| `trg_max_actions_on_provider_reply` | `provider_messages` | Antwortet Amela/Teuni: hängt „X hat geantwortet" an die Verlaufskette, Status → `beantwortet` |
+| `trg_max_actions_on_provider_reply` | `provider_messages` | Antwortet Amela/Teuni: hängt „X hat geantwortet" an die Verlaufskette, Status → `beantwortet`. **(Erweitert 16.07.:** erkennt jetzt BEIDE Bezüge — `related_task_id` UND `related_linen_order_id`. Vorher stieg der Trigger bei Wäsche-Antworten aus, Max erfuhr nie davon.) |
 
 > ⚠️ **Die beiden `linen`- und `guest`-Trigger standen bis 13.07.2026 in KEINEM
 > Dokument** — sie existierten still in der DB. Beim Ziehen der Trigger-SQL sind
 > sie aufgefallen.
+
+### Wäsche-Reschedule-Kette (NEU 16.07.2026) — vollständig, live getestet
+
+Das Wäsche-Gegenstück zur Reinigungs-Terminänderung. Teuni bittet um einen anderen
+Liefertermin, Max verschiebt, Uli gibt frei, Teuni wird informiert. Kette
+End-to-End am 16.07. an echten Daten durchgespielt und bestätigt.
+
+**Ablauf (Definition: `max_ablaeufe`, aktion `reschedule_linen_delivery`):**
+1. Teuni antwortet im Portal (Freitext, z. B. „Neuer Liefertermin: 22.01.2027")
+   → Antwort trägt `related_linen_order_id` (`usePortalMessages.ts`, Fix 15.07.).
+2. `trg_max_actions_on_provider_reply` erkennt den Wäsche-Bezug → Vorgang
+   `beantwortet`. **Dieser Bezug ist der Einstieg — ohne ihn erführe Max nie von
+   der Antwort.**
+3. Max liest via `read_provider_replies` (liefert `typ=waesche`), **versteht** den
+   Wunsch (Prompt-Block „📦 WÄSCHE-LIEFERTERMIN VERSCHIEBEN") und bietet an.
+4. Nach Ulis „ja": Tool `reschedule_linen_delivery` → `delivery_date` neu,
+   Status `offen`, `logMaxAction` mit `related_linen_order_id`.
+5. Uli gibt frei (`offen→ausstehend`) → `trg_aa_notify_teuni…` informiert Teuni
+   (nur bei echtem Wunsch) → `trg_close…` schließt den Vorgang.
+
+**Kern-Symmetrie zur Reinigung:**
+
+| | Reinigung (Amela) | Wäsche (Teuni) |
+|---|---|---|
+| Tabelle | `service_tasks` | `linen_orders` |
+| Datum | `scheduled_date` | `delivery_date` |
+| Status-Fluss | `draft → scheduled` | `offen → ausstehend` |
+| Bezug | `related_task_id` | `related_linen_order_id` |
+| Wunsch-Text | „Neuer Termin: …" | „Neuer Liefertermin: …" |
+| notify-Trigger | `trg_notify_amela…` | `trg_aa_notify_teuni…` |
+
+**SQL-Dateien:** `21_…add_related_linen_order_id`, `22_…reschedule_linen_triggers`,
+`23_…provider_reply_linen`, `24_…finalisieren`. Details: `Session-2026-07-16`.
+
+> ⚠️ **Stand des Systems (16.07.2026): NOCH NICHT im Realbetrieb.** Weder Amela
+> noch Teuni hat je eine echte Anfrage beantwortet — alle bisherigen Portal-
+> Nachrichten sind Test-/Handeingaben von Uli. Die Provider-Antwort-Buttons
+> („Neuer Termin: …") existieren nur in einer `.txt`-Sicherung, nicht im aktiven
+> Portal-Code, und werden real nicht genutzt. Die Ketten erkennen den Wunsch per
+> **Regex im Freitext** bzw. über **Max' Sprachverständnis** — Buttons sind nicht
+> nötig. Nicht aus Code-Präsenz auf reale Nutzung schließen.
 
 ---
 
