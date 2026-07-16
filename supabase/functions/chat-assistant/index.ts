@@ -1981,9 +1981,10 @@ async function executeSendProviderMessage(params: any) {
   // Workflow nur für echte Terminfragen (die auf eine Antwort warten). Reine, vom Nutzer
   // freigegebene Info-Nachrichten erwarten keine Antwort und dürfen keinen "keine Antwort"-Alarm auslösen.
   if (params.ist_terminfrage === true) {
-  // Fälligkeit: 2 Tage — danach kann der Wächter "keine Antwort" erkennen.
+  // Fälligkeit: 24 Stunden ab Fragezeitpunkt (Wochenende mitgezählt) —
+  // danach erkennt der Wächter overdue-watch "keine Antwort" (Ablauf provider_keine_antwort).
   const dueAt = new Date();
-  dueAt.setDate(dueAt.getDate() + 2);
+  dueAt.setHours(dueAt.getHours() + 24);
   const waitingFor = /teuni/i.test(provider.name) ? 'teuni' : /amela/i.test(provider.name) ? 'amela' : 'provider';
   if (params.related_task_id) {
     // Gehört zu einem bestehenden Reinigungs-/Wäsche-Workflow → fortschreiben.
@@ -3733,6 +3734,24 @@ STRENGE FREIGABE-REGEL:
 - ALLES ANDERE → ist_terminfrage=false. Die Nachricht wird dann NICHT gesendet, sondern als Entwurf zurückgegeben. Zeige dem Nutzer den Entwurf und sende ihn erst, nachdem der Nutzer ausdrücklich "ja, senden" o.ä. bestätigt hat (dann erneut send_provider_message, weiterhin ist_terminfrage=false, aber jetzt mit Bestätigung des Nutzers).
 - Formuliere Nachrichten höflich, auf Deutsch. Beginne jede Nachricht an einen Dienstleister mit "Hallo [Name], ich bin Max, der KI-Assistent von Uli."
 - Wenn du eine Reinigung ansprichst, gib wenn möglich related_task_id mit, damit die Nachricht daran hängt.
+
+⏰ KEINE ANTWORT VOM DIENSTLEISTER (Ablauf provider_keine_antwort):
+Wenn eine Frage an Amela oder Teuni 24 Stunden ohne Antwort bleibt, wird der Vorgang
+überfällig (Status ueberfaellig) und erscheint ganz oben in der Morgen-Übersicht.
+- Erwähne solche überfälligen Vorgänge nicht nur beiläufig — sprich Uli AKTIV darauf an
+  und frage, wie vorzugehen ist. Beispiel: "Teuni hat seit gestern nicht auf die
+  Wäsche-Anfrage für [Gast] geantwortet. Wie möchtest du vorgehen — soll ich nochmal
+  nachfragen, den Vorgang vorerst schließen, oder noch warten?"
+- Uli antwortet frei (kein festes Menü). Setze seine Anweisung mit den vorhandenen
+  Werkzeugen um:
+  · "nochmal fragen / erinnere sie" → sende die Frage erneut mit send_provider_message
+    (dabei denselben Bezug related_task_id bzw. related_linen_order_id mitgeben; die Frist
+    von 24 h beginnt neu).
+  · "noch warten / später" → tu nichts weiter, der Vorgang bleibt bestehen.
+  · "abschließen / lass es" → melde, dass du den Vorgang als erledigt betrachtest.
+- Erfinde KEINE neuen Aktionen und kontaktiere KEINEN anderen Anbieter von dir aus —
+  ein Anbieterwechsel ist erst möglich, wenn Uli es ausdrücklich sagt und der Anbieter
+  im System eingebunden ist.
 
 Du antwortest auf Deutsch, klar und konkret. Nenne bei Wäsche immer eindeutig,
 ob sie schon geliefert ist oder nicht.
