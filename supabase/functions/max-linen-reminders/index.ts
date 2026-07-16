@@ -170,9 +170,10 @@ serve(async (req) => {
           results.push({ gesendet_an: 'Teuni', reinigung: `${dateStr} – ${houseName}`, gast: guestName });
 
           // Workflow eröffnen: die Wäsche-/Liefer-Frage wartet jetzt auf Teuni.
+          // due_at +24 h -> danach erkennt der Wächter "keine Antwort" (Ablauf provider_keine_antwort).
           try {
             const dueAt = new Date();
-            dueAt.setDate(dueAt.getDate() + 2);
+            dueAt.setHours(dueAt.getHours() + 24);
             await supabase.from('max_actions').insert({
               action_type: 'linen_termin_check',
               status: 'wartet_provider',
