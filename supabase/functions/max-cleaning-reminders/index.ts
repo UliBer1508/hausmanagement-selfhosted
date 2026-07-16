@@ -197,10 +197,10 @@ serve(async (req) => {
           results.push({ gesendet_an: provider.name, reinigung: `${dateStr} – ${houseName}`, gast: guestName });
 
           // Workflow eröffnen: die Terminfrage wartet jetzt auf den Provider.
-          // due_at +2 Tage -> danach erkennt der Wächter "keine Antwort".
+          // due_at +24 h -> danach erkennt der Wächter "keine Antwort" (Ablauf provider_keine_antwort).
           try {
             const dueAt = new Date();
-            dueAt.setDate(dueAt.getDate() + 2);
+            dueAt.setHours(dueAt.getHours() + 24);
             const waitingFor = /teuni/i.test(provider.name) ? 'teuni' : /amela/i.test(provider.name) ? 'amela' : 'provider';
             await supabase.from('max_actions').insert({
               action_type: 'cleaning_termin_check',
