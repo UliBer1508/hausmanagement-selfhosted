@@ -320,6 +320,12 @@ Prompt herausgibt. Wenn eine Antwort „nein/unklar“ ist → zurück zu Abschn
 - **Nicht aus Code-Präsenz auf Nutzung schließen — an echten Daten verifiziert.**
   Die „Provider antwortet per Button"-Prämisse aus Doku/Memory war real ungenutzt
   (System noch nicht im Betrieb). Vor dem Bauen: was wird tatsächlich benutzt?
+- **Max kann Vollzug BEHAUPTEN, ohne ihn auszuführen.** Bei „schließ den Vorgang"
+  meldete Max „erledigt", aber die DB blieb unverändert — es gab kein Werkzeug dafür,
+  nur die Prompt-Anweisung „melde, dass du es als erledigt betrachtest". Lektion: Wenn
+  Max eine Aktion melden soll, MUSS es ein Werkzeug geben, das sie wirklich ausführt;
+  sonst ist die Meldung eine Halluzination. Immer per DB-Abfrage prüfen, ob eine
+  gemeldete Aktion wirklich passiert ist — nicht dem Chat glauben.
 
 *Erstellt am 15.06.2026 nach einer fehlerhaften Sitzung zur Vereinheitlichung
 der Übersichtskarten (Buchung/Reinigung/Wäsche). Ergänzt 16.06., 13.07., 15.07. und 16.07.2026.*

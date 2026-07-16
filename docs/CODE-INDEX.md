@@ -343,14 +343,14 @@ Typen — `booking` (→ `editBookingId`), `cleaning_task` (→ `openTaskId`),
 Modell: **Gemini 2.5 Flash**. Enthält Tool-Definitionen, Dispatcher,
 execute-Funktionen, `buildEntityLinks` (Buttons), dynamischen System-Prompt.
 
-**27 Werkzeuge:**
+**29 Werkzeuge:**
 | Gruppe | Werkzeuge |
 |---|---|
 | Lesen | `search_bookings`, `search_cleaning_tasks`, `search_linen_orders`, `search_guests`, `search_houses`, `search_booking_inquiries`, `get_booking_full_context`, `get_dashboard_stats`, `get_revenue_stats`, `get_linen_overview`, `get_calendar_events`, `get_daily_overview` |
 | Übersicht | `get_morning_summary` (→ Edge Fn `morning-summary`), `get_guest_contact_reminders`, `get_rating_reminders` |
 | Wächter | `check_upcoming_bookings` (4 Prüfungen: fehlende Reinigung/Wäsche, Timing, offene Zahlung) |
 | Anlegen | `create_cleaning_for_booking` (→ `create-cleaning-task-for-booking`, Status `draft`), `create_linen_for_booking` (→ `create-linen-order-for-booking`) |
-| Ändern | `reschedule_cleaning` (Reinigungstermin → `draft`), **`reschedule_linen_delivery`** (Wäsche-Liefertermin → `offen`; Wäsche-Gegenstück, NEU 16.07.), **`reject_reschedule`** (Absage an Amela, setzt Reinigung zurück auf `scheduled`), `update_linen_for_booking` (→ `generate-booking-linen-order`) |
+| Ändern | `reschedule_cleaning` (Reinigungstermin → `draft`), **`reschedule_linen_delivery`** (Wäsche-Liefertermin → `offen`; Wäsche-Gegenstück, NEU 16.07.), **`reject_reschedule`** (Absage an Amela, setzt Reinigung zurück auf `scheduled`), **`update_provider_action`** (überfälligen Vorgang schließen / Frist verlängern — Ablauf `provider_keine_antwort`, NEU 16.07.), `update_linen_for_booking` (→ `generate-booking-linen-order`) |
 | Anfragen | `accept_booking_inquiry`, `reject_booking_inquiry` |
 | Kommunikation | `send_provider_message`, `read_provider_replies` |
 | Sonstiges | `draft_guest_welcome_email`, `save_knowledge` |
@@ -381,8 +381,10 @@ sind entfernt.
 **Neu (14.07.2026):** `reject_reschedule` (Absage an Amela). Daher 27 Werkzeuge.
 
 **Neu (16.07.2026):** `reschedule_linen_delivery` (Wäsche-Liefertermin verschieben,
-Gegenstück zu `reschedule_cleaning`). Daher **28 Werkzeuge**. Siehe Abschnitt
-„Wäsche-Reschedule-Kette" unten und `Session-2026-07-16`.
+Gegenstück zu `reschedule_cleaning`) und `update_provider_action` (überfälligen
+Dienstleister-Vorgang schließen oder Frist verlängern — Ablauf `provider_keine_antwort`).
+Daher **29 Werkzeuge**. Siehe Abschnitt „Wäsche-Reschedule-Kette" und
+„Keine-Antwort-Ablauf" unten sowie `Session-2026-07-16`.
 
 **Modell A (nicht verhandelbar):** Max handelt NUR nach ausdrücklicher Freigabe
 durch Uli. Er liest Antworten nur auf Nachfrage.
@@ -465,6 +467,35 @@ End-to-End am 16.07. an echten Daten durchgespielt und bestätigt.
 
 **SQL-Dateien:** `21_…add_related_linen_order_id`, `22_…reschedule_linen_triggers`,
 `23_…provider_reply_linen`, `24_…finalisieren`. Details: `Session-2026-07-16`.
+
+### Keine-Antwort-Ablauf (NEU 16.07.2026) — `provider_keine_antwort`
+
+Wenn Amela oder Teuni **24 h** nach einer Frage nicht geantwortet hat, spricht Max
+Uli beim Chat-Öffnen **aktiv** darauf an und fragt, wie vorzugehen ist. Uli
+antwortet **frei** (kein festes Menü, Modell A); Max setzt es um.
+
+**Ablauf (Definition: `max_ablaeufe`, aktion `provider_keine_antwort`):**
+1. Max fragt → `due_at = Fragezeitpunkt + 24 h`, Status `wartet_provider`
+   (in `send_provider_message`, `max-cleaning-reminders`, `max-linen-reminders`).
+2. `overdue-watch` (Cron 06:15) → nach Ablauf Status `ueberfaellig`.
+3. `morning-summary` zeigt es oben; beim Chat-Öffnen erscheint die Übersicht
+   automatisch; Prompt-Block „⏰ KEINE ANTWORT VOM DIENSTLEISTER" macht daraus eine
+   **aktive Nachfrage** statt einer bloßen Meldung.
+4. Uli antwortet frei.
+5. Max setzt um:
+   · „nochmal fragen" → `send_provider_message` (neue 24-h-Frist)
+   · „abschließen / lass es" → **`update_provider_action`** `aktion=schliessen`
+   · „warte noch" → **`update_provider_action`** `aktion=frist_verlaengern`
+
+**Frist:** stur 24 h ab Fragezeitpunkt, Wochenende mitgezählt (Entscheidung Uli).
+
+**Wichtige Lektion aus dem Test:** Vor dem Bau von `update_provider_action` sagte Max
+„ich betrachte es als erledigt", **ohne** dass sich in der DB etwas änderte — es gab
+kein Werkzeug zum Schließen. Der Test (überfälliger Vorgang → „schließ das" → DB
+prüfen) deckte es auf. „Deployed ≠ funktioniert", erneut bestätigt.
+
+**Dateien:** `26_…provider_keine_antwort` (Definition), `27_…finalisieren`, Tool
+`update_provider_action` + Frist-Änderung in `chat-assistant`/beide Reminder.
 
 > ⚠️ **Stand des Systems (16.07.2026): NOCH NICHT im Realbetrieb.** Weder Amela
 > noch Teuni hat je eine echte Anfrage beantwortet — alle bisherigen Portal-
