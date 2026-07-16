@@ -1313,6 +1313,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeRescheduleCleaning(args);
     case 'reschedule_linen_delivery':
       return await executeRescheduleLinenDelivery(args);
+    case 'update_provider_action':
+      return await executeUpdateProviderAction(args);
     case 'read_provider_replies':
       return await executeReadProviderReplies(args);
     case 'get_guest_contact_reminders':
@@ -1664,6 +1666,22 @@ function getToolDefinitions() {
             new_date: { type: "string", description: "Das neue Lieferdatum im Format YYYY-MM-DD" }
           },
           required: ["new_date"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "update_provider_action",
+        description: "Ändert einen offenen oder überfälligen Dienstleister-Vorgang (max_actions), wenn Uli entschieden hat, wie mit einer ausbleibenden Antwort umzugehen ist (Ablauf provider_keine_antwort). Zwei Aktionen: (1) aktion='schliessen' → setzt den Vorgang auf 'abgeschlossen' (Uli sagt 'lass es', 'schließ den Vorgang', 'erledigt'). (2) aktion='frist_verlaengern' → setzt den Vorgang zurück auf 'wartet_provider' mit neuer 24h-Frist (Uli sagt 'warte noch', 'gib ihr mehr Zeit'). Rufe dieses Tool NUR nach einer klaren Anweisung von Uli auf. WICHTIG — VORGANG FINDEN: Du brauchst keine ID. Gib den Gastnamen (guest_name) an, den du aus der Übersicht kennst; das Tool findet den zugehörigen überfälligen/wartenden Vorgang selbst. Nur wenn mehrere passen, melde das und frage nach. Für 'nochmal nachfragen' ist NICHT dieses Tool zuständig, sondern send_provider_message (die Frage neu senden).",
+        parameters: {
+          type: "object",
+          properties: {
+            guest_name: { type: "string", description: "Name des Gastes, zu dessen Vorgang die Anweisung gehört (aus der Übersicht)" },
+            action_id: { type: "string", description: "Optional: die ID des max_actions-Vorgangs direkt, falls bekannt" },
+            aktion: { type: "string", enum: ["schliessen", "frist_verlaengern"], description: "'schliessen' = Vorgang abschließen; 'frist_verlaengern' = neue 24h-Frist, zurück auf wartet_provider" }
+          },
+          required: ["aktion"]
         }
       }
     },
@@ -2747,6 +2765,87 @@ async function executeRescheduleLinenDelivery(params: any) {
   }
 }
 
+/**
+ * Ändert einen offenen/überfälligen Dienstleister-Vorgang nach Ulis Entscheidung
+ * (Ablauf provider_keine_antwort, Schritt 5).
+ *
+ * Zwei Aktionen:
+ *   'schliessen'        -> status='abgeschlossen' (Uli: "lass es", "erledigt")
+ *   'frist_verlaengern' -> status='wartet_provider', due_at = jetzt + 24 h
+ *                          (Uli: "warte noch", "gib ihr mehr Zeit")
+ *
+ * "Nochmal nachfragen" läuft NICHT hierüber, sondern über send_provider_message.
+ *
+ * Findet den Vorgang über action_id ODER guest_name. Bei guest_name werden nur
+ * OFFENE Vorgänge (wartet_provider / ueberfaellig) berücksichtigt — abgeschlossene
+ * sollen nicht wieder angefasst werden.
+ */
+async function executeUpdateProviderAction(params: any) {
+  console.log('Executing update_provider_action:', params);
+  const aktion = params?.aktion;
+  if (aktion !== 'schliessen' && aktion !== 'frist_verlaengern') {
+    return { success: false, error: "aktion muss 'schliessen' oder 'frist_verlaengern' sein" };
+  }
+  if (!params?.action_id && !params?.guest_name) {
+    return { success: false, error: 'action_id oder guest_name ist erforderlich' };
+  }
+  try {
+    // Passenden Vorgang finden — nur offene (wartet_provider/ueberfaellig).
+    let q = supabase
+      .from('max_actions')
+      .select('id, guest_name, status, action_type, waiting_for')
+      .in('status', ['wartet_provider', 'ueberfaellig']);
+    q = params.action_id
+      ? q.eq('id', params.action_id)
+      : q.eq('guest_name', params.guest_name);
+
+    const { data: rows, error: findErr } = await q.limit(5);
+    if (findErr) return { success: false, error: findErr.message };
+    if (!rows || rows.length === 0) {
+      return { success: false, error: 'Kein offener oder überfälliger Vorgang zu diesem Gast/dieser ID gefunden.' };
+    }
+    if (rows.length > 1 && !params.action_id) {
+      return {
+        success: false,
+        mehrdeutig: true,
+        error: `Mehrere offene Vorgänge zu ${params.guest_name} gefunden (${rows.length}). Bitte über action_id eindeutig angeben.`,
+        vorgaenge: rows.map((r) => ({ action_id: r.id, typ: r.action_type, status: r.status })),
+      };
+    }
+
+    const patch: any =
+      aktion === 'schliessen'
+        ? { status: 'abgeschlossen', waiting_for: null, due_at: null,
+            last_step: 'Von Uli geschlossen (keine Antwort, "lass es")' }
+        : (() => {
+            const neu = new Date();
+            neu.setHours(neu.getHours() + 24);
+            return { status: 'wartet_provider', due_at: neu.toISOString(),
+                     last_step: 'Frist von Uli um 24 h verlängert' };
+          })();
+
+    // action_id kann mehrere Zeilen betreffen? Nein — id ist eindeutig; bei
+    // guest_name haben wir oben auf genau 1 Treffer eingegrenzt.
+    const zielId = params.action_id || rows[0].id;
+    const ok = await updateMaxAction({ id: zielId }, patch);
+    if (!ok) return { success: false, error: 'Vorgang konnte nicht aktualisiert werden.' };
+
+    return {
+      success: true,
+      aktion,
+      action_id: zielId,
+      gast: rows[0].guest_name,
+      neuer_status: patch.status,
+      hinweis:
+        aktion === 'schliessen'
+          ? `Vorgang für ${rows[0].guest_name} abgeschlossen.`
+          : `Frist für ${rows[0].guest_name} um 24 Stunden verlängert; der Vorgang wartet wieder auf eine Antwort.`,
+    };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
 function formatDateDE(iso: string): string {
   try { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; } catch { return iso; }
 }
@@ -3747,8 +3846,11 @@ Wenn eine Frage an Amela oder Teuni 24 Stunden ohne Antwort bleibt, wird der Vor
   · "nochmal fragen / erinnere sie" → sende die Frage erneut mit send_provider_message
     (dabei denselben Bezug related_task_id bzw. related_linen_order_id mitgeben; die Frist
     von 24 h beginnt neu).
-  · "noch warten / später" → tu nichts weiter, der Vorgang bleibt bestehen.
-  · "abschließen / lass es" → melde, dass du den Vorgang als erledigt betrachtest.
+  · "abschließen / lass es / erledigt" → rufe update_provider_action mit aktion='schliessen'
+    auf (guest_name mitgeben). Behaupte NICHT, der Vorgang sei erledigt, ohne dieses Tool
+    aufgerufen zu haben — sonst bleibt er in Wahrheit offen und taucht morgen wieder auf.
+  · "noch warten / gib ihr mehr Zeit" → rufe update_provider_action mit
+    aktion='frist_verlaengern' auf (setzt eine neue 24-h-Frist).
 - Erfinde KEINE neuen Aktionen und kontaktiere KEINEN anderen Anbieter von dir aus —
   ein Anbieterwechsel ist erst möglich, wenn Uli es ausdrücklich sagt und der Anbieter
   im System eingebunden ist.
