@@ -2460,7 +2460,7 @@ async function executeReadProviderReplies(params: any) {
   try {
     const { data: replies, error } = await supabase
       .from('provider_messages')
-      .select('id, message, created_at, related_task_id, provider_id, service_providers(name)')
+      .select('id, message, created_at, related_task_id, related_linen_order_id, provider_id, service_providers(name)')
       .eq('sender_type', 'provider')
       .order('created_at', { ascending: false })
       .limit(limit);
@@ -2479,6 +2479,7 @@ async function executeReadProviderReplies(params: any) {
           .maybeSingle();
         if (task) {
           context = {
+            typ: 'reinigung',
             task_id: task.id,
             booking_id: task.booking_id,
             gast: (task as any).bookings?.guest_name,
@@ -2487,19 +2488,38 @@ async function executeReadProviderReplies(params: any) {
             status: task.status,
           };
         }
+      } else if (r.related_linen_order_id) {
+        // Die zugeordnete Wäschebestellung + Buchung laden (Teuni/Wäsche-Seite).
+        // Gegenstück zum Reinigungs-Bezug — nutzt related_linen_order_id.
+        const { data: order } = await supabase
+          .from('linen_orders')
+          .select('id, delivery_date, status, booking_id, bookings(guest_name), houses(name)')
+          .eq('id', r.related_linen_order_id)
+          .maybeSingle();
+        if (order) {
+          context = {
+            typ: 'waesche',
+            linen_order_id: order.id,
+            booking_id: order.booking_id,
+            gast: (order as any).bookings?.guest_name,
+            haus: (order as any).houses?.name,
+            aktuelles_datum: order.delivery_date ? formatDateDE(order.delivery_date) : null,
+            status: order.status,
+          };
+        }
       }
       results.push({
         von: (r as any).service_providers?.name || 'Dienstleister',
         antwort: r.message,
         gesendet: formatDateDE((r.created_at || '').split('T')[0]),
-        bezug: context,  // null = Antwort ohne Reinigungs-Bezug
+        bezug: context,  // null = Antwort ohne Bezug
       });
     }
 
     return {
       success: true,
       anzahl: results.length,
-      hinweis: 'Antworten mit "bezug" beziehen sich eindeutig auf die genannte Reinigung. Wenn eine Antwort eine Terminänderung wünscht, frage Uli, ob du sie mit reschedule_cleaning durchführen sollst.',
+      hinweis: 'Antworten mit "bezug" beziehen sich eindeutig auf eine Reinigung (typ=reinigung) oder eine Wäschebestellung (typ=waesche). Wünscht eine Antwort eine Terminänderung, frage Uli, ob du sie durchführen sollst: bei typ=reinigung mit reschedule_cleaning, bei typ=waesche mit reschedule_linen_delivery.',
       antworten: results,
     };
   } catch (e) {
@@ -3752,7 +3772,24 @@ das nicht einfach im Sande verlaufen — Amela wartet auf eine Antwort.
 - Brauchst du die task_id, suche sie selbst mit search_cleaning_tasks({guest_name}).
 - Das Tool sendet Amela "Der Termin konnte leider nicht geändert werden." und stellt
   sicher, dass die Reinigung wieder auf "geplant" steht.
-- Melde Uli danach: Absage ist raus, welcher Termin bestehen bleibt.`;
+- Melde Uli danach: Absage ist raus, welcher Termin bestehen bleibt.
+
+📦 WÄSCHE-LIEFERTERMIN VERSCHIEBEN (reschedule_linen_delivery):
+Das ist das Wäsche-Gegenstück zum Reinigungstermin-Verschieben. Anlass: Teuni hat
+über das Portal um einen anderen Liefertermin gebeten (z. B. "Neuer Liefertermin: TT.MM.JJJJ"
+oder frei formuliert wie "geht erst am 22.7."). Erkenne solche Wünsche als Terminänderung,
+nicht als bloße Nachricht.
+- Wenn du mit read_provider_replies eine Teuni-Antwort mit typ=waesche siehst, deren
+  Text einen neuen Liefertermin nennt, fasse den Wunsch mit konkretem Bezug zusammen
+  (Gast, Haus, aktuelles Lieferdatum) und frage: "Soll ich den Wäsche-Liefertermin für
+  [Gast] von [alt] auf [neu] verschieben?" und warte auf ein klares "ja".
+- Erst dann rufst du reschedule_linen_delivery auf (new_date im Format YYYY-MM-DD).
+- Die Bestellung wird auf Status "offen" gesetzt. Melde Uli ehrlich, dass er die Änderung
+  in der Wäsche-Karte prüfen und auf "ausstehend" setzen muss — erst das bestätigt sie und
+  informiert Teuni.
+- Brauchst du die ID: nennt Uli nur einen Gastnamen, suche sie selbst mit
+  search_linen_orders({guest_name}). Bei mehreren Treffern lege sie Uli zur Auswahl vor,
+  bei keinem melde das und frage nach.`;
 
     const tools = getToolDefinitions();
 
