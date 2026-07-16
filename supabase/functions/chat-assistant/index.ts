@@ -1311,6 +1311,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeRejectReschedule(args);
     case 'reschedule_cleaning':
       return await executeRescheduleCleaning(args);
+    case 'reschedule_linen_delivery':
+      return await executeRescheduleLinenDelivery(args);
     case 'read_provider_replies':
       return await executeReadProviderReplies(args);
     case 'get_guest_contact_reminders':
@@ -1644,6 +1646,22 @@ function getToolDefinitions() {
             booking_id: { type: "string", description: "Die ID der Buchung, deren Reinigung verschoben werden soll" },
             task_id: { type: "string", description: "Optional: die ID der Reinigung direkt (eindeutiger als booking_id, falls mehrere Reinigungen existieren)" },
             new_date: { type: "string", description: "Das neue Datum im Format YYYY-MM-DD" }
+          },
+          required: ["new_date"]
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "reschedule_linen_delivery",
+        description: "Verschiebt den LIEFERTERMIN einer Wäschebestellung auf ein neues Datum. Anlass: Teuni hat (über den Portal-Button \"Neuer Liefertermin: TT.MM.JJJJ\") um eine Terminänderung gebeten, oder Uli möchte den Liefertermin direkt ändern. Der Liefertermin (delivery_date) wird geändert und die Bestellung auf Status 'offen' zurückgesetzt — Uli prüft und setzt sie auf 'ausstehend', um sie zu bestätigen. Das ist das Wäsche-Gegenstück zu reschedule_cleaning. WICHTIG: (1) Rufe dieses Tool NUR nach ausdrücklicher Zustimmung von Uli auf — bestätige vorher das genaue alte und neue Datum ('Soll ich den Wäsche-Liefertermin für X von TT.MM. auf TT.MM. verschieben?'). (2) Gib new_date immer im Format YYYY-MM-DD an. (3) DU BRAUCHST EINE ID. Nennt Uli nur einen Gastnamen (z.B. 'Luca'), dann SUCHE SIE SELBST: rufe search_linen_orders({guest_name: 'Luca'}) auf — das liefert dir die linen_order_id. Frage NICHT nach einer ID, ohne vorher gesucht zu haben; Uli kennt keine UUIDs auswendig und erwartet, dass du den Gast findest. Nur wenn die Suche MEHRERE Bestellungen liefert, lege sie Uli zur Auswahl vor (mit Haus und Datum). Nur wenn sie GAR NICHTS liefert, melde das und frage nach. Melde danach ehrlich, dass die Bestellung auf 'offen' steht und Uli sie auf 'ausstehend' setzen muss.",
+        parameters: {
+          type: "object",
+          properties: {
+            booking_id: { type: "string", description: "Die ID der Buchung, deren Wäsche-Liefertermin verschoben werden soll" },
+            linen_order_id: { type: "string", description: "Optional: die ID der Wäschebestellung direkt (eindeutiger als booking_id, falls mehrere Bestellungen existieren)" },
+            new_date: { type: "string", description: "Das neue Lieferdatum im Format YYYY-MM-DD" }
           },
           required: ["new_date"]
         }
@@ -2591,6 +2609,123 @@ async function executeRescheduleCleaning(params: any) {
   }
 }
 
+/**
+ * Verschiebt den Liefertermin einer Wäschebestellung auf ein neues Datum.
+ *
+ * Wäsche-Gegenstück zu executeRescheduleCleaning. Gespiegelt von dort, mit den
+ * Wäsche-spezifischen Abweichungen (entschieden 13.07./15.07.2026, definiert in
+ * max_ablaeufe, Aktion 'reschedule_linen_delivery'):
+ *
+ *   Reinigung (Vorbild)            Wäsche (hier)
+ *   ------------------------------ ------------------------------
+ *   service_tasks                  linen_orders
+ *   scheduled_date                 delivery_date
+ *   Status draft                   Status 'offen'
+ *   related_task_id (= task.id)    related_linen_order_id (= order.id)
+ *   Freigabe draft -> scheduled    Freigabe offen -> ausstehend
+ *
+ * Anlass: Teuni hat über den Portal-Button "Neuer Liefertermin: TT.MM.JJJJ" um
+ * eine Änderung gebeten, ODER Uli ändert den Liefertermin direkt.
+ * Setzt delivery_date neu UND Status auf 'offen' - Uli prüft die Änderung in der
+ * Wäsche-Karte und setzt sie auf 'ausstehend', um sie zu bestätigen.
+ * NUR nach ausdrücklicher Zustimmung von Uli aufrufen.
+ */
+async function executeRescheduleLinenDelivery(params: any) {
+  console.log('Executing reschedule_linen_delivery:', params);
+  if (!params?.new_date || !/^\d{4}-\d{2}-\d{2}$/.test(params.new_date)) {
+    return { success: false, error: 'new_date im Format YYYY-MM-DD ist erforderlich' };
+  }
+  if (!params?.booking_id && !params?.linen_order_id) {
+    return { success: false, error: 'booking_id oder linen_order_id ist erforderlich' };
+  }
+  try {
+    // Wäschebestellung finden (per linen_order_id oder über booking_id).
+    // Stornierte Bestellungen werden ausgeschlossen — man verschiebt keine
+    // abgesagte Lieferung.
+    let query = supabase
+      .from('linen_orders')
+      .select('id, delivery_date, status, booking_id, provider_id, bookings(guest_name), houses(name)')
+      .neq('status', 'cancelled');
+    query = params.linen_order_id
+      ? query.eq('id', params.linen_order_id)
+      : query.eq('booking_id', params.booking_id);
+
+    const { data: orders, error: findErr } = await query.limit(2);
+    if (findErr) return { success: false, error: findErr.message };
+    if (!orders || orders.length === 0) {
+      return { success: false, error: 'Keine Wäschebestellung gefunden. Bitte booking_id/linen_order_id prüfen.' };
+    }
+    if (orders.length > 1) {
+      return { success: false, error: 'Mehrere Wäschebestellungen gefunden. Bitte über linen_order_id eindeutig angeben.' };
+    }
+
+    const order = orders[0];
+    const oldDate = order.delivery_date;
+    const guestName = (order as any).bookings?.guest_name || 'Gast';
+    const houseName = (order as any).houses?.name || 'Objekt';
+    const nowIso = new Date().toISOString();
+
+    const { error: updErr } = await supabase
+      .from('linen_orders')
+      .update({
+        delivery_date: params.new_date,
+        status: 'offen',
+        status_changed_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq('id', order.id);
+    if (updErr) return { success: false, error: updErr.message };
+
+    // Vorgang protokollieren — GLEICHE LOGIK wie executeRescheduleCleaning.
+    //
+    // Zwei Trigger auf linen_orders brauchen den Bezug beim Ereignis
+    // offen -> ausstehend (wenn Uli die Änderung freigibt):
+    //   related_linen_order_id -> trg_notify_teuni_on_linen_release (informiert
+    //                             Teuni nur, wenn SIE die Änderung wollte)
+    //   related_linen_order_id -> trg_close_max_action_on_linen_confirmed
+    //                             (schließt den Vorgang)
+    //
+    // EINE STELLE, EIN LOG: Das Protokoll wird NUR hier geschrieben. Falls später
+    // deterministische Pfade (wie bei reschedule_cleaning A/B) hinzukommen, dürfen
+    // diese NICHT zusätzlich loggen — sonst Doppel-Eintrag im Max-Aktionen-Fenster.
+    //
+    // HERKUNFT (Uli direkt vs. Teunis Portal-Wunsch) über params.quelle —
+    // max_ablaeufe reschedule_linen_delivery Schritt 1 unterscheidet beide Fälle.
+    const quelle = params.quelle === 'teuni' ? 'teuni' : 'uli';
+    await logMaxAction({
+      action_type: 'reschedule_linen_delivery',
+      status: 'wartet_uli',
+      booking_id: order.booking_id,
+      related_linen_order_id: order.id,
+      guest_name: guestName,
+      waiting_for: 'uli',
+      last_step: `Liefertermin verschoben: ${formatDateDE(oldDate)} → ${formatDateDE(params.new_date)} (Status "offen") — Uli muss auf "ausstehend" setzen`,
+      details: {
+        linen_order_id: order.id,
+        haus: houseName,
+        altes_datum: oldDate,
+        neues_datum: params.new_date,
+        quelle,
+      },
+      created_by: quelle,
+    });
+
+    return {
+      success: true,
+      geaendert: true,
+      linen_order_id: order.id,
+      gast: guestName,
+      haus: houseName,
+      altes_datum: formatDateDE(oldDate),
+      neues_datum: formatDateDE(params.new_date),
+      status: 'offen',
+      hinweis: `Der Wäsche-Liefertermin für ${guestName} (${houseName}) wurde von ${formatDateDE(oldDate)} auf ${formatDateDE(params.new_date)} geändert und auf Status "offen" gesetzt. Bitte prüfe die Änderung in der Wäsche-Karte und setze den Status auf "ausstehend", um sie zu bestätigen.`,
+    };
+  } catch (e) {
+    return { success: false, error: String(e) };
+  }
+}
+
 function formatDateDE(iso: string): string {
   try { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; } catch { return iso; }
 }
@@ -2646,6 +2781,17 @@ function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string;
         id: String(result.task_id),
         type: 'cleaning_task',
         label: `Reinigung für ${result.gast || 'Gast'} öffnen (${result.neues_datum || ''})`.trim(),
+      });
+      continue;
+    }
+
+    // Wäsche-Liefertermin verschoben: Button, der die Wäsche-Karte (LinenOrderDialog) öffnet.
+    // Der Handler liefert linen_order_id + gast direkt (nicht unter result.data).
+    if (tr.tool === 'reschedule_linen_delivery' && result.linen_order_id) {
+      links.push({
+        id: String(result.linen_order_id),
+        type: 'laundry_order',
+        label: `Wäsche für ${result.gast || 'Gast'} öffnen (${result.neues_datum || ''})`.trim(),
       });
       continue;
     }
@@ -2829,6 +2975,7 @@ async function logMaxAction(entry: {
   details?: any;
   created_by?: string;
   related_task_id?: string | null;
+  related_linen_order_id?: string | null;
   last_step?: string | null;
   waiting_for?: string | null;
   due_at?: string | null;
@@ -2853,6 +3000,7 @@ async function logMaxAction(entry: {
         details: baseDetails,
         created_by: entry.created_by ?? 'max',
         related_task_id: entry.related_task_id ?? null,
+        related_linen_order_id: entry.related_linen_order_id ?? null,
         last_step: entry.last_step ?? null,
         waiting_for: entry.waiting_for ?? null,
         due_at: entry.due_at ?? null,
