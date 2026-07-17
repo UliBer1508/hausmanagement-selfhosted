@@ -1173,42 +1173,8 @@ async function executeDraftGuestWelcomeEmail(params: any) {
       .order('check_in', { ascending: true });
     if (error) return { success: false, error: error.message };
     const list = data || [];
-
-    // KEIN Treffer: klare Nachfrage statt stumpfem "nicht gefunden".
-    // (Der Aufrufer — deterministischer Pfad oder Gemini — zeigt das Uli und
-    //  fragt nach dem korrekten Namen.)
-    if (list.length === 0) {
-      return {
-        success: false,
-        not_found: true,
-        error: `Ich habe keine (nicht stornierte) Buchung zu „${params.guest_name}" gefunden. Bitte prüfe die Schreibweise oder nenne den Namen genauer.`,
-      };
-    }
-
-    // MEHRERE unterschiedliche Gäste: nicht raten, sondern zur Auswahl vorlegen.
-    // (Analog zur Soll-Definition create_cleaning_for_booking, Schritt 3:
-    //  "Mehrere Treffer -> zeigt zur Auswahl". Verschiedene Buchungen desselben
-    //  Gastes gelten NICHT als Mehrdeutigkeit — dann greift die Vorzugswahl unten.)
-    const uniqueNames = Array.from(
-      new Set(list.map((b: any) => (b.guest_name || '').trim().toLowerCase()))
-    );
-    if (uniqueNames.length > 1) {
-      return {
-        success: false,
-        multiple: true,
-        error: `Es gibt mehrere Gäste, auf die „${params.guest_name}" passt. Für wen soll ich die Begrüßungs-E-Mail vorbereiten?`,
-        auswahl: list.slice(0, 8).map((b: any) => ({
-          booking_id: b.id,
-          guest_name: b.guest_name,
-          haus: (b as any).houses?.name || '',
-          check_in: b.check_in ? formatDateDE(String(b.check_in).split('T')[0]) : '',
-          hat_email: !!b.guest_email,
-        })),
-      };
-    }
-
-    // Genau ein Gast (ggf. mehrere Buchungen): bevorzugt die KOMMENDE Buchung
-    // MIT E-Mail-Adresse; sonst irgendeine mit E-Mail; sonst die erste.
+    // Bevorzugt: KOMMENDE Buchung (check_in >= heute) MIT E-Mail-Adresse; sonst
+    // irgendeine mit E-Mail; sonst die erste.
     booking =
       list.find((b: any) => b.guest_email && String(b.check_in || '').split('T')[0] >= todayStr) ||
       list.find((b: any) => b.guest_email) ||
@@ -3042,111 +3008,6 @@ function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string;
   return links.slice(0, 6);
 }
 
-// ===== DETERMINISTISCHE AKTIONEN (ohne Gemini) =====
-// Erkennt den Befehl "erstelle/schreibe eine (Begrüßungs-)E-Mail an/für <Gast>".
-function isWelcomeEmailCommand(text: string): boolean {
-  const t = text || '';
-  const hasEmailWord = /(e-?mail|email|mail|begrüßung|begruessung|begrüss|willkommen|welcome|anschreiben)/i.test(t);
-  const hasTarget = /\b(an|für|fuer)\s+\S+/i.test(t);
-  return hasEmailWord && hasTarget;
-}
-// Extrahiert den Gastnamen nach "an"/"für" (bis zu vier Wörter) UND bereinigt ihn.
-//
-// WARUM BEREINIGUNG (17.07.2026, Fehler "Hubert Middelbos"):
-// Der alte Extraktor nahm bis zu vier Wörter nach "für" WÖRTLICH. Bei
-// "...E-Mail für Hubert Middelbos VOR" (aus "vorbereiten") wurde "vor" als
-// dritter Namensteil mitgeschluckt -> Suche "%hubert middelbos vor%" -> 0 Treffer
-// -> "Keine passende Buchung gefunden", obwohl der Gast existiert.
-//
-// Fix: dieselbe Stoppwort-Logik wie extractGuestNameFromReschedule — Füllwörter
-// und Befehls-Verben werden nur am ANFANG und ENDE abgeschnitten (die Mitte bleibt,
-// sonst würde aus "Van Der Horst" ein "Van Horst").
-function extractGuestNameFromCommand(text: string): string | null {
-  const m = (text || '').match(/\b(?:an|für|fuer)\s+([A-Za-zÄÖÜäöüß.\-]+(?:\s+[A-Za-zÄÖÜäöüß.\-]+){0,3})/i);
-  if (!m) return null;
-
-  const STOPP = new Set([
-    'die', 'der', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einen',
-    'email', 'e-mail', 'mail', 'begrüßung', 'begruessung', 'begrüss',
-    'willkommen', 'welcome', 'anschreiben', 'anreise', 'nachricht', 'vorlage',
-    'auf', 'am', 'um', 'zum', 'zur', 'nach', 'bitte', 'mal', 'doch', 'noch',
-    'heute', 'morgen', 'übermorgen', 'uebermorgen',
-    'wald', 'venediger', 'chalet',   // Häuser sind keine Gäste
-    // Befehls-Verben, die versehentlich mitgezogen werden:
-    'vor', 'vorbereiten', 'bereite', 'erstelle', 'erstellen', 'schreibe',
-    'schreiben', 'schicke', 'schicken', 'sende', 'senden', 'starte', 'starten',
-  ]);
-  const istName = (w: string) => w.length >= 2 && !STOPP.has(w.toLowerCase()) && !/^\d/.test(w);
-
-  const w = m[1].split(/\s+/).filter(Boolean);
-  while (w.length && !istName(w[0])) w.shift();
-  while (w.length && !istName(w[w.length - 1])) w.pop();
-  return w.length ? w.join(' ') : null;
-}
-
-/**
- * Extrahiert den Gastnamen aus einem RESCHEDULE-Befehl.
- *
- * WARUM EIGENE FUNKTION (13.07.2026):
- * extractGuestNameFromCommand() oben sucht nur nach "an"/"für" — passend für
- * E-Mail-Befehle ("E-Mail AN Luca"), aber NICHT für Verschiebe-Befehle. Die
- * Soll-Definition (Tabelle max_ablaeufe, reschedule_cleaning, Schritt 1) nennt
- * den Auslöser wörtlich: "ändere Reinigung VON <Gast> auf <Datum>".
- *
- * Das Wort "von" fehlte im alten Muster. Folge: guestName blieb null, und Max
- * fragte nach einer UUID, statt den Gast zu suchen — genau der Fehler, den Uli
- * am 13.07.2026 mit "Luca" gemeldet hat.
- *
- * Stoppwörter verhindern, dass Füllwörter oder Verben als Name durchgehen
- * ("Reinigungstermin verschieben" darf keinen Gast namens "verschieben" liefern).
- * Sie werden nur am ANFANG und ENDE geschnitten, nie mittendrin — sonst würde
- * aus "Christiaan Van Der Horst" ein "Christiaan Van Horst".
- */
-function extractGuestNameFromReschedule(text: string): string | null {
-  const t = (text || '').trim();
-
-  const STOPP = new Set([
-    'die', 'der', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einen',
-    'reinigung', 'reinigungstermin', 'termin', 'putzen', 'putz',
-    'auf', 'am', 'um', 'zum', 'zur', 'nach', 'bitte', 'mal',
-    'heute', 'morgen', 'übermorgen', 'uebermorgen',
-    'wald', 'venediger', 'chalet',   // Häuser sind keine Gäste
-    // Verben aus dem Befehl selbst:
-    'verschieben', 'verschiebe', 'verschieb', 'ändern', 'aendern', 'ändere',
-    'aendere', 'anpassen', 'passe', 'setzen', 'setze', 'legen', 'lege',
-  ]);
-
-  const istName = (w: string) => w.length >= 2 && !STOPP.has(w.toLowerCase()) && !/^\d/.test(w);
-
-  // Füllwörter nur vorn und hinten abschneiden — die Mitte bleibt (siehe "Van Der").
-  const saeubern = (roh: string): string | null => {
-    const w = roh.split(/\s+/).filter(Boolean);
-    while (w.length && !istName(w[0])) w.shift();
-    while (w.length && !istName(w[w.length - 1])) w.pop();
-    return w.length ? w.join(' ') : null;
-  };
-
-  // 1) Mit Präposition: "von/an/für <Name>" — der Normalfall laut Definition.
-  let m = t.match(/\b(?:von|an|für|fuer)\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\-]*(?:\s+[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\-]*){0,3})/i);
-  if (m) {
-    const name = saeubern(m[1]);
-    if (name) return name;
-  }
-
-  // 2) Genitiv: "verschiebe Lucas Reinigung"
-  m = t.match(/\b([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\-]*)s\s+Reinigung/i);
-  if (m && istName(m[1])) return m[1];
-
-  // 3) Ohne Präposition: "Reinigung Luca auf 20.7."
-  m = t.match(/\bReinigung(?:stermin)?\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\-]*(?:\s+[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\-]*)?)/i);
-  if (m) {
-    const name = saeubern(m[1]);
-    if (name) return name;
-  }
-
-  return null;
-}
-
 // Schreibt einen Eintrag in den Auftragsverlauf (Tabelle max_actions).
 // Rein additiv: schlägt es fehl, wird nur geloggt — die Aktion läuft trotzdem weiter.
 async function logMaxAction(entry: {
@@ -3276,87 +3137,6 @@ async function updateMaxAction(
   }
 }
 
-// Erkennt ein Datum aus freiem Text: TT.MM.JJJJ, TT.MM., "TT. Monat [JJJJ]".
-// Gibt ISO 'YYYY-MM-DD' zurück oder null. Fehlt das Jahr, wird das nächste
-// zukünftige Jahr gewählt.
-function parseGermanDate(text: string): string | null {
-  const t = text || '';
-  const months: Record<string, number> = {
-    januar: 1, jänner: 1, februar: 2, märz: 3, maerz: 3, april: 4, mai: 5, juni: 6,
-    juli: 7, august: 8, september: 9, oktober: 10, november: 11, dezember: 12,
-  };
-  const futureYear = (mon: number, day: number): number => {
-    const now = new Date();
-    let year = now.getFullYear();
-    const candidate = new Date(year, mon - 1, day);
-    if (candidate.getTime() < now.getTime() - 86400000) year += 1;
-    return year;
-  };
-  // 1) TT.MM.JJJJ
-  let m = t.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-  // 2) TT.MM. (ohne Jahr)
-  m = t.match(/(\d{1,2})\.(\d{1,2})\.?(?!\d)/);
-  if (m) {
-    const day = parseInt(m[1], 10), mon = parseInt(m[2], 10);
-    const year = futureYear(mon, day);
-    return `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  }
-  // 3) TT. Monat [JJJJ]
-  m = t.match(/(\d{1,2})\.?\s+(januar|jänner|februar|märz|maerz|april|mai|juni|juli|august|september|oktober|november|dezember)(?:\s+(\d{4}))?/i);
-  if (m) {
-    const day = parseInt(m[1], 10);
-    const mon = months[m[2].toLowerCase()];
-    const year = m[3] ? parseInt(m[3], 10) : futureYear(mon, day);
-    return `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  }
-  return null;
-}
-
-// Findet offene Termin-Vorschläge von Dienstleistern (Amela/Teuni):
-// provider-Nachrichten "Neuer Termin: TT.MM.JJJJ" mit Reinigungsbezug,
-// die noch nicht angewandt wurden (aktuelles Datum != Vorschlag).
-async function findAmelaRescheduleProposals(): Promise<any[]> {
-  const { data: msgs } = await supabase
-    .from('provider_messages')
-    .select('id, message, related_task_id, created_at, provider_id, service_providers(name)')
-    .eq('sender_type', 'provider')
-    .not('related_task_id', 'is', null)
-    .order('created_at', { ascending: false })
-    .limit(30);
-
-  const re = /Neuer Termin:\s*(\d{1,2})\.(\d{1,2})\.(\d{4})/i;
-  const seen = new Set<string>();
-  const out: any[] = [];
-  for (const msg of msgs || []) {
-    const mm = re.exec((msg as any).message || '');
-    if (!mm) continue;
-    const taskId = (msg as any).related_task_id;
-    if (seen.has(taskId)) continue; // pro Reinigung nur der jüngste Vorschlag
-    seen.add(taskId);
-    const iso = `${mm[3]}-${mm[2].padStart(2, '0')}-${mm[1].padStart(2, '0')}`;
-    const { data: task } = await supabase
-      .from('service_tasks')
-      .select('id, scheduled_date, booking_id, service_type, bookings(guest_name), houses(name)')
-      .eq('id', taskId)
-      .maybeSingle();
-    if (!task || (task as any).service_type !== 'cleaning') continue;
-    if (String((task as any).scheduled_date) === iso) continue; // schon angewandt
-    out.push({
-      task_id: (task as any).id,
-      booking_id: (task as any).booking_id,
-      iso,
-      new_date_de: `${mm[1].padStart(2, '0')}.${mm[2].padStart(2, '0')}.${mm[3]}`,
-      old_date_de: formatDateDE(String((task as any).scheduled_date)),
-      guest: (task as any).bookings?.guest_name || 'Gast',
-      haus: (task as any).houses?.name || '',
-      provider_name: (msg as any).service_providers?.name || 'Amela',
-      provider_id: (msg as any).provider_id,
-    });
-  }
-  return out;
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -3368,183 +3148,21 @@ serve(async (req) => {
   try {
     const { messages, context } = await req.json();
 
-    // ===== DETERMINISTISCHE AKTION: Begrüßungs-E-Mail — DIREKT ausführen, OHNE Gemini. =====
-    // Wenn der letzte Nutzer-Text ein E-Mail-Befehl ist, ruft das Backend die Funktion
-    // executeDraftGuestWelcomeEmail selbst auf und gibt "Auftrag ausgeführt" + Button zurück.
-    // Gemini wird dabei NICHT gefragt (zuverlässig statt Zufall).
-    const latestUserText = [...messages].reverse().find((m: any) => m.role === 'user')?.content || '';
-    if (isWelcomeEmailCommand(latestUserText)) {
-      const guestName = extractGuestNameFromCommand(latestUserText);
-      const result = await executeDraftGuestWelcomeEmail({ guest_name: guestName || undefined });
-      const toolResults = [{ tool: 'draft_guest_welcome_email', args: { guest_name: guestName }, result }];
-
-      let responseText: string;
-      if (result.success && (result as any).draft) {
-        const d = (result as any).draft;
-        // Status-Verlauf: Auftrag protokollieren (Entwurf erstellt, wartet auf Prüfung/Senden).
-        await logMaxAction({
-          action_type: 'welcome_email',
-          status: 'wartet_uli',
-          waiting_for: 'uli',
-          booking_id: d.booking_id ?? null,
-          guest_name: d.guest_name ?? null,
-          details: { to: d.to, subject: d.subject, language: d.language, house: d.house },
-          created_by: 'uli',
-        });
-        responseText = `✅ Auftrag ausgeführt: Begrüßungs-E-Mail (${String(d.language || 'de').toUpperCase()}) für ${d.guest_name} vorbereitet. Klick auf den Button, prüfe Betreff/Text im Vorschaufenster und sende mit „Per Gmail senden".`;
-      } else if ((result as any).multiple && Array.isArray((result as any).auswahl)) {
-        // Mehrere mögliche Gäste -> zur Auswahl vorlegen, NICHT raten.
-        const zeilen = (result as any).auswahl
-          .map((a: any) => `• ${a.guest_name}${a.haus ? ` (${a.haus}` : ''}${a.check_in ? `, Anreise ${a.check_in}` : ''}${a.haus ? ')' : ''}${a.hat_email ? '' : ' — ohne E-Mail-Adresse'}`)
-          .join('\n');
-        responseText = `${(result as any).error}\n\n${zeilen}\n\nSag mir den vollständigen Namen, dann bereite ich die E-Mail vor.`;
-      } else {
-        // KEIN Treffer oder anderer Fehler (z. B. keine E-Mail-Adresse hinterlegt):
-        // die Funktion liefert bereits einen klaren, handlungsleitenden Text.
-        responseText = (result as any).error || 'Ich konnte die Begrüßungs-E-Mail nicht vorbereiten.';
-      }
-
-      const entityLinks = buildEntityLinks(toolResults);
-      const responseWithEntities = entityLinks.length > 0
-        ? `${responseText}\n___ENTITIES___\n${JSON.stringify(entityLinks)}`
-        : responseText;
-
-      return new Response(
-        JSON.stringify({ response: responseWithEntities, toolResults }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // ===== DETERMINISTISCHE AKTION: Reinigungstermin ändern (ohne Gemini) =====
-    const dateInMsg = parseGermanDate(latestUserText);
-    const mentionsReschedule = /(verschieb|reinigungstermin|reinigung.*termin|termin.*reinigung)/i.test(latestUserText);
-    const mentionsAmelaChange =
-      /amela/i.test(latestUserText) &&
-      /(änder|termin|geantwortet|vorschlag|neuer termin|was möchte|was will)/i.test(latestUserText);
-    const jsonHeaders = { headers: { ...corsHeaders, 'Content-Type': 'application/json' } };
-
-    // =========================================================================
-    // A) Direkter Befehl MIT Datum: "verschiebe die Reinigung von <Gast> auf <Datum>"
+    // ===== KEINE DETERMINISTISCHEN PFADE MEHR (17.07.2026) =====
+    // Früher fingen hier Regex-Pfade die Befehle "Begrüßungs-E-Mail" und
+    // "Reinigung verschieben" ab und führten sie OHNE Gemini aus. Das verletzte
+    // das Grundprinzip "immer der KI-Weg": Der Regex interpretierte einen
+    // einzelnen Satz isoliert (ohne Gesprächsverlauf) und verschluckte z.B. das
+    // Wort "vor" aus "vorbereiten" ("Hubert Middelbos vor" -> kein Treffer).
     //
-    // SOLL-DEFINITION (Tabelle max_ablaeufe, reschedule_cleaning, standard):
-    //   1 uli    Änderungswunsch (Uli direkt oder Amela via Portal)
-    //   2 max    Ordnet die Reinigung über related_task_id zu      -> wartet_uli
-    //   3 max    Ändert auf neues Datum, Status draft
-    //   4 max    Zeigt Button "Reinigung öffnen"
-    //   5 uli    Prüft in der Karte, setzt Geplant
-    //   6 system DB-Trigger informiert Amela                       -> abgeschlossen
-    //
-    // KEINE Chat-Rückfrage vor Schritt 3 — und das ist KEIN Verstoß gegen Modell A:
-    // 'draft' IST die Freigabestufe. Die Änderung ist folgenlos, bis Uli in der
-    // Karte auf "Geplant" setzt (Schritt 5); erst dann wird Amela informiert.
-    // (Anders bei accept_booking_inquiry: dort steht eine Chat-Bestätigung in der
-    // Definition, weil eine Buchung anzulegen NICHT reversibel ist.)
-    // =========================================================================
-    if (mentionsReschedule && dateInMsg) {
-      // Eigener Parser: kennt "von <Gast>" — genau der Auslöser aus der Definition.
-      // Der alte (extractGuestNameFromCommand) kannte nur "an"/"für" und lieferte
-      // deshalb null. Max fragte dann nach einer UUID (Fehler vom 13.07.2026).
-      const guestName = extractGuestNameFromReschedule(latestUserText);
-      if (!guestName) {
-        return new Response(JSON.stringify({ response: 'Für welchen Gast soll ich die Reinigung verschieben? Bitte den Namen nennen, z. B. „verschiebe die Reinigung von Niels auf 18.07.2026".', toolResults: [] }), jsonHeaders);
-      }
-
-      const todayStr = new Date().toISOString().split('T')[0];
-      // Nur ANSTEHENDE, aktive Reinigungen — Vergangenes/Storniertes ist nicht verschiebbar.
-      // (Filter in der DB statt in JS: vorher wurden ALLE Reinigungen geladen.)
-      const { data: tasks } = await supabase
-        .from('service_tasks')
-        .select('id, scheduled_date, status, booking_id, bookings(guest_name), houses(name)')
-        .eq('service_type', 'cleaning')
-        .not('status', 'in', '("cancelled","completed")')
-        .gte('scheduled_date', todayStr)
-        .order('scheduled_date', { ascending: true });
-      const list = (tasks || []).filter((t: any) =>
-        (t.bookings?.guest_name || '').toLowerCase().includes(guestName.toLowerCase())
-      );
-
-      // MEHRERE TREFFER -> zur Auswahl vorlegen, nicht raten.
-      // Analog zur Definition (create_cleaning_for_booking, Schritt 3:
-      // "Mehrere Treffer: zeigt Buchungen zur Auswahl", wartet_uli).
-      // Vorher nahm der Code stillschweigend die nächstliegende — womöglich die falsche.
-      if (list.length > 1) {
-        const auswahl = list
-          .map((t: any, i: number) => `${i + 1}. ${t.bookings?.guest_name} — ${t.houses?.name || 'Objekt'}, ${formatDateDE(t.scheduled_date)}`)
-          .join('\n');
-        return new Response(JSON.stringify({
-          response: `Für „${guestName}" gibt es mehrere anstehende Reinigungen:\n${auswahl}\n\nWelche soll ich auf ${formatDateDE(dateInMsg)} verschieben? Nenne bitte das Haus oder das aktuelle Datum.`,
-          toolResults: [],
-        }), jsonHeaders);
-      }
-
-      const task = list[0];
-      const toolResults: any[] = [];
-      let text: string;
-      if (!task) {
-        text = `Ich habe keine anstehende Reinigung für „${guestName}" gefunden.`;
-      } else {
-        // quelle:'uli' -> der Wunsch kam direkt von Uli (nicht von Amela).
-        // KEIN logMaxAction hier: executeRescheduleCleaning protokolliert selbst
-        // (13.07.2026). Ein zweites Log hier erzeugte doppelte Vorgänge.
-        const rr = await executeRescheduleCleaning({ task_id: (task as any).id, new_date: dateInMsg, quelle: 'uli' });
-        toolResults.push({ tool: 'reschedule_cleaning', args: { task_id: (task as any).id, new_date: dateInMsg }, result: rr });
-        if (rr.success) {
-          text = `✅ Auftrag ausgeführt: Reinigung für ${(rr as any).gast || guestName} von ${(rr as any).altes_datum} auf ${(rr as any).neues_datum} verschoben (als Entwurf). Bitte in der Reinigungs-Verwaltung auf „geplant" setzen.`;
-        } else {
-          text = `Konnte die Reinigung nicht verschieben: ${(rr as any).error || 'unbekannter Fehler'}`;
-        }
-      }
-      const entityLinksA = buildEntityLinks(toolResults);
-      const responseA = entityLinksA.length > 0
-        ? `${text}\n___ENTITIES___\n${JSON.stringify(entityLinksA)}`
-        : text;
-      return new Response(JSON.stringify({ response: responseA, toolResults }), jsonHeaders);
-    }
-
-    // B) Bestätigung OHNE Datum ("verschieben" / "ja verschieben"): Amelas jüngsten Vorschlag anwenden
-    if (mentionsReschedule && !dateInMsg) {
-      const proposals = await findAmelaRescheduleProposals();
-      const p = proposals[0];
-      const toolResults: any[] = [];
-      let text: string;
-      if (!p) {
-        text = 'Ich habe keinen offenen Termin-Vorschlag von Amela gefunden. Wenn du direkt verschieben willst, nenne Gast und Datum, z.B. „verschiebe die Reinigung von Niels auf 18.07.2026".';
-      } else {
-        // quelle:'amela' -> der Wunsch kam aus Amelas Portal (max_ablaeufe, Schritt 1).
-        // KEIN logMaxAction hier: executeRescheduleCleaning protokolliert selbst
-        // (13.07.2026) und übernimmt die Herkunft aus params.quelle.
-        const rr = await executeRescheduleCleaning({ task_id: p.task_id, new_date: p.iso, quelle: 'amela' });
-        toolResults.push({ tool: 'reschedule_cleaning', args: { task_id: p.task_id, new_date: p.iso }, result: rr });
-        if (rr.success) {
-          // HINWEIS: Amela wird NICHT mehr sofort bestätigt.
-          // Die Bestätigung übernimmt der DB-Trigger, NACHDEM Uli den Status
-          // in der Reinigungskarte auf "Geplant" (scheduled) gesetzt hat.
-          text = `✅ Reinigung für ${p.guest} von ${p.old_date_de} auf ${p.new_date_de} geändert (Entwurf). Öffne die Reinigungskarte, prüfe das Datum und setze den Status auf „Geplant" — erst dann wird ${p.provider_name} automatisch informiert.`;
-        } else {
-          text = `Konnte die Reinigung nicht verschieben: ${(rr as any).error || 'unbekannter Fehler'}`;
-        }
-      }
-      const entityLinksB = buildEntityLinks(toolResults);
-      const responseB = entityLinksB.length > 0
-        ? `${text}\n___ENTITIES___\n${JSON.stringify(entityLinksB)}`
-        : text;
-      return new Response(JSON.stringify({ response: responseB, toolResults }), jsonHeaders);
-    }
-
-    // C) Nachfrage "was möchte Amela ändern?": offene Vorschläge auflisten
-    if (mentionsAmelaChange) {
-      const proposals = await findAmelaRescheduleProposals();
-      let text: string;
-      if (proposals.length === 0) {
-        text = 'Aktuell gibt es keinen offenen Termin-Vorschlag von Amela.';
-      } else {
-        const lines = proposals
-          .map((p) => `• Reinigung für ${p.guest}${p.haus ? ` (${p.haus})` : ''}: von ${p.old_date_de} auf ${p.new_date_de}`)
-          .join('\n');
-        text = `Amela möchte folgende Reinigung(en) verschieben:\n${lines}\n\nSoll ich das durchführen? Antworte mit „verschieben".`;
-      }
-      return new Response(JSON.stringify({ response: text, toolResults: [] }), jsonHeaders);
-    }
+    // Jetzt läuft ALLES über den KI-Weg unten: Gemini interpretiert die Frage,
+    // kennt den Verlauf (weiß, um welchen Gast es geht), holt sich die Infos
+    // über die Lese-Tools, wählt die richtige Funktion (siehe max_ablaeufe) und
+    // ruft sie auf. Die Zuverlässigkeit (Tool wird benutzt, Button erscheint)
+    // sichert bei der E-Mail weiterhin die Absichts-Erkennung + mode ANY (siehe
+    // wantsWelcomeEmail weiter unten). Reschedule wird NICHT erzwungen (mode AUTO),
+    // weil eine Verschiebung erst nach Ulis Zustimmung laufen darf — die
+    // Tool-Beschreibung steuert das. In beiden Fällen bestimmt die KI WER und WAS.
 
     const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 
@@ -4004,6 +3622,15 @@ nicht als bloße Nachricht.
     // Absicht "Begrüßungs-E-Mail vorbereiten" in der letzten Nutzer-Nachricht erkennen.
     // In dem Fall erzwingen wir den Aufruf von draft_guest_welcome_email, weil Gemini
     // sonst den E-Mail-Text selbst schreibt, statt das Tool (und damit den Button) zu nutzen.
+    // Das ist unkritisch: Der E-Mail-ENTWURF ist folgenlos (Uli sendet selbst).
+    //
+    // RESCHEDULE wird BEWUSST NICHT erzwungen: Eine Terminverschiebung darf laut
+    // Tool-Beschreibung + max_ablaeufe NUR nach ausdrücklicher Zustimmung von Uli
+    // laufen. Würde man reschedule_cleaning per mode ANY erzwingen, verschöbe Gemini
+    // womöglich VOR der Bestätigung. Deshalb läuft Reschedule über mode AUTO — die
+    // Tool-Beschreibung steuert das korrekte Verhalten (Gast selbst suchen, altes+neues
+    // Datum bestätigen lassen, erst nach "ja" verschieben, als draft). Der frühere
+    // deterministische Regex-Pfad ist damit ersatzlos entfernt.
     const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user')?.content || '';
     const wantsWelcomeEmail =
       /(begrüßung|begruessung|begrüss|begruess|willkommen|welcome)/i.test(lastUserMsg) ||
