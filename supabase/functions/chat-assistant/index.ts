@@ -1173,8 +1173,42 @@ async function executeDraftGuestWelcomeEmail(params: any) {
       .order('check_in', { ascending: true });
     if (error) return { success: false, error: error.message };
     const list = data || [];
-    // Bevorzugt: KOMMENDE Buchung (check_in >= heute) MIT E-Mail-Adresse; sonst
-    // irgendeine mit E-Mail; sonst die erste.
+
+    // KEIN Treffer: klare Nachfrage statt stumpfem "nicht gefunden".
+    // (Der Aufrufer — deterministischer Pfad oder Gemini — zeigt das Uli und
+    //  fragt nach dem korrekten Namen.)
+    if (list.length === 0) {
+      return {
+        success: false,
+        not_found: true,
+        error: `Ich habe keine (nicht stornierte) Buchung zu „${params.guest_name}" gefunden. Bitte prüfe die Schreibweise oder nenne den Namen genauer.`,
+      };
+    }
+
+    // MEHRERE unterschiedliche Gäste: nicht raten, sondern zur Auswahl vorlegen.
+    // (Analog zur Soll-Definition create_cleaning_for_booking, Schritt 3:
+    //  "Mehrere Treffer -> zeigt zur Auswahl". Verschiedene Buchungen desselben
+    //  Gastes gelten NICHT als Mehrdeutigkeit — dann greift die Vorzugswahl unten.)
+    const uniqueNames = Array.from(
+      new Set(list.map((b: any) => (b.guest_name || '').trim().toLowerCase()))
+    );
+    if (uniqueNames.length > 1) {
+      return {
+        success: false,
+        multiple: true,
+        error: `Es gibt mehrere Gäste, auf die „${params.guest_name}" passt. Für wen soll ich die Begrüßungs-E-Mail vorbereiten?`,
+        auswahl: list.slice(0, 8).map((b: any) => ({
+          booking_id: b.id,
+          guest_name: b.guest_name,
+          haus: (b as any).houses?.name || '',
+          check_in: b.check_in ? formatDateDE(String(b.check_in).split('T')[0]) : '',
+          hat_email: !!b.guest_email,
+        })),
+      };
+    }
+
+    // Genau ein Gast (ggf. mehrere Buchungen): bevorzugt die KOMMENDE Buchung
+    // MIT E-Mail-Adresse; sonst irgendeine mit E-Mail; sonst die erste.
     booking =
       list.find((b: any) => b.guest_email && String(b.check_in || '').split('T')[0] >= todayStr) ||
       list.find((b: any) => b.guest_email) ||
@@ -3016,10 +3050,38 @@ function isWelcomeEmailCommand(text: string): boolean {
   const hasTarget = /\b(an|für|fuer)\s+\S+/i.test(t);
   return hasEmailWord && hasTarget;
 }
-// Extrahiert den Gastnamen nach "an"/"für" (bis zu vier Wörter).
+// Extrahiert den Gastnamen nach "an"/"für" (bis zu vier Wörter) UND bereinigt ihn.
+//
+// WARUM BEREINIGUNG (17.07.2026, Fehler "Hubert Middelbos"):
+// Der alte Extraktor nahm bis zu vier Wörter nach "für" WÖRTLICH. Bei
+// "...E-Mail für Hubert Middelbos VOR" (aus "vorbereiten") wurde "vor" als
+// dritter Namensteil mitgeschluckt -> Suche "%hubert middelbos vor%" -> 0 Treffer
+// -> "Keine passende Buchung gefunden", obwohl der Gast existiert.
+//
+// Fix: dieselbe Stoppwort-Logik wie extractGuestNameFromReschedule — Füllwörter
+// und Befehls-Verben werden nur am ANFANG und ENDE abgeschnitten (die Mitte bleibt,
+// sonst würde aus "Van Der Horst" ein "Van Horst").
 function extractGuestNameFromCommand(text: string): string | null {
   const m = (text || '').match(/\b(?:an|für|fuer)\s+([A-Za-zÄÖÜäöüß.\-]+(?:\s+[A-Za-zÄÖÜäöüß.\-]+){0,3})/i);
-  return m ? m[1].trim() : null;
+  if (!m) return null;
+
+  const STOPP = new Set([
+    'die', 'der', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einen',
+    'email', 'e-mail', 'mail', 'begrüßung', 'begruessung', 'begrüss',
+    'willkommen', 'welcome', 'anschreiben', 'anreise', 'nachricht', 'vorlage',
+    'auf', 'am', 'um', 'zum', 'zur', 'nach', 'bitte', 'mal', 'doch', 'noch',
+    'heute', 'morgen', 'übermorgen', 'uebermorgen',
+    'wald', 'venediger', 'chalet',   // Häuser sind keine Gäste
+    // Befehls-Verben, die versehentlich mitgezogen werden:
+    'vor', 'vorbereiten', 'bereite', 'erstelle', 'erstellen', 'schreibe',
+    'schreiben', 'schicke', 'schicken', 'sende', 'senden', 'starte', 'starten',
+  ]);
+  const istName = (w: string) => w.length >= 2 && !STOPP.has(w.toLowerCase()) && !/^\d/.test(w);
+
+  const w = m[1].split(/\s+/).filter(Boolean);
+  while (w.length && !istName(w[0])) w.shift();
+  while (w.length && !istName(w[w.length - 1])) w.pop();
+  return w.length ? w.join(' ') : null;
 }
 
 /**
@@ -3330,7 +3392,15 @@ serve(async (req) => {
           created_by: 'uli',
         });
         responseText = `✅ Auftrag ausgeführt: Begrüßungs-E-Mail (${String(d.language || 'de').toUpperCase()}) für ${d.guest_name} vorbereitet. Klick auf den Button, prüfe Betreff/Text im Vorschaufenster und sende mit „Per Gmail senden".`;
+      } else if ((result as any).multiple && Array.isArray((result as any).auswahl)) {
+        // Mehrere mögliche Gäste -> zur Auswahl vorlegen, NICHT raten.
+        const zeilen = (result as any).auswahl
+          .map((a: any) => `• ${a.guest_name}${a.haus ? ` (${a.haus}` : ''}${a.check_in ? `, Anreise ${a.check_in}` : ''}${a.haus ? ')' : ''}${a.hat_email ? '' : ' — ohne E-Mail-Adresse'}`)
+          .join('\n');
+        responseText = `${(result as any).error}\n\n${zeilen}\n\nSag mir den vollständigen Namen, dann bereite ich die E-Mail vor.`;
       } else {
+        // KEIN Treffer oder anderer Fehler (z. B. keine E-Mail-Adresse hinterlegt):
+        // die Funktion liefert bereits einen klaren, handlungsleitenden Text.
         responseText = (result as any).error || 'Ich konnte die Begrüßungs-E-Mail nicht vorbereiten.';
       }
 
