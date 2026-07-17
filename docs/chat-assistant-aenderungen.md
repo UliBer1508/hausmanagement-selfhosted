@@ -160,3 +160,76 @@ Vorschlag anwenden). Dort steht ein Block, der direkt nach dem Reschedule
 ```typescript
           text = `✅ Reinigung für ${p.guest} von ${p.old_date_de} auf ${p.new_date_de} geändert (Entwurf). Öffne die Reinigungskarte, prüfe das Datum und setze den Status auf „Geplant" — erst dann wird ${p.provider_name} automatisch informiert.`;
 ```
+
+---
+
+## Änderung C — Begrüßungs-E-Mail: Gast wird nicht mehr „verschluckt" (17.07.2026)
+
+### Das Problem (gemeldet von Uli)
+
+Der Befehl *„bereite die Begrüßungs-E-Mail für Hubert Middelbos **vor**"* antwortete
+mit **„Keine passende Buchung gefunden"** — obwohl der Gast existiert (Status
+`confirmed`). Derselbe Befehl für „Niels" hatte immer funktioniert.
+
+### Die Ursache (am Code bewiesen, nicht geraten)
+
+Der E-Mail-Befehl läuft über den **deterministischen Pfad** (`serve()`, ganz vorn),
+NICHT über Gemini. Dieser Pfad extrahierte den Gastnamen per Regex
+(`extractGuestNameFromCommand`) und übergab ihn an die Suche. Der alte Extraktor
+nahm bis zu vier Wörter nach „für" **wörtlich**:
+
+| Satz | extrahiert (alt) | ilike-Suche | Treffer |
+|---|---|---|---|
+| „…für Niels" | `Niels` | `%niels%` | ✅ |
+| „…für Hubert Middelbos **vor**" | `hubert middelbos vor` | `%hubert middelbos vor%` | ❌ 0 |
+
+Das „vor" aus „vor**bereiten**" wurde als dritter Namensteil mitgeschluckt.
+Verifiziert: `%hubert middelbos%` (ohne „vor") findet den Gast in der DB sofort.
+Es lag also **allein am Extraktor** — nicht an der Buchungssuche und nicht an der
+(separat fehlenden) E-Mail-Adresse.
+
+### Die saubere Trennung (Ulis Prinzip)
+
+Ulis Einwand traf den Kern: Es sind **zwei verschiedene Momente**, die der Code
+vermischt hatte:
+
+1. **„Wer ist gemeint?"** — unscharfe Sprache mit Füllwörtern. Muss robust den
+   Namen erkennen (Aufgabe der Interpretation).
+2. **„Mach die E-Mail."** — Gast steht fest, nichts mehr zu raten. Deterministisch,
+   zuverlässig (Tool + Button).
+
+Der Fehler war, dass der deterministische Weg schon Moment 1 per starrem Regex
+erledigte — und dafür zu dumm ist.
+
+### Die Lösung (drei Stellen in `chat-assistant/index.ts`)
+
+1. **`extractGuestNameFromCommand` bereinigt jetzt** — dieselbe Stoppwort-Logik wie
+   `extractGuestNameFromReschedule` (Füllwörter/Verben nur am Anfang UND Ende
+   abschneiden, Mitte bleibt → „Van Der Horst" bleibt intakt). „vor", „bitte",
+   „mal", „vorbereiten" usw. fliegen raus.
+2. **`executeDraftGuestWelcomeEmail` unterscheidet jetzt drei Fälle** statt nur
+   „gefunden / nicht gefunden":
+   - **0 Treffer** → `not_found` + klare Nachfrage nach der Schreibweise.
+   - **mehrere verschiedene Gäste** → `multiple` + `auswahl`-Liste (Name, Haus,
+     Anreise, ob E-Mail vorhanden) — **raten verboten** (Soll-Definition
+     `create_cleaning_for_booking`, Schritt 3: „mehrere Treffer → zur Auswahl").
+   - **ein Gast** → wie bisher (bevorzugt kommende Buchung mit E-Mail).
+3. **Der deterministische E-Mail-Block zeigt diese Fälle Uli sauber an** — bei
+   mehreren Treffern die Liste zum Nachschärfen, sonst den handlungsleitenden Text
+   der Funktion (inkl. „keine E-Mail-Adresse → telefonische Erinnerung genügt").
+
+### Verifikation
+
+- Extraktor-Test 6/6 bestanden (inkl. „Hubert Middelbos vor" → `hubert middelbos`
+  und „Christiaan Van Der Horst" → unverändert).
+- TypeScript-Syntaxcheck der geänderten Abschnitte: fehlerfrei.
+- **Offen bis zum Live-Test:** „deployt ≠ geprüft". Nach Deploy im echten Chat
+  prüfen: (a) Hubert wird gefunden und liefert die „keine E-Mail"-Meldung,
+  (b) ein mehrdeutiger Name legt die Auswahl vor.
+
+### Warum NICHT der deterministische Pfad gelöscht wurde
+
+Der deterministische Pfad ist für die **Aktion** (E-Mail vorbereiten → Tool +
+Button garantiert) bewusst richtig — „zuverlässig statt Zufall". Nur die
+**Namenserkennung** war an der falschen Stelle. Behoben wurde also die Extraktion,
+nicht der Pfad. Die Aktion bleibt deterministisch, die Namens-Robustheit steigt.

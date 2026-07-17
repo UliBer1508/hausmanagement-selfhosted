@@ -327,7 +327,29 @@ Prompt herausgibt. Wenn eine Antwort „nein/unklar“ ist → zurück zu Abschn
   sonst ist die Meldung eine Halluzination. Immer per DB-Abfrage prüfen, ob eine
   gemeldete Aktion wirklich passiert ist — nicht dem Chat glauben.
 
+**Ergänzung 17.07.2026 (Begrüßungs-E-Mail „Hubert Middelbos vor"):**
+- **Deterministischer Pfad ≠ Ort für Sprachverständnis.** Der E-Mail-Befehl lief
+  über den deterministischen Pfad, der den Gastnamen per Regex extrahierte. Das
+  Regex nahm „vor" (aus „vorbereiten") als Namensteil mit → Suche „%… vor%" → 0
+  Treffer → „Keine passende Buchung gefunden", obwohl der Gast existierte. Lektion:
+  Ein deterministischer Pfad ist richtig für die **Aktion** (Tool + Button
+  garantieren), aber **nicht** für unscharfe Sprach-Interpretation (wer ist
+  gemeint?). Diese zwei Momente sauber trennen — Name robust erkennen ODER der KI
+  überlassen, dann deterministisch ausführen.
+- **Doppelgänger bei Extraktoren.** Es gab bereits `extractGuestNameFromReschedule`
+  mit korrekter Stoppwort-Bereinigung — der 13.07. hatte denselben Bug für
+  Reschedule („Luca") gefixt, aber den E-Mail-Extraktor `extractGuestNameFromCommand`
+  übersehen. Wieder die AUFRUFER-/Zwillings-Regel: Wird ein Muster an einer Stelle
+  gefixt, die zweite Stelle mit demselben Muster aktiv suchen (`grep` nach ähnlichen
+  Regex/Extraktoren).
+- **„Nicht gefunden" ist ein absolutes No-Go — und meist ein Extraktions-, kein
+  Suchproblem.** Bevor die Suche verdächtigt wird: an der DB mit dem BEREINIGTEN
+  Namen gegenprüfen. Fand `%name%` den Gast, liegt es am Extraktor davor.
+- **Kein-Treffer und Mehrfachtreffer gehören sauber behandelt**, nicht als stummes
+  Scheitern: 0 → nach Schreibweise fragen; mehrere verschiedene Gäste → zur Auswahl
+  vorlegen (nie raten, Soll-Definition `create_cleaning_for_booking` Schritt 3).
+
 *Erstellt am 15.06.2026 nach einer fehlerhaften Sitzung zur Vereinheitlichung
-der Übersichtskarten (Buchung/Reinigung/Wäsche). Ergänzt 16.06., 13.07., 15.07. und 16.07.2026.*
+der Übersichtskarten (Buchung/Reinigung/Wäsche). Ergänzt 16.06., 13.07., 15.07., 16.07. und 17.07.2026.*
 *Ablage seit 13.07.2026: `docs/` (zusammen mit allen anderen Dokumenten).
 `AGENTS.md` im Repo-Root verweist hierher.*
