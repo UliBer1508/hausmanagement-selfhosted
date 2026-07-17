@@ -1180,7 +1180,14 @@ async function executeDraftGuestWelcomeEmail(params: any) {
       list.find((b: any) => b.guest_email) ||
       list[0] || null;
   } else {
-    return { success: false, error: 'booking_id oder guest_name erforderlich' };
+    // Weder booking_id noch guest_name: NICHT raten, sondern zurückfragen.
+    // (Schützt vor dem Fall "erstelle die Willkommens-E-Mail" ohne Gast — Max
+    //  soll fragen "für wen?", nicht irgendeine Buchung greifen.)
+    return {
+      success: false,
+      needs_guest: true,
+      error: 'Für welchen Gast soll ich die Begrüßungs-E-Mail vorbereiten? Bitte nenne den Namen.',
+    };
   }
 
   if (!booking) return { success: false, error: 'Keine passende Buchung gefunden' };
@@ -3155,14 +3162,14 @@ serve(async (req) => {
     // einzelnen Satz isoliert (ohne Gesprächsverlauf) und verschluckte z.B. das
     // Wort "vor" aus "vorbereiten" ("Hubert Middelbos vor" -> kein Treffer).
     //
-    // Jetzt läuft ALLES über den KI-Weg unten: Gemini interpretiert die Frage,
-    // kennt den Verlauf (weiß, um welchen Gast es geht), holt sich die Infos
-    // über die Lese-Tools, wählt die richtige Funktion (siehe max_ablaeufe) und
-    // ruft sie auf. Die Zuverlässigkeit (Tool wird benutzt, Button erscheint)
-    // sichert bei der E-Mail weiterhin die Absichts-Erkennung + mode ANY (siehe
-    // wantsWelcomeEmail weiter unten). Reschedule wird NICHT erzwungen (mode AUTO),
-    // weil eine Verschiebung erst nach Ulis Zustimmung laufen darf — die
-    // Tool-Beschreibung steuert das. In beiden Fällen bestimmt die KI WER und WAS.
+    // Jetzt läuft ALLES über den KI-Weg unten mit mode AUTO: Gemini interpretiert
+    // die Frage, kennt den Verlauf (weiß, um welchen Gast es geht), holt sich die
+    // Infos über die Lese-Tools, wählt die richtige Funktion (siehe max_ablaeufe)
+    // und ruft sie auf. Fehlt Info (z.B. kein Gast genannt), fragt die KI nach,
+    // statt zu raten. Es wird KEIN Tool mehr erzwungen (früher E-Mail per mode ANY);
+    // dass das Tool statt selbst geschriebenem Text benutzt wird, sichert die
+    // Prompt-Regel. Reschedule läuft ebenfalls über AUTO — eine Verschiebung darf
+    // erst nach Ulis Zustimmung laufen. In allen Fällen bestimmt die KI WER und WAS.
 
     const GEMINI_API_KEY = Deno.env.get('GOOGLE_GEMINI_API_KEY');
 
@@ -3499,9 +3506,15 @@ aufrufst. Es öffnet für Uli ein vorausgefülltes Vorschaufenster, in dem er se
 
 Regeln:
 - Gib NIEMALS Betreff oder E-Mail-Text selbst im Chat aus.
-- Rufe IMMER draft_guest_welcome_email auf. Wenn du die booking_id des Gastes noch nicht
-  hast, hole sie zuerst über get_guest_contact_reminders oder search_bookings (echte
-  booking_id / UUID, nicht die Buchungsnummer).
+- ZUERST KLÄREN, UM WEN ES GEHT: Nennt Uli einen Gast (jetzt oder erkennbar aus dem
+  bisherigen Gesprächsverlauf), arbeite mit dem. Ist KEIN Gast genannt UND keiner aus
+  dem Verlauf klar, dann FRAGE ZUERST: "Für welchen Gast soll ich die Begrüßungs-E-Mail
+  vorbereiten?" — rufe das Tool NICHT mit einem geratenen/erfundenen Namen auf und wähle
+  NICHT eigenmächtig irgendeine Buchung. Lieber nachfragen als raten.
+- Wenn der Gast klar ist, rufe draft_guest_welcome_email auf. Hast du die booking_id noch
+  nicht, hole sie zuerst über get_guest_contact_reminders oder search_bookings (echte
+  booking_id / UUID, nicht die Buchungsnummer). Bei mehreren Treffern lege sie Uli zur
+  Auswahl vor; bei keinem melde das und frage nach.
 - Wähle language 'en' für Gäste aus englischsprachigen Ländern (Nationalität), sonst 'de'.
 - Antworte danach nur KURZ, z.B.: "Ich habe die Begrüßungs-E-Mail für <Gast> vorbereitet –
   klick auf den Button, um sie im Vorschaufenster zu prüfen und zu senden."
@@ -3627,14 +3640,10 @@ nicht als bloße Nachricht.
     // RESCHEDULE wird BEWUSST NICHT erzwungen: Eine Terminverschiebung darf laut
     // Tool-Beschreibung + max_ablaeufe NUR nach ausdrücklicher Zustimmung von Uli
     // laufen. Würde man reschedule_cleaning per mode ANY erzwingen, verschöbe Gemini
-    // womöglich VOR der Bestätigung. Deshalb läuft Reschedule über mode AUTO — die
-    // Tool-Beschreibung steuert das korrekte Verhalten (Gast selbst suchen, altes+neues
-    // Datum bestätigen lassen, erst nach "ja" verschieben, als draft). Der frühere
-    // deterministische Regex-Pfad ist damit ersatzlos entfernt.
-    const lastUserMsg = [...messages].reverse().find((m: any) => m.role === 'user')?.content || '';
-    const wantsWelcomeEmail =
-      /(begrüßung|begruessung|begrüss|begruess|willkommen|welcome)/i.test(lastUserMsg) ||
-      (/(anreise)/i.test(lastUserMsg) && /(e-?mail|mail|schreib|vorlage|client|nachricht)/i.test(lastUserMsg));
+    // womöglich VOR der Bestätigung. Deshalb läuft ALLES über mode AUTO — die
+    // Tool-Beschreibungen steuern das korrekte Verhalten (Gast selbst suchen, bei
+    // fehlender Info nachfragen, bei Verschiebung erst nach "ja" handeln). Der frühere
+    // deterministische Regex-Pfad ist ersatzlos entfernt, ebenso das E-Mail-Erzwingen.
 
     // Tool-calling loop
     let iteration = 0;
@@ -3650,12 +3659,17 @@ nicht als bloße Nachricht.
       // Build request for Gemini
       const geminiTools = convertToolsToGemini(tools);
 
-      // Wurde in dieser Anfrage schon ein Begrüßungs-Entwurf erzeugt? Dann nicht mehr erzwingen.
-      const draftDone = toolResults.some((t: any) => t.tool === 'draft_guest_welcome_email' && t.result?.success);
-      // Bei erkannter E-Mail-Absicht: draft_guest_welcome_email ERZWINGEN (mode ANY), sonst AUTO.
-      const functionCallingConfig = (wantsWelcomeEmail && !draftDone)
-        ? { mode: 'ANY', allowedFunctionNames: ['draft_guest_welcome_email'] }
-        : { mode: 'AUTO' };  // AUTO: Modell entscheidet selbst (spart 429-Rate-Limit)
+      // IMMER mode AUTO: Gemini entscheidet selbst, ob und welches Tool.
+      //
+      // KEIN Erzwingen mehr (17.07.2026): Früher wurde draft_guest_welcome_email
+      // per mode ANY ERZWUNGEN, sobald "Willkommens-E-Mail" fiel. Folge: Bei
+      // "erstelle die Willkommens-E-Mail" OHNE Gast MUSSTE Gemini das Tool rufen
+      // und griff irgendeine Buchung (z.B. "Niels Wlijffels") — statt zu fragen
+      // "für wen?". Das widersprach dem Grundprinzip (fehlt Info -> nachfragen).
+      // Jetzt entscheidet die KI frei: Gast bekannt -> Tool; Gast unklar -> Rückfrage.
+      // Dass das Tool (und nicht selbst geschriebener Text) benutzt wird, sichert
+      // die Prompt-Regel bei draft_guest_welcome_email.
+      const functionCallingConfig = { mode: 'AUTO' };
 
       const requestBody = {
         contents,
