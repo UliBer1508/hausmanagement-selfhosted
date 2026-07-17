@@ -76,20 +76,29 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
 
   // Extrahiere Entity-Links aus Message Content
   const parseEntityLinks = (content: string): { text: string; links: EntityLink[] } => {
-    const marker = '___ENTITIES___\n';
-    const index = content.indexOf(marker);
+    // Robust gegen MEHRFACHE Marker (17.07.2026): Früher konnte der Text zwei
+    // ___ENTITIES___-Blöcke enthalten (Modell ahmte den Marker nach + Backend hängte
+    // seinen an). indexOf nahm den ersten -> JSON.parse bekam Müll -> Rohtext im Chat.
+    // Jetzt: am LETZTEN Marker trennen und den Teil davor zusätzlich säubern.
+    const marker = '___ENTITIES___';
+    const lastIndex = content.lastIndexOf(marker);
 
-    if (index === -1) return { text: content, links: [] };
+    if (lastIndex === -1) return { text: content, links: [] };
 
-    const text = content.substring(0, index).trim();
-    const jsonStr = content.substring(index + marker.length);
+    // JSON steht nach dem letzten Marker (führender \n wird toleriert).
+    const jsonStr = content.substring(lastIndex + marker.length).replace(/^\s*\n?/, '');
+    // Sichtbarer Text = alles vor dem ERSTEN Marker (entfernt auch etwaige
+    // vom Modell mitten hineingeschriebene Marker-Reste).
+    const firstIndex = content.indexOf(marker);
+    const text = content.substring(0, firstIndex).trim();
 
     try {
       const links = JSON.parse(jsonStr) as EntityLink[];
       return { text, links };
     } catch (e) {
       console.error('Failed to parse entity links:', e);
-      return { text: content, links: [] };
+      // Fallback: wenigstens den sichtbaren Text OHNE Marker zeigen, nie den Rohtext.
+      return { text: text || content.substring(0, firstIndex).trim(), links: [] };
     }
   };
 
