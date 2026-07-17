@@ -48,6 +48,7 @@ interface Ablauf {
   ergebnis_status: string | null;
   karte: string | null;
   umsetzung: string | null;
+  weg: string | null;   // wie der Schritt laeuft: 'ki' | 'system' | 'mensch' (Definition, read-only)
   notiz: string | null;
   funktion: string | null;
   created_at: string;
@@ -72,6 +73,16 @@ const UMSETZUNG_STYLE: Record<string, string> = {
   pruefen: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-200',
   luecke: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/40 dark:text-amber-200',
   fehlt: 'bg-destructive/10 text-destructive border-destructive/30',
+};
+
+// Wie der Schritt technisch laeuft (Spalte `weg`, Definition, read-only):
+//   ki     = Max/Gemini interpretiert + waehlt die Funktion selbst
+//   system = Cron / DB-Trigger (ohne Chat)
+//   mensch = reiner Handlungsschritt einer Person
+const WEG_STYLE: Record<string, string> = {
+  ki: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
+  system: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
+  mensch: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
 };
 
 const AKTEUR_STYLE: Record<string, string> = {
@@ -351,10 +362,15 @@ const MaxAblaeufePanel = ({ open, onOpenChange }: MaxAblaeufePanelProps) => {
                           <span className="block text-[10px]">{r.variante}</span>
                         )}
                       </div>
-                      <div>
+                      <div className="flex flex-col items-start">
                         {r.akteur && (
                           <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] ${AKTEUR_STYLE[r.akteur] ?? 'bg-muted text-muted-foreground'}`}>
                             {r.akteur}
+                          </span>
+                        )}
+                        {r.weg && (
+                          <span className={`mt-1 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] ${WEG_STYLE[r.weg] ?? 'bg-muted text-muted-foreground'}`}>
+                            {r.weg}
                           </span>
                         )}
                       </div>
