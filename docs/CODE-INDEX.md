@@ -338,6 +338,36 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
 - `Settings/RatingReminderSettingsCard.tsx` — Bewertungs-Erinnerungen
 - `Settings/GuestImportCard.tsx` — Gästeliste importieren
 - `Settings/AirROISyncCard.tsx` — AirROI-Abgleich
+- `CalendarSync/CalendarSyncCard.tsx` — **NEU 17.07.:** iCal-Kalender-Sync
+  (siehe Modul 13b).
+---
+
+## 13b. Modul „Kalender-Sync (iCal)" — NEU 17.07.2026
+
+> Zweck: Externe Plattform-Belegungen (Airbnb, Booking.com, VRBO, Belvilla) per
+> iCal einlesen und bei Überschneidung mit eigenen Buchungen warnen
+> (Doppelbuchungs-Schutz). Konzept: `docs/Konzept-iCal-Kollisionswarnung.md`.
+> **Bewusst als eigenes Modul gebaut** (nicht in bestehende Dateien reingebaut).
+
+**Frontend (eigenes Modul):**
+- `src/components/CalendarSync/CalendarSyncCard.tsx` — Feed-Verwaltung je Haus +
+  Plattform, manueller Sync-Auslöser. Eingebunden im Einstellungen-Tab.
+  Plattform-Werte identisch zu `bookings.platform` (airbnb/booking.com/vrbo/belvilla).
+
+**Backend:**
+- Edge Function `supabase/functions/ical-sync/index.ts` — iCal-Parser +
+  Kollisionsprüfung. `dry_run` ist Standard; echter Lauf nur `{"dry_run": false}`.
+  Bei NEUER Kollision E-Mail an `max.steinbock@gmail.com` (via `send-guest-email`).
+- Tabellen: `ical_feeds` (Import-URLs je Haus+Plattform),
+  `external_blocks` (eingelesene Belegungen; `collision_booking_id` != NULL = Kollision).
+  SQL: `supabase/SQL/31_ical_sync_tables.sql`.
+- Cron: **versioniert** in `supabase/SQL/32_ical_sync_cron.sql`
+  (`ical-sync-daily`, täglich 04:20 UTC = 06:20 MESZ, VOR der Morgen-Übersicht).
+
+**Grenzen (bewusst):** iCal liefert nur Zeiträume, keine Gastdaten; ist verzögert
+(Sicherheitsnetz, kein Echtzeitschutz). Export-Feed (eigene Direktbuchungen →
+Plattformen) ist Phase 2 — noch nicht gebaut.
+
 ---
 
 ## 13a. MAX — der KI-Assistent (Stand 12.07.2026)
