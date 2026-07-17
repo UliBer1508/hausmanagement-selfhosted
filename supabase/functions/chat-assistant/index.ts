@@ -3650,6 +3650,18 @@ nicht als bloße Nachricht.
     // Build Gemini-compatible contents
     const contents: GeminiContent[] = [];
 
+    // Entfernt den technischen ___ENTITIES___-Marker (Sprung-Buttons) aus einer
+    // Assistant-Nachricht. WICHTIG (17.07.2026): Frühere Antworten enden mit
+    // "...\n___ENTITIES___\n[JSON]". Gibt man diesen ROHTEXT an Gemini zurück,
+    // ahmt das Modell das Muster nach und schreibt selbst "___ENTITIES___[...]"
+    // mitten in neue Antworten. Zusammen mit dem echten Marker, den das Backend
+    // anhängt, entstehen ZWEI Marker -> der Frontend-Parser scheitert -> der rohe
+    // Marker erscheint im Chat. Lösung: Gemini sieht nur den reinen Text.
+    const stripEntities = (text: string): string => {
+      const i = (text || '').indexOf('___ENTITIES___');
+      return i === -1 ? text : text.substring(0, i).trim();
+    };
+
     for (const m of messages) {
       if (m.role === 'user') {
         contents.push({
@@ -3659,7 +3671,7 @@ nicht als bloße Nachricht.
       } else if (m.role === 'assistant') {
         contents.push({
           role: 'model',
-          parts: [{ text: m.content }]
+          parts: [{ text: stripEntities(m.content) }]
         });
       }
     }
@@ -3783,10 +3795,16 @@ nicht als bloße Nachricht.
 
         // Sprung-Buttons (Schnellzugriff) aus den Tool-Ergebnissen anhängen.
         // Das Frontend (ChatMessage.tsx) erkennt den ___ENTITIES___-Marker und rendert Buttons.
+        // Sicherheitshalber einen etwaigen vom Modell selbst erzeugten Marker aus dem
+        // Text entfernen, damit NIE zwei Marker entstehen (siehe stripEntities oben).
+        const cleanContent = (() => {
+          const i = (finalContent || '').indexOf('___ENTITIES___');
+          return i === -1 ? finalContent : finalContent.substring(0, i).trim();
+        })();
         const entityLinks = buildEntityLinks(toolResults);
         const responseWithEntities = entityLinks.length > 0
-          ? `${finalContent}\n___ENTITIES___\n${JSON.stringify(entityLinks)}`
-          : finalContent;
+          ? `${cleanContent}\n___ENTITIES___\n${JSON.stringify(entityLinks)}`
+          : cleanContent;
 
         return new Response(
           JSON.stringify({ response: responseWithEntities, toolResults }),
