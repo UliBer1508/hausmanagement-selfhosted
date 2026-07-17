@@ -110,6 +110,28 @@ src/main.tsx
 | Verknüpfte Ansicht + Übersicht | `Bookings/BookingCard.tsx` |
 | Tab „Buchungen" (Liste/Detail) | `Bookings/BookingOverviewFixed.tsx` |
 
+### ⚠️ Chat-Komponenten existieren DOPPELT: `components/` UND `components/Chat/`
+
+**Drei Max-Komponenten liegen zweimal im Repo** — einmal in `src/components/`,
+einmal in `src/components/Chat/`. Das ist eine echte Doppelgänger-Falle: Ändert man
+nur eine, wirkt die Änderung evtl. nicht (die andere wird gerendert).
+
+| Datei | `components/` | `components/Chat/` | identisch? | **AKTIV ist** |
+|---|---|---|---|---|
+| `ChatAssistant.tsx` | ja | ja | identisch | **`Chat/`** — `App.tsx` Z.16 lädt `./components/Chat/ChatAssistant` |
+| `MaxAblaeufePanel.tsx` | ja | ja | identisch | **`Chat/`** — von `Chat/ChatAssistant` importiert (`./MaxAblaeufePanel`) |
+| `MaxWissenPanel.tsx` | ja | ja | **UNTERSCHIEDLICH!** | **`Chat/`** — die `components/`-Version ist veraltet |
+
+**Regel:** Wer eine dieser drei ändert, ändert die Version in **`src/components/Chat/`**
+(das ist die aktive) — und prüft, ob die Dublette in `src/components/` mitgezogen
+werden muss oder besser gelöscht wird. `MaxWissenPanel` weicht bereits ab; hier ist
+Vorsicht Pflicht. Einstiegskette: `App.tsx` → `Chat/ChatAssistant.tsx` → `Chat/Max*Panel.tsx`.
+
+*(Weitere Dubletten, aber ungefährlich, weil geteilt genutzt: `use-toast.ts` in
+`components/ui/` und `hooks/`; `client.ts` in `integrations/supabase/` (Haupt-DB) und
+`integrations/externalLaundry/` (externes Wäsche-System — zwei VERSCHIEDENE Clients,
+nicht verwechseln).)*
+
 ### Technische Fallen (12.07.2026 teuer erkauft — VOR dem Ändern lesen!)
 
 **1. Unvollständige Feldlisten bei Supabase-Joins.**
@@ -338,6 +360,31 @@ Hooks: `useChat.ts`, `useMorningSummary.ts`, `useProviderMessages.ts`.
 Typen — `booking` (→ `editBookingId`), `cleaning_task` (→ `openTaskId`),
 `laundry_order` (→ `openOrderId`), `email_draft` (→ MailPreview).
 `house`/`guest`/`calendar` sind **toter Code** (Max erzeugt sie nie).
+
+### Frontend ↔ Backend: wer ruft welche Edge Function (Kopplung)
+
+> Damit klar ist, was zusammenhängt, BEVOR man etwas ändert. Ändert man eine Edge
+> Function, sind das die Frontend-Aufrufer, die man mitprüfen muss.
+
+**Max-Kontrollfenster → Edge Function:**
+| Frontend | ruft | Zweck |
+|---|---|---|
+| `Chat/MaxAblaeufePanel.tsx` | `max-ablaeufe-pruefen` | „Gegen Code prüfen" — gleicht `funktion`-Feld gegen echten Code ab |
+| `hooks/useMorningSummary.ts` | `morning-summary` | Tagesübersicht (auch Tool `get_morning_summary`) |
+| `Mail/MailPreviewProvider.tsx` | `send-guest-email` | Gmail-SMTP-Versand aus dem Vorschaufenster |
+
+**`chat-assistant` (Max' Gehirn) ruft INTERN diese Edge Functions:**
+`create-cleaning-task-for-booking`, `create-linen-order-for-booking`,
+`generate-booking-linen-order`, `morning-summary`, `send-guest-email`.
+→ Wer eine davon ändert, ändert Max' Verhalten mit — auch wenn `chat-assistant`
+selbst unangetastet bleibt.
+
+**`max_ablaeufe.weg` (Spalte, 17.07.2026):** Definiert je Schritt, WIE er läuft —
+`ki` (Gemini interpretiert + wählt Funktion), `system` (Cron/DB-Trigger),
+`mensch` (Handlungsschritt). Angezeigt im Panel `Chat/MaxAblaeufePanel.tsx`
+(Badge unter dem Akteur). Seit 17.07. laufen E-Mail und Reschedule über den
+KI-Weg (mode AUTO) — die früheren deterministischen Regex-Pfade in
+`chat-assistant/serve()` sind entfernt.
 
 ### Backend: `supabase/functions/chat-assistant/index.ts` (≈ 3.550 Zeilen)
 Modell: **Gemini 2.5 Flash**. Enthält Tool-Definitionen, Dispatcher,

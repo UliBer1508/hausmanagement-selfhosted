@@ -32,18 +32,21 @@ Sie definiert je Fall: **Schritt → Akteur (uli/max/amela/teuni/system) → Fun
 
 ---
 
-## ⚠️ Und: Nicht alles läuft über Gemini
+## ⚠️ Und: ALLES läuft über den KI-Weg (seit 17.07.2026)
 
-`chat-assistant/serve()` hat **zwei Wege**:
+`chat-assistant/serve()` hat **nur noch einen Weg**: den **Gemini-/KI-Weg** mit den
+Tools (mode AUTO). Gemini interpretiert die Anfrage, kennt den Verlauf, wählt die
+Funktion (siehe `max_ablaeufe`) und ruft sie auf; fehlt Info, fragt es nach.
 
-1. **Deterministische Pfade** — Regex-Erkennung im Nutzertext, führen **direkt
-   aus**. Gemini wird **nie gefragt**. Betrifft: **Begrüßungs-E-Mail** und
-   **Reschedule** (Pfade A/B/C).
-2. **Gemini-Pfad** — alles andere, mit den 27 Tools.
+**Historie:** Bis 17.07.2026 gab es zusätzlich **deterministische Regex-Pfade** für
+Begrüßungs-E-Mail und Reschedule, die Gemini umgingen. Sie verletzten das Prinzip
+„immer der KI-Weg" (isolierte Satz-Interpretation ohne Verlauf → verschluckte Wörter,
+erfundene Gäste). Am 17.07. **ersatzlos entfernt** (inkl. Helfer und `mode ANY`).
 
-**Folge:** Die Tool-Definitionen zu lesen genügt nicht. Eine Änderung an der
-Beschreibung von `reschedule_cleaning` wirkt auf *„verschiebe die Reinigung von
-Luca"* **überhaupt nicht** — dieser Satz trifft Pfad A.
+**Folge für Änderungen:** E-Mail und Reschedule laufen jetzt über die **Tools** —
+eine Änderung an der Tool-Beschreibung ODER am System-Prompt wirkt direkt. Die
+Spalte `max_ablaeufe.weg` (`ki`/`system`/`mensch`) hält je Schritt fest, wie er
+läuft, und macht das Prinzip prüfbar.
 Siehe `docs/chat-assistant-aenderungen.md`.
 
 ---

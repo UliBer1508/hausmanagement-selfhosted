@@ -401,22 +401,30 @@ Drei Fehler an einem Tag, alle mit derselben Wurzel: **geschlossen statt nachges
 **Merksatz:** Eine Vermutung, die man nicht am Code belegen kann, ist keine
 Diagnose — und darf keine Änderung auslösen.
 
-### ⚠️ Architektur-Kernfakt: Nicht alles läuft über Gemini
+### ⚠️ Architektur-Kernfakt: ALLES läuft über den KI-Weg (seit 17.07.2026)
 
-`chat-assistant/serve()` hat **zwei Wege**:
+`chat-assistant/serve()` hat **nur noch EINEN Weg**: den **Gemini-/KI-Weg** mit den
+Tools (mode AUTO). Gemini interpretiert die Anfrage, kennt den Gesprächsverlauf,
+holt Infos über die Lese-Tools, wählt die richtige Funktion (siehe `max_ablaeufe`)
+und ruft sie auf. Fehlt Info (z. B. kein Gast genannt), fragt es nach, statt zu raten.
 
-1. **Deterministische Pfade** — Regex-Erkennung im Nutzertext, führen **direkt
-   aus**. Gemini wird **nie gefragt**. Betrifft: **Begrüßungs-E-Mail** und
-   **Reschedule** (Pfade A/B/C).
-2. **Gemini-Pfad** — alles andere, mit den 27 Tools.
+**Historie (wichtig, weil ältere Doku es anders sagt):** Bis 17.07.2026 gab es
+**zwei Wege**. Begrüßungs-E-Mail und Reschedule liefen über **deterministische
+Regex-Pfade**, die Gemini komplett umgingen („zuverlässig statt Zufall"). Das
+verletzte aber das Grundprinzip „immer der KI-Weg": Der Regex interpretierte einen
+einzelnen Satz isoliert (ohne Verlauf) und verschluckte z. B. „vor" aus
+„vorbereiten" (`„Hubert Middelbos vor"` → kein Treffer), oder erfand bei
+`„erstelle die Willkommens-E-Mail"` ohne Gast einfach eine Buchung.
 
-Bewusst so gebaut („zuverlässig statt Zufall", siehe
-`docs/chat-assistant-aenderungen.md`). **Folge:** Wer nur die Tool-Definitionen
-liest, glaubt, Reschedule liefe über das Tool. Tut es nicht. Eine Änderung an der
-Tool-Beschreibung wirkt auf *„verschiebe die Reinigung von Luca"* **überhaupt
-nicht**.
+**Umbau 17.07.2026:** Alle deterministischen Pfade + ihre Helfer
+(`isWelcomeEmailCommand`, `extractGuestNameFromCommand`,
+`extractGuestNameFromReschedule`, `parseGermanDate`, `findAmelaRescheduleProposals`)
+ersatzlos entfernt (≈ 300 Zeilen). Kein `mode ANY`-Erzwingen mehr. Die
+Zuverlässigkeit (Tool statt selbst geschriebener Text; erst nach „ja" verschieben)
+sichern jetzt die **Tool-Beschreibungen + Prompt-Regeln**, nicht Zwang.
 
-Dies stand bis 13.07.2026 in keiner Architektur-Doku.
+**Prüfbar gemacht:** Die Spalte `max_ablaeufe.weg` hält je Schritt fest, WIE er
+läuft (`ki` / `system` / `mensch`). Sichtbar im Panel „Max: Abläufe (Kontrolle)".
 
 ### Deploy-Wege
 - **Edge Functions:** `supabase functions deploy <name> --project-ref usblrulkcgucxtkhugck`
