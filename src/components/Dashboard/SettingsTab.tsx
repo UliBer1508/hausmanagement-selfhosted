@@ -17,6 +17,7 @@ import MaxAutomationScheduleCard from '@/components/Settings/MaxAutomationSchedu
 import GuestImportCard from '@/components/Settings/GuestImportCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import CalendarSyncCard from '@/components/CalendarSync/CalendarSyncCard';
 
 interface ProfileSettings {
   user_name: string;
@@ -407,6 +408,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
         {/* Gästeliste Import */}
         <GuestImportCard />
+        <CalendarSyncCard />
 
         {/* System */}
         <Card>
