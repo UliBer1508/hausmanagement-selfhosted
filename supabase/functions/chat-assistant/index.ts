@@ -1173,8 +1173,39 @@ async function executeDraftGuestWelcomeEmail(params: any) {
       .order('check_in', { ascending: true });
     if (error) return { success: false, error: error.message };
     const list = data || [];
-    // Bevorzugt: KOMMENDE Buchung (check_in >= heute) MIT E-Mail-Adresse; sonst
-    // irgendeine mit E-Mail; sonst die erste.
+
+    // KEIN Treffer: klare Rückfrage statt stumpfem "nicht gefunden".
+    if (list.length === 0) {
+      return {
+        success: false,
+        not_found: true,
+        error: `Ich habe keine (nicht stornierte) Buchung zu „${params.guest_name}" gefunden. Bitte prüfe die Schreibweise oder nenne den Namen genauer.`,
+      };
+    }
+
+    // MEHRERE unterschiedliche Gäste: nicht raten, zur Auswahl vorlegen.
+    // (Verschiedene Buchungen desselben Gastes gelten NICHT als Mehrdeutigkeit —
+    //  dann greift die Vorzugswahl unten.)
+    const uniqueNames = Array.from(
+      new Set(list.map((b: any) => (b.guest_name || '').trim().toLowerCase()))
+    );
+    if (uniqueNames.length > 1) {
+      return {
+        success: false,
+        multiple: true,
+        error: `Es gibt mehrere Gäste, auf die „${params.guest_name}" passt. Für wen soll ich die Begrüßungs-E-Mail vorbereiten?`,
+        auswahl: list.slice(0, 8).map((b: any) => ({
+          booking_id: b.id,
+          guest_name: b.guest_name,
+          haus: (b as any).houses?.name || '',
+          check_in: b.check_in ? String(b.check_in).split('T')[0] : '',
+          hat_email: !!b.guest_email,
+        })),
+      };
+    }
+
+    // Genau ein Gast (ggf. mehrere Buchungen): bevorzugt die KOMMENDE Buchung
+    // MIT E-Mail-Adresse; sonst irgendeine mit E-Mail; sonst die erste.
     booking =
       list.find((b: any) => b.guest_email && String(b.check_in || '').split('T')[0] >= todayStr) ||
       list.find((b: any) => b.guest_email) ||
@@ -3511,10 +3542,11 @@ Regeln:
   dem Verlauf klar, dann FRAGE ZUERST: "Für welchen Gast soll ich die Begrüßungs-E-Mail
   vorbereiten?" — rufe das Tool NICHT mit einem geratenen/erfundenen Namen auf und wähle
   NICHT eigenmächtig irgendeine Buchung. Lieber nachfragen als raten.
-- Wenn der Gast klar ist, rufe draft_guest_welcome_email auf. Hast du die booking_id noch
-  nicht, hole sie zuerst über get_guest_contact_reminders oder search_bookings (echte
-  booking_id / UUID, nicht die Buchungsnummer). Bei mehreren Treffern lege sie Uli zur
-  Auswahl vor; bei keinem melde das und frage nach.
+- Ist der Gast klar (genannt oder aus dem Verlauf), rufe draft_guest_welcome_email
+  SOFORT und DIREKT mit guest_name auf — z.B. draft_guest_welcome_email({guest_name: "Hubert"}).
+  Frage NICHT nach einer Buchungs-ID und suche NICHT vorher separat: das Tool findet die
+  passende Buchung selbst. Nur wenn das Tool meldet, dass es mehrere verschiedene Gäste
+  gibt (multiple) oder keinen findet (not_found), gib diese Rückfrage an Uli weiter.
 - Wähle language 'en' für Gäste aus englischsprachigen Ländern (Nationalität), sonst 'de'.
 - Antworte danach nur KURZ, z.B.: "Ich habe die Begrüßungs-E-Mail für <Gast> vorbereitet –
   klick auf den Button, um sie im Vorschaufenster zu prüfen und zu senden."
