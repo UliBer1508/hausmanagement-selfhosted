@@ -29,7 +29,7 @@ const PLATFORMS = [
   { value: "belvilla", label: "Belvilla" },
 ] as const;
 
-interface House { id: string; name: string; }
+interface House { id: string; name: string; rental_type: string | null; }
 interface IcalFeed {
   id: string;
   house_id: string;
@@ -53,16 +53,20 @@ const CalendarSyncCard = () => {
   const [platform, setPlatform] = useState<string>("");
   const [feedUrl, setFeedUrl] = useState<string>("");
 
-  // Häuser laden
+  // Nur FERIENHÄUSER laden — Dauermiet-Objekte (rental_type 'long_term') sind
+  // nicht auf Airbnb/Booking/VRBO/Belvilla gelistet und haben keine iCal-Feeds.
+  // Kriterium wie im Bestand: 'tourist' ODER kein rental_type gesetzt.
   const { data: houses } = useQuery({
-    queryKey: ["houses"],
+    queryKey: ["houses", "vacation-only"],
     queryFn: async (): Promise<House[]> => {
       const { data, error } = await supabase
         .from("houses")
-        .select("id, name")
+        .select("id, name, rental_type")
         .order("name");
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []).filter(
+        (h: any) => h.rental_type === "tourist" || !h.rental_type
+      );
     },
   });
 
