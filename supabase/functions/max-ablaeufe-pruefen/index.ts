@@ -139,13 +139,45 @@ async function ladeVorhandeneEdgeFunctions(): Promise<Set<string> | null> {
   }
 }
 
-/** Zerlegt das Freitext-Feld `funktion` in prüfbare Bausteine. */
+/**
+ * Zerlegt das Freitext-Feld `funktion` in prüfbare Bausteine.
+ *
+ * FALSCH-POSITIVE (behoben 18.07.2026): Das frühere Muster /\bTool\s+(\w+)/
+ * griff bei JEDEM Wort nach "Tool" — auch in Fließtext wie
+ * "(kein weiteres Tool noetig)". Daraus wurde der Toolname "noetig"
+ * extrahiert und als fehlend gemeldet. Die Kontrollinstanz produzierte damit
+ * einen Dauerfehler, der in der Morgen-Übersicht als Systemfehler erschien.
+ *
+ * Eine Kontrolle, der man nicht trauen kann, ist wertlos: Wer den täglichen
+ * Fehlalarm wegklickt, übersieht irgendwann den echten.
+ *
+ * KORREKTUR: Echte Bezeichner in diesem System sind ausnahmslos snake_case und
+ * enthalten mindestens einen Unterstrich (search_bookings, reject_reschedule,
+ * notify_amela_on_cleaning_release). Deutsche Fließtextwörter wie "noetig",
+ * "nötig" oder "aufrufen" haben keinen. Der Unterstrich ist deshalb ein
+ * verlässliches Unterscheidungsmerkmal.
+ *
+ * Edge Functions dürfen zusätzlich Bindestriche enthalten (create-linen-order),
+ * daher dort eine eigene Prüfung auf `-` ODER `_`.
+ */
 function extrahiereBausteine(funktion: string) {
   const f = funktion || '';
+
+  // Bezeichner-Test: muss einen Unterstrich enthalten (snake_case).
+  const istBezeichner = (w: string) => w.includes('_');
+  // Edge Functions: Bindestrich ODER Unterstrich.
+  const istFunktionsname = (w: string) => w.includes('-') || w.includes('_');
+
   return {
-    tools: [...f.matchAll(/\bTool\s+(\w+)/g)].map((m) => m[1]),
-    edgeFunctions: [...f.matchAll(/Edge Function\s+([\w-]+)/g)].map((m) => m[1]),
-    trigger: [...f.matchAll(/(?:DB-)?Trigger\s+(\w+)/g)].map((m) => m[1]),
+    tools: [...f.matchAll(/\bTool\s+([a-z][a-z0-9_]*)/gi)]
+      .map((m) => m[1])
+      .filter(istBezeichner),
+    edgeFunctions: [...f.matchAll(/Edge Function\s+([a-z][a-z0-9_-]*)/gi)]
+      .map((m) => m[1])
+      .filter(istFunktionsname),
+    trigger: [...f.matchAll(/(?:DB-)?Trigger\s+([a-z][a-z0-9_]*)/gi)]
+      .map((m) => m[1])
+      .filter(istBezeichner),
   };
 }
 
