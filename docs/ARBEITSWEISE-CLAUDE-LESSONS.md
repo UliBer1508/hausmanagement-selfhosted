@@ -6,10 +6,7 @@
 > `CODE-INDEX.md` und `CODING-GUIDE.md` — ersetzt sie nicht.
 >
 > **Claude liest diese Datei zuerst, zusammen mit `AGENTS.md` und
-> `docs/CODE-INDEX.md`, BEVOR es irgendeine Aussage über den Code trifft.**
->
-> **Und `supabase/SQL/README.md`** — dort steht die Logik, die in DB-Triggern lebt
-> und im TypeScript-Code NICHT sichtbar ist.
+> `CODE-INDEX.md`, BEVOR es irgendeine Aussage über den Code trifft.**
 
 ---
 
@@ -40,185 +37,17 @@ aus einem Konzeptdokument — aus dem echten, aktuellen Stand im Repo.
 6. **Annahmen statt Verifikation.** Felder/Verknüpfungen behauptet, ohne sie im
    Schema/Code zu belegen (z. B. ob `bookings` ein `status_changed_by` hat).
 
-### Nachtrag 16.06.2026 — drei Fehler aus der Kosten-/Auswertungs-Session
-
-1. **Feld behauptet, ohne Schema zu prüfen.** Beim Thema „Wäschekosten speichern"
-   wurde angenommen, die Spalte `total_cost` existiere in `linen_orders`, weil die
-   Karte `order.total_cost` liest. Daraufhin wurden ein Auto-Fix und ein Backfill
-   gebaut, die in dieses Feld schreiben — die Spalte existierte aber NICHT. Beide
-   liefen ins Leere und kosteten Credits. Erst eine SQL-Abfrage
-   (`column does not exist`) deckte es auf. **Lektion:** Dass Code ein Feld liest,
-   beweist NICHT, dass die Spalte existiert. Vor jeder Änderung, die auf ein
-   DB-Feld schreibt, die Spaltenexistenz im Schema belegen.
-
-2. **„Erledigt" geglaubt statt verifiziert — und Commit-Verzögerung.** Eine
-   Lovable-Rückmeldung „erledigt" stimmte nicht mit dem Code überein; umgekehrt
-   war eine andere Änderung doch umgesetzt, der Commit aber erst verzögert auf
-   `main` sichtbar. **Lektion:** Nach jedem Lovable-Lauf den Ist-Stand frisch lesen
-   und verifizieren. Bei „nicht gefunden" einmal kurz warten / erneut abrufen
-   (Cache/Commit-Verzögerung), bevor man auf „nicht umgesetzt" schließt.
-
-3. **Vereinbartes Mockup eigenmächtig anders gebaut.** Im Mockup waren sichtbare
-   Umschalt-Buttons oben vereinbart und vom Nutzer genehmigt; im Prompt wurde
-   stattdessen ein vorhandenes Dropdown wiederverwendet („spart Credits"). Das wich
-   vom Genehmigten ab. **Lektion:** Ein genehmigtes Mockup ist die Abmachung. Nicht
-   eigenmächtig davon abweichen — wenn eine günstigere Variante sinnvoll scheint,
-   vorher fragen, nicht einfach anders bauen.
-
 Gemeinsamer Nenner: **Reden vor Lesen.** Jeder einzelne Fehler wäre durch
 „zuerst die richtige Datei im Ist-Zustand lesen" vermieden worden.
 
-### Nachtrag 13.07.2026 — der Fehler wiederholte sich, obwohl die Regel hier stand
-
-Claude bekam gemeldet: „Reinigungskarte zeigt falsches Änderungsdatum." Es änderte
-**sofort die Query** — richtig geraten, aber **ohne AGENTS.md, CODE-INDEX.md oder
-diese Datei gelesen zu haben.** Erst auf Ulis Nachdruck („du liest die Doku nicht")
-wurden alle Dokumente gelesen. Darin stand die Regel wörtlich:
-
-> AGENTS.md: *„Fehlt ein Feld in der UI: zuerst die Supabase-Query bzw. die Props
-> prüfen. Ein fehlendes Feld ist meist ein Query-Problem."*
-> CODE-INDEX.md, Abschnitt 0.5 und „Technische Fallen": dasselbe, zweimal.
-> Diese Datei, Punkt 4 vom 15.06.: dasselbe.
-
-**Das Ergebnis war zufällig richtig — der Weg war falsch.** Und ein zufällig
-richtiges Ergebnis ist kein Beleg für eine funktionierende Arbeitsweise.
-
-Die anschließende systematische Prüfung (nach vollständiger Lektüre) fand **vier
-weitere Fehler**, die eine reine Symptom-Behebung nie zutage gefördert hätte —
-darunter einen, bei dem Max **Erfolg meldete, obwohl womöglich nichts passiert war**
-(`update_linen_for_booking` rief die Batch-Automatik statt der gezielten Function).
-
-**Das Muster hinter allen vier:** Ein Fix wurde an einer Stelle gemacht und als
-erledigt dokumentiert — die **Zwillingsstelle** blieb unberührt. Reinigungskarte
-gefixt, Wäschekarte nicht. `create_linen` gefixt, `update_linen` nicht.
-
-**Neue Regel daraus:**
-> Die Doppelgänger-Warnung im CODE-INDEX gilt nicht nur für **Komponenten**,
-> sondern auch für **Funktionen mit gleichem Muster**. Wer eine Stelle repariert,
-> muss aktiv nach der Zwillingsstelle suchen (`grep` nach demselben Aufruf, derselben
-> Bedingung) — und im Changelog benennen, ob es eine gibt und ob sie mitgezogen wurde.
-
-**Zweite Regel — „deployt" ist nicht „geprüft":**
-> Die Session-Doku vom 11.07. meldete die Reinigungskarte als „live geprüft ✅",
-> obwohl sie nie funktionierte. Ein Häkchen darf erst gesetzt werden, wenn das
-> **Verhalten in der laufenden App** gesehen wurde — nicht, wenn der Build durchlief.
-
 ---
-
-### Nachtrag 2 vom 13.07.2026 — der schwerere Fehler: an der SOLL-DEFINITION vorbeigebaut
-
-Am selben Tag, nach der Prüfsitzung, passierte es ein zweites Mal — und diesmal
-gravierender.
-
-Claude untersuchte den Reschedule-Ablauf, fand, dass er „sofort ausführt, ohne zu
-fragen", hielt das für einen Verstoß gegen das Modell-A-Prinzip und **begann, eine
-Bestätigungs-Rückfrage einzubauen**.
-
-Uli hielt an: *„Wir haben die Tabelle `max_ablaeufe`, in der alle Prozessabläufe
-von Max definiert sind. Hast du diese gelesen? Ich glaube, wir ändern den Code
-ständig hin und her und beachten die klaren Definitionen nicht."*
-
-**Er hatte recht. Claude hatte sie nie gelesen.**
-
-Die Tabelle steht **nicht im Repo** — sie liegt in der Datenbank. Claude hatte
-sogar die SQL-Datei geschrieben, die sie als „Soll-Vorgabe, Checkliste"
-dokumentiert — und trotzdem nie hineingesehen.
-
-**Was die Definition sagt** (`reschedule_cleaning`, standard):
-
-| # | Akteur | Schritt |
-|---|---|---|
-| 1 | uli | Änderungswunsch (Uli direkt **oder Amela** via Portal) |
-| 2 | max | Ordnet die Reinigung über `related_task_id` zu |
-| 3 | max | **Ändert auf neues Datum, Status `draft`** |
-| 4 | max | Zeigt Button „Reinigung öffnen" |
-| 5 | uli | Prüft in der Karte, setzt „Geplant" |
-| 6 | system | DB-Trigger informiert Amela → abgeschlossen |
-
-**Es gibt keinen Bestätigungs-Schritt zwischen 1 und 3 — und das ist kein Verstoß
-gegen Modell A, sondern dessen Umsetzung: `draft` IST die Freigabestufe.** Die
-Änderung ist reversibel und folgenlos, bis Uli auf „Geplant" setzt.
-
-Bei `accept_booking_inquiry` steht sehr wohl eine Chat-Bestätigung in der
-Definition — weil eine Buchung anzulegen **nicht** reversibel ist. Der Unterschied
-ist bewusst gesetzt; Claude hätte ihn eingeebnet.
-
-**Der Umbau wurde verworfen.**
-
----
-
-**Und ein Folgefehler, den Claude selbst verursachte:**
-
-Der Fix „`reschedule_cleaning` schreibt kein Protokoll" war richtig — die Tabelle
-sagte es selbst (Schritt 6, Notiz: *„Kette per appendWorkflowStep fortschreiben"*).
-Aber Claude ergänzte `logMaxAction` **in der Funktion**, ohne zu prüfen, **wer sie
-aufruft**. Die beiden deterministischen Pfade loggten bereits selbst.
-
-Folge: **zwei `max_actions`-Einträge pro Verschiebung**, der Vorgang erschien im
-Max-Aktionen-Fenster doppelt. Ein neuer Bug, erzeugt beim Beheben eines alten.
-
----
-
-**Drei Regeln daraus:**
-
-> **1. `max_ablaeufe` ist die verbindliche Soll-Definition — und sie steht in der
-> DATENBANK, nicht im Repo.** Vor jeder Arbeit an Max abfragen:
-> `select * from max_ablaeufe order by aktion, variante, schritt_nr;`
-> Wer sie nicht liest, baut an der Definition vorbei. Der Code sagt, was IST —
-> die Tabelle sagt, was SEIN SOLL. Bei Widerspruch gewinnt die Tabelle (oder man
-> ändert sie bewusst, nach Rücksprache).
-
-> **2. Doppelgänger gibt es auch auf der AUFRUFER-Ebene.** Vor dem Ändern einer
-> Funktion prüfen: Wer ruft sie auf, und was tut der schon? Eine Funktion um
-> Logging zu ergänzen, obwohl die Aufrufer bereits loggen, erzeugt Doppel-Einträge.
-
-> **3. Nicht alles läuft über Gemini.** `serve()` hat deterministische Pfade
-> (Regex-Erkennung), die Gemini komplett umgehen — für Reschedule und
-> Begrüßungs-E-Mail. Tool-Definitionen zu ändern wirkt dort **überhaupt nicht**.
-> Wer nur die Tool-Liste liest, versteht den halben Assistenten.
-
----
-
-### Nachtrag 15.07.2026 — stornierte Zeilen gehören nie in eine Anzeige
-
-**Fall:** In den Portal-Kalendern (Amela/Teuni) erschienen Wäschelieferungen
-doppelt. Vermutung im Raum: Doppelgänger in der Erzeugung
-(`create_linen`/`update_linen`). **Falsch.** An der Quelle geprüft (DB-Abfrage
-auf `linen_orders` für den betroffenen Tag): zwei Zeilen, eine `cancelled`, eine
-`ausstehend`. Es gab real **eine** gültige Lieferung.
-
-**Ursache:** Der Anzeige-Code filterte `cancelled` bei `linen_orders` und
-`service_tasks` **nicht** — bei `bookings` schon (`status==='cancelled'` bzw.
-`.neq('status', BOOKING_STATUS.CANCELLED)`). Ein Badge pro Zeile = zwei Badges.
-
-**Lesson (verbindlich):**
-- Jede Query, die `linen_orders` oder `service_tasks` in eine **Anzeige** bringt,
-  muss stornierte Zeilen ausschließen. Status-Werte deutsch **und** englisch:
-  `cancelled`, `storniert`, `abgebrochen` — case-insensitive.
-- Gehört zur bestehenden Regel „Query-Feldlisten sind fragil": ein fehlender
-  Filter erzeugt **stille** Falschanzeigen, keine Fehlermeldung.
-- Bevor „Doppelgänger in der Erzeugung" vermutet wird: **erst an der DB-Quelle
-  zählen**, was real existiert. Die Doppelung war ein Anzeige-, kein Datenfehler.
-
-**Zweite Lesson (Verknüpfung nicht immer vorhanden):** `linen_orders.booking_id`
-ist **nicht immer gesetzt** (siehe `useDeliveryReminders`, das Zeilen ohne
-`o.bookings` verwirft). Wer die Buchung mitlädt (z. B. für Gastname/Gästezahl im
-Teuni-Detail), muss defensiv sein: fehlt die Buchung → „—" anzeigen, die
-Lieferung aber **sichtbar lassen**. Im Kalender wird nicht rausgefiltert.
 
 ## 2. Pflicht-Reihenfolge VOR jeder Aussage/Änderung
 
 Diese Schritte sind **nicht optional** und werden **in dieser Reihenfolge**
 ausgeführt:
 
-0. **Bei ALLEM, was Max betrifft: `max_ablaeufe` ABFRAGEN.** Die verbindliche
-   Soll-Definition liegt in der **Datenbank**, nicht im Repo:
-   `select * from max_ablaeufe order by aktion, variante, schritt_nr;`
-   Ebenso `assistant_knowledge` (Max' gelerntes Wissen). Ohne diese Tabelle baut
-   man an der Definition vorbei.
-1. **Regeln laden.** `AGENTS.md` + `CODE-INDEX.md` + diese Datei lesen. Bei
-   Max-Themen zusätzlich `docs/chat-assistant-aenderungen.md` (deterministische
-   Pfade!) und `supabase/SQL/README.md` (DB-Trigger).
+1. **Regeln laden.** `AGENTS.md` + `CODE-INDEX.md` + diese Datei lesen.
 2. **Tab bestimmen.** „Welcher Tab?“ — nie „welche Route?“. Bei UI-Themen:
    den Screenshot/Tab eindeutig dem Einstiegspunkt zuordnen
    (`CODE-INDEX.md` Abschnitt 2).
@@ -241,6 +70,13 @@ ausgeführt:
 
 ## 3. Regeln für Lovable-Prompts (damit sie sicher umgesetzt werden)
 
+> **Geltungsbereich (Stand 18.07.2026):** Dieser Abschnitt gilt **nur noch für
+> `web-takeover-buddy` / `steinbockchalets.com`** — das einzige Projekt, das
+> weiterhin über Lovable entwickelt und deployt wird. Die vier
+> selfhosted-Repos werden über den GitHub-Browser-Editor bearbeitet; dort
+> gelten stattdessen die Liefervorgaben aus `AGENTS.md` (vollständige,
+> hochladefertige Dateien statt Prompts). Siehe Abschnitt 6.3.
+
 - **Immer am frisch gelesenen Ist-Zustand orientieren.** Keine Zeilennummern aus
   dem Gedächtnis. Wenn Zeilen genannt werden, vorher verifizieren.
 - **Ziel beschreiben, nicht nur Zeilen.** Lovable bricht an starren
@@ -257,13 +93,6 @@ ausgeführt:
 
 ---
 
-- **Mobile-Ansicht ist Pflicht in JEDEM UI-Prompt.** Laut CODING-GUIDE (B4) gilt
-  responsives Verhalten wie im Bestand (`grid-cols-… sm:… lg:…`). Jeder Prompt, der
-  UI verändert, MUSS explizit fordern: saubere Darstellung auf schmalen Bildschirmen
-  (Umbruch via `flex-wrap`, `w-full sm:w-auto` für Button-Gruppen), Touch-freundliche
-  Größen, KEIN horizontales Scrollen, nichts abgeschnitten auf ~360px Breite. Nicht
-  darauf warten, dass der Nutzer es anmahnt — von vornherein reinschreiben.
-
 ## 4. Verbindlicher Selbst-Check vor dem Absenden einer Antwort
 
 Claude beantwortet diese Fragen für sich, bevor es eine Code-Aussage oder einen
@@ -278,18 +107,6 @@ Prompt herausgibt. Wenn eine Antwort „nein/unklar“ ist → zurück zu Abschn
 - [ ] Behaupte ich nur, was ich im Code/Schema **belegt** habe?
 - [ ] Enthält mein Prompt **keine** ungeprüften Zeilennummern und **keine**
       „A oder B“-Wege?
-- [ ] Bei DB-Feldern: Habe ich die **Spaltenexistenz im Schema** belegt, bevor ich
-      Code baue, der darauf schreibt?
-- [ ] Bei UI-Änderungen: Enthält mein Prompt **explizite Mobile-Vorgaben**?
-- [ ] Habe ich nach dem letzten Lauf den **Ist-Stand verifiziert** (statt
-      „erledigt" zu glauben)?
-- [ ] Bei Max-Themen: Habe ich **`max_ablaeufe` abgefragt** und meine Änderung
-      gegen die Soll-Definition abgeglichen?
-- [ ] Bei Max-Themen: Weiß ich, ob der Befehl über **Gemini** oder über einen
-      **deterministischen Pfad** läuft? (Reschedule und Begrüßungs-E-Mail umgehen
-      Gemini komplett.)
-- [ ] Bevor ich eine Funktion ändere: Habe ich geprüft, **wer sie aufruft** und was
-      der Aufrufer schon tut?
 
 ---
 
@@ -302,54 +119,174 @@ Prompt herausgibt. Wenn eine Antwort „nein/unklar“ ist → zurück zu Abschn
 
 ---
 
-**Ergänzung 16.07.2026 (Wäsche-Reschedule-Kette):**
-- **Symmetrie prüfen, nicht kopieren.** Der Teuni-Bug war kopierter Amela-Code mit
-  der falschen Bezugsspalte (`related_task_id` statt `related_linen_order_id`).
-  Beim Spiegeln einer Kette JEDE spaltenspezifische Stelle einzeln gegen den echten
-  Kontext prüfen — nicht annehmen, „gleich wie Amela" heißt „gleiche Spalten".
-- **Neue Spalte akzeptiert der Insert nicht automatisch.** `logMaxAction` verschluckte
-  `related_linen_order_id` still, weil weder Signatur noch Insert es kannten. Vor dem
-  Übergeben eines neuen Feldes: existiert die DB-Spalte UND nimmt die schreibende
-  Funktion sie an? Beides am Code prüfen.
-- **Trigger-Reihenfolge ist alphabetisch.** Zwei Trigger auf demselben Ereignis:
-  der eine liest, was der andere schließt → Namens-Präfix (`aa`) erzwingt die
-  Reihenfolge. Bewusst benennen und dokumentieren.
-- **„Deployed" ≠ „funktioniert" — bewiesen.** Der DB-Teil war fertig, aber Max
-  *verstand* den Wunsch nicht (Prompt-Block fehlte). Erst der End-to-End-Test an
-  echten Daten deckte es auf. Kette immer ganz durchspielen, Glied für Glied mit Beleg.
-- **Nicht aus Code-Präsenz auf Nutzung schließen — an echten Daten verifiziert.**
-  Die „Provider antwortet per Button"-Prämisse aus Doku/Memory war real ungenutzt
-  (System noch nicht im Betrieb). Vor dem Bauen: was wird tatsächlich benutzt?
-- **Max kann Vollzug BEHAUPTEN, ohne ihn auszuführen.** Bei „schließ den Vorgang"
-  meldete Max „erledigt", aber die DB blieb unverändert — es gab kein Werkzeug dafür,
-  nur die Prompt-Anweisung „melde, dass du es als erledigt betrachtest". Lektion: Wenn
-  Max eine Aktion melden soll, MUSS es ein Werkzeug geben, das sie wirklich ausführt;
-  sonst ist die Meldung eine Halluzination. Immer per DB-Abfrage prüfen, ob eine
-  gemeldete Aktion wirklich passiert ist — nicht dem Chat glauben.
+## 6. Lessons aus der Sitzung 18.07.2026 (Website-Kalender, iCal-Kollisionen)
 
-**Ergänzung 17.07.2026 (Begrüßungs-E-Mail „Hubert Middelbos vor"):**
-- **Deterministischer Pfad ≠ Ort für Sprachverständnis.** Der E-Mail-Befehl lief
-  über den deterministischen Pfad, der den Gastnamen per Regex extrahierte. Das
-  Regex nahm „vor" (aus „vorbereiten") als Namensteil mit → Suche „%… vor%" → 0
-  Treffer → „Keine passende Buchung gefunden", obwohl der Gast existierte. Lektion:
-  Ein deterministischer Pfad ist richtig für die **Aktion** (Tool + Button
-  garantieren), aber **nicht** für unscharfe Sprach-Interpretation (wer ist
-  gemeint?). Diese zwei Momente sauber trennen — Name robust erkennen ODER der KI
-  überlassen, dann deterministisch ausführen.
-- **Doppelgänger bei Extraktoren.** Es gab bereits `extractGuestNameFromReschedule`
-  mit korrekter Stoppwort-Bereinigung — der 13.07. hatte denselben Bug für
-  Reschedule („Luca") gefixt, aber den E-Mail-Extraktor `extractGuestNameFromCommand`
-  übersehen. Wieder die AUFRUFER-/Zwillings-Regel: Wird ein Muster an einer Stelle
-  gefixt, die zweite Stelle mit demselben Muster aktiv suchen (`grep` nach ähnlichen
-  Regex/Extraktoren).
-- **„Nicht gefunden" ist ein absolutes No-Go — und meist ein Extraktions-, kein
-  Suchproblem.** Bevor die Suche verdächtigt wird: an der DB mit dem BEREINIGTEN
-  Namen gegenprüfen. Fand `%name%` den Gast, liegt es am Extraktor davor.
-- **Kein-Treffer und Mehrfachtreffer gehören sauber behandelt**, nicht als stummes
-  Scheitern: 0 → nach Schreibweise fragen; mehrere verschiedene Gäste → zur Auswahl
-  vorlegen (nie raten, Soll-Definition `create_cleaning_for_booking` Schritt 3).
+### 6.1 Leeres Ergebnis ohne Fehler = zuerst Policy-Verdacht
+
+**Symptom:** Der Verfügbarkeitskalender auf `steinbockchalets.com` zeigte
+„Aktuell keine bestätigten Buchungen" — obwohl 20 bestätigte Buchungen in der
+Datenbank standen. Keine Fehlermeldung, kein roter Alert, HTTP 200.
+
+**Ursache:** Auf `bookings` existierte nur die Policy `bookings_auth_all` für
+die Rolle `{authenticated}`. Die Website liest anonym, ist also Rolle `anon`,
+fällt durch kein Policy-Raster.
+
+**Die eigentliche Lehre:** **Supabase gibt bei RLS-Blockade kein Fehlerobjekt
+zurück, sondern ein leeres Array.** Aus Sicht des Frontends ist „darfst du
+nicht" ununterscheidbar von „gibt es nicht".
+
+**Regel:** Ein leeres Ergebnis ohne Fehlermeldung ist **zuerst ein
+Berechtigungsverdacht, nicht ein Datenverdacht.** Prüfreihenfolge:
+
+1. `select count(*) from <tabelle>;` im SQL-Editor — sind überhaupt Daten da?
+2. `select policyname, roles, cmd from pg_policies where tablename = '<tabelle>';`
+   — gibt es eine Policy für die aufrufende Rolle?
+3. Erst danach die Filterlogik im Frontend prüfen.
+
+**Ergänzende Falle:** Auch der SQL-Editor läuft in einem RLS-Kontext. Eine
+`group by`-Abfrage lieferte „no rows returned", während `select count(*)` auf
+derselben Tabelle 120 ergab. **Ein leeres Ergebnis im SQL-Editor ist kein
+Beweis für eine leere Tabelle.** Immer mit einer zweiten, anders formulierten
+Abfrage gegenprüfen (bestehendes Prinzip „No rows returned ist normal", hier
+auch für SELECT gültig).
+
+**Lösung im konkreten Fall:** Statt `anon`-Policy auf `bookings` (würde
+Gastnamen, E-Mails und Preise öffentlich lesbar machen) eine View mit nur den
+nötigen Spalten:
+
+```sql
+create or replace view public.public_availability
+with (security_invoker = off) as
+select house_id, check_in, check_out, status
+from public.bookings
+where status in ('confirmed', 'checked_in');
+
+grant select on public.public_availability to anon;
+```
+
+`cancelled` bleibt draußen (darf nicht blockieren), `completed` ebenfalls (nur
+Vergangenheit, der Kalender graut sie ohnehin aus).
+
+---
+
+### 6.2 String-Vergleich von `date` gegen `timestamptz`
+
+**Symptom:** Der iCal-Sync meldete dauerhaft „7 Kollision(en) erkannt" —
+sämtliche eigenen Airbnb-Buchungen.
+
+**Zwei Ursachen, beide in einer Zeile (`ical-sync/index.ts`):**
+
+```javascript
+ev.start < b.check_out && ev.end > b.check_in
+```
+
+**(a) Datentyp-Mismatch.** `external_blocks.start_date` ist `date`
+(`"2027-01-05"`), `bookings.check_out` ist `timestamptz`
+(`"2027-01-05T09:00:00+00"`). In JavaScript gilt
+`"2027-01-05" < "2027-01-05T09:00:00+00"` → **true**, weil der kürzere String
+ein Präfix des längeren ist. Ein Gästewechsel (Abreise 09:00, neuer Block ab
+demselben Tag) wurde als Überlappung gewertet.
+
+**(b) Rückkopplung.** Der eigene `ical-export` ist bei Airbnb/VRBO als externer
+Kalender hinterlegt. Die Portale melden dieselben Zeiträume zurück. Der
+Abgleich sah `external_block` gegen `booking` mit identischem Zeitraum und
+meldete Kollision — obwohl es dieselbe Buchung war.
+
+**Regel:** **Beim Vergleich von Spalten unterschiedlichen Typs immer beide
+Seiten auf dasselbe Format bringen** (`String(v).slice(0, 10)` für
+tagesgenauen Vergleich). Und: **Bei bidirektionalen Schnittstellen prüfen, ob
+das eigene System seine eigenen Daten zurückgespiegelt bekommt.**
+
+**Warum das mehr als ein Schönheitsfehler war:** Sieben Dauerfehlalarme
+bedeuten, dass eine echte Doppelbuchung im Rauschen untergeht. Eine Warnung,
+die immer feuert, ist schlechter als keine Warnung — sie erzeugt
+Alarmmüdigkeit und wiegt in falscher Sicherheit.
+
+**Vorgehen beim Fix:** Die korrigierte Logik wurde vor dem Deploy gegen alle
+sieben realen Fälle **und** gegen vier konstruierte echte Doppelbuchungen
+getestet (voll überlappend, teilweise vorne, teilweise hinten, ein Tag
+mittendrin). Erst als alle sieben verschwanden und alle vier weiterhin
+erkannt wurden, ging der Code raus. **Ein Filter-Fix braucht immer beide
+Testrichtungen: Verschwindet das Rauschen? Bleibt das Signal?**
+
+---
+
+### 6.3 Deploy-Pfad prüfen, bevor „hochgeladen" mit „live" verwechselt wird
+
+**Symptom:** Die korrigierte `AvailabilityCalendar.tsx` lag im GitHub-Repo
+`web-takeover-buddy`, die Live-Seite änderte sich nicht.
+
+**Ursache:** `web-takeover-buddy` hat **keine GitHub-Verbindung**. Der einzige
+Git-Remote zeigt auf Lovables internen Storage. Das GitHub-Repo ist eine tote
+Kopie. Deployt wird ausschließlich über **Lovable Publish** (Hosting:
+Cloudflare, erkennbar am Response-Header `Server: cloudflare` +
+`X-Deployment-Id`, kein `x-vercel-id`).
+
+**Regel:** **Die Notiz „Lovable wird nicht mehr genutzt" gilt nur für die vier
+selfhosted-Repos** (`hausmanagement-selfhosted`, `amela-clean-hub-selfhosted`,
+`fresh-spin-portal-selfhosted`, `smartfox-insight-ai-selfhosted`). Für
+`web-takeover-buddy` / `steinbockchalets.com` gilt sie **nicht**.
+
+**Zusatzbefund — Datenbank:** Die Website-DB `xcohqbdgzprkixeycdhk` ist eine
+**Lovable-Cloud-Instanz**, kein normales Supabase-Projekt. Es gibt dafür
+**kein Supabase-Dashboard**, weder im eigenen Konto noch in einem anderen —
+deshalb war sie nie auffindbar. Zugriff nur über die Lovable-Oberfläche. Das
+betrifft `houses` (Marketing-Variante), `gallery_images`, `promotions`,
+`reviews`, `seasons`, `categories`, `booking_inquiries`.
+
+**Konsequenz für die Praxis:** Bevor eine Änderung an der Website als erledigt
+gilt, muss geprüft werden, **über welchen Weg sie live geht**. Ein Commit
+allein ändert dort nichts.
+
+---
+
+### 6.4 Kopplung Website ↔ Hausverwaltung (Ist-Stand 18.07.2026)
+
+Die Verbindung ist **minimal** — nur zwei Berührungspunkte im gesamten
+Website-Code:
+
+| Richtung | Datei | Tabelle (Hausverwaltung) | Zweck |
+|---|---|---|---|
+| Lesen | `AvailabilityCalendar.tsx` | `public_availability` (View) | Belegte Tage |
+| Schreiben | `BookingForm.tsx` | `booking_inquiries` | Anfrage weiterreichen |
+
+Alles Übrige liegt in der Lovable Cloud.
+
+**Zwei offene Punkte, die sich daraus ergeben:**
+
+1. **`houses` existiert in beiden Datenbanken** — Doppelgänger über
+   Systemgrenzen hinweg, verbunden nur über `houses.external_house_id`.
+2. **Preise sind dupliziert.** `BookingForm.tsx` rechnet mit
+   `house.price_winter ?? 450` / `price_summer ?? 380` /
+   `price_offseason ?? 320` aus der Website-eigenen `houses`-Tabelle. Die
+   Pricing-Infrastruktur der Hausverwaltung (`pricing-engine`,
+   `daily-pricing`, `expand-daily-prices`) wird **nicht** genutzt. Ein Gast
+   sieht auf der Website möglicherweise einen anderen Preis als den
+   berechneten.
+
+---
+
+### 6.5 Stille Fehlerbehandlung ist ein Datenverlust-Risiko
+
+In `BookingForm.tsx` wurde ein fehlgeschlagener Insert in die
+Hausverwaltungs-DB nur mit `console.warn` protokolliert; der Gast sah
+trotzdem die normale Erfolgsmeldung. Die Anfrage wäre nie angekommen, ohne
+dass es jemand merkt.
+
+**Regel:** **Eine Erfolgsmeldung an den Nutzer darf nie ausgegeben werden,
+wenn ein Teilschritt fehlgeschlagen ist** — auch dann nicht, wenn der
+Hauptschritt geklappt hat. Entweder der Nutzer erfährt es, oder es gibt eine
+Benachrichtigung an den Betreiber. Ein `console.warn` ist beides nicht.
+
+Verwandt mit dem bestehenden Prinzip „Deployed ist nicht Verified", hier als
+**„Erfolgsmeldung ist nicht Erfolg"**.
+
+---
 
 *Erstellt am 15.06.2026 nach einer fehlerhaften Sitzung zur Vereinheitlichung
-der Übersichtskarten (Buchung/Reinigung/Wäsche). Ergänzt 16.06., 13.07., 15.07., 16.07. und 17.07.2026.*
-*Ablage seit 13.07.2026: `docs/` (zusammen mit allen anderen Dokumenten).
-`AGENTS.md` im Repo-Root verweist hierher.*
+der Übersichtskarten (Buchung/Reinigung/Wäsche). Ablage: Repo-Root neben
+`AGENTS.md`.*
+
+*Ergänzt am 18.07.2026 um Abschnitt 6 (RLS-Blockade als stiller Leerbefund,
+Datentyp-Vergleich `date`/`timestamptz` im iCal-Sync, Deploy-Pfad der Website,
+Kopplung Website ↔ Hausverwaltung, stille Fehlerbehandlung).*
