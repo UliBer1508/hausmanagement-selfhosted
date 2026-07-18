@@ -244,7 +244,24 @@ serve(async (req) => {
         .eq('status', 'completed')
         .gte('check_out', minCheckoutDate.toISOString())
         .lte('check_out', maxCheckoutDate.toISOString())
-        .is('external_rating', null);
+        .is('external_rating', null)
+        // Von Uli abgehakte Bewertungen ausblenden (Fix 18.07.2026).
+        //
+        // Im RatingReminderBanner (Tab Uebersicht) gibt es die Checkbox
+        // "Keine Bewertung". Sie setzt bookings.rating_not_expected = true
+        // (useRatingReminders.ts, markAsNoRatingMutation).
+        //
+        // Der Frontend-Hook filtert diese Buchungen seit jeher heraus
+        // (useRatingReminders.ts, Zeile 57 - identische .or()-Bedingung).
+        // Beim Umbau der Morgen-Uebersicht vom Hook zur Edge Function ist
+        // genau diese eine Zeile nicht mitgewandert. Folge: Uli hakte einen
+        // Eintrag im Banner ab, er verschwand dort - tauchte aber jeden
+        // Morgen in der Uebersicht wieder auf.
+        //
+        // WICHTIG bei kuenftigen Aenderungen: Banner-Hook und Edge Function
+        // muessen dieselben Filterbedingungen haben. Aendert sich eine Seite,
+        // muss die andere mitgezogen werden (Doppelgaenger-Prinzip).
+        .or('rating_not_expected.is.null,rating_not_expected.eq.false');
       if (rentalTypeFilter !== 'all') {
         query = query.eq('houses.rental_type', rentalTypeFilter);
       }
