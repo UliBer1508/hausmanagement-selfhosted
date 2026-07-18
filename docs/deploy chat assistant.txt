@@ -1,0 +1,4 @@
+cd C:\hausmanagement\hausmanagement-selfhosted
+$env:Path += ";C:\Program Files\Git\cmd"
+git pull
+supabase functions deploy chat-assistant --project-ref usblrulkcgucxtkhugck
