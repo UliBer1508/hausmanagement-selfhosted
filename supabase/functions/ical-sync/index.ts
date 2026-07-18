@@ -192,6 +192,10 @@ serve(async (req) => {
       let upserts = 0;
       let kollisionenImFeed = 0;
 
+      // Zeitstempel VOR dem Verarbeiten der Events. Alles, was danach nicht
+      // aktualisiert wurde, kam in diesem Feed-Durchlauf nicht mehr vor.
+      const laufBeginn = new Date().toISOString();
+
       for (const ev of events) {
         // Kollisionspruefung: Ueberlapp block[start,end) mit booking[check_in,check_out),
         // tagesgenau (siehe toDay/istKollision oben).
@@ -269,6 +273,40 @@ serve(async (req) => {
         }
       }
 
+      // ---- AUFRÄUMEN: verschwundene Belegungen entfernen -------------------
+      //
+      // WARUM DAS NÖTIG IST (Fehler gefunden am 18.07.2026):
+      // Der Sync machte bisher nur Upserts. Blocks, die ein Portal NICHT mehr
+      // meldet, blieben für immer in external_blocks stehen. Konkreter Fall:
+      // Booking.com sperrte 19.07.2027–18.01.2028 (183 Nächte). Uli gab den
+      // Zeitraum im Extranet frei, Booking.com meldete ihn nicht mehr
+      // (last_event_count fiel von 12 auf 6) — der Block blieb trotzdem in der
+      // Tabelle und wurde weiter als Belegung angezeigt und ausgewertet.
+      //
+      // Dasselbe gilt für jede stornierte Portal-Buchung: Ohne Aufräumen rechnet
+      // der Kalender-Abgleich dauerhaft mit Belegungen, die es nicht mehr gibt.
+      //
+      // SICHERHEIT — die Bedingung ist entscheidend:
+      // Gelöscht wird NUR nach einem ERFOLGREICHEN Feed-Abruf. Bei einem
+      // Feed-Fehler wird die Schleife oben per `continue` verlassen, diese Stelle
+      // also gar nicht erreicht. Sonst wäre bei einer kurzen Störung bei
+      // Booking.com der komplette Bestand dieses Feeds weg.
+      //
+      // Ein leerer Feed (events.length === 0) ist ebenfalls ausgeschlossen: Das
+      // wäre entweder ein Portal-Fehler oder ein wirklich leerer Kalender —
+      // in beiden Fällen ist Nichtstun die sichere Wahl.
+      let entfernt = 0;
+      if (!dryRun && events.length > 0) {
+        const { data: veraltet } = await supabase
+          .from('external_blocks')
+          .delete()
+          .eq('house_id', feed.house_id)
+          .eq('platform', feed.platform)
+          .lt('last_seen_at', laufBeginn)
+          .select('id');
+        entfernt = veraltet?.length ?? 0;
+      }
+
       if (!dryRun) {
         await supabase.from('ical_feeds').update({
           last_synced_at: new Date().toISOString(),
@@ -278,7 +316,7 @@ serve(async (req) => {
 
       summary.push({
         feed: `${feed.platform}/${houseName}`, status: 'ok',
-        events: events.length, upserts, kollisionen: kollisionenImFeed,
+        events: events.length, upserts, entfernt, kollisionen: kollisionenImFeed,
       });
     }
 
