@@ -7,7 +7,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Calendar, Trash2, AlertTriangle, Plus, Link, Check, Upload } from "lucide-react";
+import { RefreshCw, Calendar, Trash2, AlertTriangle, Plus, Link, Check, Upload, ChevronDown, ChevronUp, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // =============================================================================
@@ -42,7 +42,28 @@ interface IcalFeed {
   houses?: { name: string } | null;
 }
 
+// Eingelesene Belegung aus einem Portal-Feed (Tabelle `external_blocks`).
+// Enthaelt bewusst KEINE Gastdaten — iCal liefert nur Zeitraeume.
+interface ExternalBlock {
+  id: string;
+  house_id: string;
+  platform: string;
+  start_date: string;
+  end_date: string;
+  summary: string | null;
+  collision_booking_id: string | null;
+  last_seen_at: string | null;
+}
+
 const platformLabel = (v: string) => PLATFORMS.find((p) => p.value === v)?.label ?? v;
+
+// Datum tagesgenau anzeigen. `start_date`/`end_date` sind vom Typ `date`
+// (reines "YYYY-MM-DD"), daher KEIN new Date() mit Zeitzonenumrechnung —
+// das wuerde je nach Zeitzone einen Tag verschieben.
+const tagAnzeigen = (d: string) => {
+  const [j, m, t] = String(d).slice(0, 10).split("-");
+  return `${t}.${m}.${j}`;
+};
 
 // Basis-URL für die öffentlichen Edge Functions (für die Export-Feed-URL).
 // Nutzt dieselbe Umgebungsvariable wie der Supabase-Client — kein hartcodierter Wert.
@@ -84,6 +105,37 @@ const CalendarSyncCard = () => {
         .from("ical_feeds")
         .select("id, house_id, platform, feed_url, is_active, last_synced_at, last_status, last_event_count, houses(name)")
         .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data as any) ?? [];
+    },
+  });
+
+  // ── Eingelesene Belegungen (Phase 3: Sichtbarkeit) ──────────────────────
+  //
+  // WARUM: Bis hierher war der Feed eine Blackbox. Sichtbar waren nur der
+  // Status ("ok · 7 Eintraege") und Kollisionen. Was tatsaechlich hereinkam,
+  // liess sich nur per SQL nachsehen. Seit dem Kollisions-Fix vom 18.07.2026
+  // meldet das System bei sauberer Lage gar nichts mehr — ohne diese Liste
+  // gaebe es keinerlei Kontrolle darueber, ob der Import ueberhaupt greift.
+  //
+  // Bewusst schlicht: reine Leseansicht, keine Bearbeitung. Die Daten gehoeren
+  // den Portalen, nicht diesem System.
+  const [zeigeBelegungen, setZeigeBelegungen] = useState(false);
+
+  const { data: blocks, isLoading: blocksLoading } = useQuery({
+    queryKey: ["external-blocks"],
+    // Erst laden, wenn der Bereich aufgeklappt wird — die Karte liegt im
+    // Einstellungen-Tab und wird oft nur wegen anderer Punkte geoeffnet.
+    enabled: zeigeBelegungen,
+    queryFn: async (): Promise<ExternalBlock[]> => {
+      const heute = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("external_blocks")
+        .select("id, house_id, platform, start_date, end_date, summary, collision_booking_id, last_seen_at")
+        // Nur laufende und kuenftige Belegungen. Vergangene Zeitraeume sind
+        // fuer den Doppelbuchungs-Schutz ohne Wert und wuerden die Liste fluten.
+        .gte("end_date", heute)
+        .order("start_date", { ascending: true });
       if (error) throw error;
       return (data as any) ?? [];
     },
@@ -269,6 +321,81 @@ const CalendarSyncCard = () => {
           </ul>
         )}
       </div>
+      {/* ── Phase 3: Eingelesene Belegungen (Sichtbarkeit) ───────────────── */}
+      <div className="space-y-2 border-t border-border pt-4">
+        <Button
+          onClick={() => setZeigeBelegungen((v) => !v)}
+          variant="ghost"
+          size="sm"
+          className="w-full sm:w-auto justify-start px-2"
+          aria-expanded={zeigeBelegungen}
+        >
+          <ListChecks className="w-4 h-4 mr-2 text-primary" />
+          Eingelesene Belegungen
+          {zeigeBelegungen
+            ? <ChevronUp className="w-4 h-4 ml-2" />
+            : <ChevronDown className="w-4 h-4 ml-2" />}
+        </Button>
+
+        {zeigeBelegungen && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Was die Portale an Belegungen melden — laufende und kommende
+              Zeiträume. iCal liefert <strong>keine Gastdaten</strong>, nur
+              Zeiträume. Rot markiert = überschneidet sich mit einer eigenen
+              Buchung.
+            </p>
+
+            {blocksLoading ? (
+              <p className="text-xs text-muted-foreground">Lädt…</p>
+            ) : !blocks?.length ? (
+              <p className="text-xs text-muted-foreground">
+                Keine laufenden oder kommenden Belegungen eingelesen.
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {blocks.map((b) => {
+                  const kollision = b.collision_booking_id !== null;
+                  return (
+                    <li
+                      key={b.id}
+                      className={cn(
+                        "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 rounded-md border p-2 text-xs",
+                        kollision
+                          ? "border-destructive/50 bg-destructive/5"
+                          : "border-border/60"
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium">
+                          {houses?.find((h) => h.id === b.house_id)?.name ?? "—"}
+                          {" · "}
+                          {platformLabel(b.platform)}
+                        </div>
+                        {b.summary && (
+                          <div className="text-muted-foreground truncate">{b.summary}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {kollision && (
+                          <span className="flex items-center gap-1 text-destructive font-medium">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            Kollision
+                          </span>
+                        )}
+                        <span className="text-muted-foreground whitespace-nowrap">
+                          {tagAnzeigen(b.start_date)} – {tagAnzeigen(b.end_date)}
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* ── Phase 2: Export-URLs (mein System -> Portale) ────────────────── */}
       <div className="space-y-2 border-t border-border pt-4">
         <div className="flex items-center gap-2">
