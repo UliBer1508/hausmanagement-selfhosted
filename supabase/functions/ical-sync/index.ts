@@ -348,11 +348,21 @@ serve(async (req) => {
         `iCal-Abgleich (Sicherheitsnetz, nicht in Echtzeit).`;
 
       try {
+        // KORREKTUR 19.07.2026: Der Aufruf nutzte bisher to/subject/body.
+        // send-guest-email erwartet aber recipients/subjectTemplate/bodyTemplate
+        // und antwortet sonst mit HTTP 400 ("recipients, subjectTemplate and
+        // bodyTemplate are required"). Folge: Es ist NIE eine Kollisions-Mail
+        // angekommen — der Toast meldete "und per E-Mail", verschickt wurde nichts.
+        //
+        // Der Fehler blieb unentdeckt, weil mailErr zwar geloggt, aber nur in die
+        // Function-Logs geschrieben wurde. Wer nicht dort nachsieht, merkt nichts.
         const { error: mailErr } = await supabase.functions.invoke('send-guest-email', {
           body: {
-            to: KOLLISION_MAIL_TO,
-            subject: `⚠️ Kalender-Kollision erkannt (${neueKollisionen.length})`,
-            body,
+            // Nur `email` — die weiteren Recipient-Felder (guestName, checkIn …)
+            // dienen der Platzhalter-Ersetzung und werden hier nicht gebraucht.
+            recipients: [{ email: KOLLISION_MAIL_TO }],
+            subjectTemplate: `⚠️ Kalender-Kollision erkannt (${neueKollisionen.length})`,
+            bodyTemplate: body,
           },
         });
         if (mailErr) console.error('❌ Kollisions-Mail fehlgeschlagen:', mailErr);
