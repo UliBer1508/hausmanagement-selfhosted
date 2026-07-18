@@ -55,6 +55,32 @@ function icalDateToISO(value: string): string | null {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
+// Schneidet einen Zeitstempel auf das reine Datum (YYYY-MM-DD).
+// WARUM: external_blocks.start_date/end_date sind vom Typ `date` (10 Zeichen),
+// bookings.check_in/check_out sind `timestamptz` ("2027-01-05T09:00:00+00:00").
+// Ein direkter String-Vergleich meldet den Wechseltag faelschlich als Kollision,
+// weil "2027-01-05" < "2027-01-05T09:00:00+00:00" true ergibt (Praefix-Vergleich).
+// Beide Seiten muessen tagesgenau verglichen werden.
+function toDay(value: string | null | undefined): string {
+  return String(value ?? '').slice(0, 10);
+}
+
+// Echte Kollision? Halboffene Intervalle, tagesgenau.
+// Abreise am selben Tag, an dem der externe Block beginnt, ist KEINE Kollision
+// (normaler Gaestewechsel).
+function istKollision(evStart: string, evEnd: string, checkIn: string, checkOut: string): boolean {
+  return toDay(evStart) < toDay(checkOut) && toDay(evEnd) > toDay(checkIn);
+}
+
+// Ist der externe Block die Rueckspiegelung einer eigenen Buchung?
+// WARUM: Der eigene ical-export wird bei Airbnb/VRBO als externer Kalender
+// hinterlegt. Die Portale melden dieselben Zeitraeume zurueck. Deckt sich ein
+// externer Block tagesgenau mit einer eigenen Buchung, ist das dieselbe Buchung
+// und KEIN Konflikt.
+function istRueckspiegelung(evStart: string, evEnd: string, checkIn: string, checkOut: string): boolean {
+  return toDay(evStart) === toDay(checkIn) && toDay(evEnd) === toDay(checkOut);
+}
+
 function parseICal(text: string): VEvent[] {
   const lines = unfoldLines(text);
   const events: VEvent[] = [];
@@ -167,10 +193,21 @@ serve(async (req) => {
       let kollisionenImFeed = 0;
 
       for (const ev of events) {
-        // Kollisionsprüfung: Überlapp block[start,end) mit booking[check_in,check_out)
-        const collision = (ownBookings || []).find((b: any) =>
-          ev.start < b.check_out && ev.end > b.check_in
-        );
+        // Kollisionspruefung: Ueberlapp block[start,end) mit booking[check_in,check_out),
+        // tagesgenau (siehe toDay/istKollision oben).
+        //
+        // Zwei Faelle werden bewusst NICHT als Kollision gewertet:
+        //  (a) Rueckspiegelung: Der externe Block deckt sich exakt mit einer eigenen
+        //      Buchung -> dieselbe Buchung, kein Konflikt.
+        //  (b) Wechseltag: Abreise um 09:00 und externer Block ab demselben Tag.
+        //
+        // WARUM das wichtig ist: Vor dieser Korrektur meldete jeder Airbnb-Feed
+        // saemtliche eigenen Airbnb-Buchungen als Kollision. Bei Dauerrauschen geht
+        // eine echte Doppelbuchung unter (Alarmmuedigkeit).
+        const collision = (ownBookings || []).find((b: any) => {
+          if (istRueckspiegelung(ev.start, ev.end, b.check_in, b.check_out)) return false;
+          return istKollision(ev.start, ev.end, b.check_in, b.check_out);
+        });
         const collisionBookingId = collision?.id ?? null;
 
         if (dryRun) {
