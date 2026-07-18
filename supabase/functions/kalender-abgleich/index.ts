@@ -169,6 +169,33 @@ interface Befund {
   text: string;
 }
 
+// Einordnung eines einzelnen Portal-Blocks.
+//
+// WOFUER: Die Belegungsliste in CalendarSyncCard.tsx zeigte bisher alle Blocks
+// gleich — eine 183-Naechte-Sperre sah aus wie eine echte Buchung. Die
+// Einordnung beantwortet je Block die Frage, die man beim Draufschauen hat:
+// "Gehoert das zu einer Buchung, oder ist das eine Sperre?"
+//
+//   gedeckt   -> Zeitraum ist im System durch Buchung(en) belegt (Normalfall)
+//   sperrzeit -> unter der Mindestdauer: Mindestaufenthalts-Sperre des Portals
+//   langsperre-> ueber der Maximaldauer: Kalenderhorizont ODER vergessene Sperre
+//   luecke    -> im Buchungsbereich, aber im System (teilweise) frei -> Achtung
+type BlockArt = 'gedeckt' | 'sperrzeit' | 'langsperre' | 'luecke';
+
+interface BlockInfo {
+  house_id: string;
+  platform: string;
+  start_date: string;
+  end_date: string;
+  art: BlockArt;
+  naechte: number;
+  // Namen der Buchungen, die diesen Zeitraum abdecken. Mehrere sind normal:
+  // Booking.com fasst aufeinanderfolgende Buchungen zu EINEM Block zusammen.
+  buchungen: string[];
+  // Wie viele Tage des Blocks im System NICHT gedeckt sind (0 = vollstaendig).
+  offene_tage: number;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -183,6 +210,7 @@ serve(async (req) => {
     const settings = await ladeSettings(supabase);
     const heute = new Date().toISOString().slice(0, 10);
     const befunde: Befund[] = [];
+    const bloecke: BlockInfo[] = [];
 
     // --- 1. Häuser mit aktivem Feed ---------------------------------------
     // Nur Häuser, für die überhaupt ein Feed hinterlegt ist. Wald Chalet läuft
@@ -246,10 +274,43 @@ serve(async (req) => {
       if (!blocks?.length) continue;
       gepruefteHaeuser++;
 
-      // Belegte Tage aus eigenen Buchungen
-      const belegt = new Set<string>();
+      // Belegte Tage aus eigenen Buchungen.
+      // Map statt Set, damit zu jedem Tag auch der Gastname bekannt ist — die
+      // Belegungsliste soll zeigen, WELCHE Buchung hinter einem Block steht.
+      const belegtVon = new Map<string, string>();
       for (const b of bookings ?? []) {
-        for (const t of tageIm(b.check_in, b.check_out)) belegt.add(t);
+        for (const t of tageIm(b.check_in, b.check_out)) {
+          belegtVon.set(t, b.guest_name ?? 'Buchung');
+        }
+      }
+      const belegt = { has: (t: string) => belegtVon.has(t) };
+
+      // --- Einordnung je Block (fuer die Belegungsliste) ------------------
+      for (const b of blocks) {
+        const n = naechte(b.start_date, b.end_date);
+        const tage = tageIm(b.start_date, b.end_date);
+        const namen = new Set<string>();
+        let offen = 0;
+        for (const t of tage) {
+          const g = belegtVon.get(t);
+          if (g) namen.add(g); else offen++;
+        }
+
+        let art: BlockArt;
+        if (n > settings.max_naechte) art = 'langsperre';
+        else if (n < settings.min_naechte) art = 'sperrzeit';
+        else if (offen === 0) art = 'gedeckt';
+        else if (offen >= settings.min_naechte) art = 'luecke';
+        // Weniger offene Tage als die Mindestdauer: Randstueck, keine Luecke —
+        // z.B. wenn ein Portal einen Tag grosszuegiger sperrt als die Buchung
+        // lang ist. Das ist gedeckt genug.
+        else art = 'gedeckt';
+
+        bloecke.push({
+          house_id: houseId, platform: b.platform,
+          start_date: tag(b.start_date), end_date: tag(b.end_date),
+          art, naechte: n, buchungen: [...namen], offene_tage: offen,
+        });
       }
 
       // --- Prüfung 5: Langsperren ----------------------------------------
@@ -330,6 +391,8 @@ serve(async (req) => {
       anzahl: befunde.length,
       alles_ok: befunde.length === 0,
       befunde,
+      // Einordnung JEDES Blocks — fuer die Belegungsliste in CalendarSyncCard.
+      bloecke,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (e) {
