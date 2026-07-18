@@ -184,3 +184,44 @@ first_seen_at, last_seen_at, collision_booking_id (NULL, oder die kollidierende 
    Kalender → Verbinden → Exportieren). Diese trägt Uli später in der neuen UI ein.
 3. **Reihenfolge:** Vorschlag — Phase 1 (Import + Warnung) zuerst live, dann Phase 2
    (Export-Feed). So hast du den Doppelbuchungs-Schutz schnell, der Export folgt.
+
+---
+
+## 9. Phase 2 UMGESETZT (17.07.2026) — Export-Feed
+
+**Gebaut:**
+- `supabase/functions/ical-export/index.ts` — oeffentlicher iCal-Feed pro Ferienhaus.
+  Aufruf: `.../functions/v1/ical-export/<TOKEN>.ics`
+- `supabase/SQL/33_ical_export_token.sql` — Spalte `houses.ical_export_token`,
+  Tokens automatisch fuer alle Ferienhaeuser erzeugt.
+- `CalendarSyncCard.tsx` — Abschnitt "Mein Kalender fuer die Portale" mit
+  Kopieren-Button je Haus.
+- `supabase/config.toml` — `verify_jwt = false` fuer `ical-sync` UND `ical-export`
+  (Portale rufen den Feed anonym ab; Schutz = geheimes Token in der URL).
+
+### Harte Regeln im Export (aus der Plattform-Recherche — nicht aendern!)
+
+| Regel | Warum |
+|---|---|
+| **Nur `platform = 'direct'`-Buchungen** ausgeben | Reimportierte Fremd-Blocks wuerden eine Update-Endlosschleife zwischen den Portalen ausloesen |
+| **Nur Ganztages-Daten** (`DTSTART;VALUE=DATE:20260725`), nie `T000000` | Airbnb lehnt seit 04/2025 zeitbehaftete Eintraege ab ("This iCal URL is invalid") |
+| **URL endet auf `.ics`** | Mehrere Portale validieren die URL-Form statt des Inhalts |
+| **Feed nie leer** — Platzhalter-Event, wenn keine Direktbuchung existiert | Ein Feed ohne zukuenftiges Event gilt beim Hinzufuegen als ungueltig |
+| **CRLF + vollstaendiger RFC-5545-Rumpf** (VERSION, PRODID, UID, DTSTAMP) | Sonst schlaegt die Validierung fehl |
+| **Keine Gastnamen** — `SUMMARY:Belegt` | Datenschutz gegenueber den Portalen |
+
+### Realistische Erwartung je Plattform
+
+| Plattform | Import (Portal -> uns) | Export (wir -> Portal) |
+|---|---|---|
+| Airbnb | ✅ | ✅ (Dialog "Mit anderer Website verknuepfen", Schritt 2) |
+| VRBO | ✅ | ✅ |
+| Belvilla | ✅ | ✅ (falls im My-Belvilla-Konto auffindbar) |
+| **Booking.com** | ✅ | ❌ **akzeptiert seit 03/2025 keine Feeds von privaten Seiten** — dort bleibt nur der Import + unsere Kollisionswarnung |
+
+### Airbnb-Besonderheit (Korrektur einer frueheren Annahme)
+
+Airbnb trennt Export und Import NICHT: Der Dialog "Mit anderer Website verknuepfen"
+zeigt in **Schritt 1** die Airbnb-URL (fuer unseren Import, Phase 1) und verlangt in
+**Schritt 2** unsere URL (Phase 2). Schritt 1 laesst sich kopieren, ohne Schritt 2
+abzuschliessen — der Dialog verhindert nur das Speichern, nicht das Kopieren.
