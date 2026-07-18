@@ -7,7 +7,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, CalendarClock, Trash2, AlertTriangle, Plus } from "lucide-react";
+import { RefreshCw, Calendar, Trash2, AlertTriangle, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // =============================================================================
@@ -156,7 +156,7 @@ const CalendarSyncCard = () => {
       {/* Kopf */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div className="flex items-center gap-2">
-          <CalendarClock className="w-5 h-5 text-primary" />
+          <Calendar className="w-5 h-5 text-primary" />
           <h3 className="font-semibold">Kalender-Sync (iCal)</h3>
         </div>
         <Button
