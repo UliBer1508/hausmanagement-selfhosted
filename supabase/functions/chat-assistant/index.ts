@@ -1339,6 +1339,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeSendProviderMessage(args);
     case 'check_upcoming_bookings':
       return await executeCheckUpcomingBookings(args);
+    case 'check_kalender_abgleich':
+      return await executeCheckKalenderAbgleich();
     case 'create_cleaning_for_booking':
       return await executeCreateCleaningForBooking(args);
     case 'create_linen_for_booking':
@@ -1630,6 +1632,17 @@ function getToolDefinitions() {
           properties: {
             advance_days: { type: "number", description: "Optional: wie viele Tage vorausgeschaut wird (Standard aus den Einstellungen, meist 7)" }
           }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "check_kalender_abgleich",
+        description: "Gleicht den eigenen Kalender mit dem der Buchungsportale ab (Airbnb, Booking.com, VRBO) und meldet Abweichungen. Drei Prüfungen: (1) FEHLENDE BUCHUNG - ein Zeitraum ist bei einem Portal belegt, im eigenen System aber frei; das ist der wichtigste Fall, denn dahinter steckt meist eine Portal-Buchung, die noch nicht nachgetragen wurde (keine Reinigung, keine Wäsche, kein Gästekontakt - und der Zeitraum könnte versehentlich noch einmal vergeben werden). (2) LANGSPERRE - ein Portal sperrt einen sehr langen Zeitraum; das kann der normale Kalenderhorizont sein ODER eine vergessene Sperre, die Umsatz kostet. Frage in dem Fall nach, ob das gewollt ist. (3) FEED-FEHLER - ein iCal-Feed konnte nicht gelesen werden, seine Daten sind veraltet. Nutze dieses Tool bei Fragen wie 'Stimmt mein Kalender mit den Portalen überein?', 'Fehlt eine Buchung?', 'Gibt es Abweichungen zu Airbnb oder Booking?', 'Prüfe den Kalender'. REINE PRÜFUNG - es wird nichts verändert und keine Buchung angelegt (iCal liefert keine Gastdaten, nur Zeiträume). Wenn alles_ok true ist, sag klar 'Kalender stimmt überein'. Häuser ohne hinterlegten Feed werden übersprungen - erwähne das nur, wenn danach gefragt wird.",
+        parameters: {
+          type: "object",
+          properties: {}
         }
       }
     },
@@ -2225,6 +2238,32 @@ async function executeCheckUpcomingBookings(params: any) {
   console.log('Executing check_upcoming_bookings with params:', params);
   const advance = typeof params?.advance_days === 'number' ? params.advance_days : undefined;
   return await runUpcomingBookingsControl(advance);
+}
+
+/**
+ * Chat-Tool: Kalender-Abgleich mit den Portalen.
+ *
+ * Reicht an die Edge Function kalender-abgleich durch (Phase 4, siehe
+ * docs/Konzept-iCal-Kollisionswarnung.md Abschnitt 8). Die Logik liegt dort und
+ * nicht hier, weil derselbe Abgleich auch vom Cron und von der Morgen-Übersicht
+ * gebraucht wird — eine Quelle der Wahrheit statt drei Kopien.
+ *
+ * Die Function ist rein lesend: kein Parameter, keine Nebenwirkung.
+ */
+async function executeCheckKalenderAbgleich() {
+  console.log('Executing check_kalender_abgleich');
+  try {
+    const { data, error } = await supabase.functions.invoke('kalender-abgleich', {
+      body: {},
+    });
+    if (error) {
+      return { success: false, error: `Kalender-Abgleich nicht erreichbar: ${error.message}` };
+    }
+    return data;
+  } catch (e) {
+    console.error('executeCheckKalenderAbgleich:', e);
+    return { success: false, error: String(e) };
+  }
 }
 
 /**
