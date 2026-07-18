@@ -59,3 +59,13 @@ verify_jwt = false
 
 [functions.stripe-webhook]
 verify_jwt = false
+
+# Modul CalendarSync (17.07.2026)
+# ical-sync: wird per Cron aufgerufen (kein Nutzer-JWT vorhanden)
+[functions.ical-sync]
+verify_jwt = false
+
+# ical-export: MUSS oeffentlich sein — Airbnb/VRBO/Belvilla rufen den Feed
+# anonym ab. Der Schutz erfolgt ueber das geheime Token in der URL.
+[functions.ical-export]
+verify_jwt = false
