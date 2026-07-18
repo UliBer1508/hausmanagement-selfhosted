@@ -51,9 +51,38 @@ interface ExternalBlock {
   start_date: string;
   end_date: string;
   summary: string | null;
+  // Wird geladen, aber nicht mehr zur Anzeige genutzt: Seit dem
+  // Rueckspiegelungs-Fix (18.07.2026) ist das Feld bei deckungsgleichen Blocks
+  // null und damit nicht mehr aussagekraeftig. Die Einordnung kommt jetzt vom
+  // Kalender-Abgleich (BlockInfo.art).
   collision_booking_id: string | null;
   last_seen_at: string | null;
 }
+
+// Einordnung eines Blocks, geliefert von der Edge Function kalender-abgleich.
+// Die Rohdaten aus external_blocks sagen nur "Zeitraum X ist belegt" — erst der
+// Abgleich weiss, ob dahinter eine Buchung steht, eine Sperre, oder eine Luecke.
+type BlockArt = "gedeckt" | "sperrzeit" | "langsperre" | "luecke";
+
+interface BlockInfo {
+  house_id: string;
+  platform: string;
+  start_date: string;
+  end_date: string;
+  art: BlockArt;
+  naechte: number;
+  buchungen: string[];
+  offene_tage: number;
+}
+
+// Darstellung je Einordnung. Nur "luecke" ist ein echtes Problem und wird rot
+// hervorgehoben; "langsperre" ist eine Rueckfrage, kein Fehler.
+const ART_ANZEIGE: Record<BlockArt, { label: string; klasse: string; rahmen: string }> = {
+  gedeckt:    { label: "",             klasse: "text-muted-foreground", rahmen: "border-border/60" },
+  sperrzeit:  { label: "Sperrzeit",    klasse: "text-muted-foreground", rahmen: "border-border/40 bg-muted/30" },
+  langsperre: { label: "Langsperre",   klasse: "text-amber-700 dark:text-amber-400", rahmen: "border-amber-500/50 bg-amber-500/5" },
+  luecke:     { label: "Buchung fehlt", klasse: "text-destructive font-medium", rahmen: "border-destructive/50 bg-destructive/5" },
+};
 
 const platformLabel = (v: string) => PLATFORMS.find((p) => p.value === v)?.label ?? v;
 
@@ -140,6 +169,35 @@ const CalendarSyncCard = () => {
       return (data as any) ?? [];
     },
   });
+
+  // Einordnung der Blocks vom Kalender-Abgleich (Phase 4).
+  //
+  // WARUM EIN ZWEITER AUFRUF: Die Rohdaten aus external_blocks sagen nur, dass
+  // ein Zeitraum belegt ist. Ob dahinter eine eigene Buchung steht, eine
+  // Mindestaufenthalts-Sperre oder eine fehlende Buchung, weiss nur der
+  // Abgleich — und der laeuft serverseitig, weil dieselbe Logik auch vom Cron
+  // und von der Morgen-Uebersicht gebraucht wird (eine Quelle der Wahrheit).
+  //
+  // Faellt der Aufruf aus, bleibt die Liste nutzbar, nur ohne Einordnung.
+  const { data: einordnung } = useQuery({
+    queryKey: ["kalender-abgleich-bloecke"],
+    enabled: zeigeBelegungen,
+    queryFn: async (): Promise<BlockInfo[]> => {
+      const { data, error } = await supabase.functions.invoke("kalender-abgleich", { body: {} });
+      if (error) throw error;
+      return (data?.bloecke as BlockInfo[]) ?? [];
+    },
+  });
+
+  // Zuordnung Block -> Einordnung. Schluessel wie in der Function.
+  const infoZu = (b: ExternalBlock): BlockInfo | undefined =>
+    einordnung?.find(
+      (e) =>
+        e.house_id === b.house_id &&
+        e.platform === b.platform &&
+        e.start_date === String(b.start_date).slice(0, 10) &&
+        e.end_date === String(b.end_date).slice(0, 10),
+    );
 
   // Feed anlegen
   const addFeed = useMutation({
@@ -342,8 +400,8 @@ const CalendarSyncCard = () => {
             <p className="text-xs text-muted-foreground">
               Was die Portale an Belegungen melden — laufende und kommende
               Zeiträume. iCal liefert <strong>keine Gastdaten</strong>, nur
-              Zeiträume. Rot markiert = überschneidet sich mit einer eigenen
-              Buchung.
+              Zeiträume; die Zuordnung zur eigenen Buchung stammt aus dem
+              Kalender-Abgleich.
             </p>
 
             {blocksLoading ? (
@@ -355,15 +413,14 @@ const CalendarSyncCard = () => {
             ) : (
               <ul className="space-y-1.5">
                 {blocks.map((b) => {
-                  const kollision = b.collision_booking_id !== null;
+                  const info = infoZu(b);
+                  const anzeige = info ? ART_ANZEIGE[info.art] : null;
                   return (
                     <li
                       key={b.id}
                       className={cn(
                         "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 rounded-md border p-2 text-xs",
-                        kollision
-                          ? "border-destructive/50 bg-destructive/5"
-                          : "border-border/60"
+                        anzeige?.rahmen ?? "border-border/60"
                       )}
                     >
                       <div className="min-w-0">
@@ -372,15 +429,22 @@ const CalendarSyncCard = () => {
                           {" · "}
                           {platformLabel(b.platform)}
                         </div>
-                        {b.summary && (
+                        {/* Wer dahintersteckt — bei zusammengefassten Blocks
+                            koennen das mehrere Buchungen sein (Booking.com
+                            meldet aufeinanderfolgende Buchungen als einen Block). */}
+                        {info && info.buchungen.length > 0 ? (
+                          <div className="text-muted-foreground truncate">
+                            {info.buchungen.join(", ")}
+                          </div>
+                        ) : b.summary ? (
                           <div className="text-muted-foreground truncate">{b.summary}</div>
-                        )}
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {kollision && (
-                          <span className="flex items-center gap-1 text-destructive font-medium">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            Kollision
+                        {anzeige?.label && (
+                          <span className={cn("flex items-center gap-1", anzeige.klasse)}>
+                            {info?.art === "luecke" && <AlertTriangle className="w-3.5 h-3.5" />}
+                            {anzeige.label}
                           </span>
                         )}
                         <span className="text-muted-foreground whitespace-nowrap">
