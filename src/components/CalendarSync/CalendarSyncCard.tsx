@@ -7,7 +7,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, Calendar, Trash2, AlertTriangle, Plus } from "lucide-react";
+import { RefreshCw, Calendar, Trash2, AlertTriangle, Plus, Link, Check, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // =============================================================================
@@ -29,7 +29,7 @@ const PLATFORMS = [
   { value: "belvilla", label: "Belvilla" },
 ] as const;
 
-interface House { id: string; name: string; rental_type: string | null; }
+interface House { id: string; name: string; rental_type: string | null; ical_export_token: string | null; }
 interface IcalFeed {
   id: string;
   house_id: string;
@@ -44,6 +44,11 @@ interface IcalFeed {
 
 const platformLabel = (v: string) => PLATFORMS.find((p) => p.value === v)?.label ?? v;
 
+// Basis-URL für die öffentlichen Edge Functions (für die Export-Feed-URL).
+// Nutzt dieselbe Umgebungsvariable wie der Supabase-Client — kein hartcodierter Wert.
+const SUPABASE_FUNCTIONS_BASE =
+  `${(import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? ""}/functions/v1`;
+
 const CalendarSyncCard = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -52,6 +57,7 @@ const CalendarSyncCard = () => {
   const [houseId, setHouseId] = useState<string>("");
   const [platform, setPlatform] = useState<string>("");
   const [feedUrl, setFeedUrl] = useState<string>("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Nur FERIENHÄUSER laden — Dauermiet-Objekte (rental_type 'long_term') sind
   // nicht auf Airbnb/Booking/VRBO/Belvilla gelistet und haben keine iCal-Feeds.
@@ -61,7 +67,7 @@ const CalendarSyncCard = () => {
     queryFn: async (): Promise<House[]> => {
       const { data, error } = await supabase
         .from("houses")
-        .select("id, name, rental_type")
+        .select("id, name, rental_type, ical_export_token")
         .order("name");
       if (error) throw error;
       return (data ?? []).filter(
@@ -260,6 +266,75 @@ const CalendarSyncCard = () => {
                 </Button>
               </li>
             ))}
+          </ul>
+        )}
+      </div>
+      {/* ── Phase 2: Export-URLs (mein System -> Portale) ────────────────── */}
+      <div className="space-y-2 border-t border-border pt-4">
+        <div className="flex items-center gap-2">
+          <Upload className="w-4 h-4 text-primary" />
+          <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Mein Kalender für die Portale
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Diese URL trägst du bei Airbnb/VRBO/Belvilla unter „anderen Kalender
+          verbinden" ein. Sie enthält <strong>nur deine Direktbuchungen</strong> —
+          so blocken die Portale diese Termine.
+          {" "}Hinweis: Booking.com akzeptiert seit 2025 keine Kalender von eigenen
+          Seiten; dort funktioniert nur die Import-Richtung oben.
+        </p>
+
+        {!houses?.length ? (
+          <p className="text-xs text-muted-foreground">Keine Ferienhäuser gefunden.</p>
+        ) : (
+          <ul className="space-y-2">
+            {houses.map((h) => {
+              const exportUrl = h.ical_export_token
+                ? `${SUPABASE_FUNCTIONS_BASE}/ical-export/${h.ical_export_token}.ics`
+                : null;
+              return (
+                <li key={h.id} className="rounded-md border border-border/60 p-2 space-y-1">
+                  <div className="text-sm font-medium">{h.name}</div>
+                  {!exportUrl ? (
+                    <div className="text-xs text-amber-700 dark:text-amber-300">
+                      Kein Export-Token vorhanden — SQL 33_ical_export_token.sql ausführen.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <code className="text-[11px] bg-muted rounded px-2 py-1 truncate flex-1">
+                        {exportUrl}
+                      </code>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full sm:w-auto shrink-0"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(exportUrl);
+                            setCopiedId(h.id);
+                            setTimeout(() => setCopiedId((c) => (c === h.id ? null : c)), 2000);
+                            toast({ title: "URL kopiert", description: `${h.name} — jetzt beim Portal einfügen.` });
+                          } catch {
+                            toast({
+                              title: "Kopieren fehlgeschlagen",
+                              description: "Bitte die URL manuell markieren und kopieren.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
+                        {copiedId === h.id ? (
+                          <><Check className="w-4 h-4 mr-2" />Kopiert</>
+                        ) : (
+                          <><Link className="w-4 h-4 mr-2" />Kopieren</>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
