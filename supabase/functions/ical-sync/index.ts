@@ -185,7 +185,7 @@ serve(async (req) => {
       // 3. Eigene, nicht-stornierte Buchungen dieses Hauses (für Kollisionsprüfung)
       const { data: ownBookings } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out, status')
+        .select('id, guest_name, check_in, check_out, status, platform')
         .eq('house_id', feed.house_id)
         .neq('status', 'cancelled');
 
@@ -200,15 +200,31 @@ serve(async (req) => {
         // Kollisionspruefung: Ueberlapp block[start,end) mit booking[check_in,check_out),
         // tagesgenau (siehe toDay/istKollision oben).
         //
-        // Zwei Faelle werden bewusst NICHT als Kollision gewertet:
-        //  (a) Rueckspiegelung: Der externe Block deckt sich exakt mit einer eigenen
-        //      Buchung -> dieselbe Buchung, kein Konflikt.
-        //  (b) Wechseltag: Abreise um 09:00 und externer Block ab demselben Tag.
+        // Drei Faelle werden bewusst NICHT als Kollision gewertet:
         //
-        // WARUM das wichtig ist: Vor dieser Korrektur meldete jeder Airbnb-Feed
-        // saemtliche eigenen Airbnb-Buchungen als Kollision. Bei Dauerrauschen geht
-        // eine echte Doppelbuchung unter (Alarmmuedigkeit).
+        //  (a) GLEICHE HERKUNFT (ergaenzt 18.07.2026): Stammt der Block von
+        //      derselben Plattform wie die Buchung, ist es dieselbe Buchung.
+        //      Booking.com kann nur Booking.com-Buchungen melden, Airbnb nur
+        //      Airbnb-Buchungen. Eine echte Doppelbuchung entsteht IMMER zwischen
+        //      verschiedenen Kanaelen (Direktbuchung gegen Portal, oder Portal A
+        //      gegen Portal B) — nie innerhalb eines Portals, denn kein Portal
+        //      vergibt denselben Zeitraum zweimal.
+        //
+        //      Ohne diese Pruefung meldete jeder Sync zwei Dauerkollisionen:
+        //      Booking.com sperrt breiter als die Buchung lang ist (Kerscher
+        //      25.-29.12. -> Block 25.12.-05.01., weil Fischer direkt anschliesst)
+        //      bzw. verschiebt sich um Zeitzonen (Kaloyan, check_in 23:00 UTC).
+        //      Die Datumspruefung in (b) greift dann nicht — die Herkunft schon.
+        //
+        //  (b) Rueckspiegelung: Der externe Block deckt sich exakt mit einer eigenen
+        //      Buchung -> dieselbe Buchung, kein Konflikt.
+        //  (c) Wechseltag: Abreise um 09:00 und externer Block ab demselben Tag.
+        //
+        // WARUM das wichtig ist: Jede Fehlmeldung loest eine E-Mail an Uli aus.
+        // Bei Dauerrauschen geht eine echte Doppelbuchung unter (Alarmmuedigkeit) —
+        // und genau dafuer ist diese Pruefung da.
         const collision = (ownBookings || []).find((b: any) => {
+          if (b.platform && b.platform === feed.platform) return false;
           if (istRueckspiegelung(ev.start, ev.end, b.check_in, b.check_out)) return false;
           return istKollision(ev.start, ev.end, b.check_in, b.check_out);
         });
