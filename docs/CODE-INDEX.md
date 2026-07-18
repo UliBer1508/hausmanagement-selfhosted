@@ -364,9 +364,43 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
 - Cron: **versioniert** in `supabase/SQL/32_ical_sync_cron.sql`
   (`ical-sync-daily`, täglich 04:20 UTC = 06:20 MESZ, VOR der Morgen-Übersicht).
 
+**Phase 2 — Export-Feed (UMGESETZT, Korrektur 18.07.2026):**
+- Edge Function `supabase/functions/ical-export/index.ts` — tokengeschützte
+  öffentliche URL je Haus (`houses.ical_export_token`, SQL: `33_ical_export_token.sql`).
+- Liefert **nur Direktbuchungen** (`platform` leer oder `'direct'`), niemals
+  reimportierte Fremd-Blocks → verhindert Endlosschleifen zwischen den Portalen.
+- Die Export-URLs stehen in `CalendarSyncCard.tsx` zum Kopieren bereit.
+- **Booking.com akzeptiert seit 03/2025 keine Feeds von privaten Seiten** — dort
+  müssen Direktbuchungen manuell im Extranet gesperrt werden.
+
+**Phase 3 — Belegungsliste (NEU 18.07.2026):**
+- Aufklappbarer Bereich „Eingelesene Belegungen" in `CalendarSyncCard.tsx`.
+  Reine Leseansicht auf `external_blocks` (laufende + künftige), Lazy Loading
+  (Query erst beim Aufklappen). Kollisionen rot markiert.
+
+**Phase 4 — Kalender-Abgleich (NEU 18.07.2026):**
+- Edge Function `supabase/functions/kalender-abgleich/index.ts` — **rein lesend**.
+  Vergleicht **tagesweise**, ob jeder von den Portalen als belegt gemeldete Tag im
+  System durch eine Buchung gedeckt ist (und umgekehrt).
+  *Warum tagesweise:* Booking.com fasst aufeinanderfolgende Buchungen zu EINEM
+  Block zusammen (25.12.2026–05.01.2027 = zwei Buchungen). Blockweise verglichen
+  gäbe das Fehlalarm.
+- Grenzen aus `system_settings` → `kalender_abgleich_settings` (min 4 / max 30
+  Nächte). Blocks unter dem Minimum sind Mindestaufenthalts-Sperren, Blocks über
+  dem Maximum sind „Langsperren" — die werden gemeldet, **nicht** gefiltert
+  (am 18.07.2026 war eine 183-Nächte-Sperre eine vergessene Blockade, kein
+  Kalenderhorizont).
+- Anbindung: Tool `check_kalender_abgleich`, Abschnitt in `morning-summary`,
+  Cron `kalender-abgleich-daily` (04:25 UTC, zwischen `ical-sync` und
+  `morning-summary`). SQL: `34_kalender_abgleich.sql`.
+- Ablauf in `max_ablaeufe`: Aktion `kalender_abgleich`, 4 Schritte.
+
 **Grenzen (bewusst):** iCal liefert nur Zeiträume, keine Gastdaten; ist verzögert
-(Sicherheitsnetz, kein Echtzeitschutz). Export-Feed (eigene Direktbuchungen →
-Plattformen) ist Phase 2 — noch nicht gebaut.
+(Sicherheitsnetz, kein Echtzeitschutz). **Belvilla liefert keinen nutzbaren Feed**
+(Stand 18.07.2026) — Wald Chalet wird ausschließlich über Belvilla vermietet und
+ist damit vom Abgleich ausgeschlossen. Ein Vergleich der Portale untereinander ist
+**nicht möglich**: Portal-Feeds enthalten nur die jeweils eigenen Buchungen, nicht
+die importierten Fremd-Blocks (dieselbe Regel, die auch `ical-export` befolgt).
 
 ---
 
@@ -420,12 +454,12 @@ KI-Weg (mode AUTO) — die früheren deterministischen Regex-Pfade in
 Modell: **Gemini 2.5 Flash**. Enthält Tool-Definitionen, Dispatcher,
 execute-Funktionen, `buildEntityLinks` (Buttons), dynamischen System-Prompt.
 
-**29 Werkzeuge:**
+**30 Werkzeuge:**
 | Gruppe | Werkzeuge |
 |---|---|
 | Lesen | `search_bookings`, `search_cleaning_tasks`, `search_linen_orders`, `search_guests`, `search_houses`, `search_booking_inquiries`, `get_booking_full_context`, `get_dashboard_stats`, `get_revenue_stats`, `get_linen_overview`, `get_calendar_events`, `get_daily_overview` |
 | Übersicht | `get_morning_summary` (→ Edge Fn `morning-summary`), `get_guest_contact_reminders`, `get_rating_reminders` |
-| Wächter | `check_upcoming_bookings` (4 Prüfungen: fehlende Reinigung/Wäsche, Timing, offene Zahlung) |
+| Wächter | `check_upcoming_bookings` (4 Prüfungen: fehlende Reinigung/Wäsche, Timing, offene Zahlung), **`check_kalender_abgleich`** (→ Edge Fn `kalender-abgleich`; 3 Prüfungen: fehlende Buchung, Langsperre, Feed-Fehler — NEU 18.07.) |
 | Anlegen | `create_cleaning_for_booking` (→ `create-cleaning-task-for-booking`, Status `draft`), `create_linen_for_booking` (→ `create-linen-order-for-booking`) |
 | Ändern | `reschedule_cleaning` (Reinigungstermin → `draft`), **`reschedule_linen_delivery`** (Wäsche-Liefertermin → `offen`; Wäsche-Gegenstück, NEU 16.07.), **`reject_reschedule`** (Absage an Amela, setzt Reinigung zurück auf `scheduled`), **`update_provider_action`** (überfälligen Vorgang schließen / Frist verlängern — Ablauf `provider_keine_antwort`, NEU 16.07.), `update_linen_for_booking` (→ `generate-booking-linen-order`) |
 | Anfragen | `accept_booking_inquiry`, `reject_booking_inquiry` |
