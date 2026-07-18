@@ -225,3 +225,184 @@ Airbnb trennt Export und Import NICHT: Der Dialog "Mit anderer Website verknuepf
 zeigt in **Schritt 1** die Airbnb-URL (fuer unseren Import, Phase 1) und verlangt in
 **Schritt 2** unsere URL (Phase 2). Schritt 1 laesst sich kopieren, ohne Schritt 2
 abzuschliessen — der Dialog verhindert nur das Speichern, nicht das Kopieren.
+
+---
+
+## 8. Phase 4 — Kalender-Abgleich (Konzept, 18.07.2026)
+
+> **Anlass:** Am 18.07.2026 stellte sich heraus, dass eine Booking.com-Buchung
+> (Cathrin Clausnitzer, 06.–13.02.2027) im System fehlte. Der iCal-Sync hatte den
+> Zeitraum korrekt eingelesen — er wurde nur **nicht gemeldet**, weil Phase 1 nur
+> Überschneidungen prüft. Ein Block ohne passende Buchung ist für die bestehende
+> Logik der Normalfall.
+
+### 8.1 Die Fehleinschätzung in Phase 1
+
+Phase 1 wurde gegen die Gefahr „zwei Buchungen für denselben Zeitraum" gebaut.
+Im laufenden Betrieb ist die häufigere und teurere Gefahr aber die andere:
+
+**Eine Portal-Buchung, die das System nicht kennt.** Folge: keine Reinigung,
+keine Wäsche, kein Gästekontakt — und der Zeitraum könnte direkt noch einmal
+vergeben werden.
+
+Hinzu kommt: Der Fix vom 18.07.2026 (Rückspiegelungs-Erkennung in `ical-sync`)
+setzt `collision_booking_id` bei deckungsgleichen Blocks bewusst auf `null`.
+Dadurch sind „Block gehört zu Buchung X" und „Block gehört zu gar nichts" im
+Feld nicht mehr unterscheidbar. Der Abgleich braucht deshalb eine **eigene
+Auswertung**, er kann nicht auf `collision_booking_id` aufbauen.
+
+### 8.2 Prüfrichtung: tagesweise, nicht blockweise
+
+Ein blockweiser 1:1-Vergleich scheitert an zwei realen Mustern:
+
+- **Zusammengefasste Blocks.** Booking.com meldete 25.12.2026–05.01.2027 als
+  einen Block. Dahinter stehen zwei Buchungen (Tobias Kerscher 25.–29.12.,
+  Denise Fischer 29.12.–05.01.). Ein 1:1-Vergleich schlägt Fehlalarm.
+- **Wechseltage.** Abreise 10:00, Anreise 15:00 am selben Kalendertag ist
+  Normalbetrieb. Der Vergleich muss tagesgenau sein (`date`, nicht `timestamptz`
+  — siehe `ARBEITSWEISE-CLAUDE-LESSONS.md` 6.2).
+
+**Die richtige Frage lautet daher:** *Ist jeder Tag, den ein Portal als belegt
+meldet, im System durch irgendeine Buchung gedeckt — und umgekehrt?*
+
+Die Meldung wird dadurch konkret und handlungsfähig:
+„06.02.–13.02.2027 ist bei Booking.com belegt, im System aber frei."
+
+### 8.3 Die vier Prüfungen
+
+| # | Prüfung | Befund | Bedeutung |
+|---|---|---|---|
+| 1 | Portal belegt, System frei | `fehlende_buchung` | Buchung nicht nachgetragen — **der wichtigste Fall** |
+| 2 | System belegt, Portal frei | `portal_frei` | Storno nicht durchgereicht, falsche Daten, oder Export läuft nicht |
+| 3 | Feed schweigt | `feed_stumm` | `last_status = ok`, aber keine künftigen Blocks, während andere Feeds liefern |
+| 4 | Feed-Fehler | `feed_fehler` | `last_status` beginnt mit `error:` |
+| 5 | Langsperre | `langsperre` | Block > 30 Nächte — Kalenderhorizont **oder** vergessene Sperre (§8.4) |
+
+### 8.4 Abgrenzung Sperrzeit vs. Buchung (der kritische Punkt)
+
+Nicht jeder Block ohne Buchung ist eine fehlende Buchung. Die Portale sperren
+auch von sich aus:
+
+- **Mindestaufenthalt.** Liegen zwischen zwei Buchungen weniger freie Nächte als
+  das Minimum, sperren die Portale diese Tage automatisch — sie sind
+  unverkäuflich.
+- **Kalenderhorizont.** Was über den gepflegten Kalender hinausgeht, melden
+  manche Portale als „geschlossen". Beobachtet am 18.07.2026: Booking.com
+  meldete 19.07.2027–18.01.2028 (183 Nächte) als `CLOSED`.
+- **Manuelle Sperren** durch Uli im Portal.
+
+**Abgrenzung über Ulis eigene Regeln** (Stand 18.07.2026: min 4 Nächte,
+max 30 Nächte):
+
+| Nächte | Bewertung | Meldung |
+|---|---|---|
+| < 4 | Sperrzeit — kann keine Buchung sein (unter dem Minimum) | nein |
+| 4–30 | Buchungsverdacht, wenn keine Buchung existiert | **ja** |
+| > 30 | **Langsperre** — kann keine Buchung sein, aber prüfenswert | **ja, einmalig** |
+
+Gegenprobe an den 17 echten Blocks vom 18.07.2026: 5 Sperrtage (je 1 Nacht),
+1 Langsperre (183 Nächte), 11 im Buchungsbereich — davon nach dem Nachtragen
+von Cathrin Clausnitzer alle gedeckt. **Kein Rauschen.**
+
+#### Warum lange Blocks NICHT stillschweigend gefiltert werden dürfen
+
+Ein erster Entwurf dieses Konzepts hat Blocks über 30 Nächte als „Kalenderhorizont,
+harmlos" eingestuft und wegfiltern wollen. **Das war falsch.**
+
+Der Block `booking.com 19.07.2027 – 18.01.2028` (183 Nächte) war keine technische
+Randerscheinung, sondern eine **vergessene Sperre**: Booking.com hielt ein halbes
+Jahr Verfügbarkeit blockiert, ohne dass Uli davon wusste. Nach dem Fund am
+18.07.2026 wurde der Zeitraum sofort freigegeben.
+
+In den Daten sind beide Fälle **nicht unterscheidbar**:
+
+- Kalenderhorizont des Portals (normal, kein Handlungsbedarf)
+- Vergessene oder versehentliche Sperre (**entgangener Umsatz**)
+
+Die Entscheidung kann nur Uli treffen. Deshalb: **einmalig melden, dann ruhen** —
+solange sich Start- und Enddatum nicht ändern, keine Wiederholung. Ändert sich der
+Zeitraum, gilt er als neu und wird erneut gemeldet.
+
+Formulierung der Meldung bewusst als Frage, nicht als Fehler:
+„Booking.com sperrt 19.07.2027–18.01.2028 (183 Nächte) im Venediger Chalet.
+Ist das gewollt?"
+
+**Die Grenzen gehören nicht in den Code**, sondern nach `system_settings`
+(Muster wie `max_control_settings`), da Uli saisonal auch 3 Nächte zulassen kann.
+
+### 8.5 Was NICHT geprüft wird (und warum)
+
+**Portale untereinander vergleichen.** Ursprünglich angedacht, nach Prüfung am
+18.07.2026 wieder verworfen: Ein Portal-Feed enthält **nur dessen eigene**
+Buchungen, nicht die importierten Fremd-Blocks — dieselbe Regel, die auch
+`ical-export` befolgt (§3, Endlosschleifen-Schutz).
+
+Beispiel: VRBO meldete nur 1 Block (Juni 2026), obwohl im VRBO-Kalender die
+Airbnb- und Booking.com-Belegungen sichtbar eingetragen waren. Das ist
+**korrektes Verhalten**, kein Fehler. Ein Abgleich „kennen alle Portale
+denselben Zeitraum?" würde daher systematisch Fehlalarm schlagen.
+
+**Konsequenz:** Dass ein Portal einen Zeitraum nicht kennt, ist über iCal nicht
+feststellbar. Die Blockierung dort passiert über den Import auf Portal-Seite und
+ist von außen nicht prüfbar.
+
+### 8.6 Bekannte Grenzen
+
+- **Belvilla liefert keinen nutzbaren Feed** (Stand 18.07.2026 — trotz
+  gegenteiliger Angabe des Anbieters). Wald Chalet wird ausschließlich über
+  Belvilla vermietet und ist damit **vom Abgleich ausgeschlossen**. Für dieses
+  Haus gibt es keinen Doppelbuchungs-Schutz über iCal.
+- **Zeitverzug.** Portale synchronisieren im 30-Minuten- bis Stunden-Takt. In
+  diesem Fenster ist eine echte Doppelbuchung technisch möglich und durch kein
+  iCal-Verfahren verhinderbar. Der Abgleich ist ein Sicherheitsnetz.
+- **Häuser ohne Feed** werden übersprungen, nicht als Fehler gemeldet.
+
+### 8.7 Einbindung als Max-Ablauf
+
+Der Abgleich folgt dem bestehenden Wächter-Muster (`check_upcoming_bookings` /
+`runUpcomingBookingsControl`) — kein neues Konzept, dieselbe Struktur:
+
+- **Tool:** `check_kalender_abgleich` — Max kann auf Anfrage prüfen
+- **Automatik:** täglicher Lauf nach `ical-sync`, vor `morning-summary`
+- **Meldung:** Abschnitt in der Morgen-Übersicht; bei `fehlende_buchung`
+  zusätzlich proaktiv im Chat (Mechanismus wie bei überfälligen Vorgängen)
+- **`max_ablaeufe`:** neue Aktion, Variante `automatik`, Akteur `max`,
+  Ergebnisstatus `wartet_uli` bei Befund
+
+**Bewusst KEINE automatische Buchungsanlage** (§5 bleibt gültig): iCal liefert
+keine Gastdaten. Max meldet nur — Uli trägt nach.
+
+### 8.8 Direktbuchungen — Sonderfall Booking.com (entschieden 18.07.2026)
+
+Direktbuchungen (`platform = 'direct'` oder leer) sind nur Uli bekannt. Die
+Portale erfahren sie über `ical-export` — aber **unterschiedlich zuverlässig**:
+
+| Portal | Weg | Verzug | Prüfung 2 (`portal_frei`) |
+|---|---|---|---|
+| Airbnb | Import unserer Export-URL | Abrufintervall (Stunden) | mit **Karenzzeit** melden |
+| VRBO | Import unserer Export-URL | ~30 Min (laut VRBO-Oberfläche) | mit **Karenzzeit** melden |
+| **Booking.com** | **kein Weg** | — | **dauerhaft melden** |
+
+**Booking.com akzeptiert seit 03/2025 keine Feeds von privaten Seiten** (§3).
+Direktbuchungen kommen dort also nie automatisch an — Uli muss den Zeitraum im
+Extranet **manuell sperren**. Bis das geschehen ist, kann derselbe Zeitraum bei
+Booking.com doppelt gebucht werden.
+
+Das ist eine **dauerhafte strukturelle Lücke**, kein Zeitverzug. Die Prüfung
+meldet daher jede Direktbuchung, deren Zeitraum bei Booking.com nicht als belegt
+erscheint — ohne Karenzzeit, bis Uli sie dort eingetragen hat.
+
+Karenzzeit für Airbnb/VRBO: **48 Stunden** ab Anlage der Buchung. Danach ist ein
+fehlender Block ein echter Befund (Export läuft nicht, Token falsch, Portal hat
+die URL nicht eingetragen).
+
+---
+
+### 8.9 Offene Punkte vor der Umsetzung
+1. Wie weit voraus wird geprüft? `check_upcoming_bookings` nutzt 7 Tage; für den
+   Kalenderabgleich ist ein deutlich größeres Fenster nötig (Buchungen liegen
+   bis 2028 vor). Vorschlag: alles ab heute, ohne obere Grenze.
+2. Soll eine erkannte Sperrzeit in der Belegungsliste (`CalendarSyncCard.tsx`,
+   Phase 3) als „Sperrzeit" statt „Belegung" gekennzeichnet werden? Reine
+   Anzeigefrage, kein Muss — aber die Liste zeigt derzeit Langsperren und
+   Ein-Tages-Sperren wie echte Belegungen.
