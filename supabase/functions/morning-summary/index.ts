@@ -359,6 +359,35 @@ serve(async (req) => {
       systemBefunde = sb ?? [];
     }
 
+    // ---- KALENDER-ABGLEICH (Phase 4, NEU 18.07.2026) ----
+    // Ruft die Edge Function kalender-abgleich auf: Stimmt der eigene Kalender
+    // mit dem der Portale ueberein?
+    //
+    // WARUM DAS HIER GEBRAUCHT WIRD: Am 18.07.2026 fehlte eine
+    // Booking.com-Buchung (Cathrin Clausnitzer, 06.-13.02.2027) im System.
+    // Der iCal-Sync hatte den Zeitraum korrekt eingelesen, aber nie gemeldet —
+    // Phase 1 prueft nur Ueberschneidungen, und "Block ohne Buchung" ist dort
+    // der Normalfall. Folge waeren gewesen: keine Reinigung, keine Waesche,
+    // kein Gaestekontakt — und der Zeitraum haette direkt noch einmal
+    // vergeben werden koennen.
+    //
+    // Der Aufruf ist bewusst fehlertolerant: Faellt der Abgleich aus, soll die
+    // Morgen-Uebersicht trotzdem erscheinen. Ein fehlender Abschnitt ist
+    // aergerlich, eine ausbleibende Tagesuebersicht waere schlimmer.
+    let kalenderBefunde: any[] = [];
+    if (includeCfg.kalender_abgleich !== false) {
+      try {
+        const { data: ka } = await supabase.functions.invoke('kalender-abgleich', {
+          body: {},
+        });
+        if (ka?.success && Array.isArray(ka.befunde)) {
+          kalenderBefunde = ka.befunde;
+        }
+      } catch (e) {
+        console.error('[morning-summary] kalender-abgleich nicht erreichbar:', e);
+      }
+    }
+
     // ---- hasAnyData (identisch zum Hook) ----
     const hasAnyData =
       upcomingBookings.length > 0 ||
@@ -367,6 +396,7 @@ serve(async (req) => {
       guestContactReminders.length > 0 ||
       overdueActions.length > 0 ||
       systemBefunde.length > 0 ||
+      kalenderBefunde.length > 0 ||
       (ratingsEnabled && ratingReminders.length > 0);
 
     // ---- Marketing-Helfer (identisch zum Hook) ----
@@ -410,6 +440,31 @@ serve(async (req) => {
         message += `• **${wo}** – ${b.geprueft_befund || 'Baustein fehlt'}\n`;
       });
       message += `_Prüfe das im Fenster „Max: Abläufe (Kontrolle)"._\n\n`;
+    }
+
+    // KALENDER-ABGLEICH — direkt nach den Systemfehlern.
+    // Eine fehlende Buchung ist dringender als das Tagesgeschaeft: Sie bedeutet
+    // einen Gast, von dem niemand weiss, und einen Zeitraum, der versehentlich
+    // noch einmal vergeben werden koennte.
+    if (kalenderBefunde.length > 0) {
+      const fehlende = kalenderBefunde.filter((b: any) => b.art === 'fehlende_buchung');
+      const sonstige = kalenderBefunde.filter((b: any) => b.art !== 'fehlende_buchung');
+
+      if (fehlende.length > 0) {
+        message += `📆 **${fehlende.length} Buchung(en) fehlen im System**\n`;
+        fehlende.forEach((b: any) => {
+          message += `• **${b.haus}** – ${b.text}\n`;
+        });
+        message += `_Im Portal nachsehen und die Buchung anlegen._\n\n`;
+      }
+
+      if (sonstige.length > 0) {
+        message += `🔍 **${sonstige.length} Hinweis(e) zum Kalender**\n`;
+        sonstige.forEach((b: any) => {
+          message += `• **${b.haus}** – ${b.text}\n`;
+        });
+        message += `\n`;
+      }
     }
 
     if (overdueActions.length > 0) {
@@ -609,6 +664,7 @@ serve(async (req) => {
         hasData: hasAnyData,
         sections: {
           system: systemBefunde.length,      // Systemfehler in den Abläufen
+          kalender_abgleich: kalenderBefunde.length,  // Portale vs. eigener Kalender
           overdue: overdueActions.length,
           guest_contact: guestContactReminders.length,
           ratings: ratingReminders.length,
