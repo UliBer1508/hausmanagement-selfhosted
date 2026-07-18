@@ -123,12 +123,16 @@ interface AbgleichSettings {
     langsperre: boolean;
     feed_fehler: boolean;
   };
+  mail_enabled: boolean; // E-Mail bei neuen Befunden
+  mail_to: string;
 }
 
 const DEFAULTS: AbgleichSettings = {
   min_naechte: 4,
   max_naechte: 30,
   checks: { fehlende_buchung: true, langsperre: true, feed_fehler: true },
+  mail_enabled: true,
+  mail_to: 'max.steinbock@gmail.com',
 };
 
 async function ladeSettings(supabase: any): Promise<AbgleichSettings> {
@@ -144,6 +148,8 @@ async function ladeSettings(supabase: any): Promise<AbgleichSettings> {
         min_naechte: Number(v.min_naechte) || DEFAULTS.min_naechte,
         max_naechte: Number(v.max_naechte) || DEFAULTS.max_naechte,
         checks: { ...DEFAULTS.checks, ...(v.checks ?? {}) },
+        mail_enabled: v.mail_enabled !== false,
+        mail_to: typeof v.mail_to === 'string' && v.mail_to ? v.mail_to : DEFAULTS.mail_to,
       };
     }
   } catch (_e) {
@@ -382,6 +388,120 @@ serve(async (req) => {
     };
     befunde.sort((a, b) => rang[a.art] - rang[b.art] || (a.von ?? '').localeCompare(b.von ?? ''));
 
+    // --- E-Mail bei NEUEN Befunden ----------------------------------------
+    //
+    // WARUM NUR BEI NEUEN: Eine fehlende Buchung bleibt bestehen, bis Uli sie
+    // nachträgt — das kann Tage dauern. Ohne Merk-Logik käme jeden Morgen
+    // dieselbe Mail, und nach der dritten würde sie ignoriert. Genau dann geht
+    // die nächste, wirklich neue unter.
+    //
+    // Der Befund wird über Haus + Art + Plattform + Zeitraum identifiziert
+    // (Tabelle kalender_abgleich_meldungen, SQL 35_...). Verschiebt sich der
+    // Zeitraum, ist es ein anderer Befund und wird erneut gemeldet — richtig so,
+    // denn dahinter steckt dann eine andere Belegung.
+    //
+    // Die Morgen-Übersicht zeigt weiterhin ALLE offenen Befunde, auch die schon
+    // gemeldeten. Nur die Mail ist einmalig.
+    let mailGesendet = false;
+    let neueBefunde = 0;
+
+    if (settings.mail_enabled && befunde.length > 0) {
+      const neu: Befund[] = [];
+
+      for (const b of befunde) {
+        // Vorhandene Meldung suchen. Bei feed_fehler sind von/bis leer.
+        let q = supabase
+          .from('kalender_abgleich_meldungen')
+          .select('id')
+          .eq('house_id', b.house_id)
+          .eq('art', b.art)
+          .eq('platform', b.platform);
+        q = b.von ? q.eq('von', b.von) : q.is('von', null);
+        q = b.bis ? q.eq('bis', b.bis) : q.is('bis', null);
+        const { data: schonGemeldet } = await q.maybeSingle();
+
+        if (schonGemeldet) {
+          // Nur den Zeitstempel auffrischen — der Befund besteht weiter.
+          await supabase
+            .from('kalender_abgleich_meldungen')
+            .update({ zuletzt_am: new Date().toISOString() })
+            .eq('id', schonGemeldet.id);
+        } else {
+          neu.push(b);
+        }
+      }
+
+      neueBefunde = neu.length;
+
+      if (neu.length > 0) {
+        // Fehlende Buchungen sind dringender als Hinweise: Dahinter steckt ein
+        // Gast, der anreist, ohne dass Reinigung und Wäsche geplant sind.
+        const fehlende = neu.filter((b) => b.art === 'fehlende_buchung');
+        const betreff = fehlende.length > 0
+          ? `⚠️ ${fehlende.length} Buchung(en) fehlen im System`
+          : `Kalender-Abgleich: ${neu.length} neue(r) Hinweis(e)`;
+
+        const zeilen = neu.map((b) => `• ${b.haus}: ${b.text}`).join('\n');
+        const body =
+          (fehlende.length > 0
+            ? `Der Kalender-Abgleich hat ${fehlende.length} Zeitraum/Zeiträume gefunden, ` +
+              `die bei einem Portal belegt sind, im System aber nicht.\n\n` +
+              `Dahinter steckt in der Regel eine Buchung, die noch nicht nachgetragen wurde: ` +
+              `Ohne Eintrag gibt es keine Reinigung, keine Wäsche und keinen Gästekontakt — ` +
+              `und der Zeitraum könnte versehentlich noch einmal vergeben werden.\n\n`
+            : `Der Kalender-Abgleich hat neue Hinweise gefunden.\n\n`) +
+          `${zeilen}\n\n` +
+          `Bitte im jeweiligen Portal nachsehen. Diese Meldung kommt einmalig je Befund; ` +
+          `in der Morgen-Übersicht bleibt sie sichtbar, bis sie erledigt ist.`;
+
+        try {
+          // ACHTUNG bei der Schnittstelle: send-guest-email erwartet
+          // `recipients` (Array von { email }), `subjectTemplate` und
+          // `bodyTemplate` — NICHT to/subject/body. Ein Aufruf mit den
+          // naheliegenden Namen wird mit HTTP 400 abgelehnt und die Mail geht
+          // nie raus. (Geprüft am 19.07.2026 in send-guest-email/index.ts.)
+          const { error: mailErr } = await supabase.functions.invoke('send-guest-email', {
+            body: {
+              // Nur `email` — die weiteren Recipient-Felder dienen der
+              // Platzhalter-Ersetzung und werden hier nicht gebraucht.
+              recipients: [{ email: settings.mail_to }],
+              subjectTemplate: betreff,
+              bodyTemplate: body,
+            },
+          });
+          if (mailErr) {
+            console.error('[kalender-abgleich] Mail fehlgeschlagen:', mailErr);
+          } else {
+            mailGesendet = true;
+            // Erst NACH erfolgreichem Versand merken. Schlägt die Mail fehl,
+            // wird beim nächsten Lauf erneut versucht — besser eine Mail zu viel
+            // als eine fehlende Buchung, von der niemand erfährt.
+            await supabase.from('kalender_abgleich_meldungen').insert(
+              neu.map((b) => ({
+                house_id: b.house_id, art: b.art, platform: b.platform,
+                von: b.von ?? null, bis: b.bis ?? null, text: b.text,
+              })),
+            );
+          }
+        } catch (e) {
+          console.error('[kalender-abgleich] Mail-Ausnahme:', e);
+        }
+      }
+    }
+
+    // Erledigte Befunde vergessen: Was seit 7 Tagen nicht mehr auftaucht, ist
+    // behoben. Taucht dasselbe Problem später erneut auf, wird es wieder
+    // gemeldet — das ist gewollt.
+    try {
+      const grenze = new Date(Date.now() - 7 * 86400000).toISOString();
+      await supabase
+        .from('kalender_abgleich_meldungen')
+        .delete()
+        .lt('zuletzt_am', grenze);
+    } catch (_e) {
+      // Aufräumen ist Kür — ein Fehler hier darf den Abgleich nicht stoppen.
+    }
+
     return new Response(JSON.stringify({
       success: true,
       geprueft_am: new Date().toISOString(),
@@ -389,6 +509,8 @@ serve(async (req) => {
       feeds_aktiv: feeds.length,
       grenzen: { min_naechte: settings.min_naechte, max_naechte: settings.max_naechte },
       anzahl: befunde.length,
+      neue_befunde: neueBefunde,
+      mail_gesendet: mailGesendet,
       alles_ok: befunde.length === 0,
       befunde,
       // Einordnung JEDES Blocks — fuer die Belegungsliste in CalendarSyncCard.
