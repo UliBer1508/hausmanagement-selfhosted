@@ -429,7 +429,24 @@ serve(async (req) => {
       const { data: direkt } = await supabase
         .from('bookings')
         .select('id, guest_name, check_in, check_out, status, platform, house_id, updated_at, portale_geprueft_am, houses(name)')
-        .or('platform.is.null,platform.eq.direct')
+        // Großzügiger Filter — ALLES, was kein eindeutiges Portal ist:
+        //   null      "Keine Angabe" im Formular
+        //   direct    ausdrücklich als Direktbuchung angelegt
+        //   website   aus einer Anfrage über steinbockchalets.com
+        //   other     "Sonstige" im Formular
+        //   unknown   aus einem Import ohne Herkunft
+        //
+        // 'other' und 'unknown' sind absichtlich dabei, obwohl dahinter auch
+        // eine Portal-Buchung stecken kann (Christian Mueller: unknown, aber
+        // Booking.com). Uli hat das so entschieden: Lieber einmal zu viel
+        // erinnert und dabei die Plattform korrigiert, als eine Direktbuchung
+        // übersehen, die in keinem Portal geblockt ist.
+        //
+        // ACHTUNG — ical-export nutzt einen ENGEREN Filter (nur null/direct/
+        // website). Dort wäre eine Portal-Buchung im eigenen Feed schädlich:
+        // Das Portal bekäme seine eigene Buchung zurückgespiegelt
+        // (Endlosschleifen-Regel, Konzept §3).
+        .or('platform.is.null,platform.eq.direct,platform.eq.website,platform.eq.other,platform.eq.unknown')
         .gte('check_out', heute)
         .is('portale_geprueft_am', null)
         // Nur Buchungen, die lange genug bestehen. updated_at ändert sich auch
