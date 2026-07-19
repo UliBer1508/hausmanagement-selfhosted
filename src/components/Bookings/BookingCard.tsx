@@ -63,7 +63,21 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
   // Portal-Kalendern sichtbar geblockt und tauchte in KEINEM Portal-Feed auf.
   // Eine automatische Prüfung ist damit unmöglich — deshalb quittiert Uli hier
   // von Hand, und Max erinnert daran, bis das geschehen ist.
-  const istDirektbuchung = !booking.platform || booking.platform === 'direct';
+  // Großzügiger Filter, identisch mit dem in der Edge Function
+  // kalender-abgleich: alles, was kein eindeutiges Portal ist. 'other' und
+  // 'unknown' sind bewusst dabei — lieber einmal zu viel erinnert und dabei die
+  // Plattform korrigiert, als eine Direktbuchung übersehen, die in keinem
+  // Portal geblockt ist.
+  //
+  // ACHTUNG bei Änderungen: Dieser Filter existiert an DREI Stellen und muss
+  // zusammenpassen —
+  //   1. hier (Anzeige des Häkchens)
+  //   2. kalender-abgleich/index.ts (Erinnerung), identische Liste
+  //   3. ical-export/index.ts (was tatsächlich an die Portale geht) —
+  //      dort ENGER: nur null/direct/website, sonst Endlosschleife.
+  const DIREKT_PLATTFORMEN = ['direct', 'website', 'other', 'unknown'];
+  const istDirektbuchung =
+    !booking.platform || DIREKT_PLATTFORMEN.includes(booking.platform);
   const geprueftAm = (booking as any).portale_geprueft_am as string | null;
   const istStorniert = booking.status === 'cancelled';
   const [speicherePortale, setSpeicherePortale] = useState(false);
