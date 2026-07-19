@@ -124,8 +124,29 @@ serve(async (req) => {
 
     if (bookErr) throw bookErr;
 
+    // Was zählt als Direktbuchung?
+    //
+    //   null / ''  -> "Keine Angabe" im Formular (CreateBookingForm speichert
+    //                 bei platform='none' den Wert null)
+    //   'direct'   -> ausdrücklich als Direktbuchung angelegt
+    //   'website'  -> aus einer Anfrage über steinbockchalets.com entstanden
+    //                 (CreateBookingForm setzt das bei accept_booking_inquiry).
+    //                 ERGÄNZT 19.07.2026 — fehlte bisher, dadurch wurden
+    //                 Buchungen aus Website-Anfragen NICHT an die Portale
+    //                 gemeldet und der Zeitraum dort nicht geblockt.
+    //
+    // BEWUSST NICHT dabei: 'other' und 'unknown'. Deren Herkunft ist unklar,
+    // und eine Portal-Buchung im eigenen Export würde dem Portal seine eigene
+    // Buchung zurückspiegeln — genau die Endlosschleife, vor der Regel 1 warnt
+    // (siehe Konzept §3). Beispiel: Christian Mueller hat platform='unknown',
+    // ist aber eine Booking.com-Buchung.
+    //
+    // Für die ERINNERUNG in der Buchungskarte gilt eine großzügigere Regel
+    // (dort auch 'other'/'unknown'): Eine überflüssige Erinnerung ist harmlos,
+    // ein falscher Export-Eintrag nicht.
+    const DIREKT_PLATTFORMEN = ['direct', 'website'];
     const direkt = (bookings || []).filter(
-      (b: any) => !b.platform || b.platform === 'direct'
+      (b: any) => !b.platform || DIREKT_PLATTFORMEN.includes(b.platform)
     );
 
     // ---- Feed zusammenbauen -------------------------------------------------
