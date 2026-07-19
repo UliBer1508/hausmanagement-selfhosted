@@ -357,6 +357,41 @@ ist von außen nicht prüfbar.
   iCal-Verfahren verhinderbar. Der Abgleich ist ein Sicherheitsnetz.
 - **Häuser ohne Feed** werden übersprungen, nicht als Fehler gemeldet.
 
+### 8.6a Meldewege (Stand 19.07.2026)
+
+| Weg | Was | Wann |
+|---|---|---|
+| Morgen-Übersicht | **alle** offenen Befunde | täglich, solange offen |
+| Chat | auf Nachfrage (`check_kalender_abgleich`) | jederzeit |
+| E-Mail | **nur neue** Befunde | einmalig je Befund |
+
+**Warum die E-Mail nur einmal kommt:** Eine fehlende Buchung bleibt bestehen, bis
+Uli sie nachträgt — das kann Tage dauern. Ohne Merk-Logik käme jeden Morgen
+dieselbe Mail; nach der dritten würde sie ignoriert, und genau dann geht die
+nächste, wirklich neue unter. Dasselbe Muster wie bei den Dauerkollisionen (§4).
+
+**Umsetzung:** Tabelle `kalender_abgleich_meldungen` (SQL `35_...`). Schlüssel ist
+der Befund selbst: Haus + Art + Plattform + Zeitraum. Verschiebt sich der
+Zeitraum, gilt er als neuer Befund und wird erneut gemeldet — richtig so, denn
+dahinter steckt dann eine andere Belegung. Einträge, die 7 Tage nicht mehr
+auftauchen, werden gelöscht; das Problem gilt als behoben.
+
+Gemerkt wird **erst nach erfolgreichem Versand**. Schlägt die Mail fehl, wird
+beim nächsten Lauf erneut versucht — besser eine Mail zu viel als eine fehlende
+Buchung, von der niemand erfährt.
+
+**Schnittstelle `send-guest-email`** (wichtig, weil hier ein Fehler steckte):
+Erwartet `recipients: [{ email }]`, `subjectTemplate`, `bodyTemplate` — NICHT
+`to`/`subject`/`body`. Bei falschen Namen: HTTP 400, die Mail geht nie raus.
+Der bestehende Kollisions-Mail-Weg in `ical-sync` hatte genau diesen Fehler;
+**es ist nie eine Kollisions-Mail angekommen**, obwohl der Toast das meldete.
+Korrigiert am 19.07.2026.
+
+Empfänger und Schalter: `system_settings` → `kalender_abgleich_settings`
+(`mail_to`, `mail_enabled`).
+
+---
+
 ### 8.7 Einbindung als Max-Ablauf
 
 Der Abgleich folgt dem bestehenden Wächter-Muster (`check_upcoming_bookings` /
