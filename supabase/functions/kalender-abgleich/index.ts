@@ -122,17 +122,25 @@ interface AbgleichSettings {
     fehlende_buchung: boolean;
     langsperre: boolean;
     feed_fehler: boolean;
+    direktbuchung_pruefen: boolean;
   };
   mail_enabled: boolean; // E-Mail bei neuen Befunden
   mail_to: string;
+  // Wie lange nach Anlage/Änderung einer Direktbuchung gewartet wird, bevor
+  // erinnert wird. Die Portale rufen den Feed alle 30 Min bis wenige Stunden ab.
+  direktbuchung_karenz_stunden: number;
 }
 
 const DEFAULTS: AbgleichSettings = {
   min_naechte: 4,
   max_naechte: 30,
-  checks: { fehlende_buchung: true, langsperre: true, feed_fehler: true },
+  checks: {
+    fehlende_buchung: true, langsperre: true, feed_fehler: true,
+    direktbuchung_pruefen: true,
+  },
   mail_enabled: true,
   mail_to: 'max.steinbock@gmail.com',
+  direktbuchung_karenz_stunden: 24,
 };
 
 async function ladeSettings(supabase: any): Promise<AbgleichSettings> {
@@ -150,6 +158,8 @@ async function ladeSettings(supabase: any): Promise<AbgleichSettings> {
         checks: { ...DEFAULTS.checks, ...(v.checks ?? {}) },
         mail_enabled: v.mail_enabled !== false,
         mail_to: typeof v.mail_to === 'string' && v.mail_to ? v.mail_to : DEFAULTS.mail_to,
+        direktbuchung_karenz_stunden:
+          Number(v.direktbuchung_karenz_stunden) || DEFAULTS.direktbuchung_karenz_stunden,
       };
     }
   } catch (_e) {
@@ -162,7 +172,13 @@ async function ladeSettings(supabase: any): Promise<AbgleichSettings> {
 // Befunde
 // ---------------------------------------------------------------------------
 
-type BefundArt = 'fehlende_buchung' | 'langsperre' | 'feed_fehler';
+type BefundArt =
+  | 'fehlende_buchung'
+  | 'langsperre'
+  | 'feed_fehler'
+  // Direktbuchung, bei der Uli noch nicht bestätigt hat, dass der Zeitraum in
+  // den Portalen korrekt gesetzt ist. Zwei Ausprägungen, siehe unten.
+  | 'direktbuchung_pruefen';
 
 interface Befund {
   art: BefundArt;
@@ -382,9 +398,67 @@ serve(async (req) => {
       }
     }
 
+    // --- Prüfung 6: Direktbuchungen in den Portalen kontrollieren ---------
+    //
+    // WARUM DAS NICHT AUTOMATISCH GEHT (belegt am 19.07.2026):
+    // Direktbuchungen gehen über ical-export an alle Portale, und die blocken
+    // sie auch — im Portal-Kalender sichtbar. Über ihren eigenen iCal-Export
+    // geben die Portale importierte Blocks aber NICHT zurück (jedes Portal
+    // exportiert nur eigene Buchungen, dieselbe Regel wie unser Export).
+    //
+    // Konkret: Die Direktbuchung "Luca" (16.-23.08.2026) war in Airbnb,
+    // Booking.com und VRBO sichtbar geblockt — und tauchte in keinem einzigen
+    // Portal-Feed auf. Eine automatische Prüfung "System belegt, Portal frei"
+    // würde daher bei JEDER Direktbuchung Alarm schlagen, obwohl alles stimmt.
+    //
+    // Deshalb: Erinnerung mit Quittung statt Automatik. Uli prüft in den
+    // Portalen und hakt in der Buchungskarte ab
+    // (bookings.portale_geprueft_am, SQL 36_...).
+    //
+    // ZWEI RICHTUNGEN:
+    //   aktiv     -> Zeitraum MUSS in den Portalen geblockt sein
+    //   storniert -> Blockade MUSS zurückgenommen werden, sonst bleibt der
+    //                Zeitraum unverkäuflich (vgl. 183-Nächte-Sperre 18.07.)
+    if (settings.checks.direktbuchung_pruefen) {
+      // Karenzzeit: Vorher haben die Portale den Feed womöglich noch nicht
+      // abgerufen, und Uli würde vergeblich nachsehen.
+      const karenzGrenze = new Date(
+        Date.now() - settings.direktbuchung_karenz_stunden * 3600_000,
+      ).toISOString();
+
+      const { data: direkt } = await supabase
+        .from('bookings')
+        .select('id, guest_name, check_in, check_out, status, platform, house_id, updated_at, portale_geprueft_am, houses(name)')
+        .or('platform.is.null,platform.eq.direct')
+        .gte('check_out', heute)
+        .is('portale_geprueft_am', null)
+        // Nur Buchungen, die lange genug bestehen. updated_at ändert sich auch
+        // bei Datums- oder Statusänderung — dann beginnt die Frist neu, was
+        // richtig ist: Ein verschobener Zeitraum ist ein neuer Zeitraum.
+        .lt('updated_at', karenzGrenze);
+
+      for (const b of direkt ?? []) {
+        const hausName = (b as any).houses?.name ?? 'Objekt';
+        const zeitraum = `${formatDE(b.check_in)}–${formatDE(b.check_out)}`;
+        const storniert = b.status === 'cancelled';
+
+        befunde.push({
+          art: 'direktbuchung_pruefen',
+          haus: hausName,
+          house_id: b.house_id,
+          platform: 'direkt',
+          von: tag(b.check_in),
+          bis: tag(b.check_out),
+          text: storniert
+            ? `Direktbuchung „${b.guest_name}" (${zeitraum}) wurde storniert — bitte in Airbnb, Booking.com und VRBO prüfen, ob der Zeitraum wieder freigegeben ist, und in der Buchungskarte abhaken.`
+            : `Direktbuchung „${b.guest_name}" (${zeitraum}) — bitte in Airbnb, Booking.com und VRBO prüfen, ob der Zeitraum geblockt ist, und in der Buchungskarte abhaken.`,
+        });
+      }
+    }
+
     // Wichtigstes zuerst: fehlende Buchungen vor Langsperren vor Feed-Fehlern.
     const rang: Record<BefundArt, number> = {
-      fehlende_buchung: 0, langsperre: 1, feed_fehler: 2,
+      fehlende_buchung: 0, direktbuchung_pruefen: 1, langsperre: 2, feed_fehler: 3,
     };
     befunde.sort((a, b) => rang[a.art] - rang[b.art] || (a.von ?? '').localeCompare(b.von ?? ''));
 
@@ -437,9 +511,12 @@ serve(async (req) => {
         // Fehlende Buchungen sind dringender als Hinweise: Dahinter steckt ein
         // Gast, der anreist, ohne dass Reinigung und Wäsche geplant sind.
         const fehlende = neu.filter((b) => b.art === 'fehlende_buchung');
+        const direktNeu = neu.filter((b) => b.art === 'direktbuchung_pruefen');
         const betreff = fehlende.length > 0
           ? `⚠️ ${fehlende.length} Buchung(en) fehlen im System`
-          : `Kalender-Abgleich: ${neu.length} neue(r) Hinweis(e)`;
+          : direktNeu.length > 0
+            ? `Direktbuchung in den Portalen prüfen (${direktNeu.length})`
+            : `Kalender-Abgleich: ${neu.length} neue(r) Hinweis(e)`;
 
         const zeilen = neu.map((b) => `• ${b.haus}: ${b.text}`).join('\n');
         const body =
