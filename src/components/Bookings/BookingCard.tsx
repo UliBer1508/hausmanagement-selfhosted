@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { StickyNote } from 'lucide-react';
+import { StickyNote, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { parseISO, differenceInCalendarDays } from 'date-fns';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -50,6 +50,50 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
   };
 
   const nights = differenceInCalendarDays(parseISO(booking.check_out), parseISO(booking.check_in));
+
+  // ---- Portal-Prüfung bei Direktbuchungen --------------------------------
+  //
+  // WARUM ES DIESES HÄKCHEN GIBT (siehe docs/Konzept-iCal-Kollisionswarnung.md
+  // Abschnitt 8.10): Direktbuchungen gehen über ical-export an Airbnb,
+  // Booking.com und VRBO, und die blocken sie auch. Über ihren eigenen
+  // iCal-Export geben die Portale importierte Blocks aber NICHT zurück — jedes
+  // Portal exportiert nur seine eigenen Buchungen.
+  //
+  // Belegt am 19.07.2026: Die Direktbuchung "Luca" war in allen drei
+  // Portal-Kalendern sichtbar geblockt und tauchte in KEINEM Portal-Feed auf.
+  // Eine automatische Prüfung ist damit unmöglich — deshalb quittiert Uli hier
+  // von Hand, und Max erinnert daran, bis das geschehen ist.
+  const istDirektbuchung = !booking.platform || booking.platform === 'direct';
+  const geprueftAm = (booking as any).portale_geprueft_am as string | null;
+  const istStorniert = booking.status === 'cancelled';
+  const [speicherePortale, setSpeicherePortale] = useState(false);
+
+  const handlePortaleGeprueft = async () => {
+    setSpeicherePortale(true);
+    try {
+      const jetzt = new Date().toISOString();
+      const { error } = await supabase
+        .from('bookings')
+        .update({
+          portale_geprueft_am: jetzt,
+          portale_geprueft_von: 'Uli',
+          // Merkt, WOFÜR quittiert wurde. Nach einem Storno setzt der
+          // DB-Trigger trg_reset_portale_geprueft alles zurück, damit die
+          // Gegenrichtung (Blockade zurücknehmen) erneut erinnert wird.
+          portale_geprueft_art: istStorniert ? 'freigegeben' : 'blockiert',
+        })
+        .eq('id', booking.id);
+      if (error) throw error;
+      (booking as any).portale_geprueft_am = jetzt;
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      onBookingUpdated?.();
+      toast({ title: istStorniert ? 'Freigabe bestätigt' : 'Portal-Blockade bestätigt' });
+    } catch (err: any) {
+      toast({ title: 'Fehler beim Speichern', description: err.message, variant: 'destructive' });
+    } finally {
+      setSpeicherePortale(false);
+    }
+  };
 
   const categoryBadge =
     category === 'returning' ? (
@@ -199,6 +243,43 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
                 <div className="text-sm truncate">{format(parseISO(booking.check_out), 'dd.MM.yy', { locale: de })}</div>
               </div>
             </div>
+
+            {/* Portal-Prüfung — nur bei Direktbuchungen (siehe Kommentar oben) */}
+            {istDirektbuchung && (
+              geprueftAm ? (
+                <div className="flex items-center gap-1.5 text-[11px] text-green-700 pt-2">
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span>
+                    Portale geprüft am {format(parseISO(geprueftAm), 'dd.MM.yy', { locale: de })}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5 rounded-md border border-amber-300 bg-amber-50 p-2 mt-2">
+                  <div className="flex items-start gap-1.5 text-[11px] text-amber-800">
+                    <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-px" />
+                    <span>
+                      {istStorniert
+                        ? 'Storniert — Blockade in Airbnb, Booking.com und VRBO zurücknehmen.'
+                        : 'Direktbuchung — in Airbnb, Booking.com und VRBO als geblockt prüfen.'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={speicherePortale}
+                    onClick={(e) => {
+                      // Verhindert, dass der Klick die Karte öffnet.
+                      e.stopPropagation();
+                      handlePortaleGeprueft();
+                    }}
+                    className="self-start text-[11px] font-medium px-2 py-1 rounded border border-amber-400 bg-white hover:bg-amber-100 disabled:opacity-50"
+                  >
+                    {speicherePortale
+                      ? 'Speichert…'
+                      : istStorniert ? 'Freigabe bestätigen' : 'Geprüft — ist geblockt'}
+                  </button>
+                </div>
+              )
+            )}
 
             {/* Einheitliche "Geändert von"-Zeile (mit Datum aus updated_at) */}
             <ChangedByLine
