@@ -283,9 +283,191 @@ Verwandt mit dem bestehenden Prinzip „Deployed ist nicht Verified", hier als
 
 ---
 
+## 7. Lessons aus der Sitzung 18./19.07.2026 (iCal-Sync, Kalender-Abgleich)
+
+### 7.1 Upsert ohne Aufräumen ist unvollständig
+
+**Symptom:** Uli gab bei Booking.com einen 183-Nächte-Zeitraum frei. Booking.com
+meldete ihn nicht mehr (`last_event_count` fiel von 12 auf 6). Der Block blieb
+trotzdem in `external_blocks` stehen und wurde weiter als Belegung angezeigt und
+ausgewertet.
+
+**Ursache:** `ical-sync` machte ausschließlich Upserts. Es gab **kein einziges
+`delete`** in der ganzen Function. Das Feld `last_seen_at` wurde zwar bei jedem
+Lauf geschrieben — aber nie ausgewertet.
+
+**Die allgemeine Lehre:** Wer externe Daten periodisch einliest, muss auch
+behandeln, **was nicht mehr geliefert wird.** Ein Upsert allein bildet nur
+Hinzufügen und Ändern ab, nicht Entfernen. Das betrifft jede stornierte
+Portal-Buchung und jede zurückgenommene Sperre — der Bestand wächst still an
+Karteileichen, und darauf aufbauende Auswertungen rechnen mit Belegungen, die es
+nicht mehr gibt.
+
+**Sicherheitsbedingungen beim Löschen** (beide sind nötig):
+
+1. **Nur nach erfolgreichem Abruf.** Bei einem Feed-Fehler wird die Schleife per
+   `continue` verlassen, die Löschstelle also gar nicht erreicht. Sonst wäre bei
+   einer kurzen Störung bei Booking.com der komplette Bestand weg.
+2. **Nur bei nicht-leerem Ergebnis** (`events.length > 0`). Ein leerer Feed ist
+   entweder ein Portal-Fehler oder ein wirklich leerer Kalender — in beiden
+   Fällen ist Nichtstun die sichere Wahl.
+
+**Muster:** Zeitstempel VOR dem Verarbeiten merken, danach alles löschen, was
+älter ist:
+
+```javascript
+const laufBeginn = new Date().toISOString();
+// ... Events verarbeiten (setzen last_seen_at bzw. Spalten-Default now())
+if (!dryRun && events.length > 0) {
+  await supabase.from('external_blocks').delete()
+    .eq('house_id', feed.house_id).eq('platform', feed.platform)
+    .lt('last_seen_at', laufBeginn);
+}
+```
+
+**Wie es gefunden wurde:** Nur weil Uli die Freigabe im Portal machte *und
+danach nachsah, ob sie ankommt.* Ohne diese Gegenprobe wäre der Fehler
+unbemerkt geblieben — die Function meldete durchgehend `status: ok`.
+
+---
+
+### 7.2 Herkunft schlägt Datumsvergleich
+
+**Symptom:** Nach dem Datentyp-Fix (Abschnitt 6.2) meldete der Sync weiterhin
+zwei Dauerkollisionen — beide Booking.com gegen Booking.com-Buchungen.
+
+**Warum der Datumsvergleich nicht reichte:** Der Fix vom 18.07. prüfte auf
+*exakte* Datumsgleichheit. Die traf hier nicht zu:
+
+| Fall | Portal-Block | Eigene Buchung |
+|---|---|---|
+| Kerscher | 25.12.–05.01. | 25.12.–29.12. |
+| Kaloyan | 22.01.–31.01. | 21.01. 23:00 UTC – 30.01. 23:00 UTC |
+
+Booking.com fasst aufeinanderfolgende Buchungen zu **einem** Block zusammen
+(Kerscher + Fischer) und meldet teils breitere Sperrzeiträume als die Buchung
+lang ist. Zeitzonen verschieben zusätzlich.
+
+**Die bessere Prüfung ist inhaltlich, nicht rechnerisch:**
+
+```javascript
+if (b.platform && b.platform === feed.platform) return false;
+```
+
+Stammt der Block von derselben Plattform wie die Buchung, ist es dieselbe
+Buchung. Booking.com kann nur Booking.com-Buchungen melden, Airbnb nur
+Airbnb-Buchungen. **Eine echte Doppelbuchung entsteht immer zwischen
+verschiedenen Kanälen** — nie innerhalb eines Portals, denn kein Portal vergibt
+denselben Zeitraum zweimal.
+
+**Verallgemeinert:** Wenn ein Datums- oder Zahlenvergleich immer neue Sonderfälle
+produziert, lohnt die Frage, ob es ein **fachliches** Unterscheidungsmerkmal
+gibt. Das ist meist robuster als eine weitere Toleranzregel.
+
+---
+
+### 7.3 Schnittstelle prüfen, nicht raten — die Mail kam nie an
+
+**Symptom:** Der Sync meldete im Toast „Details in der Morgen-Übersicht **und
+per E-Mail**". Es kam nie eine E-Mail.
+
+**Ursache:** Der Aufruf übergab die naheliegenden Feldnamen:
+
+```javascript
+body: { to: ..., subject: ..., body: ... }        // FALSCH
+```
+
+`send-guest-email` erwartet aber:
+
+```javascript
+body: { recipients: [{ email: ... }], subjectTemplate: ..., bodyTemplate: ... }
+```
+
+Bei falschen Namen antwortet die Function mit **HTTP 400** — die Mail geht nie
+raus. Der Fehler wurde zwar per `console.error` protokolliert, aber nur in die
+Edge-Function-Logs, die im Alltag niemand liest.
+
+**Zwei Lehren:**
+
+1. **Vor dem Aufruf einer fremden Function deren Signatur lesen.** Die
+   naheliegenden Namen (`to`, `subject`, `body`) waren falsch. Ein Blick in
+   `send-guest-email/index.ts` hätte es sofort gezeigt.
+2. **Ein `console.error` ist keine Fehlerbehandlung.** Wenn ein Fehlschlag nur
+   im Log landet und die Oberfläche weiter Erfolg meldet, ist der Fehler
+   unsichtbar. Verwandt mit „Erfolgsmeldung ist nicht Erfolg" (6.5).
+
+**Prüfmuster für die Zukunft:** Alle Aufrufer einer Function auf einmal
+kontrollieren — der Doppelgänger existiert auch bei Schnittstellen:
+
+```bash
+grep -rn -A 5 "invoke('send-guest-email'" supabase/functions/ src/
+```
+
+Das förderte zutage, dass `morning-summary` und `MailPreviewProvider` es richtig
+machten, `ical-sync` aber nicht.
+
+---
+
+### 7.4 Wiederholte Meldungen brauchen eine Merk-Logik
+
+Beim Kalender-Abgleich stellte sich die Frage, wie oft eine E-Mail bei einem
+offenen Befund verschickt wird. Eine fehlende Buchung bleibt bestehen, bis Uli
+sie nachträgt — das kann Tage dauern.
+
+**Ohne Merk-Logik käme jeden Morgen dieselbe Mail.** Nach der dritten würde sie
+ignoriert, und genau dann geht die nächste, wirklich neue unter. Dasselbe Muster
+wie bei den Dauerkollisionen (6.2): Eine Warnung, die immer feuert, ist
+schlechter als keine.
+
+**Umsetzung:** Tabelle `kalender_abgleich_meldungen`, Schlüssel ist der Befund
+selbst (Haus + Art + Plattform + Zeitraum). Verschiebt sich der Zeitraum, ist es
+ein neuer Befund und wird erneut gemeldet — richtig so, denn dahinter steckt
+dann eine andere Belegung.
+
+**Zwei Details, die leicht übersehen werden:**
+
+- **Erst nach erfolgreichem Versand merken.** Schlägt die Mail fehl, wird beim
+  nächsten Lauf erneut versucht. Besser eine Mail zu viel als eine fehlende
+  Buchung, von der niemand erfährt.
+- **`coalesce` im Unique-Index.** Bei `feed_fehler` sind von/bis NULL, und NULL
+  ist in Postgres nicht mit sich selbst gleich — ohne `coalesce` würde jeder
+  Feed-Fehler als neuer Befund gelten.
+
+Die Morgen-Übersicht zeigt weiterhin **alle** offenen Befunde. Nur die Mail ist
+einmalig.
+
+---
+
+### 7.5 Warum die Kollisionsprüfung die falsche Frage stellte
+
+Wert für künftige Konzepte, nicht nur für iCal:
+
+Die ursprüngliche Kollisionswarnung (Phase 1) wurde gegen die Gefahr „zwei
+Buchungen für denselben Zeitraum" gebaut. Im Betrieb stellte sich heraus:
+
+- **Alle** gemeldeten Kollisionen waren Rückspiegelungen — Fälle, in denen alles
+  korrekt war.
+- Der eine reale Fehler (Cathrin Clausnitzer, Booking.com-Buchung fehlte im
+  System) wurde **nicht** gemeldet, weil „Block ohne Buchung" für die Logik der
+  Normalfall ist.
+
+**Das System meldete die Fälle, in denen alles stimmt, und schwieg bei dem, in
+dem etwas fehlte.** Genau verkehrt herum.
+
+**Die Lehre:** Bei einem Wächter zuerst fragen, *welcher reale Schaden* verhindert
+werden soll — nicht, welche Auffälligkeit sich am leichtesten berechnen lässt.
+Hier war der teure Fall die fehlende Buchung (kein Gästekontakt, keine Reinigung,
+keine Wäsche, Zeitraum könnte doppelt vergeben werden), nicht die Überschneidung.
+
+---
+
 *Erstellt am 15.06.2026 nach einer fehlerhaften Sitzung zur Vereinheitlichung
 der Übersichtskarten (Buchung/Reinigung/Wäsche). Ablage: Repo-Root neben
 `AGENTS.md`.*
+
+*Ergänzt am 19.07.2026 um Abschnitt 7 (Upsert ohne Aufräumen, Herkunft statt
+Datumsvergleich, Schnittstelle von send-guest-email, Merk-Logik für wiederholte
+Meldungen, falsche Fragestellung der Kollisionsprüfung).*
 
 *Ergänzt am 18.07.2026 um Abschnitt 6 (RLS-Blockade als stiller Leerbefund,
 Datentyp-Vergleich `date`/`timestamptz` im iCal-Sync, Deploy-Pfad der Website,

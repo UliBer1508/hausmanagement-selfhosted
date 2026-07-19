@@ -376,7 +376,30 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
 **Phase 3 — Belegungsliste (NEU 18.07.2026):**
 - Aufklappbarer Bereich „Eingelesene Belegungen" in `CalendarSyncCard.tsx`.
   Reine Leseansicht auf `external_blocks` (laufende + künftige), Lazy Loading
-  (Query erst beim Aufklappen). Kollisionen rot markiert.
+  (Query erst beim Aufklappen).
+- Zeigt statt der Rohtexte („Reserved", „CLOSED - Not available") die **Gastnamen**
+  und eine Einordnung: Sperrzeit (grau), Langsperre (gelb), „Buchung fehlt" (rot).
+  Die Einordnung kommt aus `kalender-abgleich` (Feld `bloecke`), nicht aus
+  `external_blocks` — die Rohdaten wissen nur, DASS ein Zeitraum belegt ist.
+- `collision_booking_id` wird nicht mehr zur Anzeige genutzt: Seit dem
+  Rückspiegelungs-Fix ist das Feld bei deckungsgleichen Blocks `null` und damit
+  nicht mehr aussagekräftig.
+
+**Sync-Korrekturen 18./19.07.2026 (`ical-sync/index.ts`):**
+- **Aufräumen ergänzt.** Der Sync machte bisher nur Upserts — Blocks, die ein
+  Portal nicht mehr meldet, blieben für immer stehen (gefunden über eine
+  freigegebene 183-Nächte-Sperre, die weiter angezeigt wurde). Jetzt: Zeitstempel
+  `laufBeginn` vor dem Verarbeiten, danach `delete` aller Blocks dieses Feeds mit
+  älterem `last_seen_at`. **Nur nach erfolgreichem Abruf und nur bei
+  `events.length > 0`** — sonst wäre bei einer Portal-Störung der ganze Bestand weg.
+- **Herkunftsprüfung bei Kollisionen.** `if (b.platform === feed.platform) return false;`
+  Ein Block von Plattform X kann nicht mit einer Buchung derselben Plattform
+  kollidieren — Booking.com meldet nur Booking.com-Buchungen zurück. Der reine
+  Datumsvergleich scheiterte an zusammengefassten Blocks und Zeitzonen.
+- **Mail-Aufruf korrigiert.** Der Aufruf nutzte `to`/`subject`/`body`;
+  `send-guest-email` erwartet `recipients: [{email}]` / `subjectTemplate` /
+  `bodyTemplate` und antwortet sonst mit HTTP 400. **Es ist nie eine
+  Kollisions-Mail angekommen**, obwohl der Toast das meldete.
 
 **Phase 4 — Kalender-Abgleich (NEU 18.07.2026):**
 - Edge Function `supabase/functions/kalender-abgleich/index.ts` — **rein lesend**.
@@ -394,6 +417,17 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
   Cron `kalender-abgleich-daily` (04:25 UTC, zwischen `ical-sync` und
   `morning-summary`). SQL: `34_kalender_abgleich.sql`.
 - Ablauf in `max_ablaeufe`: Aktion `kalender_abgleich`, 4 Schritte.
+- **E-Mail bei neuen Befunden (19.07.2026).** Tabelle
+  `kalender_abgleich_meldungen` (SQL `35_...`) merkt sich, was schon gemeldet
+  wurde — Schlüssel ist der Befund selbst (Haus + Art + Plattform + Zeitraum).
+  Ohne diese Merk-Logik käme jeden Morgen dieselbe Mail, solange ein Befund
+  offen ist. Empfänger und Schalter in `system_settings` →
+  `kalender_abgleich_settings` (`mail_to`, `mail_enabled`). Einträge, die 7 Tage
+  nicht mehr auftauchen, werden gelöscht: Das Problem gilt als behoben.
+- **Rückgabe `bloecke`:** Einordnung JEDES Blocks (`gedeckt` / `sperrzeit` /
+  `langsperre` / `luecke`) samt Gastnamen — Datenquelle für die Belegungsliste in
+  `CalendarSyncCard.tsx`. Ein Block kann mehreren Buchungen entsprechen
+  (Booking.com fasst zusammen).
 
 **Grenzen (bewusst):** iCal liefert nur Zeiträume, keine Gastdaten; ist verzögert
 (Sicherheitsnetz, kein Echtzeitschutz). **Belvilla liefert keinen nutzbaren Feed**
