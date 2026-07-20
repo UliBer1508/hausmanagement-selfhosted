@@ -117,11 +117,17 @@ const GuestContactAlertBanner = () => {
                 >
                   {/* Buchungsinformationen */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex-1">
+                    {/* min-w-0: Ohne diese Angabe verhindert der Standardwert
+                        min-width:auto, dass lange Namen umbrechen — der
+                        Container wächst stattdessen über die Kartenbreite. */}
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-start sm:items-center gap-1 sm:gap-2 flex-wrap">
-                        <span className="font-medium text-foreground">{booking.guest_name}</span>
+                        <span className="font-medium text-foreground break-words min-w-0">{booking.guest_name}</span>
                         <div className="flex flex-wrap gap-1 sm:gap-2">
-                          <Badge variant="outline" className="text-xs truncate max-w-[100px] sm:max-w-[180px]">
+                          {/* Kein truncate mehr: "Venediger Chalet" wurde auf
+                              dem Handy zu "Venediger Chale" abgeschnitten.
+                              Bei drei Badges bricht die Zeile ohnehin um. */}
+                          <Badge variant="outline" className="text-xs whitespace-nowrap">
                             {booking.houses?.name}
                           </Badge>
                           <Badge 
@@ -206,25 +212,33 @@ const GuestContactAlertBanner = () => {
                       {marketingMatches.map(match => (
                         <div 
                           key={match.action.id}
-                          className={`flex items-center justify-between gap-3 p-2 rounded-md border ${
+                          // MOBIL (Fix 19.07.2026): Vorher `flex items-center
+                          // justify-between` ohne Umbruch — der lange
+                          // Aktionsname, das Badge und die Checkbox standen
+                          // zwangsweise nebeneinander und sprengten auf schmalen
+                          // Bildschirmen die Kartenbreite. Jetzt untereinander,
+                          // ab sm nebeneinander wie bisher.
+                          className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 p-2 rounded-md border ${
                             match.isApplied 
                               ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
                               : 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
                           }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <Star className={`h-4 w-4 ${match.isApplied ? 'text-green-600' : 'text-yellow-600'}`} />
-                            <span className={`text-sm font-medium ${match.isApplied ? 'text-green-800 dark:text-green-200' : 'text-yellow-800 dark:text-yellow-200'}`}>
+                          {/* min-w-0 ist nötig, damit der lange Aktionsname
+                              umbrechen darf statt den Flex-Container zu dehnen. */}
+                          <div className="flex items-start sm:items-center gap-2 flex-wrap min-w-0">
+                            <Star className={`h-4 w-4 flex-shrink-0 mt-0.5 sm:mt-0 ${match.isApplied ? 'text-green-600' : 'text-yellow-600'}`} />
+                            <span className={`text-sm font-medium break-words min-w-0 ${match.isApplied ? 'text-green-800 dark:text-green-200' : 'text-yellow-800 dark:text-yellow-200'}`}>
                               Marketing-Aktion: "{match.action.name}"
                             </span>
                             {match.isApplied && (
-                              <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                              <Badge variant="outline" className="text-xs whitespace-nowrap bg-green-100 text-green-700 border-green-300">
                                 ✓ Angewendet
                               </Badge>
                             )}
                           </div>
                           
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-shrink-0">
                             <Checkbox
                               id={`action-${booking.id}-${match.action.id}`}
                               checked={match.isApplied}
