@@ -84,7 +84,10 @@ serve(async (req) => {
         item_variants: orderData.item_variants,
         linen_color: orderData.linen_color || 'white_striped',
         total_items: orderData.total_items,
-        total_cost: orderData.estimated_cost ?? null,
+        // 0 ist KEIN gültiger Betrag (Artikel wurden ja bestellt). `?? null`
+        // allein griff bei 0 nicht -> Bestellungen mit total_cost = 0.00,
+        // die in allen Karten ohne Betrag erschienen.
+        total_cost: orderData.estimated_cost ? orderData.estimated_cost : null,
         status: 'offen',
         order_source: 'manual_max',
         suggested_at: new Date().toISOString(),
