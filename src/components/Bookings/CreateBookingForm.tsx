@@ -818,7 +818,11 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     onSuccess: (data) => {
       toast({
         title: "Wäschebestellung berechnet",
-        description: `${data.total_items} Teile für ${data.booking.guest_name} - Geschätzte Kosten: ${data.estimated_cost} EUR`
+        // estimated_cost kann null sein, wenn für keinen Artikel ein Preis
+        // hinterlegt ist. Ohne diese Prüfung stünde hier "null EUR".
+        description: data.estimated_cost
+          ? `${data.total_items} Teile für ${data.booking.guest_name} - Geschätzte Kosten: ${data.estimated_cost} EUR`
+          : `${data.total_items} Teile für ${data.booking.guest_name} - Kosten nicht berechenbar (keine Preise hinterlegt)`
       });
       
       setPrefilledOrderData(data);
