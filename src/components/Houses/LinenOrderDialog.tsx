@@ -138,7 +138,7 @@ interface LinenOrderDialogProps {
     sendEmail?: boolean;
     linenColor?: LinenColor;
     itemColors?: Record<string, ItemColor | LinenColor>;
-    estimatedCost?: number;
+    estimatedCost?: number | null;
   }) => void;
   onSendEmail?: (orderId: string) => void;
   isCreating?: boolean;
@@ -464,8 +464,24 @@ const LinenOrderDialog = ({
     [editableItems]
   );
 
-  const estimatedCost = generatedOrderData?.estimated_cost || 0;
+  // WICHTIG: estimatedCost darf NICHT auf 0 fallen, wenn keine Berechnung
+  // vorliegt. Ein echter 0-Betrag ist bei bestellten Artikeln unmöglich; der
+  // Wert landete früher als total_cost = 0.00 in der DB (der `?? null`-Operator
+  // im Insert greift bei 0 nicht) und wurde in allen Karten ausgeblendet
+  // — die Bestellung sah dann kostenlos aus, ohne Fehlermeldung.
+  // Fälle: 2d7247bf (Adnan, 17.05.2026), e4f8fffb (Niels, 11.05.2026).
+  // null bedeutet "nicht berechnet", 0 würde "kostenlos" bedeuten.
+  const estimatedCost: number | null =
+    typeof generatedOrderData?.estimated_cost === 'number'
+      ? generatedOrderData.estimated_cost
+      : null;
+  // Für Anzeige-Vergleiche (>0, >500) ohne Null-Sonderfälle:
+  const estimatedCostValue = estimatedCost ?? 0;
   const itemDetails = generatedOrderData?.item_details || [];
+  // Artikel ohne hinterlegten Preis (aus generate-booking-linen-order).
+  // Werden angezeigt, damit sichtbar ist, warum ein Betrag fehlt oder zu
+  // niedrig wirkt — statt still mit 0 EUR zu rechnen.
+  const missingPrices: string[] = generatedOrderData?.missing_prices || [];
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -744,13 +760,13 @@ const LinenOrderDialog = ({
           )}
 
           {/* Kosten-Preview wenn verfügbar */}
-          {generatedOrderData && estimatedCost > 0 && (
+          {generatedOrderData && estimatedCostValue > 0 && (
             <Card className="border-primary/50 bg-primary/5">
               <CardContent className="pt-6">
                 <div className="text-center space-y-1">
                   <p className="text-sm text-muted-foreground">Geschätzte Kosten</p>
                   <p className="text-4xl font-bold text-primary">
-                    {formatCurrency(estimatedCost)}
+                    {formatCurrency(estimatedCostValue)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {totalItems} Artikel gesamt
@@ -760,7 +776,21 @@ const LinenOrderDialog = ({
             </Card>
           )}
 
-          {estimatedCost > 500 && (
+          {missingPrices.length > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+              <p className="text-sm text-amber-800">
+                <strong>Hinweis:</strong> Für {missingPrices.length}{' '}
+                {missingPrices.length === 1 ? 'Artikel ist' : 'Artikel sind'} kein
+                Preis hinterlegt ({missingPrices.map(k => translateItemType(k)).join(', ')}).
+                {estimatedCost === null
+                  ? ' Der Gesamtbetrag kann nicht berechnet werden.'
+                  : ' Der angezeigte Betrag ist daher unvollständig.'}
+                {' '}Preise werden im Wäsche-Tab unter Einstellungen gepflegt.
+              </p>
+            </div>
+          )}
+
+          {estimatedCostValue > 500 && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
