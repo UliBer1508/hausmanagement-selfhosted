@@ -54,6 +54,10 @@ import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
 import { useExternalSync } from '@/hooks/useExternalSync';
 import { useEmailSettings, useProfileSettings, useAppearanceSettings, useRatingReminderSettings } from '@/hooks/useSystemSettings';
+
+// Teuni ist der einzige Wäsche-Dienstleister. Gleiches Muster wie in
+// ServicePortal/TeuniOrdersOverview.tsx und AssignOrdersToInvoiceDialog.tsx.
+const TEUNI_PROVIDER_ID = 'd8110105-8ac9-45e3-ad32-aaf42393744c';
 const PricingTab = lazy(() => import('@/components/Dashboard/PricingTab'));
 const ProviderTab = lazy(() => import('@/components/Dashboard/ProviderTab'));
 const SettingsTab = lazy(() => import('@/components/Dashboard/SettingsTab'));
@@ -478,6 +482,13 @@ const OriginalDashboard = () => {
         const insertPayload = {
           house_id: selectedBookingForOrder?.houses?.id || selectedBookingForOrder?.house_id,
           booking_id: selectedBookingForOrder?.id,
+          // PFLICHTFELD: Ohne provider_id zeigt die Wäschekarte keinen Dienstleister
+          // an und rückt stattdessen das Lieferdatum nach vorn (Fall Eng Saad
+          // Alhajeri, 28.06.2026). Die drei übrigen Anlegewege
+          // (create-linen-order-for-booking, useBookingLinenOrders,
+          // useOptimizedLinenManagement) setzen sie ebenfalls fest.
+          provider_id: TEUNI_PROVIDER_ID,
+          order_source: 'manual',
           items: orderData.orderItems,
           total_items: totalItems as number,
           delivery_date: orderData.deliveryDate,
