@@ -64,7 +64,14 @@ export const useChat = () => {
         const errorData = await response.json().catch(() => ({}));
 
         if (response.status === 429) {
-          throw new Error('Zu viele Anfragen. Bitte warte einen Moment.');
+          // Die Edge Function unterscheidet inzwischen zwischen echtem Rate-Limit
+          // und aufgebrauchtem Guthaben (Feld "reason"). Frueher wurde errorData
+          // hier komplett verworfen und pauschal "Bitte warte einen Moment"
+          // angezeigt — bei leerem Guthaben eine irrefuehrende Auskunft, denn
+          // Warten aendert daran nichts. Jetzt wird die echte Meldung gezeigt.
+          throw new Error(
+            errorData.error || 'Zu viele Anfragen. Bitte warte einen Moment.'
+          );
         }
         if (response.status === 402) {
           throw new Error('Lovable AI Credits aufgebraucht. Bitte Credits aufladen.');
