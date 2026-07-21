@@ -3781,8 +3781,37 @@ nicht als bloße Nachricht.
         console.error('Gemini API error:', response.status, errorText);
 
         if (response.status === 429) {
-          // Rate-Limit: einmalig kurz warten und dieselbe Iteration erneut versuchen,
-          // statt sofort abzubrechen. Das fängt kurzzeitige Limits (Free-Tier) ab.
+          // Gemini sendet 429 fuer ZWEI grundverschiedene Faelle:
+          //   a) echtes Rate-Limit (zu viele Anfragen pro Minute) -> Warten hilft
+          //   b) Guthaben/Quota aufgebraucht -> Warten hilft NICHT
+          // Frueher wurde beides gleich behandelt: bei aufgebrauchtem Guthaben
+          // lief ein sinnloser Retry (2s Wartezeit + zweiter API-Call), und der
+          // Nutzer bekam "stark ausgelastet" zu lesen, obwohl schlicht das
+          // Guthaben leer war. Beides wird jetzt unterschieden.
+          const lower = errorText.toLowerCase();
+          const isQuotaExhausted =
+            lower.includes('credits are depleted') ||
+            lower.includes('prepayment') ||
+            lower.includes('billing') ||
+            lower.includes('quota exceeded') ||
+            lower.includes('exceeded your current quota') ||
+            lower.includes('resource_exhausted');
+
+          if (isQuotaExhausted) {
+            console.error('Gemini Guthaben/Quota aufgebraucht - kein Retry sinnvoll.');
+            return new Response(
+              JSON.stringify({
+                error:
+                  'Gemini-Guthaben aufgebraucht. Bitte im Google AI Studio Credits aufladen — Warten hilft hier nicht.',
+                reason: 'quota_exhausted',
+                geminiMessage: errorText.slice(0, 500),
+              }),
+              { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Echtes Rate-Limit: einmalig kurz warten und dieselbe Iteration erneut
+          // versuchen, statt sofort abzubrechen.
           if (!rateLimitRetried) {
             rateLimitRetried = true;
             console.log('Rate limit (429) - warte 2s und versuche erneut...');
@@ -3791,7 +3820,11 @@ nicht als bloße Nachricht.
             continue;
           }
           return new Response(
-            JSON.stringify({ error: 'Der Assistent ist gerade stark ausgelastet. Bitte versuche es in einer Minute erneut.' }),
+            JSON.stringify({
+              error: 'Der Assistent ist gerade stark ausgelastet. Bitte versuche es in einer Minute erneut.',
+              reason: 'rate_limit',
+              geminiMessage: errorText.slice(0, 500),
+            }),
             { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
