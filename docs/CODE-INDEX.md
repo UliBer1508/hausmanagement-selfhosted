@@ -277,44 +277,62 @@ abschließen) — beide feuern bei `draft → scheduled`.
 Hook: `useServiceTasks.ts`, `useCleaningAutomationSettings.ts`,
 `useCleaningStatusNotifications.ts`.
 
-### Reinigung OHNE Buchung (seit 21.07.2026)
+---
 
-Nicht jede Reinigung gehört zu einer Buchung. **Generalreinigung am Saisonende,
-Vorbereitung vor Saisonstart und Fensterreinigung** werden ohne `booking_id`
-angelegt — über den Anlege-Dialog oder per SQL. Sie sind gleichwertig zu
-Buchungsreinigungen: Termin, Dienstleister, Stunden, Terminfrage.
+## 9b. Wäschebestellung: VIER Anlegewege — Pflichtfelder beachten
 
-| | mit Buchung | ohne Buchung |
+> **Ergänzt 21.07.2026** nach dem Fall Eng Saad Alhajeri (Bestellung ohne
+> Dienstleister).
+
+Die **Berechnung** der Artikel läuft einheitlich über die Edge Function
+`generate-booking-linen-order` (liest `linen_set_definitions.custom_categories`,
+rechnet `quantity × Gästezahl` bei `per_guest` bzw. `quantity` bei
+`per_booking`, berücksichtigt `availability: 'seasonal'`). **Keine** andere
+Stelle rechnet selbst — das ist korrekt und soll so bleiben.
+
+Das **Anlegen** ist dagegen an vier Stellen implementiert:
+
+| Weg | Datei | `provider_id` |
 |---|---|---|
-| `booking_id` | gesetzt | `null` |
-| Gastname in der Nachricht | ja | nein |
-| Wäsche-Hinweis | ja | **entfällt** (keine Lieferung) |
-| Anlass | aus der Buchung | aus `service_tasks.notes` |
-| Terminfrage (Cron 07:00) | ja | ja |
-| `max_actions.guest_name` | Gastname | `null` |
+| Max / gezielt | `supabase/functions/create-linen-order-for-booking/index.ts` | ✅ |
+| Buchungsansicht | `src/hooks/useBookingLinenOrders.ts` (2×) | ✅ |
+| Prädiktive Analyse | `src/hooks/useOptimizedLinenManagement.ts` | ✅ |
+| Dashboard-Dialog | `src/pages/OriginalDashboard.tsx` (`handleCreateOrUpdateOrder`) | ✅ seit 21.07. |
 
-**Wichtig:** `notes` wird bei buchungslosen Reinigungen **in die Nachricht an den
-Dienstleister übernommen** (z. B. „Generalreinigung Saisonende"). Keine internen
-Vermerke dort ablegen.
+**Pflichtfelder bei jedem neuen Insert in `linen_orders`:**
+`house_id`, `booking_id`, `provider_id` (Teuni), `items`, `total_items`,
+`status`, `delivery_date`, `order_source`.
 
-**Kein eigener `service_type`.** Das Enum `service_type` hat nur `cleaning` und
-`laundry`. Fensterreinigung ist fachlich eine Reinigung und wird wie eine
-behandelt — auch abrechnungsseitig (Stundensatz des Dienstleisters). Kommt
-Fensterputzen zu einer Buchungsreinigung dazu, sind das schlicht mehr
-`cleaning_hours` auf demselben Task, keine zweite Aufgabe.
+**Fehlt `provider_id`,** zeigt die Wäschekarte keinen Dienstleister und schiebt
+das Lieferdatum an die erste Position — ohne Fehlermeldung. Genau so entstand
+die Bestellung `8b68076f` (Eng, 28.06.2026), die als einzige von über 20
+`provider_id = NULL` hatte.
 
-**Dienstleister:** Amela (Standard) und Boris (springt ein, macht die großen
-Fenster). Boris hat **kein Portal** — er wird per WhatsApp/E-Mail erreicht.
-`waiting_for` in `max_actions` kennt ihn trotzdem (`'boris'`), damit
-`MaxActionsPanel.tsx` seinen Namen statt des Rohwerts `provider` zeigt.
+**Teuni-ID:** `d8110105-8ac9-45e3-ad32-aaf42393744c`, im Frontend als lokale
+Konstante `TEUNI_PROVIDER_ID` (Muster: `ServicePortal/TeuniOrdersOverview.tsx`).
 
-**Einschränkung `CleaningManagement.tsx`:** Die Query filtert mit
-`houses!inner(...)` auf `rental_type = 'tourist'`. Reinigungen an
-Langzeitmietobjekten erscheinen im Reinigungs-Tab **nicht**. Bewusst so —
-nur die Ferienhäuser werden gereinigt.
+> **Offener Punkt:** Vier Insert-Pfade sind ein Doppelgänger auf Logik-Ebene.
+> Sauber wäre eine gemeinsame `createLinenOrder()` in `src/lib/`. Bis dahin gilt
+> diese Tabelle als Checkliste.
 
-**Ablauf-Definition:** `max_ablaeufe`, `aktion = max_cleaning_reminders`,
-`variante = ohne_buchung`.
+### Artikelschlüssel: nur was in `custom_categories` steht
+
+Gültige Schlüssel kommen ausschließlich aus der Wäscheset-Definition des Hauses
+(Tab Wäsche → Einstellungen → `LinenSetRulesTab.tsx`). `LinenOrderDialog.tsx`
+verwirft beim Öffnen im Edit-Modus **stumm** jeden Artikel, der dort nicht mehr
+steht (Z. ~451, `if (key in allAvailableItems)`). Folge: Die Bestellung wirkt
+leer, `totalItems` wird 0, und der Button „Bestellung aktualisieren" ist
+gesperrt (`disabled={isCreating || totalItems === 0}`).
+
+Die Sperre ist an dieser Stelle ein **Schutz**: Im Edit-Modus geht
+`editableItems` unverändert in den Speicherpfad — ohne Sperre würden die
+verworfenen Positionen durch Nullen ersetzt und die Bestellung inhaltlich
+gelöscht.
+
+Aufgetreten bei Bestellung `85c6eb8a` (Hubert Middelbos, 23.05.2026) mit den
+Schlüsseln `bed_sheet` / `towel_large`, die in **keiner** Datei des Projekts
+vorkommen. Korrigiert am 21.07.2026 durch Neuberechnung über
+`generate-booking-linen-order`.
 
 ---
 
