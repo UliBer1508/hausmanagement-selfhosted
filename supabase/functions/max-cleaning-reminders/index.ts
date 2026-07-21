@@ -6,8 +6,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Etappe 3 — Max prüft täglich anstehende Reinigungen und fragt Amela/Teuni,
-// ob der Termin passt. Informiert dabei auch, ob die Wäsche schon geliefert ist.
+// Etappe 3 — Max prüft täglich anstehende Reinigungen und fragt den zuständigen
+// Dienstleister (Amela/Boris), ob der Termin passt. Informiert dabei auch, ob die
+// Wäsche schon geliefert ist.
+//
+// REINIGUNGEN OHNE BUCHUNG (ergänzt 21.07.2026):
+//  Nicht jede Reinigung gehört zu einer Buchung. Generalreinigung am Saisonende,
+//  Vorbereitung vor Saisonstart und Fensterreinigung werden ohne booking_id
+//  angelegt. Sie sind gleichwertig und bekommen dieselbe Terminfrage.
+//  Unterschiede: kein Gastname, kein Wäsche-Hinweis (es gibt keine Lieferung).
+//  Ablauf max_ablaeufe: aktion=max_cleaning_reminders, variante=ohne_buchung.
 //
 // SICHERHEIT:
 //  - dry_run (Testlauf) ist STANDARD: es wird NICHTS gesendet, nur simuliert.
@@ -78,7 +86,7 @@ serve(async (req) => {
     const { data: cleanings, error: cleaningsError } = await supabase
       .from('service_tasks')
       .select(`
-        id, booking_id, scheduled_date, scheduled_time, status, provider_id, house_id,
+        id, booking_id, scheduled_date, scheduled_time, status, provider_id, house_id, notes,
         service_providers!service_tasks_provider_id_fkey(id, name),
         houses(name),
         bookings(guest_name, check_in, check_out, status)
@@ -99,19 +107,25 @@ serve(async (req) => {
     const results: any[] = [];
     let sentCount = 0;
     let skippedAlreadyAsked = 0;
+    let ohneBuchung = 0;
 
     for (const task of cleanings || []) {
       const provider = (task as any).service_providers;
       const booking = (task as any).bookings;
       const house = (task as any).houses;
 
-      // Buchung muss aktiv sein (nicht storniert/abgeschlossen)
-      if (!booking || booking.status !== 'confirmed') {
+      // Reinigung MIT Buchung: die Buchung muss aktiv sein (nicht storniert).
+      // Reinigung OHNE Buchung (Generalreinigung, Saisonvorbereitung,
+      // Fensterreinigung): läuft normal weiter — es gibt schlicht keine Buchung,
+      // die storniert sein könnte.
+      const hasBooking = !!task.booking_id;
+      if (hasBooking && (!booking || booking.status !== 'confirmed')) {
         continue;
       }
       if (!provider?.id) {
         continue;
       }
+      if (!hasBooking) ohneBuchung++;
 
       // 4. Spam-Schutz: schon zu dieser Reinigung gefragt?
       const { data: existing, error: existingError } = await supabase
@@ -130,9 +144,12 @@ serve(async (req) => {
         continue;
       }
 
-      // 5. Wäsche-Status für diese Buchung ermitteln (muss VOR der Reinigung da sein)
-      let laundryInfo = 'Zur Wäsche liegt mir aktuell keine Info vor.';
-      if (task.booking_id) {
+      // 5. Wäsche-Status ermitteln (muss VOR der Reinigung da sein).
+      //    Ohne Buchung gibt es keine Wäschelieferung -> laundryInfo bleibt leer
+      //    und der Satz entfällt in der Nachricht (statt eines irreführenden
+      //    "keine Info vorhanden").
+      let laundryInfo = hasBooking ? 'Zur Wäsche liegt mir aktuell keine Info vor.' : '';
+      if (hasBooking) {
         const { data: linen } = await supabase
           .from('linen_orders')
           .select('status, delivery_date')
@@ -159,14 +176,21 @@ serve(async (req) => {
 
       // 6. Nachricht formulieren
       const houseName = house?.name || 'das Objekt';
-      const guestName = booking?.guest_name || 'den nächsten Gast';
+      const guestName = hasBooking ? (booking?.guest_name || 'den nächsten Gast') : null;
       const dateStr = formatDate(task.scheduled_date);
       const timeStr = task.scheduled_time ? ` um ${task.scheduled_time.slice(0, 5)} Uhr` : '';
 
+      // Mit Buchung: Gastbezug + Wäsche-Hinweis.
+      // Ohne Buchung: weder Gast noch Wäsche — stattdessen ggf. die Notiz,
+      // die beschreibt, worum es geht (z. B. "Generalreinigung Saisonende").
+      const anlass = !hasBooking && task.notes ? ` (${String(task.notes).trim()})` : '';
+      const gastTeil = hasBooking ? ` (für Gast ${guestName})` : anlass;
+      const waescheTeil = laundryInfo ? `${laundryInfo} ` : '';
+
       const message =
         `Hallo ${provider.name}, ich bin Max, der KI-Assistent von Uli. ` +
-        `Am ${dateStr}${timeStr} steht die Reinigung im ${houseName} an (für Gast ${guestName}). ` +
-        `${laundryInfo} ` +
+        `Am ${dateStr}${timeStr} steht die Reinigung im ${houseName} an${gastTeil}. ` +
+        `${waescheTeil}` +
         `Passt dir der Termin, oder sollen wir ihn ändern?`;
 
       if (dryRun) {
@@ -174,7 +198,7 @@ serve(async (req) => {
         results.push({
           wuerde_senden_an: provider.name,
           reinigung: `${dateStr}${timeStr} – ${houseName}`,
-          gast: guestName,
+          gast: guestName ?? '(ohne Buchung)',
           nachricht: message,
           related_task_id: task.id,
         });
@@ -194,19 +218,28 @@ serve(async (req) => {
           results.push({ fehler: insErr.message, an: provider.name, reinigung: dateStr });
         } else {
           sentCount++;
-          results.push({ gesendet_an: provider.name, reinigung: `${dateStr} – ${houseName}`, gast: guestName });
+          results.push({ gesendet_an: provider.name, reinigung: `${dateStr} – ${houseName}`, gast: guestName ?? '(ohne Buchung)' });
 
           // Workflow eröffnen: die Terminfrage wartet jetzt auf den Provider.
           // due_at +24 h -> danach erkennt der Wächter "keine Antwort" (Ablauf provider_keine_antwort).
           try {
             const dueAt = new Date();
             dueAt.setHours(dueAt.getHours() + 24);
-            const waitingFor = /teuni/i.test(provider.name) ? 'teuni' : /amela/i.test(provider.name) ? 'amela' : 'provider';
+            // waiting_for steuert die Anzeige in MaxActionsPanel.tsx. Ein
+            // unbekannter Wert würde dort als Rohtext ("provider") erscheinen,
+            // deshalb ist Boris hier explizit benannt.
+            const waitingFor = /teuni/i.test(provider.name)
+              ? 'teuni'
+              : /amela/i.test(provider.name)
+              ? 'amela'
+              : /boris/i.test(provider.name)
+              ? 'boris'
+              : 'provider';
             await supabase.from('max_actions').insert({
               action_type: 'cleaning_termin_check',
               status: 'wartet_provider',
               booking_id: task.booking_id ?? null,
-              guest_name: guestName,
+              guest_name: guestName, // null bei Reinigung ohne Buchung
               related_task_id: task.id,
               waiting_for: waitingFor,
               last_step: `Terminfrage an ${provider.name} gesendet (${dateStr})`,
@@ -228,6 +261,7 @@ serve(async (req) => {
       tage_vorher: daysBefore,
       gefundene_reinigungen: cleanings?.length || 0,
       uebersprungen_schon_gefragt: skippedAlreadyAsked,
+      davon_ohne_buchung: ohneBuchung,
       gesendet: sentCount,
       details: results,
     });
