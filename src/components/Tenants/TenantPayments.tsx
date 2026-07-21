@@ -99,11 +99,21 @@ const TenantPayments = () => {
         if (checkDate < contractStart) continue;
         if (contractEnd && checkDate > contractEnd) continue;
         
-        // Get active rent considering rent changes (new_rent = Warmmiete, enthält bereits NK)
+        // Konvention im gesamten Modul: new_rent / monthly_rent sind KALTMIETEN,
+        // new_additional_costs / additional_costs die Nebenkosten-Vorauszahlung.
+        // (Beleg: Eingabefeld "Neue Kaltmiete (€)" in RentHistoryDialog.tsx,
+        //  "Warmmiete (berechnet)" in EditHouseDialog.tsx.)
+        // Das Soll muss die WARMMIETE sein, weil der Mieter warm zahlt und die
+        // Zahlungen in tenant_payments.amount ebenfalls warm erfasst sind
+        // (CreatePaymentDialog: kaltmiete + nebenkosten).
         const activeRent = getActiveRent(houseRentChanges, tenantInfo.monthly_rent, checkDate);
-        
-        // activeRent ist die Warmmiete (Kaltmiete + NK), daher keine separate Addition von NK
-        total += activeRent;
+        const activeAdditionalCosts = getActiveAdditionalCosts(
+          houseRentChanges,
+          tenantInfo.additional_costs || 0,
+          checkDate,
+        );
+
+        total += activeRent + activeAdditionalCosts;
       }
     });
     

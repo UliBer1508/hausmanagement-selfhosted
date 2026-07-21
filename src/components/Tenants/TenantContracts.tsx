@@ -217,12 +217,18 @@ const TenantContracts = () => {
                     </div>
                     {nextChange && (
                       <p className="text-xs text-amber-600 mt-1">
+                        {/* new_rent ist die KALTMIETE (Feld "Neue Kaltmiete" im
+                            RentHistoryDialog). Die Warmmiete ergibt sich durch
+                            Addition der Nebenkosten — wie oben in Zeile
+                            currentWarmmiete. Sind für die Änderung keine neuen
+                            Nebenkosten hinterlegt, gelten die aktuellen weiter. */}
                         ⏰ Ab {format(parseISO(nextChange.effective_date), 'dd.MM.yyyy', { locale: de })}: 
-                        {' '}Warmmiete {formatCurrency(nextChange.new_rent)}
-                        {' '}(Kaltmiete {formatCurrency(nextChange.new_rent - (nextChange.new_additional_costs || 0))}
-                        {nextChange.new_additional_costs !== null && nextChange.new_additional_costs !== undefined && (
-                          <>, NK {formatCurrency(nextChange.new_additional_costs)}</>
-                        )})
+                        {' '}Warmmiete {formatCurrency(
+                          nextChange.new_rent
+                          + (nextChange.new_additional_costs ?? currentAdditionalCosts)
+                        )}
+                        {' '}(Kaltmiete {formatCurrency(nextChange.new_rent)}
+                        , NK {formatCurrency(nextChange.new_additional_costs ?? currentAdditionalCosts)})
                       </p>
                     )}
                   </div>
