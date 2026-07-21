@@ -172,25 +172,63 @@ serve(async (req) => {
     console.log('💶 Using prices:', prices);
 
     // 5. Calculate costs
+    //
+    // WICHTIG (21.07.2026): Ein fehlender Preis ist NICHT dasselbe wie ein
+    // Preis von 0. Früher wurde `prices[item] || 0` gerechnet — Artikel ohne
+    // hinterlegten Preis flossen still mit 0 EUR ein, der Gesamtbetrag war
+    // zu niedrig und niemand konnte es sehen.
+    // Beispiel: pillow_cases und spannbetttuch stehen in custom_categories,
+    // aber in KEINEM der defaultPrices-Objekte (weder hier noch in
+    // useLinenAI.ts). Bei Hubert Middelbos ergab das 69 EUR statt des
+    // korrekten Betrags.
+    // Ab jetzt: fehlende Preise werden gesammelt und zurückgemeldet;
+    // greift KEIN einziger Preis, ist estimated_cost null (= "nicht
+    // berechenbar") statt 0 (= "kostenlos").
     let totalCost = 0;
+    const missingPrices: string[] = [];
+    let pricedItemCount = 0;
+
     const itemDetails = Object.entries(orderItems).map(([item, qty]: [string, any]) => {
-      const price = prices[item] || 0;
+      const rawPrice = prices[item];
+      const hasPrice = typeof rawPrice === 'number' && rawPrice > 0;
+
+      if (!hasPrice) {
+        missingPrices.push(item);
+      } else {
+        pricedItemCount++;
+      }
+
+      const price = hasPrice ? rawPrice : 0;
       const itemTotal = qty * price;
       totalCost += itemTotal;
       return {
         item,
         quantity: qty,
         unit_price: price,
-        total_price: itemTotal
+        total_price: itemTotal,
+        price_missing: !hasPrice
       };
     });
+
+    if (missingPrices.length > 0) {
+      console.warn('⚠️ Keine Preise hinterlegt für:', missingPrices.join(', '));
+    }
+
+    // null = kein einziger Artikel hatte einen Preis -> Betrag nicht ermittelbar.
+    // Alle Anzeige-Stellen prüfen bereits auf `typeof === 'number'` bzw. `> 0`
+    // und blenden dann sauber aus (LaundryOrderCard, TeuniOrdersOverview,
+    // BookingOverviewFixed).
+    const estimatedCost = pricedItemCount > 0
+      ? Math.round(totalCost * 100) / 100
+      : null;
 
     const totalItems = Object.values(orderItems).reduce((sum: number, qty: any) => sum + qty, 0);
 
     console.log('✅ Order generated successfully:', {
       booking_id,
       total_items: totalItems,
-      total_cost: totalCost
+      total_cost: totalCost,
+      missing_prices: missingPrices
     });
 
     console.log('🎨 Item variants (colors):', itemVariants);
@@ -219,7 +257,10 @@ serve(async (req) => {
       linen_color: linenColor, // NEU: Haupt-Wäschefarbe für die Bestellung
       item_details: itemDetails,
       total_items: totalItems,
-      estimated_cost: Math.round(totalCost * 100) / 100,
+      estimated_cost: estimatedCost,
+      // Artikel ohne hinterlegten Preis — im Dialog sichtbar machen, damit
+      // klar ist, für welche Positionen bei Teuni noch ein Preis fehlt.
+      missing_prices: missingPrices,
       currency: 'EUR',
       note: 'Bestellung NUR für diese Buchung - Safety Buffer im Inventar bleibt unberührt'
     }), {
