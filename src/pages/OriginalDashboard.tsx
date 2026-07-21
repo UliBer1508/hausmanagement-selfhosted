@@ -461,7 +461,11 @@ const OriginalDashboard = () => {
           status_changed_at: new Date().toISOString(),
           linen_color: orderData.linenColor || null,      // NEU: Hauptfarbe
           item_variants: orderData.itemColors || null,    // NEU: Artikelfarben
-          total_cost: orderData.estimatedCost ?? null,
+          // 0 ist KEIN gültiger Betrag (Artikel wurden ja bestellt). Der reine
+          // `?? null` griff bei 0 nicht — Ergebnis waren Bestellungen mit
+          // total_cost = 0.00, die in allen Karten ohne Betrag erschienen
+          // (2d7247bf Adnan 17.05.2026, e4f8fffb Niels 11.05.2026).
+          total_cost: orderData.estimatedCost ? orderData.estimatedCost : null,
         };
 
         console.log('📝 Update Payload:', updatePayload);
@@ -498,7 +502,8 @@ const OriginalDashboard = () => {
           status: 'offen' as const,
           linen_color: orderData.linenColor || null,      // NEU: Hauptfarbe
           item_variants: orderData.itemColors || null,    // NEU: Artikelfarben
-          total_cost: orderData.estimatedCost ?? null,
+          // 0 ist KEIN gültiger Betrag — siehe Kommentar im Update-Zweig.
+          total_cost: orderData.estimatedCost ? orderData.estimatedCost : null,
         };
 
         console.log('➕ Insert Payload:', insertPayload);
