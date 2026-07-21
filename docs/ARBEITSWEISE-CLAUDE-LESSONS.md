@@ -461,6 +461,78 @@ keine Wäsche, Zeitraum könnte doppelt vergeben werden), nicht die Überschneid
 
 ---
 
+## 8. Lessons aus der Sitzung 21.07.2026 (Portal-Links, Reinigung ohne Buchung)
+
+### 8.1 Der Wächter prüfte den Normalfall und schwieg beim Sonderfall
+
+**Symptom:** Reinigungen ohne Buchung (Generalreinigung, Fensterreinigung)
+standen auf „Geplant", ohne dass der Dienstleister je gefragt wurde, ob der
+Termin passt. Keine Fehlermeldung — der Cron meldete durchgehend Erfolg.
+
+**Ursache:** In `max-cleaning-reminders/index.ts` stand
+
+```javascript
+if (!booking || booking.status !== 'confirmed') continue;
+```
+
+Die Bedingung sollte stornierte Buchungen aussortieren. Sie sortierte aber auch
+jede Reinigung aus, zu der es gar keine Buchung gibt — die Terminfrage entfiel,
+`max_actions` bekam keinen Vorgang, die 24-h-Eskalation lief nie an.
+
+**Die Lehre:** **Eine Prüfung auf „X muss gültig sein" schließt still alle Fälle
+aus, in denen es X gar nicht gibt.** Richtig ist „falls X existiert, muss es
+gültig sein":
+
+```javascript
+const hasBooking = !!task.booking_id;
+if (hasBooking && (!booking || booking.status !== 'confirmed')) continue;
+```
+
+Verwandt mit Abschnitt 7.5: Auch hier meldete das System brav die Fälle, in denen
+alles seinen gewohnten Gang ging, und schwieg bei dem, der Aufmerksamkeit
+gebraucht hätte.
+
+### 8.2 Ein Ersatztext ist keine Antwort auf „gibt es nicht"
+
+Der Wäsche-Hinweis in der Nachricht war mit
+`'Zur Wäsche liegt mir aktuell keine Info vor.'` vorbelegt. Bei einer
+Generalreinigung gibt es **prinzipiell** keine Wäschelieferung — der Satz hätte
+dort einen Mangel suggeriert, wo keiner ist.
+
+**Regel:** Zwischen „Wert fehlt" und „Wert kann es hier nicht geben"
+unterscheiden. Im zweiten Fall den Satz **weglassen**, nicht durch eine
+Ersatzformulierung ersetzen.
+
+### 8.3 Ein Feld nutzen heißt prüfen, ob die Query es lädt
+
+Der neue Nachrichtentext sollte den Anlass aus `service_tasks.notes` ziehen.
+`notes` stand nicht in der `.select`-Liste — `task.notes` wäre stumm `undefined`
+geblieben, ohne Fehler, und die Klammer im Text wäre leer geblieben.
+
+Das ist die bekannte Regel aus `AGENTS.md` („fehlt ein Feld: zuerst die Query
+prüfen"), hier in der Schreibrichtung: **Wer ein Feld neu verwendet, muss es
+auch neu anfordern.**
+
+### 8.4 Testdaten nicht im selben Schritt löschen wie anlegen
+
+Beim Verifizieren wurde die Testreinigung zusammen mit der Anlege-Anweisung
+gelöscht. Der anschließende Testlauf fand nichts, und der Verdacht fiel
+zunächst auf den Code. **Aufräum-SQL erst ausgeben, wenn der Beleg vorliegt.**
+
+### 8.5 Deployment-Domains gehören nicht in Datensätze
+
+Die Portal-Links der Dienstleister stehen in `service_providers.portal_token` als
+vollständige URL. Nach dem Wechsel auf Vercel zeigten sie weiter auf die alten
+Adressen — es gibt keinen Code, der sie ableitet, und keine Prüfung, ob sie
+erreichbar sind.
+
+**Regel für die Zukunft:** Hosting-abhängige Adressen an **einer** Stelle
+konfigurieren (Basis-URL) und den Rest ableiten. Sonst kostet jeder
+Hosting-Wechsel eine stille Nachpflege in Datensätzen, die niemandem auffällt,
+bis ein Dienstleister auf einen toten Link klickt.
+
+---
+
 *Erstellt am 15.06.2026 nach einer fehlerhaften Sitzung zur Vereinheitlichung
 der Übersichtskarten (Buchung/Reinigung/Wäsche). Ablage: Repo-Root neben
 `AGENTS.md`.*
@@ -472,3 +544,7 @@ Meldungen, falsche Fragestellung der Kollisionsprüfung).*
 *Ergänzt am 18.07.2026 um Abschnitt 6 (RLS-Blockade als stiller Leerbefund,
 Datentyp-Vergleich `date`/`timestamptz` im iCal-Sync, Deploy-Pfad der Website,
 Kopplung Website ↔ Hausverwaltung, stille Fehlerbehandlung).*
+
+*Ergänzt am 21.07.2026 um Abschnitt 8 (Gültigkeitsprüfung schließt Nicht-Existenz
+aus, Ersatztext bei prinzipiell fehlenden Werten, neu genutztes Feld in der Query,
+Testdaten-Reihenfolge, Deployment-Domains in Datensätzen).*

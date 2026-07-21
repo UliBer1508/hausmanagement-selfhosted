@@ -277,6 +277,45 @@ abschließen) — beide feuern bei `draft → scheduled`.
 Hook: `useServiceTasks.ts`, `useCleaningAutomationSettings.ts`,
 `useCleaningStatusNotifications.ts`.
 
+### Reinigung OHNE Buchung (seit 21.07.2026)
+
+Nicht jede Reinigung gehört zu einer Buchung. **Generalreinigung am Saisonende,
+Vorbereitung vor Saisonstart und Fensterreinigung** werden ohne `booking_id`
+angelegt — über den Anlege-Dialog oder per SQL. Sie sind gleichwertig zu
+Buchungsreinigungen: Termin, Dienstleister, Stunden, Terminfrage.
+
+| | mit Buchung | ohne Buchung |
+|---|---|---|
+| `booking_id` | gesetzt | `null` |
+| Gastname in der Nachricht | ja | nein |
+| Wäsche-Hinweis | ja | **entfällt** (keine Lieferung) |
+| Anlass | aus der Buchung | aus `service_tasks.notes` |
+| Terminfrage (Cron 07:00) | ja | ja |
+| `max_actions.guest_name` | Gastname | `null` |
+
+**Wichtig:** `notes` wird bei buchungslosen Reinigungen **in die Nachricht an den
+Dienstleister übernommen** (z. B. „Generalreinigung Saisonende"). Keine internen
+Vermerke dort ablegen.
+
+**Kein eigener `service_type`.** Das Enum `service_type` hat nur `cleaning` und
+`laundry`. Fensterreinigung ist fachlich eine Reinigung und wird wie eine
+behandelt — auch abrechnungsseitig (Stundensatz des Dienstleisters). Kommt
+Fensterputzen zu einer Buchungsreinigung dazu, sind das schlicht mehr
+`cleaning_hours` auf demselben Task, keine zweite Aufgabe.
+
+**Dienstleister:** Amela (Standard) und Boris (springt ein, macht die großen
+Fenster). Boris hat **kein Portal** — er wird per WhatsApp/E-Mail erreicht.
+`waiting_for` in `max_actions` kennt ihn trotzdem (`'boris'`), damit
+`MaxActionsPanel.tsx` seinen Namen statt des Rohwerts `provider` zeigt.
+
+**Einschränkung `CleaningManagement.tsx`:** Die Query filtert mit
+`houses!inner(...)` auf `rental_type = 'tourist'`. Reinigungen an
+Langzeitmietobjekten erscheinen im Reinigungs-Tab **nicht**. Bewusst so —
+nur die Ferienhäuser werden gereinigt.
+
+**Ablauf-Definition:** `max_ablaeufe`, `aktion = max_cleaning_reminders`,
+`variante = ohne_buchung`.
+
 ---
 
 ## 10. Modul „Wäsche" (Tab 💧)
