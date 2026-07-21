@@ -256,7 +256,8 @@ serve(async (req) => {
             item_variants: orderData.item_variants,
             linen_color: orderData.linen_color || 'white_striped', // NEU: Haupt-Wäschefarbe aus Regeln
             total_items: orderData.total_items,
-            total_cost: orderData.estimated_cost ?? null,
+            // 0 ist KEIN gültiger Betrag — siehe create-linen-order-for-booking.
+            total_cost: orderData.estimated_cost ? orderData.estimated_cost : null,
             status: 'offen',
             order_source: 'auto_booking_lookahead',
             suggested_at: new Date().toISOString(),
