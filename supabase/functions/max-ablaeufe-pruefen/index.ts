@@ -206,9 +206,18 @@ serve(async (req) => {
     const VORHANDENE_EDGE_FUNCTIONS = await ladeVorhandeneEdgeFunctions();
 
     // ---- 2. Jede Zeile prüfen ----------------------------------------------
+    //
+    // AUSGENOMMEN: die eigene Ergebniszeile (aktion='systempruefung'). Sie
+    // beschreibt keinen Arbeitsablauf, sondern haelt das Ergebnis DIESER Pruefung
+    // fest (siehe Schritt 3c). Wuerde sie mitgeprueft, setzte Schritt 2 ihren
+    // Status auf 'ok' (ihr funktion-Text nennt eine existierende Edge Function) —
+    // Schritt 3c korrigierte ihn kurz darauf wieder. Das Endergebnis waere zwar
+    // richtig, aber die Zaehler ok/fehler zaehlten die Pruefung selbst mit und
+    // meldeten dauerhaft eine Zeile zu viel.
     const { data: zeilen, error } = await supabase
       .from('max_ablaeufe')
-      .select('id, aktion, aktion_label, variante, schritt_nr, funktion, umsetzung');
+      .select('id, aktion, aktion_label, variante, schritt_nr, funktion, umsetzung')
+      .neq('aktion', 'systempruefung');
 
     if (error) throw error;
 
@@ -304,6 +313,108 @@ serve(async (req) => {
       ? []
       : [...VORHANDENE_TOOLS].filter((t) => !genannteTools.has(t));
 
+    // ---- 3b. Trennung schreibend / lesend (NEU 22.07.2026) -------------------
+    //
+    // WARUM DIESE TRENNUNG NOETIG IST:
+    // Am 22.07.2026 zeigte ein Abgleich: 15 der 30 Tools kamen in keinem Ablauf
+    // vor. Die Funktion hatte das laengst berechnet (tools_ohne_ablauf) — nur
+    // stand das Ergebnis ausschliesslich im Log und im JSON-Response. In die
+    // Morgen-Uebersicht wandern nur Zeilen mit geprueft_status='fehler', und die
+    // entstehen allein beim Blick von max_ablaeufe ZUM Code. Die Gegenrichtung
+    // ("gibt es zu diesem Tool einen Ablauf?") sah niemand.
+    //
+    // Es reicht aber nicht, die Liste einfach sichtbar zu machen: Die meisten
+    // dieser Tools sind reine Lesewerkzeuge (search_bookings, get_dashboard_stats
+    // usw.). Fuer sie gibt es zu Recht keinen Ablauf — es gibt keinen Prozess,
+    // nur eine Auskunft. Wuerden sie taeglich gemeldet, entstuende genau der
+    // Dauerfehlalarm, den der Kommentar zu extrahiereBausteine beschreibt: Wer
+    // die Meldung jeden Morgen wegklickt, uebersieht irgendwann die echte.
+    //
+    // Gemeldet wird deshalb nur, was SCHREIBT — also Vorgaenge mit bleibender
+    // Wirkung. Fuer die gilt: kein Ablauf = keine Freigabestufe definiert =
+    // echte Luecke.
+    //
+    // BEWUSST EINE FESTE LISTE, KEINE HEURISTIK:
+    // Ein Test auf Namenspraefixe (get_, search_) trifft daneben —
+    // draft_guest_welcome_email schreibt nichts (nur ein Entwurf im Chat),
+    // check_upcoming_bookings meldet nur. Ein Test auf .insert/.update im Code
+    // trifft ebenfalls daneben: check_kalender_abgleich ruft eine Edge Function,
+    // die ausschliesslich liest, und update_provider_action schreibt ueber den
+    // Helfer updateMaxAction, was ein Textabgleich nicht sieht.
+    //
+    // Diese Liste ist Handarbeit und veraltet damit prinzipiell — genau der
+    // Fehler, den diese Funktion sonst bekaempft. Der Unterschied: Ein neues
+    // schreibendes Tool, das hier fehlt, wird lediglich NICHT gemeldet. Das ist
+    // eine verpasste Warnung, kein Fehlalarm. Bei einem neuen Tool gehoert der
+    // Name hier ergaenzt.
+    const SCHREIBENDE_TOOLS = new Set<string>([
+      'accept_booking_inquiry',
+      'create_cleaning_for_booking',
+      'create_linen_for_booking',
+      'reject_booking_inquiry',
+      'reject_reschedule',
+      'reschedule_cleaning',
+      'reschedule_linen_delivery',
+      'save_knowledge',
+      'send_provider_message',
+      'update_linen_for_booking',
+      'update_provider_action',
+    ]);
+
+    const schreibendOhneAblauf = nichtDefiniert.filter((t) => SCHREIBENDE_TOOLS.has(t));
+    const lesendOhneAblauf = nichtDefiniert.filter((t) => !SCHREIBENDE_TOOLS.has(t));
+
+    // ---- 3c. Befund festhalten, damit er sichtbar wird ----------------------
+    //
+    // Ohne diesen Schritt bliebe der Befund im Log stehen. Die Morgen-Uebersicht
+    // liest max_ablaeufe (geprueft_status='fehler') — dort muss der Eintrag also
+    // landen, um anzukommen.
+    //
+    // Getragen wird er von einer eigenen Zeile mit aktion='systempruefung'. Sie
+    // beschreibt keinen Arbeitsablauf, sondern haelt das Ergebnis der Pruefung
+    // selbst fest. schritt_nr=0 grenzt sie sichtbar von echten Ablaufschritten ab.
+    //
+    // Der Eintrag wird bei JEDEM Lauf aktualisiert: Gibt es keine Luecke mehr,
+    // wechselt der Status zurueck auf 'ok' und die Meldung verschwindet von
+    // selbst aus der Morgen-Uebersicht. Kein Aufraeumen von Hand noetig.
+    try {
+      const luecke = schreibendOhneAblauf.length > 0;
+      const zeile = {
+        aktion: 'systempruefung',
+        aktion_label: 'Selbstpruefung: Tools ohne Ablauf',
+        variante: 'automatik',
+        schritt_nr: 0,
+        akteur: 'system',
+        schritt: 'Prueft, ob es zu jedem schreibenden Werkzeug einen definierten Ablauf gibt',
+        umsetzung: 'umgesetzt',
+        weg: 'system',
+        funktion: 'Edge Function max-ablaeufe-pruefen (Gegenrichtung: Tool -> Ablauf)',
+        notiz: `Lesewerkzeuge ohne Ablauf (unkritisch, ${lesendOhneAblauf.length}): ${lesendOhneAblauf.join(', ') || 'keine'}`,
+        geprueft_am: jetzt,
+        geprueft_status: luecke ? 'fehler' : 'ok',
+        geprueft_befund: luecke
+          ? `${schreibendOhneAblauf.length} schreibende(s) Werkzeug(e) ohne Ablauf-Definition: ${schreibendOhneAblauf.join(', ')}`
+          : 'Jedes schreibende Werkzeug hat einen Ablauf.',
+      };
+
+      const { data: vorhanden } = await supabase
+        .from('max_ablaeufe')
+        .select('id')
+        .eq('aktion', 'systempruefung')
+        .eq('schritt_nr', 0)
+        .maybeSingle();
+
+      if (vorhanden) {
+        await supabase.from('max_ablaeufe').update(zeile).eq('id', vorhanden.id);
+      } else {
+        await supabase.from('max_ablaeufe').insert(zeile);
+      }
+    } catch (e) {
+      // Fehlertolerant: Schlaegt das Festhalten fehl, soll die eigentliche
+      // Pruefung trotzdem ihr Ergebnis zurueckgeben.
+      console.error('[max-ablaeufe-pruefen] Befund konnte nicht gespeichert werden:', e);
+    }
+
     const ergebnis = {
       geprueft_am: jetzt,
       zeilen_gesamt: (zeilen || []).length,
@@ -312,11 +423,16 @@ serve(async (req) => {
       menschliche_schritte: ohneBezug,
       befunde,
       tools_ohne_ablauf: nichtDefiniert,
+      tools_ohne_ablauf_schreibend: schreibendOhneAblauf,
+      tools_ohne_ablauf_lesend: lesendOhneAblauf,
       hinweis:
-        nichtDefiniert.length > 0
-          ? `${nichtDefiniert.length} Tools existieren, kommen aber in keinem Ablauf vor. ` +
-            'Entweder fehlt die Ablauf-Definition, oder das Tool wird nicht gebraucht.'
-          : 'Alle vorhandenen Tools sind einem Ablauf zugeordnet.',
+        schreibendOhneAblauf.length > 0
+          ? `${schreibendOhneAblauf.length} SCHREIBENDE(S) Werkzeug(e) ohne Ablauf-Definition: ` +
+            `${schreibendOhneAblauf.join(', ')}. Das ist eine echte Luecke — fuer diese Vorgaenge ` +
+            'ist keine Freigabestufe definiert. Erscheint in der Morgen-Uebersicht.'
+          : `Alle schreibenden Werkzeuge haben einen Ablauf. ` +
+            `${lesendOhneAblauf.length} Lesewerkzeug(e) ohne Ablauf — das ist in Ordnung ` +
+            '(keine Prozesse, nur Auskuenfte).',
     };
 
     console.log('[max-ablaeufe-pruefen]', JSON.stringify(ergebnis, null, 2));
