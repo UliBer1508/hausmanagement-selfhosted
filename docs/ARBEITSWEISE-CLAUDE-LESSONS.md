@@ -531,6 +531,159 @@ konfigurieren (Basis-URL) und den Rest ableiten. Sonst kostet jeder
 Hosting-Wechsel eine stille Nachpflege in Datensätzen, die niemandem auffällt,
 bis ein Dienstleister auf einen toten Link klickt.
 
+## 9. Lessons aus der Sitzung 22.07.2026 (Notiz-Speicherung, Gemini-Budget, Tools ohne Ablauf)
+
+### 9.1 Ein Direkt-Update ohne Hook sieht aus wie „nicht gespeichert"
+
+Im Boris-Portal ließen sich Notizen scheinbar nicht speichern: Text eingeben,
+speichern, grüner Erfolgshinweis — beim nächsten Öffnen stand wieder der alte
+Text da. Der Verdacht fiel auf RLS, dann auf einen Trigger. Beides falsch.
+
+Der Wert **wurde die ganze Zeit korrekt in die Datenbank geschrieben.**
+`handleNotesUpdate` war der einzige Handler in `CleaningPortal.tsx` ohne
+`await forceRefresh()` — Status, Termin und Personal laufen über `useBookings`
+und aktualisieren dort den lokalen State. Die Notiz umging den Hook und schrieb
+direkt gegen die Tabelle. `combinedEntries` behielt den alten Wert, und
+`CleaningActionTiles` initialisiert sein Textfeld beim Öffnen aus dem Prop.
+
+**Regel:** Wer an einer Tabelle vorbei am Hook schreibt, muss den Refresh selbst
+auslösen. Und: Bei „wird nicht gespeichert" zuerst prüfen, ob es ein
+Anzeige- statt ein Schreibproblem ist — ein SELECT auf den Datensatz kostet
+zehn Sekunden und spart die Suche in der falschen Richtung.
+
+Derselbe Fehler steckte unverändert im Amela-Portal (`amela-clean-hub-selfhosted`),
+weil Boris daraus kopiert wurde. **Doppelgänger-Prinzip: Nach jedem Fund im
+kopierten Portal aktiv im Original nachsehen — und umgekehrt.**
+
+### 9.2 `.select()` gehört an jedes Supabase-UPDATE
+
+`update(...).eq('id', ...)` ohne `.select()` liefert `error === null`, **auch
+wenn null Zeilen betroffen waren** — etwa weil RLS blockiert oder die ID nicht
+existiert. Der Erfolgshinweis im Portal war deshalb keine Aussage über den
+Datenbankzustand, sondern nur darüber, dass die Anfrage angekommen ist.
+
+**Regel:** Jedes schreibende Supabase-Kommando bekommt `.select()` und eine
+Prüfung auf `data.length === 0`. Ohne das meldet ein stiller Fehlschlag Erfolg.
+
+### 9.3 HTTP 429 von Gemini hat zwei völlig verschiedene Ursachen
+
+Max meldete „Zu viele Anfragen. Bitte warte einen Moment." Warten half nicht —
+im Log stand der wahre Grund: `Your prepayment credits are depleted`. Das
+Guthaben war leer, nicht die Rate begrenzt.
+
+Zwei Fehler wirkten zusammen:
+
+1. `useChat.ts` warf bei 429 das geparste `errorData` weg und zeigte pauschal
+   den Warte-Text. Die Ursache kam nie an der Oberfläche an.
+2. Die Edge Function versuchte bei jedem 429 einen Retry nach 2 Sekunden. Bei
+   leerem Guthaben ist der zweite Versuch garantiert ebenfalls 429 — reine
+   Verzögerung plus ein zusätzlicher API-Aufruf.
+
+Beides ist behoben: Die Function unterscheidet über den Meldungstext
+(`credits are depleted`, `quota exceeded`, `resource_exhausted`) und reicht ein
+Feld `reason` mit; das Frontend zeigt die echte Meldung.
+
+**Regel:** Ein HTTP-Status ist eine Kategorie, keine Diagnose. Wo ein Anbieter
+mehrere Fälle unter denselben Code legt, muss der Meldungstext ausgewertet
+werden — und er gehört ungefiltert bis zum Nutzer durchgereicht.
+
+### 9.4 Die Selbstprüfung schaute nur in eine Richtung
+
+`max-ablaeufe-pruefen` fragte seit jeher: „Gibt es den Baustein, den dieser
+Ablauf nennt?" Die Gegenfrage — „Gibt es zu diesem Werkzeug einen Ablauf?" —
+wurde zwar **berechnet** (`tools_ohne_ablauf`), landete aber nur im Log und im
+JSON-Response. In die Morgen-Übersicht gehen ausschließlich Zeilen mit
+`geprueft_status = 'fehler'`.
+
+Der Befund am 22.07.2026: 15 von 30 Werkzeugen kamen in keinem Ablauf vor.
+Darunter `save_knowledge` — Max schreibt damit in `assistant_knowledge`, was zur
+Laufzeit in seinen System-Prompt geladen wird. Er verändert also seine eigene
+Arbeitsgrundlage, und dafür gab es keine SOLL-Definition.
+
+Beim Sichtbarmachen war die Trennung entscheidend: Elf der fünfzehn sind reine
+Lesewerkzeuge (`get_*`, `search_*`), die zu Recht keinen Ablauf haben. Würden
+sie täglich gemeldet, entstünde genau der Dauerfehlalarm, den Abschnitt 7.4
+beschreibt. Gemeldet wird deshalb nur, was **schreibt**.
+
+**Regel:** Eine Prüfung, die etwas berechnet, es aber nicht dorthin bringt, wo
+jemand hinsieht, ist keine Prüfung. Und: Was gemeldet wird, muss handlungsrelevant
+sein — sonst trainiert man sich das Wegklicken an.
+
+Die Liste der schreibenden Werkzeuge ist **Handarbeit** und veraltet damit
+prinzipiell. Bewusst in Kauf genommen, weil beide Automatiken danebenlagen:
+Namenspräfixe (`draft_guest_welcome_email` schreibt nichts) ebenso wie eine
+Code-Analyse auf `.insert`/`.update` (`update_provider_action` schreibt über
+einen Helfer). Ausfallmodus ist eine **verpasste Warnung, kein Fehlalarm** —
+das ist die verträglichere Richtung. Bei neuen Werkzeugen gehört der Name in
+`SCHREIBENDE_TOOLS` ergänzt.
+
+### 9.5 Der Code war providerneutral, nur die Beschreibung nicht
+
+`max_ablaeufe` sprach durchgehend von „Amela": Label „Termin-Check Amela",
+„Absage an Amela", Trigger `notify_amela_on_cleaning_release`. Nach dem Start des
+Boris-Portals lag die Vermutung nahe, dass für ihn ein Ablauf fehlt.
+
+Die Prüfung am Code ergab das Gegenteil. Der `chat-assistant` lädt
+`service_providers` dynamisch, `max-cleaning-reminders` fragt jeden Provider
+einer Reinigung und kennt Boris beim `waiting_for`, und der Trigger arbeitet
+ausschließlich über `NEW.provider_id`. **Es fehlte kein Code — es fehlte die
+Nachführung der Beschreibung.**
+
+Das ist gefährlicher, als es klingt: Wer die SOLL-Definition liest, hält Boris
+für nicht abgedeckt und baut möglicherweise ein zweites Mal, was es schon gibt.
+Das Doppelgänger-Muster eine Ebene höher — nicht doppelter Code, sondern
+doppelte Arbeit.
+
+**Regel:** Bei „X ist nicht abgedeckt" zuerst am Code prüfen, nicht an der
+Dokumentation. Und wenn ein Name historisch geworden ist
+(`notify_amela_on_cleaning_release` gilt längst für alle), die **Kommentare**
+richtigstellen statt umzubenennen — der Name steht in `max_ablaeufe` und in der
+täglichen Prüfung, eine Umbenennung wäre Risiko ohne Gewinn.
+
+### 9.6 Erinnerung mit Quittung: Max erklärte den Mechanismus falsch
+
+Auf „Hinweis zum Kalender ist erledigt" antwortete Max, der Hinweis verschwinde
+automatisch, sobald der Zeitraum in den Portalen geblockt sei. Das ist falsch und
+hätte zu unbegrenztem Warten geführt.
+
+`kalender-abgleich` kann das gar nicht prüfen — iCal-Feeds exportieren nur die
+eigenen Buchungen eines Portals. Die einzige Bedingung ist
+`.is('portale_geprueft_am', null)`. Der Hinweis verschwindet **ausschließlich**
+durch das Häkchen in der Buchungskarte.
+
+**Regel:** Wo ein Ablauf bewusst eine menschliche Quittung verlangt, muss das in
+`max_ablaeufe` **und** in `assistant_knowledge` stehen. Sonst reimt sich Max eine
+plausible Automatik zusammen — und plausibel klingende Falschauskünfte sind
+schlimmer als ein ehrliches „weiß ich nicht".
+
+### 9.7 Wo das Gemini-Budget hingeht
+
+Gemessen am 22.07.2026, pro Chat-Anfrage und **vor** der ersten Antwort:
+
+| Bestandteil | Zeichen | ~Tokens |
+|---|---|---|
+| System-Prompt | 15.723 | ~3.900 |
+| Tool-Definitionen (30 Werkzeuge) | 31.015 | ~7.750 |
+| **Fixkosten je Aufruf** | | **~11.700** |
+
+Dazu der Gesprächsverlauf, der bei jeder Nachricht vollständig mitgeht, und der
+Multiplikator der Tool-Schleife: `maxIterations = 5`, wobei jede Iteration die
+vollen Fixkosten erneut sendet.
+
+Eine Anfrage aus fünf Wörtern kostet damit rund 12.000 Token, bevor Gemini
+anfängt zu arbeiten.
+
+**Ansatzpunkte, falls es einmal nötig wird** (nicht umgesetzt, bewusst notiert):
+Context Caching für die konstanten Teile; Werkzeuge nach `context.page` filtern
+(die Seite wird bereits übertragen, aber nicht genutzt); den System-Prompt von
+historischen Begründungen befreien — die gehören in diese Datei, nicht in einen
+Text, den Gemini bei jedem Aufruf liest.
+
+**Betrieblich:** Der API-Schlüssel gehört in ein Projekt mit sichtbarer
+Abrechnung. Lief er über ein automatisch angelegtes Projekt, taucht der Verbrauch
+in der eigenen Cloud-Console gar nicht auf, und ein leerer Prepay-Topf meldet sich
+erst, wenn Max nicht mehr antwortet.
+
 ---
 
 *Erstellt am 15.06.2026 nach einer fehlerhaften Sitzung zur Vereinheitlichung
@@ -548,3 +701,8 @@ Kopplung Website ↔ Hausverwaltung, stille Fehlerbehandlung).*
 *Ergänzt am 21.07.2026 um Abschnitt 8 (Gültigkeitsprüfung schließt Nicht-Existenz
 aus, Ersatztext bei prinzipiell fehlenden Werten, neu genutztes Feld in der Query,
 Testdaten-Reihenfolge, Deployment-Domains in Datensätzen).*
+
+*Ergaenzt am 22.07.2026 um Abschnitt 9 (Direkt-Update ohne Hook, .select() bei
+UPDATE, zwei Ursachen hinter HTTP 429, Gegenrichtung der Selbstpruefung,
+providerneutraler Code bei Amela-Benennung, Erinnerung mit Quittung,
+Gemini-Kostenstruktur).*

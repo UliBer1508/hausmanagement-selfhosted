@@ -563,7 +563,7 @@ Typen — `booking` (→ `editBookingId`), `cleaning_task` (→ `openTaskId`),
 **Max-Kontrollfenster → Edge Function:**
 | Frontend | ruft | Zweck |
 |---|---|---|
-| `Chat/MaxAblaeufePanel.tsx` | `max-ablaeufe-pruefen` | „Gegen Code prüfen" — gleicht `funktion`-Feld gegen echten Code ab |
+| `Chat/MaxAblaeufePanel.tsx` | `max-ablaeufe-pruefen` | „Gegen Code prüfen" — gleicht `funktion`-Feld gegen echten Code ab. **Seit 22.07.2026 auch die Gegenrichtung:** meldet schreibende Werkzeuge, zu denen kein Ablauf existiert (`tools_ohne_ablauf_schreibend`). Lesewerkzeuge werden bewusst nicht gemeldet — sie brauchen keinen Ablauf, und ein Dauerfehlalarm trainiert das Wegklicken an. |
 | `hooks/useMorningSummary.ts` | `morning-summary` | Tagesübersicht (auch Tool `get_morning_summary`) |
 | `Mail/MailPreviewProvider.tsx` | `send-guest-email` | Gmail-SMTP-Versand aus dem Vorschaufenster |
 
@@ -634,7 +634,7 @@ durch Uli. Er liest Antworten nur auf Nachfrage.
 | Tabelle | Zweck |
 |---|---|
 | `max_actions` | **Protokoll** aller Max-Vorgänge. Felder: `action_type, status, booking_id, guest_name, details, related_task_id, `**`related_linen_order_id`** (NEU 16.07., Wäsche-Bezug — Gegenstück zu `related_task_id`)`, last_step, waiting_for, due_at`. Status: `wartet_uli`, `wartet_provider`, `ueberfaellig`, `abgeschlossen`, `beantwortet`. Angezeigt in `MaxActionsPanel.tsx`. |
-| `max_ablaeufe` | **Soll-Vorgabe / Checkliste** (44 Zeilen). Spalten: `aktion, variante, schritt_nr, akteur, schritt, ergebnis_status, umsetzung, funktion, notiz`. **STEUERT MAX NICHT** — reine Doku, manuell gepflegt. Angezeigt in `MaxAblaeufePanel.tsx`. |
+| `max_ablaeufe` | **Soll-Vorgabe / Checkliste** (73 Zeilen, Stand 22.07.2026). Spalten: `aktion, aktion_label, ausloeser, variante, schritt_nr, akteur, schritt, ergebnis_status, karte, umsetzung, funktion, notiz, weg, geprueft_am, geprueft_status, geprueft_befund`. **STEUERT MAX NICHT** — Soll-Definition, von Hand gepflegt, ABER seit 14.07. taeglich gegen den echten Code geprueft (`max-ablaeufe-pruefen`, Cron 06:00). Angezeigt in `MaxAblaeufePanel.tsx`. Sonderzeile `aktion='systempruefung'`, `schritt_nr=0`: haelt das Ergebnis der Pruefung selbst fest (schreibende Werkzeuge ohne Ablauf) und ist von der Pruefung ausgenommen. |
 | `assistant_knowledge` | Was Max sich dauerhaft merken soll (`save_knowledge`). |
 | `provider_messages` | Nachrichten Max ↔ Amela/Teuni. **`related_task_id` verknüpft mit der Reinigung** (Amela), **`related_linen_order_id` mit der Wäschebestellung** (Teuni, korrekt gesetzt seit 15.07. in `usePortalMessages.ts`) — Kern der geschlossenen Ketten. |
 | `system_settings` | Schlüssel `max_control_settings`, `morning_summary_settings`. |

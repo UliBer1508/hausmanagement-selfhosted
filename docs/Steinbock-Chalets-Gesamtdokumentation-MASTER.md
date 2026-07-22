@@ -178,7 +178,30 @@ das Modell die Namen halluziniert.
 Terminwunsch ablehnt (sendet „Der Termin konnte leider nicht geändert werden.",
 setzt die Reinigung zurück auf `scheduled`).
 
-Aktueller Stand: **27 Werkzeuge**.
+**Neu (16.07.2026):** `draft_guest_welcome_email` — bereitet die Begruessungs-Mail
+als Entwurf vor (Max sendet NIE selbst, Uli sendet aus dem Vorschaufenster).
+
+**Neu (16.07.2026):** `update_provider_action` — setzt einen ueberfaelligen
+Dienstleister-Vorgang auf `abgeschlossen` oder verlaengert die Frist um 24 h
+(Ablauf `provider_keine_antwort`). Findet den Vorgang ueber `guest_name` selbst.
+
+**Neu (18.07.2026):** `check_kalender_abgleich` — stoesst den Portal-Abgleich auf
+Zuruf an ("Stimmt mein Kalender?"). Reine Pruefung, legt nichts an.
+
+**Neu (15.07.2026):** `reschedule_linen_delivery` — Gegenstueck zu
+`reschedule_cleaning` fuer Waeschetermine, Zuordnung ueber
+`related_linen_order_id`.
+
+**Lernen:** `save_knowledge` — speichert dauerhaft in `assistant_knowledge`, was
+Uli Max beigebracht hat. **Nur nach ausdruecklichem „ja".** Der Eintrag wird zur
+Laufzeit in den System-Prompt geladen und wirkt ab dann auf JEDE Antwort — Max
+veraendert damit seine eigene Arbeitsgrundlage. Seit 22.07.2026 als Ablauf in
+`max_ablaeufe` definiert (Variante `standard` = lernen, Variante `pflege` = Uli
+korrigiert im Fenster „Max: Gelerntes Wissen").
+
+Aktueller Stand (22.07.2026): **30 Werkzeuge**. Davon 18 lesend, 12 schreibend.
+Die Aufteilung ist nicht kosmetisch: Die taegliche Selbstpruefung meldet nur
+*schreibende* Werkzeuge, zu denen kein Ablauf existiert (siehe Abschnitt 6).
 
 **Kommunikation:** send_provider_message (schreibt Amela/Teuni; erscheint als
 "Max (Assistent)" lila; Terminfragen direkt, Rest als Entwurf zur Freigabe).
@@ -247,9 +270,20 @@ Bezug, damit die Kette nicht reißt):
 **Wichtig:** Max liest Antworten nur auf Nachfrage, handelt nur nach Freigabe.
 Das autonome "Max überwacht/reagiert selbst" ist bewusst noch NICHT gebaut.
 
-### Automatik 1: max-cleaning-reminders (Amela)
-Eigene Edge Function. Prüft täglich anstehende Reinigungen und fragt Amela, ob der
-Termin passt (inkl. Info, ob Wäsche vor der Reinigung geliefert ist).
+### Automatik 1: max-cleaning-reminders (Reinigungsdienstleister)
+Eigene Edge Function. Prüft täglich anstehende Reinigungen und fragt den
+**zustaendigen Dienstleister**, ob der Termin passt (inkl. Info, ob Wäsche vor der
+Reinigung geliefert ist).
+
+**Providerneutral (klargestellt 22.07.2026):** Die Funktion kennt keine feste
+Provider-ID — massgeblich ist `service_tasks.provider_id`. Seit 21.07.2026 gibt es
+neben Amela auch **Boris** (`cleaning`, eigenes Portal). Beide werden identisch
+behandelt; `waiting_for` wird aus dem Namen abgeleitet (amela/boris/teuni), damit
+`MaxActionsPanel.tsx` es lesbar anzeigt. Auch der DB-Trigger
+`notify_amela_on_cleaning_release` arbeitet ausschliesslich ueber
+`NEW.provider_id` — der Name ist historisch, die Logik gilt fuer alle. Er wurde
+bewusst NICHT umbenannt: Er steht in `max_ablaeufe` und in der taeglichen
+Pruefung, eine Umbenennung waere Risiko ohne Gewinn.
 - Einstellungen in `cleaning_automation_settings`: `max_reminder_enabled`,
   `max_reminder_days_before` (aktuell 3). Einstellungskarte in Reinigungs-Verwaltung.
 - Cron `max-cleaning-reminders-daily` (Job-ID 13, täglich 07:00, dry_run:false).
@@ -426,6 +460,33 @@ sichern jetzt die **Tool-Beschreibungen + Prompt-Regeln**, nicht Zwang.
 **Prüfbar gemacht:** Die Spalte `max_ablaeufe.weg` hält je Schritt fest, WIE er
 läuft (`ki` / `system` / `mensch`). Sichtbar im Panel „Max: Abläufe (Kontrolle)".
 
+### Die taegliche Wahrheitspruefung — und ihre zweite Richtung (22.07.2026)
+
+`max-ablaeufe-pruefen` (Cron `max-ablaeufe-pruefen-daily`, 06:00) liest
+`max_ablaeufe`, zerlegt das Freitextfeld `funktion` und prueft jeden genannten
+Baustein gegen die Wirklichkeit: Tools gegen den echten `chat-assistant`-Code von
+GitHub, Edge Functions gegen den Repo-Ordner, DB-Trigger gegen `pg_trigger`.
+Keine Handlisten — die veralten genau so, wie es die Pruefung verhindern soll.
+Befunde landen in `geprueft_status` und erscheinen als Systemfehler ganz oben in
+der Morgen-Uebersicht.
+
+**Ergaenzt am 22.07.2026 um die Gegenrichtung.** Bis dahin fragte die Pruefung
+nur: „Gibt es den Baustein, den dieser Ablauf nennt?" Die Umkehrung — „Gibt es zu
+diesem Werkzeug einen Ablauf?" — wurde zwar berechnet, landete aber nur im Log.
+Der Befund beim ersten bewussten Hinsehen: 15 von 30 Werkzeugen kamen in keinem
+Ablauf vor, darunter `save_knowledge`.
+
+Gemeldet wird bewusst nur, was **schreibt**. Elf der fuenfzehn waren reine
+Lesewerkzeuge, die zu Recht keinen Ablauf haben — wuerden sie taeglich erscheinen,
+entstuende ein Dauerfehlalarm, und wer den wegklickt, uebersieht irgendwann den
+echten. Die Liste `SCHREIBENDE_TOOLS` in der Edge Function ist Handarbeit;
+**bei jedem neuen schreibenden Werkzeug gehoert der Name dort ergaenzt.**
+
+Das Ergebnis wird in einer eigenen Zeile `aktion='systempruefung'`,
+`schritt_nr=0` festgehalten, damit es die Morgen-Uebersicht erreicht. Die Zeile
+schliesst sich von der eigenen Pruefung aus und heilt sich selbst: Ist die Luecke
+geschlossen, wechselt der Status zurueck auf `ok` und die Meldung verschwindet.
+
 ### Deploy-Wege
 - **Edge Functions:** `supabase functions deploy <name> --project-ref usblrulkcgucxtkhugck`
 - **Migrationen:** wegen Lovable-Historie-Desync NICHT `db push`, sondern SQL direkt
@@ -583,3 +644,19 @@ in keinem Dokument standen**: `trg_close_max_action_on_linen_confirmed` und
 - **Reinigung neu = draft**, Uli setzt auf geplant. **Wäsche neu = offen**, Uli setzt
   auf ausstehend. Max meldet den Status immer ehrlich.
 - **Lovable wird nicht mehr genutzt.** Code-Änderungen über GitHub-Editor oder lokal.
+- **Reinigungsablaeufe sind providerneutral** (22.07.2026). Nicht „Amela", sondern
+  „der zustaendige Reinigungsdienstleister" — Zuordnung ueber
+  `service_tasks.provider_id`. Boris ist damit ohne Code-Aenderung abgedeckt.
+- **Max speichert Wissen nur nach ausdruecklichem „ja".** `save_knowledge` schreibt
+  in `assistant_knowledge`, was zur Laufzeit in den System-Prompt geht. Uli
+  korrigiert im Fenster „Max: Gelerntes Wissen"; `is_active=false` wirkt sofort.
+- **Kalender-Hinweise zu Direktbuchungen verschwinden NUR durch das Haekchen** in
+  der Buchungskarte (`bookings.portale_geprueft_am`). Es gibt keine Automatik —
+  iCal-Feeds exportieren nur die eigenen Buchungen eines Portals, ein Abgleich
+  „ist der Zeitraum dort geblockt?" ist prinzipiell unmoeglich. Erinnerung mit
+  Quittung, bewusst so entschieden.
+- **Gemini-Schluessel gehoert in ein Projekt mit sichtbarer Abrechnung.** Laeuft er
+  ueber ein automatisch angelegtes Projekt, taucht der Verbrauch in der eigenen
+  Cloud-Console nicht auf und ein leeres Prepay-Guthaben meldet sich erst, wenn
+  Max nicht mehr antwortet. Fixkosten je Anfrage: ~11.700 Token, bevor Gemini
+  ueberhaupt anfaengt (System-Prompt ~3.900 + Werkzeug-Definitionen ~7.750).
