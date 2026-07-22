@@ -809,6 +809,39 @@ Basis: `use-toast`, `use-mobile`.
 
 ---
 
+## 14b. Bekannte Muster aus der Kurzreview 22.07.2026 (Fable 5, gesamtes Repo)
+
+> Drei Strukturbefunde — keine akuten Fehler. Regel fuer alle drei: **beim
+> naechsten Anfassen einer betroffenen Stelle mitkorrigieren**, nicht als
+> eigenes Grossprojekt. Ein 89-Stellen-Sammel-Diff waere reines Regressionsrisiko.
+
+**(1) 89 Supabase-UPDATEs ohne `.select()`** — verteilt ueber `src/`. Jede dieser
+Stellen meldet Erfolg, auch wenn null Zeilen geaendert wurden (RLS, falsche ID).
+Der Notiz-Bug vom 21./22.07. (Boris-/Amela-Portal) war kein Einzelfall, sondern
+dieses Muster. Fuer neuen Code gilt Lesson 9.2 verbindlich: `.select()` plus
+Pruefung auf `data.length === 0` an jedem schreibenden Kommando.
+
+**(2) 13 Komponenten schreiben direkt auf `bookings`, vorbei an `useBookings`** —
+die strukturelle Wurzel des Refresh-Problems: Wer am Hook vorbei schreibt, muss
+selbst an `forceRefresh()` denken, und 13 Stellen sind 13 Gelegenheiten, das zu
+vergessen (Lesson 9.1). Bei Aenderungen an einer dieser Komponenten pruefen, ob
+der Zugriff in den Hook wandern kann.
+
+**(3) `CreateBookingForm.tsx`: 1.957 Zeilen, 21 useState** — groesste Komponente
+im Repo. Funktioniert, aber jede Aenderung dort ist teurer als noetig, weil
+Wechselwirkungen zwischen 21 State-Variablen kaum ueberschaubar sind. Kandidat
+fuer eine Aufteilung, wenn dort ohnehin etwas ansteht — nicht vorher.
+
+**Positivbefunde derselben Review** (damit sie nicht erneut geprueft werden):
+Stripe-Webhook verifiziert Signaturen korrekt; `send-guest-email` laeuft mit
+JWT-Pruefung (steht bewusst NICHT in `config.toml`); Realtime-Channels werden
+aufgeraeumt (12 `channel()` / 13 `removeChannel`); keine echten Secrets im Code —
+der Fund in `src/integrations/externalLaundry/client.ts` ist ein anon-Key des
+FREMDEN Waesche-Oberpinzgau-Projekts (fuer Clients gedacht, Abbau laut Kommentar
+geplant, verbleibender Zweck: Artikel-Katalog im ExternalArticleMappingDialog).
+
+---
+
 ## 15. Pflege dieses Index (Pflicht, Teil jeder Änderung)
 
 - Neue Komponente / Tab / Hook / Kette → passenden Abschnitt **im selben
