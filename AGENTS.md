@@ -44,6 +44,17 @@ Session-Länge) und gilt zusätzlich für Claude. Sie ist verbindlich.
 - Supabase-Client aus `@/integrations/supabase/client`.
   `integrations/supabase/types.ts` NIE von Hand editieren (generiert).
 - Im `.select` nur nötige, aber ALLE von der UI angezeigten Felder laden.
+- **Schreibende Supabase-Kommandos IMMER mit `.select()`** und Prüfung auf
+  `data.length === 0`. Ohne `.select()` liefert ein `update`/`delete` auch dann
+  `error === null`, wenn null Zeilen betroffen waren (RLS, falsche ID) — der
+  Nutzer bekäme eine Erfolgsmeldung für einen stillen Fehlschlag. Review
+  22.07.2026: 89 solcher Stellen im Repo; für neuen Code ist die Regel bindend.
+- **Schreibzugriffe auf `bookings` über `useBookings`**, nicht direkt auf die
+  Tabelle. Der Hook aktualisiert den lokalen State (`forceRefresh()`); wer daran
+  vorbei schreibt, muss das selbst tun — sonst wird gespeichert, aber die alte
+  Anzeige bleibt stehen und es sieht aus wie ein Speicherfehler (Lessons 9.1).
+  Lesezugriffe sind unkritisch. Fehlt eine passende Schreibfunktion im Hook:
+  dort ergänzen, nicht in der Komponente umgehen.
 - Styling: Tailwind + shadcn/ui; Klassen mit `cn()` aus `@/lib/utils`;
   `components/ui/*` nur verwenden, nicht umbauen.
 - Nutzer-Feedback über `useToast` (Deutsch; Fehler: `variant: "destructive"`);
