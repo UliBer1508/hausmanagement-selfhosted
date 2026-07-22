@@ -85,11 +85,21 @@ const WEG_STYLE: Record<string, string> = {
   mensch: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
 };
 
+// Farben je Akteur. Unbekannte Werte fallen auf Grau zurueck (siehe ?? unten),
+// die Anzeige bricht also nie — sie wird nur unspezifisch.
+//
+// 'provider' (22.07.2026): Die Reinigungsablaeufe sind providerneutral
+// beschrieben, seit Boris dazugekommen ist. Wo frueher fest 'amela' stand, steht
+// jetzt 'provider' — denn der Code arbeitet ueber service_tasks.provider_id und
+// kennt keine feste Zuordnung. Amela, Boris und Teuni bleiben zusaetzlich
+// gelistet, weil sie an einzelnen Stellen noch namentlich vorkommen.
 const AKTEUR_STYLE: Record<string, string> = {
   uli: 'bg-primary/10 text-primary',
   max: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200',
   system: 'bg-muted text-muted-foreground',
+  provider: 'bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200',
   amela: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200',
+  boris: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-200',
   teuni: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
   gast: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
 };
