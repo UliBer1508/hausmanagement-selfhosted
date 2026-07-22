@@ -1,55 +1,7 @@
-# AGENTS.md — Arbeitsanweisung für KI-Agenten
+# AGENTS.md — Arbeitsanweisung für KI-Agenten (Lovable, Claude)
 
-Diese Datei ist verbindlich und wird von KI-Agenten im Repo-Root automatisch
-gelesen.
-
----
-
-## ⚠️ ZUERST: Die Soll-Definition steht in der DATENBANK, nicht im Repo
-
-Bei **allem, was Max betrifft** (Reinigung, Wäsche, Buchungsanfragen,
-Provider-Kommunikation) gilt: Die verbindliche Ablauf-Definition liegt in der
-Tabelle **`max_ablaeufe`** — *nicht* im Repo, *nicht* im Code.
-
-**Vor jeder Arbeit an Max abfragen:**
-```sql
-select aktion, aktion_label, ausloeser, variante, schritt_nr,
-       akteur, schritt, ergebnis_status, karte, funktion, umsetzung, notiz
-from public.max_ablaeufe
-order by aktion, variante, schritt_nr;
-
-select term, meaning, category from public.assistant_knowledge where is_active;
-```
-
-Sie definiert je Fall: **Schritt → Akteur (uli/max/amela/teuni/system) → Funktion
-→ Ergebnis-Status**. Wer sie nicht liest, baut an der Definition vorbei.
-
-> **Am 13.07.2026 wurde genau dieser Fehler zweimal gemacht.** Ein geplanter Umbau
-> des Reschedule-Ablaufs musste verworfen werden, weil er der Definition
-> widersprach: Er hätte eine Chat-Rückfrage eingebaut, die dort gar nicht
-> vorgesehen ist — **`draft` IST bereits die Freigabestufe**. Die Änderung ist
-> folgenlos, bis Uli in der Karte auf „Geplant" setzt.
-
----
-
-## ⚠️ Und: ALLES läuft über den KI-Weg (seit 17.07.2026)
-
-`chat-assistant/serve()` hat **nur noch einen Weg**: den **Gemini-/KI-Weg** mit den
-Tools (mode AUTO). Gemini interpretiert die Anfrage, kennt den Verlauf, wählt die
-Funktion (siehe `max_ablaeufe`) und ruft sie auf; fehlt Info, fragt es nach.
-
-**Historie:** Bis 17.07.2026 gab es zusätzlich **deterministische Regex-Pfade** für
-Begrüßungs-E-Mail und Reschedule, die Gemini umgingen. Sie verletzten das Prinzip
-„immer der KI-Weg" (isolierte Satz-Interpretation ohne Verlauf → verschluckte Wörter,
-erfundene Gäste). Am 17.07. **ersatzlos entfernt** (inkl. Helfer und `mode ANY`).
-
-**Folge für Änderungen:** E-Mail und Reschedule laufen jetzt über die **Tools** —
-eine Änderung an der Tool-Beschreibung ODER am System-Prompt wirkt direkt. Die
-Spalte `max_ablaeufe.weg` (`ki`/`system`/`mensch`) hält je Schritt fest, wie er
-läuft, und macht das Prinzip prüfbar.
-Siehe `docs/chat-assistant-aenderungen.md`.
-
----
+Diese Datei wird vom Lovable-Agenten immer gelesen (unabhängig von der
+Session-Länge) und gilt zusätzlich für Claude. Sie ist verbindlich.
 
 ## Vor JEDER Code-Änderung
 0. `docs/ARBEITSWEISE-CLAUDE-LESSONS.md` lesen. Dort stehen die Fehler, die schon
@@ -61,8 +13,6 @@ Siehe `docs/chat-assistant-aenderungen.md`.
 3. Zieldatei ganz lesen, bevor eine Zeile geändert wird.
 4. Fehlt ein Feld in der UI: zuerst die Supabase-Query bzw. die Props prüfen,
    dann erst die Anzeige. Ein fehlendes Feld ist meist ein Query-Problem.
-5. **„deployt" ist nicht „geprüft".** Kein Häkchen ohne beobachtetes Verhalten in
-   der laufenden App.
 
 ## Architektur-Kernfakt
 - KEIN Seiten-Routing. Alles hängt an Tabs in `src/pages/OriginalDashboard.tsx`
@@ -73,9 +23,7 @@ Siehe `docs/chat-assistant-aenderungen.md`.
   Provider-Antworten fortschreiben). Nachzulesen in `supabase/SQL/`. Wer nur den
   TypeScript-Code liest, übersieht die Hälfte der Wirkung.
 
-## Häufigste Fehlerquelle: Doppelgänger — auf DREI Ebenen
-
-**1. Komponenten**
+## Häufigste Fehlerquelle: Doppelgänger-Komponenten
 - "Reinigungskarte" existiert dreimal: `Cleaning/CleaningManagement.tsx`
   (breit, inline) | `Bookings/ServiceTaskCard.tsx` (schmal, verknüpfte Ansicht)
   | `Operations/CleaningsCard.tsx` (Übersichtskachel).
@@ -84,18 +32,6 @@ Siehe `docs/chat-assistant-aenderungen.md`.
   ist nur die Übersichtskachel.
 - `Bookings/ConnectedBookingView.tsx` hat EIGENE Supabase-Queries -> Felder dort
   separat laden, auch wenn sie woanders schon geladen werden.
-
-**2. Funktionen mit gleichem Muster**
-`create_linen_for_booking` und `update_linen_for_booking` hatten denselben Bug —
-gefixt wurde nur eine, und die Doku meldete „erledigt". Wer eine Stelle repariert,
-muss **aktiv nach der Zwillingsstelle suchen** (`grep` nach demselben Aufruf,
-derselben Bedingung).
-
-**3. AUFRUFER (13.07.2026 teuer gelernt)**
-`executeRescheduleCleaning` wurde um `logMaxAction` ergänzt — **obwohl die beiden
-deterministischen Pfade, die sie aufrufen, bereits selbst loggten**. Folge: zwei
-`max_actions`-Einträge pro Verschiebung, der Vorgang erschien doppelt.
-**Vor dem Ändern einer Funktion immer prüfen, WER sie aufruft und was der schon tut.**
 
 ## Kernregeln
 - Minimal-invasiv ändern; keine zweite, fast gleiche Komponente bauen, wenn eine
@@ -108,6 +44,17 @@ deterministischen Pfade, die sie aufrufen, bereits selbst loggten**. Folge: zwei
 - Supabase-Client aus `@/integrations/supabase/client`.
   `integrations/supabase/types.ts` NIE von Hand editieren (generiert).
 - Im `.select` nur nötige, aber ALLE von der UI angezeigten Felder laden.
+- **Schreibende Supabase-Kommandos IMMER mit `.select()`** und Prüfung auf
+  `data.length === 0`. Ohne `.select()` liefert ein `update`/`delete` auch dann
+  `error === null`, wenn null Zeilen betroffen waren (RLS, falsche ID) — der
+  Nutzer bekäme eine Erfolgsmeldung für einen stillen Fehlschlag. Review
+  22.07.2026: 89 solcher Stellen im Repo; für neuen Code ist die Regel bindend.
+- **Schreibzugriffe auf `bookings` über `useBookings`**, nicht direkt auf die
+  Tabelle. Der Hook aktualisiert den lokalen State (`forceRefresh()`); wer daran
+  vorbei schreibt, muss das selbst tun — sonst wird gespeichert, aber die alte
+  Anzeige bleibt stehen und es sieht aus wie ein Speicherfehler (Lessons 9.1).
+  Lesezugriffe sind unkritisch. Fehlt eine passende Schreibfunktion im Hook:
+  dort ergänzen, nicht in der Komponente umgehen.
 - Styling: Tailwind + shadcn/ui; Klassen mit `cn()` aus `@/lib/utils`;
   `components/ui/*` nur verwenden, nicht umbauen.
 - Nutzer-Feedback über `useToast` (Deutsch; Fehler: `variant: "destructive"`);
@@ -124,15 +71,10 @@ deterministischen Pfade, die sie aufrufen, bereits selbst loggten**. Folge: zwei
 - Englische UI-Texte. Tiefe relative Importe. Doppel-Komponenten.
 - Großflächiges Reformatieren fremder Zeilen "nebenbei".
 - Abschließen ohne Build-Check und ohne Index-Pflege.
-- Aus Screenshots schließen — an der Quelle (API/DB) nachsehen.
-  `raw.githubusercontent.com` liefert veraltete Cache-Stände; die GitHub-API ist
-  verlässlich.
 
 ## Ausführliche Referenzen im Repo
 - `docs/CODE-INDEX.md` — vollständige Landkarte des Codes
 - `docs/CODING-GUIDE.md` — vollständiger Coding-Standard
 - `docs/Steinbock-Chalets-Gesamtdokumentation-MASTER.md` — Architektur-/System-Doku
 - `docs/ARBEITSWEISE-CLAUDE-LESSONS.md` — Lehren aus fehlgelaufenen Sitzungen (PFLICHT)
-- `docs/Prozess-Reinigung-Terminaenderung.md` — der abgestimmte Reschedule-Ablauf
-- `docs/chat-assistant-aenderungen.md` — die deterministischen Pfade
 - `supabase/SQL/README.md` — die DB-Trigger, die Max' Kommunikationskette steuern

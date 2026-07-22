@@ -82,6 +82,27 @@ sich nahtlos einfügt.
 - Supabase-Client **immer** aus `@/integrations/supabase/client`.
 - In `.select('...')` **nur** Felder anfordern, die gebraucht werden — aber
   **alle**, die die UI anzeigt (fehlende Felder = leere Karten).
+- **Schreibende Kommandos (`update`/`delete`/`insert`) IMMER mit `.select()`**
+  abschliessen und auf `data.length === 0` pruefen. Ohne `.select()` meldet
+  Supabase `error === null`, auch wenn **null Zeilen** betroffen waren (RLS
+  blockiert, ID existiert nicht) — die Oberflaeche bestaetigt dann einen Erfolg,
+  den es nicht gab. Review 22.07.2026: 89 Fundstellen im Bestand; fuer neuen
+  Code bindend, Altstellen beim naechsten Anfassen mitziehen.
+- **Schreibzugriffe auf `bookings` laufen ueber `useBookings`**, nicht direkt auf
+  die Tabelle. Der Hook aktualisiert den lokalen State (`forceRefresh()`). Wer
+  daran vorbei schreibt, muss den Refresh selbst ausloesen — sonst steht der
+  Wert in der DB, die Anzeige zeigt aber weiter den alten, und es sieht aus wie
+  ein Speicherfehler (genau der Notiz-Bug vom 21./22.07., Lessons 9.1).
+  Lesezugriffe sind unkritisch. Fehlt eine Schreibfunktion im Hook: **dort
+  ergaenzen**, nicht in der Komponente umgehen.
+- **Faustregel Komponentengroesse:** Ueber ~800 Zeilen oder mehr als ~10
+  `useState` wird eine Komponente schwer ueberschaubar. Kein hartes Limit und
+  kein Grund fuer eine Aufraeumaktion auf Verdacht — aber wenn ohnehin an so
+  einer Datei gearbeitet wird, zuerst zusammengehoerigen State buendeln
+  (`useReducer` / State-Objekt), dann reine Anzeigebloecke als Unterkomponenten
+  herausloesen. **Nie Struktur und Verhalten im selben Schritt aendern.**
+  Groesster Fall im Repo: `Bookings/CreateBookingForm.tsx` (1.957 Zeilen,
+  21 `useState`).
 
 ### B4. Styling
 - **Tailwind + shadcn/ui.** Keine eigenen CSS-Dateien pro Komponente.
@@ -153,6 +174,8 @@ Wäsche: Buchungsinfos auf LaundryOrderCard ergänzt
 
 - ❌ Zweite, fast gleiche Komponente bauen, statt die bestehende zu erweitern.
 - ❌ Felder in der Karte anzeigen, ohne sie in der Query zu laden (oder umgekehrt).
+- ❌ `update`/`delete` ohne `.select()` — meldet Erfolg auch bei null Zeilen.
+- ❌ Direkt auf `bookings` schreiben, statt `useBookings` zu nutzen (kein Refresh).
 - ❌ Tiefe relative Importe (`../../../`) statt `@/`-Alias.
 - ❌ Secrets/Service-Keys im Frontend.
 - ❌ `integrations/supabase/types.ts` händisch ändern.
