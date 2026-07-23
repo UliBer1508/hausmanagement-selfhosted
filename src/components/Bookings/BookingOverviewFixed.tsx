@@ -234,7 +234,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
     queryFn: async () => {
       const { data, error } = await supabase
         .from('laundry_invoices')
-        .select('id, bruttobetrag, status, rechnungsdatum');
+        .select('id, bruttobetrag, status, rechnungsdatum, rechnungsnummer, bezahlt_am');
       if (error) throw error;
       return data;
     },
@@ -403,18 +403,52 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
     return { total, paid };
   }, [serviceTasks, selectedYear, cardHouseFilter]);
 
-  // Wäschekosten für gewähltes Jahr (geschätzt aus linen_orders.total_cost)
+  // Wäschekosten für gewähltes Jahr.
+  // total  = Schätzung aus linen_orders.total_cost (Stückpreise)
+  // paid   = tatsächlich bezahlte Rechnungsbeträge aus laundry_invoices (status='bezahlt')
+  // billed = bereits berechnet (alle Rechnungen ausser storniert)
+  // Hinweis: Rechnungen tragen keine house_id -> bei Hausfilter sind sie nicht
+  // zuordenbar und werden daher nur im Modus "Gesamt" angezeigt.
   const laundryCostsForYear = useMemo(() => {
-    if (!linenOrders) return { total: 0 };
-    const yearOrders = linenOrders.filter((o: any) =>
+    const yearOrders = (linenOrders || []).filter((o: any) =>
       o.delivery_date &&
       new Date(o.delivery_date).getFullYear() === selectedYear &&
       typeof o.total_cost === 'number' &&
+      o.status !== 'cancelled' &&
       (cardHouseFilter === 'all' || o.house_id === cardHouseFilter)
     );
     const total = yearOrders.reduce((sum: number, o: any) => sum + (o.total_cost || 0), 0);
-    return { total };
-  }, [linenOrders, selectedYear, cardHouseFilter]);
+
+    // Rechnungen sind nicht nach Haus filterbar -> nur bei "Gesamt" auswerten
+    const invoicesApplicable = cardHouseFilter === 'all';
+    // ENTWURF-Platzhalter (Nummer 'ENTWURF%' UND Betrag 0) sind KEINE Rechnungen
+    // und muessen aus jeder Geldauswertung raus. Siehe MASTER-Doku,
+    // Abschnitt "Waeschekosten: Schaetzung vs. echte Rechnung".
+    const isDraft = (r: any) =>
+      r.rechnungsnummer?.startsWith('ENTWURF') && (r.bruttobetrag || 0) === 0;
+
+    // Stichtag ist das ZAHLUNGSdatum, nicht das Rechnungsdatum: Teuni-Rechnungen
+    // aus dem Vorjahr werden regelmaessig erst im Folgejahr bezahlt (2026:
+    // 10 von 14 Rechnungen trugen Rechnungsdatum 2025). Nach rechnungsdatum
+    // gefiltert wuerde der bezahlte Betrag stark unterschaetzt.
+    const paid = invoicesApplicable
+      ? (laundryInvoices || [])
+          .filter((r: any) =>
+            r.status === 'bezahlt' &&
+            r.bezahlt_am &&
+            new Date(r.bezahlt_am).getFullYear() === selectedYear &&
+            !isDraft(r)
+          )
+          .reduce((sum: number, r: any) => sum + (r.bruttobetrag || 0), 0)
+      : 0;
+
+    // Differenz Kalkulation minus Zahlungen. Kann NEGATIV werden, wenn im Jahr
+    // mehr bezahlt als kalkuliert wurde (z.B. Nachzuegler aus dem Vorjahr).
+    // Nicht auf 0 klemmen - die Ueberzahlung ist die interessante Information.
+    const outstanding = total - paid;
+
+    return { total, paid, outstanding, invoicesApplicable };
+  }, [linenOrders, laundryInvoices, selectedYear, cardHouseFilter]);
 
   const yearStats = {
     total: yearFilteredBookings.length,
@@ -617,9 +651,30 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
               {laundryCostsForYear.total.toLocaleString('de-DE')} EUR
             </div>
             <p className="text-xs text-muted-foreground">Wäschekosten {selectedYear} (geschätzt)</p>
-            <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
-              geschätzt aus Stückpreisen
-            </div>
+            {laundryCostsForYear.invoicesApplicable ? (
+              <div className="mt-2 pt-2 border-t space-y-1 text-xs">
+                <p className="text-green-600 flex justify-between">
+                  <span>✅ Bezahlt:</span>
+                  <span className="font-medium">{laundryCostsForYear.paid.toLocaleString('de-DE')} EUR</span>
+                </p>
+                {laundryCostsForYear.outstanding >= 0 ? (
+                  <p className="text-orange-600 flex justify-between">
+                    <span>⚠️ Voraussichtlich noch:</span>
+                    <span className="font-medium">{laundryCostsForYear.outstanding.toLocaleString('de-DE')} EUR</span>
+                  </p>
+                ) : (
+                  <p className="text-blue-600 flex justify-between">
+                    <span>ℹ️ Über Kalkulation:</span>
+                    <span className="font-medium">{Math.abs(laundryCostsForYear.outstanding).toLocaleString('de-DE')} EUR</span>
+                  </p>
+                )}
+                <p className="text-muted-foreground pt-1">Zahlungen {selectedYear} · Rest kalkuliert</p>
+              </div>
+            ) : (
+              <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                geschätzt aus Stückpreisen · Rechnungsbeträge nur bei „Gesamt"
+              </div>
+            )}
           </CardContent>
         </Card>
 
