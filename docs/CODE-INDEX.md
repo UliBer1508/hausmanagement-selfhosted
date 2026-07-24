@@ -403,8 +403,42 @@ Externes Portal: `integrations/externalLaundry/client.ts`.
 - Aufträge: `LaundryOrdersOverview.tsx`, `TeuniOrdersOverview.tsx`
 - Rechnungen: `LaundryInvoicesList.tsx`, `CreateInvoiceDialog.tsx`,
   `EditInvoiceDialog.tsx`, `InvoiceDetailsDialog.tsx`, `MergeInvoicesDialog.tsx`,
-  `AssignOrdersToInvoiceDialog.tsx`
+  `AssignOrdersToInvoiceDialog.tsx`, `ImportInvoicePdfDialog.tsx`
 Hooks: `useProviderMessages`, `useProviderMessageNotifications`, `useLaundryInvoices`.
+
+### PDF-Import von Teuni-Rechnungen (24.07.2026)
+
+`ImportInvoicePdfDialog.tsx` (Knopf „PDF einlesen" in `LaundryInvoicesList.tsx`)
+→ Edge Function `supabase/functions/import-teuni-invoice/index.ts`.
+
+Ablauf: PDF wählen → Browser wandelt in base64 → Edge Function liest Kopfdaten
+und Positionen, prüft die Rechnung **gegen sich selbst** (Menge × Preis =
+Zeilensumme, Summe der Zeilen = Gesamtbetrag) und die Preise gegen
+`ai_linen_settings.prices` → Vorschau mit Warnungen → Anlegen erst nach
+Freigabe durch den Menschen.
+
+**Die Edge Function schreibt NICHTS.** Bei Geld soll keine automatische
+Erkennung einen Betrag setzen, den niemand angesehen hat (gleiches Prinzip wie
+`draft` bei Reinigungsterminen).
+
+Wichtige Randbedingungen — alle am 24.07.2026 verifiziert:
+- **Keine Hausauswahl.** Teuni stellt Sammelrechnungen über beide Ferienhäuser;
+  eine Rechnung gehört zu keinem einzelnen Haus. Die Preisliste holt die
+  Funktion selbst über `rental_type = 'tourist'`. Langzeitvermietung hat keinen
+  Wäscheservice.
+- **Kein `pdfjs-dist`.** Die Bibliothek zieht über esm.sh eine native
+  Canvas-Abhängigkeit nach, die Deno nicht auflösen kann → Deploy scheitert mit
+  HTTP 400. Die Textextraktion ist deshalb **eigenimplementiert** (Contentstream,
+  Tj/TJ, WinAnsi, cm/Tm/Td-Matrizen), getestet gegen sechs Rechnungen aus 2025
+  und 2026.
+- **`bezahlt_am` wird nicht gelesen.** Teuni schreibt den Zahlvermerk als
+  *Grafik* ins PDF, nicht in den Textlayer. Das Markieren als bezahlt bleibt
+  manuell über die Aktionen-Spalte.
+- **Artikelzuordnung ist Daten, kein Code.** `ARTIKEL_MAP` im Kopf der Edge
+  Function bildet Teunis Kürzel auf die Felder in `ai_linen_settings.prices` ab
+  (MW3→bedding, MWST→sauna_towels, MWHT→small_towels, MWBVL→bath_mats,
+  MWBT→large_towels). **Unbekannte Kürzel werden gemeldet, nicht übersprungen** —
+  Teuni baut ihr Geschäft auf und ändert Artikel und Preise über die Zeit.
 
 ---
 
@@ -783,7 +817,7 @@ Basis: `use-toast`, `use-mobile`.
 - Externes Wäsche-Portal: `integrations/externalLaundry/client.ts`
 - Edge Functions / Migrationen / RPCs: Ordner `supabase/` im Repo-Root
 
-**Edge Functions (33, Stand 12.07.2026)** — die wichtigsten:
+**Edge Functions (34, Stand 24.07.2026)** — die wichtigsten:
 | Function | Zweck |
 |---|---|
 | `chat-assistant` | **Max' Gehirn** (Gemini 2.5 Flash, 27 Werkzeuge) |
@@ -795,6 +829,7 @@ Basis: `use-toast`, `use-mobile`.
 | `create-linen-order-for-booking` | Wäschebestellung anlegen (Status `offen`) |
 | `generate-booking-linen-order` | **Mengen + Preise berechnen** (aus `linen_rules` + `ai_linen_settings`) |
 | `auto-create-linen-orders` | Wäsche-Batch-Automatik (Cron 06:00) |
+| `import-teuni-invoice` | **Teuni-Rechnungs-PDF lesen und prüfen** — NEU 24.07. Gegenstück zu `generate-booking-linen-order`: dort wird kalkuliert, hier gegen die echte Rechnung geprüft. Schreibt nichts. |
 | `send-guest-email` | Gmail-SMTP-Versand (auch für Morgen-E-Mail) |
 | `create-payment-link`, `stripe-webhook` | Zahlungen |
 | `pricing-engine`, `daily-pricing`, `scrape-competitor-prices` | Preise |
