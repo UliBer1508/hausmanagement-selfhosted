@@ -96,6 +96,76 @@ electricity_fee/linen_fee je flat|per_person + vat_percentage).
   (2) **Wäsche Oberpinzgau** hat eigene externe DB, braucht manuellen Sync
   (`external_bestellnummer` gesetzt = synchronisiert).
 
+### Wäschekosten: Schätzung vs. echte Rechnung (23.07.2026)
+
+Es gibt **zwei völlig getrennte Geldgrößen** für Wäsche. Sie zu verwechseln ist
+die häufigste Fehlerquelle bei allen Kosten-Auswertungen.
+
+**(1) Schätzung — `linen_orders.total_cost`**
+Pro Bestellung aus den bekannten Stückpreisen hochgerechnet. Das ist eine
+*Kalkulation*, kein bezahlter Betrag. Zeitpunkt = `delivery_date`.
+Verwendung: Kachel „Wäschekosten (geschätzt)" in der Buchungsübersicht.
+
+**(2) Realität — `laundry_invoices`**
+Die Rechnungen, die **Teuni tatsächlich gestellt hat**. Teuni stellt
+**Sammelrechnungen** über mehrere Bestellungen; eine saubere Zuordnung
+Rechnung → einzelne Bestellung ist deshalb nur eingeschränkt möglich
+(Verknüpfung über `linen_orders.laundry_invoice_id`, n:1).
+Zeitpunkt = `rechnungsdatum`.
+
+#### Historisch: Entwurf ≠ Rechnung (bis 23.07.2026)
+
+Bis zum 23.07.2026 legte der DB-Trigger `create_invoice_on_linen_order` bei
+**jeder** Wäschebestellung automatisch eine leere Entwurfs-Rechnung an
+(`ENTWURF-xxxxxxxx`, `bruttobetrag = 0`). Diese Hüllen suggerierten eine
+Zuordnung Rechnung → Bestellung, die es fachlich nie geben konnte: **Teuni
+stellt Sammelrechnungen ohne Aufschlüsselung.** Welche Bestellung in welcher
+Rechnung steckt, sagt Teuni nicht — die Verknüpfung ist nicht bestimmbar.
+
+**Am 23.07.2026 wurden 48 Entwürfe gelöscht und der Trigger entfernt**
+(Details und SQL in `docs/SQL-README.md`). Seither gilt:
+
+- `laundry_invoices` enthält **ausschließlich echte Rechnungen von Teuni**.
+- `linen_orders.laundry_invoice_id` bleibt bei neuen Bestellungen `null`.
+- Der Kostenvergleich läuft über **Zeiträume**, nicht über Zuordnung:
+  kalkulierte Bestellsumme gegen bezahlte Rechnungssumme.
+
+Der Code prüft an mehreren Stellen noch auf
+`rechnungsnummer LIKE 'ENTWURF%' AND bruttobetrag = 0`
+(`LaundryInvoicesList.tsx`, `useLaundryInvoices.ts`, `AssignOrdersToInvoiceDialog.tsx`,
+`BookingOverviewFixed.tsx`). Diese Prüfungen laufen jetzt ins Leere und sind
+als Sicherheitsnetz belassen — **nicht** entfernen, ohne zu prüfen, ob wirklich
+keine Entwürfe mehr entstehen können.
+
+#### Stichtag: `bezahlt_am`, nicht `rechnungsdatum` (wichtig!)
+
+Teuni-Rechnungen werden regelmäßig **erst im Folgejahr bezahlt**. Befund
+23.07.2026: von 14 bezahlten Rechnungen trugen **10 das Rechnungsdatum 2025**,
+bezahlt wurden aber alle 14 im Jahr 2026 (Summen: nach `rechnungsdatum` nur
+1.139,50 €, nach `bezahlt_am` dagegen 2.844,64 €).
+
+**Regel:** Für „was habe ich dieses Jahr für Wäsche ausgegeben" immer nach
+`bezahlt_am` filtern. Nach `rechnungsdatum` gefiltert wird der bezahlte Betrag
+massiv unterschätzt.
+
+#### Weitere Fallen
+- **Keine `house_id` auf `laundry_invoices`.** Sammelrechnungen decken beide
+  Häuser ab. Eine Aufteilung pro Haus gäbe es nur über die Positionen. Deshalb
+  werden Rechnungsbeträge in der Buchungsübersicht **nur im Modus „Gesamt"**
+  angezeigt, nicht bei aktivem Hausfilter.
+- **Kachel „Bezahlt (Monat)"** in `LaundryInvoicesList.tsx` zählt per
+  `useInvoiceStats` nur den **laufenden Monat** (`bezahlt_am >= Monatsanfang`).
+  Sie ist keine Jahres- oder Gesamtsumme — für Jahreswerte nicht heranziehen.
+- Schätzung und Rechnung haben **verschiedene Stichtage** (`delivery_date` vs.
+  `rechnungsdatum`) und werden nie exakt übereinstimmen. „Offen" deshalb immer
+  als `rechnungssumme − bezahlt` rechnen, nie als `schätzung − bezahlt`.
+- Rechnungsstatus: `offen` / `bezahlt` / `storniert` / `mahnung`.
+  Storniert gehört in keine Summe.
+- **Stornierte Bestellungen ebenso nicht.** Die Kachel filterte `linen_orders`
+  ursprünglich NICHT auf `status <> 'cancelled'` und zeigte dadurch 2.872,80 €
+  statt korrekt 2.576,10 € (Differenz 296,70 € aus Stornos). Am 23.07.2026
+  behoben und am laufenden System verifiziert.
+
 ### Wichtige Komponenten-Fallen (aus Erfahrung dokumentiert)
 - Amela: `AmelaBookingInfoCard.tsx` ist die RICHTIGE Karte (via `AmelaEntryRow.tsx`).
   `ConfigurableBookingCard.tsx` (Emoji 🏠, amber) NICHT anfassen.
