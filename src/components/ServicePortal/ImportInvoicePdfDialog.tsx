@@ -9,7 +9,6 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useCreateLaundryInvoice } from '@/hooks/useLaundryInvoices';
@@ -50,6 +49,7 @@ interface Preisabweichung {
 interface PruefErgebnis {
   ok: boolean;
   bereits_erfasst: boolean;
+  erfasst_info: string | null;
   rechnung: {
     rechnungsnummer: string; rechnungsdatum: string;
     faelligkeitsdatum: string | null;
@@ -220,6 +220,24 @@ export function ImportInvoicePdfDialog({ open, onOpenChange }: Props) {
               </div>
             </div>
 
+            {/* Bereits erfasst: Zustand, keine Warnung */}
+            {ergebnis.bereits_erfasst && (
+              <div className="rounded-md border bg-muted/50 p-3">
+                <p className="text-sm flex items-center gap-2">
+                  <Info className="h-4 w-4 text-muted-foreground" />
+                  <span>
+                    Diese Rechnung ist bereits erfasst — sie kann kein zweites Mal
+                    angelegt werden.
+                  </span>
+                </p>
+                {ergebnis.erfasst_info && (
+                  <p className="text-xs text-muted-foreground mt-1 pl-6">
+                    {ergebnis.erfasst_info}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Warnungen */}
             {hatWarnungen && (
               <div className="rounded-md border border-orange-300 bg-orange-50 dark:bg-orange-950/20 p-3">
@@ -307,11 +325,6 @@ export function ImportInvoicePdfDialog({ open, onOpenChange }: Props) {
               </div>
             )}
 
-            {ergebnis.bereits_erfasst && (
-              <Badge variant="outline" className="border-orange-400 text-orange-700">
-                Diese Rechnung ist bereits erfasst
-              </Badge>
-            )}
           </div>
         )}
 
