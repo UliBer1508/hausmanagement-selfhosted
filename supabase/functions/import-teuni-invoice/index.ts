@@ -50,7 +50,7 @@ const corsHeaders = {
 // kein fest verdrahteter Parser: neue Kürzel führen zu einer Meldung,
 // nicht zum stillen Überspringen.
 const ARTIKEL_MAP: Record<string, { feld: string | null; hinweis?: string }> = {
-  MW3:     { feld: 'bedding',       hinweis: 'Paket 5 Tlg — enthält Kissenbezug und Spannleintuch' },
+  MW3:     { feld: 'bedding',       hinweis: 'Paket 5 Tlg — Zusammensetzung bei Teuni nicht schriftlich bestätigt' },
   MWST:    { feld: 'sauna_towels' },
   MWHT:    { feld: 'small_towels' },
   MWBVL:   { feld: 'bath_mats' },
@@ -378,18 +378,23 @@ serve(async (req) => {
     // ---- Dublettenprüfung
     const { data: vorhanden } = await supabase
       .from('laundry_invoices')
-      .select('id, bruttobetrag, status')
+      .select('id, bruttobetrag, status, rechnungsdatum')
       .eq('rechnungsnummer', rechnungsnummer)
       .eq('rechnungsdatum', rechnungsdatum)
       .maybeSingle();
 
-    if (vorhanden) {
-      warnungen.push(`Rechnung ${rechnungsnummer} vom ${rechnungsdatum} ist bereits erfasst (Status ${vorhanden.status}, ${vorhanden.bruttobetrag} EUR)`);
-    }
+    // "bereits erfasst" ist KEINE Warnung, sondern ein Zustand. Es wird ueber
+    // das Flag bereits_erfasst transportiert und im Dialog einmal angezeigt —
+    // nicht zusaetzlich als Pruefpunkt, sonst steht dieselbe Information
+    // doppelt auf dem Schirm.
+    const erfasstInfo = vorhanden
+      ? `Bereits erfasst am ${vorhanden.rechnungsdatum ?? rechnungsdatum} (Status ${vorhanden.status}, ${Number(vorhanden.bruttobetrag).toFixed(2)} EUR)`
+      : null;
 
     return new Response(JSON.stringify({
       ok: true,
       bereits_erfasst: !!vorhanden,
+      erfasst_info: erfasstInfo,
       rechnung: {
         rechnungsnummer, rechnungsdatum, faelligkeitsdatum,
         bruttobetrag, nettobetrag: bruttobetrag, // Kleinunternehmer: 0% USt
