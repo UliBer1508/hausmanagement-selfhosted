@@ -260,7 +260,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { pdf_base64, house_id } = await req.json();
+    const { pdf_base64 } = await req.json();
     if (!pdf_base64) throw new Error('pdf_base64 fehlt');
 
     const bytes = Uint8Array.from(atob(pdf_base64), c => c.charCodeAt(0));
@@ -315,11 +315,34 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    let prices: Record<string, number> | null = null;
-    if (house_id) {
-      const { data } = await supabase
-        .from('ai_linen_settings').select('prices').eq('house_id', house_id).maybeSingle();
-      prices = (data?.prices as any) ?? null;
+    // Preisliste der FERIENHAEUSER holen (rental_type = 'tourist').
+    // Teuni-Rechnungen sind Sammelrechnungen ueber beide Chalets — eine
+    // Zuordnung zu einem einzelnen Haus gibt es nicht. Langzeitvermietung
+    // hat keinen Waescheservice und bleibt aussen vor.
+    const { data: settings } = await supabase
+      .from('ai_linen_settings')
+      .select('prices, houses!inner(name, rental_type)')
+      .eq('houses.rental_type', 'tourist');
+
+    const listen = (settings ?? [])
+      .filter((r: any) => r.prices)
+      .map((r: any) => ({ haus: r.houses?.name as string, prices: r.prices as Record<string, number> }));
+
+    let prices: Record<string, number> | null = listen[0]?.prices ?? null;
+
+    // Weichen die Ferienhaeuser voneinander ab, ist der Vergleich mehrdeutig
+    // -> melden statt still eine der beiden Listen zu bevorzugen.
+    if (listen.length > 1) {
+      const felder = new Set(listen.flatMap(l => Object.keys(l.prices)));
+      for (const f of felder) {
+        const werte = new Set(listen.map(l => l.prices[f]));
+        if (werte.size > 1) {
+          warnungen.push(`Preis "${f}" ist je Haus verschieden (${listen.map(l => `${l.haus}: ${l.prices[f] ?? '—'}`).join(', ')}) — verglichen wurde gegen ${listen[0].haus}`);
+        }
+      }
+    }
+    if (!prices) {
+      warnungen.push('Keine Preisliste für die Ferienhäuser gefunden — kein Preisvergleich möglich');
     }
 
     const preisabweichungen: Array<{
