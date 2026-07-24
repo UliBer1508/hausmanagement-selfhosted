@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
-import { getDocument } from "https://esm.sh/pdfjs-dist@4.0.379/legacy/build/pdf.mjs";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,27 +73,182 @@ function num(s: string): number {
 }
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-async function pdfToText(bytes: Uint8Array): Promise<string> {
-  const doc = await getDocument({ data: bytes, useSystemFonts: true }).promise;
-  let out = '';
-  for (let i = 1; i <= doc.numPages; i++) {
-    const page = await doc.getPage(i);
-    const content = await page.getTextContent();
-    // Items nach Zeilen gruppieren (y-Koordinate), damit Tabellenzeilen
-    // zusammenbleiben — pdfjs liefert sonst lose Fragmente.
-    const zeilen: Record<string, { x: number; s: string }[]> = {};
-    for (const it of content.items as any[]) {
-      if (typeof it.str !== 'string' || !it.str.trim()) continue;
-      const y = Math.round(it.transform[5]);
-      (zeilen[y] ??= []).push({ x: it.transform[4], s: it.str });
+// ---- PDF-Textextraktion, eigenimplementiert ----------------------------
+//
+// WARUM KEINE BIBLIOTHEK: pdfjs-dist zieht ueber esm.sh eine native
+// Canvas-Abhaengigkeit nach ("canvas.node"), die Deno nicht aufloesen kann —
+// der Deploy scheitert mit HTTP 400. Verifiziert am 24.07.2026.
+//
+// Die Teuni-PDFs (Erzeuger: WPCUBE) sind guenstig gebaut: Contentstream
+// unkomprimiert oder FlateDecode, Text in ( ) mit Tj/TJ, WinAnsiEncoding,
+// Positionierung ueber cm/Tm/Td. Das reicht fuer eine eigene Extraktion.
+// Getestet gegen sechs Rechnungen aus 2025 und 2026 — Ergebnis identisch
+// zu pdfplumber.
+
+async function inflateAsync(data: Uint8Array): Promise<Uint8Array> {
+  // PDF-FlateDecode ist zlib (mit Header). Falls das fehlschlaegt, ohne
+  // Header versuchen — manche Erzeuger schreiben rohes deflate.
+  for (const fmt of ['deflate', 'deflate-raw'] as const) {
+    try {
+      const stream = new Blob([data]).stream()
+        .pipeThrough(new DecompressionStream(fmt));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    } catch { /* naechstes Format */ }
+  }
+  throw new Error('Stream nicht dekomprimierbar');
+}
+
+// Contentstreams der Seiten finden.
+// Wir gehen von OBJEKTGRENZE aus ("N 0 obj ... endobj"), nicht per
+// lastIndexOf("<<") — bei verschachtelten Dictionaries trifft das sonst die
+// falsche Klammer, und ein "stream"-Vorkommen im bereits dekodierten Text
+// wuerde faelschlich als Streamanfang gewertet.
+async function contentStreams(bytes: Uint8Array): Promise<string[]> {
+  const latin = new TextDecoder('latin1').decode(bytes);
+  const out: string[] = [];
+  const objRe = /(\d+)\s+(\d+)\s+obj\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = objRe.exec(latin)) !== null) {
+    const objStart = m.index + m[0].length;
+    const sIdx = latin.indexOf('stream', objStart);
+    if (sIdx < 0) continue;
+    const endObj = latin.indexOf('endobj', objStart);
+    if (endObj >= 0 && sIdx > endObj) continue;      // Objekt ohne Stream
+
+    const dict = latin.slice(objStart, sIdx);
+    // Bilder, Fonts und Metadaten ueberspringen
+    if (/\/Subtype\s*\/(Image|XML|Type1C|TrueType)|\/DCTDecode|\/FontFile/.test(dict)) continue;
+
+    let dataStart = sIdx + 'stream'.length;
+    if (latin[dataStart] === '\r') dataStart++;
+    if (latin[dataStart] === '\n') dataStart++;
+    let dataEnd = latin.indexOf('endstream', dataStart);
+    if (dataEnd < 0) continue;
+    // Der Zeilenumbruch VOR "endstream" gehoert nicht zu den Streamdaten.
+    // Bleibt er drin, meldet DecompressionStream "failed to write whole
+    // buffer" — verifiziert am 24.07.2026.
+    if (latin[dataEnd - 1] === '\n') dataEnd--;
+    if (latin[dataEnd - 1] === '\r') dataEnd--;
+
+    let raw = bytes.slice(dataStart, dataEnd);
+    if (/FlateDecode/.test(dict)) {
+      try { raw = await inflateAsync(raw); } catch { continue; }
     }
-    const ys = Object.keys(zeilen).map(Number).sort((a, b) => b - a);
-    for (const y of ys) {
-      out += zeilen[y].sort((a, b) => a.x - b.x).map(t => t.s).join(' ')
-        .replace(/\s+/g, ' ').trim() + '\n';
-    }
+    const txt = new TextDecoder('latin1').decode(raw);
+    if (/\bTj\b|\bTJ\b/.test(txt)) out.push(txt);
   }
   return out;
+}
+
+const WIN1252_EXTRA: Record<number, string> = {
+  128: '\u20ac', 130: '\u201a', 131: '\u0192', 132: '\u201e', 133: '\u2026',
+  145: '\u2018', 146: '\u2019', 147: '\u201c', 148: '\u201d', 150: '\u2013',
+  151: '\u2014', 153: '\u2122',
+};
+
+function unescapePdfString(s: string): string {
+  let out = ''; let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (c === '\\' && i + 1 < s.length) {
+      const n = s[i + 1];
+      const simple: Record<string, string> = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f' };
+      if (simple[n] !== undefined) { out += simple[n]; i += 2; continue; }
+      const oct = s.slice(i + 1, i + 4).match(/^[0-7]{1,3}/);
+      if (oct) { out += String.fromCharCode(parseInt(oct[0], 8) & 0xff); i += 1 + oct[0].length; continue; }
+      out += n; i += 2; continue;
+    }
+    out += c; i++;
+  }
+  // latin1 -> Unicode, WinAnsi-Sonderfaelle beruecksichtigen
+  return [...out].map(ch => {
+    const code = ch.charCodeAt(0);
+    return WIN1252_EXTRA[code] ?? ch;
+  }).join('');
+}
+
+interface Frag { y: number; x: number; s: string; }
+
+function extractFromStream(content: string): Frag[] {
+  const frags: Frag[] = [];
+  let cm = [1, 0, 0, 1, 0, 0];
+  const stack: number[][] = [];
+  let tx = 0, ty = 0;
+
+  const TOKEN = new RegExp([
+    /\(((?:[^()\\]|\\.)*)\)\s*Tj/.source,                         // 1
+    /\[((?:[^\[\]\\]|\\.)*)\]\s*TJ/.source,                        // 2
+    /([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+(cm|Tm)/.source, // 3-9
+    /([-\d.]+)\s+([-\d.]+)\s+Td/.source,                           // 10,11
+    /(BT|ET|q|Q)/.source,                                            // 12
+  ].join('|'), 'g');
+
+  let m: RegExpExecArray | null;
+  while ((m = TOKEN.exec(content)) !== null) {
+    if (m[12]) {
+      if (m[12] === 'q') stack.push([...cm]);
+      else if (m[12] === 'Q') { const p = stack.pop(); if (p) cm = p; }
+      else if (m[12] === 'BT') { tx = 0; ty = 0; }
+      continue;
+    }
+    if (m[9]) {
+      const [a, b, c, d, e, f] = [3, 4, 5, 6, 7, 8].map(i => parseFloat(m![i]));
+      if (m[9] === 'cm') {
+        const [A, B, C, D, E, F] = cm;
+        cm = [a * A + b * C, a * B + b * D, c * A + d * C,
+              c * B + d * D, e * A + f * C + E, e * B + f * D + F];
+      } else { tx = e; ty = f; }
+      continue;
+    }
+    if (m[10] !== undefined) { tx += parseFloat(m[10]); ty += parseFloat(m[11]); continue; }
+
+    let s: string | null = null;
+    if (m[1] !== undefined) s = unescapePdfString(m[1]);
+    else if (m[2] !== undefined) {
+      s = [...m[2].matchAll(/\(((?:[^()\\]|\\.)*)\)/g)]
+        .map(x => unescapePdfString(x[1])).join('');
+    }
+    if (s === null || !s.trim()) continue;
+
+    const [A, B, C, D, E, F] = cm;
+    frags.push({ y: Math.round((tx * B + ty * D + F) * 10) / 10, x: tx * A + ty * C + E, s });
+  }
+  return frags;
+}
+
+function fragsToLines(frags: Frag[]): string {
+  frags.sort((p, q) => (q.y - p.y) || (p.x - q.x));
+  const lines: Frag[][] = [];
+  let cur: Frag[] = []; let lastY: number | null = null;
+  for (const f of frags) {
+    if (lastY === null || Math.abs(f.y - lastY) <= 2.0) {
+      cur.push(f); if (lastY === null) lastY = f.y;
+    } else { lines.push(cur); cur = [f]; lastY = f.y; }
+  }
+  if (cur.length) lines.push(cur);
+
+  return lines.map(l => {
+    let s = l.sort((a, b) => a.x - b.x).map(f => f.s).join(' ');
+    // Der Tc-Operator (Zeichenabstand) zerlegt Woerter und Zahlen in
+    // Einzelfragmente. Beim Zusammenfuegen entsteht "30 , 00" und
+    // "G e s a m t b e t r a g" -> wieder zusammenziehen.
+    s = s.replace(/(?<=\d) *([.,]) *(?=\d)/g, '$1');
+    s = s.replace(/\b(?:[A-Za-z\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df] ){2,}[A-Za-z\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df]\b/g,
+                  (x: string) => x.replace(/ /g, ''));
+    return s.replace(/ {2,}/g, ' ').trim();
+  }).join('\n');
+}
+
+async function pdfToText(bytes: Uint8Array): Promise<string> {
+  const streams = await contentStreams(bytes);
+  if (streams.length === 0) throw new Error('Kein lesbarer Textstream im PDF gefunden');
+  let all: Frag[] = [];
+  const parts: string[] = [];
+  for (const st of streams) {
+    const f = extractFromStream(st);
+    if (f.length) parts.push(fragsToLines(f));
+  }
+  return parts.join('\n');
 }
 
 const RE_HEADER = /Rechnung\s+Nr\.\s*(\S+)\s+vom\s+(\d{2})\.(\d{2})\.(\d{4})/;
