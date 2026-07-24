@@ -6,19 +6,13 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from '@/components/ui/select';
-import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { supabase } from '@/integrations/supabase/client';
 import { useCreateLaundryInvoice } from '@/hooks/useLaundryInvoices';
-import { useHouses } from '@/hooks/useHouses';
-import { useToast } from '@/hooks/use-toast';
 
 // ============================================================
 // TEUNI-RECHNUNG AUS PDF IMPORTIEREN
@@ -31,6 +25,11 @@ import { useToast } from '@/hooks/use-toast';
 // soll keine automatische Erkennung einen Betrag setzen, den niemand
 // angesehen hat. Das Muster entspricht dem 'draft'-Prinzip bei den
 // Reinigungsterminen.
+//
+// KEINE HAUSAUSWAHL: Teuni stellt Sammelrechnungen ueber beide Ferienhaeuser.
+// Eine Rechnung gehoert zu keinem einzelnen Haus. Die Preisliste holt die
+// Edge Function selbst aus den touristisch vermieteten Haeusern
+// (rental_type = 'tourist'); Langzeitvermietung hat keinen Waescheservice.
 //
 // bezahlt_am wird hier NICHT gesetzt: Teuni schreibt den Zahlvermerk als
 // Grafik ins PDF, nicht in den Textlayer -- maschinell nicht lesbar
@@ -78,12 +77,9 @@ export function ImportInvoicePdfDialog({ open, onOpenChange }: Props) {
   const [laeuft, setLaeuft] = useState(false);
   const [ergebnis, setErgebnis] = useState<PruefErgebnis | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [houseId, setHouseId] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data: houses } = useHouses();
   const createInvoice = useCreateLaundryInvoice();
-  const { toast } = useToast();
 
   const zuruecksetzen = () => {
     setDateiname(null); setErgebnis(null); setFehler(null);
@@ -113,7 +109,7 @@ export function ImportInvoicePdfDialog({ open, onOpenChange }: Props) {
       });
 
       const { data, error } = await supabase.functions.invoke('import-teuni-invoice', {
-        body: { pdf_base64: base64, house_id: houseId || undefined },
+        body: { pdf_base64: base64 },
       });
 
       if (error) throw error;
@@ -141,11 +137,11 @@ export function ImportInvoicePdfDialog({ open, onOpenChange }: Props) {
         bruttobetrag: r.bruttobetrag,
         notes: `Aus PDF importiert am ${format(new Date(), 'dd.MM.yyyy')}`,
       });
-      toast({ title: 'Rechnung angelegt', description: `${r.rechnungsnummer} über ${eur(r.bruttobetrag)}` });
+      // Erfolgs- und Fehlermeldung kommen aus useCreateLaundryInvoice
+      // (onSuccess/onError) — hier NICHT doppelt toasten.
       schliessen(false);
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'Anlegen fehlgeschlagen',
-              description: err?.message ?? String(err) });
+    } catch (err) {
+      console.error('[ImportInvoicePdfDialog] Anlegen fehlgeschlagen', err);
     }
   };
 
@@ -164,25 +160,6 @@ export function ImportInvoicePdfDialog({ open, onOpenChange }: Props) {
             hinterlegten Preise geprüft — angelegt wird erst nach deiner Freigabe.
           </DialogDescription>
         </DialogHeader>
-
-        {/* Haus fuer den Preisvergleich */}
-        <div className="space-y-2">
-          <Label>Haus (für den Preisvergleich)</Label>
-          <Select value={houseId} onValueChange={setHouseId}>
-            <SelectTrigger>
-              <SelectValue placeholder="ohne Preisvergleich" />
-            </SelectTrigger>
-            <SelectContent>
-              {houses?.map((h: any) => (
-                <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Sammelrechnungen decken oft beide Häuser ab. Die Auswahl bestimmt nur,
-            gegen welche Preisliste verglichen wird.
-          </p>
-        </div>
 
         <Separator />
 
