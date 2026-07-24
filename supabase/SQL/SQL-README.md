@@ -136,9 +136,51 @@ Die Produktions-DB enthält ~70 Trigger. Dieser Ordner deckt bewusst nur die
 
 - `sync_guest_from_booking` — Gast-Stammdaten aus Buchung ableiten
 - `sync_*_to_houses` — JSONB-Spiegelung von Ausstattung/Preisen/Wäschebestand
-- `create_draft_invoice_for_linen_order` — Entwurfsrechnung bei Wäschebestellung
+- ~~`create_draft_invoice_for_linen_order`~~ — **am 23.07.2026 ENTFERNT**, siehe unten
 - `notify_booking_guest_count_change` — Gästezahl-Änderung melden
 - diverse `update_*_updated_at` — Zeitstempel-Pflege
+
+### ❌ Entfernt am 23.07.2026: `create_invoice_on_linen_order`
+
+**Was es war:** Ein `BEFORE INSERT`-Trigger auf `linen_orders`, der bei **jeder**
+neuen Wäschebestellung automatisch eine leere Entwurfs-Rechnung in
+`laundry_invoices` anlegte (`rechnungsnummer = 'ENTWURF-' || LEFT(id,8)`,
+`bruttobetrag = 0`) und deren ID in `NEW.laundry_invoice_id` schrieb.
+
+**Warum es weg ist:** Teuni stellt **Sammelrechnungen ohne Aufschlüsselung** —
+welche Bestellung in welcher Rechnung steckt, ist fachlich nicht bestimmbar.
+Die 1:1-Entwurfshüllen suggerierten eine Zuordnung, die es nie geben konnte.
+Sie hatten keinen Geldwert, verfälschten aber jede Auswertung, die
+`laundry_invoices` zählte oder summierte (Stand vor dem Aufräumen: 62 Belege,
+davon **48 Entwürfe** ohne Betrag).
+
+**Was ausgeführt wurde** (SQL-Editor, in dieser Reihenfolge):
+```sql
+delete from laundry_invoices
+where rechnungsnummer like 'ENTWURF%' and bruttobetrag = 0;   -- 48 Zeilen
+
+drop trigger if exists create_invoice_on_linen_order on public.linen_orders;
+drop function if exists public.create_draft_invoice_for_linen_order();
+```
+Das Löschen war gefahrlos, weil `linen_orders_laundry_invoice_id_fkey` auf
+`ON DELETE SET NULL` steht — die 29 Bestellungen blieben unversehrt, nur ihr
+Verweis wurde geleert.
+
+**Verifiziert nach Ausführung:** 0 Entwürfe, 14 echte Rechnungen,
+29 Bestellungen 2026. Verbliebene Trigger auf `linen_orders`:
+`trg_aa_notify_teuni_on_linen_release`, `trg_close_max_action_on_linen_confirmed`,
+`trigger_update_linen_orders_updated_at`.
+
+> ⚠️ **Die Migrations-Historie widerspricht diesem Stand.** Fünf Dateien vom
+> 16./17.03.2026 (`20260316140448…`, `20260316141540…`, `20260317084229…`,
+> `20260317085055…`, `20260316140807…`) legen den Trigger an bzw. ändern ihn.
+> Wer nur die Migrations liest, hält ihn für aktiv. **Er ist es nicht.**
+> Diese Notiz hier ist der maßgebliche Stand.
+
+**Folge für neue Bestellungen:** `linen_orders.laundry_invoice_id` bleibt `null`.
+Das ist der korrekte Zustand — eine Zuordnung existiert fachlich nicht.
+
+---
 
 **Zwei Auffälligkeiten, die beim Ziehen aufgefallen sind** (nicht geändert,
 nur notiert):
