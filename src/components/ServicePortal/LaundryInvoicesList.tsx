@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge, ListChecks, Search, CalendarIcon, X, Trash2, MoreHorizontal } from 'lucide-react';
+import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge, ListChecks, Search, CalendarIcon, X, Trash2, MoreHorizontal, FileUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ import { CreateInvoiceDialog } from './CreateInvoiceDialog';
 import { EditInvoiceDialog } from './EditInvoiceDialog';
 import { MergeInvoicesDialog } from './MergeInvoicesDialog';
 import { AssignOrdersToInvoiceDialog } from './AssignOrdersToInvoiceDialog';
+import { ImportInvoicePdfDialog } from './ImportInvoicePdfDialog';
 
 const isDraftInvoice = (invoice: LaundryInvoice) =>
   invoice.rechnungsnummer?.startsWith('ENTWURF') && invoice.bruttobetrag === 0;
@@ -33,6 +34,7 @@ export const LaundryInvoicesList = () => {
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [mergePreselectedId, setMergePreselectedId] = useState<string | undefined>();
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
@@ -198,6 +200,14 @@ export const LaundryInvoicesList = () => {
               >
                 <ListChecks className="h-4 w-4 mr-1" />
                 Rechnung + Zuordnung
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setImportDialogOpen(true)}
+              >
+                <FileUp className="h-4 w-4 mr-1" />
+                PDF einlesen
               </Button>
               <Button
                 variant="default"
@@ -447,6 +457,11 @@ export const LaundryInvoicesList = () => {
       />
 
       {/* Create Invoice Dialog */}
+      <ImportInvoicePdfDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+      />
+
       <CreateInvoiceDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
