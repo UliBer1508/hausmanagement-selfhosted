@@ -52,8 +52,8 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
           )
         `)
         .eq('house_id', house.id)
-        .gte('created_at', sixMonthsAgo)
-        .order('created_at', { ascending: true });
+        .gte('delivery_date', sixMonthsAgo)
+        .order('delivery_date', { ascending: true });
       
       if (error) throw error;
       return data || [];
@@ -133,23 +133,33 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
   const costsData = useMemo(() => {
     if (!ordersWithBookings || !prices) return null;
 
-    const calculateOrderCost = (items: any) => {
+    // REALE Kosten: der bei der Bestellung festgeschriebene Wert (total_cost).
+    // NICHT live aus items x prices rechnen — sonst schreibt jede spaetere
+    // Preisaenderung die Vergangenheit um. Fallback auf die Live-Rechnung nur,
+    // wenn total_cost bei einer Altbestellung fehlt (null), damit sie nicht
+    // mit 0 in die Summe faellt.
+    const liveCost = (items: any) => {
       if (!items || typeof items !== 'object') return 0;
       return Object.entries(items as Record<string, number>).reduce((total, [itemType, quantity]) => {
         return total + (quantity * (prices[itemType] || 0));
       }, 0);
     };
+    const realOrderCost = (order: any) =>
+      typeof order.total_cost === 'number' ? order.total_cost : liveCost(order.items);
 
-    const totalCost = ordersWithBookings.reduce((sum, order) => 
-      sum + calculateOrderCost(order.items), 0);
-    
+    const totalCost = ordersWithBookings.reduce((sum, order) =>
+      sum + realOrderCost(order), 0);
+
     const orderCount = ordersWithBookings.length;
     const avgPerOrder = orderCount > 0 ? totalCost / orderCount : 0;
-    
-    // Monatliche Kosten
+
+    // Monatliche Kosten — nach LIEFERdatum (delivery_date), nicht nach
+    // Anlagedatum. created_at buendelt oft mehrere Bestellungen in denselben
+    // Tag und verzerrt den Monatsschnitt.
     const monthlyData = ordersWithBookings.reduce((acc, order) => {
-      const month = format(new Date(order.created_at), 'yyyy-MM');
-      const cost = calculateOrderCost(order.items);
+      const ref = order.delivery_date || order.created_at;
+      const month = format(new Date(ref), 'yyyy-MM');
+      const cost = realOrderCost(order);
       acc[month] = (acc[month] || 0) + cost;
       return acc;
     }, {} as Record<string, number>);
@@ -161,11 +171,16 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
         cost: Math.round(cost)
       }));
 
-    const avgPerMonth = monthlyCosts.length > 0
-      ? monthlyCosts.reduce((sum, m) => sum + m.cost, 0) / monthlyCosts.length
-      : 0;
+    // Ueber den FESTEN Zeitraum von 6 Monaten mitteln, nicht ueber die Zahl
+    // der Monate mit Bestellungen. Sonst ist "Ø pro Monat" bei nur einem
+    // aktiven Monat identisch mit den Gesamtkosten.
+    const avgPerMonth = totalCost / 6;
 
-    // Kosten nach Artikel-Typ - use dynamic labels
+    // Kosten nach Artikel-Typ. Diese Aufschluesselung MUSS live aus
+    // items x prices gerechnet werden, weil total_cost nur die Summe kennt,
+    // nicht die Zerlegung nach Artikeln. Sie zeigt daher "womit die Kosten
+    // heute entstuenden" — die Kennzahlen oben (Gesamt/Monat/Bestellung)
+    // basieren dagegen auf den realen total_cost-Werten.
     const costByItemType = Object.entries(
       ordersWithBookings.reduce((acc, order) => {
         if (order.items && typeof order.items === 'object') {
