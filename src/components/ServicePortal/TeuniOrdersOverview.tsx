@@ -1,9 +1,9 @@
 /**
  * TeuniOrdersOverview - Zeigt alle Wäschebestellungen für das Teuni Portal
- * Mit Filter (Haus, Datum, Status) und Checkbox-Auswahl
+ * Mit Filter (Haus, Datum, Status)
  */
 import React, { useMemo, useState } from 'react';
-import { AssignOrdersToInvoiceDialog } from './AssignOrdersToInvoiceDialog';
+import { CreateInvoiceDialog } from './CreateInvoiceDialog';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,13 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw, Package, CalendarIcon, X } from 'lucide-react';
+import { RefreshCw, Package, CalendarIcon, X, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -58,8 +57,7 @@ export function TeuniOrdersOverview() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
-  const [selectedOrderIds, setSelectedOrderIds] = useState<Set<string>>(new Set());
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   const { data: linenOrders, isLoading, refetch } = useQuery({
     queryKey: ['teuni-linen-orders'],
@@ -118,23 +116,6 @@ export function TeuniOrdersOverview() {
     return { total: linenOrders.length, offen, ausstehend, bestellt, geliefert, gesamtKosten: Math.round(gesamtKosten * 100) / 100 };
   }, [linenOrders]);
 
-  const toggleSelect = (id: string) => {
-    setSelectedOrderIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedOrderIds.size === filteredOrders.length && filteredOrders.length > 0) {
-      setSelectedOrderIds(new Set());
-    } else {
-      setSelectedOrderIds(new Set(filteredOrders.map((o: any) => o.id)));
-    }
-  };
-
-  const allSelected = filteredOrders.length > 0 && selectedOrderIds.size === filteredOrders.length;
 
   if (isLoading) {
     return (
@@ -261,6 +242,14 @@ export function TeuniOrdersOverview() {
             <X className="h-4 w-4 mr-1" />Filter zurücksetzen
           </Button>
         )}
+
+        {/* Rechnung manuell anlegen (ohne Bestellungszuordnung — Teuni
+            schluesselt Sammelrechnungen nicht auf) */}
+        <div className="ml-auto">
+          <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-1" />Rechnung erstellen
+          </Button>
+        </div>
       </div>
 
       {/* Orders Table */}
@@ -268,9 +257,6 @@ export function TeuniOrdersOverview() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[40px]">
-                <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} />
-              </TableHead>
               <TableHead>Lieferdatum</TableHead>
               <TableHead>Haus</TableHead>
               <TableHead>Gast</TableHead>
@@ -285,7 +271,7 @@ export function TeuniOrdersOverview() {
           <TableBody>
             {filteredOrders.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                   Keine Bestellungen gefunden
                 </TableCell>
               </TableRow>
@@ -293,10 +279,7 @@ export function TeuniOrdersOverview() {
               filteredOrders.map((order: any) => {
                 const badgeInfo = getStatusBadgeInfo(order.status);
                 return (
-                  <TableRow key={order.id} data-state={selectedOrderIds.has(order.id) ? 'selected' : undefined}>
-                    <TableCell>
-                      <Checkbox checked={selectedOrderIds.has(order.id)} onCheckedChange={() => toggleSelect(order.id)} />
-                    </TableCell>
+                  <TableRow key={order.id}>
                     <TableCell>{order.delivery_date ? format(new Date(order.delivery_date), 'dd.MM.yyyy', { locale: de }) : '-'}</TableCell>
                     <TableCell>{order.houses?.name || '-'}</TableCell>
                     <TableCell>{order.bookings?.guest_name || '-'}</TableCell>
@@ -318,22 +301,9 @@ export function TeuniOrdersOverview() {
         </Table>
       </ScrollArea>
 
-      {/* Selection Action Bar */}
-      {selectedOrderIds.size > 0 && (
-        <div className="flex items-center justify-between p-3 bg-muted rounded-lg border">
-          <span className="text-sm font-medium">{selectedOrderIds.size} Bestellung(en) ausgewählt</span>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setSelectedOrderIds(new Set())}>Auswahl aufheben</Button>
-            <Button size="sm" onClick={() => setAssignDialogOpen(true)}>Rechnung erstellen</Button>
-          </div>
-        </div>
-      )}
-
-      <AssignOrdersToInvoiceDialog
-        open={assignDialogOpen}
-        onOpenChange={setAssignDialogOpen}
-        preselectedOrderIds={Array.from(selectedOrderIds)}
-        onSuccess={() => setSelectedOrderIds(new Set())}
+      <CreateInvoiceDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
       />
     </div>
   );
