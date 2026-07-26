@@ -402,9 +402,34 @@ Externes Portal: `integrations/externalLaundry/client.ts`.
 - `ServiceHeader.tsx`, `ProviderManagementDialog.tsx`, `ProviderBillingDialog.tsx`
 - Aufträge: `LaundryOrdersOverview.tsx`, `TeuniOrdersOverview.tsx`
 - Rechnungen: `LaundryInvoicesList.tsx`, `CreateInvoiceDialog.tsx`,
-  `EditInvoiceDialog.tsx`, `InvoiceDetailsDialog.tsx`, `MergeInvoicesDialog.tsx`,
-  `AssignOrdersToInvoiceDialog.tsx`, `ImportInvoicePdfDialog.tsx`
+  `EditInvoiceDialog.tsx`, `InvoiceDetailsDialog.tsx`, `ImportInvoicePdfDialog.tsx`
+- Nicht mehr eingebunden (24.07.2026): `MergeInvoicesDialog.tsx`,
+  `AssignOrdersToInvoiceDialog.tsx` — siehe unten
 Hooks: `useProviderMessages`, `useProviderMessageNotifications`, `useLaundryInvoices`.
+
+### Zuordnung & Zusammenführen entfernt (24.07.2026)
+
+Mit dem Wegfall der Entwuerfe (siehe MASTER, „Entwurf ≠ Rechnung") wurden zwei
+Wege aus der Oberflaeche genommen:
+
+- **„Zusammenführen"** (`MergeInvoicesDialog`) verschmolz mehrere Entwuerfe zu
+  einer Rechnung. Ohne Entwuerfe funktionslos → Knopf entfernt (Knopfleiste
+  UND Zeilen-Dropdown in `LaundryInvoicesList.tsx`).
+- **„Rechnung + Zuordnung"** und **„Rechnung erstellen"** (Bestellungen-Tab)
+  (`AssignOrdersToInvoiceDialog`) ordneten Bestellungen einer Rechnung zu. Das
+  ist fachlich nicht bestimmbar (Teuni schluesselt Sammelrechnungen nicht auf)
+  → beide Einstiege entfernt.
+
+Ersatz: **„PDF einlesen"** (belastbar) und **„+ Rechnung"** / `CreateInvoiceDialog`
+(manuell, ohne Zuordnung). Im Bestellungen-Tab (`TeuniOrdersOverview.tsx`)
+wurde die gesamte Checkbox-Auswahl entfernt; „Rechnung erstellen" oeffnet jetzt
+`CreateInvoiceDialog`. Der Tab ist damit reine Uebersicht.
+
+**Noch nicht aufgeraeumt (bewusst, eigener Schritt):** Die beiden Dialog-Dateien
+und die Hooks `useDraftInvoices`, `useMergeDraftInvoices`,
+`useUpdateInvoiceAndMerge` liegen noch im Repo; `EditInvoiceDialog.tsx` enthaelt
+noch einen (jetzt nie sichtbaren) Entwurf-Merge-Abschnitt. Toter, aber
+harmloser Code — Entfernen ist eine separate Aufgabe.
 
 ### PDF-Import von Teuni-Rechnungen (24.07.2026)
 
