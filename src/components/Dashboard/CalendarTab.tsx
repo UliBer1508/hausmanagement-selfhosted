@@ -145,7 +145,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div>
         {calendarView === 'timeline' ? (
           <BookingTimeline
             bookings={bookingsData || []}
