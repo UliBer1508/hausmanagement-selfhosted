@@ -11,8 +11,6 @@ const parseLocalDate = (isoString: string): Date => {
   return new Date(datePart + 'T00:00:00');
 };
 
-const dateKey = (houseId: string, isoString: string) => `${houseId}|${isoString.substring(0, 10)}`;
-
 interface Booking {
   id: string;
   guest_name: string;
@@ -54,8 +52,8 @@ interface HouseStackedCalendarProps {
   linenOrders?: LinenOrder[];
   onBookingClick: (booking: Booking) => void;
   onChangeoverClick: (departing: Booking, arriving: Booking) => void;
-  onCleaningClick: (task: ServiceTask) => void;
-  onLinenClick: (order: LinenOrder) => void;
+  onCleaningClick: (task: ServiceTask, guestName?: string) => void;
+  onLinenClick: (order: LinenOrder, guestName?: string) => void;
 }
 
 const WEEKDAY_LABELS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -143,25 +141,27 @@ const HouseStackedCalendar = ({
   const touristHouses = useMemo(() => houses.filter(h => h.rental_type === 'tourist'), [houses]);
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== 'cancelled'), [bookings]);
 
-  // Anders als im Gantt-Chart (Balken ohne Tagesbezug) hat hier JEDE Zelle
-  // genau einen Tag. Reinigung und Wäsche werden deshalb auf ihrem ECHTEN
-  // Termin gezeigt (scheduled_date / delivery_date) — die Wäsche kommt
-  // typischerweise am Vortag der Anreise, nicht am Anreisetag selbst.
-  const cleaningByDay = useMemo(() => {
+  // ZUORDNUNG UEBER DIE BUCHUNG (27.07.2026, Vorgabe Uli):
+  // Reinigung und Waesche gehoeren fachlich zu EINER Buchung. Die Reinigung wird
+  // automatisch auf den Check-in-Tag gelegt, die Waesche davor geliefert. Beide
+  // Icons sitzen deshalb im ERSTEN Kaestchen der Buchung (Anreisetag) — wie am
+  // Balken in der Timeline — und NICHT verstreut auf ihren Kalendertagen.
+  // Das echte Datum steht im Tooltip und im Popup.
+  const cleaningByBooking = useMemo(() => {
     const map = new Map<string, ServiceTask>();
     (serviceTasks || []).forEach(t => {
-      if (t.service_type === 'cleaning' && t.status !== 'cancelled' && t.scheduled_date) {
-        map.set(dateKey(t.house_id, t.scheduled_date), t);
+      if (t.service_type === 'cleaning' && t.status !== 'cancelled' && t.booking_id) {
+        map.set(t.booking_id, t);
       }
     });
     return map;
   }, [serviceTasks]);
 
-  const linenByDay = useMemo(() => {
+  const linenByBooking = useMemo(() => {
     const map = new Map<string, LinenOrder>();
     (linenOrders || []).forEach(o => {
-      if (o.status !== 'cancelled' && o.delivery_date) {
-        map.set(dateKey(o.house_id, o.delivery_date), o);
+      if (o.status !== 'cancelled' && o.booking_id) {
+        map.set(o.booking_id, o);
       }
     });
     return map;
@@ -240,9 +240,14 @@ const HouseStackedCalendar = ({
                     }
                     const info = getDayInfo(house.id, date);
                     const style = getCellStyle(info.status, hc.base, hc.border);
-                    const key = dateKey(house.id, format(date, 'yyyy-MM-dd'));
-                    const cleaningTask = cleaningByDay.get(key);
-                    const linenOrder = linenByDay.get(key);
+                    // Icons NUR im Anreise-Kaestchen (auch am Wechseltag:
+                    // dort gehoeren sie zur ankommenden Buchung).
+                    const arriving =
+                      info.status === 'checkin' ? info.arriving
+                      : info.status === 'changeover' ? info.arriving
+                      : null;
+                    const cleaningTask = arriving ? cleaningByBooking.get(arriving.id) : undefined;
+                    const linenOrder = arriving ? linenByBooking.get(arriving.id) : undefined;
                     const hasIcons = !!(cleaningTask || linenOrder);
 
                     const titleText =
@@ -273,8 +278,8 @@ const HouseStackedCalendar = ({
                             {cleaningTask && (
                               <span
                                 className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] leading-none cursor-pointer shadow-sm ${CLEANING_ICON_STYLES[cleaningTask.status] || CLEANING_ICON_DEFAULT}`}
-                                onClick={(e) => { e.stopPropagation(); onCleaningClick(cleaningTask); }}
-                                title={`Reinigung (${cleaningTask.status}) — ${format(parseLocalDate(cleaningTask.scheduled_date!), 'dd.MM.yyyy')}`}
+                                onClick={(e) => { e.stopPropagation(); onCleaningClick(cleaningTask, arriving?.guest_name); }}
+                                title={`Reinigung · ${arriving?.guest_name ?? ''} · ${cleaningTask.status}${cleaningTask.scheduled_date ? ' · ' + format(parseLocalDate(cleaningTask.scheduled_date), 'dd.MM.yyyy') : ''}`}
                               >
                                 🧹
                               </span>
@@ -282,8 +287,8 @@ const HouseStackedCalendar = ({
                             {linenOrder && (
                               <span
                                 className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] leading-none cursor-pointer shadow-sm ${LINEN_ICON_STYLES[linenOrder.status] || LINEN_ICON_DEFAULT}`}
-                                onClick={(e) => { e.stopPropagation(); onLinenClick(linenOrder); }}
-                                title={`Wäsche (${linenOrder.status}) — ${format(parseLocalDate(linenOrder.delivery_date!), 'dd.MM.yyyy')}`}
+                                onClick={(e) => { e.stopPropagation(); onLinenClick(linenOrder, arriving?.guest_name); }}
+                                title={`Wäsche · ${arriving?.guest_name ?? ''} · ${linenOrder.status}${linenOrder.delivery_date ? ' · Lieferung ' + format(parseLocalDate(linenOrder.delivery_date), 'dd.MM.yyyy') : ''}`}
                               >
                                 🧺
                               </span>
