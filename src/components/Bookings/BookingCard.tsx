@@ -86,7 +86,12 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
     setSpeicherePortale(true);
     try {
       const jetzt = new Date().toISOString();
-      const { error } = await supabase
+      // WICHTIG: .select() ist Pflicht. Ohne sie meldet Supabase KEINEN Fehler,
+      // wenn das UPDATE gar keine Zeile trifft (z. B. durch RLS blockiert) —
+      // der Aufruf gilt dann als erfolgreich, obwohl nichts geschrieben wurde.
+      // Genau daran scheiterte die Quittung bisher still: Sie verschwand nach
+      // dem Klick (lokal gesetzt) und war nach dem Neustart wieder da.
+      const { data, error } = await supabase
         .from('bookings')
         .update({
           portale_geprueft_am: jetzt,
@@ -96,9 +101,16 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
           // Gegenrichtung (Blockade zurücknehmen) erneut erinnert wird.
           portale_geprueft_art: istStorniert ? 'freigegeben' : 'blockiert',
         })
-        .eq('id', booking.id);
+        .eq('id', booking.id)
+        .select('id, portale_geprueft_am');
       if (error) throw error;
-      (booking as any).portale_geprueft_am = jetzt;
+      if (!data || data.length === 0) {
+        throw new Error(
+          'Die Buchung wurde nicht aktualisiert (keine Zeile getroffen). ' +
+          'Moegliche Ursache: fehlende Schreibrechte (RLS).'
+        );
+      }
+      (booking as any).portale_geprueft_am = data[0].portale_geprueft_am ?? jetzt;
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       onBookingUpdated?.();
       toast({ title: istStorniert ? 'Freigabe bestätigt' : 'Portal-Blockade bestätigt' });
