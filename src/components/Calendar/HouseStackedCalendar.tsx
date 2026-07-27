@@ -204,13 +204,13 @@ const HouseStackedCalendar = ({
 
     return (
       <div key={monthDate.toISOString()} ref={isCurrent ? currentMonthRef : undefined} className="mb-6">
-        <div className="text-lg font-bold text-foreground mb-3">
+        <div className="text-base sm:text-lg font-bold text-foreground mb-2 sm:mb-3">
           {format(monthDate, 'MMMM yyyy', { locale: de })}
         </div>
         {weeks.map((week, wi) => (
           <div key={wi} className="mb-2">
-            <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: '104px repeat(7, 1fr)' }}>
-              <div />
+            <div className="grid gap-0.5 sm:gap-1 mb-1 grid-cols-[repeat(7,minmax(0,1fr))] sm:grid-cols-[104px_repeat(7,minmax(0,1fr))]">
+              <div className="hidden sm:block" />
               {week.map((d, di) => (
                 <div key={di} className="text-center leading-tight">
                   <div className={`text-xs font-semibold ${isSameMonth(d, monthDate) ? 'text-foreground' : 'text-muted-foreground/40'}`}>
@@ -226,8 +226,18 @@ const HouseStackedCalendar = ({
             {touristHouses.map(house => {
               const hc = getHouseColors(house.name);
               return (
-                <div key={house.id} className="grid gap-1 items-center mb-1" style={{ gridTemplateColumns: '104px repeat(7, 1fr)' }}>
-                  <div className="text-right pr-2 text-sm font-semibold text-foreground truncate flex items-center justify-end gap-1.5">
+                <div key={house.id} className="mb-1">
+                  {/* Handy: Hausname ueber der Zeile, damit die volle Breite fuer
+                      die sieben Tage bleibt (kein Querscrollen, CODING-GUIDE B4). */}
+                  <div className="sm:hidden flex items-center gap-1.5 mb-0.5 text-xs font-semibold text-foreground">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
+                      style={{ background: hc.base }}
+                    />
+                    <span className="truncate">{house.name.replace(' Chalet', '')}</span>
+                  </div>
+                  <div className="grid gap-0.5 sm:gap-1 items-center grid-cols-[repeat(7,minmax(0,1fr))] sm:grid-cols-[104px_repeat(7,minmax(0,1fr))]">
+                    <div className="hidden sm:flex text-right pr-2 text-sm font-semibold text-foreground truncate items-center justify-end gap-1.5">
                     <span className="truncate">{house.name.replace(' Chalet', '')}</span>
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
@@ -236,7 +246,7 @@ const HouseStackedCalendar = ({
                   </div>
                   {week.map((date, di) => {
                     if (!isSameMonth(date, monthDate)) {
-                      return <div key={di} className="h-10 rounded border border-border/30" />;
+                      return <div key={di} className="h-9 sm:h-10 rounded border border-border/30" />;
                     }
                     const info = getDayInfo(house.id, date);
                     const style = getCellStyle(info.status, hc.base, hc.border);
@@ -260,24 +270,24 @@ const HouseStackedCalendar = ({
                     return (
                       <div
                         key={di}
-                        className={`h-10 rounded relative overflow-hidden ${info.status === 'free' ? 'border border-border' : 'cursor-pointer hover:opacity-90 transition-opacity'}`}
+                        className={`h-9 sm:h-10 rounded relative overflow-hidden ${info.status === 'free' ? 'border border-border' : 'cursor-pointer hover:opacity-90 transition-opacity'}`}
                         style={style}
                         onClick={info.status !== 'free' ? () => handleCellClick(info) : undefined}
                         title={titleText}
                       >
                         {info.status === 'occupied' && (
                           <span
-                            className={`absolute inset-0 flex items-center justify-center text-[11px] font-medium truncate ${hasIcons ? 'pl-1 pr-11' : 'px-1'}`}
+                            className={`absolute inset-0 flex items-center justify-center text-[9px] sm:text-[11px] font-medium truncate ${hasIcons ? 'pl-0.5 pr-8 sm:pl-1 sm:pr-11' : 'px-0.5 sm:px-1'}`}
                             style={{ color: hc.text }}
                           >
                             {info.occupying.guest_name.split(' ')[0]}
                           </span>
                         )}
                         {hasIcons && (
-                          <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-0.5 z-10">
+                          <div className="absolute right-0.5 sm:right-1 top-1/2 -translate-y-1/2 flex gap-0.5 z-10">
                             {cleaningTask && (
                               <span
-                                className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] leading-none cursor-pointer shadow-sm ${CLEANING_ICON_STYLES[cleaningTask.status] || CLEANING_ICON_DEFAULT}`}
+                                className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full border flex items-center justify-center text-[9px] sm:text-[11px] leading-none cursor-pointer shadow-sm ${CLEANING_ICON_STYLES[cleaningTask.status] || CLEANING_ICON_DEFAULT}`}
                                 onClick={(e) => { e.stopPropagation(); onCleaningClick(cleaningTask, arriving?.guest_name); }}
                                 title={`Reinigung · ${arriving?.guest_name ?? ''} · ${cleaningTask.status}${cleaningTask.scheduled_date ? ' · ' + format(parseLocalDate(cleaningTask.scheduled_date), 'dd.MM.yyyy') : ''}`}
                               >
@@ -286,7 +296,7 @@ const HouseStackedCalendar = ({
                             )}
                             {linenOrder && (
                               <span
-                                className={`w-5 h-5 rounded-full border flex items-center justify-center text-[11px] leading-none cursor-pointer shadow-sm ${LINEN_ICON_STYLES[linenOrder.status] || LINEN_ICON_DEFAULT}`}
+                                className={`w-4 h-4 sm:w-5 sm:h-5 rounded-full border flex items-center justify-center text-[9px] sm:text-[11px] leading-none cursor-pointer shadow-sm ${LINEN_ICON_STYLES[linenOrder.status] || LINEN_ICON_DEFAULT}`}
                                 onClick={(e) => { e.stopPropagation(); onLinenClick(linenOrder, arriving?.guest_name); }}
                                 title={`Wäsche · ${arriving?.guest_name ?? ''} · ${linenOrder.status}${linenOrder.delivery_date ? ' · Lieferung ' + format(parseLocalDate(linenOrder.delivery_date), 'dd.MM.yyyy') : ''}`}
                               >
@@ -298,6 +308,7 @@ const HouseStackedCalendar = ({
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               );
             })}
@@ -309,10 +320,8 @@ const HouseStackedCalendar = ({
 
   return (
     <div className="bg-card rounded-lg border shadow-sm p-3 sm:p-4">
-      <div className="overflow-x-auto overflow-y-auto max-h-[720px]">
-        <div style={{ minWidth: '700px' }}>
-          {monthsToShow.map((m, i) => renderMonth(m, i === 1))}
-        </div>
+      <div className="overflow-y-auto max-h-[560px] sm:max-h-[720px]">
+        {monthsToShow.map((m, i) => renderMonth(m, i === 1))}
       </div>
     </div>
   );
