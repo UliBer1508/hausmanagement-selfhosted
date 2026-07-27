@@ -55,8 +55,8 @@ interface BookingTimelineProps {
   onBookingClick: (booking: Booking) => void;
   serviceTasks?: ServiceTask[];
   linenOrders?: LinenOrder[];
-  onCleaningClick?: (task: ServiceTask) => void;
-  onLinenClick?: (order: LinenOrder) => void;
+  onCleaningClick?: (task: ServiceTask, guestName?: string) => void;
+  onLinenClick?: (order: LinenOrder, guestName?: string) => void;
 }
 
 // Haus-Farben kommen aus getHouseColors() in @/lib/utils — bewusst NICHT mehr
@@ -340,8 +340,8 @@ const BookingTimeline = ({
                           {cleaningTask && (
                             <span
                               className={`w-[18px] h-[18px] rounded-full border flex items-center justify-center text-[10px] leading-none cursor-pointer shadow-sm ${CLEANING_ICON_STYLES[cleaningTask.status] || CLEANING_ICON_DEFAULT}`}
-                              title={`Reinigung (${cleaningTask.status})${cleaningTask.scheduled_date ? ' — ' + format(parseLocalDate(cleaningTask.scheduled_date), 'dd.MM.yyyy', { locale: de }) : ''}`}
-                              onClick={(e) => { e.stopPropagation(); onCleaningClick?.(cleaningTask); }}
+                              title={`Reinigung · ${booking.guest_name} · ${cleaningTask.status}${cleaningTask.scheduled_date ? ' · ' + format(parseLocalDate(cleaningTask.scheduled_date), 'dd.MM.yyyy', { locale: de }) : ''}`}
+                              onClick={(e) => { e.stopPropagation(); onCleaningClick?.(cleaningTask, booking.guest_name); }}
                             >
                               🧹
                             </span>
@@ -349,8 +349,8 @@ const BookingTimeline = ({
                           {linenOrder && (
                             <span
                               className={`w-[18px] h-[18px] rounded-full border flex items-center justify-center text-[10px] leading-none cursor-pointer shadow-sm ${LINEN_ICON_STYLES[linenOrder.status] || LINEN_ICON_DEFAULT}`}
-                              title={`Wäsche (${linenOrder.status})${linenOrder.delivery_date ? ' — ' + format(parseLocalDate(linenOrder.delivery_date), 'dd.MM.yyyy', { locale: de }) : ''}`}
-                              onClick={(e) => { e.stopPropagation(); onLinenClick?.(linenOrder); }}
+                              title={`Wäsche · ${booking.guest_name} · ${linenOrder.status}${linenOrder.delivery_date ? ' · Lieferung ' + format(parseLocalDate(linenOrder.delivery_date), 'dd.MM.yyyy', { locale: de }) : ''}`}
+                              onClick={(e) => { e.stopPropagation(); onLinenClick?.(linenOrder, booking.guest_name); }}
                             >
                               🧺
                             </span>
