@@ -46,26 +46,26 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
     });
   };
 
-  const handleCleaningClick = (task: any) => {
+  const handleCleaningClick = (task: any, guestName?: string) => {
     const house = housesData?.find((h) => h.id === task.house_id);
     const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
     setSelectedEvent({
       type: 'cleaning',
       title: `🧹 Reinigung: ${houseName}`,
       cleaning: task,
-      booking: { house: house?.name || 'Unbekannt' },
+      booking: { house: house?.name || 'Unbekannt', guest: guestName },
       color: 'bg-blue-500 text-white',
     });
   };
 
-  const handleLinenClick = (order: any) => {
+  const handleLinenClick = (order: any, guestName?: string) => {
     const house = housesData?.find((h) => h.id === order.house_id);
     const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
     setSelectedEvent({
       type: 'laundry',
       title: `🧺 Wäsche: ${houseName}`,
       laundry: order,
-      booking: { house: house?.name || 'Unbekannt' },
+      booking: { house: house?.name || 'Unbekannt', guest: guestName },
       color: 'bg-purple-500 text-white',
     });
   };
@@ -105,12 +105,14 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
           </div>
         ) : event.type === 'cleaning' ? (
           <div className="space-y-2 text-sm">
+            {event.booking?.guest && (<div><span className="font-medium">Buchung:</span> {event.booking.guest}</div>)}
             {event.booking?.house && (<div><span className="font-medium">Haus:</span> {event.booking.house}</div>)}
             {event.cleaning?.scheduled_date && (<div><span className="font-medium">Datum:</span> {format(parseISO(event.cleaning.scheduled_date), 'dd.MM.yyyy', { locale: de })}</div>)}
             {event.cleaning?.status && (<div><span className="font-medium">Status:</span> {event.cleaning.status}</div>)}
           </div>
         ) : event.type === 'laundry' ? (
           <div className="space-y-2 text-sm">
+            {event.booking?.guest && (<div><span className="font-medium">Buchung:</span> {event.booking.guest}</div>)}
             {event.booking?.house && (<div><span className="font-medium">Haus:</span> {event.booking.house}</div>)}
             {event.laundry?.delivery_date && (<div><span className="font-medium">Lieferdatum:</span> {format(parseISO(event.laundry.delivery_date), 'dd.MM.yyyy', { locale: de })}</div>)}
             {event.laundry?.status && (<div><span className="font-medium">Status:</span> {event.laundry.status}</div>)}
