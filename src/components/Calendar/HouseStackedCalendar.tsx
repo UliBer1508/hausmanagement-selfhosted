@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay } from 'date-fns';
-import { getHouseIcon } from '@/lib/utils';
+import { useMemo, useRef, useEffect } from 'react';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 
 // Extrahiert lokales Datum aus ISO-String, ignoriert Zeitzone — identisches
 // Muster wie in BookingTimeline.tsx (bewusst lokal dupliziert, keine geteilte
@@ -57,6 +56,14 @@ interface HouseStackedCalendarProps {
 
 const WEEKDAY_LABELS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
+// Dieselben Haus-Farben wie in BookingTimeline.tsx — macht beide Ansichten
+// optisch konsistent und ist unabhängig von Emoji-Unterstützung des Systems.
+const HOUSE_DOT_COLOR: Record<string, string> = {
+  'Wald Chalet': '#22d3ee',
+  'Venedigersiedlung Chalet': '#fbbf24',
+};
+const HOUSE_DOT_DEFAULT = '#9ca3af';
+
 const CELL_STYLE: Record<string, React.CSSProperties> = {
   occupied: { background: '#ef4444' },
   checkin: {
@@ -72,6 +79,22 @@ const CELL_STYLE: Record<string, React.CSSProperties> = {
     border: '1px solid #d1d5db',
   },
 };
+
+// Reinigung: draft = blasses Icon, sonst voll blau — identisch zu BookingTimeline.tsx.
+const CLEANING_ICON_STYLES: Record<string, string> = {
+  draft: 'bg-white border-blue-400 text-blue-600',
+  scheduled: 'bg-blue-600 border-blue-700 text-white',
+  in_progress: 'bg-blue-600 border-blue-700 text-white',
+  completed: 'bg-green-600 border-green-700 text-white',
+  delayed: 'bg-amber-500 border-amber-700 text-white',
+};
+const CLEANING_ICON_DEFAULT = CLEANING_ICON_STYLES.scheduled;
+
+const LINEN_ICON_STYLES: Record<string, string> = {
+  offen: 'bg-white border-purple-400 text-purple-600',
+  ausstehend: 'bg-purple-600 border-purple-700 text-white',
+};
+const LINEN_ICON_DEFAULT = LINEN_ICON_STYLES.offen;
 
 type DayInfo =
   | { status: 'free' }
@@ -91,17 +114,20 @@ const HouseStackedCalendar = ({
   onCleaningClick,
   onLinenClick,
 }: HouseStackedCalendarProps) => {
-  const monthStart = startOfMonth(selectedDate);
-  const monthEnd = endOfMonth(selectedDate);
-  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
-  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  // Drei Monate übereinander (Vormonat/aktueller/Folgemonat) im selben
+  // vertikal scrollbaren Bereich — dieselbe Lösung wie im Gantt-Chart, nur
+  // auf der senkrechten statt waagerechten Achse.
+  const monthsToShow = useMemo(
+    () => [subMonths(selectedDate, 1), selectedDate, addMonths(selectedDate, 1)],
+    [selectedDate]
+  );
 
-  const weeks = useMemo(() => {
-    const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
-    const result: Date[][] = [];
-    for (let i = 0; i < days.length; i += 7) result.push(days.slice(i, i + 7));
-    return result;
-  }, [gridStart, gridEnd]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const currentMonthRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    currentMonthRef.current?.scrollIntoView({ block: 'start' });
+  }, [selectedDate]);
 
   const touristHouses = useMemo(() => houses.filter(h => h.rental_type === 'tourist'), [houses]);
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== 'cancelled'), [bookings]);
@@ -155,41 +181,56 @@ const HouseStackedCalendar = ({
     else if (info.status === 'changeover') onChangeoverClick(info.departing, info.arriving);
   };
 
-  return (
-    <div className="bg-card rounded-lg border shadow-sm p-3 sm:p-4">
-      <div className="overflow-x-auto">
-        <div style={{ minWidth: '640px' }}>
-          {weeks.map((week, wi) => (
-            <div key={wi} className="mb-2">
-              {wi === 0 && (
-                <div className="grid gap-1 mb-0.5" style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}>
-                  <div />
-                  {WEEKDAY_LABELS.map(l => (
-                    <div key={l} className="text-center text-xs font-medium text-muted-foreground">{l}</div>
-                  ))}
-                </div>
-              )}
-              <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}>
+  const renderMonth = (monthDate: Date, isCurrent: boolean) => {
+    const monthStart = startOfMonth(monthDate);
+    const monthEnd = endOfMonth(monthDate);
+    const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+    const weeks: Date[][] = [];
+    for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+
+    return (
+      <div key={monthDate.toISOString()} ref={isCurrent ? currentMonthRef : undefined} className="mb-6">
+        <div className="text-sm font-semibold text-foreground mb-2">
+          {format(monthDate, 'MMMM yyyy')}
+        </div>
+        {weeks.map((week, wi) => (
+          <div key={wi} className="mb-2">
+            {wi === 0 && (
+              <div className="grid gap-1 mb-0.5" style={{ gridTemplateColumns: '72px repeat(7, 1fr)' }}>
                 <div />
-                {week.map((d, di) => (
-                  <div
-                    key={di}
-                    className={`text-center text-xs ${isSameMonth(d, selectedDate) ? 'text-muted-foreground' : 'text-muted-foreground/40'}`}
-                  >
-                    {format(d, 'd')}
-                  </div>
+                {WEEKDAY_LABELS.map(l => (
+                  <div key={l} className="text-center text-xs font-medium text-muted-foreground">{l}</div>
                 ))}
               </div>
+            )}
+            <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: '72px repeat(7, 1fr)' }}>
+              <div />
+              {week.map((d, di) => (
+                <div
+                  key={di}
+                  className={`text-center text-xs ${isSameMonth(d, monthDate) ? 'text-muted-foreground' : 'text-muted-foreground/40'}`}
+                >
+                  {format(d, 'd')}
+                </div>
+              ))}
+            </div>
 
-              {touristHouses.map(house => (
-                <div key={house.id} className="grid gap-1 items-center mb-1" style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}>
-                  <div className="text-right pr-1.5 text-xs text-muted-foreground truncate flex items-center justify-end gap-1">
-                    <span>{getHouseIcon(house.name)}</span>
+            {touristHouses.map(house => {
+              const dotColor = HOUSE_DOT_COLOR[house.name] || HOUSE_DOT_DEFAULT;
+              return (
+                <div key={house.id} className="grid gap-1 items-center mb-1" style={{ gridTemplateColumns: '72px repeat(7, 1fr)' }}>
+                  <div className="text-right pr-1.5 text-xs font-semibold text-foreground truncate flex items-center justify-end gap-1.5">
                     <span className="hidden sm:inline">{house.name.replace(' Chalet', '')}</span>
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
+                      style={{ background: dotColor }}
+                    />
                   </div>
                   {week.map((date, di) => {
-                    if (!isSameMonth(date, selectedDate)) {
-                      return <div key={di} className="h-8 rounded border border-border/30" />;
+                    if (!isSameMonth(date, monthDate)) {
+                      return <div key={di} className="h-9 rounded border border-border/30" />;
                     }
                     const info = getDayInfo(house.id, date);
                     const style = info.status === 'free' ? {} : CELL_STYLE[info.status];
@@ -207,21 +248,21 @@ const HouseStackedCalendar = ({
                     return (
                       <div
                         key={di}
-                        className={`h-8 rounded relative ${info.status === 'free' ? 'border border-border' : 'cursor-pointer hover:opacity-90 transition-opacity'}`}
+                        className={`h-9 rounded relative ${info.status === 'free' ? 'border border-border' : 'cursor-pointer hover:opacity-90 transition-opacity'}`}
                         style={style}
                         onClick={info.status !== 'free' ? () => handleCellClick(info) : undefined}
                         title={titleText}
                       >
                         {info.status === 'occupied' && (
-                          <span className="absolute inset-0 flex items-center justify-center text-white text-[9px] font-medium truncate px-0.5">
+                          <span className="absolute inset-0 flex items-center justify-center text-white text-[10px] font-medium truncate px-1">
                             {info.occupying.guest_name.split(' ')[0]}
                           </span>
                         )}
                         {(cleaningTask || linenOrder) && (
-                          <div className="absolute top-0 right-0 flex flex-col leading-none z-10">
+                          <div className="absolute -top-1.5 -right-1.5 flex gap-0.5 z-10">
                             {cleaningTask && (
                               <span
-                                className="text-[8px] bg-white rounded-sm px-px cursor-pointer"
+                                className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] leading-none cursor-pointer shadow-sm ${CLEANING_ICON_STYLES[cleaningTask.status] || CLEANING_ICON_DEFAULT}`}
                                 onClick={(e) => { e.stopPropagation(); onCleaningClick(cleaningTask); }}
                                 title={`Reinigung (${cleaningTask.status})`}
                               >
@@ -230,7 +271,7 @@ const HouseStackedCalendar = ({
                             )}
                             {linenOrder && (
                               <span
-                                className="text-[8px] bg-white rounded-sm px-px cursor-pointer"
+                                className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] leading-none cursor-pointer shadow-sm ${LINEN_ICON_STYLES[linenOrder.status] || LINEN_ICON_DEFAULT}`}
                                 onClick={(e) => { e.stopPropagation(); onLinenClick(linenOrder); }}
                                 title={`Wäsche (${linenOrder.status})`}
                               >
@@ -243,9 +284,19 @@ const HouseStackedCalendar = ({
                     );
                   })}
                 </div>
-              ))}
-            </div>
-          ))}
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  return (
+    <div className="bg-card rounded-lg border shadow-sm p-3 sm:p-4">
+      <div className="overflow-x-auto overflow-y-auto max-h-[720px]" ref={scrollRef}>
+        <div style={{ minWidth: '640px' }}>
+          {monthsToShow.map((m, i) => renderMonth(m, i === 1))}
         </div>
       </div>
     </div>
