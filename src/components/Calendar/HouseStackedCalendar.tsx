@@ -58,6 +58,8 @@ interface HouseStackedCalendarProps {
   onLinenClick: (order: LinenOrder) => void;
 }
 
+const WEEKDAY_LABELS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
 // Zellfarben je Haus — Vollton = belegt, diagonal geteilt = An-/Abreise bzw.
 // Wechseltag (Muster von der Website übernommen). Die Hausfarbe kommt aus
 // getHouseColors() in @/lib/utils, damit Timeline und Monatsansicht IMMER
@@ -207,9 +209,6 @@ const HouseStackedCalendar = ({
         </div>
         {weeks.map((week, wi) => (
           <div key={wi} className="mb-2">
-            {wi === 0 && (
-
-            )}
             <div className="grid gap-1 mb-1" style={{ gridTemplateColumns: '104px repeat(7, 1fr)' }}>
               <div />
               {week.map((d, di) => (
