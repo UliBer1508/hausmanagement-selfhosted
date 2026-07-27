@@ -8,7 +8,7 @@ const parseLocalDate = (isoString: string): Date => {
   return new Date(datePart + 'T00:00:00');
 };
 import { de } from 'date-fns/locale';
-import { getHouseIcon } from '@/lib/utils';
+import { getHouseIcon, getHouseColors } from '@/lib/utils';
 
 interface Booking {
   id: string;
@@ -59,24 +59,10 @@ interface BookingTimelineProps {
   onLinenClick?: (order: LinenOrder) => void;
 }
 
-// Haus-spezifische Farben
-const HOUSE_COLORS: Record<string, { bg: string; border: string; text: string }> = {
-  'Wald Chalet': { 
-    bg: 'bg-cyan-400', 
-    border: 'border-cyan-600',
-    text: 'text-white'
-  },
-  'Venedigersiedlung Chalet': { 
-    bg: 'bg-amber-400', 
-    border: 'border-amber-600',
-    text: 'text-white'
-  },
-  'default': {
-    bg: 'bg-gray-400',
-    border: 'border-gray-600',
-    text: 'text-white'
-  }
-};
+// Haus-Farben kommen aus getHouseColors() in @/lib/utils — bewusst NICHT mehr
+// lokal als Tabelle mit exakten Hausnamen. Genau diese Tabelle war die Ursache
+// dafür, dass Venediger still grau blieb (Schlüssel 'Venedigersiedlung Chalet'
+// traf den echten Namen "Venediger Chalet" nie).
 
 // Reinigung: draft (Entwurf, noch nicht bestätigt) = blasses Icon, sonst voll blau.
 // completed/delayed bekommen eine eigene Farbe für den Rückblick.
@@ -240,9 +226,9 @@ const BookingTimeline = ({
     <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
       <div className="overflow-x-auto" ref={scrollRef}>
         {/* Header mit Tagen */}
-        <div className="flex border-b sticky top-0 bg-card z-10">
+        <div className="flex w-max border-b sticky top-0 bg-card z-10">
           {/* Haus-Spalte - sticky für horizontales Scrollen */}
-          <div className="w-32 md:w-40 shrink-0 p-2 md:p-3 font-medium border-r bg-muted text-foreground sticky left-0 z-20">
+          <div className="w-[104px] shrink-0 p-2 md:p-3 font-semibold border-r bg-muted text-foreground sticky left-0 z-20">
             Objekt
           </div>
           {/* Tages-Header mit fester Mindestbreite, Monatsgrenzen leicht hervorgehoben */}
@@ -278,19 +264,19 @@ const BookingTimeline = ({
           const houseBookings = activeBookings
             .filter(b => (b.house_id === house.id || b.houses?.id === house.id) && isBookingVisible(b))
             .sort((a, b) => parseLocalDate(a.check_in).getTime() - parseLocalDate(b.check_in).getTime());
-          const colors = HOUSE_COLORS[house.name] || HOUSE_COLORS.default;
+          const colors = getHouseColors(house.name);
           const maxOverlaps = getMaxOverlaps(houseBookings);
           const containerHeight = 64 + maxOverlaps;
           
           return (
             <div 
               key={house.id} 
-              className={`flex relative ${houseIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}
+              className={`flex w-max relative ${houseIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}
             >
               {/* Haus-Name - sticky für horizontales Scrollen */}
-              <div className={`w-32 md:w-40 shrink-0 p-2 md:p-3 font-medium border-r flex items-center gap-2 sticky left-0 z-10 ${houseIndex % 2 === 0 ? 'bg-card' : 'bg-muted'}`}>
-                <span className="text-lg">{getHouseIcon(house.name)}</span>
-                <span className="text-sm text-foreground truncate">
+              <div className={`w-[104px] shrink-0 p-2 md:p-3 border-r flex items-center gap-2 sticky left-0 z-10 ${houseIndex % 2 === 0 ? 'bg-card' : 'bg-muted'}`}>
+                <span className="text-lg shrink-0">{getHouseIcon(house.name)}</span>
+                <span className="text-sm font-semibold text-foreground truncate">
                   {house.name.replace(' Chalet', '')}
                 </span>
               </div>
@@ -335,7 +321,7 @@ const BookingTimeline = ({
                     <div
                       key={booking.id}
                       className={`
-                        absolute h-10 ${colors.bg} ${colors.text} ${colors.border}
+                        absolute h-10 ${colors.barBg} ${colors.barText} ${colors.barBorder}
                         rounded-lg px-1.5 flex items-center gap-1 text-sm font-medium 
                         cursor-pointer hover:opacity-90 shadow-md border-2
                         transition-all duration-150 hover:scale-[1.02] hover:z-10
@@ -350,10 +336,10 @@ const BookingTimeline = ({
                       title={`${booking.guest_name} - ${nights} Nächte (${booking.number_of_guests} Gäste)`}
                     >
                       {(cleaningTask || linenOrder) && (
-                        <div className="flex flex-col gap-0.5 shrink-0">
+                        <div className="flex gap-0.5 shrink-0">
                           {cleaningTask && (
                             <span
-                              className={`w-4 h-4 rounded-full border flex items-center justify-center text-[8px] leading-none cursor-pointer ${CLEANING_ICON_STYLES[cleaningTask.status] || CLEANING_ICON_DEFAULT}`}
+                              className={`w-[18px] h-[18px] rounded-full border flex items-center justify-center text-[10px] leading-none cursor-pointer shadow-sm ${CLEANING_ICON_STYLES[cleaningTask.status] || CLEANING_ICON_DEFAULT}`}
                               title={`Reinigung (${cleaningTask.status})${cleaningTask.scheduled_date ? ' — ' + format(parseLocalDate(cleaningTask.scheduled_date), 'dd.MM.yyyy', { locale: de }) : ''}`}
                               onClick={(e) => { e.stopPropagation(); onCleaningClick?.(cleaningTask); }}
                             >
@@ -362,7 +348,7 @@ const BookingTimeline = ({
                           )}
                           {linenOrder && (
                             <span
-                              className={`w-4 h-4 rounded-full border flex items-center justify-center text-[8px] leading-none cursor-pointer ${LINEN_ICON_STYLES[linenOrder.status] || LINEN_ICON_DEFAULT}`}
+                              className={`w-[18px] h-[18px] rounded-full border flex items-center justify-center text-[10px] leading-none cursor-pointer shadow-sm ${LINEN_ICON_STYLES[linenOrder.status] || LINEN_ICON_DEFAULT}`}
                               title={`Wäsche (${linenOrder.status})${linenOrder.delivery_date ? ' — ' + format(parseLocalDate(linenOrder.delivery_date), 'dd.MM.yyyy', { locale: de }) : ''}`}
                               onClick={(e) => { e.stopPropagation(); onLinenClick?.(linenOrder); }}
                             >
