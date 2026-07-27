@@ -600,6 +600,7 @@ const OriginalDashboard = () => {
           notes,
           status,
           updated_at,
+          portale_geprueft_am,
           houses!bookings_house_id_fkey (
             id,
             name,
