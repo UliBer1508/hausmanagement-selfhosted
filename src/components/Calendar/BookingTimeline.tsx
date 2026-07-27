@@ -383,31 +383,6 @@ const BookingTimeline = ({
           );
         })}
 
-        {/* Legende */}
-        <div className="flex flex-wrap gap-4 p-4 border-t bg-muted/30">
-          <div className="text-sm text-muted-foreground font-medium">Legende:</div>
-          {touristHouses.map(house => {
-            const colors = HOUSE_COLORS[house.name] || HOUSE_COLORS.default;
-            return (
-              <div key={house.id} className="flex items-center gap-2">
-                <div className={`w-6 h-4 ${colors.bg} rounded border ${colors.border}`} />
-                <span className="text-sm text-foreground">{house.name}</span>
-              </div>
-            );
-          })}
-          <div className="flex items-center gap-2 ml-4">
-            <div className="w-6 h-4 bg-primary/20 rounded border border-primary" />
-            <span className="text-sm text-muted-foreground">Heute</span>
-          </div>
-          <div className="flex items-center gap-2 ml-4">
-            <span className="text-sm">🧹</span>
-            <span className="text-sm text-muted-foreground">Reinigung (blass = Entwurf, voll = bestätigt)</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm">🧺</span>
-            <span className="text-sm text-muted-foreground">Wäsche (blass = offen, voll = bestätigt)</span>
-          </div>
-        </div>
       </div>
     </div>
   );
