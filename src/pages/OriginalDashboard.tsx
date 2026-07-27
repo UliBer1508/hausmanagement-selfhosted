@@ -600,6 +600,12 @@ const OriginalDashboard = () => {
           notes,
           status,
           updated_at,
+          status_changed_by,
+          booked_guests,
+          guest_surcharge_amount,
+          portale_geprueft_am,
+          portale_geprueft_von,
+          portale_geprueft_art,
           houses!bookings_house_id_fkey (
             id,
             name,
