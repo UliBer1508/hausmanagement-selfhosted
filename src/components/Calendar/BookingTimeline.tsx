@@ -242,7 +242,7 @@ const BookingTimeline = ({
         {/* Header mit Tagen */}
         <div className="flex border-b sticky top-0 bg-card z-10">
           {/* Haus-Spalte - sticky für horizontales Scrollen */}
-          <div className="w-32 md:w-40 shrink-0 p-2 md:p-3 font-medium border-r bg-muted/50 text-foreground sticky left-0 z-20">
+          <div className="w-32 md:w-40 shrink-0 p-2 md:p-3 font-medium border-r bg-muted text-foreground sticky left-0 z-20">
             Objekt
           </div>
           {/* Tages-Header mit fester Mindestbreite, Monatsgrenzen leicht hervorgehoben */}
@@ -288,7 +288,7 @@ const BookingTimeline = ({
               className={`flex relative ${houseIndex % 2 === 0 ? 'bg-card' : 'bg-muted/20'}`}
             >
               {/* Haus-Name - sticky für horizontales Scrollen */}
-              <div className="w-32 md:w-40 shrink-0 p-2 md:p-3 font-medium border-r flex items-center gap-2 bg-muted/30 sticky left-0 z-10">
+              <div className={`w-32 md:w-40 shrink-0 p-2 md:p-3 font-medium border-r flex items-center gap-2 sticky left-0 z-10 ${houseIndex % 2 === 0 ? 'bg-card' : 'bg-muted'}`}>
                 <span className="text-lg">{getHouseIcon(house.name)}</span>
                 <span className="text-sm text-foreground truncate">
                   {house.name.replace(' Chalet', '')}
