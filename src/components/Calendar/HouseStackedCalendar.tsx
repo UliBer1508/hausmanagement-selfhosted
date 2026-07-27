@@ -58,8 +58,6 @@ interface HouseStackedCalendarProps {
   onLinenClick: (order: LinenOrder) => void;
 }
 
-const WEEKDAY_LABELS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-
 // Zellfarben je Haus — Vollton = belegt, diagonal geteilt = An-/Abreise bzw.
 // Wechseltag (Muster von der Website übernommen). Die Hausfarbe kommt aus
 // getHouseColors() in @/lib/utils, damit Timeline und Monatsansicht IMMER
