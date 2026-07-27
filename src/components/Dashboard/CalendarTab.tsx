@@ -71,7 +71,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
         if (isSameDay(date, taskDate)) {
           const house = housesData?.find((h) => h.id === task.house_id);
           const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
-          events.push({ type: 'cleaning', title: `🧹 Reinigung: ${houseName}`, task, color: 'bg-blue-500 text-white' });
+          events.push({ type: 'cleaning', title: `🧹 Reinigung: ${houseName}`, cleaning: task, color: 'bg-blue-500 text-white' });
         }
       }
     });
@@ -83,7 +83,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
         if (isSameDay(date, deliveryDate)) {
           const house = housesData?.find((h) => h.id === order.house_id);
           const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
-          events.push({ type: 'laundry', title: `🧺 Wäsche: ${houseName}`, order, color: 'bg-purple-500 text-white' });
+          events.push({ type: 'laundry', title: `🧺 Wäsche: ${houseName}`, laundry: order, color: 'bg-purple-500 text-white' });
         }
       }
     });
@@ -295,12 +295,36 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
       bookings={bookingsData || []}
       houses={housesData || []}
       selectedDate={selectedDate}
+      serviceTasks={serviceTasks}
+      linenOrders={linenOrders}
       onBookingClick={(booking) => setSelectedEvent({
         type: 'occupied',
         title: `Buchung: ${booking.guest_name}`,
         booking: { ...booking, guest: booking.guest_name, house: booking.houses?.name || 'Unbekannt', checkIn: booking.check_in, checkOut: booking.check_out },
         color: 'bg-cyan-400 text-white',
       })}
+      onCleaningClick={(task) => {
+        const house = housesData?.find((h) => h.id === task.house_id);
+        const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
+        setSelectedEvent({
+          type: 'cleaning',
+          title: `🧹 Reinigung: ${houseName}`,
+          cleaning: task,
+          booking: { house: house?.name || 'Unbekannt' },
+          color: 'bg-blue-500 text-white',
+        });
+      }}
+      onLinenClick={(order) => {
+        const house = housesData?.find((h) => h.id === order.house_id);
+        const houseName = house?.name?.replace(' Chalet', '') || 'Unbekannt';
+        setSelectedEvent({
+          type: 'laundry',
+          title: `🧺 Wäsche: ${houseName}`,
+          laundry: order,
+          booking: { house: house?.name || 'Unbekannt' },
+          color: 'bg-purple-500 text-white',
+        });
+      }}
     />
   );
 
@@ -311,6 +335,8 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
           <h2 className="text-xl sm:text-2xl font-bold text-foreground">
             {calendarView === 'week'
               ? `${format(getWeekStart(selectedDate), 'dd. MMM', { locale: de })} - ${format(addDays(getWeekStart(selectedDate), 6), 'dd. MMM yyyy', { locale: de })}`
+              : calendarView === 'timeline'
+              ? `${format(subMonths(selectedDate, 1), 'MMM', { locale: de })} – ${format(addMonths(selectedDate, 1), 'MMM yyyy', { locale: de })}`
               : format(selectedDate, 'MMMM yyyy', { locale: de })}
           </h2>
           <div className="flex space-x-2">
@@ -381,8 +407,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                         <h4 className="font-semibold text-foreground">Reinigungsdetails</h4>
                         <div className="space-y-2 text-sm">
                           {selectedEvent.booking?.house && (<div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>)}
-                          {selectedEvent.cleaning?.date && (<div><span className="font-medium">Datum:</span> {format(parseISO(selectedEvent.cleaning.date), 'dd.MM.yyyy', { locale: de })}</div>)}
-                          {selectedEvent.cleaning?.provider && (<div><span className="font-medium">Anbieter:</span> {selectedEvent.cleaning.provider}</div>)}
+                          {selectedEvent.cleaning?.scheduled_date && (<div><span className="font-medium">Datum:</span> {format(parseISO(selectedEvent.cleaning.scheduled_date), 'dd.MM.yyyy', { locale: de })}</div>)}
                           {selectedEvent.cleaning?.status && (<div><span className="font-medium">Status:</span> {selectedEvent.cleaning.status}</div>)}
                           {selectedEvent.booking?.guest && (<div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>)}
                         </div>
@@ -392,9 +417,8 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                         <h4 className="font-semibold text-foreground">Wäschedetails</h4>
                         <div className="space-y-2 text-sm">
                           {selectedEvent.booking?.house && (<div><span className="font-medium">Haus:</span> {selectedEvent.booking.house}</div>)}
+                          {selectedEvent.laundry?.delivery_date && (<div><span className="font-medium">Lieferdatum:</span> {format(parseISO(selectedEvent.laundry.delivery_date), 'dd.MM.yyyy', { locale: de })}</div>)}
                           {selectedEvent.laundry?.status && (<div><span className="font-medium">Status:</span> {selectedEvent.laundry.status}</div>)}
-                          {selectedEvent.laundry?.provider && (<div><span className="font-medium">Anbieter:</span> {selectedEvent.laundry.provider}</div>)}
-                          {selectedEvent.laundry?.items && (<div><span className="font-medium">Artikel:</span> {selectedEvent.laundry.items.join(', ')}</div>)}
                           {selectedEvent.booking?.guest && (<div><span className="font-medium">Buchung:</span> {selectedEvent.booking.guest}</div>)}
                         </div>
                       </div>
