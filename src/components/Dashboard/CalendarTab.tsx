@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, addMonths, subMonths, parseISO } from 'date-fns';
+import { ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
+import { format, addMonths, subMonths, addYears, subYears, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import BookingTimeline from '@/components/Calendar/BookingTimeline';
 import HouseStackedCalendar from '@/components/Calendar/HouseStackedCalendar';
@@ -14,6 +14,8 @@ interface CalendarTabProps {
   linenOrders: any[] | undefined;
 }
 
+type CalendarView = 'year' | 'month' | 'timeline';
+
 export const CalendarTab: React.FC<CalendarTabProps> = ({
   bookingsData,
   housesData,
@@ -21,7 +23,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
   linenOrders,
 }) => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [calendarView, setCalendarView] = useState<'month' | 'timeline'>('month');
+  const [calendarView, setCalendarView] = useState<CalendarView>('year');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
 
   // Gemeinsame Klick-Handler — von Monatsansicht UND Timeline genutzt, damit
@@ -69,6 +71,28 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
       color: 'bg-purple-500 text-white',
     });
   };
+
+  // Klick auf eine Monatskachel in der Jahresübersicht: Monat merken und in
+  // die Monatsansicht wechseln. Dort wird das ganze Jahr gerendert und an
+  // diesen Monat gescrollt — von dort ist bis Januar bzw. Dezember scrollbar.
+  const handleSelectMonth = (monthStart: Date) => {
+    setSelectedDate(monthStart);
+    setCalendarView('month');
+  };
+
+  // Pfeile blättern je nach Ansicht: in der Jahresübersicht ganze Jahre,
+  // sonst einzelne Monate.
+  const goBack = () =>
+    setSelectedDate(calendarView === 'year' ? subYears(selectedDate, 1) : subMonths(selectedDate, 1));
+  const goForward = () =>
+    setSelectedDate(calendarView === 'year' ? addYears(selectedDate, 1) : addMonths(selectedDate, 1));
+
+  const headline =
+    calendarView === 'year'
+      ? format(selectedDate, 'yyyy', { locale: de })
+      : calendarView === 'timeline'
+        ? `${format(subMonths(selectedDate, 1), 'MMM', { locale: de })} – ${format(addMonths(selectedDate, 1), 'MMM yyyy', { locale: de })}`
+        : format(selectedDate, 'MMMM yyyy', { locale: de });
 
   // Gemeinsamer Detail-Inhalt fürs Popup — für alle Event-Typen (Buchung,
   // Wechseltag, Reinigung, Wäsche), egal aus welcher Ansicht der Klick kam.
@@ -126,22 +150,32 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-card p-4 rounded-lg border">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-          <h2 className="text-xl sm:text-2xl font-bold text-foreground">
-            {calendarView === 'timeline'
-              ? `${format(subMonths(selectedDate, 1), 'MMM', { locale: de })} – ${format(addMonths(selectedDate, 1), 'MMM yyyy', { locale: de })}`
-              : format(selectedDate, 'MMMM yyyy', { locale: de })}
-          </h2>
-          <div className="flex space-x-2">
-            <Button variant="outline" size="sm" onClick={() => setSelectedDate(subMonths(selectedDate, 1))}>
+          <div className="flex items-center gap-2">
+            {calendarView === 'month' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCalendarView('year')}
+                aria-label="Zurück zur Jahresübersicht"
+              >
+                <ArrowLeft className="w-4 h-4 mr-1" />
+                {format(selectedDate, 'yyyy', { locale: de })}
+              </Button>
+            )}
+            <h2 className="text-xl sm:text-2xl font-bold text-foreground">{headline}</h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={goBack} aria-label={calendarView === 'year' ? 'Ein Jahr zurück' : 'Ein Monat zurück'}>
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <Button variant="outline" size="sm" onClick={() => setSelectedDate(new Date())}>Heute</Button>
-            <Button variant="outline" size="sm" onClick={() => setSelectedDate(addMonths(selectedDate, 1))}>
+            <Button variant="outline" size="sm" onClick={goForward} aria-label={calendarView === 'year' ? 'Ein Jahr vor' : 'Ein Monat vor'}>
               <ChevronRight className="w-4 h-4" />
             </Button>
           </div>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant={calendarView === 'year' ? 'default' : 'outline'} size="sm" onClick={() => setCalendarView('year')}>Jahr</Button>
           <Button variant={calendarView === 'month' ? 'default' : 'outline'} size="sm" onClick={() => setCalendarView('month')}>Monat</Button>
           <Button variant={calendarView === 'timeline' ? 'default' : 'outline'} size="sm" onClick={() => setCalendarView('timeline')}>📊 Timeline</Button>
         </div>
@@ -166,6 +200,8 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
             selectedDate={selectedDate}
             serviceTasks={serviceTasks}
             linenOrders={linenOrders}
+            viewMode={calendarView === 'year' ? 'year' : 'month'}
+            onSelectMonth={handleSelectMonth}
             onBookingClick={handleBookingClick}
             onChangeoverClick={handleChangeoverClick}
             onCleaningClick={handleCleaningClick}
