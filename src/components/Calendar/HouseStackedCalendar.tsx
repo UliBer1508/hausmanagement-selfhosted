@@ -1,5 +1,5 @@
 import { useMemo, useRef, useEffect } from 'react';
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { getHouseColors } from '@/lib/utils';
 
@@ -50,13 +50,15 @@ interface HouseStackedCalendarProps {
   selectedDate: Date;
   serviceTasks?: ServiceTask[];
   linenOrders?: LinenOrder[];
+  /** 'month' (Standard) = Monatsraster, 'year' = Jahresübersicht mit 12 Kacheln. */
+  viewMode?: 'month' | 'year';
+  /** Klick auf eine Monatskachel in der Jahresübersicht. */
+  onSelectMonth?: (monthStart: Date) => void;
   onBookingClick: (booking: Booking) => void;
   onChangeoverClick: (departing: Booking, arriving: Booking) => void;
   onCleaningClick: (task: ServiceTask, guestName?: string) => void;
   onLinenClick: (order: LinenOrder, guestName?: string) => void;
 }
-
-const WEEKDAY_LABELS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
 // Zellfarben je Haus — Vollton = belegt, diagonal geteilt = An-/Abreise bzw.
 // Wechseltag (Muster von der Website übernommen). Die Hausfarbe kommt aus
@@ -119,24 +121,32 @@ const HouseStackedCalendar = ({
   selectedDate,
   serviceTasks,
   linenOrders,
+  viewMode = 'month',
+  onSelectMonth,
   onBookingClick,
   onChangeoverClick,
   onCleaningClick,
   onLinenClick,
 }: HouseStackedCalendarProps) => {
-  // Drei Monate übereinander (Vormonat/aktueller/Folgemonat) im selben
-  // vertikal scrollbaren Bereich — dieselbe Lösung wie im Gantt-Chart, nur
-  // auf der senkrechten statt waagerechten Achse.
+  const shownYear = selectedDate.getFullYear();
+
+  // Monatsansicht zeigt das GANZE gewählte Jahr (Januar bis Dezember) in einem
+  // vertikal scrollbaren Bereich. Vorher waren es drei feste Monate; damit war
+  // ein weiter entfernter Monat nur durch wiederholtes Klicken erreichbar.
+  // Die Begrenzung auf ein Jahr ist Absicht: kein Nachladen ohne Ende, feste
+  // Anzahl Monate im DOM. Ein anderes Jahr wird über die Jahresübersicht bzw.
+  // die Jahres-Pfeile in CalendarTab gewählt.
   const monthsToShow = useMemo(
-    () => [subMonths(selectedDate, 1), selectedDate, addMonths(selectedDate, 1)],
-    [selectedDate]
+    () => Array.from({ length: 12 }, (_, i) => new Date(shownYear, i, 1)),
+    [shownYear]
   );
 
   const currentMonthRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (viewMode !== 'month') return;
     currentMonthRef.current?.scrollIntoView({ block: 'start' });
-  }, [selectedDate]);
+  }, [selectedDate, viewMode]);
 
   const touristHouses = useMemo(() => houses.filter(h => h.rental_type === 'tourist'), [houses]);
   const activeBookings = useMemo(() => bookings.filter(b => b.status !== 'cancelled'), [bookings]);
@@ -191,6 +201,85 @@ const HouseStackedCalendar = ({
     else if (info.status === 'checkin') onBookingClick(info.arriving);
     else if (info.status === 'checkout') onBookingClick(info.departing);
     else if (info.status === 'changeover') onChangeoverClick(info.departing, info.arriving);
+  };
+
+  // ---------------------------------------------------------------------------
+  // JAHRESÜBERSICHT
+  // Zwölf Kacheln, je Kachel ein Streifen pro Haus mit einem Feld pro Tag.
+  // Bewusst DIESELBE getDayInfo() wie das Monatsraster — eine zweite
+  // Belegungslogik waere ein Doppelgaenger auf Logikebene (CODE-INDEX 9b).
+  // ---------------------------------------------------------------------------
+  const renderYear = () => {
+    const monthLabel = (m: Date) => format(m, 'MMMM', { locale: de });
+
+    return (
+      <div className="bg-card rounded-lg border shadow-sm p-3 sm:p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+          {monthsToShow.map(monthDate => {
+            const days = eachDayOfInterval({ start: startOfMonth(monthDate), end: endOfMonth(monthDate) });
+            const isCurrent = isSameMonth(monthDate, selectedDate);
+
+            return (
+              <div
+                key={monthDate.toISOString()}
+                role="button"
+                tabIndex={0}
+                aria-label={`${monthLabel(monthDate)} ${shownYear} öffnen`}
+                onClick={() => onSelectMonth?.(monthDate)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onSelectMonth?.(monthDate);
+                  }
+                }}
+                className={`rounded-lg border p-3 sm:p-4 cursor-pointer transition-colors hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary ${
+                  isCurrent ? 'border-primary bg-primary/5' : 'border-border bg-background'
+                }`}
+              >
+                <div className="text-base sm:text-lg font-bold text-foreground mb-2 sm:mb-3">
+                  {monthLabel(monthDate)}
+                </div>
+
+                {touristHouses.map(house => {
+                  const hc = getHouseColors(house.name);
+                  const freeCount = days.filter(d => getDayInfo(house.id, d).status === 'free').length;
+
+                  return (
+                    <div key={house.id} className="mb-2 last:mb-0">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                        <span className="flex items-center gap-1.5 font-medium text-foreground">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
+                            style={{ background: hc.base }}
+                          />
+                          {house.name.replace(' Chalet', '')}
+                        </span>
+                        <span>{freeCount} Tage frei</span>
+                      </div>
+                      <div className="flex gap-px">
+                        {days.map(d => {
+                          const status = getDayInfo(house.id, d).status;
+                          const isFree = status === 'free';
+                          const isPartial = status === 'checkin' || status === 'checkout' || status === 'changeover';
+                          return (
+                            <div
+                              key={d.toISOString()}
+                              className={`flex-1 h-4 sm:h-5 rounded-sm ${isFree ? 'border border-border bg-muted/40' : ''}`}
+                              style={isFree ? undefined : { background: hc.base, opacity: isPartial ? 0.5 : 1 }}
+                              title={`${format(d, 'dd.MM.yyyy')} — ${isFree ? 'frei' : isPartial ? 'An-/Abreise' : 'belegt'}`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   const renderMonth = (monthDate: Date, isCurrent: boolean) => {
@@ -318,10 +407,15 @@ const HouseStackedCalendar = ({
     );
   };
 
+  if (viewMode === 'year') return renderYear();
+
   return (
     <div className="bg-card rounded-lg border shadow-sm p-3 sm:p-4">
       <div className="overflow-y-auto max-h-[560px] sm:max-h-[720px]">
-        {monthsToShow.map((m, i) => renderMonth(m, i === 1))}
+        {monthsToShow.map(m => renderMonth(m, isSameMonth(m, selectedDate)))}
+        <div className="text-center text-xs text-muted-foreground py-2">
+          Ende {shownYear} — anderes Jahr über die Jahresübersicht wählen
+        </div>
       </div>
     </div>
   );
