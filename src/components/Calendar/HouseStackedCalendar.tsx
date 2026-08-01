@@ -211,12 +211,18 @@ const HouseStackedCalendar = ({
   // ---------------------------------------------------------------------------
   const renderYear = () => {
     const monthLabel = (m: Date) => format(m, 'MMMM', { locale: de });
+    // Festes 31-Spalten-Raster fuer JEDEN Monat. Vorher teilten sich die Tage
+    // die Breite per flex-1 — dadurch war ein Februartag breiter als ein
+    // Januartag und gleich lange Belegungen sahen unterschiedlich lang aus.
+    const GRID = 'grid grid-cols-[repeat(31,minmax(0,1fr))] gap-px';
+    const RULER = [1, 8, 15, 22, 29];
 
     return (
       <div className="bg-card rounded-lg border shadow-sm p-3 sm:p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
           {monthsToShow.map(monthDate => {
             const days = eachDayOfInterval({ start: startOfMonth(monthDate), end: endOfMonth(monthDate) });
+            const filler = Array.from({ length: 31 - days.length }, (_, i) => i);
             const isCurrent = isSameMonth(monthDate, selectedDate);
 
             return (
@@ -236,8 +242,32 @@ const HouseStackedCalendar = ({
                   isCurrent ? 'border-primary bg-primary/5' : 'border-border bg-background'
                 }`}
               >
-                <div className="text-base sm:text-lg font-bold text-foreground mb-2 sm:mb-3">
+                <div className="text-base sm:text-lg font-bold text-foreground mb-2">
                   {monthLabel(monthDate)}
+                </div>
+
+                {/* Tageszahlen — EINMAL je Kachel ueber beiden Streifen. Beide
+                    Haeuser nutzen dasselbe 31-Spalten-Raster, die Zahl steht
+                    also ueber ihrer Spalte in BEIDEN Zeilen. Auf dem Handy
+                    reicht die Breite nicht fuer 31 zweistellige Zahlen, dort
+                    bleiben nur 1/8/15/22/29 stehen (CODING-GUIDE B4). */}
+                <div className={`${GRID} mb-1`}>
+                  {Array.from({ length: 31 }, (_, i) => {
+                    const day = i + 1;
+                    const beyondMonth = day > days.length;
+                    return (
+                      <div
+                        key={i}
+                        className={`text-[8px] sm:text-[9px] leading-none text-center tabular-nums ${
+                          beyondMonth ? 'text-transparent' : 'text-muted-foreground'
+                        }`}
+                      >
+                        <span className={RULER.includes(day) ? 'font-semibold text-foreground' : 'hidden sm:inline'}>
+                          {day}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {touristHouses.map(house => {
@@ -246,17 +276,7 @@ const HouseStackedCalendar = ({
 
                   return (
                     <div key={house.id} className="mb-2 last:mb-0">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
-                        <span className="flex items-center gap-1.5 font-medium text-foreground">
-                          <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
-                            style={{ background: hc.base }}
-                          />
-                          {house.name.replace(' Chalet', '')}
-                        </span>
-                        <span>{freeCount} Tage frei</span>
-                      </div>
-                      <div className="flex gap-px">
+                      <div className={`${GRID} mb-1`}>
                         {days.map(d => {
                           const status = getDayInfo(house.id, d).status;
                           const isFree = status === 'free';
@@ -264,12 +284,25 @@ const HouseStackedCalendar = ({
                           return (
                             <div
                               key={d.toISOString()}
-                              className={`flex-1 h-4 sm:h-5 rounded-sm ${isFree ? 'border border-border bg-muted/40' : ''}`}
+                              className={`h-3.5 sm:h-4 ${isFree ? 'bg-muted' : ''}`}
                               style={isFree ? undefined : { background: hc.base, opacity: isPartial ? 0.5 : 1 }}
                               title={`${format(d, 'dd.MM.yyyy')} — ${isFree ? 'frei' : isPartial ? 'An-/Abreise' : 'belegt'}`}
                             />
                           );
                         })}
+                        {/* Kurze Monate lassen hinten Spalten leer, damit die
+                            Tagesbreite in allen zwoelf Kacheln gleich ist. */}
+                        {filler.map(i => <div key={`f${i}`} className="h-3.5 sm:h-4" />)}
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-1.5 font-medium text-foreground">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/10"
+                            style={{ background: hc.base }}
+                          />
+                          {house.name.replace(' Chalet', '')}
+                        </span>
+                        <span className="text-muted-foreground">{freeCount} Tage frei</span>
                       </div>
                     </div>
                   );
