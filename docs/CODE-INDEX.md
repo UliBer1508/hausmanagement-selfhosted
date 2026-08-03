@@ -475,7 +475,97 @@ Dashboard/PricingTab.tsx  → Pricing/PricingDashboard.tsx
                               └─ PricingFactorsConfig.tsx
 ```
 Hooks/Services: `usePricingConfig`, `usePricingSettings`, `useDynamicPricing`,
-`usePriceLabs`, `useAirROI`, `services/marketOccupancyService`.
+`usePriceLabs` (nur `useHousePricingConfig` / `useSaveHousePricingConfig` —
+alles Übrige tot, siehe unten), `useAirROI`, `services/marketOccupancyService`.
+
+### PriceLabs — NICHT implementiert und wird es auch nicht (Stand 03.08.2026)
+
+PriceLabs ist kostenpflichtig (~20 $/Objekt/Monat) und hat für den Oberpinzgau
+**keine belastbare Datengrundlage** — zu wenige Vergleichsobjekte in der Region.
+Die Anbindung wurde deshalb bewusst nicht fertiggestellt und wird nicht
+weiterverfolgt.
+
+**Was im Code steht, aber ins Leere läuft:**
+
+- Die Edge Function `pricelabs-sync` **existiert nicht** — weder im Repo
+  (`supabase/functions/` enthält sie nicht) noch als Deployment.
+  `usePriceLabs.ts` ruft sie an zwei Stellen auf (Zeile 44 und 155); beide
+  Aufrufe schlagen fehl.
+- Tote Hooks in `usePriceLabs.ts`: `usePriceLabsListings`, `useLinkedListings`,
+  `useLinkListing`, `useUnlinkListing`, `useSyncNeighborhood`,
+  `usePriceLabsMarketData`.
+- Tote UI: `Houses/CompetitorAnalysis/PriceLabsTab.tsx`.
+- Tabellen `pricelabs_listings` und `pricelabs_market_data` (per Migration
+  angelegt, bleiben leer).
+
+> **ACHTUNG beim Aufräumen:** `usePriceLabs.ts` darf **nicht** gelöscht werden.
+> `useHousePricingConfig` und `useSaveHousePricingConfig` stammen aus dieser
+> Datei und versorgen `PricingConfigCard.tsx` mit Basis-, Mindest- und
+> Höchstpreis. Nur die PriceLabs-spezifischen Exporte sind tot.
+
+**Marktdaten kommen stattdessen aus AirROI** (`airroi-sync` →
+`market_data_cache`). Auch dort ist die Auflösung grob: Befund 03.08.2026 für
+Neukirchen am Großvenediger — 4 verschiedene ADR-Werte (310–324 €) über
+454 Tage, Auslastung 0.224–0.477. Echte Daten, aber nur für wenige Monate
+belastbar; der Rest wird über die eigenen `season_factors` interpoliert.
+
+**Stille Fallback-Falle in `airroi-sync`:** Antwortet die API mit HTTP 200 ohne
+brauchbare Zahlen, greifen Standardwerte (`occupancy 0.6`, `adr 120`) und es
+werden trotzdem 365 Zeilen mit `source: 'airroi'` geschrieben. Prüfabfrage:
+
+```sql
+select location, count(*) as tage,
+       count(distinct avg_price) as verschiedene_preise,
+       min(avg_price) as adr_min, max(avg_price) as adr_max,
+       max(fetched_at) as zuletzt
+from market_data_cache where source = 'airroi' group by location;
+```
+
+`adr_min = adr_max = 120` bedeutet Totalausfall; `verschiedene_preise = 1`
+bedeutet, dass nur der Summary-Endpunkt antwortet.
+
+### Wettbewerber-Scraping — gescheiterter Versuch
+
+`scrape-competitor-prices` und `search-competitors` liefern **keine Daten**: Die
+Buchungsportale sperren Scraper aus. Der Cron
+`monthly-competitor-price-scraping` (monatlich am 15.) läuft weiterhin, ohne
+verwertbares Ergebnis. Nicht als nutzbare Marktdatenquelle einplanen.
+
+### Preisberechnung betrifft nur Venediger Chalet
+
+**Wald Chalet wird ausschließlich über Belvilla vermietet; Belvilla setzt dort
+die Preise.** Sämtliche Preislogik (`pricing-engine`, `daily-pricing`,
+Faktoren, Lückenrabatte, Marktdaten) ist damit nur für Venediger Chalet
+relevant.
+
+### Faktoren stehen an vier Stellen — Driftgefahr
+
+Die Preisfaktoren (Saison, Wochentag, Lücke, Feiertag …) sind **vierfach**
+definiert und nicht automatisch synchron:
+
+| Ort | Rolle |
+|---|---|
+| `supabase/functions/pricing-engine/index.ts` | maßgeblich für die Berechnung |
+| `src/components/Pricing/PricingFactorsConfig.tsx` | Oberfläche; überschreibt beim Speichern die Engine-Defaults |
+| `supabase/functions/daily-pricing/index.ts` | eigene, abweichende Kurve — **kein Cron, wird nicht ausgeführt** |
+| `supabase/functions/booking-analysis/index.ts` | Referenzwerte der Selbstkalibrierung |
+
+Am 03.08.2026 wichen UI und Engine voneinander ab (u. a. August 1.40 statt
+1.55, Samstag 1.20 statt 1.35), und der UI-Schlüssel `holiday.both` wurde von
+der Engine gar nicht gelesen (dort `holiday.at_plus_de`). **Bei jeder Änderung
+an den Engine-Faktoren muss die UI im selben Schritt nachgezogen werden.**
+
+**Deckelung beachten:** `pricing-engine` kappt am Ende auf `min_price`/
+`max_price`. Bei Venediger (545 / 445 / 650) ergibt das einen Korridor von
+0.82–1.19 — rund 70 % der Tage liegen an einem Anschlag. Eine Faktorabweichung
+wirkt sich dort gar nicht aus. Wirkung entfaltet sie nur in der Übergangszeit.
+
+**`booking-analysis` (Selbstkalibrierung) wird nirgends aufgerufen** — kein
+Frontend-Treffer, kein Cron. `pricing_config.calibration` ist bei beiden
+Häusern `null`. Vor einer Aktivierung müssten die Referenzwerte dort auf die
+Pinzgau-Kurve umgestellt werden; aktuell blendet die Funktion gegen eine
+generische Vorlage, und `pricing-engine` liest von vier Faktorgruppen ohnehin
+nur `season`.
 
 ---
 
@@ -821,7 +911,8 @@ Gäste: `useGuests`, `useGuestProfile`, `useGuestCommunications`,
 `useGuestContactReminders`, `useGuestDuplicates`, `useGuestStayCounts`,
 `useGuestAppTracking`, `useRebookingScore`, `useRatingReminders`.
 Häuser/Preise: `useHouses`, `usePricingConfig`, `usePricingSettings`,
-`useDynamicPricing`, `usePriceLabs`, `useAirROI`, `useCompetitorAnalysis`,
+`useDynamicPricing`, `usePriceLabs` (nur Preiskonfiguration aktiv — PriceLabs
+selbst nicht implementiert, siehe Modul 12), `useAirROI`, `useCompetitorAnalysis`,
 `useVacancyAI`, `useAdditionalFees`.
 Mieter: `useTenantPayments`, `useTenantRentChanges`, `useUtilityCosts`.
 Dashboard/System: `useDashboard`, `useOperationsDashboard`, `useMorningSummary`,

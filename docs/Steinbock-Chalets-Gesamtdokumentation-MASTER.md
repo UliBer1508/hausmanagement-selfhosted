@@ -357,8 +357,11 @@ Pruefung, eine Umbenennung waere Risiko ohne Gewinn.
 - Einstellungen in `cleaning_automation_settings`: `max_reminder_enabled`,
   `max_reminder_days_before` (aktuell 3). Einstellungskarte in Reinigungs-Verwaltung.
 - Cron `max-cleaning-reminders-daily` (Job-ID 13, täglich 07:00, dry_run:false).
-- **STAND: max_reminder_enabled = TRUE** (scharf geschaltet 08.07.; Amela wurde
-  eingeführt und hat bereits geantwortet).
+- **Schalter:** `max_reminder_enabled` (Einstellungskarte in der
+  Reinigungs-Verwaltung) plus der Zeit-Schalter „Amela: Termin-Nachfrage" in der
+  Karte „Max: Zeiten der Automatik". Beide müssen an sein. Ob der Cron aktuell
+  existiert, sagt nur `cron.job` — nicht diese Doku. (Am 08.07.2026 scharf
+  geschaltet; Amela hat geantwortet.)
 
 ### Automatik 2: max-linen-reminders (Teuni)
 Gespiegelt: erinnert Teuni, die Wäsche VOR der Reinigung zu liefern — nur wenn noch
@@ -366,8 +369,9 @@ nicht geliefert. Eigene Edge Function.
 - Einstellungen: `max_linen_reminder_enabled`, `max_linen_reminder_days_before`
   (Standard 5). Einstellungskarte "Max: Wäsche-Erinnerungen an Teuni" im Wäsche-Tab
   (`LinenDashboard.tsx`).
-- **STAND (12.07.2026): SCHARF.** `max_linen_reminder_enabled = TRUE`, Vorlaufzeit
-  5 Tage, Cron `max-linen-reminders-daily` (07:30) aktiv.
+- **Schalter:** `max_linen_reminder_enabled` (Karte im Wäsche-Tab) plus
+  „Teuni: Wäsche-Erinnerung" in der Karte „Max: Zeiten der Automatik".
+  Vorlaufzeit 5 Tage. Aktueller Stand nur über `cron.job` ablesbar.
 
 ### Automatik 3: overdue-watch (Überfällig-Wächter) — NEU 12.07.2026
 Schließt die Lücke „Provider antwortet nicht". Bisher blieb eine unbeantwortete
@@ -385,7 +389,17 @@ Terminfrage liegen — niemand erfuhr davon.
   `max_actions` — sendet keine Nachrichten, verschiebt keine Termine.
 - **STAND: LIVE und scharf.** Am 12.07.2026 im echten Test bewiesen.
 
-### Tagesablauf der Automatik (Stand 12.07.2026)
+### Tagesablauf der Automatik (Soll-Zeiten)
+> **Wie die Automatik-Zeiten gesteuert werden (ergänzt 03.08.2026):** Die fünf
+> Automatik-Jobs werden über die Karte **„Max: Zeiten der Automatik"** im
+> Einstellungen-Tab an- und ausgeschaltet. Einschalten legt den Cron-Job an,
+> Ausschalten **löscht** ihn. Ein in `cron.job` fehlender Job bedeutet daher
+> „ausgeschaltet", **nicht** „defekt". Der aktuelle Stand ist ausschließlich
+> über `select jobname, schedule, active from cron.job;` ablesbar — nicht aus
+> dieser Doku. Die Uhrzeiten unten sind Ortszeit; in `cron.job` stehen sie als
+> UTC (im Sommer −2 Stunden). Nach der Zeitumstellung einmal „Zeiten
+> übernehmen" klicken.
+
 ```
 06:15  overdue-watch-daily     → markiert überfällige Vorgänge
 06:30  morning-summary-daily   → Tagesübersicht per E-Mail (inkl. Überfällige)
@@ -434,7 +448,11 @@ im echten Test bewiesen (E-Mail angekommen).
 
 **Proaktive Zustellung (ergänzt 12.07.2026):**
 - **Einstellungen:** `system_settings` Schlüssel `morning_summary_settings`
-  `{ enabled, time, channel, email_to, include{...} }`. **STAND: enabled = TRUE.**
+  `{ enabled, time, channel, email_to, include{...} }`. Dieser Schalter ist der
+  **Not-Aus**: steht er auf `false`, wird nie gesendet. Er allein löst aber
+  nichts aus — dafür braucht es zusätzlich den Cron aus der Karte „Max: Zeiten
+  der Automatik" (`deliver=true`). Der Abruf beim App-Öffnen und Max' Tool
+  laufen dagegen immer mit `deliver=false` und sind vom Schalter unabhängig.
 - **Einstellungskarte** `src/components/Settings/MaxMorningSummaryCard.tsx`
   (Einstellungen-Tab): Not-Aus-Schalter, Empfänger, Uhrzeit. Hook
   `useMorningSummarySettings()` in `useSystemSettings.ts`.
@@ -462,10 +480,22 @@ im echten Test bewiesen (E-Mail angekommen).
 
 ## 5. WEITERE SYSTEME (bestehend, ausgereift — Max soll sie NICHT ersetzen)
 
-- **Preisgestaltung:** pricing-engine, daily-pricing, expand-daily-prices,
-  analyze-vacancy (nutzt KI), scrape-competitor-prices, search-competitors.
-  Regionale Logik (Pinzgau, Sommer-Peak, Samstags-Anreise). → Max könnte diese
-  später höchstens ERKLÄREN (lesen/zusammenfassen), nicht ersetzen.
+- **Preisgestaltung:** pricing-engine, expand-daily-prices, analyze-vacancy
+  (nutzt KI), airroi-sync. Regionale Logik (Pinzgau, Sommer-Peak,
+  Samstags-Anreise). → Max könnte diese später höchstens ERKLÄREN
+  (lesen/zusammenfassen), nicht ersetzen.
+  **Einschränkungen (Stand 03.08.2026, Details in `CODE-INDEX.md` Modul 12):**
+  - **Nur Venediger Chalet.** Wald Chalet wird ausschließlich über Belvilla
+    vermietet; Belvilla setzt dort die Preise.
+  - **PriceLabs ist nicht implementiert und wird es nicht** — kostenpflichtig und
+    ohne belastbare Daten für die Region. Die Edge Function `pricelabs-sync`
+    existiert nicht; `usePriceLabs.ts` ruft sie dennoch auf (tote Aufrufe).
+  - **`scrape-competitor-prices` / `search-competitors` liefern nichts** — die
+    Portale sperren Scraper aus. Gescheiterter Versuch.
+  - **`daily-pricing` hat keinen Cron** und wird nicht ausgeführt; die Funktion
+    trägt zudem eine völlig andere Saisonkurve als `pricing-engine`.
+  - **`booking-analysis` (Selbstkalibrierung) wird nirgends aufgerufen**;
+    `pricing_config.calibration` ist bei beiden Häusern `null`.
 - **E-Mail:** send-guest-email (denomailer SMTP über smtp.gmail.com:465), zentrale
   Vorschau via MailPreviewProvider.tsx. Absender steinbockchalets@gmail.com.
 - **Zahlungen:** create-payment-link, stripe-webhook. Live-Key auf Hausverwaltung.
@@ -587,7 +617,10 @@ geschlossen, wechselt der Status zurueck auf `ok` und die Meldung verschwindet.
 ## 7. OFFENE PUNKTE / AUF DER ROADMAP
 
 ### Kurzfristig
-- **Absage an Amela (`reject_reschedule`) — NOCH NICHT GEBAUT:** Wenn Amela einen
+- **Absage an Amela (`reject_reschedule`) — ERLEDIGT, gebaut am 14.07.2026.**
+  Am 03.08.2026 im Code verifiziert (Tool-Definition + `executeRejectReschedule`).
+  Der folgende Absatz beschreibt den Stand VOR der Umsetzung und bleibt als
+  Begründung stehen: Wenn Amela einen
   neuen Termin vorschlägt und Uli ihn ABLEHNT, gibt es bisher kein Werkzeug, um ihr
   das mitzuteilen und die Reinigung zurückzusetzen. (Der DB-Trigger
   `notify_amela_on_cleaning_release` sendet zwar „Termin konnte leider nicht geändert
@@ -608,12 +641,23 @@ geschlossen, wechselt der Status zurueck auf `ok` und die Meldung verschwindet.
 - **Max als Preis-Erklärer** (liest/zusammenfasst vorhandene Preis-Empfehlungen).
 - **Zweiter AI-Provider** (größerer Umbau wegen Gemini-spezifischem Tool-Format).
 
-### ⭐ NÄCHSTE AUFGABE (14.07.2026): Liefertermin-Änderung für Wäsche (Teuni)
+### ✅ ERLEDIGT: Liefertermin-Änderung für Wäsche (Teuni)
+
+> **Stand 03.08.2026 — vollständig umgesetzt und im Code verifiziert.**
+> Werkzeug `reschedule_linen_delivery` (Tool-Definition +
+> `executeRescheduleLinenDelivery`), Trigger
+> `trg_aa_notify_teuni_on_linen_release`, Erweiterung von
+> `trg_close_max_action_on_linen_confirmed` um den neuen Vorgangstyp, sowie
+> sechs Schritte in `max_ablaeufe` (SQL: `22_max_reschedule_linen_triggers.sql`,
+> `23_max_provider_reply_linen.sql`,
+> `24_max_ablaeufe_reschedule_linen_finalisieren.sql`).
+> **Die folgende Tabelle beschreibt den Stand VOR der Umsetzung** und bleibt als
+> Begründung erhalten.
 
 Uli: *„Wenn der Liefertermin geändert werden soll, gilt die gleiche Logik wie bei
 der Reinigungstermin-Änderung."*
 
-**Diese Logik existiert für Wäsche nicht.** Vier Bausteine fehlen:
+Damalige Ausgangslage — vier Bausteine fehlten:
 
 | Baustein | Reinigung (Amela) | Wäsche (Teuni) |
 |---|---|---|
