@@ -17,10 +17,14 @@ import {
 } from '@/hooks/usePricingSettings';
 import AirROISyncCard from '@/components/Settings/AirROISyncCard';
 
-// Defaults — must mirror supabase/functions/pricing-engine/index.ts
+// Defaults — spiegeln supabase/functions/pricing-engine/index.ts (DEFAULT_FACTORS).
+// Jede Abweichung hier senkt oder hebt die real berechneten Preise, weil das
+// gespeicherte factors-Objekt die Engine-Defaults überschreibt (mergeFactors).
+// Bei Änderungen an der Engine: diese Werte im selben Schritt nachziehen.
 export const DEFAULT_FACTORS = {
-  season: { 1: 1.40, 2: 1.50, 3: 0.80, 4: 0.70, 5: 0.85, 6: 1.00, 7: 1.30, 8: 1.40, 9: 0.90, 10: 0.75, 11: 0.65, 12: 1.30 },
-  dow: { 0: 0.85, 1: 0.85, 2: 0.85, 3: 0.90, 4: 1.10, 5: 1.20, 6: 0.95 },
+  season: { 1: 1.40, 2: 1.50, 3: 0.85, 4: 0.70, 5: 0.85, 6: 1.10, 7: 1.50, 8: 1.55, 9: 0.95, 10: 0.75, 11: 0.65, 12: 1.30 },
+  // Mo=0 … So=6 (ISO, wie isoWeekday in der Engine)
+  dow: { 0: 0.85, 1: 0.85, 2: 0.85, 3: 0.95, 4: 1.25, 5: 1.35, 6: 1.10 },
   leadtime: [
     { days: 90, factor: 0.90 },
     { days: 60, factor: 0.95 },
@@ -36,11 +40,42 @@ export const DEFAULT_FACTORS = {
     { threshold: 0.85, factor: 1.10 },
     { threshold: 1.01, factor: 1.25 },
   ],
-  gap: { short: 0.75, long: 0.88 },
+  // short = 1–2 Nächte, long = 3–4, medium = 5–7, none = keine Lücke (neutral)
+  gap: { short: 0.75, long: 0.88, medium: 0.92, none: 1.00 },
   event: { small: 1.05, medium: 1.15, large: 1.30 },
   weather: { clear: 1.05, cloudy: 1.00, rain: 0.95, snow_winter: 1.10, snow_summer: 0.90, storm: 0.92 },
-  holiday: { at: 1.25, de_by: 1.20, both: 1.35 },
+  holiday: {
+    at: 1.30,
+    de_by: 1.30,
+    at_plus_de: 1.45,
+    foreign_single: 1.15,
+    foreign_multi: 1.25,
+    at_or_de_plus_foreign: 1.55,
+  },
+  // Rabatt für lange zusammenhängende freie Blöcke (Length of Stay)
+  los: { d7: 0.95, d14: 0.90, d21: 0.85 },
 };
+
+/**
+ * Führt gespeicherte Faktoren mit den Defaults zusammen — eine Ebene tief.
+ * Nötig, weil ein flacher Spread eine gespeicherte Gruppe komplett ersetzt:
+ * Ein älteres `gap: { short, long }` ohne `medium` ergäbe sonst ein leeres
+ * Eingabefeld. Arrays (leadtime, occupancy) werden bewusst ersetzt, nicht gemischt.
+ */
+function mergeFactors(custom: any) {
+  const c = custom ?? {};
+  return {
+    season: { ...DEFAULT_FACTORS.season, ...(c.season ?? {}) },
+    dow: { ...DEFAULT_FACTORS.dow, ...(c.dow ?? {}) },
+    leadtime: Array.isArray(c.leadtime) && c.leadtime.length ? c.leadtime : DEFAULT_FACTORS.leadtime,
+    occupancy: Array.isArray(c.occupancy) && c.occupancy.length ? c.occupancy : DEFAULT_FACTORS.occupancy,
+    gap: { ...DEFAULT_FACTORS.gap, ...(c.gap ?? {}) },
+    event: { ...DEFAULT_FACTORS.event, ...(c.event ?? {}) },
+    weather: { ...DEFAULT_FACTORS.weather, ...(c.weather ?? {}) },
+    holiday: { ...DEFAULT_FACTORS.holiday, ...(c.holiday ?? {}) },
+    los: { ...DEFAULT_FACTORS.los, ...(c.los ?? {}) },
+  };
+}
 
 const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 const DOW = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
@@ -86,7 +121,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
       const { data } = await supabase.from('houses').select('pricing_config').eq('id', houseId).maybeSingle();
       const cfg = (data?.pricing_config as any) ?? {};
       setPricingConfig(cfg);
-      setFactors({ ...DEFAULT_FACTORS, ...(cfg.factors ?? {}) });
+      setFactors(mergeFactors(cfg.factors));
     })();
   }, [houseId]);
 
@@ -104,8 +139,13 @@ export function PricingFactorsConfig({ houseId }: Props) {
     setSaving(true);
     try {
       const newCfg = { ...pricingConfig, factors };
-      const { error } = await supabase.from('houses').update({ pricing_config: newCfg }).eq('id', houseId);
+      const { data, error } = await supabase
+        .from('houses')
+        .update({ pricing_config: newCfg })
+        .eq('id', houseId)
+        .select('id');
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error('Keine Zeile aktualisiert — Haus nicht gefunden oder keine Berechtigung.');
       const mergedGlobal: PricingConfig = { ...DEFAULT_PRICING_CONFIG, ...(globalCfg ?? {}), ...airroi };
       await saveGlobal.mutateAsync(mergedGlobal);
       setPricingConfig(newCfg);
@@ -122,8 +162,13 @@ export function PricingFactorsConfig({ houseId }: Props) {
     try {
       const newCfg = { ...pricingConfig };
       delete newCfg.factors;
-      const { error } = await supabase.from('houses').update({ pricing_config: newCfg }).eq('id', houseId);
+      const { data, error } = await supabase
+        .from('houses')
+        .update({ pricing_config: newCfg })
+        .eq('id', houseId)
+        .select('id');
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error('Keine Zeile aktualisiert — Haus nicht gefunden oder keine Berechtigung.');
       setPricingConfig(newCfg);
       setFactors(DEFAULT_FACTORS);
       setAirroi({
@@ -179,7 +224,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
         <div className="flex items-center gap-1.5 font-medium"><Info className="h-3.5 w-3.5" /> Datenquellen (Roh-Daten):</div>
         <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
           <li><strong>Wetter:</strong> Open-Meteo API (16-Tage-Vorhersage, Lat 47.25 / Lon 12.17)</li>
-          <li><strong>Feiertage:</strong> OpenHolidays API (Österreich + Bayern)</li>
+          <li><strong>Feiertage &amp; Schulferien:</strong> OpenHolidays API (AT, DE-BY, NL, CZ, PL, HU)</li>
           <li><strong>Events:</strong> Tabelle <code>local_events</code></li>
           <li><strong>Auslastung:</strong> Live aus <code>daily_pricing</code></li>
           <li><strong>Multiplikatoren:</strong> Werden hier definiert (sonst Standard)</li>
@@ -192,7 +237,8 @@ export function PricingFactorsConfig({ houseId }: Props) {
           <li><strong>1.00</strong> = neutral (Basispreis bleibt unverändert)</li>
           <li><strong>&gt; 1.00</strong> = Aufschlag (z. B. 1.20 = +20 %)</li>
           <li><strong>&lt; 1.00</strong> = Rabatt (z. B. 0.85 = −15 %)</li>
-          <li>Alle Faktoren werden <strong>multiplikativ</strong> kombiniert: Endpreis = Basispreis × Saison × Wochentag × Leadtime × Auslastung × Wetter × Feiertag × Event × Lücke</li>
+          <li>Alle Faktoren werden <strong>multiplikativ</strong> kombiniert: Endpreis = Basispreis × Saison × Wochentag × Leadtime × Auslastung × Lücke × Event × Wetter × Feiertag × Langaufenthalt</li>
+          <li>An Feiertagen hebt die Engine die Saison auf mindestens 1.10 an und setzt den Langaufenthalts-Rabatt aus.</li>
         </ul>
       </div>
 
@@ -288,7 +334,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
           <AccordionTrigger className="text-sm">Saison (Monats-Multiplikatoren)</AccordionTrigger>
           <AccordionContent>
             <p className="text-xs text-muted-foreground bg-muted/20 rounded p-2 mb-3">
-              Berücksichtigt typische Nachfrage im Jahresverlauf. Hochsaison (Winterferien Feb, Sommer Jul/Aug, Weihnachten Dez) bekommt einen Aufschlag; Nebensaison (Apr, Nov) einen Rabatt. Greift nach dem Monat des Check-in-Datums.
+              Berücksichtigt typische Nachfrage im Jahresverlauf. Hochsaison (Winterferien Jan/Feb, Sommer Jul/Aug, Weihnachten Dez) bekommt einen Aufschlag; Nebensaison (Apr, Nov) einen Rabatt. Greift nach dem Monat des Check-in-Datums.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-3">
               {MONTHS.map((m, i) => (
@@ -305,7 +351,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
           <AccordionTrigger className="text-sm">Wochentage</AccordionTrigger>
           <AccordionContent>
             <p className="text-xs text-muted-foreground bg-muted/20 rounded p-2 mb-3">
-              Wochenenden (Fr/Sa) sind in Ferienregionen stärker nachgefragt → Aufschlag. Wochentage (So-Do) erhalten meist einen Rabatt, um die Auslastung zu glätten. Greift pro Übernachtung.
+              Wochenenden (Fr/Sa) sind in Ferienregionen stärker nachgefragt → Aufschlag. Wochentage (Mo-Do) erhalten meist einen Rabatt, um die Auslastung zu glätten. Greift pro Übernachtung.
             </p>
             <div className="grid grid-cols-3 sm:grid-cols-7 gap-3">
               {DOW.map((d, i) => (
@@ -358,16 +404,43 @@ export function PricingFactorsConfig({ houseId }: Props) {
           <AccordionTrigger className="text-sm">Lücken-Rabatt (zwischen Buchungen)</AccordionTrigger>
           <AccordionContent>
             <p className="text-xs text-muted-foreground bg-muted/20 rounded p-2 mb-3">
-              Wird auf einzelne Tage angewendet, die zwischen zwei bestehenden Buchungen liegen. <strong>Kurze Lücken</strong> (1-2 Nächte) sind schwer verkäuflich → stärkerer Rabatt. <strong>Längere Lücken</strong> (3-4 Nächte) → moderater Rabatt. Verhindert Leerstand zwischen Gäste-Wechseln.
+              Wird auf Tage angewendet, die zwischen zwei bestehenden Buchungen liegen (Suchfenster 14 Tage in jede Richtung). <strong>Kurze Lücken</strong> (1-2 Nächte) sind schwer verkäuflich → stärkerer Rabatt. <strong>3-4 Nächte</strong> → moderater Rabatt. <strong>5-7 Nächte</strong> → leichter Rabatt. Ab 8 Nächten gilt kein Lücken-Rabatt mehr.
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Kurze Lücke (1-2 Nächte)</Label>
                 <NumberInput value={factors.gap.short} onChange={(v) => setNum(['gap', 'short'], v)} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Lange Lücke (3-4 Nächte)</Label>
+                <Label className="text-xs">Mittlere Lücke (3-4 Nächte)</Label>
                 <NumberInput value={factors.gap.long} onChange={(v) => setNum(['gap', 'long'], v)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Lange Lücke (5-7 Nächte)</Label>
+                <NumberInput value={factors.gap.medium} onChange={(v) => setNum(['gap', 'medium'], v)} />
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="los">
+          <AccordionTrigger className="text-sm">Langaufenthalts-Rabatt (LOS)</AccordionTrigger>
+          <AccordionContent>
+            <p className="text-xs text-muted-foreground bg-muted/20 rounded p-2 mb-3">
+              Greift auf Tage in einem langen zusammenhängenden freien Block. Je länger der freie Block, desto größer der Anreiz für eine lange Buchung. <strong>An Feiertagen wird dieser Rabatt automatisch ausgesetzt</strong> — dort ist die Nachfrage ohnehin hoch.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Ab 7 freien Nächten</Label>
+                <NumberInput value={factors.los.d7} onChange={(v) => setNum(['los', 'd7'], v)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Ab 14 freien Nächten</Label>
+                <NumberInput value={factors.los.d14} onChange={(v) => setNum(['los', 'd14'], v)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Ab 21 freien Nächten</Label>
+                <NumberInput value={factors.los.d21} onChange={(v) => setNum(['los', 'd21'], v)} />
               </div>
             </div>
           </AccordionContent>
@@ -394,7 +467,7 @@ export function PricingFactorsConfig({ houseId }: Props) {
           <AccordionTrigger className="text-sm">Wetter</AccordionTrigger>
           <AccordionContent>
             <p className="text-xs text-muted-foreground bg-muted/20 rounded p-2 mb-3">
-              Roh-Daten aus Open-Meteo (16-Tage-Vorhersage). Schönes Wetter steigert die Buchungslust, Schlechtwetter dämpft sie. Saison-abhängig: <strong>Schnee im Winter</strong> ist positiv (Skifahren), <strong>Schnee im Sommer</strong> negativ. Greift nur innerhalb der Vorhersage-Reichweite.
+              Roh-Daten aus Open-Meteo (16-Tage-Vorhersage). Schönes Wetter steigert die Buchungslust, Schlechtwetter dämpft sie. Saison-abhängig: <strong>Schnee im Winter</strong> ist positiv (Skifahren), <strong>Schnee im Sommer</strong> negativ. Außerhalb der Vorhersage-Reichweite greift ein klimatologischer Monatswert.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {([
@@ -415,23 +488,35 @@ export function PricingFactorsConfig({ houseId }: Props) {
         </AccordionItem>
 
         <AccordionItem value="holiday">
-          <AccordionTrigger className="text-sm">Feiertage</AccordionTrigger>
+          <AccordionTrigger className="text-sm">Feiertage &amp; Schulferien</AccordionTrigger>
           <AccordionContent>
             <p className="text-xs text-muted-foreground bg-muted/20 rounded p-2 mb-3">
-              Roh-Daten aus OpenHolidays (AT + Bayern). Aufschlag für Feier- und Brückentage. <strong>Beide</strong> = Feiertag in Österreich UND Bayern → stärkster Aufschlag, weil die Reisetätigkeit aus beiden Quellmärkten gleichzeitig hoch ist.
+              Roh-Daten aus OpenHolidays (Feiertage <em>und</em> Schulferien) für sechs Quellmärkte. <strong>Inland</strong> = Österreich und Bayern. <strong>Ausland</strong> = Niederlande, Tschechien, Polen, Ungarn. Je mehr Quellmärkte gleichzeitig frei haben, desto höher der Aufschlag — bei Inland <em>und</em> Ausland gleichzeitig greift der stärkste Wert.
             </p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Österreich</Label>
+                <Label className="text-xs">Nur Österreich</Label>
                 <NumberInput value={factors.holiday.at} onChange={(v) => setNum(['holiday', 'at'], v)} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Bayern</Label>
+                <Label className="text-xs">Nur Bayern</Label>
                 <NumberInput value={factors.holiday.de_by} onChange={(v) => setNum(['holiday', 'de_by'], v)} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Beide</Label>
-                <NumberInput value={factors.holiday.both} onChange={(v) => setNum(['holiday', 'both'], v)} />
+                <Label className="text-xs">Österreich + Bayern</Label>
+                <NumberInput value={factors.holiday.at_plus_de} onChange={(v) => setNum(['holiday', 'at_plus_de'], v)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Ein Auslandsmarkt</Label>
+                <NumberInput value={factors.holiday.foreign_single} onChange={(v) => setNum(['holiday', 'foreign_single'], v)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Mehrere Auslandsmärkte</Label>
+                <NumberInput value={factors.holiday.foreign_multi} onChange={(v) => setNum(['holiday', 'foreign_multi'], v)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Inland + Ausland</Label>
+                <NumberInput value={factors.holiday.at_or_de_plus_foreign} onChange={(v) => setNum(['holiday', 'at_or_de_plus_foreign'], v)} />
               </div>
             </div>
           </AccordionContent>
