@@ -151,6 +151,10 @@ const mapCountryToNationality = (country: string): string => {
 };
 
 
+// bookings.check_in/check_out sind Zeitstempel (2026-01-03 14:00:00+00),
+// die Excel liefert reine Datumsangaben. Fuer den Vergleich auf den Tag kuerzen.
+const tag = (v: unknown): string => String(v ?? '').slice(0, 10);
+
 const norm = (v: unknown): string =>
   String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -178,13 +182,13 @@ const VERGLEICHSFELDER: { feld: keyof BestandsBuchung; quelle: keyof ProcessedBo
 
 const vergleiche = (b: ProcessedBooking, best: BestandsBuchung[]): Abgleich => {
   // 1. exakter Zeitraum
-  let treffer = best.find(x => x.check_in === b.checkIn && x.check_out === b.checkOut);
+  let treffer = best.find(x => tag(x.check_in) === tag(b.checkIn) && tag(x.check_out) === tag(b.checkOut));
   let exakt = !!treffer;
 
   // 2. sonst: Überlappung + ähnlicher Name
   if (!treffer) {
     treffer = best.find(x =>
-      x.check_in < b.checkOut && x.check_out > b.checkIn && nameAehnlich(x.guest_name, b.guestName)
+      tag(x.check_in) < tag(b.checkOut) && tag(x.check_out) > tag(b.checkIn) && nameAehnlich(x.guest_name, b.guestName)
     );
   }
 
@@ -198,7 +202,11 @@ const vergleiche = (b: ProcessedBooking, best: BestandsBuchung[]): Abgleich => {
     const neu = String(b[f.quelle] ?? '').trim();
     if (!neu) continue;                        // Meldeschein hat nichts -> nichts zu tun
     if (!alt) { fuellungen.push({ feld: f.feld, label: f.label, alt: '', neu }); continue; }
-    if (norm(alt) !== norm(neu)) konflikte.push({ feld: f.feld, label: f.label, alt, neu });
+    // Datumsfelder tagweise vergleichen (DB kann Zeitanteil liefern)
+    const istDatum = f.feld === 'guest_birth_date';
+    const a2 = istDatum ? tag(alt) : alt;
+    const n2 = istDatum ? tag(neu) : neu;
+    if (norm(a2) !== norm(n2)) konflikte.push({ feld: f.feld, label: f.label, alt: a2, neu: n2 });
   }
 
   // Personenzahl gesondert (Zahl statt Text)
@@ -209,7 +217,7 @@ const vergleiche = (b: ProcessedBooking, best: BestandsBuchung[]): Abgleich => {
     });
   }
 
-  const label = `${treffer.guest_name} · ${formatDateForDisplay(treffer.check_in)}–${formatDateForDisplay(treffer.check_out)}`;
+  const label = `${treffer.guest_name} · ${formatDateForDisplay(tag(treffer.check_in))}–${formatDateForDisplay(tag(treffer.check_out))}`;
   const status: AbgleichStatus = !exakt ? 'unklar' : (konflikte.length > 0 ? 'konflikt' : 'ergaenzung');
   return { status, bookingId: treffer.id, bookingLabel: label, exakt, fuellungen, konflikte };
 };
@@ -866,7 +874,7 @@ const GuestImportCard = () => {
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <strong>{ohneMeldeschein.length} Buchung(en) im Zeitraum ohne Meldeschein:</strong>{' '}
-                  {ohneMeldeschein.slice(0, 5).map(x => `${x.guest_name} (${formatDateForDisplay(x.check_in)})`).join(', ')}
+                  {ohneMeldeschein.slice(0, 5).map(x => `${x.guest_name} (${formatDateForDisplay(tag(x.check_in))})`).join(', ')}
                   {ohneMeldeschein.length > 5 ? ` … und ${ohneMeldeschein.length - 5} weitere` : ''}
                 </AlertDescription>
               </Alert>
