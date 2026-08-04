@@ -9,7 +9,9 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, XCircle, Loader2, Trash2, Search, Edit2, Check, X, Info, Save } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, XCircle, Loader2, Trash2, Search, Edit2, Check, X, Info, Save, Maximize2, Monitor } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import { useHouses } from '@/hooks/useHouses';
 import * as XLSX from 'xlsx';
@@ -116,6 +118,7 @@ const GuestImportCard = () => {
   const { toast } = useToast();
   const { data: houses } = useHouses({ rental_type: 'tourist' });
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const selectedHouseName = houses?.find(h => h.id === selectedHouseId)?.name ?? '';
   
   const [selectedHouseId, setSelectedHouseId] = useState<string>('');
   const [processedBookings, setProcessedBookings] = useState<ProcessedBooking[]>([]);
@@ -123,6 +126,8 @@ const GuestImportCard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFullscreen, setShowFullscreen] = useState(false);
+  const isMobile = useIsMobile();
   const [editingBlattNr, setEditingBlattNr] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<ProcessedBooking>>({});
 
@@ -439,85 +444,7 @@ const GuestImportCard = () => {
   const validCount = processedBookings.filter(b => b.isValid).length;
   const invalidCount = processedBookings.filter(b => !b.isValid).length;
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Upload className="w-5 h-5 text-primary" />
-          Gästeliste importieren
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            <strong>Sicherer Import:</strong> Bestehende Buchungen werden nicht geändert oder gelöscht. 
-            Duplikate (gleicher Zeitraum) werden automatisch übersprungen.
-          </AlertDescription>
-        </Alert>
-
-        {/* House Selection */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Haus auswählen</label>
-          <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Haus für Import wählen..." />
-            </SelectTrigger>
-            <SelectContent>
-              {houses?.map(house => (
-                <SelectItem key={house.id} value={house.id}>
-                  {house.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* File Input - IMMER gerendert, außerhalb des bedingten Blocks */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          onChange={handleFileSelect}
-          className="sr-only"
-          id="excel-upload"
-        />
-
-        {/* File Upload UI */}
-        {processedBookings.length === 0 && !importResult && (
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Excel-Datei hochladen</label>
-            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-              {isParsing ? (
-                <div className="flex flex-col items-center">
-                  <Loader2 className="w-10 h-10 text-primary animate-spin mb-2" />
-                  <span className="text-sm text-muted-foreground">Datei wird analysiert...</span>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-3">
-                  <FileSpreadsheet className="w-10 h-10 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    Excel-Datei (.xlsx) auswählen
-                  </span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      console.log('Button geklickt, triggere Datei-Input');
-                      fileInputRef.current?.click();
-                    }}
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Datei auswählen
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Editable Preview Table */}
-        {processedBookings.length > 0 && !importResult && (
+  const previewSection = (
           <div className="space-y-3">
             {/* Header with stats and search */}
             <div className="flex items-center justify-between gap-4">
@@ -528,6 +455,16 @@ const GuestImportCard = () => {
                   <Badge variant="destructive">{invalidCount} ungültig</Badge>
                 )}
               </div>
+              {!showFullscreen && <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFullscreen(true)}
+                title="Tabelle im Vollbild öffnen — alle Spalten sichtbar"
+                className="shrink-0"
+              >
+                <Maximize2 className="w-4 h-4 mr-2" />
+                Vollbild
+              </Button>}
               <div className="relative w-64">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -540,8 +477,8 @@ const GuestImportCard = () => {
             </div>
 
             {/* Table */}
-            <ScrollArea className="h-[400px] border rounded-lg">
-              <Table>
+            <ScrollArea className={showFullscreen ? "h-[calc(90vh-300px)] border rounded-lg" : "h-[400px] border rounded-lg"}>
+              <Table className="text-xs">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-10">
@@ -744,7 +681,112 @@ const GuestImportCard = () => {
               </div>
             </div>
           </div>
+  );
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Upload className="w-5 h-5 text-primary" />
+          Gästeliste importieren
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Sicherer Import:</strong> Bestehende Buchungen werden nicht geändert oder gelöscht. 
+            Duplikate (gleicher Zeitraum) werden automatisch übersprungen.
+          </AlertDescription>
+        </Alert>
+
+        {/* House Selection */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Haus auswählen</label>
+          <Select value={selectedHouseId} onValueChange={setSelectedHouseId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Haus für Import wählen..." />
+            </SelectTrigger>
+            <SelectContent>
+              {houses?.map(house => (
+                <SelectItem key={house.id} value={house.id}>
+                  {house.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* File Input - IMMER gerendert, außerhalb des bedingten Blocks */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleFileSelect}
+          className="sr-only"
+          id="excel-upload"
+        />
+
+        {/* File Upload UI */}
+        {processedBookings.length === 0 && !importResult && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Excel-Datei hochladen</label>
+            {isMobile && (
+              <Alert>
+                <Monitor className="h-4 w-4" />
+                <AlertDescription>
+                  Der Import läuft am Computer. Die Vorschau braucht eine breite Tabelle,
+                  die auf dem Handy nicht bedienbar ist.
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className={isMobile ? "hidden" : "border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center"}>
+              {isParsing ? (
+                <div className="flex flex-col items-center">
+                  <Loader2 className="w-10 h-10 text-primary animate-spin mb-2" />
+                  <span className="text-sm text-muted-foreground">Datei wird analysiert...</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-3">
+                  <FileSpreadsheet className="w-10 h-10 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    Excel-Datei (.xlsx) auswählen
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      console.log('Button geklickt, triggere Datei-Input');
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Datei auswählen
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
         )}
+
+        {!showFullscreen && previewSection}
+
+
+        <Dialog open={showFullscreen} onOpenChange={setShowFullscreen}>
+          <DialogContent className="max-w-[95vw] w-full h-[90vh] p-0 gap-0 flex flex-col">
+            <DialogHeader className="px-4 py-3 md:px-6 md:py-4 border-b shrink-0">
+              <DialogTitle className="text-lg md:text-xl">
+                Import-Vorschau{selectedHouseName ? ` · ${selectedHouseName}` : ''}
+              </DialogTitle>
+              <DialogDescription>
+                Alle Spalten sichtbar. Änderungen wirken sofort auch in der Karte.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex-1 overflow-auto px-4 py-3 md:px-6 md:py-4">
+              {previewSection}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Import Result */}
         {importResult && (
