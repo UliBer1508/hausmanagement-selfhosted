@@ -24,6 +24,7 @@ interface ExcelRow {
   'Geburtstag'?: string;
   'Straße'?: string;
   'Stadt/Ort'?: string;
+  'PLZ'?: string;
   'Land'?: string;
   'Reisedokument Nr.'?: string;
   'Anreise'?: string;
@@ -43,6 +44,7 @@ interface ProcessedBooking {
   nationality: string;
   guestStreet: string;
   guestCity: string;
+  guestPostalCode: string;
   guestBirthDate: string;
   guestTravelDocument: string;
   isValid: boolean;
@@ -172,6 +174,7 @@ const GuestImportCard = () => {
       // Neue Felder aus Excel extrahieren
       const strasse = getField(mainBooker, 'Straße', 'Strasse', 'Adresse') || '';
       const stadtOrt = getField(mainBooker, 'Stadt/Ort', 'Stadt', 'Ort') || '';
+      const plz = getField(mainBooker, 'PLZ', 'Postleitzahl', 'Plz') || '';
       const geburtstag = getField(mainBooker, 'Geburtstag', 'geburtstag') || '';
       const reisedokument = getField(mainBooker, 'Reisedokument Nr.', 'Reisedokument', 'Passnummer') || '';
 
@@ -211,6 +214,7 @@ const GuestImportCard = () => {
         nationality,
         guestStreet: strasse,
         guestCity: stadtOrt,
+        guestPostalCode: plz,
         guestBirthDate,
         guestTravelDocument: reisedokument,
         isValid: validationErrors.length === 0,
@@ -380,6 +384,7 @@ const GuestImportCard = () => {
       nationality: booking.nationality,
       guestStreet: booking.guestStreet,
       guestCity: booking.guestCity,
+      guestPostalCode: booking.guestPostalCode,
       guestBirthDate: booking.guestBirthDate,
       guestTravelDocument: booking.guestTravelDocument,
     });
@@ -407,6 +412,7 @@ const GuestImportCard = () => {
         nationality: editValues.nationality || b.nationality,
         guestStreet: editValues.guestStreet ?? b.guestStreet,
         guestCity: editValues.guestCity ?? b.guestCity,
+        guestPostalCode: editValues.guestPostalCode ?? b.guestPostalCode,
         guestBirthDate: editValues.guestBirthDate ?? b.guestBirthDate,
         guestTravelDocument: editValues.guestTravelDocument ?? b.guestTravelDocument,
       };
@@ -496,6 +502,7 @@ const GuestImportCard = () => {
                     <TableHead className="w-20">Land</TableHead>
                     <TableHead>Straße</TableHead>
                     <TableHead>Stadt</TableHead>
+                    <TableHead className="w-20">PLZ</TableHead>
                     <TableHead className="w-28">Geb.Datum</TableHead>
                     <TableHead className="w-16">Status</TableHead>
                     <TableHead className="w-20 text-right">Aktionen</TableHead>
@@ -590,6 +597,14 @@ const GuestImportCard = () => {
                           </TableCell>
                           <TableCell>
                             <Input
+                              value={editValues.guestPostalCode || ''}
+                              onChange={e => setEditValues(v => ({ ...v, guestPostalCode: e.target.value }))}
+                              className="h-8"
+                              placeholder="PLZ"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
                               type="date"
                               value={editValues.guestBirthDate || ''}
                               onChange={e => setEditValues(v => ({ ...v, guestBirthDate: e.target.value }))}
@@ -618,6 +633,7 @@ const GuestImportCard = () => {
                           <TableCell>{booking.nationality || '-'}</TableCell>
                           <TableCell className="text-xs">{booking.guestStreet || '-'}</TableCell>
                           <TableCell className="text-xs">{booking.guestCity || '-'}</TableCell>
+                          <TableCell className="text-xs">{booking.guestPostalCode || '-'}</TableCell>
                           <TableCell>{booking.guestBirthDate ? formatDateForDisplay(booking.guestBirthDate) : '-'}</TableCell>
                           <TableCell>
                             {booking.isValid ? (
