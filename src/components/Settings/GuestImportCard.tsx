@@ -118,7 +118,6 @@ const GuestImportCard = () => {
   const { toast } = useToast();
   const { data: houses } = useHouses({ rental_type: 'tourist' });
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const selectedHouseName = houses?.find(h => h.id === selectedHouseId)?.name ?? '';
   
   const [selectedHouseId, setSelectedHouseId] = useState<string>('');
   const [processedBookings, setProcessedBookings] = useState<ProcessedBooking[]>([]);
@@ -440,6 +439,7 @@ const GuestImportCard = () => {
     );
   }, [processedBookings, searchQuery]);
 
+  const selectedHouseName = houses?.find(h => h.id === selectedHouseId)?.name ?? '';
   const selectedCount = processedBookings.filter(b => b.selected).length;
   const validCount = processedBookings.filter(b => b.isValid).length;
   const invalidCount = processedBookings.filter(b => !b.isValid).length;
@@ -769,7 +769,7 @@ const GuestImportCard = () => {
           </div>
         )}
 
-        {!showFullscreen && previewSection}
+        {processedBookings.length > 0 && !importResult && !showFullscreen && previewSection}
 
 
         <Dialog open={showFullscreen} onOpenChange={setShowFullscreen}>
@@ -783,7 +783,7 @@ const GuestImportCard = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="flex-1 overflow-auto px-4 py-3 md:px-6 md:py-4">
-              {previewSection}
+              {processedBookings.length > 0 && previewSection}
             </div>
           </DialogContent>
         </Dialog>
