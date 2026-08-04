@@ -71,19 +71,30 @@ interface Abgleich {
   konflikte: FeldDiff[]; // beide gefüllt und verschieden -> Entscheidung nötig
 }
 
+// Gaestedaten liegen seit der Trennung (Guest-Booking-Separation-Plan.md)
+// massgeblich in `guests`; die guest_*-Spalten in `bookings` werden nur noch
+// zur Abwaertskompatibilitaet mitgeschrieben (siehe GuestEditDialog.tsx).
+// Fuer den Abgleich gilt daher der Gaeste-Stammsatz.
+interface GastStamm {
+  id: string;
+  name: string;
+  street: string | null;
+  city: string | null;
+  postal_code: string | null;
+  birth_date: string | null;
+  travel_document: string | null;
+  nationality: string | null;
+}
+
 interface BestandsBuchung {
   id: string;
   check_in: string;
   check_out: string;
-  guest_name: string;
-  guest_street: string | null;
-  guest_city: string | null;
-  guest_postal_code: string | null;
-  guest_birth_date: string | null;
-  guest_travel_document: string | null;
-  nationality: string | null;
+  guest_id: string | null;
+  guest_name: string;          // nur Rueckfall, falls guest_id fehlt
   number_of_guests: number;
   status: string | null;
+  guests: GastStamm | null;    // verknuepfter Stammsatz
 }
 
 interface ImportResult {
@@ -170,20 +181,23 @@ const nameAehnlich = (a: string, b: string): boolean => {
   return teile.length > 0 && teile.every(t => lang.includes(t));
 };
 
-const VERGLEICHSFELDER: { feld: keyof BestandsBuchung; quelle: keyof ProcessedBooking; label: string }[] = [
-  { feld: 'guest_name',            quelle: 'guestName',           label: 'Name' },
-  { feld: 'guest_street',          quelle: 'guestStreet',         label: 'Straße' },
-  { feld: 'guest_city',            quelle: 'guestCity',           label: 'Stadt' },
-  { feld: 'guest_postal_code',     quelle: 'guestPostalCode',     label: 'PLZ' },
-  { feld: 'guest_birth_date',      quelle: 'guestBirthDate',      label: 'Geburtsdatum' },
-  { feld: 'guest_travel_document', quelle: 'guestTravelDocument', label: 'Reisedokument' },
-  { feld: 'nationality',           quelle: 'nationality',         label: 'Nationalität' },
+const VERGLEICHSFELDER: { feld: keyof GastStamm; quelle: keyof ProcessedBooking; label: string }[] = [
+  { feld: 'name',            quelle: 'guestName',           label: 'Name' },
+  { feld: 'street',          quelle: 'guestStreet',         label: 'Straße' },
+  { feld: 'city',            quelle: 'guestCity',           label: 'Stadt' },
+  { feld: 'postal_code',     quelle: 'guestPostalCode',     label: 'PLZ' },
+  { feld: 'birth_date',      quelle: 'guestBirthDate',      label: 'Geburtsdatum' },
+  { feld: 'travel_document', quelle: 'guestTravelDocument', label: 'Reisedokument' },
+  { feld: 'nationality',     quelle: 'nationality',         label: 'Nationalität' },
 ];
+
+// Name der Buchung: aus dem Stammsatz, sonst Rueckfall auf die Buchungskopie
+const gastName = (x: BestandsBuchung): string => x.guests?.name || x.guest_name || '';
 
 const vergleiche = (b: ProcessedBooking, best: BestandsBuchung[]): Abgleich => {
   // Zuordnung laeuft ueber den NAMEN; der Zeitraum bestaetigt sie.
   // 1. Buchungen desselben Gastes suchen
-  const namensTreffer = best.filter(x => nameAehnlich(x.guest_name, b.guestName));
+  const namensTreffer = best.filter(x => nameAehnlich(gastName(x), b.guestName));
 
   // 2. davon die mit passendem Zeitraum
   let treffer = namensTreffer.find(
@@ -218,19 +232,19 @@ const vergleiche = (b: ProcessedBooking, best: BestandsBuchung[]): Abgleich => {
   const konflikte: FeldDiff[] = [];
 
   for (const f of VERGLEICHSFELDER) {
-    const alt = String(treffer[f.feld] ?? '').trim();
+    const alt = String(treffer.guests?.[f.feld] ?? '').trim();
     const neu = String(b[f.quelle] ?? '').trim();
     if (!neu) continue;                        // Meldeschein hat nichts -> nichts zu tun
     if (!alt) { fuellungen.push({ feld: f.feld, label: f.label, alt: '', neu }); continue; }
 
-    const istDatum = f.feld === 'guest_birth_date';
+    const istDatum = f.feld === 'birth_date';
     const a2 = istDatum ? tag(alt) : alt;
     const n2 = istDatum ? tag(neu) : neu;
     if (norm(a2) === norm(n2)) continue;
 
     // Name: eine blosse Ergaenzung (2. Vorname, Namenszusatz) ist kein Konflikt,
     // weil die Zuordnung ohnehin ueber die Namensaehnlichkeit lief.
-    if (f.feld === 'guest_name' && !fremderName && nameAehnlich(a2, n2)) {
+    if (f.feld === 'name' && !fremderName && nameAehnlich(a2, n2)) {
       fuellungen.push({ feld: f.feld, label: 'Name (vollstaendiger)', alt: a2, neu: n2 });
       continue;
     }
@@ -244,7 +258,7 @@ const vergleiche = (b: ProcessedBooking, best: BestandsBuchung[]): Abgleich => {
     });
   }
 
-  const label = `${treffer.guest_name} \u00b7 ${formatDateForDisplay(tag(treffer.check_in))}\u2013${formatDateForDisplay(tag(treffer.check_out))}`;
+  const label = `${gastName(treffer)} \u00b7 ${formatDateForDisplay(tag(treffer.check_in))}\u2013${formatDateForDisplay(tag(treffer.check_out))}`;
 
   let status: AbgleichStatus;
   if (fremderName) status = 'fremd';
@@ -594,7 +608,7 @@ const GuestImportCard = () => {
         const bis = processedBookings.map(b => b.checkOut).filter(Boolean).sort().slice(-1)[0];
         const { data, error } = await supabase
           .from('bookings')
-          .select('id, check_in, check_out, guest_name, guest_street, guest_city, guest_postal_code, guest_birth_date, guest_travel_document, nationality, number_of_guests, status')
+          .select('id, check_in, check_out, guest_id, guest_name, number_of_guests, status, guests!bookings_guest_id_fkey(id, name, street, city, postal_code, birth_date, travel_document, nationality)')
           .eq('house_id', selectedHouseId)
           .neq('status', 'cancelled')   // stornierte Buchungen nicht abgleichen
           .lte('check_in', bis)
@@ -960,7 +974,7 @@ const GuestImportCard = () => {
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <strong>{ohneMeldeschein.length} Buchung(en) im Zeitraum ohne Meldeschein:</strong>{' '}
-                  {ohneMeldeschein.slice(0, 5).map(x => `${x.guest_name} (${formatDateForDisplay(tag(x.check_in))})`).join(', ')}
+                  {ohneMeldeschein.slice(0, 5).map(x => `${x.guests?.name || x.guest_name} (${formatDateForDisplay(tag(x.check_in))})`).join(', ')}
                   {ohneMeldeschein.length > 5 ? ` … und ${ohneMeldeschein.length - 5} weitere` : ''}
                 </AlertDescription>
               </Alert>
