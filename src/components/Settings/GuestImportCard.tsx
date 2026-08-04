@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,6 +50,40 @@ interface ProcessedBooking {
   isValid: boolean;
   validationErrors: string[];
   selected: boolean;
+}
+
+
+type AbgleichStatus = 'neu' | 'ergaenzung' | 'konflikt' | 'unklar';
+
+interface FeldDiff {
+  feld: string;          // Spaltenname in bookings
+  label: string;
+  alt: string;           // Wert im System
+  neu: string;           // Wert aus dem Meldeschein
+}
+
+interface Abgleich {
+  status: AbgleichStatus;
+  bookingId?: string;
+  bookingLabel?: string; // z. B. "Wagner, 27.12.–03.01." zur Kontrolle
+  exakt: boolean;        // Zeitraum stimmt genau überein
+  fuellungen: FeldDiff[];// System leer, Meldeschein gefüllt -> unkritisch
+  konflikte: FeldDiff[]; // beide gefüllt und verschieden -> Entscheidung nötig
+}
+
+interface BestandsBuchung {
+  id: string;
+  check_in: string;
+  check_out: string;
+  guest_name: string;
+  guest_street: string | null;
+  guest_city: string | null;
+  guest_postal_code: string | null;
+  guest_birth_date: string | null;
+  guest_travel_document: string | null;
+  nationality: string | null;
+  number_of_guests: number;
+  status: string | null;
 }
 
 interface ImportResult {
@@ -116,6 +150,70 @@ const mapCountryToNationality = (country: string): string => {
   return map[country.trim()] || country.substring(0, 2).toUpperCase();
 };
 
+
+const norm = (v: unknown): string =>
+  String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+// Namen gelten als ähnlich, wenn alle Wortteile des kürzeren im längeren
+// vorkommen. Fängt "Christiaan Horst" vs. "Christiaan van der Horst".
+const nameAehnlich = (a: string, b: string): boolean => {
+  const x = norm(a), y = norm(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const kurz = x.length <= y.length ? x : y;
+  const lang = x.length <= y.length ? y : x;
+  const teile = kurz.split(' ').filter(t => t.length > 2);
+  return teile.length > 0 && teile.every(t => lang.includes(t));
+};
+
+const VERGLEICHSFELDER: { feld: keyof BestandsBuchung; quelle: keyof ProcessedBooking; label: string }[] = [
+  { feld: 'guest_name',            quelle: 'guestName',           label: 'Name' },
+  { feld: 'guest_street',          quelle: 'guestStreet',         label: 'Straße' },
+  { feld: 'guest_city',            quelle: 'guestCity',           label: 'Stadt' },
+  { feld: 'guest_postal_code',     quelle: 'guestPostalCode',     label: 'PLZ' },
+  { feld: 'guest_birth_date',      quelle: 'guestBirthDate',      label: 'Geburtsdatum' },
+  { feld: 'guest_travel_document', quelle: 'guestTravelDocument', label: 'Reisedokument' },
+  { feld: 'nationality',           quelle: 'nationality',         label: 'Nationalität' },
+];
+
+const vergleiche = (b: ProcessedBooking, best: BestandsBuchung[]): Abgleich => {
+  // 1. exakter Zeitraum
+  let treffer = best.find(x => x.check_in === b.checkIn && x.check_out === b.checkOut);
+  let exakt = !!treffer;
+
+  // 2. sonst: Überlappung + ähnlicher Name
+  if (!treffer) {
+    treffer = best.find(x =>
+      x.check_in < b.checkOut && x.check_out > b.checkIn && nameAehnlich(x.guest_name, b.guestName)
+    );
+  }
+
+  if (!treffer) return { status: 'neu', exakt: false, fuellungen: [], konflikte: [] };
+
+  const fuellungen: FeldDiff[] = [];
+  const konflikte: FeldDiff[] = [];
+
+  for (const f of VERGLEICHSFELDER) {
+    const alt = String(treffer[f.feld] ?? '').trim();
+    const neu = String(b[f.quelle] ?? '').trim();
+    if (!neu) continue;                        // Meldeschein hat nichts -> nichts zu tun
+    if (!alt) { fuellungen.push({ feld: f.feld, label: f.label, alt: '', neu }); continue; }
+    if (norm(alt) !== norm(neu)) konflikte.push({ feld: f.feld, label: f.label, alt, neu });
+  }
+
+  // Personenzahl gesondert (Zahl statt Text)
+  if (treffer.number_of_guests !== b.numberOfGuests) {
+    konflikte.push({
+      feld: 'number_of_guests', label: 'Personen',
+      alt: String(treffer.number_of_guests), neu: String(b.numberOfGuests),
+    });
+  }
+
+  const label = `${treffer.guest_name} · ${formatDateForDisplay(treffer.check_in)}–${formatDateForDisplay(treffer.check_out)}`;
+  const status: AbgleichStatus = !exakt ? 'unklar' : (konflikte.length > 0 ? 'konflikt' : 'ergaenzung');
+  return { status, bookingId: treffer.id, bookingLabel: label, exakt, fuellungen, konflikte };
+};
+
 const GuestImportCard = () => {
   const { toast } = useToast();
   const { data: houses } = useHouses({ rental_type: 'tourist' });
@@ -128,6 +226,9 @@ const GuestImportCard = () => {
   const [isParsing, setIsParsing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFullscreen, setShowFullscreen] = useState(false);
+  const [bestand, setBestand] = useState<BestandsBuchung[]>([]);
+  const [bestandLaedt, setBestandLaedt] = useState(false);
+  const [ohneMeldeschein, setOhneMeldeschein] = useState<BestandsBuchung[]>([]);
   const isMobile = useIsMobile();
   const [editingBlattNr, setEditingBlattNr] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<ProcessedBooking>>({});
@@ -437,6 +538,62 @@ const GuestImportCard = () => {
     setEditValues({});
   };
 
+
+  // Bestehende Buchungen des Hauses laden, sobald Haus und Datei da sind.
+  // Nur lesend - es wird nichts geschrieben.
+  useEffect(() => {
+    if (!selectedHouseId || processedBookings.length === 0) {
+      setBestand([]); setOhneMeldeschein([]); return;
+    }
+    let abgebrochen = false;
+    (async () => {
+      setBestandLaedt(true);
+      try {
+        const von = processedBookings.map(b => b.checkIn).filter(Boolean).sort()[0];
+        const bis = processedBookings.map(b => b.checkOut).filter(Boolean).sort().slice(-1)[0];
+        const { data, error } = await supabase
+          .from('bookings')
+          .select('id, check_in, check_out, guest_name, guest_street, guest_city, guest_postal_code, guest_birth_date, guest_travel_document, nationality, number_of_guests, status')
+          .eq('house_id', selectedHouseId)
+          .lte('check_in', bis)
+          .gte('check_out', von);
+        if (error) throw error;
+        if (abgebrochen) return;
+        const liste = (data ?? []) as BestandsBuchung[];
+        setBestand(liste);
+
+        // Buchungen im Zeitraum, zu denen kein Meldeschein vorliegt
+        const getroffen = new Set<string>();
+        for (const p of processedBookings) {
+          const a = vergleiche(p, liste);
+          if (a.bookingId) getroffen.add(a.bookingId);
+        }
+        setOhneMeldeschein(liste.filter(x => !getroffen.has(x.id) && x.status !== 'cancelled'));
+      } catch (e) {
+        console.error('Abgleich fehlgeschlagen:', e);
+        toast({
+          title: 'Abgleich fehlgeschlagen',
+          description: e instanceof Error ? e.message : 'Bestehende Buchungen konnten nicht geladen werden',
+          variant: 'destructive',
+        });
+      } finally {
+        if (!abgebrochen) setBestandLaedt(false);
+      }
+    })();
+    return () => { abgebrochen = true; };
+  }, [selectedHouseId, processedBookings, toast]);
+
+  const abgleiche = useMemo(() => {
+    const m = new Map<string, Abgleich>();
+    for (const b of processedBookings) m.set(b.blattNr, vergleiche(b, bestand));
+    return m;
+  }, [processedBookings, bestand]);
+
+  const anzahlNeu = [...abgleiche.values()].filter(a => a.status === 'neu').length;
+  const anzahlErgaenzung = [...abgleiche.values()].filter(a => a.status === 'ergaenzung').length;
+  const anzahlKonflikt = [...abgleiche.values()].filter(a => a.status === 'konflikt').length;
+  const anzahlUnklar = [...abgleiche.values()].filter(a => a.status === 'unklar').length;
+
   // Gefilterte Buchungen
   const filteredBookings = useMemo(() => {
     if (!searchQuery) return processedBookings;
@@ -461,6 +618,21 @@ const GuestImportCard = () => {
                 <Badge variant="default" className="bg-green-600">{validCount} gültig</Badge>
                 {invalidCount > 0 && (
                   <Badge variant="destructive">{invalidCount} ungültig</Badge>
+                )}
+                {bestandLaedt && (
+                  <span className="text-xs text-muted-foreground">Abgleich läuft…</span>
+                )}
+                {!bestandLaedt && bestand.length > 0 && (
+                  <>
+                    <Badge variant="outline">{anzahlNeu} neu</Badge>
+                    <Badge variant="outline" className="text-green-700 border-green-600">{anzahlErgaenzung} Ergänzung</Badge>
+                    {anzahlKonflikt > 0 && (
+                      <Badge variant="outline" className="text-amber-700 border-amber-600">{anzahlKonflikt} Konflikt</Badge>
+                    )}
+                    {anzahlUnklar > 0 && (
+                      <Badge variant="outline" className="text-amber-700 border-amber-600">{anzahlUnklar} unklar</Badge>
+                    )}
+                  </>
                 )}
               </div>
               {!showFullscreen && <Button
@@ -507,6 +679,7 @@ const GuestImportCard = () => {
                     <TableHead className="w-20">PLZ</TableHead>
                     <TableHead className="w-28">Geb.Datum</TableHead>
                     <TableHead className="w-16">Status</TableHead>
+                    <TableHead className="w-32">Abgleich</TableHead>
                     <TableHead className="w-20 text-right">Aktionen</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -614,6 +787,7 @@ const GuestImportCard = () => {
                             />
                           </TableCell>
                           <TableCell>-</TableCell>
+                          <TableCell>-</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button size="icon" variant="ghost" className="h-7 w-7" onClick={saveEditing}>
@@ -646,6 +820,28 @@ const GuestImportCard = () => {
                               </Badge>
                             )}
                           </TableCell>
+                          <TableCell>
+                            {(() => {
+                              const a = abgleiche.get(booking.blattNr);
+                              if (!a || bestand.length === 0) return <span className="text-muted-foreground">–</span>;
+                              const titel = [
+                                a.bookingLabel ? `Buchung: ${a.bookingLabel}` : '',
+                                a.fuellungen.length ? `Wird ergänzt: ${a.fuellungen.map(f => f.label).join(', ')}` : '',
+                                a.konflikte.length ? `Abweichend: ${a.konflikte.map(f => `${f.label} (${f.alt} → ${f.neu})`).join(', ')}` : '',
+                              ].filter(Boolean).join(' | ');
+                              if (a.status === 'neu')
+                                return <Badge variant="outline" title="Keine Buchung im Zeitraum gefunden">neu</Badge>;
+                              if (a.status === 'ergaenzung')
+                                return <Badge variant="outline" className="text-green-700 border-green-600" title={titel}>
+                                  ergänzt {a.fuellungen.length > 0 ? `(${a.fuellungen.length})` : ''}
+                                </Badge>;
+                              if (a.status === 'konflikt')
+                                return <Badge variant="outline" className="text-amber-700 border-amber-600" title={titel}>
+                                  {a.konflikte.length} Konflikt{a.konflikte.length === 1 ? '' : 'e'}
+                                </Badge>;
+                              return <Badge variant="outline" className="text-amber-700 border-amber-600" title={titel}>Zeitraum weicht ab</Badge>;
+                            })()}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEditing(booking)}>
@@ -664,6 +860,17 @@ const GuestImportCard = () => {
               </Table>
               <ScrollBar orientation="horizontal" />
             </ScrollArea>
+
+            {ohneMeldeschein.length > 0 && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <strong>{ohneMeldeschein.length} Buchung(en) im Zeitraum ohne Meldeschein:</strong>{' '}
+                  {ohneMeldeschein.slice(0, 5).map(x => `${x.guest_name} (${formatDateForDisplay(x.check_in)})`).join(', ')}
+                  {ohneMeldeschein.length > 5 ? ` … und ${ohneMeldeschein.length - 5} weitere` : ''}
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Hinweis: Vorschau-Modus */}
             <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950 dark:border-blue-800">
