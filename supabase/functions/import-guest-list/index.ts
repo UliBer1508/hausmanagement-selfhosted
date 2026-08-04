@@ -18,6 +18,7 @@ interface ProcessedBooking {
   nationality: string;
   guestStreet: string;
   guestCity: string;
+  guestPostalCode: string;
   guestBirthDate: string;
   guestTravelDocument: string;
   isValid: boolean;
@@ -130,6 +131,7 @@ serve(async (req) => {
           nationality: booking.nationality || null,
           guest_street: booking.guestStreet || null,
           guest_city: booking.guestCity || null,
+          guest_postal_code: booking.guestPostalCode || null,
           guest_birth_date: booking.guestBirthDate || null,
           guest_travel_document: booking.guestTravelDocument || null,
           status: 'completed',
