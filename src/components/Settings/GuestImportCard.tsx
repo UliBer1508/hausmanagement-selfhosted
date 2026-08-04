@@ -53,7 +53,7 @@ interface ProcessedBooking {
 }
 
 
-type AbgleichStatus = 'neu' | 'ergaenzung' | 'konflikt' | 'unklar';
+type AbgleichStatus = 'neu' | 'ergaenzung' | 'konflikt' | 'unklar' | 'fremd';
 
 interface FeldDiff {
   feld: string;          // Spaltenname in bookings
@@ -181,15 +181,35 @@ const VERGLEICHSFELDER: { feld: keyof BestandsBuchung; quelle: keyof ProcessedBo
 ];
 
 const vergleiche = (b: ProcessedBooking, best: BestandsBuchung[]): Abgleich => {
-  // 1. exakter Zeitraum
-  let treffer = best.find(x => tag(x.check_in) === tag(b.checkIn) && tag(x.check_out) === tag(b.checkOut));
-  let exakt = !!treffer;
+  // Zuordnung laeuft ueber den NAMEN; der Zeitraum bestaetigt sie.
+  // 1. Buchungen desselben Gastes suchen
+  const namensTreffer = best.filter(x => nameAehnlich(x.guest_name, b.guestName));
 
-  // 2. sonst: Überlappung + ähnlicher Name
-  if (!treffer) {
-    treffer = best.find(x =>
-      tag(x.check_in) < tag(b.checkOut) && tag(x.check_out) > tag(b.checkIn) && nameAehnlich(x.guest_name, b.guestName)
+  // 2. davon die mit passendem Zeitraum
+  let treffer = namensTreffer.find(
+    x => tag(x.check_in) === tag(b.checkIn) && tag(x.check_out) === tag(b.checkOut)
+  );
+  let exakt = !!treffer;
+  let zeitraumAbweichend = false;
+  let fremderName = false;
+
+  // 3. gleicher Gast, aber anderer Zeitraum -> anderer Aufenthalt oder Datum falsch
+  if (!treffer && namensTreffer.length > 0) {
+    treffer = namensTreffer.find(
+      x => tag(x.check_in) < tag(b.checkOut) && tag(x.check_out) > tag(b.checkIn)
     );
+    zeitraumAbweichend = !!treffer;
+  }
+
+  // 4. kein Namenstreffer, aber im Zeitraum liegt eine Buchung auf anderen Namen
+  if (!treffer) {
+    const imZeitraum = best.filter(
+      x => tag(x.check_in) === tag(b.checkIn) && tag(x.check_out) === tag(b.checkOut)
+    );
+    if (imZeitraum.length > 0) {
+      treffer = imZeitraum[0];
+      fremderName = true;
+    }
   }
 
   if (!treffer) return { status: 'neu', exakt: false, fuellungen: [], konflikte: [] };
@@ -202,14 +222,21 @@ const vergleiche = (b: ProcessedBooking, best: BestandsBuchung[]): Abgleich => {
     const neu = String(b[f.quelle] ?? '').trim();
     if (!neu) continue;                        // Meldeschein hat nichts -> nichts zu tun
     if (!alt) { fuellungen.push({ feld: f.feld, label: f.label, alt: '', neu }); continue; }
-    // Datumsfelder tagweise vergleichen (DB kann Zeitanteil liefern)
+
     const istDatum = f.feld === 'guest_birth_date';
     const a2 = istDatum ? tag(alt) : alt;
     const n2 = istDatum ? tag(neu) : neu;
-    if (norm(a2) !== norm(n2)) konflikte.push({ feld: f.feld, label: f.label, alt: a2, neu: n2 });
+    if (norm(a2) === norm(n2)) continue;
+
+    // Name: eine blosse Ergaenzung (2. Vorname, Namenszusatz) ist kein Konflikt,
+    // weil die Zuordnung ohnehin ueber die Namensaehnlichkeit lief.
+    if (f.feld === 'guest_name' && !fremderName && nameAehnlich(a2, n2)) {
+      fuellungen.push({ feld: f.feld, label: 'Name (vollstaendiger)', alt: a2, neu: n2 });
+      continue;
+    }
+    konflikte.push({ feld: f.feld, label: f.label, alt: a2, neu: n2 });
   }
 
-  // Personenzahl gesondert (Zahl statt Text)
   if (treffer.number_of_guests !== b.numberOfGuests) {
     konflikte.push({
       feld: 'number_of_guests', label: 'Personen',
@@ -217,8 +244,14 @@ const vergleiche = (b: ProcessedBooking, best: BestandsBuchung[]): Abgleich => {
     });
   }
 
-  const label = `${treffer.guest_name} · ${formatDateForDisplay(tag(treffer.check_in))}–${formatDateForDisplay(tag(treffer.check_out))}`;
-  const status: AbgleichStatus = !exakt ? 'unklar' : (konflikte.length > 0 ? 'konflikt' : 'ergaenzung');
+  const label = `${treffer.guest_name} \u00b7 ${formatDateForDisplay(tag(treffer.check_in))}\u2013${formatDateForDisplay(tag(treffer.check_out))}`;
+
+  let status: AbgleichStatus;
+  if (fremderName) status = 'fremd';
+  else if (zeitraumAbweichend) status = 'unklar';
+  else if (konflikte.length > 0) status = 'konflikt';
+  else status = 'ergaenzung';
+
   return { status, bookingId: treffer.id, bookingLabel: label, exakt, fuellungen, konflikte };
 };
 
@@ -563,6 +596,7 @@ const GuestImportCard = () => {
           .from('bookings')
           .select('id, check_in, check_out, guest_name, guest_street, guest_city, guest_postal_code, guest_birth_date, guest_travel_document, nationality, number_of_guests, status')
           .eq('house_id', selectedHouseId)
+          .neq('status', 'cancelled')   // stornierte Buchungen nicht abgleichen
           .lte('check_in', bis)
           .gte('check_out', von);
         if (error) throw error;
@@ -601,6 +635,7 @@ const GuestImportCard = () => {
   const anzahlErgaenzung = [...abgleiche.values()].filter(a => a.status === 'ergaenzung').length;
   const anzahlKonflikt = [...abgleiche.values()].filter(a => a.status === 'konflikt').length;
   const anzahlUnklar = [...abgleiche.values()].filter(a => a.status === 'unklar').length;
+  const anzahlFremd = [...abgleiche.values()].filter(a => a.status === 'fremd').length;
 
   // Gefilterte Buchungen
   const filteredBookings = useMemo(() => {
@@ -616,6 +651,62 @@ const GuestImportCard = () => {
   const selectedCount = processedBookings.filter(b => b.selected).length;
   const validCount = processedBookings.filter(b => b.isValid).length;
   const invalidCount = processedBookings.filter(b => !b.isValid).length;
+
+  const kompaktSection = (
+    <div className="space-y-3">
+      <div className="rounded-lg border p-3 space-y-3">
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-semibold">{processedBookings.length}</span>
+          <span className="text-sm text-muted-foreground">Meldescheine geladen</span>
+        </div>
+
+        {bestandLaedt && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Abgleich mit vorhandenen Buchungen läuft…
+          </div>
+        )}
+
+        {!bestandLaedt && bestand.length > 0 && (
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div className="flex items-center justify-between rounded border px-2 py-1.5">
+              <span className="text-muted-foreground">neu</span>
+              <span className="font-medium">{anzahlNeu}</span>
+            </div>
+            <div className="flex items-center justify-between rounded border border-green-600/40 px-2 py-1.5">
+              <span className="text-green-700 dark:text-green-500">Ergänzung</span>
+              <span className="font-medium">{anzahlErgaenzung}</span>
+            </div>
+            <div className="flex items-center justify-between rounded border border-amber-600/40 px-2 py-1.5">
+              <span className="text-amber-700 dark:text-amber-500">Konflikt</span>
+              <span className="font-medium">{anzahlKonflikt}</span>
+            </div>
+            <div className="flex items-center justify-between rounded border border-amber-600/40 px-2 py-1.5">
+              <span className="text-amber-700 dark:text-amber-500">zu prüfen</span>
+              <span className="font-medium">{anzahlUnklar + anzahlFremd}</span>
+            </div>
+          </div>
+        )}
+
+        {invalidCount > 0 && (
+          <div className="text-sm text-destructive">{invalidCount} Zeile(n) unvollständig</div>
+        )}
+
+        {ohneMeldeschein.length > 0 && (
+          <div className="text-sm text-muted-foreground">
+            {ohneMeldeschein.length} Buchung(en) im Zeitraum ohne Meldeschein
+          </div>
+        )}
+      </div>
+
+      <Button className="w-full" onClick={() => setShowFullscreen(true)}>
+        <Maximize2 className="w-4 h-4 mr-2" />
+        Vorschau öffnen und prüfen
+      </Button>
+      <Button variant="outline" className="w-full" onClick={resetImport}>
+        Abbrechen
+      </Button>
+    </div>
+  );
 
   const previewSection = (
           <div className="space-y-3">
@@ -638,21 +729,14 @@ const GuestImportCard = () => {
                       <Badge variant="outline" className="text-amber-700 border-amber-600">{anzahlKonflikt} Konflikt</Badge>
                     )}
                     {anzahlUnklar > 0 && (
-                      <Badge variant="outline" className="text-amber-700 border-amber-600">{anzahlUnklar} unklar</Badge>
+                      <Badge variant="outline" className="text-amber-700 border-amber-600">{anzahlUnklar} Zeitraum</Badge>
+                    )}
+                    {anzahlFremd > 0 && (
+                      <Badge variant="outline" className="text-amber-700 border-amber-600">{anzahlFremd} anderer Name</Badge>
                     )}
                   </>
                 )}
               </div>
-              {!showFullscreen && <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFullscreen(true)}
-                title="Tabelle im Vollbild öffnen — alle Spalten sichtbar"
-                className="shrink-0"
-              >
-                <Maximize2 className="w-4 h-4 mr-2" />
-                Vollbild
-              </Button>}
               <div className="relative w-64">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -847,7 +931,9 @@ const GuestImportCard = () => {
                                 return <Badge variant="outline" className="text-amber-700 border-amber-600" title={titel}>
                                   {a.konflikte.length} Konflikt{a.konflikte.length === 1 ? '' : 'e'}
                                 </Badge>;
-                              return <Badge variant="outline" className="text-amber-700 border-amber-600" title={titel}>Zeitraum weicht ab</Badge>;
+                              if (a.status === 'unklar')
+                                return <Badge variant="outline" className="text-amber-700 border-amber-600" title={titel}>Zeitraum weicht ab</Badge>;
+                              return <Badge variant="outline" className="text-amber-700 border-amber-600" title={titel}>anderer Name</Badge>;
                             })()}
                           </TableCell>
                           <TableCell className="text-right">
@@ -1002,7 +1088,7 @@ const GuestImportCard = () => {
           </div>
         )}
 
-        {processedBookings.length > 0 && !importResult && !showFullscreen && previewSection}
+        {processedBookings.length > 0 && !importResult && !showFullscreen && kompaktSection}
 
 
         <Dialog open={showFullscreen} onOpenChange={setShowFullscreen}>
