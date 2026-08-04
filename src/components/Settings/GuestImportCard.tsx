@@ -146,7 +146,9 @@ const GuestImportCard = () => {
     
     for (const row of rows) {
       const blattNr = getField(row, 'Blatt-Nr.', 'Blatt-Nr', 'BlattNr');
-      if (!blattNr) continue;
+      // Nur echte Blatt-Nummern (rein numerisch). Filtert Fuß-/Summenzeilen
+      // des Exports heraus, z. B. "Gewählter Zeitraum:" in der letzten Zeile.
+      if (!blattNr || !/^\d+$/.test(String(blattNr).trim())) continue;
       
       if (!bookingGroups.has(blattNr)) {
         bookingGroups.set(blattNr, []);
