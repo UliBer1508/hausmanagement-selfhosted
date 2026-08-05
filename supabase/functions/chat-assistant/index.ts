@@ -3138,6 +3138,11 @@ async function logMaxAction(entry: {
   }
 }
 
+// Welche Vorgangs-Status gelten als OFFEN. Beide Fortschreibe-Funktionen
+// (appendWorkflowStep, updateMaxAction) waehlen bei mehreren Vorgaengen zu
+// derselben Reinigung den neuesten OFFENEN — hilfsweise den neuesten ueberhaupt.
+const OFFENE_STATUS = ['wartet_provider', 'ueberfaellig', 'wartet_uli'];
+
 // Hängt einen weiteren Schritt an die Verlaufs-Kette eines bestehenden Workflows an
 // (via related_task_id ODER id) und aktualisiert Status/waiting_for/last_step.
 // Rein additiv/robust: Fehler brechen die eigentliche Aktion nicht ab.
@@ -3153,13 +3158,17 @@ async function appendWorkflowStep(
 ): Promise<boolean> {
   try {
     if (!match.related_task_id && !match.id) return false;
-    // Bestehenden Eintrag laden (neuester, falls mehrere).
-    let sel = supabase.from('max_actions').select('id, details').order('created_at', { ascending: false }).limit(1);
+    // Bestehenden Eintrag laden. Angeglichen an updateMaxAction (05.08.2026):
+    // bei mehreren Vorgaengen zu derselben Reinigung wird der neueste OFFENE
+    // fortgeschrieben, hilfsweise der neueste ueberhaupt. Vorher nahm diese
+    // Funktion immer den neuesten — die beiden Zwillinge konnten damit
+    // unterschiedliche Vorgaenge treffen.
+    let sel = supabase.from('max_actions').select('id, status, details').order('created_at', { ascending: false });
     sel = match.id ? sel.eq('id', match.id) : sel.eq('related_task_id', match.related_task_id as string);
     const { data: rows, error: selErr } = await sel;
     if (selErr || !rows || rows.length === 0) return false;
 
-    const row = rows[0] as any;
+    const row = ((rows as any[]).find((r) => OFFENE_STATUS.includes(r.status)) ?? rows[0]) as any;
     const details = row.details && typeof row.details === 'object' ? { ...row.details } : {};
     const verlauf = Array.isArray(details.verlauf) ? details.verlauf : [];
     verlauf.push({ schritt: step.schritt, zeitpunkt: new Date().toISOString(), akteur: step.akteur ?? 'max' });
@@ -3170,9 +3179,14 @@ async function appendWorkflowStep(
     if (step.waiting_for !== undefined) patch.waiting_for = step.waiting_for;
     if (step.due_at !== undefined) patch.due_at = step.due_at;
 
-    const { error: updErr } = await supabase.from('max_actions').update(patch).eq('id', row.id);
+    const { data: geaendert, error: updErr } = await supabase
+      .from('max_actions').update(patch).eq('id', row.id).select('id');
     if (updErr) {
       console.error('appendWorkflowStep update error:', updErr);
+      return false;
+    }
+    if (!geaendert || geaendert.length === 0) {
+      console.error('appendWorkflowStep: kein Vorgang geaendert (0 Zeilen betroffen)');
       return false;
     }
     return true;
@@ -3184,6 +3198,25 @@ async function appendWorkflowStep(
 
 // Schreibt einen bestehenden Workflow fort (via related_task_id ODER id).
 // Rein additiv/robust: Fehler brechen die eigentliche Aktion nicht ab.
+//
+// KORRIGIERT 05.08.2026 — vorher ein UPDATE OHNE BEGRENZUNG:
+//
+//   q.eq('related_task_id', ...)   ->  traf ALLE Zeilen mit dieser ID
+//
+// Zu EINER Reinigung koennen mehrere Vorgaenge gehoeren (zweimal verschoben,
+// Terminfrage plus Verschiebung, frueher auch der Waesche-Vorgang aus
+// max-linen-reminders). Der Patch enthaelt status, waiting_for und due_at —
+// er wurde also unbesehen auf fremde Vorgaenge geschrieben. Beispiel: eine
+// Terminfrage an den Reinigungsdienstleister setzte waiting_for='amela' auch
+// auf einen Waesche-Vorgang, der in Wahrheit auf Teuni wartete.
+//
+// Jetzt wird GENAU EINE Zeile geaendert. Auswahlregel:
+//   1. der neueste noch OFFENE Vorgang (wartet_provider / ueberfaellig /
+//      wartet_uli) — fortgeschrieben wird, was noch laeuft
+//   2. hilfsweise der neueste ueberhaupt (altes Verhalten, nur begrenzt)
+//
+// Zusaetzlich mit .select() und Pruefung auf 0 Zeilen (AGENTS.md): ein UPDATE
+// ohne .select() liefert error === null auch dann, wenn nichts getroffen wurde.
 async function updateMaxAction(
   match: { related_task_id?: string | null; id?: string | null },
   patch: {
@@ -3196,15 +3229,44 @@ async function updateMaxAction(
 ): Promise<boolean> {
   try {
     if (!match.related_task_id && !match.id) return false;
-    let q = supabase.from('max_actions').update({ ...patch, updated_at: new Date().toISOString() });
-    if (match.id) {
-      q = q.eq('id', match.id);
-    } else {
-      q = q.eq('related_task_id', match.related_task_id as string);
+
+    let zielId: string | null = match.id ?? null;
+
+    if (!zielId) {
+      const { data: kandidaten, error: selErr } = await supabase
+        .from('max_actions')
+        .select('id, status')
+        .eq('related_task_id', match.related_task_id as string)
+        .order('created_at', { ascending: false });
+
+      if (selErr) {
+        console.error('updateMaxAction select error:', selErr);
+        return false;
+      }
+      if (!kandidaten || kandidaten.length === 0) return false;
+
+      const offen = kandidaten.find((r: any) => OFFENE_STATUS.includes(r.status));
+      zielId = ((offen ?? kandidaten[0]) as any).id;
+
+      if (kandidaten.length > 1) {
+        console.log(
+          `updateMaxAction: ${kandidaten.length} Vorgaenge zu dieser Reinigung, fortgeschrieben wird ${zielId}`
+        );
+      }
     }
-    const { error } = await q;
+
+    const { data: geaendert, error } = await supabase
+      .from('max_actions')
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq('id', zielId as string)
+      .select('id');
+
     if (error) {
       console.error('updateMaxAction error:', error);
+      return false;
+    }
+    if (!geaendert || geaendert.length === 0) {
+      console.error('updateMaxAction: kein Vorgang geaendert (0 Zeilen betroffen)');
       return false;
     }
     return true;
