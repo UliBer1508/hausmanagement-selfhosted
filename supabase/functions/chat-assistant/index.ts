@@ -1754,7 +1754,7 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "read_provider_replies",
-        description: "Liest die jüngsten Antworten von Amela/Teuni und verknüpft jede mit der Reinigung, auf die sie sich bezieht (über related_task_id - so ist eindeutig klar, welche Reinigung gemeint ist). Nutze dieses Tool bei Fragen wie 'Hat Amela geantwortet?', 'Gibt es neue Rückmeldungen?', 'Was hat Teuni geschrieben?'. Wenn eine Antwort einen Terminänderungswunsch enthält, fasse ihn mit dem konkreten Bezug zusammen (Gast, Haus, aktuelles Datum) und frage Uli, ob du die Änderung mit reschedule_cleaning durchführen sollst. Reine Leseoperation.",
+        description: "Liest die jüngsten Antworten von Amela/Teuni/Boris und verknüpft jede mit dem Vorgang, auf den sie sich bezieht. ZWEI ARTEN VON BEZUG: (a) typ=reinigung — die Antwort hängt über related_task_id an einer Reinigung (service_task); (b) typ=waesche — die Antwort hängt über related_linen_order_id an einer Wäschebestellung (linen_order). Beide stehen im Feld bezug der Rückgabe; ist bezug null, gibt es keine Zuordnung. Nutze dieses Tool bei Fragen wie 'Hat Amela geantwortet?', 'Gibt es neue Rückmeldungen?', 'Was hat Teuni geschrieben?'. Wenn eine Antwort einen Terminänderungswunsch enthält, fasse ihn mit dem konkreten Bezug zusammen (Gast, Haus, aktuelles Datum) und frage Uli, ob du die Änderung durchführen sollst — bei typ=reinigung mit reschedule_cleaning, bei typ=waesche mit reschedule_linen_delivery. Verwechsle die beiden NICHT: eine Wäsche-Antwort gehört nie zu reschedule_cleaning. Reine Leseoperation.",
         parameters: {
           type: "object",
           properties: {
@@ -3604,7 +3604,9 @@ STRENGE FREIGABE-REGEL:
 - Echte Terminfragen (z.B. "Passt dir der Reinigungstermin am 18.7.?") → ist_terminfrage=true, wird direkt gesendet.
 - ALLES ANDERE → ist_terminfrage=false. Die Nachricht wird dann NICHT gesendet, sondern als Entwurf zurückgegeben. Zeige dem Nutzer den Entwurf und sende ihn erst, nachdem der Nutzer ausdrücklich "ja, senden" o.ä. bestätigt hat (dann erneut send_provider_message, weiterhin ist_terminfrage=false, aber jetzt mit Bestätigung des Nutzers).
 - Formuliere Nachrichten höflich, auf Deutsch. Beginne jede Nachricht an einen Dienstleister mit "Hallo [Name], ich bin Max, der KI-Assistent von Uli."
-- Wenn du eine Reinigung ansprichst, gib wenn möglich related_task_id mit, damit die Nachricht daran hängt.
+- Wenn du eine Reinigung ansprichst, gib related_task_id mit; geht es um eine Wäschebestellung,
+  gib stattdessen related_linen_order_id mit. Nur so hängt die spätere Antwort am richtigen Vorgang.
+  Die beiden sind NICHT austauschbar: related_task_id zeigt auf eine Reinigung, niemals auf Wäsche.
 
 ⏰ KEINE ANTWORT VOM DIENSTLEISTER (Ablauf provider_keine_antwort):
 Wenn eine Frage an Amela oder Teuni 24 Stunden ohne Antwort bleibt, wird der Vorgang
