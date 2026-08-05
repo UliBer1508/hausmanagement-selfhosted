@@ -477,6 +477,20 @@ serve(async (req) => {
         const gast = a.guest_name || 'Buchung';
         message += `• **${wer} hat nicht geantwortet** – ${gast} (fällig war ${seit})\n`;
       });
+      // Hinweis, wie der Vorgang endet (ergaenzt 05.08.2026).
+      //
+      // WARUM: Ein Vorgang mit status='ueberfaellig' verlaesst diesen Zustand NUR
+      // durch eine Provider-Antwort (Trigger max_actions_on_provider_reply) oder
+      // durch eine ausdrueckliche Anweisung von Uli (Tool update_provider_action).
+      // Es gibt KEINEN Automatismus, der ihn nach n Tagen schliesst.
+      //
+      // Ohne diesen Hinweis erscheint dieselbe Zeile jeden Morgen unbegrenzt weiter —
+      // im Fall "Hubert Middelbos" 15 Tage lang, ohne dass erkennbar war, dass und
+      // wie man sie beenden kann (Lessons 7.4: eine Warnung, die immer feuert, ist
+      // schlechter als keine). Die drei genannten Formulierungen entsprechen den
+      // drei Zweigen der Prompt-Regel zu provider_keine_antwort.
+      message += `_Diese Meldung bleibt stehen, bis du sie beendest. Sag Max im Chat: `;
+      message += `„nochmal nachfragen", „noch warten" oder „schließ den Vorgang für <Gast>"._\n`;
       message += '\n';
     }
 
