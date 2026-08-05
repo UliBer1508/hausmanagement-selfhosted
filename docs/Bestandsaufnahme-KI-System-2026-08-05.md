@@ -1,4 +1,10 @@
-# Bestandsaufnahme KI-System (Max) — Stand 05.08.2026
+# Bestandsaufnahme KI-System (Max) — Stand 05.08.2026 (abends)
+
+> **Fassung 2.** Die erste Fassung entstand am Vormittag nach der Analyse. Am
+> Nachmittag wurden B2, B3 und B5 behoben und dabei eine gemeinsame Wurzel
+> gefunden, die B5 und B6 zugleich erklärte. Die Befunde sind entsprechend
+> aktualisiert; der Ablauf der Sitzung steht in
+> `docs/Session-2026-08-05-KI-Bestandsaufnahme-und-Bezugsfelder.md`.
 
 > **Zweck:** Vollständiges Bild von SOLL und IST, bevor die geplanten
 > KI-Erweiterungen beginnen. Diese Datei beschreibt **Mechanismen**, keine
@@ -150,7 +156,22 @@ fort. **Die beiden Felder sind nicht austauschbar** — siehe Befunde B2/B3.
 Schweregrad: **A** = wirkt sich im Betrieb aus · **B** = wirkt sich aus, sobald
 eine bestimmte Konstellation eintritt · **C** = Pflege/Klarheit.
 
-### B1 — `ueberfaellig` hat keinen zeitlichen Ausgang · **A**
+| | Befund | Schwere | Stand 05.08. abends |
+|---|---|---|---|
+| B1 | `ueberfaellig` ohne zeitlichen Ausgang | A | gemildert (Hinweis in der Meldung) |
+| B2 | falsches Bezugsfeld in `max_ablaeufe` | B | **behoben** |
+| B3 | Tool-Beschreibung/Prompt ohne Wäsche-Bezug | B | **behoben** |
+| B4 | Wäsche-Terminfrage aus dem Chat unverfolgbar | A | offen |
+| B5 | geteilter Schlüssel + unbegrenzter UPDATE | A | **behoben (Wurzel)** |
+| B6 | Spam-Prüfung ohne Anbieter-Filter | A | entschärft, Härtung offen |
+| B7 | Laufzeitzustände in der SOLL-Tabelle | C | offen |
+| B8 | kein Zustand „gebaut, aber inaktiv" | C | offen |
+| B9 | `umsetzung='pruefen'` ohne Signal | C | offen |
+| B10 | Selbstmodifikation ohne Regelwerk | B | Entscheidung offen |
+| B11 | Dubletten/doppelte Wahrheit im Wissen | C | offen |
+| B12 | Selbstprüfung misst Existenz, nicht Wirksamkeit | B | bauartbedingt |
+
+### B1 — `ueberfaellig` hat keinen zeitlichen Ausgang · **A** · GEMILDERT
 
 Der Ablauf `provider_keine_antwort` endet in Schritt 3 auf `wartet_uli`.
 Schritt 4 ist ein menschlicher Schritt ohne Frist. Für das Schweigen eines
@@ -163,11 +184,12 @@ das beschreibt Lessons 7.4 („eine Warnung, die immer feuert, ist schlechter al
 keine"); die dort entwickelte Merk-Logik wurde nur für den Kalender-Abgleich
 umgesetzt (`kalender_abgleich_meldungen`), nicht für `max_actions`.
 
-**Am 05.08. gemildert, nicht behoben:** Die Meldung sagt jetzt, wie man sie
-beendet. Die Entscheidung, ob nach n Tagen automatisch geschlossen oder
-eskaliert wird, steht aus.
+**Am 05.08. gemildert, nicht behoben (deployt):** Die Meldung sagt jetzt, wie
+man sie beendet — mit den drei Formulierungen, die den drei Zweigen der
+Prompt-Regel entsprechen. Die Entscheidung, ob nach n Tagen automatisch
+geschlossen oder eskaliert wird, steht aus.
 
-### B2 — Falsches Bezugsfeld in der SOLL-Definition · **B**
+### B2 — Falsches Bezugsfeld in der SOLL-Definition · **B** · BEHOBEN
 
 `create_linen_for_booking` Schritt 6 und `update_linen_for_booking` Schritt 4
 schrieben beide „Tool send_provider_message (an Teuni, mit `related_task_id`)".
@@ -178,7 +200,7 @@ Reinigungs-Bezug landet im falschen Vorgang oder in keinem.
 
 **Behoben am 05.08.2026** durch `supabase/SQL/37_max_ablaeufe_waesche_bezug_korrektur.sql`.
 
-### B3 — Tool-Beschreibung und Prompt kannten nur die Reinigung · **B**
+### B3 — Tool-Beschreibung und Prompt kannten nur die Reinigung · **B** · BEHOBEN
 
 `read_provider_replies` beschrieb sich gegenüber Gemini als „verknüpft jede mit
 der Reinigung … über `related_task_id`". Der Code kann seit dem 15.07. beides
@@ -189,7 +211,7 @@ Dasselbe Muster wie Lessons 9.5 — der Code war neutral, nur die Beschreibung n
 
 **Behoben am 05.08.2026** in `chat-assistant/index.ts` (2 Stellen).
 
-### B4 — Wäsche-Terminfragen aus dem Chat erzeugen keinen verfolgbaren Vorgang · **A**
+### B4 — Wäsche-Terminfragen aus dem Chat erzeugen keinen verfolgbaren Vorgang · **A** · OFFEN
 
 **Neu gefunden am 05.08.2026, noch nicht behoben.**
 
@@ -215,26 +237,44 @@ Die Nachricht selbst geht korrekt raus (`provider_messages` bekommt beide
 Felder). Nur die Nachverfolgung fehlt. Das ist die Voraussetzung dafür, dass B2
 überhaupt Wirkung entfalten kann.
 
-### B5 — Kollisionsrisiko: zwei Vorgänge teilen sich eine `related_task_id` · **A**
+### B5 — Kollisionsrisiko: zwei Vorgänge teilten sich eine `related_task_id` · **A** · BEHOBEN
 
-**Neu gefunden am 05.08.2026, noch nicht behoben.**
+`max-cleaning-reminders` schrieb `cleaning_termin_check` mit
+`related_task_id = task.id`. `max-linen-reminders` schrieb `linen_termin_check`
+mit **derselben** ID — die Wäsche-Erinnerung hing an der Reinigung, vor der
+geliefert werden sollte.
 
-`max-cleaning-reminders` schreibt `action_type='cleaning_termin_check'` mit
-`related_task_id = task.id`. `max-linen-reminders` schreibt
-`action_type='linen_termin_check'` mit **derselben** `related_task_id` — die
-Wäsche-Erinnerung hängt an der Reinigung, vor der geliefert werden soll.
+Zwei Ausprägungen:
 
-Der Trigger `max_actions_on_provider_reply` sucht den passenden Vorgang mit
-`ORDER BY created_at DESC LIMIT 1` und filtert **nicht nach `provider_id`**.
-Antwortet einer der beiden, wird der jeweils *neuere* Vorgang als „beantwortet"
-markiert — unabhängig davon, wer geantwortet hat. Der andere bleibt stehen und
-wird überfällig.
+**(a) Im Trigger** (`23_max_provider_reply_linen.sql`): `ORDER BY created_at DESC
+LIMIT 1`, kein Filter auf `provider_id`. Wer auch antwortete — der neuere Vorgang
+wurde als „beantwortet" markiert, der andere blieb hängen und wurde überfällig.
 
-Das ist der plausibelste Entstehungsweg des Falls Middelbos.
+**(b) Im Chat-Pfad** — gravierender: `updateMaxAction` führte ein UPDATE **ohne
+Begrenzung** aus (`.eq('related_task_id', …)` ohne `.limit()`, ohne `.select()`).
+Der Patch enthält `status`, `waiting_for` und `due_at`; eine Terminfrage an den
+Reinigungsdienstleister setzte damit `waiting_for='amela'` auch auf einen
+Wäsche-Vorgang, der auf Teuni wartete.
 
-### B6 — Der Spam-Schutz der Reinigungs-Erinnerung filtert nicht nach Anbieter · **A**
+**Behoben am 05.08.2026 an der Wurzel** (siehe Kasten unten): getrennte
+Schlüssel in `max-linen-reminders` plus Begrenzung auf genau eine Zeile in
+`updateMaxAction` und im Zwilling `appendWorkflowStep`.
 
-**Neu gefunden am 05.08.2026, noch nicht behoben.**
+> **Die gemeinsame Wurzel von B5 und B6**
+>
+> `max-linen-reminders` hängte Nachricht und Vorgang an `related_task_id` — den
+> **Reinigungs**-Schlüssel. Richtig ist `related_linen_order_id`. Das
+> Teuni-Portal wurde am 16.07. darauf umgestellt und sagt im Kommentar
+> ausdrücklich, dass Teunis Bezug „in der Regel" dieses Feld ist; der Cron-Job
+> wurde nicht nachgezogen. Aus dem geteilten Schlüssel folgten B5 **und** B6.
+>
+> **Reihenfolge-Falle:** B6 verdeckte B5. Weil Amelas Vorgang gar nicht entstand,
+> gab es keine Kollision. Eine isolierte Reparatur von B6 hätte B5 sofort
+> aktiviert. Deshalb wurde die Wurzel behandelt, nicht die Symptome.
+
+### B6 — Der Spam-Schutz der Reinigungs-Erinnerung filtert nicht nach Anbieter · **A** · ENTSCHÄRFT
+
+**Gefunden am 05.08.2026. Durch den Wurzel-Fix zu B5 entschärft, Härtung offen.**
 
 `max-cleaning-reminders`, Schritt 4:
 
@@ -254,6 +294,13 @@ wird nie gefragt**. Ohne Fehlermeldung; der Cron meldet Erfolg und zählt den Fa
 unter `uebersprungen_schon_erinnert`.
 
 Verwandt mit Lessons 8.1: Der Wächter schweigt genau dort, wo er reden müsste.
+
+**Stand nach dem 05.08.2026:** Teunis Nachricht hängt jetzt an
+`related_linen_order_id`; Amelas Prüfung auf `related_task_id` findet sie nicht
+mehr. Die Kollision ist damit weg. Die fehlende Zeile
+`.eq('provider_id', provider.id)` bleibt als Härtung offen — nicht mehr akut,
+aber Vorsorge gegen andere Nachrichten auf derselben Reinigung (z. B. eine
+Terminfrage, die Max im Chat gesendet hat).
 
 ### B7 — Laufzeitzustände stehen in der SOLL-Tabelle · **C**
 
@@ -335,34 +382,61 @@ und Kopie unterscheiden — nicht die Stellen, an denen sie gleich sind.
 
 ## 6. Was am 05.08.2026 geändert wurde
 
-| Datei | Änderung | Befund |
+| Datei / Objekt | Änderung | Befund |
 |---|---|---|
 | `supabase/functions/morning-summary/index.ts` | Hinweis in der Überfällig-Meldung, wie man sie beendet | B1 (gemildert) |
 | `supabase/SQL/37_max_ablaeufe_waesche_bezug_korrektur.sql` | 2 Zeilen: `related_task_id` → `related_linen_order_id` | B2 |
 | `supabase/functions/chat-assistant/index.ts` | `read_provider_replies`-Beschreibung + Prompt-Regel um Wäsche-Bezug ergänzt | B3 |
+| `supabase/functions/max-linen-reminders/index.ts` | Bezug auf die Wäschebestellung umgestellt (Abfrage, Spam-Schutz, Nachricht, Vorgang); neuer Fall „keine Bestellung" | B5 / B6 (Wurzel) |
+| `supabase/functions/chat-assistant/index.ts` | `updateMaxAction` auf eine Zeile begrenzt + `.select()`-Prüfung; Zwilling `appendWorkflowStep` angeglichen | B5 |
 
-Beide TypeScript-Dateien mit `esbuild` geprüft — **Syntax, nicht Spaltenexistenz**.
-Verifikation im Betrieb steht aus.
+**Verifikationsstand:**
 
----
+- Basis vor **und** nach jedem Upload per Blob-SHA gegen die GitHub-API geprüft
+- byte-genaue Diffs vor der Auslieferung — ausschließlich gewollte Änderungen
+- esbuild je Datei (Syntax; **keine** Aussage über Spaltenexistenz)
+- Deploy durch `Select-String` auf Kennzeichen im lokalen Repo belegt
+- SOLL-Korrektur durch Kontrollabfrage belegt; Selbstprüfung danach
+  „37 Schritte geprüft, keine Abweichung"
+- **B5 an echten Daten verifiziert:** Testlauf `max-linen-reminders` im
+  `dry_run` (nichts gesendet) liefert `related_linen_order_id: 001c1a7b-…`,
+  das Lieferdatum stammt aus derselben Bestellung, `ohne_waeschebestellung: 0`,
+  1 von 2 Reinigungen wegen bereits gelieferter Wäsche übersprungen
 
-## 7. Offene Entscheidungen
+Nicht verifizierbar und deshalb nicht behauptet: ob Gemini die geänderten
+Beschreibungen im Alltag besser befolgt. Das zeigt sich erst im Realbetrieb.
 
-1. **B1:** Soll ein überfälliger Vorgang nach n Tagen automatisch geschlossen
-   werden, oder eskalieren (zweite Frist, anderer Anbieter, Chat-Nachfrage)?
-2. **B4/B5/B6:** Diese drei greifen ineinander und sollten gemeinsam angegangen
-   werden. B6 ist der schwerwiegendste — er kann dazu führen, dass der
-   Reinigungsdienstleister stillschweigend nie gefragt wird.
-3. **B10:** Braucht `save_knowledge` Grenzen? Vorschlag zur Diskussion: Max darf
-   Begriffe (`category='dienstleister'`, `'begriff'`) selbst speichern,
-   Verhaltensregeln (`category='regel'`) nur mit ausdrücklicher Bestätigung und
-   mit `created_by='uli'`.
-4. **B7/B8/B9:** Pflegeaufwand, aber Voraussetzung dafür, dass die Selbstprüfung
-   künftig mehr aussagt als „die Bausteine existieren".
-5. **Grundsätzlich:** Amela- und Teuni-Automatik sind derzeit abgeschaltet. Ist
-   das ein Dauerzustand oder ein Provisorium? Davon hängt ab, ob die Ketten
-   repariert oder umgebaut werden.
+## 7. Offen
 
----
+**Technisch:**
 
-*Erstellt am 05.08.2026 als Grundlage für die geplanten KI-Erweiterungen.*
+1. **B4** — Wäsche-Terminfragen aus dem Chat erzeugen keinen verfolgbaren
+   Vorgang. Betrifft nur den Chat-Pfad, kollidiert mit nichts.
+2. **B6-Härtung** — `.eq('provider_id', provider.id)` in der Spam-Prüfung von
+   `max-cleaning-reminders`. Nicht mehr akut.
+3. **Trigger-Härtung** — bei mehreren Verschiebungen derselben Reinigung nimmt
+   `max_actions_on_provider_reply` weiterhin den neuesten; eine Bevorzugung
+   offener Vorgänge wäre robuster.
+4. **B7/B8/B9** — Pflege der SOLL-Tabelle: Laufzeitzustände heraus, ein Zustand
+   für „gebaut, aber bewusst inaktiv", `umsetzung='pruefen'` sichtbar machen.
+5. **B11** — fehlende Einträge in `assistant_knowledge` (Kalender-Quittung,
+   Überfällig-Fall), Dubletten zu Boris, doppelte Wahrheit beim Stoff-Steinbock.
+6. Nebenbefunde: `max_actions` fehlt in `types.ts`; SQL-Datei 21 fehlt im Repo;
+   `MaxActionsPanel` gruppiert Wäsche-Vorgänge nicht; `waiting_for` per
+   Namens-Regex.
+
+**Entscheidungen, die Uli treffen muss:**
+
+1. **B1** — soll ein überfälliger Vorgang nach n Tagen automatisch geschlossen
+   werden, oder eskalieren?
+2. **B10** — braucht `save_knowledge` Grenzen? Vorschlag zur Diskussion: Begriffe
+   (`category='dienstleister'`/`'begriff'`) darf Max selbst speichern,
+   Verhaltensregeln (`category='regel'`) nur mit ausdrücklicher Bestätigung.
+
+**Betrieblicher Rahmen (geklärt am 05.08.2026):** Die Amela- und
+Teuni-Automatiken sind **vorübergehend** abgeschaltet, weil beide Dienstleister
+noch eingearbeitet werden. Sie sollen wieder scharf geschaltet werden — deshalb
+war B6 vor dem Wiedereinschalten zu lösen und nicht als theoretisch einzustufen.
+
+*Fassung 1 erstellt am 05.08.2026 (vormittags), Fassung 2 am selben Tag abends
+nach Behebung von B2, B3 und B5. Grundlage für die geplanten KI-Erweiterungen.*
