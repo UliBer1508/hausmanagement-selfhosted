@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { GitMerge } from 'lucide-react';
 import { todayISO } from '@/lib/dateHelpers';
+import { getGuestKey } from '@/lib/guestKeyHelpers';
 
 import { supabase } from '@/integrations/supabase/client';
 import GuestOverview from './GuestOverview';
@@ -42,7 +43,11 @@ const GuestManagement = () => {
       const guestMap = new Map();
       
       bookings.forEach(booking => {
-        const guestKey = `${booking.guest_name}-${booking.guest_email || ''}-${booking.guest_phone || ''}`;
+        // Fix 11.08.2026: guest_id-basierter Schlüssel statt reinem
+        // Name/E-Mail/Telefon-Text (siehe src/lib/guestKeyHelpers.ts) —
+        // vorher wurden Buchungen desselben Gasts ohne guest_email
+        // fälschlich als eigener Gast gezählt.
+        const guestKey = getGuestKey(booking) || `${booking.guest_name}-${booking.guest_email || ''}-${booking.guest_phone || ''}`;
         
         if (!guestMap.has(guestKey)) {
           guestMap.set(guestKey, {
