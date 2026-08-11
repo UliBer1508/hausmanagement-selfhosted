@@ -23,7 +23,7 @@ interface BookingCardProps {
 
 const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardProps) => {
   const { data: stayCounts } = useGuestStayCounts();
-  const category = getGuestCategory(stayCounts, booking.guest_email);
+  const category = getGuestCategory(stayCounts, booking);
   const [editOpen, setEditOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [savingNotes, setSavingNotes] = useState(false);
