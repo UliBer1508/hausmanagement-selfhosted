@@ -422,7 +422,7 @@ async function executeSearchGuests(params: any) {
 
   let query = supabase
     .from('bookings')
-    .select('guest_name, guest_email, guest_phone, nationality, houses(name)')
+    .select('guest_id, guest_name, guest_email, guest_phone, nationality, houses(name)')
     .order('created_at', { ascending: false });
 
   if (params.name) {
@@ -442,10 +442,16 @@ async function executeSearchGuests(params: any) {
     return { success: false, error: error.message };
   }
 
-  // Group by email to get unique guests with booking counts
+  // Group by guest_id, um eindeutige Gäste mit Buchungsanzahl zu ermitteln.
+  // Fix 11.08.2026: vorher Gruppierung per `guest_email || guest_name` — das
+  // spaltete denselben Gast in zwei Einträge auf, sobald bei EINER Buchung
+  // guest_email leer war (guest_name als Fallback ist ein anderer String als
+  // die E-Mail). guest_id ist zuverlässiger (siehe CreateBookingForm.tsx,
+  // Matching-Kaskade E-Mail→Telefon→Name+Nationalität→Name; Referenz-Fix
+  // im Frontend: src/lib/guestKeyHelpers.ts).
   const guestMap = new Map();
   for (const b of data || []) {
-    const key = b.guest_email || b.guest_name;
+    const key = b.guest_id || b.guest_email || b.guest_name;
     if (!guestMap.has(key)) {
       guestMap.set(key, {
         guest_name: b.guest_name,
