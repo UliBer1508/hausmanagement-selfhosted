@@ -23,6 +23,35 @@ Session-Länge) und gilt zusätzlich für Claude. Sie ist verbindlich.
   Provider-Antworten fortschreiben). Nachzulesen in `supabase/SQL/`. Wer nur den
   TypeScript-Code liest, übersieht die Hälfte der Wirkung.
 
+## LAUFENDE MIGRATION: Gastdaten (Stand 12.08.2026)
+
+**`guests` ist die einzige Quelle für Gastdaten. Eine Buchung verweist über
+`guest_id`.** Die `guest_*`-Spalten in `bookings` sind historische Kopien aus
+einer noch nicht abgeschlossenen Migration und **keine Quelle für Auswertungen,
+Gruppierungen oder Kontaktaufnahme**.
+
+Warum das hier steht: Der Plan dazu existiert seit 2024
+(`Guest-Booking-Separation-Plan.md`), war aber in keinem Pflichtdokument
+verlinkt. Folge: Am 11.08.2026 wurde ein Gast auf der Buchungskarte als "Neuer
+Gast" gezeigt, obwohl er zwei Buchungen hatte — eine Auswertung hatte über die
+Kopie statt über `guest_id` gruppiert. Beim Beheben wurde die Übergangslogik
+zunächst sogar noch erweitert, weil niemand von der offenen Migration wusste.
+
+**Verbindlich für neuen Code:**
+- Gastdaten IMMER über die Relation lesen: `guests(...)` mitladen und die Helfer
+  aus `src/lib/guestHelpers.ts` nutzen (`getGuestName`, `getGuestEmail` …).
+- NIE über `guest_email` oder `guest_name` gruppieren oder Gäste identifizieren.
+  `guest_email` ist bei 65 % der Buchungen leer und bei Portalbuchungen eine
+  Wegwerfadresse. Schlüssel ist `guest_id`.
+- Wer eine bestehende Stelle anfasst, die noch aus den Kopien liest, zieht sie
+  im selben Schritt auf die Relation um.
+- `guest_contact_status` ist KEINE Kopie — sie ist buchungsbezogen und bleibt.
+
+Stand und Etappenplan: **`docs/Konzept-Gastdaten-Entdopplung.md`**. Etappe 2 und
+3 sind seit 12.08.2026 live (DB-Trigger `trg_link_guest_on_booking_insert` und
+`trg_sync_guest_to_bookings`, SQL in `supabase/SQL/40_...`). Offen: Etappe 4
+(rund 450 Lesestellen umziehen), dann Löschen der Kopiespalten.
+
 ## Häufigste Fehlerquelle: Doppelgänger-Komponenten
 - "Reinigungskarte" existiert dreimal: `Cleaning/CleaningManagement.tsx`
   (breit, inline) | `Bookings/ServiceTaskCard.tsx` (schmal, verknüpfte Ansicht)
@@ -78,3 +107,5 @@ Session-Länge) und gilt zusätzlich für Claude. Sie ist verbindlich.
 - `docs/Steinbock-Chalets-Gesamtdokumentation-MASTER.md` — Architektur-/System-Doku
 - `docs/ARBEITSWEISE-CLAUDE-LESSONS.md` — Lehren aus fehlgelaufenen Sitzungen (PFLICHT)
 - `supabase/SQL/README.md` — die DB-Trigger, die Max' Kommunikationskette steuern
+- `docs/Konzept-Gastdaten-Entdopplung.md` — LAUFENDE Migration Gastdaten (PFLICHT
+  bei allem, was Gäste oder Buchungen berührt)
