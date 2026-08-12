@@ -291,28 +291,14 @@ serve(async (req) => {
     {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, houses!bookings_house_id_fkey(name), guests!bookings_guest_id_fkey(name)')
+        .select('*, houses!bookings_house_id_fkey(name)')
         .gte('check_in', todayStart)
         .lte('check_in', nextWeekEndStr)
         .eq('status', 'confirmed')
         .order('check_in')
         .limit(10);
       if (error) throw error;
-      // Gastname aus der `guests`-Relation, nicht aus der Kopiespalte in
-      // `bookings` (Etappe 4, docs/Konzept-Gastdaten-Entdopplung.md).
-      //
-      // Bewusst nur DIESER Abschnitt: Er ist der einzige, dessen Gastnamen in
-      // der Ausgabe heute sichtbar sind (Referenzstand 12.08.2026: "Hofmann"
-      // und "Luca"). Aenderungen an Stellen, die man nicht beobachten kann,
-      // sind nicht pruefbar — siehe Abschnitt 5b des Konzepts.
-      //
-      // Die Ausgabezeile weiter unten bleibt unveraendert und liest weiterhin
-      // b.guest_name. Der Fallback auf die Kopie faellt beim Loeschen der
-      // Spalten (Etappe 6) automatisch weg.
-      upcomingBookings = (data || []).map((b: any) => ({
-        ...b,
-        guest_name: b.guests?.name || b.guest_name || 'Unbekannt',
-      }));
+      upcomingBookings = data || [];
     }
 
     // 5) Geplante Reinigungen (heute + nächste 7 Tage)
