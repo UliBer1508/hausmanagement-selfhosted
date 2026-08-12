@@ -581,6 +581,7 @@ const OriginalDashboard = () => {
         .from('bookings')
         .select(`
           id,
+          guest_id,
           guest_name,
           guest_email,
           guest_phone,
