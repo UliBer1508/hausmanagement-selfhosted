@@ -79,6 +79,47 @@ src/main.tsx
 
 ---
 
+## 2b. Gastdaten: LAUFENDE MIGRATION (12.08.2026) — vor jeder Gäste-/Buchungsarbeit lesen
+
+**`guests` ist die einzige Quelle. `bookings.guest_*` sind historische Kopien.**
+
+Das ist der größte Doppelgänger im Projekt — nicht zwei Komponenten, sondern
+zwei Speicherorte für dieselbe Information. `bookings` trägt neben `guest_id`
+noch zehn Kopiespalten (`guest_name`, `guest_email`, `guest_phone`,
+`nationality`, `guest_street`, `guest_city`, `guest_postal_code`,
+`guest_birth_date`, `guest_travel_document`, `guest_notes`).
+
+**Regel:** Gastdaten über die Relation lesen (`guests(...)` mitladen, Helfer aus
+`src/lib/guestHelpers.ts`). Nie über `guest_email`/`guest_name` gruppieren oder
+Gäste identifizieren — Schlüssel ist `guest_id`. `guest_email` ist bei 65 % der
+Buchungen leer.
+
+**Ausnahme:** `guest_contact_status` ist buchungsbezogen (wurde der Gast wegen
+DIESER Buchung kontaktiert) und bleibt erhalten. `max_actions.guest_name` ist
+eine eigene Protokollspalte, kein Bezug auf `bookings`.
+
+**Stand:** Etappe 2 + 3 live seit 12.08.2026. Datenhoheit ist umgedreht:
+`trg_link_guest_on_booking_insert` (verknüpft beim Anlegen) und
+`trg_sync_guest_to_bookings` (hält die Kopien aktuell). SQL:
+`supabase/SQL/40_gastdaten_entdopplung_etappe3.sql`.
+**Offen:** Etappe 4 — rund 450 Lesestellen (161× `guest_name` im Frontend über
+51 Dateien, 94× `guest_email`, ~190 in 17 Edge Functions, davon 126 in
+`chat-assistant`). Danach Etappe 5/6: `guest_id` auf `NOT NULL`, Kopiespalten
+löschen.
+
+**Vollständiger Etappenplan mit Prüfabfragen und Risiken:**
+`docs/Konzept-Gastdaten-Entdopplung.md`.
+
+> **Historie, damit es sich nicht wiederholt:** Der Plan dazu existiert seit 2024
+> (`Guest-Booking-Separation-Plan.md` im docs-Archiv), Phase 1–3 wurden erledigt,
+> Phase 4 nie. Grund: Die Fallback-Logik `booking.guests?.name ||
+> booking.guest_name` ließ alles funktionieren, also fehlte der Anlass
+> weiterzumachen. Weil die offene Migration in KEINEM Pflichtdokument stand,
+> wurde sie beim Weiterbauen zweimal übersehen — zuletzt am 11.08.2026, als der
+> Stammgast-Bug behoben und die Übergangslogik dabei sogar erweitert wurde.
+
+---
+
 ## 3. Verwechslungsgefahr — die „Doppelgänger" (zuerst lesen!)
 
 > **Verbindliche Kartennamen:** Für die drei Karten-Typen (Buchung, Reinigung,
@@ -922,7 +963,9 @@ Dashboard/System: `useDashboard`, `useOperationsDashboard`, `useMorningSummary`,
 Basis: `use-toast`, `use-mobile`.
 
 ### lib (`src/lib/`) — reine Helfer (keine UI, kein State)
-`guestHelpers` (getGuestName/Email/Phone mit Fallback), `dateHelpers`,
+`guestHelpers` (getGuestName/Email/Phone — liest die Relation, Kopie nur als
+Fallback), `guestKeyHelpers` (`getGuestKey()`: `guest_id` > `guest_email` >
+`guest_name` — Schlüssel für Gast-Gruppierung, siehe Abschnitt 2b), `dateHelpers`,
 `holidayCalendar`, `schoolHolidays`, `linenCalculation`, `linenOrderHelpers`,
 `linenMigration`, `mailtoHelper`, `nameNormalization`, `ratingHelpers`,
 `utilityStatementPdf`, `utils` (`cn()`).

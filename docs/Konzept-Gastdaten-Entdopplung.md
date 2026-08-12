@@ -4,17 +4,24 @@
 > nur noch die `guest_id`. Die elf `guest_*`-Kopiespalten in `bookings`
 > verschwinden.
 >
-> **Status:** Analyse abgeschlossen und gegen die laufende Datenbank verifiziert.
-> Etappe 2 und 3 sind gebaut, aber noch nicht ausgerollt.
+> **Status:** Etappe 2 und 3 sind **ausgerollt und funktional verifiziert**
+> (12.08.2026). Etappe 4 bis 6 stehen aus.
 > Stand: 12.08.2026 · Repo-Stand geprüft gegen `main`
 
-**Gelieferte Dateien zu diesem Konzept**
+**Umgesetzt am 12.08.2026**
 
-| Etappe | Datei | Zielpfad |
+| Etappe | Datei | Nachweis |
 |---|---|---|
-| 2 | `CreateBookingForm.tsx` | `src/components/Bookings/CreateBookingForm.tsx` |
-| 3 | `40_gastdaten_entdopplung_etappe3.sql` | `supabase/SQL/` (im SQL-Editor ausführen) |
-| 3b | `GuestEditDialog.tsx` | `src/components/Guests/GuestEditDialog.tsx` |
+| 2 | `src/components/Bookings/CreateBookingForm.tsx` | SHA `88ac136e` live |
+| 3 | `supabase/SQL/40_gastdaten_entdopplung_etappe3.sql` | `pg_trigger`: alter Trigger weg, zwei neue aktiv |
+| 3b | `src/components/Guests/GuestEditDialog.tsx` | SHA `367ecfa2` live |
+
+**Funktionsnachweis (nicht nur „deployt"):** Beim Bearbeiten des Gastes „Luca"
+am 12.08.2026 um 08:37 hat `trg_sync_guest_to_bookings` die Kopie in der Buchung
+von „Luca und Kristina" auf „Luca" angeglichen — ein Wert, der vorher abwich.
+Damit ist belegt, dass der Trigger die Arbeit übernommen hat, die aus
+`GuestEditDialog.tsx` entfernt wurde. Anschließend wurde der Restbestand
+einmalig angeglichen; die Drift-Abfrage liefert **0 Abweichungen**.
 
 ---
 
