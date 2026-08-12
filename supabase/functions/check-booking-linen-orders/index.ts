@@ -58,7 +58,7 @@ serve(async (req) => {
     // 2. Get next X confirmed bookings
     const { data: bookings, error: bookingsError } = await supabase
       .from('bookings')
-      .select('id, guest_name, check_in, check_out, number_of_guests, house_id, houses!bookings_house_id_fkey(id, name)')
+      .select('id, guest_name, check_in, check_out, number_of_guests, house_id, houses!bookings_house_id_fkey(id, name), guests!bookings_guest_id_fkey(name)')
       .eq('house_id', house_id)
       .eq('status', 'confirmed')
       .gte('check_in', new Date().toISOString())
@@ -167,7 +167,8 @@ serve(async (req) => {
 
       bookingStatuses.push({
         booking_id: booking.id,
-        guest_name: booking.guest_name,
+        // Gastname aus der guests-Relation (Etappe 4, Block 1)
+        guest_name: (booking as any).guests?.name || booking.guest_name,
         check_in: booking.check_in,
         check_out: booking.check_out,
         number_of_guests: booking.number_of_guests,
