@@ -38,6 +38,7 @@ import { useDeleteBooking } from '@/hooks/useBookings';
 import CreateBookingDialog from './CreateBookingDialog';
 import EditBookingDialog from './EditBookingDialog';
 import { getGuestName } from '@/lib/guestHelpers';
+import { useGuestStayCounts, getGuestCategory } from '@/hooks/useGuestStayCounts';
 import { getCountryName } from '@/lib/countries';
 import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
 
@@ -78,6 +79,9 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
   const [savingNotes, setSavingNotes] = useState(false);
   const [cardHouseFilter, setCardHouseFilter] = useState('all');
   const queryClient = useQueryClient();
+  // Stammgast-Erkennung: gemeinsame Quelle mit BookingCard.tsx
+  // (keine zweite Zaehl-Logik, siehe CODE-INDEX Abschnitt 3 "Doppelgaenger").
+  const { data: stayCounts } = useGuestStayCounts();
 
   const handleSaveNotes = async (val: string) => {
     if (!notesBooking) return;
@@ -152,6 +156,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
         .from('bookings')
         .select(`
           id,
+          guest_id,
           guest_name,
           guest_email,
           guest_phone,
@@ -976,6 +981,13 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                             </span>
                           )}
                         </h4>
+                        {stayCounts && (
+                          getGuestCategory(stayCounts, booking) === 'returning' ? (
+                            <Badge variant="default" className="bg-green-100 text-green-800 text-[10px] px-1.5 py-0">Stammgast</Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0">Neuer Gast</Badge>
+                          )
+                        )}
                       </div>
                     </div>
                   </div>
