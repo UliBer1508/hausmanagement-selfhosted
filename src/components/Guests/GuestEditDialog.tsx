@@ -76,9 +76,17 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
 
   const updateGuestMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
-      // SCHRITT 1: Primär in guests-Tabelle schreiben (wenn id vorhanden)
+      // SCHRITT 1: In die guests-Tabelle schreiben — das ist die Quelle.
+      //
+      // Die Kopiespalten in `bookings` werden NICHT mehr von hier aus
+      // nachgezogen. Das erledigt seit Etappe 3 der DB-Trigger
+      // `trg_sync_guest_to_bookings` (supabase/SQL/40_gastdaten_entdopplung_etappe3.sql).
+      // Grund: Zwei Handler in zwei Komponenten kann man beide vergessen — der
+      // Buchungsweg tat es bei den Adressfeldern bereits. Eine Stelle in der
+      // Datenbank kann kein Schreibpfad umgehen.
+      // Siehe docs/Konzept-Gastdaten-Entdopplung.md, Etappe 3.
       if (guest.id) {
-        const { error: guestError } = await supabase
+        const { data: updated, error: guestError } = await supabase
           .from('guests')
           .update({
             name: data.guest_name,
@@ -93,28 +101,18 @@ const GuestEditDialog = ({ guest, open, onOpenChange }: GuestEditDialogProps) =>
             travel_document: data.guest_travel_document || null,
             is_flagged: data.is_flagged || false,
           })
-          .eq('id', guest.id);
+          .eq('id', guest.id)
+          .select('id');
 
         if (guestError) throw guestError;
-
-        // SCHRITT 2a: Alle Buchungen mit dieser guest_id aktualisieren (Abwärtskompatibilität)
-        const { error: bookingsError } = await supabase
-          .from('bookings')
-          .update({
-            guest_name: data.guest_name,
-            guest_email: data.guest_email || null,
-            guest_phone: data.guest_phone || null,
-            nationality: data.nationality || null,
-            guest_notes: data.guest_notes || null,
-            guest_street: data.guest_street || null,
-            guest_city: data.guest_city || null,
-            guest_postal_code: data.guest_postal_code || null,
-            guest_birth_date: data.guest_birth_date || null,
-            guest_travel_document: data.guest_travel_document || null,
-          })
-          .eq('guest_id', guest.id);
-
-        if (bookingsError) throw bookingsError;
+        // Ohne diese Prüfung meldet Supabase auch dann Erfolg, wenn null Zeilen
+        // betroffen waren (RLS, falsche ID) — Lesson 9.2.
+        if (!updated || updated.length === 0) {
+          throw new Error(
+            'Der Gast wurde nicht aktualisiert (keine Zeile getroffen). ' +
+            'Mögliche Ursache: fehlende Schreibrechte (RLS).'
+          );
+        }
       } else {
         // SCHRITT 2b: Fallback - Legacy-Modus mit booking IDs
         const bookingIds = guest.bookings.map(booking => booking.id);
