@@ -288,7 +288,7 @@ serve(async (req) => {
       // Eigene Buchungen: nur laufende und künftige, keine Stornos
       const { data: bookings } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out')
+        .select('id, guest_name, check_in, check_out, guests!bookings_guest_id_fkey(name)')
         .eq('house_id', houseId)
         .neq('status', 'cancelled')
         .gte('check_out', heute);
@@ -302,7 +302,8 @@ serve(async (req) => {
       const belegtVon = new Map<string, string>();
       for (const b of bookings ?? []) {
         for (const t of tageIm(b.check_in, b.check_out)) {
-          belegtVon.set(t, b.guest_name ?? 'Buchung');
+          // Gastname aus der guests-Relation (Etappe 4, Block 1)
+          belegtVon.set(t, (b as any).guests?.name ?? b.guest_name ?? 'Buchung');
         }
       }
       const belegt = { has: (t: string) => belegtVon.has(t) };
@@ -428,7 +429,7 @@ serve(async (req) => {
 
       const { data: direkt } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out, status, platform, house_id, updated_at, portale_geprueft_am, houses(name)')
+        .select('id, guest_name, check_in, check_out, status, platform, house_id, updated_at, portale_geprueft_am, houses(name), guests!bookings_guest_id_fkey(name)')
         // Großzügiger Filter — ALLES, was kein eindeutiges Portal ist:
         //   null      "Keine Angabe" im Formular
         //   direct    ausdrücklich als Direktbuchung angelegt
@@ -467,8 +468,8 @@ serve(async (req) => {
           von: tag(b.check_in),
           bis: tag(b.check_out),
           text: storniert
-            ? `Direktbuchung „${b.guest_name}" (${zeitraum}) wurde storniert — bitte in Airbnb, Booking.com und VRBO prüfen, ob der Zeitraum wieder freigegeben ist, und in der Buchungskarte abhaken.`
-            : `Direktbuchung „${b.guest_name}" (${zeitraum}) — bitte in Airbnb, Booking.com und VRBO prüfen, ob der Zeitraum geblockt ist, und in der Buchungskarte abhaken.`,
+            ? `Direktbuchung „${(b as any).guests?.name || b.guest_name}" (${zeitraum}) wurde storniert — bitte in Airbnb, Booking.com und VRBO prüfen, ob der Zeitraum wieder freigegeben ist, und in der Buchungskarte abhaken.`
+            : `Direktbuchung „${(b as any).guests?.name || b.guest_name}" (${zeitraum}) — bitte in Airbnb, Booking.com und VRBO prüfen, ob der Zeitraum geblockt ist, und in der Buchungskarte abhaken.`,
         });
       }
     }
