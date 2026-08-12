@@ -199,7 +199,8 @@ serve(async (req) => {
       const { data, error } = await supabase
         .from('bookings')
         .select(`
-          id, guest_name, guest_email, check_in, number_of_children,
+          id, guest_name, guest_email, guests!bookings_guest_id_fkey(name, email),
+          check_in, number_of_children,
           houses!bookings_house_id_fkey!inner(name, rental_type)
         `)
         .gte('check_in', fiveDaysFromNow.toISOString())
@@ -238,7 +239,8 @@ serve(async (req) => {
       let query = supabase
         .from('bookings')
         .select(`
-          id, guest_name, check_out, platform, number_of_children, external_rating,
+          id, guest_name, guests!bookings_guest_id_fkey(name),
+          check_out, platform, number_of_children, external_rating,
           houses!bookings_house_id_fkey!inner(name, rental_type)
         `)
         .eq('status', 'completed')
@@ -504,7 +506,7 @@ serve(async (req) => {
         const email = b.guest_email ? ` (${b.guest_email})` : '';
         const isFamily = (b.number_of_children || 0) > 0;
         const familyTag = isFamily ? ` 👨‍👩‍👧‍👦 Familie mit ${b.number_of_children} Kind(ern)` : '';
-        message += `• **${b.guest_name}**${email} → ${houseName} - Check-in in ${daysUntil} Tagen (${checkInDate})${familyTag}\n`;
+        message += `• **${(b as any).guests?.name || b.guest_name}**${email} → ${houseName} - Check-in in ${daysUntil} Tagen (${checkInDate})${familyTag}\n`;
         getMarketingActionsForBooking(b).forEach(({ action, isApplied }) => {
           const statusIcon = isApplied ? '✅' : '⏳';
           const statusText = isApplied ? 'Angewendet' : 'Noch nicht angewendet';
@@ -532,7 +534,7 @@ serve(async (req) => {
           const houseName = b.houses?.name || 'Unbekanntes Haus';
           const daysSince = differenceInDays(now, new Date(b.check_out));
           const platform = b.platform || 'Unbekannt';
-          message += `• **${b.guest_name}** (${platform}) - ${houseName}\n`;
+          message += `• **${(b as any).guests?.name || b.guest_name}** (${platform}) - ${houseName}\n`;
           message += `  Checkout: ${checkOutDate} (vor ${daysSince} Tagen)\n`;
           getRatingMarketingActionsForBooking(b).filter((a) => a.isApplied).forEach(({ action }) => {
             message += `  ⚠️ Marketing-Aktion "${action.name}" - Bewertung für Auswertung benötigt!\n`;
@@ -546,7 +548,7 @@ serve(async (req) => {
           const checkOutDate = formatDE(new Date(b.check_out));
           const daysSince = differenceInDays(now, new Date(b.check_out));
           const platform = b.platform || 'Unbekannt';
-          message += `• ${b.guest_name} (${platform}) - Checkout vor ${daysSince} Tagen (${checkOutDate})\n`;
+          message += `• ${(b as any).guests?.name || b.guest_name} (${platform}) - Checkout vor ${daysSince} Tagen (${checkOutDate})\n`;
         });
         if (otherRatingReminders.length > 3) {
           message += `  ... und ${otherRatingReminders.length - 3} weitere\n`;
