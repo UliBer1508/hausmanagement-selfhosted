@@ -393,7 +393,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
       // Check for conflicting bookings (skip for same booking in edit mode)
       let query = supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out, status')
+        // Konfliktpruefung braucht nur Zeitraum und Status — kein Gastname
+        // (Etappe 4, Block 2: guest_name wurde angefordert, aber nie gelesen).
+        .select('id, check_in, check_out, status')
         .eq('house_id', data.house_id)
         .in('status', ['confirmed', 'checked_in']);
 
