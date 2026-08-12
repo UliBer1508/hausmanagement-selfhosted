@@ -27,6 +27,7 @@ serve(async (req) => {
       .select(`
         id,
         guest_name,
+        guests!bookings_guest_id_fkey(name),
         number_of_guests,
         check_in,
         check_out,
@@ -246,7 +247,8 @@ serve(async (req) => {
       success: true,
       booking: {
         id: booking.id,
-        guest_name: booking.guest_name,
+        // Gastname aus der guests-Relation (Etappe 4, Block 1)
+        guest_name: (booking as any).guests?.name || booking.guest_name,
         number_of_guests: booking.number_of_guests,
         check_in: booking.check_in,
         check_out: booking.check_out,
