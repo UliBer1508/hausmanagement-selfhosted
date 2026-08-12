@@ -185,7 +185,7 @@ serve(async (req) => {
       // 3. Eigene, nicht-stornierte Buchungen dieses Hauses (für Kollisionsprüfung)
       const { data: ownBookings } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out, status, platform')
+        .select('id, guest_name, check_in, check_out, status, platform, guests!bookings_guest_id_fkey(name)')
         .eq('house_id', feed.house_id)
         .neq('status', 'cancelled');
 
@@ -236,7 +236,7 @@ serve(async (req) => {
             neueKollisionen.push({
               haus: houseName, platform: feed.platform,
               extern: `${ev.start} – ${ev.end}`,
-              eigene_buchung: collision?.guest_name,
+              eigene_buchung: ((collision as any)?.guests?.name || collision?.guest_name),
               eigene_zeit: `${collision?.check_in} – ${collision?.check_out}`,
             });
           }
@@ -283,7 +283,7 @@ serve(async (req) => {
           neueKollisionen.push({
             block_id: blockId, haus: houseName, platform: feed.platform,
             extern: `${ev.start} – ${ev.end}`,
-            eigene_buchung: collision?.guest_name,
+            eigene_buchung: ((collision as any)?.guests?.name || collision?.guest_name),
             eigene_zeit: `${collision?.check_in} – ${collision?.check_out}`,
           });
         }
