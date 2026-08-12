@@ -393,9 +393,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
       // Check for conflicting bookings (skip for same booking in edit mode)
       let query = supabase
         .from('bookings')
-        // Konfliktpruefung braucht nur Zeitraum und Status — kein Gastname
-        // (Etappe 4, Block 2: guest_name wurde angefordert, aber nie gelesen).
-        .select('id, check_in, check_out, status')
+        // Gastname wird in der Konflikt-Meldung angezeigt (weiter unten:
+        // "Konflikt mit Buchung von ..."), deshalb wird er gebraucht.
+        // Quelle ist die guests-Relation (Etappe 4, Block 2).
+        .select('id, check_in, check_out, status, guest_name, guests!bookings_guest_id_fkey(name)')
         .eq('house_id', data.house_id)
         .in('status', ['confirmed', 'checked_in']);
 
@@ -433,7 +434,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         const newCheckOut = data.check_out;
         
         console.log('---');
-        console.log('Checking booking:', booking.guest_name, booking.status);
+        console.log('Checking booking:', (booking as any).guests?.name || booking.guest_name, booking.status);
         console.log('Existing: CheckIn:', bookingCheckIn.toISOString(), 'CheckOut:', bookingCheckOut.toISOString());
         console.log('New:      CheckIn:', newCheckIn.toISOString(), 'CheckOut:', newCheckOut.toISOString());
         
@@ -452,7 +453,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         console.log('Has overlap?', hasOverlap);
         
         if (hasOverlap) {
-          console.log('❌ CONFLICT FOUND with:', booking.guest_name);
+          console.log('❌ CONFLICT FOUND with:', (booking as any).guests?.name || booking.guest_name);
         }
         
         return hasOverlap;
@@ -464,7 +465,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         const conflictDetails = conflictingBookings[0];
         toast({
           title: 'Buchungskonflikt',
-          description: `Konflikt mit Buchung von ${conflictDetails.guest_name} (${format(new Date(conflictDetails.check_in), 'dd.MM.yyyy HH:mm', { locale: de })} - ${format(new Date(conflictDetails.check_out), 'dd.MM.yyyy HH:mm', { locale: de })})`,
+          description: `Konflikt mit Buchung von ${(conflictDetails as any).guests?.name || conflictDetails.guest_name} (${format(new Date(conflictDetails.check_in), 'dd.MM.yyyy HH:mm', { locale: de })} - ${format(new Date(conflictDetails.check_out), 'dd.MM.yyyy HH:mm', { locale: de })})`,
           variant: 'destructive',
         });
         setIsSubmitting(false);
