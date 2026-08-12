@@ -586,6 +586,7 @@ const OriginalDashboard = () => {
           guest_email,
           guest_phone,
           nationality,
+          guests!bookings_guest_id_fkey(name, email, phone, nationality),
           check_in,
           check_out,
           number_of_guests,
