@@ -471,9 +471,27 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
 
       // Phase II: Gast erstellen oder finden (verbesserte Duplikat-Erkennung)
       let guestId: string | null = null;
-      
+
+      // BEARBEITEN-MODUS: bestehende Zuordnung NICHT neu ermitteln.
+      //
+      // WARUM (Befund 12.08.2026, Konzept-Gastdaten-Entdopplung Etappe 2):
+      // Die Kaskade unten lief bisher bei JEDEM Speichern, also auch beim
+      // Bearbeiten einer laengst zugeordneten Buchung. Traegt man dort eine
+      // E-Mail nach, die bereits einem ANDEREN Gast gehoert, findet Strategie 1
+      // diesen anderen Gast und die Buchung wird still umgehaengt — samt
+      // Stammgast-Zaehlung, Historie und Umsatz. Der DB-Trigger macht das
+      // bewusst nicht (er matcht bei gesetzter guest_id nicht neu); die
+      // Anwendung umging diesen Schutz.
+      //
+      // Eine Zuordnung wird bewusst geaendert (Gast-Zusammenfuehrung), nicht
+      // als Nebenwirkung einer Adresskorrektur.
+      const behaelltBestehendeZuordnung = mode === 'edit' && !!initialData?.guest_id;
+      if (behaelltBestehendeZuordnung) {
+        guestId = initialData.guest_id as string;
+      }
+
       // Strategie 1: Suche nach Email (falls vorhanden)
-      if (data.guest_email) {
+      if (!guestId && data.guest_email) {
         const { data: existingGuest } = await supabase
           .from('guests')
           .select('id')
