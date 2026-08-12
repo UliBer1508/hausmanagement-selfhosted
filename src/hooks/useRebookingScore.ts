@@ -70,13 +70,22 @@ export function useRebookingGuests() {
       // Gäste, die bereits eine zukünftige Buchung haben → aus Kampagne ausschließen
       const { data: futureBookings, error: futureError } = await supabase
         .from('bookings')
-        .select('guest_name, guest_email')
+        .select('guest_id, guest_name, guest_email')
         .gte('check_in', todayStr)
         .in('status', ['confirmed', 'checked_in']);
       if (futureError) throw futureError;
 
+      // Schluessel ist die guest_id, nicht Name+E-Mail (Etappe 4, Block 2).
+      //
+      // WARUM: Name+E-Mail als Gastschluessel war die Ursache des
+      // Stammgast-Fehlers vom 11.08.2026 — guest_email ist bei 65 % der
+      // Buchungen leer, und Portalbuchungen liefern Wegwerfadressen. Derselbe
+      // Gast bekam dadurch zwei verschiedene Schluessel und wurde faelschlich
+      // als Neukunde behandelt. Hier haette das bedeutet: Ein Gast mit einer
+      // kuenftigen Buchung wird trotzdem noch einmal angeschrieben.
       const rebookedKeys = new Set<string>();
       (futureBookings || []).forEach((b: any) => {
+        if (b.guest_id) { rebookedKeys.add(b.guest_id); return; }
         if (!b.guest_name) return;
         rebookedKeys.add(`${b.guest_name}|${b.guest_email || ''}`);
       });
@@ -84,10 +93,12 @@ export function useRebookingGuests() {
       const { data: bookings, error } = await supabase
         .from('bookings')
         .select(`
+          guest_id,
           guest_name,
           guest_email,
           guest_phone,
           nationality,
+          guests!bookings_guest_id_fkey(name, email, phone, nationality),
           booking_amount,
           check_in,
           check_out,
@@ -109,14 +120,16 @@ export function useRebookingGuests() {
       bookings.forEach((booking: any) => {
         // Safety guard: skip any future-dated stays that slipped through
         if (!booking.check_in || new Date(booking.check_in) >= now) return;
-        const key = `${booking.guest_name}|${booking.guest_email || ''}`;
+        // guest_id als Schluessel — siehe Begruendung oben.
+        const key = booking.guest_id
+          || `${booking.guest_name}|${booking.guest_email || ''}`;
         if (!guestMap.has(key)) {
           guestMap.set(key, {
             guest_key: key,
-            guest_name: booking.guest_name,
-            guest_email: booking.guest_email,
-            guest_phone: booking.guest_phone,
-            nationality: booking.nationality,
+            guest_name: booking.guests?.name || booking.guest_name,
+            guest_email: booking.guests?.email || booking.guest_email,
+            guest_phone: booking.guests?.phone || booking.guest_phone,
+            nationality: booking.guests?.nationality || booking.nationality,
             stay_count: 0,
             total_revenue: 0,
             total_nights: 0,

@@ -43,6 +43,7 @@ export const useRatingReminders = () => {
           id,
           guest_name,
           guest_email,
+          guests!bookings_guest_id_fkey(name, email),
           check_out,
           platform,
           house_id,
@@ -162,8 +163,9 @@ export const useRatingReminders = () => {
 
     return {
       id: booking.id,
-      guest_name: booking.guest_name,
-      guest_email: booking.guest_email,
+      // Gastdaten aus der guests-Relation (Etappe 4, Block 2)
+      guest_name: (booking as any).guests?.name || booking.guest_name,
+      guest_email: (booking as any).guests?.email || booking.guest_email,
       check_out: booking.check_out,
       platform: booking.platform,
       house_id: booking.house_id,

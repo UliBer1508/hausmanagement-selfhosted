@@ -91,7 +91,7 @@ export function useOperationsDashboard(timeRange: TimeRange) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('id, guest_name, number_of_guests, check_in, status, house_id, houses(name)')
+        .select('id, guest_name, number_of_guests, check_in, status, house_id, houses(name), guests!bookings_guest_id_fkey(name)')
         .gte('check_in', startStr)
         .lte('check_in', endStr + 'T23:59:59')
         .neq('status', 'cancelled')
@@ -101,7 +101,7 @@ export function useOperationsDashboard(timeRange: TimeRange) {
 
       return (data || []).map((b: any) => ({
         id: b.id,
-        guestName: b.guest_name,
+        guestName: (b as any).guests?.name || b.guest_name,
         houseName: b.houses?.name || 'Unbekannt',
         checkIn: new Date(b.check_in),
         guestCount: b.number_of_guests,
@@ -116,7 +116,7 @@ export function useOperationsDashboard(timeRange: TimeRange) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_out, house_id, houses(name)')
+        .select('id, guest_name, check_out, house_id, houses(name), guests!bookings_guest_id_fkey(name)')
         .gte('check_out', startStr)
         .lte('check_out', endStr + 'T23:59:59')
         .neq('status', 'cancelled')
@@ -136,7 +136,7 @@ export function useOperationsDashboard(timeRange: TimeRange) {
 
       return (data || []).map((b: any) => ({
         id: b.id,
-        guestName: b.guest_name,
+        guestName: (b as any).guests?.name || b.guest_name,
         houseName: b.houses?.name || 'Unbekannt',
         checkOut: new Date(b.check_out),
         hasCleaningTask: bookingsWithCleaning.has(b.id),

@@ -189,7 +189,6 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
         .from('bookings')
         .select(`
           id,
-          guest_name,
           check_in,
           check_out,
           number_of_guests,
@@ -262,7 +261,6 @@ export const useAffectedBookings = (
         .from('bookings')
         .select(`
           id,
-          guest_name,
           guest_email,
           check_in,
           check_out,

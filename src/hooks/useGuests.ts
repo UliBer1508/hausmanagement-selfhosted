@@ -22,7 +22,7 @@ export const useGuests = (filters: GuestFilters = {}) => {
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
-          id, guest_id, guest_name, check_in, check_out, 
+          id, guest_id, check_in, check_out, 
           status, booking_amount, nationality, house_id,
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
@@ -179,7 +179,7 @@ export const useGuestStatsWithYear = (selectedYear?: number) => {
       let query = supabase
         .from('bookings')
         .select(`
-          id, guest_id, guest_name, check_in, check_out, 
+          id, guest_id, check_in, check_out, 
           booking_amount, status,
           houses!bookings_house_id_fkey!inner(rental_type)
         `)
@@ -319,7 +319,8 @@ export const useGuestSegments = () => {
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
-          id, guest_id, guest_name, guest_email, guest_phone, 
+          id, guest_id, guest_name, guest_email, guest_phone,
+          guests!bookings_guest_id_fkey(name, email, phone),
           check_in, check_out, booking_amount, nationality, status,
           houses!bookings_house_id_fkey!inner(rental_type)
         `)
@@ -365,9 +366,10 @@ export const useGuestSegments = () => {
           
           if (!guestMap.has(guestKey)) {
             guestMap.set(guestKey, {
-              guest_name: booking.guest_name,
-              guest_email: booking.guest_email,
-              guest_phone: booking.guest_phone,
+              // Gastdaten aus der guests-Relation (Etappe 4, Block 2)
+              guest_name: (booking as any).guests?.name || booking.guest_name,
+              guest_email: (booking as any).guests?.email || booking.guest_email,
+              guest_phone: (booking as any).guests?.phone || booking.guest_phone,
               nationality: booking.nationality,
               total_revenue: 0,
               stay_count: 0,

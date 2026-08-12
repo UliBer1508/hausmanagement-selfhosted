@@ -123,7 +123,7 @@ export const useBookingLinenOrders = (houseId: string) => {
       // 1. Lade ALLE confirmed Buchungen ab heute
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out, number_of_guests, house_id')
+        .select('id, guest_name, check_in, check_out, number_of_guests, house_id, guests!bookings_guest_id_fkey(name)')
         .eq('house_id', houseId)
         .eq('status', 'confirmed')
         .gte('check_in', new Date().toISOString())
@@ -157,7 +157,8 @@ export const useBookingLinenOrders = (houseId: string) => {
         
         return {
           booking_id: booking.id,
-          guest_name: booking.guest_name,
+          // Gastname aus der guests-Relation (Etappe 4, Block 2)
+          guest_name: (booking as any).guests?.name || booking.guest_name,
           check_in: booking.check_in,
           check_out: booking.check_out,
           number_of_guests: booking.number_of_guests,
