@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { addDays, format, differenceInDays } from "date-fns";
+import {
+  getGuestName,
+  getGuestEmail,
+  getGuestPhone,
+  getGuestNationality,
+} from "@/lib/guestHelpers";
 
 export interface GuestContactReminder {
   id: string;
@@ -38,6 +44,7 @@ export const useGuestContactReminders = () => {
         .from('bookings')
         .select(`
           id,
+          guest_id,
           guest_name,
           guest_email,
           guest_phone,
@@ -49,6 +56,7 @@ export const useGuestContactReminders = () => {
           guest_contact_status,
           booking_amount,
           nationality,
+          guests!bookings_guest_id_fkey(id, name, email, phone, nationality),
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .gte('check_in', fiveDaysFromNow.toISOString())
@@ -60,9 +68,21 @@ export const useGuestContactReminders = () => {
 
       if (error) throw error;
 
-      // Tage bis Check-in und Familien-Status berechnen
+      // Gastdaten kommen aus der `guests`-Relation, nicht aus den Kopiespalten
+      // in `bookings` (Etappe 4, docs/Konzept-Gastdaten-Entdopplung.md).
+      //
+      // Die Helfer aus guestHelpers lesen die Relation und fallen nur zurueck,
+      // wenn sie fehlt. Damit bleibt die nach aussen sichtbare Struktur
+      // (guest_name/guest_email/guest_phone) unveraendert — die aufrufende
+      // Komponente GuestContactAlertBanner braucht keine Aenderung, und beim
+      // spaeteren Loeschen der Kopiespalten (Etappe 6) faellt der Fallback
+      // automatisch weg.
       return (data || []).map(booking => ({
         ...booking,
+        guest_name: getGuestName(booking as any),
+        guest_email: getGuestEmail(booking as any),
+        guest_phone: getGuestPhone(booking as any),
+        nationality: getGuestNationality(booking as any),
         daysUntilCheckIn: differenceInDays(new Date(booking.check_in), new Date()),
         isFamily: (booking.number_of_children || 0) > 0
       })) as GuestContactReminder[];
