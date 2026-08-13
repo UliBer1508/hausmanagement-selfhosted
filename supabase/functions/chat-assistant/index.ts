@@ -96,11 +96,41 @@ async function executeAcceptBookingInquiry(params: any) {
     return { success: false, error: `Anfrage ist bereits ${inquiry.status}` };
   }
 
-  // 2. Create the booking
+  // 2. Gast zuerst in `guests` anlegen oder wiederfinden.
+  //
+  // Etappe 5 (13.08.2026): Bis hierher entstanden Gaeste nur als Nebenwirkung —
+  // die Daten gingen in die Kopiespalten der Buchung, und erst der Trigger
+  // link_guest_on_booking_insert legte daraus einen Gast an. Damit war die
+  // Buchungstabelle Durchgangsstation fuer Gastdaten. Genau das faellt in
+  // Etappe 6 weg.
+  //
+  // find_or_create_guest() ist dieselbe sechsstufige Kaskade, die auch der
+  // Trigger benutzt (SQL/41_gastdaten_entdopplung_etappe5.sql) — eine Stelle,
+  // die entscheidet, welcher Gast gemeint ist, statt vier Kopien davon.
+  //
+  // FEHLERFALL BEWUSST WEICH: Schlaegt der Aufruf fehl, laeuft der INSERT ohne
+  // guest_id weiter. Dann greift der Trigger wie bisher. Eine Buchung darf
+  // nicht daran scheitern, dass die Gast-Zuordnung klemmt.
+  let guestId: string | null = null;
+  const { data: rpcGuestId, error: guestError } = await supabase.rpc('find_or_create_guest', {
+    p_name:  inquiry.guest_name,
+    p_email: inquiry.guest_email,
+    p_phone: inquiry.guest_phone,
+  });
+
+  if (guestError) {
+    console.error('find_or_create_guest fehlgeschlagen, Trigger uebernimmt:', guestError);
+  } else {
+    guestId = rpcGuestId as string | null;
+    console.log('Gast zugeordnet:', guestId);
+  }
+
+  // 3. Create the booking
   const { data: booking, error: bookingError } = await supabase
     .from('bookings')
     .insert({
       house_id: inquiry.house_id,
+      guest_id: guestId,
       guest_name: inquiry.guest_name,
       guest_email: inquiry.guest_email,
       guest_phone: inquiry.guest_phone,
@@ -122,7 +152,7 @@ async function executeAcceptBookingInquiry(params: any) {
     return { success: false, error: 'Fehler beim Erstellen der Buchung: ' + bookingError.message };
   }
 
-  // 3. Create cleaning task for check-out
+  // 4. Create cleaning task for check-out
   const { error: cleaningError } = await supabase
     .from('service_tasks')
     .insert({
@@ -140,7 +170,7 @@ async function executeAcceptBookingInquiry(params: any) {
     // Don't fail the whole operation
   }
 
-  // 4. Update inquiry status
+  // 5. Update inquiry status
   await supabase
     .from('booking_inquiries')
     .update({ status: 'confirmed' })
