@@ -422,17 +422,21 @@ async function executeSearchGuests(params: any) {
 
   let query = supabase
     .from('bookings')
-    .select('guest_id, guest_name, guest_email, guest_phone, nationality, houses(name)')
+    // Etappe 4, Block 3: Gastdaten kommen aus der guests-Relation, nicht mehr
+    // aus den Kopiespalten. !inner, damit PostgREST die Filter unten auf die
+    // Relation anwenden kann (alle 123 Buchungen haben eine guest_id, es faellt
+    // also nichts heraus).
+    .select('guest_id, guest_name, guest_email, guest_phone, nationality, houses(name), guests!bookings_guest_id_fkey!inner(name, email, phone, nationality)')
     .order('created_at', { ascending: false });
 
   if (params.name) {
-    query = query.ilike('guest_name', `%${params.name}%`);
+    query = query.ilike('guests.name', `%${params.name}%`);
   }
   if (params.email) {
-    query = query.ilike('guest_email', `%${params.email}%`);
+    query = query.ilike('guests.email', `%${params.email}%`);
   }
   if (params.nationality) {
-    query = query.ilike('nationality', `%${params.nationality}%`);
+    query = query.ilike('guests.nationality', `%${params.nationality}%`);
   }
 
   const { data, error } = await query.limit(100);
@@ -454,10 +458,11 @@ async function executeSearchGuests(params: any) {
     const key = b.guest_id || b.guest_email || b.guest_name;
     if (!guestMap.has(key)) {
       guestMap.set(key, {
-        guest_name: b.guest_name,
-        guest_email: b.guest_email,
-        guest_phone: b.guest_phone,
-        nationality: b.nationality,
+        // Etappe 4, Block 3: Werte aus der Relation, Kopie nur als Rueckfall
+        guest_name: (b as any).guests?.name || b.guest_name,
+        guest_email: (b as any).guests?.email || b.guest_email,
+        guest_phone: (b as any).guests?.phone || b.guest_phone,
+        nationality: (b as any).guests?.nationality || b.nationality,
         booking_count: 1
       });
     } else {
@@ -819,7 +824,7 @@ async function executeGetDailyOverview(params: any) {
   // 2. Check-ins heute (neue Gäste)
   const { data: checkIns, error: checkInError } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_in, number_of_guests, number_of_adults, number_of_children, houses(name)')
+    .select('id, guest_name, check_in, number_of_guests, number_of_adults, number_of_children, houses(name), guests!bookings_guest_id_fkey(name)')
     .gte('check_in', `${targetDate}T00:00:00`)
     .lt('check_in', `${targetDate}T23:59:59`)
     .neq('status', 'cancelled')
@@ -832,7 +837,7 @@ async function executeGetDailyOverview(params: any) {
   // 3. Check-outs heute (abreisende Gäste)
   const { data: checkOuts, error: checkOutError } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_out, houses(name)')
+    .select('id, guest_name, check_out, houses(name), guests!bookings_guest_id_fkey(name)')
     .gte('check_out', `${targetDate}T00:00:00`)
     .lt('check_out', `${targetDate}T23:59:59`)
     .neq('status', 'cancelled')
@@ -850,8 +855,9 @@ async function executeGetDailyOverview(params: any) {
       if (matchingCheckIn) {
         guestChanges.push({
           house_name: co.houses?.name,
-          departing_guest: co.guest_name,
-          arriving_guest: matchingCheckIn.guest_name,
+          // Etappe 4, Block 3
+          departing_guest: (co as any).guests?.name || co.guest_name,
+          arriving_guest: (matchingCheckIn as any).guests?.name || matchingCheckIn.guest_name,
           arriving_guests_count: matchingCheckIn.number_of_guests
         });
       }
@@ -875,8 +881,10 @@ async function executeGetDailyOverview(params: any) {
     data: {
       date: targetDate,
       cleanings: cleanings || [],
-      check_ins: checkIns || [],
-      check_outs: checkOuts || [],
+      // Etappe 4, Block 3: Gastname aus der Relation ins Objekt uebernehmen,
+      // damit die Ausgabe nach dem Wegfall der Kopiespalten weiter stimmt.
+      check_ins: (checkIns || []).map((b: any) => ({ ...b, guest_name: b.guests?.name || b.guest_name })),
+      check_outs: (checkOuts || []).map((b: any) => ({ ...b, guest_name: b.guests?.name || b.guest_name })),
       linen_deliveries: linenDeliveries || [],
       guest_changes: guestChanges,
       summary: {
@@ -981,7 +989,7 @@ async function executeGetCalendarEvents(params: any) {
   // Get check-ins
   const { data: checkIns } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_in, houses(name)')
+    .select('id, guest_name, check_in, houses(name), guests!bookings_guest_id_fkey(name)')
     .gte('check_in', dateFrom)
     .lte('check_in', dateTo)
     .neq('status', 'cancelled');
@@ -989,7 +997,7 @@ async function executeGetCalendarEvents(params: any) {
   // Get check-outs
   const { data: checkOuts } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_out, houses(name)')
+    .select('id, guest_name, check_out, houses(name), guests!bookings_guest_id_fkey(name)')
     .gte('check_out', dateFrom)
     .lte('check_out', dateTo)
     .neq('status', 'cancelled');
@@ -1005,8 +1013,9 @@ async function executeGetCalendarEvents(params: any) {
   return {
     success: true,
     data: {
-      check_ins: checkIns || [],
-      check_outs: checkOuts || [],
+      // Etappe 4, Block 3
+      check_ins: (checkIns || []).map((b: any) => ({ ...b, guest_name: b.guests?.name || b.guest_name })),
+      check_outs: (checkOuts || []).map((b: any) => ({ ...b, guest_name: b.guests?.name || b.guest_name })),
       cleanings: cleanings || [],
       date_range: { from: dateFrom, to: dateTo }
     }
@@ -1030,7 +1039,8 @@ async function executeGetGuestContactReminders(_params: any) {
     .select(`
       id, guest_name, guest_email, guest_phone, check_in, check_out,
       number_of_guests, number_of_children, guest_contact_status, nationality,
-      houses(name, rental_type)
+      houses(name, rental_type),
+      guests!bookings_guest_id_fkey(name, email, phone, nationality)
     `)
     .gte('check_in', fiveDaysFromNow.toISOString())
     .lte('check_in', tenDaysFromNow.toISOString())
@@ -1054,16 +1064,19 @@ async function executeGetGuestContactReminders(_params: any) {
     );
     return {
       booking_id: b.id,
-      guest_name: b.guest_name,
-      guest_email: b.guest_email || null,
-      has_email: !!b.guest_email,
-      guest_phone: b.guest_phone || null,
+      // Etappe 4, Block 3: Relation zuerst. Wichtig fuer has_email — der Knopf
+      // "E-Mail schreiben" haengt daran, und die Kopie ist bei 65 % der
+      // Buchungen leer, waehrend in guests.email eine Adresse stehen kann.
+      guest_name: b.guests?.name || b.guest_name,
+      guest_email: b.guests?.email || b.guest_email || null,
+      has_email: !!(b.guests?.email || b.guest_email),
+      guest_phone: b.guests?.phone || b.guest_phone || null,
       house: b.houses?.name || null,
       check_in: b.check_in,
       days_until_check_in: daysUntil,
       number_of_guests: b.number_of_guests,
       is_family: (b.number_of_children || 0) > 0,
-      nationality: b.nationality || null,
+      nationality: b.guests?.nationality || b.nationality || null,
     };
   });
 
@@ -1111,7 +1124,7 @@ async function executeGetRatingReminders(_params: any) {
 
   let query = supabase
     .from('bookings')
-    .select('id, guest_name, check_out, platform, external_rating, houses(name, rental_type)')
+    .select('id, guest_name, check_out, platform, external_rating, houses(name, rental_type), guests!bookings_guest_id_fkey(name)')
     .eq('status', 'completed')
     .gte('check_out', minCheckout.toISOString())
     .lte('check_out', maxCheckout.toISOString())
@@ -1138,7 +1151,7 @@ async function executeGetRatingReminders(_params: any) {
 
   const result = filtered.map((b: any) => ({
     booking_id: b.id,
-    guest_name: b.guest_name,
+    guest_name: b.guests?.name || b.guest_name,   // Etappe 4, Block 3
     house: b.houses?.name || null,
     check_out: b.check_out,
     platform: b.platform || null,
@@ -1164,7 +1177,7 @@ async function executeDraftGuestWelcomeEmail(params: any) {
   if (params?.booking_id) {
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, guest_name, guest_email, check_in, check_out, nationality, houses(name)')
+      .select('id, guest_name, guest_email, check_in, check_out, nationality, houses(name), guests!bookings_guest_id_fkey(name, email)')
       .eq('id', params.booking_id)
       .maybeSingle();
     if (error) return { success: false, error: error.message };
@@ -1173,8 +1186,8 @@ async function executeDraftGuestWelcomeEmail(params: any) {
     const todayStr = new Date().toISOString().split('T')[0];
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, guest_name, guest_email, check_in, check_out, nationality, status, houses(name)')
-      .ilike('guest_name', `%${params.guest_name}%`)
+      .select('id, guest_name, guest_email, check_in, check_out, nationality, status, houses(name), guests!bookings_guest_id_fkey!inner(name, email)')
+      .ilike('guests.name', `%${params.guest_name}%`)
       .neq('status', 'cancelled')
       .order('check_in', { ascending: true });
     if (error) return { success: false, error: error.message };
@@ -1193,7 +1206,7 @@ async function executeDraftGuestWelcomeEmail(params: any) {
     // (Verschiedene Buchungen desselben Gastes gelten NICHT als Mehrdeutigkeit —
     //  dann greift die Vorzugswahl unten.)
     const uniqueNames = Array.from(
-      new Set(list.map((b: any) => (b.guest_name || '').trim().toLowerCase()))
+      new Set(list.map((b: any) => ((b.guests?.name || b.guest_name) || '').trim().toLowerCase()))
     );
     if (uniqueNames.length > 1) {
       return {
@@ -1202,10 +1215,10 @@ async function executeDraftGuestWelcomeEmail(params: any) {
         error: `Es gibt mehrere Gäste, auf die „${params.guest_name}" passt. Für wen soll ich die Begrüßungs-E-Mail vorbereiten?`,
         auswahl: list.slice(0, 8).map((b: any) => ({
           booking_id: b.id,
-          guest_name: b.guest_name,
+          guest_name: b.guests?.name || b.guest_name,
           haus: (b as any).houses?.name || '',
           check_in: b.check_in ? String(b.check_in).split('T')[0] : '',
-          hat_email: !!b.guest_email,
+          hat_email: !!(b.guests?.email || b.guest_email),
         })),
       };
     }
@@ -1213,8 +1226,8 @@ async function executeDraftGuestWelcomeEmail(params: any) {
     // Genau ein Gast (ggf. mehrere Buchungen): bevorzugt die KOMMENDE Buchung
     // MIT E-Mail-Adresse; sonst irgendeine mit E-Mail; sonst die erste.
     booking =
-      list.find((b: any) => b.guest_email && String(b.check_in || '').split('T')[0] >= todayStr) ||
-      list.find((b: any) => b.guest_email) ||
+      list.find((b: any) => (b.guests?.email || b.guest_email) && String(b.check_in || '').split('T')[0] >= todayStr) ||
+      list.find((b: any) => (b.guests?.email || b.guest_email)) ||
       list[0] || null;
   } else {
     // Weder booking_id noch guest_name: NICHT raten, sondern zurückfragen.
@@ -1228,8 +1241,15 @@ async function executeDraftGuestWelcomeEmail(params: any) {
   }
 
   if (!booking) return { success: false, error: 'Keine passende Buchung gefunden' };
-  if (!booking.guest_email) {
-    return { success: false, error: `Für ${booking.guest_name || 'diesen Gast'} ist keine E-Mail-Adresse hinterlegt. Es reicht die telefonische Erinnerung.` };
+
+  // Etappe 4, Block 3: Gastdaten EINMAL aus der Relation aufloesen. Alles
+  // Weitere in dieser Funktion nutzt nur noch gastName/gastEmail — beim
+  // Wegfall der Kopiespalten ist genau hier die einzige Anpassung noetig.
+  const gastName: string = (booking as any).guests?.name || booking.guest_name || 'Gast';
+  const gastEmail: string | null = (booking as any).guests?.email || booking.guest_email || null;
+
+  if (!gastEmail) {
+    return { success: false, error: `Für ${gastName} ist keine E-Mail-Adresse hinterlegt. Es reicht die telefonische Erinnerung.` };
   }
 
   // 2) Passende Begrüßungs-/Anreise-Vorlage in der gewählten Sprache suchen
@@ -1268,8 +1288,8 @@ async function executeDraftGuestWelcomeEmail(params: any) {
   const checkInDE = booking.check_in ? formatDateDE((booking.check_in as string).split('T')[0]) : '';
   const checkOutDE = booking.check_out ? formatDateDE((booking.check_out as string).split('T')[0]) : '';
   const fill = (text: string) => (text || '')
-    .replace(/\{guestName\}/gi, booking.guest_name || 'Gast')
-    .replace(/\{guest_name\}/gi, booking.guest_name || 'Gast')
+    .replace(/\{guestName\}/gi, gastName)
+    .replace(/\{guest_name\}/gi, gastName)
     .replace(/\{checkIn\}/gi, checkInDE)
     .replace(/\{check_in\}/gi, checkInDE)
     .replace(/\{checkOut\}/gi, checkOutDE)
@@ -1281,8 +1301,8 @@ async function executeDraftGuestWelcomeEmail(params: any) {
     success: true,
     draft: {
       booking_id: booking.id,
-      to: booking.guest_email,
-      guest_name: booking.guest_name,
+      to: gastEmail,
+      guest_name: gastName,
       subject: fill(subject),
       body: fill(body),
       language: lang,
@@ -1291,7 +1311,7 @@ async function executeDraftGuestWelcomeEmail(params: any) {
       check_out: checkOutDE,
       template_used: templateUsed,
     },
-    hinweis: `Begrüßungs-E-Mail (${lang.toUpperCase()}) für ${booking.guest_name} vorbereitet. Es wurde NICHTS gesendet — im Chat erscheint ein Button, der das Vorschaufenster vorausgefüllt öffnet. Dort Betreff/Text prüfen und "Per Gmail senden".`,
+    hinweis: `Begrüßungs-E-Mail (${lang.toUpperCase()}) für ${gastName} vorbereitet. Es wurde NICHTS gesendet — im Chat erscheint ein Button, der das Vorschaufenster vorausgefüllt öffnet. Dort Betreff/Text prüfen und "Per Gmail senden".`,
   };
 }
 
@@ -2180,7 +2200,7 @@ async function runUpcomingBookingsControl(overrideAdvanceDays?: number) {
   // Kommende, aktive Buchungen im Fenster
   const { data: bookings, error } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_in, check_out, status, payment_status, house_id, houses(name)')
+    .select('id, guest_name, check_in, check_out, status, payment_status, house_id, houses(name), guests!bookings_guest_id_fkey(name)')
     .eq('status', 'confirmed')
     .gte('check_in', todayStr)
     .lte('check_in', windowEndStr)
@@ -2192,7 +2212,7 @@ async function runUpcomingBookingsControl(overrideAdvanceDays?: number) {
 
   for (const b of bookings || []) {
     const houseName = (b as any).houses?.name || 'Objekt';
-    const label = `${b.guest_name} (Anreise ${formatDateDE(b.check_in)}, ${houseName})`;
+    const label = `${(b as any).guests?.name || b.guest_name} (Anreise ${formatDateDE(b.check_in)}, ${houseName})`;
     const issues: string[] = [];
 
     // Reinigung + Wäsche einmal laden
