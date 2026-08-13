@@ -647,15 +647,21 @@ async function executeGetBookingFullContext(params: any) {
   console.log('Executing get_booking_full_context with params:', params);
 
   // 1) Buchung(en) finden
+  // Etappe 4, Block 5 (13.08.2026): Gastdaten aus der guests-Relation.
+  // Der Filter zog vorher ueber die Kopiespalte — wer dort suchte, durchsuchte
+  // den Altbestand. `!inner` NUR beim Namensfilter: ohne Filter wuerde eine
+  // Buchung ohne guest_id sonst still aus dem Ergebnis fallen.
+  const nachGast = !params.booking_id && !!params.guest_name;
+
   let bookingQuery = supabase
     .from('bookings')
-    .select('*, houses(name)')
+    .select(`*, houses(name), guests!bookings_guest_id_fkey${nachGast ? '!inner' : ''}(name, email)`)
     .order('check_in', { ascending: false });
 
   if (params.booking_id) {
     bookingQuery = bookingQuery.eq('id', params.booking_id);
   } else if (params.guest_name) {
-    bookingQuery = bookingQuery.ilike('guest_name', `%${params.guest_name}%`);
+    bookingQuery = bookingQuery.ilike('guests.name', `%${params.guest_name}%`);
   } else {
     return { success: false, error: 'guest_name oder booking_id erforderlich' };
   }
@@ -726,8 +732,8 @@ async function executeGetBookingFullContext(params: any) {
     results.push({
       booking: {
         id: b.id,
-        guest_name: b.guest_name,
-        guest_email: b.guest_email,
+        guest_name: (b as any).guests?.name || b.guest_name,
+        guest_email: (b as any).guests?.email || b.guest_email,
         house: b.houses?.name || null,
         check_in: b.check_in,
         check_out: b.check_out,
