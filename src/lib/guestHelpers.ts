@@ -101,6 +101,49 @@ export const getGuestNotes = (booking: BookingWithGuest | null | undefined): str
 };
 
 /**
+ * Setzt die Gastfelder einer Buchung aus der guests-Relation.
+ *
+ * Etappe 4, Schritt 5.1: Gedacht fuer Hooks, die Buchungen ROH weiterreichen
+ * (useBookings, useDashboardData). Die empfangenden Komponenten lesen
+ * `booking.guest_name` — nach dieser Zuweisung steht dort der Wert aus
+ * `guests`, ohne dass eine einzige Anzeigezeile angefasst werden muss.
+ *
+ * `??` statt `||`: Ein leerer String in `guests` ist eine bewusste Angabe und
+ * darf NICHT still auf die Kopiespalte zurueckfallen — sonst zeigt die
+ * Oberflaeche wieder den Altbestand an.
+ *
+ * In Etappe 6 (Kopiespalten loeschen) ist dies EINE Stelle zum Aufraeumen
+ * statt rund dreissig verstreuter Lesezeilen.
+ */
+export const withGuestData = <T extends BookingWithGuest>(rows: T[] | null | undefined): T[] => {
+  return (rows || []).map((b) => {
+    if (!b?.guests) return b;
+    return {
+      ...b,
+      guest_name:            b.guests.name            ?? b.guest_name,
+      guest_email:           b.guests.email           ?? b.guest_email,
+      guest_phone:           b.guests.phone           ?? b.guest_phone,
+      nationality:           b.guests.nationality     ?? b.nationality,
+      guest_street:          b.guests.street          ?? b.guest_street,
+      guest_city:            b.guests.city            ?? b.guest_city,
+      guest_postal_code:     b.guests.postal_code     ?? b.guest_postal_code,
+      guest_birth_date:      b.guests.birth_date      ?? b.guest_birth_date,
+      guest_travel_document: b.guests.travel_document ?? b.guest_travel_document,
+      guest_notes:           b.guests.notes           ?? b.guest_notes,
+    };
+  });
+};
+
+/**
+ * Einzelne Buchung — gleiche Logik wie `withGuestData`, fuer Mutations-
+ * Rueckgaben (insert/update mit `.single()`).
+ */
+export const withGuestDataSingle = <T extends BookingWithGuest>(row: T | null | undefined): T | null => {
+  if (!row) return null;
+  return withGuestData([row])[0];
+};
+
+/**
  * Prüft ob die Buchung eine guests-Relation hat (normalisierte Daten).
  */
 export const hasGuestRelation = (booking: BookingWithGuest | null | undefined): boolean => {
