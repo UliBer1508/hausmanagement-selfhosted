@@ -820,7 +820,7 @@ async function executeGetDailyOverview(params: any) {
     .select(`
       id, scheduled_date, scheduled_time, status, notes,
       houses(name),
-      bookings(guest_name, guest_email),
+      bookings(guest_name, guest_email, guests(name, email)),
       service_providers!service_tasks_provider_id_fkey(name)
     `)
     .eq('service_type', 'cleaning')
@@ -878,7 +878,7 @@ async function executeGetDailyOverview(params: any) {
   // 5. Wäsche-Lieferungen an diesem Tag (fehlte bisher!)
   const { data: linenDeliveries, error: linenError } = await supabase
     .from('linen_orders')
-    .select('id, status, delivery_date, delivery_time, total_items, houses(name), bookings(guest_name)')
+    .select('id, status, delivery_date, delivery_time, total_items, houses(name), bookings(guest_name, guests(name))')
     .gte('delivery_date', `${targetDate}T00:00:00`)
     .lt('delivery_date', `${targetDate}T23:59:59`)
     .order('delivery_time', { ascending: true });
@@ -1897,7 +1897,7 @@ async function executeRejectReschedule(params: any) {
     .select(`
       id, status, scheduled_date, provider_id, booking_id,
       houses!service_tasks_house_id_fkey(name),
-      bookings!service_tasks_booking_id_fkey(guest_name)
+      bookings!service_tasks_booking_id_fkey(guest_name, guests(name))
     `)
     .eq('id', taskId)
     .eq('service_type', 'cleaning')
@@ -1968,7 +1968,7 @@ async function executeRejectReschedule(params: any) {
     if (!updErr) zurueckgesetzt = true;
   }
 
-  const gast = (task as any).bookings?.guest_name ?? 'Buchung';
+  const gast = (task as any).bookings?.guests?.name ?? (task as any).bookings?.guest_name ?? 'Buchung';
   const haus = (task as any).houses?.name ?? 'Haus';
 
   await logMaxAction({
@@ -2320,7 +2320,7 @@ async function executeCreateCleaningForBooking(params: any) {
     // ob die vorhandene geaendert werden soll (Uli entscheidet).
     const { data: vorhanden, error: checkErr } = await supabase
       .from('service_tasks')
-      .select('id, scheduled_date, scheduled_time, status, houses(name), bookings(guest_name)')
+      .select('id, scheduled_date, scheduled_time, status, houses(name), bookings(guest_name, guests(name))')
       .eq('service_type', 'cleaning')
       .eq('booking_id', params.booking_id)
       .not('status', 'in', '("cancelled")')
@@ -2331,7 +2331,7 @@ async function executeCreateCleaningForBooking(params: any) {
 
     if (vorhanden && vorhanden.length > 0 && params?.force !== true) {
       const t: any = vorhanden[0];
-      const gast = t.bookings?.guest_name || 'Gast';
+      const gast = t.bookings?.guests?.name || t.bookings?.guest_name || 'Gast';
       const haus = t.houses?.name || 'Objekt';
       const datum = t.scheduled_date ? formatDateDE(t.scheduled_date) : 'ohne Datum';
       const zeit = t.scheduled_time ? ` um ${String(t.scheduled_time).slice(0, 5)} Uhr` : '';
@@ -2607,7 +2607,7 @@ async function executeReadProviderReplies(params: any) {
         // Die zugeordnete Reinigung + Buchung laden
         const { data: task } = await supabase
           .from('service_tasks')
-          .select('id, scheduled_date, status, booking_id, bookings(guest_name), houses(name)')
+          .select('id, scheduled_date, status, booking_id, bookings(guest_name, guests(name)), houses(name)')
           .eq('id', r.related_task_id)
           .maybeSingle();
         if (task) {
@@ -2615,7 +2615,7 @@ async function executeReadProviderReplies(params: any) {
             typ: 'reinigung',
             task_id: task.id,
             booking_id: task.booking_id,
-            gast: (task as any).bookings?.guest_name,
+            gast: (task as any).bookings?.guests?.name ?? (task as any).bookings?.guest_name,
             haus: (task as any).houses?.name,
             aktuelles_datum: task.scheduled_date ? formatDateDE(task.scheduled_date) : null,
             status: task.status,
@@ -2626,7 +2626,7 @@ async function executeReadProviderReplies(params: any) {
         // Gegenstück zum Reinigungs-Bezug — nutzt related_linen_order_id.
         const { data: order } = await supabase
           .from('linen_orders')
-          .select('id, delivery_date, status, booking_id, bookings(guest_name), houses(name)')
+          .select('id, delivery_date, status, booking_id, bookings(guest_name, guests(name)), houses(name)')
           .eq('id', r.related_linen_order_id)
           .maybeSingle();
         if (order) {
@@ -2634,7 +2634,7 @@ async function executeReadProviderReplies(params: any) {
             typ: 'waesche',
             linen_order_id: order.id,
             booking_id: order.booking_id,
-            gast: (order as any).bookings?.guest_name,
+            gast: (order as any).bookings?.guests?.name ?? (order as any).bookings?.guest_name,
             haus: (order as any).houses?.name,
             aktuelles_datum: order.delivery_date ? formatDateDE(order.delivery_date) : null,
             status: order.status,
@@ -2672,7 +2672,7 @@ async function executeRescheduleCleaning(params: any) {
     // Reinigung finden (per task_id oder über booking_id)
     let query = supabase
       .from('service_tasks')
-      .select('id, scheduled_date, status, booking_id, bookings(guest_name), houses(name)')
+      .select('id, scheduled_date, status, booking_id, bookings(guest_name, guests(name)), houses(name)')
       .eq('service_type', 'cleaning');
     query = params.task_id
       ? query.eq('id', params.task_id)
@@ -2689,7 +2689,7 @@ async function executeRescheduleCleaning(params: any) {
 
     const task = tasks[0];
     const oldDate = task.scheduled_date;
-    const guestName = (task as any).bookings?.guest_name || 'Gast';
+    const guestName = (task as any).bookings?.guests?.name || (task as any).bookings?.guest_name || 'Gast';
     const houseName = (task as any).houses?.name || 'Objekt';
     const nowIso = new Date().toISOString();
 
@@ -2797,7 +2797,7 @@ async function executeRescheduleLinenDelivery(params: any) {
     // abgesagte Lieferung.
     let query = supabase
       .from('linen_orders')
-      .select('id, delivery_date, status, booking_id, provider_id, bookings(guest_name), houses(name)')
+      .select('id, delivery_date, status, booking_id, provider_id, bookings(guest_name, guests(name)), houses(name)')
       .neq('status', 'cancelled');
     query = params.linen_order_id
       ? query.eq('id', params.linen_order_id)
@@ -2814,7 +2814,7 @@ async function executeRescheduleLinenDelivery(params: any) {
 
     const order = orders[0];
     const oldDate = order.delivery_date;
-    const guestName = (order as any).bookings?.guest_name || 'Gast';
+    const guestName = (order as any).bookings?.guests?.name || (order as any).bookings?.guest_name || 'Gast';
     const houseName = (order as any).houses?.name || 'Objekt';
     const nowIso = new Date().toISOString();
 
@@ -3099,7 +3099,7 @@ function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string;
       case 'search_cleaning_tasks': {
         const arr = Array.isArray(data) ? data : [];
         for (const c of arr.slice(0, 5)) {
-          const name = c.bookings?.guest_name || fmtDate(c.scheduled_date);
+          const name = c.bookings?.guests?.name || c.bookings?.guest_name || fmtDate(c.scheduled_date);
           add(c.id, 'cleaning_task', `Reinigung ${name}`.trim());
         }
         break;
@@ -3107,7 +3107,7 @@ function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string;
       case 'search_linen_orders': {
         const arr = Array.isArray(data) ? data : [];
         for (const lo of arr.slice(0, 5)) {
-          const name = lo.bookings?.guest_name || fmtDate(lo.delivery_date);
+          const name = lo.bookings?.guests?.name || lo.bookings?.guest_name || fmtDate(lo.delivery_date);
           add(lo.id, 'laundry_order', `Wäsche ${name}`.trim());
         }
         break;
