@@ -4,10 +4,12 @@
 > nur noch die `guest_id`. Die elf `guest_*`-Kopiespalten in `bookings`
 > verschwinden.
 >
-> **Status:** Etappe 2 und 3 sind **ausgerollt und funktional verifiziert**
-> (12.08.2026). **Etappe 4 läuft: 33 von 45 Abfragen umgestellt** (13.08.2026),
-> `chat-assistant` bis auf drei `select('*')` vollständig. Etappe 5 und 6 stehen
-> aus.
+> **Status:** Etappe 2 und 3 ausgerollt und verifiziert (12.08.2026).
+> **Etappe 5 abgeschlossen (13.08.2026)** — alle vier Schreibpfade setzen ihre
+> `guest_id` selbst, Gastdaten entstehen in `guests`.
+> **Etappe 4 läuft:** 43 von 58 Abfragen tragen den Join; offen sind zehn
+> `select('*')` und fünf Feldlisten. Etappe 6 steht aus.
+> Tagesbericht: `docs/Session-2026-08-13-Gastdaten-Etappe4-und-5.md`
 > Stand: 13.08.2026 · Repo-Stand geprüft gegen `main`
 
 **Umgesetzt am 12.08.2026**

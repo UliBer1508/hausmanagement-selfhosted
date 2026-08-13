@@ -4,7 +4,9 @@
 > Hält fest, welche Supabase-Abfragen Gastdaten aus den Kopiespalten laden und
 > welche bereits auf die `guests`-Relation umgestellt sind.
 >
-> Stand: 13.08.2026 · **33 von 45 Abfragen umgestellt**
+> Stand: 13.08.2026 (Abend) · **43 von 58 Abfragen tragen den Join**
+> Tagesbericht mit allen Belegen und offenen Punkten:
+> `docs/Session-2026-08-13-Gastdaten-Etappe4-und-5.md`
 
 ---
 

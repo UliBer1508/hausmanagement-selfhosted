@@ -102,7 +102,9 @@ eine eigene Protokollspalte, kein Bezug auf `bookings`.
 `trg_link_guest_on_booking_insert` (verknüpft beim Anlegen) und
 `trg_sync_guest_to_bookings` (hält die Kopien aktuell). SQL:
 `supabase/SQL/40_gastdaten_entdopplung_etappe3.sql`.
-**Etappe 4 läuft — 33 von 45 Abfragen umgestellt (13.08.2026).**
+**Etappe 5 abgeschlossen, Etappe 4 läuft — 43 von 58 Abfragen umgestellt
+(13.08.2026).** Alle vier Schreibpfade setzen ihre `guest_id` selbst; die
+Zuordnungs-Kaskade liegt als `find_or_create_guest()` in der DB.
 Gezählt wird in **Abfragen**, nicht in Anzeigezeilen: Ein Mapping direkt nach
 der Abfrage (`guest_name: b.guests?.name || b.guest_name`) versorgt alle
 nachgelagerten Anzeigestellen mit. Die früher genannten „450 Lesestellen" sind
