@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardStats } from "@/types";
+// Etappe 4, Schritt 5.1: siehe Kommentar in guestHelpers.ts.
+import { withGuestData } from "@/lib/guestHelpers";
 
 export const useDashboardData = () => {
   return useQuery({
@@ -18,7 +20,7 @@ export const useDashboardData = () => {
       if (tasksResponse.error) throw tasksResponse.error;
 
       const allHouses = housesResponse.data || [];
-      const bookings = bookingsResponse.data || [];
+      const bookings = withGuestData(bookingsResponse.data as any);
       const tasks = tasksResponse.data || [];
 
       // Nur touristische Häuser für Stats zählen

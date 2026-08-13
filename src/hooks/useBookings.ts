@@ -1,6 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Booking } from "@/types";
+// Etappe 4, Schritt 5.1: Gastfelder aus der guests-Relation setzen, bevor die
+// Buchungen an die Komponenten gehen. Siehe Kommentar in guestHelpers.ts.
+import { withGuestData, withGuestDataSingle } from "@/lib/guestHelpers";
 
 export const useBookings = () => {
   return useQuery({
@@ -13,7 +16,7 @@ export const useBookings = () => {
         .order('check_in', { ascending: true });
       
       if (error) throw error;
-      return data as Booking[];
+      return withGuestData(data as any) as Booking[];
     },
   });
 };
@@ -29,7 +32,7 @@ export const useBookingsByHouse = (houseId: string) => {
         .order('check_in', { ascending: true });
       
       if (error) throw error;
-      return data as Booking[];
+      return withGuestData(data as any) as Booking[];
     },
     enabled: !!houseId,
   });
@@ -47,7 +50,7 @@ export const useCreateBooking = () => {
         .single();
       
       if (error) throw error;
-      return data;
+      return withGuestDataSingle(data as any);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['bookings'] });
@@ -74,7 +77,7 @@ export const useUpdateBooking = () => {
         .single();
       
       if (error) throw error;
-      return data;
+      return withGuestDataSingle(data as any);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['bookings'] });
