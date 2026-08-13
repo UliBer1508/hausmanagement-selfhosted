@@ -49,8 +49,29 @@ zunächst sogar noch erweitert, weil niemand von der offenen Migration wusste.
 
 Stand und Etappenplan: **`docs/Konzept-Gastdaten-Entdopplung.md`**. Etappe 2 und
 3 sind seit 12.08.2026 live (DB-Trigger `trg_link_guest_on_booking_insert` und
-`trg_sync_guest_to_bookings`, SQL in `supabase/SQL/40_...`). Offen: Etappe 4
-(rund 450 Lesestellen umziehen), dann Löschen der Kopiespalten.
+`trg_sync_guest_to_bookings`, SQL in `supabase/SQL/40_...`).
+
+**Etappe 5 abgeschlossen (13.08.2026):** Alle vier Schreibpfade setzen ihre
+`guest_id` selbst — Gastdaten entstehen in `guests`, die Buchung trägt nur den
+Verweis. Die sechsstufige Zuordnungs-Kaskade liegt als `find_or_create_guest()`
+in der Datenbank (`supabase/SQL/41_...`): eine Stelle, die entscheidet, welcher
+Gast gemeint ist, statt vier Kopien davon.
+
+**Etappe 4 läuft:** 43 von 58 Abfragen tragen den `guests`-Join. Offen: zehn
+`select('*')` und fünf Feldlisten.
+
+**Gezählt wird in Abfragen, nicht in Anzeigezeilen.** Ein Mapping direkt nach
+der Abfrage (`guest_name: b.guests?.name ?? b.guest_name`) versorgt alle
+nachgelagerten Anzeigestellen mit. Die früher genannten „450 Lesestellen" sind
+Anzeigezeilen und überzeichnen den Aufwand um das Siebenfache.
+
+**Vor Etappe 6 (Kopiespalten löschen):** Beide Trigger müssen mit abgebaut
+werden — `link_guest_on_booking_insert` liest zehn Kopiespalten,
+`sync_guest_to_bookings` schreibt hinein. Sonst schlägt danach jeder
+Buchungs-Insert und jede Gast-Änderung fehl.
+
+Arbeitsstand: `docs/Etappe4-Bestandsaufnahme-Abfragen.md` ·
+Tagesbericht: `docs/Session-2026-08-13-Gastdaten-Etappe4-und-5.md`
 
 ## Häufigste Fehlerquelle: Doppelgänger-Komponenten
 - "Reinigungskarte" existiert dreimal: `Cleaning/CleaningManagement.tsx`
