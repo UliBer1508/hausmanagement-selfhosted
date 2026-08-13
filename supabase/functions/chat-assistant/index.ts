@@ -344,15 +344,20 @@ async function executeSearchCleaningTasks(params: any) {
     .select(`
       *,
       houses(name),
-      bookings${nachGast ? '!inner' : ''}(guest_name, guest_email, guest_phone),
+      bookings${nachGast ? '!inner' : ''}(guest_name, guest_email, guest_phone, guests${nachGast ? '!inner' : ''}(name, email, phone)),
       service_providers!service_tasks_provider_id_fkey(id, name, contact_email, contact_phone)
     `)
     .eq('service_type', 'cleaning')
     .order('scheduled_date', { ascending: true });
 
   // Gastname direkt in der DB filtern — nicht erst nach dem Limit.
+  // Etappe 4, Block 4a (13.08.2026): Filter zieht auf die guests-Relation um.
+  // Das ist ein Filter ueber ZWEI Ebenen (service_tasks -> bookings -> guests);
+  // beide Relationen brauchen !inner, damit PostgREST ihn anwendet.
+  // Rueckbau bei Problemen: 'bookings.guests.name' -> 'bookings.guest_name'
+  // und das innere guests(...) aus dem select oben entfernen.
   if (nachGast) {
-    query = query.ilike('bookings.guest_name', `%${params.guest_name.trim()}%`);
+    query = query.ilike('bookings.guests.name', `%${params.guest_name.trim()}%`);
   }
 
   if (params.status) {
@@ -388,7 +393,8 @@ async function executeSearchCleaningTasks(params: any) {
     );
   }
 
-  return { success: true, data: filteredData, count: filteredData.length };
+  const ergebnis = gastNameEinsetzen(filteredData);
+  return { success: true, data: ergebnis, count: ergebnis.length };
 }
 
 async function executeSearchHouses(params: any) {
@@ -565,12 +571,16 @@ async function executeSearchLinenOrders(params: any) {
 
   let query = supabase
     .from('linen_orders')
-    .select(`*, houses(name), bookings${nachGast ? '!inner' : ''}(guest_name, check_in, check_out)`)
+    .select(`*, houses(name), bookings${nachGast ? '!inner' : ''}(guest_name, check_in, check_out, guests${nachGast ? '!inner' : ''}(name))`)
     .order('order_date', { ascending: false });
 
   // Gastname direkt in der DB filtern (der !inner-Join oben macht das möglich).
+  // Etappe 4, Block 4a (13.08.2026): Filter ueber ZWEI Ebenen
+  // (linen_orders -> bookings -> guests). Rueckbau bei Problemen:
+  // 'bookings.guests.name' -> 'bookings.guest_name' und guests(...) aus dem
+  // select oben entfernen.
   if (nachGast) {
-    query = query.ilike('bookings.guest_name', `%${params.guest_name.trim()}%`);
+    query = query.ilike('bookings.guests.name', `%${params.guest_name.trim()}%`);
   }
 
   if (params.status) {
@@ -592,7 +602,8 @@ async function executeSearchLinenOrders(params: any) {
     return { success: false, error: error.message };
   }
 
-  return { success: true, data: data || [], count: (data || []).length };
+  const ergebnis = gastNameEinsetzen(data || []);
+  return { success: true, data: ergebnis, count: ergebnis.length };
 }
 
 /**
@@ -2947,6 +2958,18 @@ async function executeUpdateProviderAction(params: any) {
   } catch (e) {
     return { success: false, error: String(e) };
   }
+}
+
+// Etappe 4, Block 4a: Hebt den Gastnamen aus der zweifach verschachtelten
+// Relation (service_tasks/linen_orders -> bookings -> guests) in das
+// bookings-Objekt. Max liest weiterhin `bookings.guest_name`; nach dem Wegfall
+// der Kopiespalte liefert diese Stelle den Wert aus `guests`.
+function gastNameEinsetzen(rows: any[]): any[] {
+  return (rows || []).map((r: any) =>
+    r?.bookings
+      ? { ...r, bookings: { ...r.bookings, guest_name: r.bookings.guests?.name || r.bookings.guest_name } }
+      : r
+  );
 }
 
 function formatDateDE(iso: string): string {
