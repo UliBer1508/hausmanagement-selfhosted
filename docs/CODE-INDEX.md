@@ -102,10 +102,27 @@ eine eigene Protokollspalte, kein Bezug auf `bookings`.
 `trg_link_guest_on_booking_insert` (verknüpft beim Anlegen) und
 `trg_sync_guest_to_bookings` (hält die Kopien aktuell). SQL:
 `supabase/SQL/40_gastdaten_entdopplung_etappe3.sql`.
-**Offen:** Etappe 4 — rund 450 Lesestellen (161× `guest_name` im Frontend über
-51 Dateien, 94× `guest_email`, ~190 in 17 Edge Functions, davon 126 in
-`chat-assistant`). Danach Etappe 5/6: `guest_id` auf `NOT NULL`, Kopiespalten
-löschen.
+**Etappe 4 läuft — 33 von 45 Abfragen umgestellt (13.08.2026).**
+Gezählt wird in **Abfragen**, nicht in Anzeigezeilen: Ein Mapping direkt nach
+der Abfrage (`guest_name: b.guests?.name || b.guest_name`) versorgt alle
+nachgelagerten Anzeigestellen mit. Die früher genannten „450 Lesestellen" sind
+Anzeigezeilen und überzeichnen den Aufwand.
+
+| Block | Inhalt | Abfragen | Stand |
+|---|---|---|---|
+| 1 | Edge Functions ohne `chat-assistant` | 7 | ✅ |
+| 2 | Frontend | 14 | ✅ (5 Reste) |
+| 3 | `chat-assistant`, Feldlisten | 10 | ✅ |
+| 4a | verschachtelte **Filter** | 2 | ✅ |
+| 4b | verschachtelte **Anzeige** | 8 | ✅ |
+| 5 | `select('*')` | 11 | ⬜ offen |
+
+**Belegt am 13.08.2026:** PostgREST filtert zuverlässig über zwei
+Relationsebenen (`.ilike('bookings.guests.name', …)`, beide Relationen mit
+`!inner`). Das war die einzige echte Unbekannte des Umbaus.
+
+Arbeitsstand je Abfrage: `docs/Etappe4-Bestandsaufnahme-Abfragen.md`.
+Danach Etappe 5/6: `guest_id` auf `NOT NULL`, Kopiespalten löschen.
 
 **Vollständiger Etappenplan mit Prüfabfragen und Risiken:**
 `docs/Konzept-Gastdaten-Entdopplung.md`.

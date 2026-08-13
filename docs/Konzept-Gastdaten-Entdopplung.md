@@ -5,8 +5,10 @@
 > verschwinden.
 >
 > **Status:** Etappe 2 und 3 sind **ausgerollt und funktional verifiziert**
-> (12.08.2026). Etappe 4 bis 6 stehen aus.
-> Stand: 12.08.2026 · Repo-Stand geprüft gegen `main`
+> (12.08.2026). **Etappe 4 läuft: 33 von 45 Abfragen umgestellt** (13.08.2026),
+> `chat-assistant` bis auf drei `select('*')` vollständig. Etappe 5 und 6 stehen
+> aus.
+> Stand: 13.08.2026 · Repo-Stand geprüft gegen `main`
 
 **Umgesetzt am 12.08.2026**
 
@@ -472,8 +474,8 @@ abhakbare Liste. **Erst wenn jeder Punkt belegt ist, wird gelöscht.**
 | 2 | Alle Buchungen haben `guest_id` | ✅ belegt (0 von 123 ohne) |
 | 3 | Keine Namensdubletten in `guests` | ✅ belegt (Prüfabfrage D leer) |
 | 4 | `guests` ist die Quelle, Kopien sind Ableitung | ⬜ nach Etappe 3 |
-| 5 | Keine Lesestelle im Frontend mehr (161 + 94) | ⬜ Etappe 4 |
-| 6 | Keine Lesestelle in Edge Functions mehr (~190) | ⬜ Etappe 4 |
+| 5 | Keine Abfrage im Frontend liest mehr aus den Kopien | 🔄 14 von 19 (Etappe 4) |
+| 6 | Keine Abfrage in Edge Functions liest mehr aus den Kopien | 🔄 19 von 26 (Etappe 4) |
 | 7 | `guest_name` auf `nullable` gesetzt | ⬜ Etappe 6 |
 | 8 | `trg_sync_guest_to_bookings` entfernt | ⬜ Etappe 6, gleicher Schritt |
 | 9 | Entscheidung zu `guest_notes` getroffen | ⬜ offen |
