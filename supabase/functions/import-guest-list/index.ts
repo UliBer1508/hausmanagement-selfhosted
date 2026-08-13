@@ -82,6 +82,8 @@ serve(async (req) => {
       details: []
     };
 
+    let zugeordnet = 0;   // Etappe 5: Buchungen mit selbst gesetzter guest_id
+
     // Process each booking
     for (const booking of processedBookings) {
       // Skip invalid bookings
@@ -117,11 +119,52 @@ serve(async (req) => {
         continue;
       }
 
+      // Gast zuerst in `guests` anlegen oder wiederfinden.
+      //
+      // Etappe 5 (13.08.2026): Bisher entstand der Gast nur als Nebenwirkung —
+      // die Daten gingen in die Kopiespalten der Buchung, und erst der Trigger
+      // link_guest_on_booking_insert legte daraus einen Gast an.
+      //
+      // find_or_create_guest() ist dieselbe sechsstufige Kaskade, die auch der
+      // Trigger benutzt (SQL/41_gastdaten_entdopplung_etappe5.sql).
+      //
+      // WICHTIG FUER MELDESCHEINE: Sie liefern weder E-Mail noch Telefon. Die
+      // Stufen 1, 2 und 6 der Kaskade greifen hier also nie. Wiedererkannt wird
+      // ueber Stufe 3 (Name + Nationalitaet + Stadt), Stufe 4 (Name +
+      // Geburtsdatum) und Stufe 5 (Name + seltene Nationalitaet) — genau die
+      // Angaben, die ein Meldeschein fuehrt. Ein reines E-Mail-Matching wuerde
+      // bei jedem Import neue Gaeste erzeugen.
+      //
+      // `notes` wird bewusst NICHT mitgegeben: Die Kaskade fuellt bei einem
+      // bestehenden Gast Luecken auf, und ein Importvermerk waere dort keine
+      // Bereicherung, sondern wuerde ein leeres Notizfeld dauerhaft belegen.
+      //
+      // FEHLERFALL BEWUSST WEICH: Schlaegt der Aufruf fehl, laeuft der INSERT
+      // ohne guest_id weiter und der Trigger uebernimmt wie bisher. Ein Import
+      // darf nicht daran scheitern, dass die Gast-Zuordnung klemmt.
+      let guestId: string | null = null;
+      const { data: rpcGuestId, error: guestError } = await supabase.rpc('find_or_create_guest', {
+        p_name:            booking.guestName,
+        p_street:          booking.guestStreet || null,
+        p_city:            booking.guestCity || null,
+        p_postal_code:     booking.guestPostalCode || null,
+        p_birth_date:      booking.guestBirthDate || null,
+        p_travel_document: booking.guestTravelDocument || null,
+        p_nationality:     booking.nationality || null,
+      });
+
+      if (guestError) {
+        console.error(`find_or_create_guest fehlgeschlagen fuer ${booking.guestName}, Trigger uebernimmt:`, guestError);
+      } else {
+        guestId = rpcGuestId as string | null;
+      }
+
       // Insert new booking
       const { error: insertError } = await supabase
         .from('bookings')
         .insert({
           house_id: houseId,
+          guest_id: guestId,
           guest_name: booking.guestName,
           check_in: booking.checkIn,
           check_out: booking.checkOut,
@@ -149,6 +192,7 @@ serve(async (req) => {
         });
       } else {
         result.imported++;
+        if (guestId) zugeordnet++;
         result.details.push({
           guest: booking.guestName,
           checkIn: booking.checkIn,
@@ -159,6 +203,10 @@ serve(async (req) => {
     }
 
     console.log(`Import complete: ${result.imported} imported, ${result.skipped} skipped, ${result.errors.length} errors`);
+    // Etappe 5: sichtbar machen, wie viele Buchungen ihre guest_id selbst
+    // mitgebracht haben. Bleibt der Wert bei 0, obwohl importiert wurde,
+    // klemmt der RPC-Aufruf und der Trigger arbeitet still weiter.
+    console.log(`Gast-Zuordnung: ${zugeordnet} von ${result.imported} Buchungen direkt verknuepft`);
 
     return new Response(
       JSON.stringify(result),
