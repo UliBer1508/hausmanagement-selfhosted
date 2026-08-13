@@ -37,7 +37,7 @@ import { cn } from '@/lib/utils';
 import { useDeleteBooking } from '@/hooks/useBookings';
 import CreateBookingDialog from './CreateBookingDialog';
 import EditBookingDialog from './EditBookingDialog';
-import { getGuestName } from '@/lib/guestHelpers';
+import { getGuestName, getGuestNationality } from '@/lib/guestHelpers';
 import { useGuestStayCounts, getGuestCategory } from '@/hooks/useGuestStayCounts';
 import { getCountryName } from '@/lib/countries';
 import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
@@ -363,9 +363,10 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
       case 'created_at_asc':
         return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
       case 'guest_name_asc':
-        return (a.guest_name || '').localeCompare(b.guest_name || '', 'de');
+        // Etappe 4: nach der Quelle sortieren, nicht nach der Kopiespalte
+        return getGuestName(a).localeCompare(getGuestName(b), 'de');
       case 'guest_name_desc':
-        return (b.guest_name || '').localeCompare(a.guest_name || '', 'de');
+        return getGuestName(b).localeCompare(getGuestName(a), 'de');
       case 'amount_desc':
         return (b.booking_amount || 0) - (a.booking_amount || 0);
       case 'amount_asc':
@@ -910,14 +911,14 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
       {/* Bookings List */}
       <div className="space-y-3">
         {sortedBookings.map((booking) => {
-          const countryCode = getCountryCode(booking.nationality);
+          const countryCode = getCountryCode(getGuestNationality(booking));
           const hasChildren =
             booking.number_of_children !== undefined && booking.number_of_children > 0;
           return (
             <ClickableCard
               key={booking.id}
               onActivate={() => setSelectedBookingForEdit(booking)}
-              aria-label={`Buchung von ${booking.guest_name} bearbeiten`}
+              aria-label={`Buchung von ${getGuestName(booking)} bearbeiten`}
               className="border-l-4 border-l-amber-500 bg-yellow-50 overflow-hidden"
             >
               {/* Kopfbalken (wie Übersicht) */}
@@ -971,11 +972,11 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="font-semibold text-lg">
-                          {booking.guest_name}
+                          {getGuestName(booking)}
                           {countryCode && (
                             <span
                               className="ml-2 text-sm text-muted-foreground cursor-help"
-                              title={getFullCountryName(booking.nationality)}
+                              title={getFullCountryName(getGuestNationality(booking))}
                             >
                               ({countryCode})
                             </span>
@@ -1089,7 +1090,7 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
             <AlertDialogTitle>Buchung wirklich löschen?</AlertDialogTitle>
             <AlertDialogDescription>
               Diese Aktion kann nicht rückgängig gemacht werden. Die Buchung von{' '}
-              <strong>{bookingToDelete?.guest_name}</strong> wird unwiderruflich gelöscht.
+              <strong>{getGuestName(bookingToDelete)}</strong> wird unwiderruflich gelöscht.
               
               {(relatedItems.cleanings > 0 || relatedItems.orders > 0) && (
                 <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
