@@ -293,7 +293,7 @@ serve(async (req) => {
     {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, houses!bookings_house_id_fkey(name)')
+        .select('*, houses!bookings_house_id_fkey(name), guests!bookings_guest_id_fkey(name)')
         .gte('check_in', todayStart)
         .lte('check_in', nextWeekEndStr)
         .eq('status', 'confirmed')
@@ -503,7 +503,9 @@ serve(async (req) => {
         const checkInDate = formatDE(new Date(b.check_in));
         const houseName = b.houses?.name || 'Unbekanntes Haus';
         const daysUntil = differenceInDays(new Date(b.check_in), now);
-        const email = b.guest_email ? ` (${b.guest_email})` : '';
+        // Etappe 4: E-Mail aus der Relation, Kopie nur als Rueckfall
+        const gastMail = (b as any).guests?.email || b.guest_email;
+        const email = gastMail ? ` (${gastMail})` : '';
         const isFamily = (b.number_of_children || 0) > 0;
         const familyTag = isFamily ? ` 👨‍👩‍👧‍👦 Familie mit ${b.number_of_children} Kind(ern)` : '';
         message += `• **${(b as any).guests?.name || b.guest_name}**${email} → ${houseName} - Check-in in ${daysUntil} Tagen (${checkInDate})${familyTag}\n`;
@@ -581,7 +583,9 @@ serve(async (req) => {
         const houseName = b.houses?.name || 'Unbekanntes Haus';
         const daysUntil = Math.ceil((new Date(b.check_in).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
         const daysText = daysUntil === 0 ? 'Heute' : daysUntil === 1 ? 'Morgen' : `in ${daysUntil} Tagen`;
-        message += `• ${checkInDate} ${checkInTime} - ${b.guest_name} (${houseName}) - ${daysText}\n`;
+        // Etappe 4: Gastname aus der guests-Relation
+        const gastName = (b as any).guests?.name || b.guest_name;
+        message += `• ${checkInDate} ${checkInTime} - ${gastName} (${houseName}) - ${daysText}\n`;
       });
       message += '\n';
     }
