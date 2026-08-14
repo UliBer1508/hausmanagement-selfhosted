@@ -258,9 +258,14 @@ async function executeRejectBookingInquiry(params: any) {
 async function executeSearchBookings(params: any) {
   console.log('Executing search_bookings with params:', params);
 
+  // Etappe 4 (13.08.2026): Gastdaten aus der guests-Relation. `!inner` nur,
+  // wenn nach dem Gastnamen gefiltert wird — sonst fiele eine Buchung ohne
+  // guest_id still aus dem Ergebnis.
+  const nachGast = !!params.guest_name;
+
   let query = supabase
     .from('bookings')
-    .select('*, houses(name, rental_type)')
+    .select(`*, houses(name, rental_type), guests!bookings_guest_id_fkey${nachGast ? '!inner' : ''}(name, email, phone, nationality)`)
     .order('check_in', { ascending: true });
 
   // Filter for tourist rentals only
@@ -268,7 +273,7 @@ async function executeSearchBookings(params: any) {
 
   // Guest name search
   if (params.guest_name) {
-    query = query.ilike('guest_name', `%${params.guest_name}%`);
+    query = query.ilike('guests.name', `%${params.guest_name}%`);
   }
 
   // Status filter
