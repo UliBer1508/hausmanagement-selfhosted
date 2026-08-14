@@ -89,7 +89,7 @@ serve(async (req) => {
         // Load bookings anyway to show them in details
         const { data: bookingsForDetails } = await supabase
           .from('bookings')
-          .select('id, guest_name, check_in, guests!bookings_guest_id_fkey(name)')
+          .select('id, check_in, guests!bookings_guest_id_fkey(name)')
           .eq('house_id', house.id)
           .eq('status', 'confirmed')
           .gte('check_in', new Date().toISOString())
@@ -129,7 +129,7 @@ serve(async (req) => {
       
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, number_of_guests, guests!bookings_guest_id_fkey(name)')
+        .select('id, check_in, number_of_guests, guests!bookings_guest_id_fkey(name)')
         .eq('house_id', house.id)
         .eq('status', 'confirmed')
         .gte('check_in', new Date().toISOString())
