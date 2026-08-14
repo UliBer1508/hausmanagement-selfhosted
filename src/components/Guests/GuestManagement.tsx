@@ -15,6 +15,8 @@ import MarketingActions from './MarketingActions';
 import { GuestDuplicatesDialog } from './GuestDuplicatesDialog';
 import { useGuestDuplicates } from '@/hooks/useGuestDuplicates';
 import RebookingCampaign from './RebookingCampaign';
+// Etappe 4: Gastfelder aus der guests-Relation (siehe guestHelpers.ts)
+import { withGuestData } from '@/lib/guestHelpers';
 
 const GuestManagement = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -26,13 +28,20 @@ const GuestManagement = () => {
   const handleExportCSV = async () => {
     try {
       // Fetch all guest data
-      const { data: bookings } = await supabase
+      const { data: bookingsRaw } = await supabase
         .from('bookings')
         .select(`
           *,
-          houses!bookings_house_id_fkey!inner(name, address)
+          houses!bookings_house_id_fkey!inner(name, address),
+          guests!bookings_guest_id_fkey(*)
         `)
-        .not('guest_name', 'is', null);
+        // Etappe 4: Filter auf guest_id statt auf die Kopiespalte
+        .not('guest_id', 'is', null);
+
+      // Etappe 4: Gastfelder aus der Relation setzen, bevor gruppiert wird.
+      // Der Export zieht Name, E-Mail, Telefon und Nationalitaet — alle vier
+      // kommen ab hier aus `guests`.
+      const bookings = withGuestData(bookingsRaw as any);
 
       if (!bookings || bookings.length === 0) {
         console.log('Keine Gästedaten zum Exportieren gefunden');

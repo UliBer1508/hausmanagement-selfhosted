@@ -16,6 +16,8 @@ import { useHouses } from '@/hooks/useHouses';
 import { useVacancyAI } from '@/hooks/useVacancyAI';
 import { MLSettingsDialog, type MLSettings, DEFAULT_ML_SETTINGS, loadMLSettings } from './MLSettingsDialog';
 import { checkHolidayPeriod, type HolidayMatch } from '@/lib/holidayCalendar';
+// Etappe 4: Gastfelder aus der guests-Relation (siehe guestHelpers.ts)
+import { withGuestData } from '@/lib/guestHelpers';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -620,19 +622,25 @@ const GuestAnalytics = () => {
         .from('bookings')
         .select(`
           *,
-          houses!bookings_house_id_fkey!inner(name, rental_type, additional_fees)
+          houses!bookings_house_id_fkey!inner(name, rental_type, additional_fees),
+          guests!bookings_guest_id_fkey(*)
         `)
         .eq('houses.rental_type', 'tourist')
-        .not('guest_name', 'is', null);
+        // Etappe 4: Filter auf guest_id statt auf die Kopiespalte
+        .not('guest_id', 'is', null);
       
       // Filter by house if selected
       if (selectedHouseId !== 'all') {
         query = query.eq('house_id', selectedHouseId);
       }
 
-      const { data: allBookings } = await query;
+      const { data: allBookingsRaw } = await query;
 
-      if (!allBookings) return null;
+      if (!allBookingsRaw) return null;
+      // Etappe 4: Gastname und Nationalitaet aus der guests-Relation. Die
+      // Auswertung gruppiert nach Nationalitaet — sie muss die Quelle lesen,
+      // sonst wertet sie den Altbestand aus.
+      const allBookings = withGuestData(allBookingsRaw as any);
 
       // Extract available years from all bookings
       const availableYears = [...new Set(
