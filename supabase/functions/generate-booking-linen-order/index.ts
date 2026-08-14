@@ -26,7 +26,6 @@ serve(async (req) => {
       .from('bookings')
       .select(`
         id,
-        guest_name,
         guests!bookings_guest_id_fkey(name),
         number_of_guests,
         check_in,
