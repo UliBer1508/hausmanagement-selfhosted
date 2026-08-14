@@ -21,7 +21,10 @@ export const useGuestStayCounts = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('guest_id, guest_email, guest_name, status')
+        // Etappe 4: guest_id genuegt — jede Buchung hat eine (Etappe 5 stellt
+        // sicher, dass alle vier Schreibpfade sie setzen). Die frueheren
+        // Rueckfallfelder guest_name/guest_email sind damit ueberfluessig.
+        .select('guest_id, status')
         .in('status', ['confirmed', 'checked_in', 'completed']);
 
       if (error) throw error;

@@ -163,7 +163,10 @@ const filterBookingsByCriteria = (bookings: any[], targetCriteria: TargetCriteri
     if (targetCriteria.has_children && (booking.number_of_children || 0) === 0) {
       return false;
     }
-    if (targetCriteria.nationality && booking.nationality !== targetCriteria.nationality) {
+    // Etappe 4: Zielgruppen-Filter gegen die guests-Relation, nicht gegen die
+    // Kopiespalte — sonst waehlt die Marketing-Aktion nach dem Altbestand aus.
+    const nat = (booking as any).guests?.nationality ?? booking.nationality;
+    if (targetCriteria.nationality && nat !== targetCriteria.nationality) {
       return false;
     }
     if (targetCriteria.min_nights) {
@@ -194,6 +197,7 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
           number_of_guests,
           number_of_children,
           nationality,
+          guests!bookings_guest_id_fkey(nationality),
           status,
           normalized_rating,
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
@@ -267,6 +271,7 @@ export const useAffectedBookings = (
           number_of_guests,
           number_of_children,
           nationality,
+          guests!bookings_guest_id_fkey(nationality),
           status,
           external_rating,
           normalized_rating,

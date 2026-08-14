@@ -19,11 +19,13 @@ export const useGuests = (filters: GuestFilters = {}) => {
       if (!guests) return [];
 
       // Step 2: Load all tourist bookings with guest_id
+      // Etappe 4: Feld `nationality` aus der Liste entfernt — es wurde geladen,
+      // aber nie gelesen (Z. 71 nimmt guest.nationality aus der guests-Tabelle).
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
           id, guest_id, check_in, check_out, 
-          status, booking_amount, nationality, house_id,
+          status, booking_amount, house_id,
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
         .eq('houses.rental_type', 'tourist')
@@ -320,7 +322,7 @@ export const useGuestSegments = () => {
         .from('bookings')
         .select(`
           id, guest_id, guest_name, guest_email, guest_phone,
-          guests!bookings_guest_id_fkey(name, email, phone),
+          guests!bookings_guest_id_fkey(name, email, phone, nationality),
           check_in, check_out, booking_amount, nationality, status,
           houses!bookings_house_id_fkey!inner(rental_type)
         `)
@@ -370,7 +372,7 @@ export const useGuestSegments = () => {
               guest_name: (booking as any).guests?.name || booking.guest_name,
               guest_email: (booking as any).guests?.email || booking.guest_email,
               guest_phone: (booking as any).guests?.phone || booking.guest_phone,
-              nationality: booking.nationality,
+              nationality: (booking as any).guests?.nationality || booking.nationality,
               total_revenue: 0,
               stay_count: 0,
               first_booking: null,
