@@ -17,6 +17,8 @@ import { format, addDays, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency, translateItemType, getLabelsFromLinenDef } from '@/lib/linenOrderHelpers';
+// Etappe 4: Gastfelder aus der guests-Relation (siehe guestHelpers.ts)
+import { withGuestData } from '@/lib/guestHelpers';
 
 interface LinenOrderAnalyticsProps {
   house: any;
@@ -82,7 +84,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*')
+        .select('*, guests!bookings_guest_id_fkey(*)')  // Etappe 4: Gastdaten aus der Relation
         .eq('house_id', house.id)
         .gte('check_out', format(new Date(), 'yyyy-MM-dd'))
         .lte('check_in', format(addDays(new Date(), 30), 'yyyy-MM-dd'))
@@ -90,7 +92,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
         .order('check_in', { ascending: true });
       
       if (error) throw error;
-      return data || [];
+      return withGuestData(data as any);
     }
   });
 

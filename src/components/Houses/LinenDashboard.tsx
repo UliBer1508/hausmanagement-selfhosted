@@ -21,6 +21,8 @@ import LinenOrderDialog from './LinenOrderDialog';
 import LinenOrdersList from './LinenOrdersList';
 import AutoLinenOrderSettingsCard from './AutoLinenOrderSettingsCard';
 import MaxLinenReminderSettingsCard from '../Cleaning/MaxLinenReminderSettingsCard';
+// Etappe 4: Gastfelder aus der guests-Relation (siehe guestHelpers.ts)
+import { withGuestData } from '@/lib/guestHelpers';
 
 interface HouseLinenStatus {
   house: any;
@@ -117,13 +119,13 @@ const LinenDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, linen_orders!linen_orders_booking_id_fkey(id)')
+        .select('*, linen_orders!linen_orders_booking_id_fkey(id), guests!bookings_guest_id_fkey(*)')
         .gte('check_out', format(new Date(), 'yyyy-MM-dd'))
         .in('status', ['confirmed', 'checked_in'])
         .order('check_in', { ascending: true });
       
       if (error) throw error;
-      return data || [];
+      return withGuestData(data as any);  // Etappe 4
     },
   });
 
