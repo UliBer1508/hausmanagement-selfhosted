@@ -467,7 +467,7 @@ async function executeSearchGuests(params: any) {
     // aus den Kopiespalten. !inner, damit PostgREST die Filter unten auf die
     // Relation anwenden kann (alle 123 Buchungen haben eine guest_id, es faellt
     // also nichts heraus).
-    .select('guest_id, guest_name, guest_email, guest_phone, nationality, houses(name), guests!bookings_guest_id_fkey!inner(name, email, phone, nationality)')
+    .select('guest_id, houses(name), guests!bookings_guest_id_fkey!inner(name, email, phone, nationality)')
     .order('created_at', { ascending: false });
 
   if (params.name) {
@@ -876,7 +876,7 @@ async function executeGetDailyOverview(params: any) {
   // 2. Check-ins heute (neue Gäste)
   const { data: checkIns, error: checkInError } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_in, number_of_guests, number_of_adults, number_of_children, houses(name), guests!bookings_guest_id_fkey(name)')
+    .select('id, check_in, number_of_guests, number_of_adults, number_of_children, houses(name), guests!bookings_guest_id_fkey(name)')
     .gte('check_in', `${targetDate}T00:00:00`)
     .lt('check_in', `${targetDate}T23:59:59`)
     .neq('status', 'cancelled')
@@ -889,7 +889,7 @@ async function executeGetDailyOverview(params: any) {
   // 3. Check-outs heute (abreisende Gäste)
   const { data: checkOuts, error: checkOutError } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_out, houses(name), guests!bookings_guest_id_fkey(name)')
+    .select('id, check_out, houses(name), guests!bookings_guest_id_fkey(name)')
     .gte('check_out', `${targetDate}T00:00:00`)
     .lt('check_out', `${targetDate}T23:59:59`)
     .neq('status', 'cancelled')
@@ -1041,7 +1041,7 @@ async function executeGetCalendarEvents(params: any) {
   // Get check-ins
   const { data: checkIns } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_in, houses(name), guests!bookings_guest_id_fkey(name)')
+    .select('id, check_in, houses(name), guests!bookings_guest_id_fkey(name)')
     .gte('check_in', dateFrom)
     .lte('check_in', dateTo)
     .neq('status', 'cancelled');
@@ -1049,7 +1049,7 @@ async function executeGetCalendarEvents(params: any) {
   // Get check-outs
   const { data: checkOuts } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_out, houses(name), guests!bookings_guest_id_fkey(name)')
+    .select('id, check_out, houses(name), guests!bookings_guest_id_fkey(name)')
     .gte('check_out', dateFrom)
     .lte('check_out', dateTo)
     .neq('status', 'cancelled');
@@ -1089,8 +1089,8 @@ async function executeGetGuestContactReminders(_params: any) {
   const { data, error } = await supabase
     .from('bookings')
     .select(`
-      id, guest_name, guest_email, guest_phone, check_in, check_out,
-      number_of_guests, number_of_children, guest_contact_status, nationality,
+      id, check_in, check_out,
+      number_of_guests, number_of_children, guest_contact_status,
       houses(name, rental_type),
       guests!bookings_guest_id_fkey(name, email, phone, nationality)
     `)
@@ -1176,7 +1176,7 @@ async function executeGetRatingReminders(_params: any) {
 
   let query = supabase
     .from('bookings')
-    .select('id, guest_name, check_out, platform, external_rating, houses(name, rental_type), guests!bookings_guest_id_fkey(name)')
+    .select('id, check_out, platform, external_rating, houses(name, rental_type), guests!bookings_guest_id_fkey(name)')
     .eq('status', 'completed')
     .gte('check_out', minCheckout.toISOString())
     .lte('check_out', maxCheckout.toISOString())
@@ -1229,7 +1229,7 @@ async function executeDraftGuestWelcomeEmail(params: any) {
   if (params?.booking_id) {
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, guest_name, guest_email, check_in, check_out, nationality, houses(name), guests!bookings_guest_id_fkey(name, email)')
+      .select('id, check_in, check_out, houses(name), guests!bookings_guest_id_fkey(name, email)')
       .eq('id', params.booking_id)
       .maybeSingle();
     if (error) return { success: false, error: error.message };
@@ -1238,7 +1238,7 @@ async function executeDraftGuestWelcomeEmail(params: any) {
     const todayStr = new Date().toISOString().split('T')[0];
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, guest_name, guest_email, check_in, check_out, nationality, status, houses(name), guests!bookings_guest_id_fkey!inner(name, email)')
+      .select('id, check_in, check_out, status, houses(name), guests!bookings_guest_id_fkey!inner(name, email)')
       .ilike('guests.name', `%${params.guest_name}%`)
       .neq('status', 'cancelled')
       .order('check_in', { ascending: true });
@@ -2252,7 +2252,7 @@ async function runUpcomingBookingsControl(overrideAdvanceDays?: number) {
   // Kommende, aktive Buchungen im Fenster
   const { data: bookings, error } = await supabase
     .from('bookings')
-    .select('id, guest_name, check_in, check_out, status, payment_status, house_id, houses(name), guests!bookings_guest_id_fkey(name)')
+    .select('id, check_in, check_out, status, payment_status, house_id, houses(name), guests!bookings_guest_id_fkey(name)')
     .eq('status', 'confirmed')
     .gte('check_in', todayStr)
     .lte('check_in', windowEndStr)
