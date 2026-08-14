@@ -608,7 +608,7 @@ const GuestImportCard = () => {
         const bis = processedBookings.map(b => b.checkOut).filter(Boolean).sort().slice(-1)[0];
         const { data, error } = await supabase
           .from('bookings')
-          .select('id, check_in, check_out, guest_id, guest_name, number_of_guests, status, guests!bookings_guest_id_fkey(id, name, street, city, postal_code, birth_date, travel_document, nationality)')
+          .select('id, check_in, check_out, guest_id, number_of_guests, status, guests!bookings_guest_id_fkey(id, name, street, city, postal_code, birth_date, travel_document, nationality)')
           .eq('house_id', selectedHouseId)
           .neq('status', 'cancelled')   // stornierte Buchungen nicht abgleichen
           .lte('check_in', bis)
