@@ -196,7 +196,6 @@ export const useActionStats = (actionId: string, targetCriteria: TargetCriteria)
           check_out,
           number_of_guests,
           number_of_children,
-          nationality,
           guests!bookings_guest_id_fkey(nationality),
           status,
           normalized_rating,
@@ -265,12 +264,10 @@ export const useAffectedBookings = (
         .from('bookings')
         .select(`
           id,
-          guest_email,
           check_in,
           check_out,
           number_of_guests,
           number_of_children,
-          nationality,
           guests!bookings_guest_id_fkey(nationality),
           status,
           external_rating,

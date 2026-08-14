@@ -45,9 +45,6 @@ export const useGuestContactReminders = () => {
         .select(`
           id,
           guest_id,
-          guest_name,
-          guest_email,
-          guest_phone,
           check_in,
           check_out,
           number_of_guests,
@@ -55,7 +52,6 @@ export const useGuestContactReminders = () => {
           number_of_children,
           guest_contact_status,
           booking_amount,
-          nationality,
           guests!bookings_guest_id_fkey(id, name, email, phone, nationality),
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)

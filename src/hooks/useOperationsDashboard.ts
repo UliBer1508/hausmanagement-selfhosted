@@ -91,7 +91,7 @@ export function useOperationsDashboard(timeRange: TimeRange) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('id, guest_name, number_of_guests, check_in, status, house_id, houses(name), guests!bookings_guest_id_fkey(name)')
+        .select('id, number_of_guests, check_in, status, house_id, houses(name), guests!bookings_guest_id_fkey(name)')
         .gte('check_in', startStr)
         .lte('check_in', endStr + 'T23:59:59')
         .neq('status', 'cancelled')
@@ -116,7 +116,7 @@ export function useOperationsDashboard(timeRange: TimeRange) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_out, house_id, houses(name), guests!bookings_guest_id_fkey(name)')
+        .select('id, check_out, house_id, houses(name), guests!bookings_guest_id_fkey(name)')
         .gte('check_out', startStr)
         .lte('check_out', endStr + 'T23:59:59')
         .neq('status', 'cancelled')

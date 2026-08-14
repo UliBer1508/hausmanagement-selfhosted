@@ -41,8 +41,6 @@ export const useRatingReminders = () => {
         .from('bookings')
         .select(`
           id,
-          guest_name,
-          guest_email,
           guests!bookings_guest_id_fkey(name, email),
           check_out,
           platform,

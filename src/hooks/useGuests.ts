@@ -321,9 +321,9 @@ export const useGuestSegments = () => {
       const { data: bookings, error: bookingsError } = await supabase
         .from('bookings')
         .select(`
-          id, guest_id, guest_name, guest_email, guest_phone,
+          id, guest_id,
           guests!bookings_guest_id_fkey(name, email, phone, nationality),
-          check_in, check_out, booking_amount, nationality, status,
+          check_in, check_out, booking_amount, status,
           houses!bookings_house_id_fkey!inner(rental_type)
         `)
         .eq('houses.rental_type', 'tourist')
