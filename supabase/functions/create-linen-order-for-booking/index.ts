@@ -32,7 +32,7 @@ serve(async (req) => {
     const { data: booking, error: bErr } = await supabase
       .from('bookings')
       .select(`
-        id, house_id, guest_name, number_of_guests, check_in,
+        id, house_id, number_of_guests, check_in,
         houses ( id, name ),
         guests!bookings_guest_id_fkey ( name )
       `)
