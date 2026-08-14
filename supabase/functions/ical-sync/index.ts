@@ -185,7 +185,7 @@ serve(async (req) => {
       // 3. Eigene, nicht-stornierte Buchungen dieses Hauses (für Kollisionsprüfung)
       const { data: ownBookings } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out, status, platform, guests!bookings_guest_id_fkey(name)')
+        .select('id, check_in, check_out, status, platform, guests!bookings_guest_id_fkey(name)')
         .eq('house_id', feed.house_id)
         .neq('status', 'cancelled');
 
