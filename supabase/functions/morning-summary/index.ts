@@ -199,7 +199,7 @@ serve(async (req) => {
       const { data, error } = await supabase
         .from('bookings')
         .select(`
-          id, guest_name, guest_email, guests!bookings_guest_id_fkey(name, email),
+          id, guests!bookings_guest_id_fkey(name, email),
           check_in, number_of_children,
           houses!bookings_house_id_fkey!inner(name, rental_type)
         `)
@@ -239,7 +239,7 @@ serve(async (req) => {
       let query = supabase
         .from('bookings')
         .select(`
-          id, guest_name, guests!bookings_guest_id_fkey(name),
+          id, guests!bookings_guest_id_fkey(name),
           check_out, platform, number_of_children, external_rating,
           houses!bookings_house_id_fkey!inner(name, rental_type)
         `)
