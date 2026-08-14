@@ -9,6 +9,8 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+// Etappe 4: Gastfelder aus der guests-Relation setzen (siehe guestHelpers.ts)
+import { withGuestData, withGuestDataSingle } from '@/lib/guestHelpers';
 import { 
   Home, 
   Calendar as CalendarIcon, 
@@ -341,7 +343,7 @@ const OriginalDashboard = () => {
     // Lade die Buchung mit Haus-Details
     const { data: booking, error } = await supabase
       .from('bookings')
-      .select('*, houses!bookings_house_id_fkey(*)')
+      .select('*, houses!bookings_house_id_fkey(*), guests!bookings_guest_id_fkey(*)')
       .eq('id', order.booking_id)
       .single();
     
@@ -372,7 +374,7 @@ const OriginalDashboard = () => {
       return;
     }
     
-    setSelectedBookingForOrder(booking);
+    setSelectedBookingForOrder(withGuestDataSingle(booking as any));
     setEditingOrderId(order.id);
     setEditingOrderData({
       ...fullOrder,
@@ -613,7 +615,10 @@ const OriginalDashboard = () => {
         .order('check_in', { ascending: true });
       
       if (error) throw error;
-      return data;
+      // Etappe 4: Gastfelder aus der guests-Relation setzen. Ein Mapping hier
+      // versorgt alle nachgelagerten Lesestellen (Suche, aktiver/naechster
+      // Gast, Reinigungs- und Waeschekacheln) — sie bleiben unveraendert.
+      return withGuestData(data as any);
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
