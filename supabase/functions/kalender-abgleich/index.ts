@@ -288,7 +288,7 @@ serve(async (req) => {
       // Eigene Buchungen: nur laufende und künftige, keine Stornos
       const { data: bookings } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out, guests!bookings_guest_id_fkey(name)')
+        .select('id, check_in, check_out, guests!bookings_guest_id_fkey(name)')
         .eq('house_id', houseId)
         .neq('status', 'cancelled')
         .gte('check_out', heute);
@@ -429,7 +429,7 @@ serve(async (req) => {
 
       const { data: direkt } = await supabase
         .from('bookings')
-        .select('id, guest_name, check_in, check_out, status, platform, house_id, updated_at, portale_geprueft_am, houses(name), guests!bookings_guest_id_fkey(name)')
+        .select('id, check_in, check_out, status, platform, house_id, updated_at, portale_geprueft_am, houses(name), guests!bookings_guest_id_fkey(name)')
         // Großzügiger Filter — ALLES, was kein eindeutiges Portal ist:
         //   null      "Keine Angabe" im Formular
         //   direct    ausdrücklich als Direktbuchung angelegt
