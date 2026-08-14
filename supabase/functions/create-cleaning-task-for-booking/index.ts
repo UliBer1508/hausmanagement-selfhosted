@@ -62,7 +62,6 @@ serve(async (req) => {
       .select(`
         id,
         house_id,
-        guest_name,
         number_of_guests,
         check_in,
         check_out,
