@@ -56,7 +56,7 @@ serve(async (req) => {
     // Load historical bookings for this house
     const { data: bookings, error: bookingsError } = await supabase
       .from('bookings')
-      .select('*')
+      .select('*, guests!bookings_guest_id_fkey(nationality)')
       .eq('house_id', houseId)
       .eq('status', 'confirmed')
       .order('check_in', { ascending: false })
@@ -73,7 +73,8 @@ serve(async (req) => {
       acc[month].count++;
       acc[month].totalRevenue += booking.booking_amount || 0;
       
-      const nat = booking.nationality || 'unknown';
+      // Etappe 4: Nationalitaet aus der guests-Relation
+      const nat = (booking as any).guests?.nationality || booking.nationality || 'unknown';
       acc[month].nationalities[nat] = (acc[month].nationalities[nat] || 0) + 1;
       
       return acc;
@@ -106,7 +107,7 @@ serve(async (req) => {
           checkOut: b.check_out,
           guests: b.number_of_guests,
           amount: b.booking_amount,
-          nationality: b.nationality,
+          nationality: (b as any).guests?.nationality || b.nationality,
           platform: b.platform,
         })),
       },
