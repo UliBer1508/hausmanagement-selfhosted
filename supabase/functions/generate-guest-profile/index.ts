@@ -52,11 +52,15 @@ serve(async (req) => {
 
     // 2. Prüfe ob bereits Gästeprofil existiert
     if (!generate_new) {
+      // Etappe 4: E-Mail aus der guests-Relation. Vorher stand hier
+      // booking.guest_email — der Cache-Treffer haette nach dem Wegfall der
+      // Kopiespalten nie mehr gegriffen, und bei leerer Kopie schon heute nicht.
+      const cacheEmail = (booking as any).guests?.email || booking.guest_email;
       const { data: existingProfile } = await supabase
         .from('guest_preferences')
         .select('*')
         .eq('booking_id', booking_id)
-        .eq('guest_email', booking.guest_email)
+        .eq('guest_email', cacheEmail)
         .single();
 
       if (existingProfile) {
