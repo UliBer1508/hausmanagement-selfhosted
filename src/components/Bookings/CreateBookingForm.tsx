@@ -396,7 +396,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         // Gastname wird in der Konflikt-Meldung angezeigt (weiter unten:
         // "Konflikt mit Buchung von ..."), deshalb wird er gebraucht.
         // Quelle ist die guests-Relation (Etappe 4, Block 2).
-        .select('id, check_in, check_out, status, guest_name, guests!bookings_guest_id_fkey(name)')
+        .select('id, check_in, check_out, status, guests!bookings_guest_id_fkey(name)')
         .eq('house_id', data.house_id)
         .in('status', ['confirmed', 'checked_in']);
 

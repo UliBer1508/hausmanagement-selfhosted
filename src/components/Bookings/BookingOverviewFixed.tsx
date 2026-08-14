@@ -157,10 +157,6 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
         .select(`
           id,
           guest_id,
-          guest_name,
-          guest_email,
-          guest_phone,
-          nationality,
           check_in,
           check_out,
           number_of_guests,
