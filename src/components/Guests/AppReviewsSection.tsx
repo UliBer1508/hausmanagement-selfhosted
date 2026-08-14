@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useState } from 'react';
 import { openEmail } from '@/lib/mailtoHelper';
+import { getGuestName, getGuestEmail } from '@/lib/guestHelpers';
 
 interface AppReviewsSectionProps {
   selectedHouseId: string;
@@ -63,6 +64,7 @@ export const AppReviewsSection = ({ selectedHouseId }: AppReviewsSectionProps) =
             guest_email,
             guest_phone,
             nationality,
+            guests(name, email, phone, nationality),
             check_in,
             check_out,
             number_of_guests,
@@ -290,7 +292,7 @@ export const AppReviewsSection = ({ selectedHouseId }: AppReviewsSectionProps) =
                         </div>
                       </td>
                       <td className="p-4">
-                        <div className="font-semibold">{booking.guest_name}</div>
+                        <div className="font-semibold">{getGuestName(booking)}</div>
                         {booking.nationality && (
                           <div className="text-xs text-muted-foreground">{booking.nationality}</div>
                         )}
@@ -301,7 +303,7 @@ export const AppReviewsSection = ({ selectedHouseId }: AppReviewsSectionProps) =
                             variant="outline"
                             size="sm"
                             className="w-full justify-start"
-                            onClick={() => openEmail({ to: booking.guest_email })}
+                            onClick={() => openEmail({ to: getGuestEmail(booking) || undefined })}
                           >
                             <Mail className="h-3 w-3 mr-2" />
                             Email
