@@ -364,9 +364,18 @@ Buchungsreinigung dazu, sind das schlicht mehr `cleaning_hours` auf demselben
 Task, keine zweite Aufgabe.
 
 **Dienstleister:** Amela (Standard) und Boris (springt ein, macht die großen
-Fenster). Boris hat **kein Portal** — er wird per WhatsApp/E-Mail erreicht.
-`waiting_for` in `max_actions` kennt ihn trotzdem (`'boris'`), damit
+Fenster). **Korrektur 18.08.2026:** Hier stand bis heute „Boris hat kein Portal
+— er wird per WhatsApp/E-Mail erreicht". Das ist seit dem **21.07.2026** falsch:
+Boris hat ein eigenes Portal (`boris-clean-hub-selfhosted`, Template-Kopie des
+Amela-Portals, Domain `boris-clean-hub-selfhosted.vercel.app`). Die Trennung der
+beiden Portale läuft **ausschließlich** über `service_tasks.provider_id`
+(Boris `193a013f-45ed-4621-b95f-b449aa79c2c9`, Amela
+`9de6e071-7e89-4d66-9433-a5f01acaa493`) — es gibt keine getrennten Tabellen und
+keine Mandantentrennung auf DB-Ebene.
+`waiting_for` in `max_actions` kennt ihn (`'boris'`), damit
 `MaxActionsPanel.tsx` seinen Namen statt des Rohwerts `provider` zeigt.
+Boris hat **kein Max-Chat** — Terminfragen erreichen ihn nur über den
+Erinnerungs-Banner im Portal.
 
 **Einschränkung `CleaningManagement.tsx`:** Die Query filtert mit
 `houses!inner(...)` auf `rental_type = 'tourist'`. Reinigungen an
@@ -645,6 +654,83 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
 - `Settings/AirROISyncCard.tsx` — AirROI-Abgleich
 - `CalendarSync/CalendarSyncCard.tsx` — **NEU 17.07.:** iCal-Kalender-Sync
   (siehe Modul 13b).
+---
+
+## 13c. Modul „Kalender" (Tab 📅) — nachgetragen 18.08.2026
+
+> **Warum das hier fehlte:** Der Kalender wurde am 27.07.2026 neu gebaut
+> (`docs/Session-2026-07-27-Kalender-Neubau.md`). Jenes Dokument behauptet, es
+> „ergänzt CODE-INDEX.md (Modul Kalender)" — dieses Modul gab es hier nie.
+> `HouseStackedCalendar.tsx` und `BookingTimeline.tsx` kamen im gesamten Index
+> kein einziges Mal vor. Nach CODING-GUIDE A4.11 hätte das im selben Commit
+> passieren müssen.
+
+**Einstieg:** `components/Dashboard/CalendarTab.tsx` ← `pages/OriginalDashboard.tsx`
+(`switch(activeTab)`, kein Routing). Daten kommen als Props von oben:
+`bookingsData`, `serviceTasks`, `linenOrders`, `houses`.
+
+### Zwei Ansichten, ein Prinzip: Zeile = Objekt, Spalte = Tag
+
+| Ansicht | Datei | Zweck |
+|---|---|---|
+| Monat / Jahr | `components/Calendar/HouseStackedCalendar.tsx` | Häuser untereinander, Tage als Spalten, ein Kästchen je Tag. Beantwortet „wechseln beide Häuser am selben Tag?" |
+| Timeline | `components/Calendar/BookingTimeline.tsx` | Durchgehende Buchungsbalken über ein rollendes 3-Monats-Fenster. Beantwortet „wie lang ist der Aufenthalt, wo sind Lücken?" |
+
+Beide öffnen dasselbe Popup (`Dialog` in `CalendarTab.tsx`). Eine Wochenansicht
+gibt es bewusst **nicht mehr** (27.07.2026 ersatzlos entfernt).
+
+### Belegungslogik und Farben — die eine Quelle
+
+- `getHouseColors(houseName)` in `src/lib/utils.ts` — Wald cyan `#22d3ee`,
+  Venediger amber `#fbbf24`, sonst grau. Abgleich über **Namensbestandteile**
+  (`includes`), nie über den exakten Namen: eine Tabelle mit exaktem Schlüssel
+  traf „Venediger Chalet" monatelang nicht und fiel still auf Grau zurück
+  (Session 2026-07-27, Abschnitt A).
+- `getDayInfo()` in `HouseStackedCalendar.tsx` entscheidet je Tag zwischen
+  `free` / `occupied` / `checkin` / `checkout` / `changeover`. **Wechseltag wird
+  vor An-/Abreise geprüft**, sonst verschwindet die abreisende Buchung.
+- `getCellStyle()` erzeugt das diagonale Muster (42 % / #9ca3af / 58 %) —
+  identisch zum Website-Kalender `AvailabilityCalendar.tsx`
+  (`web-takeover-buddy`), damit Gast, Uli und Dienstleister dasselbe Bild sehen.
+
+### ⚠️ Icon-Zuordnung: Anreisetag, nicht Termintag
+
+Reinigungs- und Wäsche-Icons sitzen im **ersten Kästchen der Buchung**
+(Anreisetag), zugeordnet über `booking_id` — in **beiden** Ansichten. Der echte
+Termin steht nur im Tooltip und im Popup.
+
+> **Achtung beim Lesen der Altdoku:** `Session-2026-07-27-Kalender-Neubau.md`
+> beschreibt in Abschnitt E das **Gegenteil** (Icons auf `scheduled_date` /
+> `delivery_date`) samt Merksatz. Das war der erste Entwurf; die Zuordnung wurde
+> am selben Tag auf Vorgabe von Uli auf die Buchung umgestellt (Kommentar im
+> Code: „ZUORDNUNG UEBER DIE BUCHUNG (27.07.2026, Vorgabe Uli)"). **Der Code
+> gilt.** Korrekturhinweis steht seit 18.08.2026 auch im Session-Dokument.
+
+Gelieferte Wäsche (`status = 'delivered'`) wird **angezeigt** (grün), nicht
+ausgeblendet — sonst ist im Rückblick nicht mehr prüfbar, ob rechtzeitig
+geliefert wurde.
+
+### Was das Raster in die Portale trägt (18.08.2026)
+
+Dieselbe Darstellung gibt es jetzt auch in den Dienstleister-Portalen. Dort
+liegt sie in zwei eigenen Dateien, die **inhaltsgleich in allen Portal-Repos**
+sind: `src/lib/belegung.ts` (Belegungslogik + Hausfarben) und
+`src/components/Belegungsraster.tsx` (Darstellung). Zuerst umgesetzt im
+**Boris-Portal**, danach Amela und Teuni.
+
+Beim nächsten Anfassen der Hausverwaltung sollte `HouseStackedCalendar.tsx` die
+Logik ebenfalls aus `belegung.ts` beziehen, statt sie selbst zu definieren —
+sonst gibt es vier Definitionen von „Wechseltag". Reihenfolge bewusst so: erst
+im Portal beweisen, dann in der Hausverwaltung austauschen.
+
+### Offen seit 27.07.2026
+
+**Kollisions-Markierung** in der Hausverwaltung: Tag hervorheben, wenn **beide**
+Häuser am selben Tag Reinigung, Wäschelieferung oder Check-in haben — Amela und
+Teuni können nicht zwei Häuser gleichzeitig bedienen. Mockup abgestimmt, in der
+Hausverwaltung nicht umgesetzt. **Im Boris-Portal ist es seit 18.08.2026 gebaut**
+(kleiner amber Punkt links oben in der Zelle) — von dort übernehmbar.
+
 ---
 
 ## 13b. Modul „Kalender-Sync (iCal)" — NEU 17.07.2026

@@ -149,6 +149,21 @@ abgeschlossene Reinigungen.
 
 ### E) Icon am falschen Tag
 
+> **⚠️ KORREKTUR 18.08.2026 — dieser Abschnitt beschreibt NICHT den heutigen
+> Code.** Was hier steht, war der Stand am Vormittag des 27.07. Noch am selben
+> Tag wurde die Zuordnung auf Vorgabe von Uli umgedreht: Reinigungs- und
+> Wäsche-Icon sitzen im **ersten Kästchen der Buchung** (Anreisetag), zugeordnet
+> über `booking_id` — auch in der Monatsansicht. Der echte Termin steht im
+> Tooltip und im Popup. Nachzulesen im Code, `HouseStackedCalendar.tsx`:
+> „ZUORDNUNG UEBER DIE BUCHUNG (27.07.2026, Vorgabe Uli)".
+>
+> Der Merksatz unten („dieselbe fachliche Zuordnung braucht je nach
+> Darstellungsform eine andere technische Anknüpfung") bleibt trotzdem richtig
+> und wurde bei den Portalen erneut gebraucht: eine Reinigung **ohne** Buchung
+> (Fensterreinigung) hat keinen Anreisetag und kann nur auf ihrem echten
+> `scheduled_date` sitzen. Siehe `docs/Session-2026-08-18-Belegungsraster-Portale.md`.
+
+
 Erster Entwurf der Monatsansicht hängte die Icons an den Check-in-Tag der
 Buchung (übernommen aus der Timeline). In der Timeline ist das richtig — ein
 Balken hat keine Tagesspalte. In der Monatsansicht ist jede Zelle **ein** Tag,
