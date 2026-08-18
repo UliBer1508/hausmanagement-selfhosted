@@ -53,6 +53,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { Mail, CreditCard, AlertCircle } from 'lucide-react';
+import { getGuestName, getGuestEmail, getGuestPhone, getGuestNationality } from '@/lib/guestHelpers';
 
 const bookingSchema = z.object({
   house_id: z.string().min(1, 'Ferienhaus ist erforderlich'),
@@ -223,10 +224,15 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         number_of_children: children,
         check_in: new Date(initialData.check_in),
         check_out: new Date(initialData.check_out),
-        guest_name: initialData.guest_name,
-        guest_email: initialData.guest_email || '',
-        guest_phone: initialData.guest_phone || '',
-        nationality: initialData.nationality && initialData.nationality !== 'none' ? initialData.nationality : '',
+        // Etappe 4: Quelle ist die guests-Relation; die Kopiespalten in bookings
+        // sind nur noch Rueckfall und verschwinden in Etappe 6.
+        guest_name:  getGuestName(initialData) === 'Unbekannt' ? '' : getGuestName(initialData),
+        guest_email: getGuestEmail(initialData) || '',
+        guest_phone: getGuestPhone(initialData) || '',
+        nationality: (() => {
+          const n = getGuestNationality(initialData);
+          return n && n !== 'none' ? n : '';
+        })(),
         booking_amount: initialData.booking_amount || undefined,
         currency: initialData.currency || 'EUR',
         status: initialData.status || 'confirmed',

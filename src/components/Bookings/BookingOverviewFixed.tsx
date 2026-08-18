@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { useDeleteBooking } from '@/hooks/useBookings';
 import CreateBookingDialog from './CreateBookingDialog';
 import EditBookingDialog from './EditBookingDialog';
+import { withGuestData } from '@/lib/guestHelpers';
 import { getGuestName, getGuestNationality } from '@/lib/guestHelpers';
 import { useGuestStayCounts, getGuestCategory } from '@/hooks/useGuestStayCounts';
 import { getCountryName } from '@/lib/countries';
@@ -185,7 +186,10 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
         .order('check_in', { ascending: true });
       
       if (error) throw error;
-      return data;
+      // Etappe 4, Schritt 5.1: Gastfelder aus der guests-Relation setzen.
+      // Ohne diesen Schritt kommen guest_name/-email/-phone/nationality NICHT mit
+      // (sie stehen nicht mehr in der Feldliste) und der Bearbeiten-Dialog bleibt leer.
+      return withGuestData(data as any);
     },
   });
 

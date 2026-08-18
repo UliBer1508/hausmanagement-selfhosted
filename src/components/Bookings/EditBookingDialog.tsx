@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import CreateBookingForm from './CreateBookingForm';
 import { BookingWithHouse } from '@/types';
+import { getGuestName } from '@/lib/guestHelpers';
 
 interface EditBookingDialogProps {
   booking: BookingWithHouse;
@@ -54,7 +55,7 @@ const EditBookingDialog = ({
         <DialogHeader>
           <DialogTitle>Buchung bearbeiten</DialogTitle>
           <DialogDescription>
-            Bearbeiten Sie die Buchungsdetails für {booking.guest_name}
+            Bearbeiten Sie die Buchungsdetails für {getGuestName(booking)}
           </DialogDescription>
         </DialogHeader>
         <CreateBookingForm 
