@@ -88,7 +88,7 @@ serve(async (req) => {
     console.log('📋 Loading provider...');
     const { data: provider, error: providerError } = await supabase
       .from('service_providers')
-      .select('id, name, hourly_rate')
+      .select('id, name, hourly_rate, billing_mode, flat_rate, vat_percentage')
       .eq('id', settings.default_provider_id)
       .single();
 
@@ -110,15 +110,47 @@ serve(async (req) => {
       console.log('📅 Scheduled for check-out:', scheduledDate);
     }
 
-    // 5. Calculate cost
-    const defaultHours = booking.houses?.default_cleaning_hours || 3;
-    const hourlyRate = provider.hourly_rate || 50;
-    const estimatedCost = defaultHours * hourlyRate;
+    // 5. Kosten berechnen
+    //
+    // Bewusst identische Kopie von src/lib/cleaningCost.ts — Deno kann die
+    // Datei nicht importieren. Wer dort etwas aendert, MUSS es hier mitziehen.
+    //
+    // Der frueher hier verbaute stille Rueckfall `provider.hourly_rate || 50`
+    // ist ersatzlos entfallen. Er hat Betraege erfunden: als Boris am
+    // 19.08.2026 auf Pauschale umgestellt wurde und `hourly_rate` dadurch
+    // null war, haette er 50 EUR/Std x Stunden geschrieben.
+    const round2 = (v: number) => Math.round(v * 100) / 100;
 
-    console.log('💰 Cost calculation:');
-    console.log('  Hours:', defaultHours);
-    console.log('  Rate:', hourlyRate);
-    console.log('  Total:', estimatedCost);
+    const defaultHours = booking.houses?.default_cleaning_hours || 3;
+    const billingMode = provider.billing_mode === 'flat' ? 'flat' : 'hourly';
+
+    let estimatedCost: number;
+
+    if (billingMode === 'flat') {
+      if (provider.flat_rate == null || !(provider.flat_rate > 0)) {
+        throw new Error(
+          `Dienstleister „${provider.name}" rechnet pauschal ab, hat aber keine Pauschale hinterlegt. Reinigung wurde NICHT angelegt.`
+        );
+      }
+      estimatedCost = round2(Number(provider.flat_rate));
+    } else {
+      if (provider.hourly_rate == null || !(provider.hourly_rate > 0)) {
+        throw new Error(
+          `Dienstleister „${provider.name}" rechnet nach Stunden ab, hat aber keinen Stundensatz hinterlegt. Reinigung wurde NICHT angelegt.`
+        );
+      }
+      estimatedCost = round2(Number(provider.hourly_rate) * defaultHours);
+    }
+
+    const vatPercentage = provider.vat_percentage ?? null;
+    const vatAmount = vatPercentage == null ? null : round2((estimatedCost * vatPercentage) / 100);
+
+    console.log('💰 Kostenberechnung:');
+    console.log('  Abrechnungsart:', billingMode);
+    console.log('  Stunden:', defaultHours);
+    console.log('  Netto:', estimatedCost);
+    console.log('  MwSt-Satz:', vatPercentage);
+    console.log('  MwSt-Betrag:', vatAmount);
 
     // 6. Create service task
     // Nutze guests-Relation falls verfügbar, sonst Legacy-Feld
@@ -137,6 +169,7 @@ serve(async (req) => {
         scheduled_time: scheduledTime,
         cleaning_hours: defaultHours,
         cleaning_cost: estimatedCost,
+        cleaning_vat_percentage: vatPercentage,
         provider_id: settings.default_provider_id,
         status: 'draft',
         notes: `Automatisch erstellt für Buchung von ${guestName} - Bitte prüfen`,
@@ -195,6 +228,8 @@ serve(async (req) => {
         scheduled_date: formattedDate,
         scheduled_time: scheduledTime,
         estimated_cost: estimatedCost,
+        vat_percentage: vatPercentage,
+        vat_amount: vatAmount,
         provider_name: provider.name,
         house_name: booking.houses?.name,
         service_task_id: serviceTask.id,
