@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { calculateCleaningCost, formatEur } from '@/lib/cleaningCost';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -91,7 +92,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
           *,
           houses!service_tasks_house_id_fkey(id, name, address, default_cleaning_hours),
           bookings!service_tasks_booking_id_fkey(id, guest_name, guest_email, guest_phone, check_in, check_out, number_of_guests, booking_amount),
-          service_providers!service_tasks_provider_id_fkey(id, name, hourly_rate),
+          service_providers!service_tasks_provider_id_fkey(id, name, hourly_rate, billing_mode, flat_rate, vat_percentage),
           cleaning_assignments!cleaning_assignments_service_task_id_fkey(id, cleaning_staff_id, cleaning_staff!cleaning_assignments_cleaning_staff_id_fkey(id, name, email, phone, hourly_rate))
         `)
         .eq('id', taskId)
@@ -110,9 +111,8 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     queryFn: async () => {
       const { data } = await supabase
         .from('service_providers')
-        .select('id, name, hourly_rate')
-        .eq('service_type', 'cleaning')
-        .eq('is_active', true);
+        .select('id, name, hourly_rate, billing_mode, flat_rate, vat_percentage, is_active')
+        .eq('service_type', 'cleaning');
       return data || [];
     },
     enabled: open,
@@ -208,9 +208,8 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
   // Calculate cleaning cost
   const selectedProvider = providers?.find(p => p.id === form.watch('provider_id'));
   const cleaningHours = form.watch('cleaning_hours');
-  const cleaningCost = selectedProvider?.hourly_rate && cleaningHours
-    ? (selectedProvider.hourly_rate * cleaningHours)
-    : null;
+  const costResult = calculateCleaningCost(selectedProvider as any, cleaningHours);
+  const cleaningCost = costResult.net;
 
   // Track if status changed
   const originalStatus = task?.status;
@@ -218,6 +217,10 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
   // Update task mutation
   const updateTaskMutation = useMutation({
     mutationFn: async (data: EditTaskForm) => {
+      if (costResult.error) {
+        throw new Error(costResult.error);
+      }
+
       const statusChanged = data.status !== originalStatus;
 
       // Update service task
@@ -230,6 +233,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
           scheduled_time: data.scheduled_time || null,
           cleaning_hours: data.cleaning_hours,
           cleaning_cost: cleaningCost,
+          cleaning_vat_percentage: costResult.vatPercentage,
           payment_status: data.payment_status,
           status: data.status,
           notes: data.notes,
@@ -631,9 +635,20 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
                                   onChange={(e) => field.onChange(parseFloat(e.target.value))}
                                 />
                               </FormControl>
-                              {selectedProvider?.hourly_rate && cleaningCost && (
+                              {costResult.error ? (
+                                <p className="text-xs text-destructive">{costResult.error}</p>
+                              ) : costResult.net != null && (
                                 <p className="text-xs text-muted-foreground">
-                                  <strong>{cleaningCost.toFixed(2)} EUR</strong> ({selectedProvider.hourly_rate} EUR/Std)
+                                  <strong>{formatEur(costResult.net)}</strong> netto{' '}
+                                  {costResult.mode === 'flat'
+                                    ? '(Pauschale)'
+                                    : `(${selectedProvider?.hourly_rate} EUR/Std)`}
+                                  {costResult.vatPercentage != null && (
+                                    <>
+                                      {' '}· zzgl. {costResult.vatPercentage}% MwSt ={' '}
+                                      <strong>{formatEur(costResult.gross)}</strong> brutto
+                                    </>
+                                  )}
                                 </p>
                               )}
                               <FormMessage />

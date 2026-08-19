@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { getGuestName } from '@/lib/guestHelpers';
 import { todayISO, toISODate } from '@/lib/dateHelpers';
+import { calculateCleaningCost, formatEur } from '@/lib/cleaningCost';
 
 import {
   Dialog,
@@ -139,7 +140,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
     queryFn: async () => {
       const { data } = await supabase
         .from('service_providers')
-        .select('id, name, hourly_rate')
+        .select('id, name, hourly_rate, billing_mode, flat_rate, vat_percentage')
         .eq('service_type', 'cleaning')
         .eq('is_active', true);
       return data || [];
@@ -196,13 +197,16 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
   // Calculate cleaning cost
   const selectedProvider = providers?.find(p => p.id === form.watch('provider_id'));
   const cleaningHours = form.watch('cleaning_hours');
-  const cleaningCost = selectedProvider?.hourly_rate && cleaningHours 
-    ? (selectedProvider.hourly_rate * cleaningHours)
-    : null;
+  const costResult = calculateCleaningCost(selectedProvider as any, cleaningHours);
+  const cleaningCost = costResult.net;
 
   // Create task mutation
   const createTaskMutation = useMutation({
     mutationFn: async (data: CreateTaskForm) => {
+      if (costResult.error) {
+        throw new Error(costResult.error);
+      }
+
       const taskData = {
         house_id: data.house_id,
         ...(data.booking_id && { booking_id: data.booking_id }),
@@ -212,6 +216,7 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
         scheduled_time: data.scheduled_time || null,
         cleaning_hours: data.cleaning_hours,
         cleaning_cost: cleaningCost,
+        cleaning_vat_percentage: costResult.vatPercentage,
         payment_status: 'unpaid' as const,
         status: 'scheduled' as const,
         notes: data.notes || null,
@@ -586,9 +591,21 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
                             onChange={(e) => field.onChange(parseFloat(e.target.value))}
                           />
                         </FormControl>
-                        {selectedProvider?.hourly_rate && cleaningCost && (
+                        {costResult.error ? (
+                          <p className="text-sm text-destructive">{costResult.error}</p>
+                        ) : costResult.net != null && (
                           <p className="text-sm text-muted-foreground">
-                            Kosten: <strong>{cleaningCost.toFixed(2)} EUR</strong> ({selectedProvider.hourly_rate} EUR/Std × {field.value} Std)
+                            Kosten netto: <strong>{formatEur(costResult.net)}</strong>{' '}
+                            {costResult.mode === 'flat'
+                              ? '(Pauschale pro Reinigung)'
+                              : `(${selectedProvider?.hourly_rate} EUR/Std × ${field.value} Std)`}
+                            {costResult.vatPercentage != null && (
+                              <>
+                                <br />
+                                zzgl. {costResult.vatPercentage}% MwSt {formatEur(costResult.vatAmount)} ={' '}
+                                <strong>{formatEur(costResult.gross)}</strong> brutto
+                              </>
+                            )}
                           </p>
                         )}
                         <FormMessage />
