@@ -523,6 +523,7 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
                     <Label htmlFor="hourly_rate">Stundensatz (EUR netto/Std) *</Label>
                     <Input
                       id="hourly_rate"
+                      onWheel={(e) => (e.target as HTMLElement).blur()}
                       type="number"
                       step="0.01"
                       min="0"
@@ -542,6 +543,7 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
                     <Label htmlFor="flat_rate">Pauschale pro Reinigung (EUR netto) *</Label>
                     <Input
                       id="flat_rate"
+                      onWheel={(e) => (e.target as HTMLElement).blur()}
                       type="number"
                       step="0.01"
                       min="0"
@@ -562,6 +564,7 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
                   <Label htmlFor="vat_percentage">MwSt-Satz (%) *</Label>
                   <Input
                     id="vat_percentage"
+                    onWheel={(e) => (e.target as HTMLElement).blur()}
                     type="number"
                     step="0.01"
                     min="0"
@@ -583,6 +586,7 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
                 <Label htmlFor="hourly_rate">Stundensatz (EUR/Std)</Label>
                 <Input
                   id="hourly_rate"
+                  onWheel={(e) => (e.target as HTMLElement).blur()}
                   type="number"
                   step="0.01"
                   min="0"
