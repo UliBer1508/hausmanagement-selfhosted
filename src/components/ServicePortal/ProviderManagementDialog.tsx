@@ -18,7 +18,10 @@ const providerSchema = z.object({
   service_type: z.enum(['cleaning', 'laundry']),
   contact_email: z.string().trim().email('Ungültige E-Mail-Adresse').max(255),
   contact_phone: z.string().trim().max(50),
+  billing_mode: z.enum(['hourly', 'flat']),
   hourly_rate: z.number().min(0, 'Stundensatz muss positiv sein').optional(),
+  flat_rate: z.number().min(0, 'Pauschale muss positiv sein').optional(),
+  vat_percentage: z.number().min(0, 'MwSt-Satz muss positiv sein').max(100, 'MwSt-Satz maximal 100').optional(),
   is_active: z.boolean(),
   has_portal: z.boolean(),
   portal_token: z.string().trim().optional()
@@ -42,7 +45,10 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
     service_type: 'cleaning',
     contact_email: '',
     contact_phone: '',
+    billing_mode: 'hourly',
     hourly_rate: undefined,
+    flat_rate: undefined,
+    vat_percentage: undefined,
     is_active: true,
     has_portal: false,
     portal_token: ''
@@ -65,20 +71,31 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
   const createMutation = useMutation({
     mutationFn: async (data: ProviderFormData) => {
       const validated = providerSchema.parse(data);
-      const { error } = await supabase
+      // Cast noetig, bis integrations/supabase/types.ts neu generiert ist
+      // (billing_mode, flat_rate, vat_percentage aus SQL/50_...).
+      const payload = {
+        name: validated.name,
+        service_type: validated.service_type,
+        contact_email: validated.contact_email,
+        contact_phone: validated.contact_phone,
+        billing_mode: validated.billing_mode,
+        hourly_rate: validated.billing_mode === 'hourly' ? validated.hourly_rate ?? null : null,
+        flat_rate: validated.billing_mode === 'flat' ? validated.flat_rate ?? null : null,
+        vat_percentage: validated.vat_percentage ?? null,
+        is_active: validated.is_active,
+        has_portal: validated.has_portal,
+        portal_token: validated.portal_token || null
+      };
+
+      const { data: inserted, error } = await supabase
         .from('service_providers')
-        .insert([{
-          name: validated.name,
-          service_type: validated.service_type,
-          contact_email: validated.contact_email,
-          contact_phone: validated.contact_phone,
-          hourly_rate: validated.hourly_rate ?? null,
-          is_active: validated.is_active,
-          has_portal: validated.has_portal,
-          portal_token: validated.portal_token || null
-        }]);
-      
+        .insert([payload as any])
+        .select('id');
+
       if (error) throw error;
+      if (!inserted || inserted.length === 0) {
+        throw new Error('Provider wurde nicht angelegt (keine Zeile betroffen).');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['service-providers'] });
@@ -101,21 +118,33 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: ProviderFormData }) => {
       const validated = providerSchema.parse(data);
-      const { error } = await supabase
+      // Cast noetig, bis integrations/supabase/types.ts neu generiert ist.
+      // Der jeweils NICHT aktive Satz wird bewusst auf null gesetzt, damit nie
+      // zwei Betraege gleichzeitig in der Zeile stehen.
+      const payload = {
+        name: validated.name,
+        service_type: validated.service_type,
+        contact_email: validated.contact_email,
+        contact_phone: validated.contact_phone,
+        billing_mode: validated.billing_mode,
+        hourly_rate: validated.billing_mode === 'hourly' ? validated.hourly_rate ?? null : null,
+        flat_rate: validated.billing_mode === 'flat' ? validated.flat_rate ?? null : null,
+        vat_percentage: validated.vat_percentage ?? null,
+        is_active: validated.is_active,
+        has_portal: validated.has_portal,
+        portal_token: validated.portal_token || null
+      };
+
+      const { data: updated, error } = await supabase
         .from('service_providers')
-        .update({
-          name: validated.name,
-          service_type: validated.service_type,
-          contact_email: validated.contact_email,
-          contact_phone: validated.contact_phone,
-          hourly_rate: validated.hourly_rate ?? null,
-          is_active: validated.is_active,
-          has_portal: validated.has_portal,
-          portal_token: validated.portal_token || null
-        })
-        .eq('id', id);
-      
+        .update(payload as any)
+        .eq('id', id)
+        .select('id');
+
       if (error) throw error;
+      if (!updated || updated.length === 0) {
+        throw new Error('Provider wurde nicht gespeichert (keine Zeile betroffen).');
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['service-providers'] });
@@ -166,7 +195,10 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
       service_type: 'cleaning',
       contact_email: '',
       contact_phone: '',
+      billing_mode: 'hourly',
       hourly_rate: undefined,
+      flat_rate: undefined,
+      vat_percentage: undefined,
       is_active: true,
       has_portal: false,
       portal_token: ''
@@ -185,7 +217,10 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
       service_type: provider.service_type,
       contact_email: provider.contact_email || '',
       contact_phone: provider.contact_phone || '',
-      hourly_rate: provider.hourly_rate || undefined,
+      billing_mode: provider.billing_mode === 'flat' ? 'flat' : 'hourly',
+      hourly_rate: provider.hourly_rate ?? undefined,
+      flat_rate: provider.flat_rate ?? undefined,
+      vat_percentage: provider.vat_percentage ?? undefined,
       is_active: provider.is_active,
       has_portal: provider.has_portal || false,
       portal_token: provider.portal_token || ''
@@ -193,6 +228,36 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
   };
 
   const handleSubmit = () => {
+    // Validation Reinigung: der zur Abrechnungsart passende Satz ist Pflicht.
+    // Frueher trug das Label nur einen Stern, geprueft wurde nichts — dadurch
+    // liessen sich Reinigungs-Provider ohne Satz speichern.
+    if (formData.service_type === 'cleaning') {
+      if (formData.billing_mode === 'hourly' && !(formData.hourly_rate && formData.hourly_rate > 0)) {
+        toast({
+          title: 'Fehler',
+          description: 'Bitte gib einen Stundensatz ein (Abrechnungsart: Pro Stunde).',
+          variant: 'destructive'
+        });
+        return;
+      }
+      if (formData.billing_mode === 'flat' && !(formData.flat_rate && formData.flat_rate > 0)) {
+        toast({
+          title: 'Fehler',
+          description: 'Bitte gib eine Pauschale pro Reinigung ein (Abrechnungsart: Pauschale).',
+          variant: 'destructive'
+        });
+        return;
+      }
+      if (formData.vat_percentage === undefined || formData.vat_percentage === null) {
+        toast({
+          title: 'Fehler',
+          description: 'Bitte gib den MwSt-Satz ein. Bei Kleinunternehmern 0 eintragen.',
+          variant: 'destructive'
+        });
+        return;
+      }
+    }
+
     // Validation: Portal-Link muss vorhanden sein wenn Portal aktiviert ist
     if (formData.has_portal && !formData.portal_token?.trim()) {
       toast({
@@ -280,10 +345,19 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
                             <span>{provider.contact_phone}</span>
                           </div>
                         )}
-                        {provider.hourly_rate && (
+                        {((provider as any).billing_mode === 'flat'
+                          ? (provider as any).flat_rate
+                          : provider.hourly_rate) != null && (
                           <div className="flex items-center gap-2 text-sm font-semibold text-green-700">
                             <span className="text-lg">€</span>
-                            <span>{provider.hourly_rate.toFixed(2)} EUR/Std</span>
+                            <span>
+                              {(provider as any).billing_mode === 'flat'
+                                ? `${Number((provider as any).flat_rate).toFixed(2)} EUR pauschal/Reinigung`
+                                : `${Number(provider.hourly_rate).toFixed(2)} EUR/Std`}
+                              {' netto'}
+                              {(provider as any).vat_percentage != null &&
+                                ` + ${Number((provider as any).vat_percentage).toFixed(0)} % MwSt`}
+                            </span>
                           </div>
                         )}
                         {provider.has_portal && provider.portal_token && (
@@ -426,26 +500,104 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="hourly_rate">
-                Stundensatz (EUR/Std) {formData.service_type === 'cleaning' && <span className="text-red-500">*</span>}
-              </Label>
-              <Input
-                id="hourly_rate"
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.hourly_rate ?? ''}
-                onChange={(e) => setFormData({ 
-                  ...formData, 
-                  hourly_rate: e.target.value ? parseFloat(e.target.value) : undefined 
-                })}
-                placeholder={formData.service_type === 'cleaning' ? 'z.B. 25.00' : 'Optional'}
-              />
-              <p className="text-xs text-muted-foreground">
-                Basis-Stundensatz für Kostenberechnungen
-              </p>
-            </div>
+            {formData.service_type === 'cleaning' ? (
+              <div className="space-y-4 rounded-lg border p-3">
+                <div className="space-y-2">
+                  <Label htmlFor="billing_mode">Abrechnungsart *</Label>
+                  <Select
+                    value={formData.billing_mode}
+                    onValueChange={(value: any) => setFormData({ ...formData, billing_mode: value })}
+                  >
+                    <SelectTrigger id="billing_mode">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hourly">Pro Stunde</SelectItem>
+                      <SelectItem value="flat">Pauschale pro Reinigung</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {formData.billing_mode === 'hourly' ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="hourly_rate">Stundensatz (EUR netto/Std) *</Label>
+                    <Input
+                      id="hourly_rate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.hourly_rate ?? ''}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        hourly_rate: e.target.value ? parseFloat(e.target.value) : undefined
+                      })}
+                      placeholder="z.B. 25.00"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Kosten = Stundensatz × Reinigungsstunden.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="flat_rate">Pauschale pro Reinigung (EUR netto) *</Label>
+                    <Input
+                      id="flat_rate"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.flat_rate ?? ''}
+                      onChange={(e) => setFormData({
+                        ...formData,
+                        flat_rate: e.target.value ? parseFloat(e.target.value) : undefined
+                      })}
+                      placeholder="z.B. 150.00"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Fester Betrag je Reinigungsauftrag, unabhängig von den Stunden.
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="vat_percentage">MwSt-Satz (%) *</Label>
+                  <Input
+                    id="vat_percentage"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={formData.vat_percentage ?? ''}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      vat_percentage: e.target.value ? parseFloat(e.target.value) : undefined
+                    })}
+                    placeholder="z.B. 20"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Wird auf dem Reinigungsauftrag mitgespeichert. Bei Kleinunternehmern 0 eintragen.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="hourly_rate">Stundensatz (EUR/Std)</Label>
+                <Input
+                  id="hourly_rate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.hourly_rate ?? ''}
+                  onChange={(e) => setFormData({
+                    ...formData,
+                    hourly_rate: e.target.value ? parseFloat(e.target.value) : undefined
+                  })}
+                  placeholder="Optional"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Wäschereien werden über Rechnungen abgerechnet, nicht über diesen Satz.
+                </p>
+              </div>
+            )}
 
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
