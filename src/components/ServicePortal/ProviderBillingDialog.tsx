@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
+import { getGuestName } from '@/lib/guestHelpers';
+import { calculateCleaningCost, grossFromTask, formatEur } from '@/lib/cleaningCost';
 import { LaundryInvoicesList } from './LaundryInvoicesList';
 import { LaundryOrdersOverview } from './LaundryOrdersOverview';
 import { TeuniOrdersOverview } from './TeuniOrdersOverview';
@@ -33,10 +37,11 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
           scheduled_date,
           cleaning_cost,
           cleaning_hours,
+          cleaning_vat_percentage,
           payment_status,
           status,
           houses:house_id (name),
-          bookings:booking_id (guest_name)
+          bookings:booking_id (guest_name, guests!bookings_guest_id_fkey(name))
         `)
         .eq('provider_id', provider.id)
         .eq('status', 'completed')
@@ -51,18 +56,101 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
     enabled: !!provider?.id && open
   });
 
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [recalcMode, setRecalcMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Beim Schliessen/Wechseln zuruecksetzen, damit keine alte Auswahl
+  // auf einen anderen Dienstleister durchschlaegt.
+  useEffect(() => {
+    setRecalcMode(false);
+    setSelectedIds([]);
+  }, [provider?.id, open]);
+
+  /**
+   * Neuberechnung EINES Auftrags nach der aktuell hinterlegten Definition
+   * des Dienstleisters (billing_mode + Satz + MwSt).
+   * Es gibt bewusst KEINE freie Betragseingabe: sonst gaebe es neben der
+   * Definition eine zweite Wahrheit.
+   */
+  const previewFor = (task: any) => calculateCleaningCost(provider, task.cleaning_hours);
+
+  const recalcMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 0) throw new Error('Keine Aufträge ausgewählt.');
+
+      const tasks = (billingData || []).filter((t: any) => ids.includes(t.id));
+      let changed = 0;
+
+      for (const task of tasks) {
+        const result = previewFor(task);
+        if (result.error) {
+          throw new Error(`${format(new Date(task.scheduled_date), 'dd.MM.yyyy')}: ${result.error}`);
+        }
+
+        const { data, error } = await supabase
+          .from('service_tasks')
+          .update({
+            cleaning_cost: result.net,
+            cleaning_vat_percentage: result.vatPercentage,
+            updated_at: new Date().toISOString(),
+          } as any)
+          .eq('id', task.id)
+          .select('id');
+
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          throw new Error(`Auftrag vom ${format(new Date(task.scheduled_date), 'dd.MM.yyyy')} wurde nicht geändert (keine Zeile betroffen).`);
+        }
+        changed++;
+      }
+
+      return changed;
+    },
+    onSuccess: (changed) => {
+      queryClient.invalidateQueries({ queryKey: ['provider-billing', provider?.id] });
+      queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+      setSelectedIds([]);
+      setRecalcMode(false);
+      toast({
+        title: 'Kosten neu berechnet',
+        description: `${changed} Auftrag/Aufträge wurden auf die aktuelle Definition gesetzt.`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Neuberechnung fehlgeschlagen.',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const toggleId = (id: string) =>
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  /** Vorauswahl: alles ausser bereits bezahlten Auftraegen. */
+  const selectUnpaid = () =>
+    setSelectedIds(
+      (billingData || [])
+        .filter((t: any) => t.payment_status !== 'paid')
+        .map((t: any) => t.id)
+    );
+
   // Gruppierung nach Payment Status
   const groupedData = useMemo(() => {
     if (!billingData) return [];
     
     const groups: {
-      paid: { label: string; tasks: any[]; sum: number; count: number; bgColor: string; textColor: string; borderColor: string };
-      unpaid: { label: string; tasks: any[]; sum: number; count: number; bgColor: string; textColor: string; borderColor: string };
-      pending: { label: string; tasks: any[]; sum: number; count: number; bgColor: string; textColor: string; borderColor: string };
+      paid: { label: string; tasks: any[]; sum: number; grossSum: number; count: number; bgColor: string; textColor: string; borderColor: string };
+      unpaid: { label: string; tasks: any[]; sum: number; grossSum: number; count: number; bgColor: string; textColor: string; borderColor: string };
+      pending: { label: string; tasks: any[]; sum: number; grossSum: number; count: number; bgColor: string; textColor: string; borderColor: string };
     } = {
-      paid: { label: '✅ Bezahlt', tasks: [], sum: 0, count: 0, bgColor: 'bg-green-50', textColor: 'text-green-700', borderColor: 'border-green-200' },
-      unpaid: { label: '💳 Offen', tasks: [], sum: 0, count: 0, bgColor: 'bg-red-50', textColor: 'text-red-700', borderColor: 'border-red-200' },
-      pending: { label: '⏳ Ausstehend', tasks: [], sum: 0, count: 0, bgColor: 'bg-orange-50', textColor: 'text-orange-700', borderColor: 'border-orange-200' }
+      paid: { label: '✅ Bezahlt', tasks: [], sum: 0, grossSum: 0, count: 0, bgColor: 'bg-green-50', textColor: 'text-green-700', borderColor: 'border-green-200' },
+      unpaid: { label: '💳 Offen', tasks: [], sum: 0, grossSum: 0, count: 0, bgColor: 'bg-red-50', textColor: 'text-red-700', borderColor: 'border-red-200' },
+      pending: { label: '⏳ Ausstehend', tasks: [], sum: 0, grossSum: 0, count: 0, bgColor: 'bg-orange-50', textColor: 'text-orange-700', borderColor: 'border-orange-200' }
     };
     
     billingData.forEach((task: any) => {
@@ -70,6 +158,8 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
       if (groups[status as keyof typeof groups]) {
         groups[status as keyof typeof groups].tasks.push(task);
         groups[status as keyof typeof groups].sum += Number(task.cleaning_cost) || 0;
+        groups[status as keyof typeof groups].grossSum +=
+          grossFromTask(task.cleaning_cost, task.cleaning_vat_percentage) || 0;
         groups[status as keyof typeof groups].count++;
       }
     });
@@ -87,7 +177,8 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
   }, [billingData]);
 
   // Summen berechnen
-  const totalAmount = groupedData.reduce((sum, g) => sum + g.sum, 0);
+  const totalAmount = Math.round(groupedData.reduce((sum, g) => sum + g.sum, 0) * 100) / 100;
+  const totalGross = Math.round(groupedData.reduce((sum, g) => sum + g.grossSum, 0) * 100) / 100;
   const totalCount = groupedData.reduce((sum, g) => sum + g.count, 0);
   const paidAmount = groupedData.find(g => g.label.includes('Bezahlt'))?.sum || 0;
   const paidCount = groupedData.find(g => g.label.includes('Bezahlt'))?.count || 0;
@@ -196,17 +287,67 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
           </Card>
         </div>
 
+        {/* Bedienleiste Neuberechnung */}
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          {!recalcMode ? (
+            <>
+              <Button size="sm" variant="outline" onClick={() => setRecalcMode(true)}>
+                Kosten neu berechnen
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Setzt ausgewählte Aufträge auf die aktuell hinterlegte Abrechnungsart von {provider?.name}.
+              </span>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="outline" onClick={selectUnpaid}>
+                Alle unbezahlten auswählen
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setSelectedIds([])}>
+                Auswahl leeren
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => recalcMutation.mutate(selectedIds)}
+                disabled={selectedIds.length === 0 || recalcMutation.isPending}
+              >
+                {recalcMutation.isPending
+                  ? 'Wird gespeichert...'
+                  : `${selectedIds.length} Auftrag/Aufträge überschreiben`}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setRecalcMode(false);
+                  setSelectedIds([]);
+                }}
+              >
+                Abbrechen
+              </Button>
+              <p className="w-full text-xs text-amber-700">
+                Bereits bezahlte Aufträge tragen den Betrag, der tatsächlich abgerechnet wurde.
+                Wer sie neu berechnet, verändert die Vergangenheit — nur tun, wenn der alte Betrag nachweislich falsch war.
+              </p>
+            </>
+          )}
+        </div>
+
         {/* Excel-ähnliche Tabelle */}
         <ScrollArea className="flex-1 border rounded-lg">
           <Table>
             <TableHeader>
               <TableRow>
+                {recalcMode && <TableHead className="w-10"></TableHead>}
                 <TableHead>Datum</TableHead>
                 <TableHead>Haus</TableHead>
                 <TableHead>Gast</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Stunden</TableHead>
-                <TableHead className="text-right">Kosten</TableHead>
+                <TableHead className="text-right">Netto</TableHead>
+                <TableHead className="text-right">MwSt</TableHead>
+                <TableHead className="text-right">Brutto</TableHead>
+                {recalcMode && <TableHead className="text-right">Neu (netto)</TableHead>}
                 <TableHead>Bezahlung</TableHead>
               </TableRow>
             </TableHeader>
@@ -215,7 +356,7 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
                 <React.Fragment key={groupIndex}>
                   {/* Gruppen-Header */}
                   <TableRow className="bg-muted/50 font-semibold hover:bg-muted/50">
-                    <TableCell colSpan={7}>
+                    <TableCell colSpan={recalcMode ? 11 : 9}>
                       {group.label} ({group.count} Aufträge)
                     </TableCell>
                   </TableRow>
@@ -223,9 +364,18 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
                   {/* Daten-Zeilen */}
                   {group.tasks.map((task: any) => (
                     <TableRow key={task.id}>
+                      {recalcMode && (
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.includes(task.id)}
+                            onCheckedChange={() => toggleId(task.id)}
+                            aria-label="Auftrag zur Neuberechnung auswählen"
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>{format(new Date(task.scheduled_date), 'dd.MM.yyyy')}</TableCell>
                       <TableCell>{task.houses?.name || '-'}</TableCell>
-                      <TableCell>{task.bookings?.guest_name || '-'}</TableCell>
+                      <TableCell>{task.bookings ? getGuestName(task.bookings) : '-'}</TableCell>
                       <TableCell>
                         <Badge variant={
                           task.status === 'completed' ? 'default' :
@@ -237,8 +387,36 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
                       </TableCell>
                       <TableCell className="text-right">{task.cleaning_hours || '-'}</TableCell>
                       <TableCell className="text-right font-semibold">
-                        {task.cleaning_cost ? `${Number(task.cleaning_cost).toFixed(2)} EUR` : '-'}
+                        {task.cleaning_cost != null ? formatEur(Number(task.cleaning_cost)) : '-'}
                       </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {task.cleaning_vat_percentage != null && task.cleaning_cost != null
+                          ? `${task.cleaning_vat_percentage}%`
+                          : '-'}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {formatEur(grossFromTask(task.cleaning_cost, task.cleaning_vat_percentage))}
+                      </TableCell>
+                      {recalcMode && (
+                        <TableCell className="text-right">
+                          {(() => {
+                            const preview = previewFor(task);
+                            if (preview.error) {
+                              return <span className="text-destructive text-xs">nicht berechenbar</span>;
+                            }
+                            const unchanged =
+                              task.cleaning_cost != null &&
+                              Number(task.cleaning_cost) === preview.net &&
+                              (task.cleaning_vat_percentage ?? null) === preview.vatPercentage;
+                            return (
+                              <span className={unchanged ? 'text-muted-foreground' : 'font-semibold text-green-700'}>
+                                {formatEur(preview.net)}
+                                {unchanged && ' (unverändert)'}
+                              </span>
+                            );
+                          })()}
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Badge variant={
                           task.payment_status === 'paid' ? 'default' :
@@ -253,12 +431,13 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
                   
                   {/* Summen-Zeile pro Gruppe */}
                   <TableRow className={`${group.bgColor} font-bold hover:${group.bgColor}`}>
-                    <TableCell colSpan={5} className="text-right">
+                    <TableCell colSpan={recalcMode ? 6 : 5} className="text-right">
                       Summe {group.label}:
                     </TableCell>
-                    <TableCell className="text-right">
-                      {group.sum.toFixed(2)} EUR
-                    </TableCell>
+                    <TableCell className="text-right">{formatEur(group.sum)}</TableCell>
+                    <TableCell></TableCell>
+                    <TableCell className="text-right">{formatEur(group.grossSum)}</TableCell>
+                    {recalcMode && <TableCell></TableCell>}
                     <TableCell></TableCell>
                   </TableRow>
                 </React.Fragment>
@@ -267,12 +446,13 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
               {/* Gesamt-Summe */}
               {groupedData.length > 0 && (
                 <TableRow className="bg-primary/10 font-bold text-lg hover:bg-primary/10">
-                  <TableCell colSpan={5} className="text-right">
+                  <TableCell colSpan={recalcMode ? 6 : 5} className="text-right">
                     GESAMTSUMME:
                   </TableCell>
-                  <TableCell className="text-right">
-                    {totalAmount.toFixed(2)} EUR
-                  </TableCell>
+                  <TableCell className="text-right">{formatEur(totalAmount)}</TableCell>
+                  <TableCell></TableCell>
+                  <TableCell className="text-right">{formatEur(totalGross)}</TableCell>
+                  {recalcMode && <TableCell></TableCell>}
                   <TableCell></TableCell>
                 </TableRow>
               )}
