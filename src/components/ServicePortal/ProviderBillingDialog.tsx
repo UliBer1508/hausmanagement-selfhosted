@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import { Input } from '@/components/ui/input';
+import { Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getGuestName } from '@/lib/guestHelpers';
 import { calculateCleaningCost, grossFromTask, formatEur } from '@/lib/cleaningCost';
@@ -146,6 +147,47 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
       );
     });
   }, [editMode, drafts, billingData]);
+
+  /**
+   * Bezahlstatus eines Auftrags per Klick umschalten.
+   * 'paid' -> 'unpaid', alles andere ('unpaid', 'pending', null) -> 'paid'.
+   * Ein zweiter Klick nimmt es zurueck; deshalb ohne Rueckfrage.
+   */
+  const paymentMutation = useMutation({
+    mutationFn: async (task: any) => {
+      const next = task.payment_status === 'paid' ? 'unpaid' : 'paid';
+
+      const { data, error } = await supabase
+        .from('service_tasks')
+        .update({ payment_status: next, updated_at: new Date().toISOString() } as any)
+        .eq('id', task.id)
+        .select('id');
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          `Auftrag vom ${format(new Date(task.scheduled_date), 'dd.MM.yyyy')} wurde nicht geändert (keine Zeile betroffen).`
+        );
+      }
+      return next;
+    },
+    onSuccess: (next) => {
+      queryClient.invalidateQueries({ queryKey: ['provider-billing', provider?.id] });
+      queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
+      toast({
+        title: next === 'paid' ? 'Als bezahlt markiert' : 'Als offen markiert',
+        description: 'Der Bezahlstatus wurde gespeichert.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Bezahlstatus konnte nicht geändert werden.',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -343,7 +385,8 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
         <div className="flex flex-wrap items-center gap-2 mb-2">
           {!editMode ? (
             <>
-              <Button size="sm" variant="outline" onClick={startEdit}>
+              <Button size="sm" onClick={startEdit} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Pencil className="w-4 h-4 mr-2" />
                 Einträge bearbeiten
               </Button>
               <span className="text-xs text-muted-foreground">
@@ -487,13 +530,28 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
                         </TableCell>
                       )}
                       <TableCell>
-                        <Badge variant={
-                          task.payment_status === 'paid' ? 'default' :
-                          task.payment_status === 'unpaid' ? 'destructive' : 'secondary'
-                        }>
-                          {task.payment_status === 'paid' ? '✅ Bezahlt' :
-                           task.payment_status === 'unpaid' ? '💳 Offen' : '⏳ Ausstehend'}
-                        </Badge>
+                        <button
+                          type="button"
+                          onClick={() => paymentMutation.mutate(task)}
+                          disabled={paymentMutation.isPending}
+                          title={
+                            task.payment_status === 'paid'
+                              ? 'Klicken, um wieder auf offen zu setzen'
+                              : 'Klicken, um als bezahlt zu markieren'
+                          }
+                          className="cursor-pointer disabled:opacity-50"
+                        >
+                          <Badge
+                            className="hover:opacity-80"
+                            variant={
+                              task.payment_status === 'paid' ? 'default' :
+                              task.payment_status === 'unpaid' ? 'destructive' : 'secondary'
+                            }
+                          >
+                            {task.payment_status === 'paid' ? '✅ Bezahlt' :
+                             task.payment_status === 'unpaid' ? '💳 Offen' : '⏳ Ausstehend'}
+                          </Badge>
+                        </button>
                       </TableCell>
                     </TableRow>
                   ))}
