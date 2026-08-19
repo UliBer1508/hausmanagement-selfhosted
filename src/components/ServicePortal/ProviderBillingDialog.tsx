@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { getGuestName } from '@/lib/guestHelpers';
 import { calculateCleaningCost, grossFromTask, formatEur } from '@/lib/cleaningCost';
@@ -58,42 +58,107 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [recalcMode, setRecalcMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  // Entwuerfe je Auftrag; Strings, damit das Feld beim Tippen leer sein darf.
+  const [drafts, setDrafts] = useState<Record<string, { hours: string; net: string; vat: string }>>({});
 
-  // Beim Schliessen/Wechseln zuruecksetzen, damit keine alte Auswahl
-  // auf einen anderen Dienstleister durchschlaegt.
   useEffect(() => {
-    setRecalcMode(false);
-    setSelectedIds([]);
+    setEditMode(false);
+    setDrafts({});
   }, [provider?.id, open]);
 
-  /**
-   * Neuberechnung EINES Auftrags nach der aktuell hinterlegten Definition
-   * des Dienstleisters (billing_mode + Satz + MwSt).
-   * Es gibt bewusst KEINE freie Betragseingabe: sonst gaebe es neben der
-   * Definition eine zweite Wahrheit.
-   */
-  const previewFor = (task: any) => calculateCleaningCost(provider, task.cleaning_hours);
+  const toStr = (v: any) => (v == null ? '' : String(v));
 
-  const recalcMutation = useMutation({
-    mutationFn: async (ids: string[]) => {
-      if (ids.length === 0) throw new Error('Keine Aufträge ausgewählt.');
+  const buildDrafts = (tasks: any[]) => {
+    const next: Record<string, { hours: string; net: string; vat: string }> = {};
+    for (const t of tasks) {
+      next[t.id] = {
+        hours: toStr(t.cleaning_hours),
+        net: toStr(t.cleaning_cost),
+        vat: toStr(t.cleaning_vat_percentage),
+      };
+    }
+    return next;
+  };
 
-      const tasks = (billingData || []).filter((t: any) => ids.includes(t.id));
-      let changed = 0;
+  const startEdit = () => {
+    setDrafts(buildDrafts(billingData || []));
+    setEditMode(true);
+  };
 
-      for (const task of tasks) {
-        const result = previewFor(task);
-        if (result.error) {
-          throw new Error(`${format(new Date(task.scheduled_date), 'dd.MM.yyyy')}: ${result.error}`);
-        }
+  const setDraft = (id: string, field: 'hours' | 'net' | 'vat', value: string) =>
+    setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
 
+  /** Fuellt eine Zeile mit dem Ergebnis der hinterlegten Abrechnungsart. */
+  const applyDefinition = (task: any) => {
+    const hours = Number(drafts[task.id]?.hours) || task.cleaning_hours;
+    const result = calculateCleaningCost(provider, hours);
+    if (result.error) {
+      toast({ title: 'Nicht berechenbar', description: result.error, variant: 'destructive' });
+      return;
+    }
+    setDrafts((prev) => ({
+      ...prev,
+      [task.id]: {
+        hours: toStr(hours),
+        net: toStr(result.net),
+        vat: toStr(result.vatPercentage),
+      },
+    }));
+  };
+
+  const applyDefinitionToAll = () => {
+    const next = { ...drafts };
+    let failed = 0;
+    for (const t of billingData || []) {
+      const hours = Number(next[t.id]?.hours) || t.cleaning_hours;
+      const result = calculateCleaningCost(provider, hours);
+      if (result.error) { failed++; continue; }
+      next[t.id] = { hours: toStr(hours), net: toStr(result.net), vat: toStr(result.vatPercentage) };
+    }
+    setDrafts(next);
+    if (failed > 0) {
+      toast({
+        title: 'Teilweise übernommen',
+        description: `${failed} Auftrag/Aufträge konnten nicht berechnet werden.`,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const numOrNull = (v: string) => {
+    const t = v.trim();
+    if (t === '') return null;
+    const n = Number(t.replace(',', '.'));
+    return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+  };
+
+  /** Zeilen, die sich gegenueber der Datenbank unterscheiden. */
+  const changedTasks = useMemo(() => {
+    if (!editMode) return [];
+    return (billingData || []).filter((t: any) => {
+      const d = drafts[t.id];
+      if (!d) return false;
+      return (
+        numOrNull(d.hours) !== (t.cleaning_hours == null ? null : Number(t.cleaning_hours)) ||
+        numOrNull(d.net) !== (t.cleaning_cost == null ? null : Number(t.cleaning_cost)) ||
+        numOrNull(d.vat) !== (t.cleaning_vat_percentage == null ? null : Number(t.cleaning_vat_percentage))
+      );
+    });
+  }, [editMode, drafts, billingData]);
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (changedTasks.length === 0) throw new Error('Keine Änderungen vorhanden.');
+      let saved = 0;
+      for (const task of changedTasks) {
+        const d = drafts[task.id];
         const { data, error } = await supabase
           .from('service_tasks')
           .update({
-            cleaning_cost: result.net,
-            cleaning_vat_percentage: result.vatPercentage,
+            cleaning_hours: numOrNull(d.hours),
+            cleaning_cost: numOrNull(d.net),
+            cleaning_vat_percentage: numOrNull(d.vat),
             updated_at: new Date().toISOString(),
           } as any)
           .eq('id', task.id)
@@ -101,43 +166,30 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
 
         if (error) throw error;
         if (!data || data.length === 0) {
-          throw new Error(`Auftrag vom ${format(new Date(task.scheduled_date), 'dd.MM.yyyy')} wurde nicht geändert (keine Zeile betroffen).`);
+          throw new Error(
+            `Auftrag vom ${format(new Date(task.scheduled_date), 'dd.MM.yyyy')} wurde nicht gespeichert (keine Zeile betroffen).`
+          );
         }
-        changed++;
+        saved++;
       }
-
-      return changed;
+      return saved;
     },
-    onSuccess: (changed) => {
+    onSuccess: (saved) => {
       queryClient.invalidateQueries({ queryKey: ['provider-billing', provider?.id] });
       queryClient.invalidateQueries({ queryKey: ['cleaning-tasks'] });
       queryClient.invalidateQueries({ queryKey: ['service_tasks'] });
-      setSelectedIds([]);
-      setRecalcMode(false);
-      toast({
-        title: 'Kosten neu berechnet',
-        description: `${changed} Auftrag/Aufträge wurden auf die aktuelle Definition gesetzt.`,
-      });
+      setEditMode(false);
+      setDrafts({});
+      toast({ title: 'Gespeichert', description: `${saved} Auftrag/Aufträge geändert.` });
     },
     onError: (error: any) => {
       toast({
         title: 'Fehler',
-        description: error.message || 'Neuberechnung fehlgeschlagen.',
+        description: error.message || 'Speichern fehlgeschlagen.',
         variant: 'destructive',
       });
     },
   });
-
-  const toggleId = (id: string) =>
-    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-
-  /** Vorauswahl: alles ausser bereits bezahlten Auftraegen. */
-  const selectUnpaid = () =>
-    setSelectedIds(
-      (billingData || [])
-        .filter((t: any) => t.payment_status !== 'paid')
-        .map((t: any) => t.id)
-    );
 
   // Gruppierung nach Payment Status
   const groupedData = useMemo(() => {
@@ -287,47 +339,44 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
           </Card>
         </div>
 
-        {/* Bedienleiste Neuberechnung */}
+        {/* Bedienleiste Bearbeiten */}
         <div className="flex flex-wrap items-center gap-2 mb-2">
-          {!recalcMode ? (
+          {!editMode ? (
             <>
-              <Button size="sm" variant="outline" onClick={() => setRecalcMode(true)}>
-                Kosten neu berechnen
+              <Button size="sm" variant="outline" onClick={startEdit}>
+                Einträge bearbeiten
               </Button>
               <span className="text-xs text-muted-foreground">
-                Setzt ausgewählte Aufträge auf die aktuell hinterlegte Abrechnungsart von {provider?.name}.
+                Stunden, Netto und MwSt-Satz je Auftrag ändern.
               </span>
             </>
           ) : (
             <>
-              <Button size="sm" variant="outline" onClick={selectUnpaid}>
-                Alle unbezahlten auswählen
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setSelectedIds([])}>
-                Auswahl leeren
+              <Button size="sm" variant="outline" onClick={applyDefinitionToAll}>
+                Alle aus Abrechnungsart füllen
               </Button>
               <Button
                 size="sm"
-                onClick={() => recalcMutation.mutate(selectedIds)}
-                disabled={selectedIds.length === 0 || recalcMutation.isPending}
+                onClick={() => saveMutation.mutate()}
+                disabled={changedTasks.length === 0 || saveMutation.isPending}
               >
-                {recalcMutation.isPending
+                {saveMutation.isPending
                   ? 'Wird gespeichert...'
-                  : `${selectedIds.length} Auftrag/Aufträge überschreiben`}
+                  : `${changedTasks.length} Änderung(en) speichern`}
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => {
-                  setRecalcMode(false);
-                  setSelectedIds([]);
+                  setEditMode(false);
+                  setDrafts({});
                 }}
               >
                 Abbrechen
               </Button>
               <p className="w-full text-xs text-amber-700">
-                Bereits bezahlte Aufträge tragen den Betrag, der tatsächlich abgerechnet wurde.
-                Wer sie neu berechnet, verändert die Vergangenheit — nur tun, wenn der alte Betrag nachweislich falsch war.
+                Bereits bezahlte Aufträge tragen den Betrag, der tatsächlich abgerechnet wurde —
+                Änderungen daran verändern die Vergangenheit.
               </p>
             </>
           )}
@@ -338,7 +387,6 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
           <Table>
             <TableHeader>
               <TableRow>
-                {recalcMode && <TableHead className="w-10"></TableHead>}
                 <TableHead>Datum</TableHead>
                 <TableHead>Haus</TableHead>
                 <TableHead>Gast</TableHead>
@@ -347,7 +395,7 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
                 <TableHead className="text-right">Netto</TableHead>
                 <TableHead className="text-right">MwSt</TableHead>
                 <TableHead className="text-right">Brutto</TableHead>
-                {recalcMode && <TableHead className="text-right">Neu (netto)</TableHead>}
+                {editMode && <TableHead className="w-28"></TableHead>}
                 <TableHead>Bezahlung</TableHead>
               </TableRow>
             </TableHeader>
@@ -356,7 +404,7 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
                 <React.Fragment key={groupIndex}>
                   {/* Gruppen-Header */}
                   <TableRow className="bg-muted/50 font-semibold hover:bg-muted/50">
-                    <TableCell colSpan={recalcMode ? 11 : 9}>
+                    <TableCell colSpan={editMode ? 10 : 9}>
                       {group.label} ({group.count} Aufträge)
                     </TableCell>
                   </TableRow>
@@ -364,15 +412,6 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
                   {/* Daten-Zeilen */}
                   {group.tasks.map((task: any) => (
                     <TableRow key={task.id}>
-                      {recalcMode && (
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedIds.includes(task.id)}
-                            onCheckedChange={() => toggleId(task.id)}
-                            aria-label="Auftrag zur Neuberechnung auswählen"
-                          />
-                        </TableCell>
-                      )}
                       <TableCell>{format(new Date(task.scheduled_date), 'dd.MM.yyyy')}</TableCell>
                       <TableCell>{task.houses?.name || '-'}</TableCell>
                       <TableCell>{task.bookings ? getGuestName(task.bookings) : '-'}</TableCell>
@@ -385,36 +424,66 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
                           {task.status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">{task.cleaning_hours || '-'}</TableCell>
+                      <TableCell className="text-right">
+                        {editMode ? (
+                          <Input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            className="h-8 w-20 text-right"
+                            value={drafts[task.id]?.hours ?? ''}
+                            onChange={(e) => setDraft(task.id, 'hours', e.target.value)}
+                          />
+                        ) : (
+                          task.cleaning_hours || '-'
+                        )}
+                      </TableCell>
                       <TableCell className="text-right font-semibold">
-                        {task.cleaning_cost != null ? formatEur(Number(task.cleaning_cost)) : '-'}
+                        {editMode ? (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            className="h-8 w-28 text-right"
+                            value={drafts[task.id]?.net ?? ''}
+                            onChange={(e) => setDraft(task.id, 'net', e.target.value)}
+                          />
+                        ) : task.cleaning_cost != null ? (
+                          formatEur(Number(task.cleaning_cost))
+                        ) : (
+                          '-'
+                        )}
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        {task.cleaning_vat_percentage != null && task.cleaning_cost != null
-                          ? `${task.cleaning_vat_percentage}%`
-                          : '-'}
+                        {editMode ? (
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max="100"
+                            onWheel={(e) => (e.target as HTMLElement).blur()}
+                            className="h-8 w-20 text-right"
+                            value={drafts[task.id]?.vat ?? ''}
+                            onChange={(e) => setDraft(task.id, 'vat', e.target.value)}
+                          />
+                        ) : task.cleaning_vat_percentage != null && task.cleaning_cost != null ? (
+                          `${task.cleaning_vat_percentage}%`
+                        ) : (
+                          '-'
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {formatEur(grossFromTask(task.cleaning_cost, task.cleaning_vat_percentage))}
+                        {editMode
+                          ? formatEur(grossFromTask(numOrNull(drafts[task.id]?.net ?? ''), numOrNull(drafts[task.id]?.vat ?? '')))
+                          : formatEur(grossFromTask(task.cleaning_cost, task.cleaning_vat_percentage))}
                       </TableCell>
-                      {recalcMode && (
+                      {editMode && (
                         <TableCell className="text-right">
-                          {(() => {
-                            const preview = previewFor(task);
-                            if (preview.error) {
-                              return <span className="text-destructive text-xs">nicht berechenbar</span>;
-                            }
-                            const unchanged =
-                              task.cleaning_cost != null &&
-                              Number(task.cleaning_cost) === preview.net &&
-                              (task.cleaning_vat_percentage ?? null) === preview.vatPercentage;
-                            return (
-                              <span className={unchanged ? 'text-muted-foreground' : 'font-semibold text-green-700'}>
-                                {formatEur(preview.net)}
-                                {unchanged && ' (unverändert)'}
-                              </span>
-                            );
-                          })()}
+                          <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => applyDefinition(task)}>
+                            aus Satz
+                          </Button>
                         </TableCell>
                       )}
                       <TableCell>
@@ -431,13 +500,13 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
                   
                   {/* Summen-Zeile pro Gruppe */}
                   <TableRow className={`${group.bgColor} font-bold hover:${group.bgColor}`}>
-                    <TableCell colSpan={recalcMode ? 6 : 5} className="text-right">
+                    <TableCell colSpan={5} className="text-right">
                       Summe {group.label}:
                     </TableCell>
                     <TableCell className="text-right">{formatEur(group.sum)}</TableCell>
                     <TableCell></TableCell>
                     <TableCell className="text-right">{formatEur(group.grossSum)}</TableCell>
-                    {recalcMode && <TableCell></TableCell>}
+                    {editMode && <TableCell></TableCell>}
                     <TableCell></TableCell>
                   </TableRow>
                 </React.Fragment>
@@ -446,13 +515,13 @@ export function ProviderBillingDialog({ provider, open, onOpenChange }: Provider
               {/* Gesamt-Summe */}
               {groupedData.length > 0 && (
                 <TableRow className="bg-primary/10 font-bold text-lg hover:bg-primary/10">
-                  <TableCell colSpan={recalcMode ? 6 : 5} className="text-right">
+                  <TableCell colSpan={5} className="text-right">
                     GESAMTSUMME:
                   </TableCell>
                   <TableCell className="text-right">{formatEur(totalAmount)}</TableCell>
                   <TableCell></TableCell>
                   <TableCell className="text-right">{formatEur(totalGross)}</TableCell>
-                  {recalcMode && <TableCell></TableCell>}
+                  {editMode && <TableCell></TableCell>}
                   <TableCell></TableCell>
                 </TableRow>
               )}
