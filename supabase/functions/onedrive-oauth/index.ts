@@ -37,7 +37,22 @@ const page = (title: string, body: string, ok: boolean) =>
 
 serve(async (req) => {
   const url = new URL(req.url);
-  const redirectUri = `${url.origin}${url.pathname}`;
+
+  // FESTE redirect_uri — NICHT aus req.url ableiten.
+  //
+  // Befund 20.08.2026: Supabase reicht die Anfrage intern weiter und
+  // schneidet dabei das Praefix ab. `${url.origin}${url.pathname}` ergab
+  //     http://usblrulkcgucxtkhugck.supabase.co/onedrive-oauth
+  // statt
+  //     https://usblrulkcgucxtkhugck.supabase.co/functions/v1/onedrive-oauth
+  // — falsches Schema UND fehlendes /functions/v1. Microsoft antwortete mit
+  // invalid_request, ohne die erwartete Zeichenkette zu nennen.
+  //
+  // Die Adresse muss ZEICHENGENAU der in der App-Registrierung hinterlegten
+  // entsprechen. Sie steht deshalb hier fest und wird aus SUPABASE_URL
+  // gebildet (die Umgebungsvariable ist in jeder Edge Function gesetzt).
+  const projectUrl = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
+  const redirectUri = `${projectUrl}/functions/v1/onedrive-oauth`;
   const clientId = Deno.env.get("MS_CLIENT_ID");
   const clientSecret = Deno.env.get("MS_CLIENT_SECRET");
 
