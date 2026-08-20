@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Search, Plus, X, Upload, FileText, Image as ImageIcon, Folder,
+  Search, Plus, X, Upload, FileText, Image as ImageIcon, Folder, FolderPlus,
   ChevronRight, ExternalLink, Trash2, Settings2, List, FolderTree,
-  ArrowLeft, AlertTriangle, Loader2, HardDrive, Cloud,
+  ArrowLeft, AlertTriangle, Loader2, HardDrive, Cloud, Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
-import DocumentSettings, { OrdnerWaehlen } from '@/components/Documents/DocumentSettings';
+import DocumentSettings from '@/components/Documents/DocumentSettings';
 import {
   onedrive, bezugLabel, useOneDriveStatus, useDocumentTypes, useDocuments,
   useUploadDocument, useLinkExisting, useRemoveDocument, useEntities,
@@ -400,7 +400,6 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 
   const [folder, setFolder] = useState<{ id: string; path: string } | null>(null);
   const [folderTouched, setFolderTouched] = useState(false);
-  const [pickFolder, setPickFolder] = useState(false);
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState('');
 
@@ -428,7 +427,6 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   // naechste Datei still im Ordner des vorigen Objekts.
   useEffect(() => {
     setFolderTouched(false);
-    setPickFolder(false);
   }, [entityId, typeId, target]);
 
   const pick = (f?: File | null) => { if (f) { setFile(f); setErr(''); } };
@@ -484,24 +482,6 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   };
 
   const busy = upload.isPending || linkExisting.isPending;
-
-  if (pickFolder) {
-    return (
-      <Dialog open onOpenChange={() => setPickFolder(false)}>
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Zielordner wählen</DialogTitle>
-            <DialogDescription>Gilt für dieses Dokument und wird gemerkt.</DialogDescription>
-          </DialogHeader>
-          <OrdnerWaehlen
-            titel={`${chosen?.label ?? 'ohne Bezug'} · ${type?.name ?? ''}`}
-            onAbbrechen={() => setPickFolder(false)}
-            onWaehlen={(id, path) => { setFolder({ id, path }); setFolderTouched(true); setPickFolder(false); }}
-          />
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   return (
     <Dialog open onOpenChange={() => !busy && onClose()}>
@@ -565,81 +545,72 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           </div>
         </div>
 
-        <div className={`rounded-md border px-3 py-2.5 ${folder ? 'border-primary/40 bg-primary/5' : 'bg-amber-50 border-amber-300'}`}>
-          <p className="text-xs text-muted-foreground">Wird abgelegt in</p>
-          {folder ? (
-            <p className="truncate font-mono text-sm text-primary">{folder.path || 'OneDrive (Stammordner)'}</p>
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">3 · Datei wählen</p>
+          <div className="mb-2 flex">
+            <Button size="sm" variant={source === 'pc' ? 'default' : 'outline'} className="rounded-r-none"
+              onClick={() => { setSource('pc'); setExisting(null); }}>
+              <HardDrive className="mr-1.5 h-3.5 w-3.5" /> Mein PC
+            </Button>
+            <Button size="sm" variant={source === 'od' ? 'default' : 'outline'} className="rounded-l-none border-l-0"
+              onClick={() => { setSource('od'); setFile(null); }}>
+              <Cloud className="mr-1.5 h-3.5 w-3.5" /> OneDrive
+            </Button>
+          </div>
+
+          {source === 'pc' ? (
+            <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]); }}
+              className={`rounded-md border border-dashed p-4 text-center ${dragging ? 'border-primary bg-primary/5' : ''}`}>
+              <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
+              <p className="mt-1.5 text-sm text-muted-foreground">Datei hierher ziehen</p>
+              <Button size="sm" variant="outline" className="mt-2" onClick={() => inputRef.current?.click()}>
+                Durchsuchen
+              </Button>
+              <input ref={inputRef} type="file" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+            </div>
           ) : (
-            <p className="text-sm text-amber-900">
-              {target !== 'keine' && !entityId
-                ? 'Erst Objekt wählen.'
-                : 'Für diese Kombination ist noch kein Ordner festgelegt.'}
-            </p>
+            <OneDrivePicker selected={existing} onSelect={(f) => { setExisting(f); setErr(''); }} />
           )}
-          <button type="button" className="mt-1 text-xs text-primary hover:underline"
-            onClick={() => setPickFolder(true)}>
-            {folder ? 'Anderen Ordner wählen' : 'Ordner wählen oder anlegen'}
-          </button>
-          {gemerkt && folder?.id === gemerkt.onedrive_item_id && (
-            <span className="ml-2 text-xs text-muted-foreground">aus dem festgelegten Ablageort</span>
+
+          {(file || existing) && (
+            <div className="mt-2 flex items-center gap-2 rounded-md bg-muted px-2.5 py-2">
+              <FileText className="h-[18px] w-[18px] shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">{file ? file.name : existing!.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {file ? fmtSize(file.size) : 'liegt bereits in OneDrive'}
+                </p>
+              </div>
+              {!busy && (
+                <button onClick={() => { setFile(null); setExisting(null); }} aria-label="Auswahl entfernen">
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">3 · Datei</p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <div className="mb-2 flex">
-                <Button size="sm" variant={source === 'pc' ? 'default' : 'outline'} className="rounded-r-none"
-                  onClick={() => { setSource('pc'); setExisting(null); }}>
-                  <HardDrive className="mr-1.5 h-3.5 w-3.5" /> Mein PC
-                </Button>
-                <Button size="sm" variant={source === 'od' ? 'default' : 'outline'} className="rounded-l-none border-l-0"
-                  onClick={() => { setSource('od'); setFile(null); }}>
-                  <Cloud className="mr-1.5 h-3.5 w-3.5" /> OneDrive
-                </Button>
-              </div>
-
-              {source === 'pc' ? (
-                <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]); }}
-                  className={`rounded-md border border-dashed p-4 text-center ${dragging ? 'border-primary bg-primary/5' : ''}`}>
-                  <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
-                  <p className="mt-1.5 text-sm text-muted-foreground">Datei hierher ziehen</p>
-                  <Button size="sm" variant="outline" className="mt-2" onClick={() => inputRef.current?.click()}>
-                    Durchsuchen
-                  </Button>
-                  <input ref={inputRef} type="file" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
-                </div>
-              ) : (
-                <OneDrivePicker selected={existing} onSelect={(f) => { setExisting(f); setErr(''); }} />
-              )}
-            </div>
-
-            <div>
-              {file && (
-                <div className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-2">
-                  <FileText className="h-[18px] w-[18px] shrink-0 text-primary" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">{fmtSize(file.size)}</p>
-                  </div>
-                  {!busy && <button onClick={() => setFile(null)} aria-label="Auswahl entfernen"><X className="h-4 w-4 text-muted-foreground" /></button>}
-                </div>
-              )}
-              {existing && (
-                <div className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-2">
-                  <FileText className="h-[18px] w-[18px] shrink-0 text-primary" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm">{existing.name}</p>
-                    <p className="text-xs text-muted-foreground">bleibt, wo sie liegt</p>
-                  </div>
-                </div>
-              )}
+        {source === 'pc' ? (
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">4 · Datei ablegen in</p>
+            <Zielordner
+              gewaehlt={folder}
+              vorbelegt={!!gemerkt && folder?.id === gemerkt.onedrive_item_id}
+              onWaehlen={(id, path) => { setFolder({ id, path }); setFolderTouched(true); setErr(''); }}
+            />
+          </div>
+        ) : (
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">4 · Datei ablegen in</p>
+            <div className="rounded-md border bg-muted/40 px-3 py-2.5">
+              <p className="text-sm text-muted-foreground">
+                Die Datei bleibt, wo sie in OneDrive liegt — sie wird nur verknüpft.
+              </p>
             </div>
           </div>
-        </div>
+        )}
 
         {busy && progress > 0 && (
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -664,6 +635,8 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 function OneDrivePicker({ selected, onSelect }: { selected: OneDriveFile | null; onSelect: (f: OneDriveFile) => void }) {
   const [stack, setStack] = useState<{ id: string; name: string }[]>([{ id: 'root', name: 'OneDrive' }]);
   const current = stack[stack.length - 1];
+  const pfad = stack.length === 1 ? 'OneDrive' : stack.slice(1).map((x) => x.name).join(' / ');
+
   const { data, isLoading } = useQuery({
     queryKey: ['onedrive-picker', current.id],
     queryFn: () => onedrive<{ folders: OneDriveFolder[]; files: OneDriveFile[] }>('listChildren', { parentId: current.id }),
@@ -671,31 +644,166 @@ function OneDrivePicker({ selected, onSelect }: { selected: OneDriveFile | null;
 
   return (
     <div className="rounded-md border">
-      <div className="flex items-center gap-2 border-b px-2 py-1.5">
+      <div className="flex items-center gap-2 border-b px-2.5 py-2">
         {stack.length > 1 && (
-          <button onClick={() => setStack((s) => s.slice(0, -1))} aria-label="Zurück">
-            <ArrowLeft className="h-3.5 w-3.5 text-muted-foreground" />
+          <button onClick={() => setStack((s) => s.slice(0, -1))} aria-label="Eine Ebene zurück">
+            <ArrowLeft className="h-4 w-4 text-muted-foreground" />
           </button>
         )}
-        <span className="truncate font-mono text-xs text-muted-foreground">{current.name}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">{pfad}</span>
       </div>
-      <div className="max-h-44 overflow-y-auto p-1">
-        {isLoading && <div className="flex justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>}
+
+      <div className="max-h-52 overflow-y-auto p-1">
+        {isLoading && <div className="flex justify-center py-5"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>}
+
         {data?.folders.map((f) => (
           <button key={f.id} onClick={() => setStack((s) => [...s, { id: f.id, name: f.name }])}
-            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted">
+            className="flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left text-sm hover:bg-muted">
             <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="truncate">{f.name}</span>
+            <span className="min-w-0 flex-1 truncate">{f.name}</span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
           </button>
         ))}
+
         {data?.files.map((f) => (
           <button key={f.id} onClick={() => onSelect(f)}
-            className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm ${selected?.id === f.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}>
+            className={`flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left text-sm ${selected?.id === f.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}>
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="truncate">{f.name}</span>
+            <span className="min-w-0 flex-1 truncate">{f.name}</span>
+            {selected?.id === f.id && <Check className="h-4 w-4 shrink-0" />}
           </button>
         ))}
+
+        {data && data.folders.length === 0 && data.files.length === 0 && (
+          <p className="px-2 py-4 text-center text-xs text-muted-foreground">Dieser Ordner ist leer.</p>
+        )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Zielordner — gleiche Bauform wie der Datei-Auswaehler.
+ *
+ * Ein Klick auf die ZEILE oeffnet den Ordner, gewaehlt wird ueber den
+ * Knopf unten. Vorher trug jede Zeile zwei fast gleiche Schaltflaechen
+ * (Haken und Pfeil); wer nur den Haken sah, kam nie tiefer als eine
+ * Ebene.
+ *
+ * Der Pfad wird aus dem Klickweg gebaut, NICHT aus itemInfo — die
+ * Aktion liefert bei einem Ordner den Pfad des ELTERNordners.
+ */
+function Zielordner({
+  gewaehlt, vorbelegt, onWaehlen,
+}: {
+  gewaehlt: { id: string; path: string } | null;
+  vorbelegt: boolean;
+  onWaehlen: (id: string, path: string) => void;
+}) {
+  const { toast } = useToast();
+  const [stack, setStack] = useState<{ id: string; name: string }[]>([{ id: 'root', name: 'OneDrive' }]);
+  const [neuerName, setNeuerName] = useState('');
+  const [legeAn, setLegeAn] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const current = stack[stack.length - 1];
+  const pfad = stack.slice(1).map((x) => x.name).join(' / ');
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['onedrive-ziel', current.id],
+    queryFn: () => onedrive<{ folders: OneDriveFolder[] }>('listFolders', { parentId: current.id }),
+  });
+
+  const anlegen = async () => {
+    const name = neuerName.trim();
+    if (!name) return;
+    if (/[/\:*?"<>|]/.test(name)) {
+      toast({ title: 'Ungültiger Name', description: 'Ohne / \ : * ? " < > |', variant: 'destructive' });
+      return;
+    }
+    setBusy(true);
+    try {
+      const created = await onedrive<{ id: string; name: string }>('createFolder', {
+        parentId: current.id, name,
+      });
+      setNeuerName(''); setLegeAn(false);
+      await refetch();
+      // Hineingehen UND waehlen: wer einen Ordner anlegt, will dorthin.
+      const kindPfad = [pfad, created.name].filter(Boolean).join(' / ');
+      setStack((s) => [...s, { id: created.id, name: created.name }]);
+      onWaehlen(created.id, kindPfad);
+    } catch (e: any) {
+      toast({ title: 'Ordner nicht angelegt', description: e.message, variant: 'destructive' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="rounded-md border">
+        <div className="flex items-center gap-2 border-b px-2.5 py-2">
+          {stack.length > 1 && (
+            <button onClick={() => setStack((s) => s.slice(0, -1))} aria-label="Eine Ebene zurück">
+              <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
+          <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+            {pfad || 'OneDrive'}
+          </span>
+          <button onClick={() => setLegeAn((v) => !v)} aria-label="Ordner hier anlegen">
+            <FolderPlus className="h-4 w-4 text-muted-foreground hover:text-primary" />
+          </button>
+        </div>
+
+        {legeAn && (
+          <div className="flex gap-1.5 border-b p-2">
+            <Input autoFocus value={neuerName} className="h-8"
+              onChange={(e) => setNeuerName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') anlegen(); if (e.key === 'Escape') setLegeAn(false); }}
+              placeholder="Ordnername" />
+            <Button size="sm" className="h-8" onClick={anlegen} disabled={busy}>
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Anlegen'}
+            </Button>
+          </div>
+        )}
+
+        <div className="max-h-52 overflow-y-auto p-1">
+          {isLoading && <div className="flex justify-center py-5"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>}
+
+          {data?.folders.map((f) => (
+            <button key={f.id} onClick={() => setStack((s) => [...s, { id: f.id, name: f.name }])}
+              className="flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left text-sm hover:bg-muted">
+              <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate">{f.name}</span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          ))}
+
+          {data && data.folders.length === 0 && (
+            <p className="px-2 py-4 text-center text-xs text-muted-foreground">Keine Unterordner.</p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 border-t bg-muted/40 px-2.5 py-2">
+          <Button size="sm" className="h-8" disabled={stack.length === 1}
+            onClick={() => onWaehlen(current.id, pfad)}>
+            Diesen Ordner nehmen
+          </Button>
+          <span className="text-xs text-muted-foreground">Zeile anklicken öffnet den Ordner</span>
+        </div>
+      </div>
+
+      {gewaehlt ? (
+        <div className="mt-2 rounded-md bg-primary/5 px-3 py-2">
+          <p className="text-xs text-muted-foreground">
+            Gewählt{vorbelegt ? ' · aus dem festgelegten Ablageort' : ''}
+          </p>
+          <p className="truncate font-mono text-sm text-primary">{gewaehlt.path || 'OneDrive (Stammordner)'}</p>
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-muted-foreground">Noch kein Ordner gewählt.</p>
+      )}
+    </>
   );
 }
