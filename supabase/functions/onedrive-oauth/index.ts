@@ -1,185 +1,153 @@
 /**
- * onedrive-api — alle Dateioperationen gegen OneDrive.
+ * onedrive-oauth — einmalige Anmeldung bei Microsoft.
  *
- * Eine Function mit mehreren Aktionen statt vieler kleiner Functions:
- * jede braucht denselben Token-Helfer und dieselbe Rechtepruefung.
+ * verify_jwt = false, weil Microsoft ohne JWT zurueckruft.
+ * Zwei Pfade in einer Function:
+ *   a) Aufruf ohne ?code -> Weiterleitung zur Microsoft-Anmeldung
+ *   b) Aufruf mit  ?code -> Token holen und in integration_tokens ablegen
  *
- * Aktionen:
- *   status        — ist OneDrive verbunden?
- *   listFolders   — Unterordner eines Ordners
- *   listChildren  — Ordner UND Dateien eines Ordners
- *   createFolder  — Ordner anlegen
- *   resolvePath   — Pfad aus der Typ-Regel anlegen/finden -> item_id
- *   uploadSession — Upload-Adresse anfordern (Bytes laufen NICHT hier durch)
- *   itemInfo      — Metadaten einer Datei (nach dem Upload)
- *   deleteItem    — Datei in den OneDrive-Papierkorb
+ * Wirkung: Der Refresh-Token taucht in keinem Chat, keiner Datei und
+ * keiner Zwischenablage auf.
  *
- * WARUM Upload-Session: Der Browser laedt die Bytes direkt zu Microsoft.
- * So faellt die 4-MB-Grenze des einfachen Uploads weg, und das Zugriffs-
- * token verlaesst die Edge Function nie — der Browser bekommt nur eine
- * kurzlebige, vorautorisierte Adresse.
- *
- * verify_jwt = false in config.toml; die Rechtepruefung macht
- * requireAdmin() selbst (Muster der uebrigen Functions).
+ * Die redirect_uri muss ZEICHENGENAU mit der in der App-Registrierung
+ * hinterlegten uebereinstimmen, sonst AADSTS50011.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { requireAdmin } from "../_shared/auth.ts";
-import {
-  corsHeaders,
-  serviceClient,
-  getAccessToken,
-  graph,
-  ensureFolderPath,
-  OneDriveAuthError,
-} from "../_shared/onedrive.ts";
+import { serviceClient, SCOPE } from "../_shared/onedrive.ts";
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+const AUTH_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize";
+const TOKEN_URL = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
+
+const page = (title: string, body: string, ok: boolean) =>
+  new Response(
+    `<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title}</title>
+<style>
+ body{font-family:system-ui,sans-serif;background:#f8fafc;margin:0;
+      display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+ .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:28px 32px;max-width:460px}
+ h1{font-size:18px;font-weight:500;margin:0 0 8px;color:${ok ? "#065f46" : "#991b1b"}}
+ p{font-size:14px;color:#475569;margin:0;line-height:1.6}
+ code{font-family:ui-monospace,monospace;font-size:13px;background:#f1f5f9;padding:2px 5px;border-radius:4px}
+</style></head><body><div class="card"><h1>${title}</h1><p>${body}</p></div></body></html>`,
+    { status: ok ? 200 : 400, headers: { "Content-Type": "text/html; charset=utf-8" } },
+  );
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const url = new URL(req.url);
+  const redirectUri = `${url.origin}${url.pathname}`;
+  const clientId = Deno.env.get("MS_CLIENT_ID");
+  const clientSecret = Deno.env.get("MS_CLIENT_SECRET");
 
-  const denied = await requireAdmin(req, corsHeaders);
-  if (denied) return denied;
-
-  let action = "";
-  try {
-    const payload = await req.json();
-    action = payload.action ?? "";
-    const supabase = serviceClient();
-
-    // ---- status: ohne Token antworten, statt zu scheitern -------------
-    if (action === "status") {
-      const { data } = await supabase
-        .from("integration_tokens")
-        .select("account_label, last_error, updated_at")
-        .eq("provider", "onedrive")
-        .maybeSingle();
-
-      return json({
-        connected: !!data && !data.last_error,
-        account: data?.account_label ?? null,
-        lastError: data?.last_error ?? null,
-        since: data?.updated_at ?? null,
-      });
-    }
-
-    const token = await getAccessToken(supabase);
-
-    switch (action) {
-      // ---- Ordner auflisten ------------------------------------------
-      case "listFolders":
-      case "listChildren": {
-        const parent = payload.parentId || "root";
-        const res = await graph(
-          token,
-          `/me/drive/items/${parent}/children?$select=id,name,folder,file,size,webUrl,lastModifiedDateTime&$top=999&$orderby=name`,
-        );
-        const all = res?.value ?? [];
-        const folders = all
-          .filter((i: any) => i.folder)
-          .map((i: any) => ({ id: i.id, name: i.name, childCount: i.folder.childCount ?? 0 }));
-
-        if (action === "listFolders") return json({ folders });
-
-        const files = all
-          .filter((i: any) => i.file)
-          .map((i: any) => ({
-            id: i.id,
-            name: i.name,
-            size: i.size ?? 0,
-            mimeType: i.file?.mimeType ?? null,
-            webUrl: i.webUrl,
-            modified: i.lastModifiedDateTime,
-          }));
-        return json({ folders, files });
-      }
-
-      // ---- Ordner anlegen --------------------------------------------
-      case "createFolder": {
-        const { parentId, name } = payload;
-        if (!name?.trim()) return json({ error: "Ordnername fehlt." }, 400);
-
-        const created = await graph(token, `/me/drive/items/${parentId || "root"}/children`, {
-          method: "POST",
-          body: JSON.stringify({
-            name: name.trim(),
-            folder: {},
-            "@microsoft.graph.conflictBehavior": "rename",
-          }),
-        });
-        return json({ id: created.id, name: created.name });
-      }
-
-      // ---- Pfad aus der Typ-Regel sicherstellen ----------------------
-      case "resolvePath": {
-        const { path } = payload;
-        if (!path?.trim()) return json({ error: "Pfad fehlt." }, 400);
-        const id = await ensureFolderPath(token, path);
-        return json({ id, path });
-      }
-
-      // ---- Upload-Adresse anfordern ----------------------------------
-      case "uploadSession": {
-        const { folderId, fileName } = payload;
-        if (!folderId || !fileName) return json({ error: "folderId und fileName noetig." }, 400);
-
-        const session = await graph(
-          token,
-          `/me/drive/items/${folderId}:/${encodeURIComponent(fileName)}:/createUploadSession`,
-          {
-            method: "POST",
-            body: JSON.stringify({
-              item: {
-                "@microsoft.graph.conflictBehavior": "rename",
-                name: fileName,
-              },
-            }),
-          },
-        );
-        return json({ uploadUrl: session.uploadUrl, expires: session.expirationDateTime });
-      }
-
-      // ---- Metadaten einer Datei -------------------------------------
-      case "itemInfo": {
-        const { itemId } = payload;
-        if (!itemId) return json({ error: "itemId fehlt." }, 400);
-        const item = await graph(
-          token,
-          `/me/drive/items/${itemId}?$select=id,name,size,webUrl,file,parentReference`,
-        );
-        return json({
-          id: item.id,
-          name: item.name,
-          size: item.size ?? 0,
-          webUrl: item.webUrl,
-          mimeType: item.file?.mimeType ?? null,
-          driveId: item.parentReference?.driveId ?? null,
-          path: (item.parentReference?.path ?? "").replace("/drive/root:", "").replace(/^\//, ""),
-        });
-      }
-
-      // ---- Datei in den Papierkorb -----------------------------------
-      case "deleteItem": {
-        const { itemId } = payload;
-        if (!itemId) return json({ error: "itemId fehlt." }, 400);
-        await graph(token, `/me/drive/items/${itemId}`, { method: "DELETE" });
-        return json({ deleted: true });
-      }
-
-      default:
-        return json({ error: `Unbekannte Aktion: ${action}` }, 400);
-    }
-  } catch (e) {
-    console.error(`onedrive-api [${action}]:`, e);
-
-    if (e instanceof OneDriveAuthError) {
-      return json({ error: e.message, needsReconnect: true }, 409);
-    }
-    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  if (!clientId || !clientSecret) {
+    return page(
+      "Nicht eingerichtet",
+      "Die Secrets <code>MS_CLIENT_ID</code> und <code>MS_CLIENT_SECRET</code> sind nicht gesetzt.",
+      false,
+    );
   }
+
+  const code = url.searchParams.get("code");
+  const err = url.searchParams.get("error");
+
+  if (err) {
+    return page(
+      "Anmeldung abgebrochen",
+      `Microsoft meldet: <code>${err}</code> — ${url.searchParams.get("error_description") ?? ""}`,
+      false,
+    );
+  }
+
+  // ---- a) Start: zu Microsoft weiterleiten ----------------------------
+  if (!code) {
+    const state = crypto.randomUUID();
+    const target = new URL(AUTH_URL);
+    target.searchParams.set("client_id", clientId);
+    target.searchParams.set("response_type", "code");
+    target.searchParams.set("response_mode", "query");
+    target.searchParams.set("redirect_uri", redirectUri);
+    target.searchParams.set("scope", SCOPE);
+    target.searchParams.set("state", state);
+    target.searchParams.set("prompt", "consent");
+
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: target.toString(),
+        // state im Cookie, damit der Rueckruf geprueft werden kann
+        "Set-Cookie": `od_state=${state}; Path=/; Max-Age=600; HttpOnly; Secure; SameSite=Lax`,
+      },
+    });
+  }
+
+  // ---- b) Rueckruf: state pruefen -------------------------------------
+  const cookie = req.headers.get("cookie") ?? "";
+  const expected = cookie.match(/od_state=([^;]+)/)?.[1];
+  const got = url.searchParams.get("state");
+
+  if (!expected || expected !== got) {
+    return page(
+      "Anmeldung nicht bestaetigt",
+      "Die Sitzungspruefung ist fehlgeschlagen. Bitte den Vorgang von vorn beginnen.",
+      false,
+    );
+  }
+
+  // ---- Token holen ------------------------------------------------------
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: SCOPE,
+    }),
+  });
+
+  const json = await res.json();
+  if (!res.ok) {
+    return page(
+      "Token konnte nicht geholt werden",
+      `<code>${json?.error ?? "unknown"}</code> — ${json?.error_description ?? ""}`,
+      false,
+    );
+  }
+
+  // Wer ist verbunden? Nur zur Anzeige.
+  let label = "unbekannt";
+  try {
+    const me = await fetch("https://graph.microsoft.com/v1.0/me", {
+      headers: { Authorization: `Bearer ${json.access_token}` },
+    }).then((r) => r.json());
+    label = me?.userPrincipalName ?? me?.mail ?? me?.displayName ?? "unbekannt";
+  } catch { /* Anzeige ist nicht kritisch */ }
+
+  const supabase = serviceClient();
+  const { error } = await supabase.from("integration_tokens").upsert(
+    {
+      provider: "onedrive",
+      refresh_token: json.refresh_token,
+      access_token: json.access_token,
+      access_expires_at: new Date(Date.now() + (json.expires_in ?? 3600) * 1000).toISOString(),
+      account_label: label,
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "provider" },
+  );
+
+  if (error) {
+    return page("Speichern fehlgeschlagen", `Datenbank: <code>${error.message}</code>`, false);
+  }
+
+  return page(
+    "Verbunden",
+    `OneDrive ist mit <code>${label}</code> verbunden. Dieses Fenster kann geschlossen werden.`,
+    true,
+  );
 });
