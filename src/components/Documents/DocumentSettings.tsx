@@ -24,7 +24,7 @@ const COLORS: Record<string, string> = {
 };
 
 const ART_LABEL: Record<string, string> = {
-  haus: 'Haus', provider: 'Dienstleister', vendor: 'Absender',
+  haus: 'Haus', provider: 'Dienstleister', vendor: 'Vendor',
   buchung: 'Buchung', reinigung: 'Reinigung', waesche: 'Wäschelieferung',
 };
 
@@ -35,27 +35,29 @@ interface Objekt { art: LinkTarget; id: string; name: string; }
  * DocumentSettings — drei Bereiche in einem Dialog.
  *
  * Dokumenttypen  Name und Unterordnername, frei anlegbar.
- * Absender       Rechnungsabsender ohne eigenes Objekt im System.
+ * Objekte        Haeuser, Dienstleister und Vendoren. Angelegt werden
+ *                hier nur Vendoren — Rechnungsabsender wie Gemeinde,
+ *                Energieversorger oder Handwerker.
  * Ablageorte     Der festgelegte Ordner je Objekt UND Dokumenttyp.
  *
  * Der Ablageort wird NICHT abgeleitet. Er entsteht entweder hier oder
  * beim ersten Ablegen und wird dann wiederverwendet.
  */
 export default function DocumentSettings({ onClose }: { onClose: () => void }) {
-  const [tab, setTab] = useState<'typen' | 'absender' | 'ablage'>('typen');
+  const [tab, setTab] = useState<'typen' | 'objekte' | 'ablage'>('typen');
 
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Dokumentenverwaltung · Einstellungen</DialogTitle>
-          <DialogDescription>Typen, Absender und Ablageorte.</DialogDescription>
+          <DialogDescription>Typen, Objekte und Ablageorte.</DialogDescription>
         </DialogHeader>
 
         <div className="flex gap-1 border-b">
           {([
             ['typen', 'Dokumenttypen'],
-            ['absender', 'Absender'],
+            ['objekte', 'Objekte'],
             ['ablage', 'Ablageorte'],
           ] as const).map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)}
@@ -68,7 +70,7 @@ export default function DocumentSettings({ onClose }: { onClose: () => void }) {
         </div>
 
         {tab === 'typen' && <TypenBereich />}
-        {tab === 'absender' && <AbsenderBereich />}
+        {tab === 'objekte' && <ObjekteBereich />}
         {tab === 'ablage' && <AblageBereich />}
       </DialogContent>
     </Dialog>
@@ -183,9 +185,17 @@ function TypenBereich() {
   );
 }
 
-/* ---------------------------------------------------------------- Absender */
+/* ----------------------------------------------------------------- Objekte */
 
-function AbsenderBereich() {
+/**
+ * Zeigt ALLES, wozu ein Dokument gehoeren kann: Haeuser und Dienstleister
+ * aus dem System, dazu die selbst angelegten Vendoren.
+ *
+ * Angelegt und geloescht werden hier NUR Vendoren. Haeuser gehoeren in den
+ * Bereich „Haeuser", Dienstleister in „Provider" — sie hier bearbeitbar zu
+ * machen haette zwei Pflegestellen fuer dieselben Stammdaten ergeben.
+ */
+function ObjekteBereich() {
   const { toast } = useToast();
   const { data: vendors = [] } = useVendors(true);
   const save = useSaveVendor();
@@ -193,54 +203,101 @@ function AbsenderBereich() {
   const [edit, setEdit] = useState<Partial<DocumentVendor> | null>(null);
   const [err, setErr] = useState('');
 
+  const { data: houses = [] } = useQuery({
+    queryKey: ['houses-min'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('houses').select('id, name').order('name');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: providers = [] } = useQuery({
+    queryKey: ['providers-min'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('service_providers').select('id, name').eq('is_active', true).order('name');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const submit = () => {
     save.mutate(edit as any, {
       onSuccess: () => {
-        toast({ title: edit?.id ? 'Absender geändert' : 'Absender angelegt' });
+        toast({ title: edit?.id ? 'Vendor geändert' : 'Vendor angelegt' });
         setEdit(null); setErr('');
       },
       onError: (e: any) => setErr(e.message),
     });
   };
 
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        Rechnungsabsender ohne eigenes Objekt im System — Gemeinde, Energieversorger,
-        Handwerker. Dienstleister und Häuser stehen nicht hier, die kommen aus dem System.
-      </p>
-
+  const Gruppe = ({ titel, farbe, eintraege }: {
+    titel: string; farbe: string;
+    eintraege: { id: string; name: string; note?: string | null; aktiv?: boolean; eigen?: boolean }[];
+  }) => (
+    <div className="mb-3">
+      <p className="mb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">{titel}</p>
       <div className="overflow-hidden rounded-lg border">
-        {vendors.length === 0 && (
-          <p className="px-3 py-6 text-center text-sm text-muted-foreground">Noch keine Absender.</p>
+        {eintraege.length === 0 && (
+          <p className="px-3 py-4 text-center text-sm text-muted-foreground">Keine Einträge.</p>
         )}
-        {vendors.map((v) => (
-          <div key={v.id} className="flex items-center gap-3 border-t px-3 py-2.5 first:border-t-0">
+        {eintraege.map((e) => (
+          <div key={e.id} className="flex items-center gap-3 border-t px-3 py-2.5 first:border-t-0">
+            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${farbe}`} />
             <div className="min-w-0 flex-1">
-              <p className={`truncate text-sm ${v.is_active ? '' : 'text-muted-foreground line-through'}`}>{v.name}</p>
-              {v.note && <p className="truncate text-xs text-muted-foreground">{v.note}</p>}
+              <p className={`truncate text-sm ${e.aktiv === false ? 'text-muted-foreground line-through' : ''}`}>
+                {e.name}
+              </p>
+              {e.note && <p className="truncate text-xs text-muted-foreground">{e.note}</p>}
             </div>
-            <button onClick={() => { setEdit({ ...v }); setErr(''); }} aria-label={`${v.name} bearbeiten`}>
-              <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
-            </button>
-            <button aria-label={`${v.name} löschen`}
-              onClick={() => del.mutate(v.id, {
-                onSuccess: () => toast({ title: 'Absender gelöscht' }),
-                onError: (e: any) => toast({ title: 'Fehler', description: e.message, variant: 'destructive' }),
-              })}>
-              <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-            </button>
+            {e.eigen ? (
+              <>
+                <button onClick={() => { setEdit({ ...(vendors.find((v) => v.id === e.id) as any) }); setErr(''); }}
+                  aria-label={`${e.name} bearbeiten`}>
+                  <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
+                </button>
+                <button aria-label={`${e.name} löschen`}
+                  onClick={() => del.mutate(e.id, {
+                    onSuccess: () => toast({ title: 'Vendor gelöscht' }),
+                    onError: (err2: any) => toast({ title: 'Fehler', description: err2.message, variant: 'destructive' }),
+                  })}>
+                  <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                </button>
+              </>
+            ) : (
+              <span className="text-xs text-muted-foreground">aus dem System</span>
+            )}
           </div>
         ))}
       </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-1">
+      <p className="mb-3 text-sm text-muted-foreground">
+        Alles, wozu ein Dokument gehören kann. Häuser und Dienstleister werden an ihrer
+        eigenen Stelle gepflegt. Vendoren — Gemeinde, Energieversorger, Handwerker —
+        legen Sie hier an.
+      </p>
+
+      <Gruppe titel="Dienstleister" farbe="bg-emerald-200"
+        eintraege={(providers as any[]).map((p) => ({ id: p.id, name: p.name }))} />
+
+      <Gruppe titel="Häuser" farbe="bg-amber-200"
+        eintraege={(houses as any[]).map((h) => ({ id: h.id, name: h.name }))} />
+
+      <Gruppe titel="Vendoren" farbe="bg-slate-300"
+        eintraege={vendors.map((v) => ({ id: v.id, name: v.name, note: v.note, aktiv: v.is_active, eigen: true }))} />
 
       {!edit ? (
         <Button onClick={() => { setEdit({ name: '', note: '', is_active: true }); setErr(''); }}>
-          <Plus className="mr-2 h-4 w-4" /> Neuer Absender
+          <Plus className="mr-2 h-4 w-4" /> Neuer Vendor
         </Button>
       ) : (
         <div className="space-y-3 rounded-lg border bg-muted/40 p-4">
-          <p className="text-sm font-semibold">{edit.id ? 'Absender bearbeiten' : 'Neuer Absender'}</p>
+          <p className="text-sm font-semibold">{edit.id ? 'Vendor bearbeiten' : 'Neuer Vendor'}</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <Label>Name</Label>
