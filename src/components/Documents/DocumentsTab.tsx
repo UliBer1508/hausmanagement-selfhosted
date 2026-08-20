@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-  Search, Plus, X, Upload, FileText, Image as ImageIcon, Folder, FolderPlus,
-  ChevronRight, ChevronDown, ExternalLink, Trash2, Settings2, List, FolderTree,
-  Pencil, ArrowLeft, AlertTriangle, Loader2, HardDrive, Cloud,
+  Search, Plus, X, Upload, FileText, Image as ImageIcon, Folder,
+  ChevronRight, ExternalLink, Trash2, Settings2, List, FolderTree,
+  ArrowLeft, AlertTriangle, Loader2, HardDrive, Cloud,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,18 +13,34 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import DocumentSettings, { OrdnerWaehlen } from '@/components/Documents/DocumentSettings';
 import {
-  onedrive, resolveFolder, useOneDriveStatus, useDocumentTypes, useSaveDocumentType,
-  useDocuments, useUploadDocument, useLinkExisting, useRemoveDocument, useEntities,
+  onedrive, bezugLabel, useOneDriveStatus, useDocumentTypes, useDocuments,
+  useUploadDocument, useLinkExisting, useRemoveDocument, useEntities,
+  useLocations, useSaveLocation,
   type DocumentType, type LinkTarget, type OneDriveFolder, type OneDriveFile,
+  type EntityOption,
 } from '@/hooks/useDocuments';
 
+/**
+ * DocumentsTab — Uebersicht, Suche und Ablage.
+ *
+ * ZUORDNUNG ist frei waehlbar. Der Dokumenttyp bestimmt sie NICHT mehr —
+ * dieselbe Reinigungsrechnung haengt einmal an einem service_task
+ * (Fensterputzen) und einmal an Boris (Sammelrechnung).
+ *
+ * ABLAGEORT wird nicht abgeleitet, sondern festgelegt: gemerkt je
+ * Kombination aus Objekt und Dokumenttyp in document_locations.
+ */
+
 const LINK_TARGETS: { key: LinkTarget; label: string }[] = [
+  { key: 'provider', label: 'Dienstleister' },
+  { key: 'vendor', label: 'Absender' },
   { key: 'haus', label: 'Haus' },
   { key: 'buchung', label: 'Buchung' },
   { key: 'reinigung', label: 'Reinigung' },
   { key: 'waesche', label: 'Wäschelieferung' },
-  { key: 'keine', label: 'keine Verknüpfung' },
+  { key: 'keine', label: 'kein Bezug' },
 ];
 
 const COLORS: Record<string, string> = {
@@ -41,11 +57,6 @@ const fmtSize = (b?: number | null) =>
   b == null ? '' : b >= 1_048_576 ? `${(b / 1_048_576).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`;
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('de-DE');
 
-const COLUMN_FOR: Record<LinkTarget, string | null> = {
-  haus: 'house_id', buchung: 'booking_id', reinigung: 'service_task_id',
-  waesche: 'linen_order_id', keine: null,
-};
-
 export default function DocumentsTab() {
   const { toast } = useToast();
   const status = useOneDriveStatus();
@@ -54,7 +65,7 @@ export default function DocumentsTab() {
   const removeDoc = useRemoveDocument();
 
   const [view, setView] = useState<'suche' | 'ordner'>('suche');
-  const [dialog, setDialog] = useState<'upload' | 'types' | null>(null);
+  const [dialog, setDialog] = useState<'upload' | 'settings' | null>(null);
   const [query, setQuery] = useState('');
   const [fHouse, setFHouse] = useState<string[]>([]);
   const [fType, setFType] = useState<string[]>([]);
@@ -87,7 +98,7 @@ export default function DocumentsTab() {
       return d.file_name.toLowerCase().includes(q)
         || (d.onedrive_path ?? '').toLowerCase().includes(q)
         || (d.document_types?.name ?? '').toLowerCase().includes(q)
-        || (d.houses?.name ?? '').toLowerCase().includes(q);
+        || bezugLabel(d).toLowerCase().includes(q);
     });
   }, [docs, query, fHouse, fType, fYear]);
 
@@ -163,8 +174,8 @@ export default function DocumentsTab() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setDialog('types')}>
-            <Settings2 className="mr-2 h-4 w-4" /> Typen verwalten
+          <Button variant="outline" onClick={() => setDialog('settings')}>
+            <Settings2 className="mr-2 h-4 w-4" /> Einstellungen
           </Button>
           <Button onClick={() => setDialog('upload')} disabled={!status.data?.connected}>
             <Plus className="mr-2 h-4 w-4" /> Dokument ablegen
@@ -176,7 +187,7 @@ export default function DocumentsTab() {
         <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-md border px-3">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input value={query} onChange={(e) => { setQuery(e.target.value); setView('suche'); setLimit(25); }}
-            placeholder="Dateiname, Typ, Haus, Ordner…"
+            placeholder="Dateiname, Typ, Objekt, Ordner…"
             className="h-9 w-full bg-transparent text-sm outline-none" />
           {query && <button onClick={() => setQuery('')} aria-label="Suche leeren"><X className="h-4 w-4 text-muted-foreground" /></button>}
         </div>
@@ -261,9 +272,7 @@ export default function DocumentsTab() {
       {dialog === 'upload' && (
         <AblageDialog types={types.filter((t) => t.is_active)} onClose={() => setDialog(null)} />
       )}
-      {dialog === 'types' && (
-        <TypenDialog types={types} onClose={() => setDialog(null)} />
-      )}
+      {dialog === 'settings' && <DocumentSettings onClose={() => setDialog(null)} />}
     </div>
   );
 }
@@ -284,7 +293,7 @@ function Row({ d, onRemove, hidePath }: any) {
       </div>
       <div className="min-w-0">
         <Badge variant="secondary" className={color}>{d.document_types?.name ?? 'ohne Typ'}</Badge>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{d.houses?.name ?? '—'}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">{bezugLabel(d)}</p>
       </div>
       <span className="text-sm text-muted-foreground">{fmtDate(d.created_at)}</span>
       <div className="flex gap-3 sm:justify-end">
@@ -369,134 +378,14 @@ function FolderBrowser({ docs, onRemove }: any) {
   );
 }
 
-/* ------------------------------------------------------------- Typverwaltung */
-
-function TypenDialog({ types, onClose }: { types: DocumentType[]; onClose: () => void }) {
-  const { toast } = useToast();
-  const save = useSaveDocumentType();
-  const [edit, setEdit] = useState<Partial<DocumentType> | null>(null);
-  const [err, setErr] = useState('');
-
-  const blank: Partial<DocumentType> = { name: '', link_target: 'reinigung', folder_rule: '{haus}/', color: 'emerald', is_active: true };
-
-  const submit = () => {
-    if (!edit?.name?.trim()) { setErr('Bitte einen Namen eingeben.'); return; }
-    if (!edit?.folder_rule?.trim()) { setErr('Bitte einen Speicherort angeben.'); return; }
-    if (edit.link_target === 'keine' && edit.folder_rule.includes('{haus}')) {
-      setErr('Ohne Verknüpfung lässt sich {haus} nicht auflösen. Bitte einen festen Ordner angeben.');
-      return;
-    }
-    save.mutate(edit as any, {
-      onSuccess: () => { toast({ title: edit.id ? 'Typ geändert' : 'Typ angelegt' }); setEdit(null); setErr(''); },
-      onError: (e: any) => setErr(e.message),
-    });
-  };
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Dokumenttypen</DialogTitle>
-          <DialogDescription>Name, Verknüpfung und Speicherort je Typ.</DialogDescription>
-        </DialogHeader>
-
-        {!edit ? (
-          <>
-            <div className="overflow-hidden rounded-lg border">
-              {types.map((t) => (
-                <div key={t.id} className="flex items-center gap-3 border-t px-3 py-2.5 first:border-t-0">
-                  <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${(COLORS[t.color] ?? COLORS.slate).split(' ')[0]}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className={`truncate text-sm ${t.is_active ? '' : 'text-muted-foreground line-through'}`}>{t.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {LINK_TARGETS.find((l) => l.key === t.link_target)?.label} · <span className="font-mono">{t.folder_rule}</span>
-                    </p>
-                  </div>
-                  <button onClick={() => { setEdit({ ...t }); setErr(''); }} aria-label={`${t.name} bearbeiten`}>
-                    <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <Button onClick={() => { setEdit(blank); setErr(''); }}>
-              <Plus className="mr-2 h-4 w-4" /> Neuen Typ anlegen
-            </Button>
-          </>
-        ) : (
-          <div className="space-y-3">
-            <div>
-              <Label>Name</Label>
-              <Input value={edit.name ?? ''} onChange={(e) => { setEdit({ ...edit, name: e.target.value }); setErr(''); }}
-                placeholder="z. B. Handwerkerrechnung" />
-            </div>
-
-            <div>
-              <Label>Verknüpft mit</Label>
-              <Select value={edit.link_target} onValueChange={(v: any) => setEdit({ ...edit, link_target: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {LINK_TARGETS.map((l) => <SelectItem key={l.key} value={l.key}>{l.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <p className="mt-1 text-xs text-muted-foreground">Bestimmt, welche Objekte beim Ablegen zur Auswahl stehen.</p>
-            </div>
-
-            <div>
-              <Label>Speicherort in OneDrive</Label>
-              <Input className="font-mono" value={edit.folder_rule ?? ''}
-                onChange={(e) => { setEdit({ ...edit, folder_rule: e.target.value }); setErr(''); }}
-                placeholder="z. B. {haus}/Handwerker" />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Platzhalter <span className="font-mono">{'{haus}'}</span> und <span className="font-mono">{'{jahr}'}</span>. Fehlende Ordner werden beim Ablegen angelegt.
-              </p>
-              <p className="mt-1 text-xs">
-                Ergibt zum Beispiel:{' '}
-                <span className="font-mono">
-                  {(edit.folder_rule || '—').replaceAll('{haus}', 'Venedigersiedlung').replaceAll('{jahr}', String(new Date().getFullYear()))}
-                </span>
-              </p>
-            </div>
-
-            <div>
-              <Label>Farbe</Label>
-              <div className="mt-1 flex gap-2">
-                {Object.keys(COLORS).map((c) => (
-                  <button key={c} onClick={() => setEdit({ ...edit, color: c })}
-                    className={`h-7 w-7 rounded-full ${COLORS[c].split(' ')[0]} ${edit.color === c ? 'ring-2 ring-foreground ring-offset-2' : ''}`}
-                    aria-label={`Farbe ${c}`} />
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input id="active" type="checkbox" checked={edit.is_active ?? true}
-                onChange={(e) => setEdit({ ...edit, is_active: e.target.checked })} />
-              <Label htmlFor="active" className="font-normal">
-                Aktiv — deaktivierte Typen verschwinden aus der Auswahl, bleiben aber an bestehenden Dokumenten lesbar.
-              </Label>
-            </div>
-
-            {err && <p className="text-sm text-destructive">{err}</p>}
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => { setEdit(null); setErr(''); }}>Abbrechen</Button>
-              <Button onClick={submit} disabled={save.isPending}>
-                {save.isPending ? 'Wird gespeichert…' : 'Speichern'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 /* --------------------------------------------------------------- Ablegen */
 
 function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () => void }) {
   const { toast } = useToast();
   const upload = useUploadDocument();
   const linkExisting = useLinkExisting();
+  const { data: locations = [] } = useLocations();
+  const saveLocation = useSaveLocation();
 
   const [source, setSource] = useState<'pc' | 'od'>('pc');
   const [file, setFile] = useState<File | null>(null);
@@ -505,43 +394,42 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [typeId, setTypeId] = useState(types[0]?.id ?? '');
+  const [target, setTarget] = useState<LinkTarget>('provider');
   const [entityId, setEntityId] = useState('');
   const [entitySearch, setEntitySearch] = useState('');
+
   const [folder, setFolder] = useState<{ id: string; path: string } | null>(null);
-  const [resolving, setResolving] = useState(false);
+  const [folderTouched, setFolderTouched] = useState(false);
+  const [pickFolder, setPickFolder] = useState(false);
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState('');
 
   const type = types.find((t) => t.id === typeId);
-  const target = (type?.link_target ?? 'keine') as LinkTarget;
   const { data: entities = [], isFetching } = useEntities(target, entitySearch);
-  const chosen = entities.find((e) => e.id === entityId);
+  const chosen: EntityOption | undefined = entities.find((e) => e.id === entityId);
 
-  const { data: houses = [] } = useQuery({
-    queryKey: ['houses-min'],
-    queryFn: async () => {
-      const { data } = await supabase.from('houses').select('id, name');
-      return data ?? [];
-    },
-  });
+  // Festgelegten Ablageort suchen: Objekt (bzw. dessen Ablageort-Objekt)
+  // plus Dokumenttyp.
+  const gemerkt = useMemo(() => {
+    if (!chosen?.locationId || !typeId) return null;
+    return locations.find(
+      (l) => l.entity_type === chosen.locationType
+        && l.entity_id === chosen.locationId
+        && l.document_type_id === typeId,
+    ) ?? null;
+  }, [locations, chosen?.locationType, chosen?.locationId, typeId]);
 
-  // Zielordner aus der Typ-Regel ermitteln, sobald Typ und Objekt feststehen
   useEffect(() => {
-    if (!type) return;
-    if (target !== 'keine' && !chosen) { setFolder(null); return; }
+    if (folderTouched) return;
+    setFolder(gemerkt ? { id: gemerkt.onedrive_item_id, path: gemerkt.onedrive_path ?? '' } : null);
+  }, [gemerkt, folderTouched]);
 
-    const houseName = target === 'keine'
-      ? null
-      : (houses as any[]).find((h) => h.id === chosen?.houseId)?.name ?? null;
-
-    if (type.folder_rule.includes('{haus}') && !houseName) { setFolder(null); return; }
-
-    setResolving(true);
-    resolveFolder(type.folder_rule, houseName)
-      .then(setFolder)
-      .catch((e) => setErr(e.message))
-      .finally(() => setResolving(false));
-  }, [typeId, entityId, chosen?.houseId, houses.length]);
+  // Objektwechsel setzt eine eigene Ordnerwahl zurueck — sonst laege die
+  // naechste Datei still im Ordner des vorigen Objekts.
+  useEffect(() => {
+    setFolderTouched(false);
+    setPickFolder(false);
+  }, [entityId, typeId, target]);
 
   const pick = (f?: File | null) => { if (f) { setFile(f); setErr(''); } };
 
@@ -550,7 +438,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     if (source === 'pc' && !file) { setErr('Bitte zuerst eine Datei wählen.'); return; }
     if (source === 'od' && !existing) { setErr('Bitte eine Datei aus OneDrive wählen.'); return; }
     if (target !== 'keine' && !entityId) { setErr('Bitte ein Objekt zum Verknüpfen wählen.'); return; }
-    if (source === 'pc' && !folder) { setErr('Der Zielordner steht noch nicht fest.'); return; }
+    if (source === 'pc' && !folder) { setErr('Bitte einen Zielordner wählen.'); return; }
 
     const links = {
       typeId,
@@ -558,16 +446,38 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       bookingId: target === 'buchung' ? entityId : null,
       serviceTaskId: target === 'reinigung' ? entityId : null,
       linenOrderId: target === 'waesche' ? entityId : null,
+      providerId: target === 'provider' ? entityId : null,
+      vendorId: target === 'vendor' ? entityId : null,
+    };
+
+    // Die getroffene Wahl merken, damit sie beim naechsten Mal dasteht.
+    const merken = () => {
+      if (!folder || !chosen?.locationId) return;
+      if (gemerkt && gemerkt.onedrive_item_id === folder.id) return;
+      saveLocation.mutate({
+        entityType: chosen.locationType,
+        entityId: chosen.locationId,
+        documentTypeId: typeId,
+        itemId: folder.id,
+        path: folder.path || null,
+      });
     };
 
     if (source === 'pc') {
       upload.mutate({ file: file!, folderId: folder!.id, ...links, onProgress: setProgress }, {
-        onSuccess: () => { toast({ title: 'Abgelegt', description: `„${file!.name}" liegt in ${folder!.path}.` }); onClose(); },
+        onSuccess: () => {
+          merken();
+          toast({ title: 'Abgelegt', description: `„${file!.name}" liegt in ${folder!.path || 'OneDrive'}.` });
+          onClose();
+        },
         onError: (e: any) => setErr(e.message),
       });
     } else {
       linkExisting.mutate({ itemId: existing!.id, ...links }, {
-        onSuccess: () => { toast({ title: 'Verknüpft', description: `„${existing!.name}" ist verknüpft.` }); onClose(); },
+        onSuccess: () => {
+          toast({ title: 'Verknüpft', description: `„${existing!.name}" ist verknüpft.` });
+          onClose();
+        },
         onError: (e: any) => setErr(e.message),
       });
     }
@@ -575,107 +485,159 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 
   const busy = upload.isPending || linkExisting.isPending;
 
+  if (pickFolder) {
+    return (
+      <Dialog open onOpenChange={() => setPickFolder(false)}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Zielordner wählen</DialogTitle>
+            <DialogDescription>Gilt für dieses Dokument und wird gemerkt.</DialogDescription>
+          </DialogHeader>
+          <OrdnerWaehlen
+            titel={`${chosen?.label ?? 'ohne Bezug'} · ${type?.name ?? ''}`}
+            onAbbrechen={() => setPickFolder(false)}
+            onWaehlen={(id, path) => { setFolder({ id, path }); setFolderTouched(true); setPickFolder(false); }}
+          />
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   return (
     <Dialog open onOpenChange={() => !busy && onClose()}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Dokument ablegen</DialogTitle>
-          <DialogDescription>Der Typ bestimmt Verknüpfung und Speicherort.</DialogDescription>
+          <DialogDescription>Typ und Zuordnung sind frei wählbar.</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 sm:grid-cols-[200px_1fr]">
-          <div>
-            <Label>Typ</Label>
-            <Select value={typeId} onValueChange={(v) => { setTypeId(v); setEntityId(''); setErr(''); }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">1 · Was ist es</p>
+          <div className="sm:w-1/2">
+            <Label>Dokumenttyp</Label>
+            <Select value={typeId} onValueChange={(v) => { setTypeId(v); setErr(''); }}>
+              <SelectTrigger><SelectValue placeholder="Typ wählen…" /></SelectTrigger>
               <SelectContent>
                 {types.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>{LINK_TARGETS.find((l) => l.key === target)?.label}</Label>
-            {target === 'keine' ? (
-              <Input disabled value="Kein Bezug" />
-            ) : (
-              <>
-                {target === 'buchung' && (
-                  <Input className="mb-1.5" placeholder="Gast suchen…" value={entitySearch}
-                    onChange={(e) => setEntitySearch(e.target.value)} />
-                )}
-                <Select value={entityId} onValueChange={(v) => { setEntityId(v); setErr(''); }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={isFetching ? 'Wird geladen…' : 'Objekt wählen…'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {entities.map((e) => <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </>
-            )}
+        </div>
+
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">2 · Wozu gehört es</p>
+          <div className="grid gap-3 sm:grid-cols-[190px_1fr]">
+            <div>
+              <Label>Zuordnung</Label>
+              <Select value={target} onValueChange={(v: any) => { setTarget(v); setEntityId(''); setErr(''); }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {LINK_TARGETS.map((l) => <SelectItem key={l.key} value={l.key}>{l.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Objekt</Label>
+              {target === 'keine' ? (
+                <Input disabled value="Kein Bezug" />
+              ) : (
+                <>
+                  {target === 'buchung' && (
+                    <Input className="mb-1.5" placeholder="Gast suchen…" value={entitySearch}
+                      onChange={(e) => setEntitySearch(e.target.value)} />
+                  )}
+                  <Select value={entityId} onValueChange={(v) => { setEntityId(v); setErr(''); }}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={isFetching ? 'Wird geladen…' : 'Objekt wählen…'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {entities.length === 0 && !isFetching && (
+                        <div className="px-2 py-3 text-sm text-muted-foreground">
+                          {target === 'vendor' ? 'Noch keine Absender — unter Einstellungen anlegen.' : 'Nichts gefunden.'}
+                        </div>
+                      )}
+                      {entities.map((e) => <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <Label>Quelle</Label>
-            <div className="mb-2 mt-1 flex">
-              <Button size="sm" variant={source === 'pc' ? 'default' : 'outline'} className="rounded-r-none"
-                onClick={() => { setSource('pc'); setExisting(null); }}>
-                <HardDrive className="mr-1.5 h-3.5 w-3.5" /> Mein PC
-              </Button>
-              <Button size="sm" variant={source === 'od' ? 'default' : 'outline'} className="rounded-l-none border-l-0"
-                onClick={() => { setSource('od'); setFile(null); }}>
-                <Cloud className="mr-1.5 h-3.5 w-3.5" /> OneDrive
-              </Button>
-            </div>
+        <div className={`rounded-md border px-3 py-2.5 ${folder ? 'border-primary/40 bg-primary/5' : 'bg-amber-50 border-amber-300'}`}>
+          <p className="text-xs text-muted-foreground">Wird abgelegt in</p>
+          {folder ? (
+            <p className="truncate font-mono text-sm text-primary">{folder.path || 'OneDrive (Stammordner)'}</p>
+          ) : (
+            <p className="text-sm text-amber-900">
+              {target !== 'keine' && !entityId
+                ? 'Erst Objekt wählen.'
+                : 'Für diese Kombination ist noch kein Ordner festgelegt.'}
+            </p>
+          )}
+          <button type="button" className="mt-1 text-xs text-primary hover:underline"
+            onClick={() => setPickFolder(true)}>
+            {folder ? 'Anderen Ordner wählen' : 'Ordner wählen oder anlegen'}
+          </button>
+          {gemerkt && folder?.id === gemerkt.onedrive_item_id && (
+            <span className="ml-2 text-xs text-muted-foreground">aus dem festgelegten Ablageort</span>
+          )}
+        </div>
 
-            {source === 'pc' ? (
-              <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]); }}
-                className={`rounded-md border border-dashed p-4 text-center ${dragging ? 'border-primary bg-primary/5' : ''}`}>
-                <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
-                <p className="mt-1.5 text-sm text-muted-foreground">Datei hierher ziehen</p>
-                <Button size="sm" variant="outline" className="mt-2" onClick={() => inputRef.current?.click()}>
-                  Durchsuchen
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">3 · Datei</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <div className="mb-2 flex">
+                <Button size="sm" variant={source === 'pc' ? 'default' : 'outline'} className="rounded-r-none"
+                  onClick={() => { setSource('pc'); setExisting(null); }}>
+                  <HardDrive className="mr-1.5 h-3.5 w-3.5" /> Mein PC
                 </Button>
-                <input ref={inputRef} type="file" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+                <Button size="sm" variant={source === 'od' ? 'default' : 'outline'} className="rounded-l-none border-l-0"
+                  onClick={() => { setSource('od'); setFile(null); }}>
+                  <Cloud className="mr-1.5 h-3.5 w-3.5" /> OneDrive
+                </Button>
               </div>
-            ) : (
-              <OneDrivePicker selected={existing} onSelect={(f) => { setExisting(f); setErr(''); }} />
-            )}
 
-            {file && (
-              <div className="mt-2 flex items-center gap-2 rounded-md bg-muted px-2.5 py-2">
-                <FileText className="h-[18px] w-[18px] shrink-0 text-primary" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">{fmtSize(file.size)}</p>
+              {source === 'pc' ? (
+                <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]); }}
+                  className={`rounded-md border border-dashed p-4 text-center ${dragging ? 'border-primary bg-primary/5' : ''}`}>
+                  <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
+                  <p className="mt-1.5 text-sm text-muted-foreground">Datei hierher ziehen</p>
+                  <Button size="sm" variant="outline" className="mt-2" onClick={() => inputRef.current?.click()}>
+                    Durchsuchen
+                  </Button>
+                  <input ref={inputRef} type="file" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
                 </div>
-                {!busy && <button onClick={() => setFile(null)} aria-label="Auswahl entfernen"><X className="h-4 w-4 text-muted-foreground" /></button>}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <Label>Ziel in OneDrive</Label>
-            <div className="mt-1 rounded-md border px-3 py-2">
-              {resolving ? (
-                <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Ordner wird ermittelt…
-                </p>
-              ) : folder ? (
-                <p className="truncate font-mono text-sm">{folder.path}</p>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  {source === 'od' ? 'Datei bleibt, wo sie liegt.' : 'Erst Typ und Objekt wählen.'}
-                </p>
+                <OneDrivePicker selected={existing} onSelect={(f) => { setExisting(f); setErr(''); }} />
               )}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Aus der Regel <span className="font-mono">{type?.folder_rule}</span>. Fehlende Ordner werden angelegt.
-            </p>
+
+            <div>
+              {file && (
+                <div className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-2">
+                  <FileText className="h-[18px] w-[18px] shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm">{file.name}</p>
+                    <p className="text-xs text-muted-foreground">{fmtSize(file.size)}</p>
+                  </div>
+                  {!busy && <button onClick={() => setFile(null)} aria-label="Auswahl entfernen"><X className="h-4 w-4 text-muted-foreground" /></button>}
+                </div>
+              )}
+              {existing && (
+                <div className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-2">
+                  <FileText className="h-[18px] w-[18px] shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm">{existing.name}</p>
+                    <p className="text-xs text-muted-foreground">bleibt, wo sie liegt</p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
