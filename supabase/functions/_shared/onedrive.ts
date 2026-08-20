@@ -64,9 +64,23 @@ export async function getAccessToken(supabase: SupabaseClient): Promise<string> 
   }
 
   // Sperre, damit nicht zwei Functions gleichzeitig refreshen.
-  // Schlaegt der RPC fehl (Funktion nicht angelegt), wird ohne Sperre
-  // weitergemacht — schlechter, aber nicht blockierend.
-  await supabase.rpc("lock_onedrive_refresh").catch(() => {});
+  //
+  // ACHTUNG: supabase.rpc() liefert einen Thenable, KEIN echtes Promise —
+  // `.catch()` existiert dort nicht. Der frueher hier stehende Aufruf
+  //     await supabase.rpc("lock_onedrive_refresh").catch(() => {});
+  // warf deshalb selbst „catch is not a function", und zwar erst beim
+  // ersten Token-Refresh, also rund eine Stunde nach der Anmeldung.
+  // Bis dahin lief alles — ein Fehler, der sich verspaetet zeigt.
+  //
+  // try/catch statt .catch(): Schlaegt der RPC fehl (Funktion nicht
+  // angelegt), wird ohne Sperre weitergemacht — schlechter, aber nicht
+  // blockierend.
+  try {
+    const { error: lockError } = await supabase.rpc("lock_onedrive_refresh");
+    if (lockError) console.warn("Advisory Lock nicht gesetzt:", lockError.message);
+  } catch (e) {
+    console.warn("Advisory Lock nicht gesetzt:", e instanceof Error ? e.message : String(e));
+  }
 
   const body = new URLSearchParams({
     grant_type: "refresh_token",
