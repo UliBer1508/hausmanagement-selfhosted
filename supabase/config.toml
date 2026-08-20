@@ -69,3 +69,9 @@ verify_jwt = false
 # anonym ab. Der Schutz erfolgt ueber das geheime Token in der URL.
 [functions.ical-export]
 verify_jwt = false
+
+[functions.onedrive-oauth]
+verify_jwt = false
+
+[functions.onedrive-api]
+verify_jwt = false
