@@ -49,6 +49,39 @@ serve(async (req) => {
     );
   }
 
+  // ---- Pruefmodus: zeigt, was tatsaechlich an Microsoft ginge ---------
+  // Aufruf mit ?debug=1. Leitet NICHT weiter, sondern gibt die Werte aus.
+  // Hintergrund: die redirect_uri wird zur Laufzeit aus der aufgerufenen
+  // Adresse gebaut. Weicht sie von der registrierten ab, meldet Microsoft
+  // invalid_request — ohne zu sagen, welche Zeichenkette es erwartet hat.
+  if (url.searchParams.get("debug") === "1") {
+    const authUrl = new URL(AUTH_URL);
+    authUrl.searchParams.set("client_id", clientId);
+    authUrl.searchParams.set("response_type", "code");
+    authUrl.searchParams.set("response_mode", "query");
+    authUrl.searchParams.set("redirect_uri", redirectUri);
+    authUrl.searchParams.set("scope", SCOPE);
+    authUrl.searchParams.set("state", "debug");
+
+    return new Response(
+      JSON.stringify({
+        redirect_uri: redirectUri,
+        redirect_uri_laenge: redirectUri.length,
+        url_origin: url.origin,
+        url_pathname: url.pathname,
+        url_href: url.href,
+        client_id: clientId,
+        client_id_laenge: clientId.length,
+        scope: SCOPE,
+        vollstaendige_anmelde_url: authUrl.toString(),
+        header_host: req.headers.get("host"),
+        header_x_forwarded_host: req.headers.get("x-forwarded-host"),
+        header_x_forwarded_proto: req.headers.get("x-forwarded-proto"),
+      }, null, 2),
+      { headers: { "Content-Type": "application/json; charset=utf-8" } },
+    );
+  }
+
   const code = url.searchParams.get("code");
   const err = url.searchParams.get("error");
 
