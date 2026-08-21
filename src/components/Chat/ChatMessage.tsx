@@ -7,9 +7,13 @@ import ActionCard from './ActionCard';
 
 interface EntityLink {
   id: string;
-  // Nur diese vier Typen erzeugt Max (buildEntityLinks im chat-assistant).
-  type: 'booking' | 'cleaning_task' | 'laundry_order' | 'email_draft';
+  // Nur diese fünf Typen erzeugt Max (buildEntityLinks im chat-assistant).
+  type: 'booking' | 'cleaning_task' | 'laundry_order' | 'email_draft' | 'document';
   label: string;
+  // Nur bei type === 'document': Adresse der Datei in OneDrive.
+  // Anders als die übrigen Typen KEIN Tabwechsel, sondern ein externer
+  // Verweis — die Datei liegt nicht in der App.
+  url?: string;
   // Nur bei type === 'email_draft': vorausgefüllter Begrüßungs-E-Mail-Entwurf.
   email?: {
     to: string;
@@ -114,6 +118,11 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
         break;
       case 'laundry_order':
         navigate('/', { state: { activeTab: 'Wäsche', openOrderId: link.id } });
+        break;
+      case 'document':
+        // Externer Verweis: die Datei liegt in OneDrive, nicht in der App.
+        // noopener/noreferrer, weil das Ziel eine fremde Seite ist.
+        if (link.url) window.open(link.url, '_blank', 'noopener,noreferrer');
         break;
       // ENTFERNT 13.07.2026: 'house', 'guest', 'calendar'.
       // Max erzeugt diese Button-Typen NIE (buildEntityLinks liefert nur
