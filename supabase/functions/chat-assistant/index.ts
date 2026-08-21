@@ -452,6 +452,34 @@ async function executeSearchCleaningTasks(params: any) {
    =========================================================================== */
 
 /**
+ * Liefert die IDs aller Dokumente, die an einem Objekt haengen — ueber den
+ * HAUPTBEZUG (Spalte in `documents`) UND ueber die ZUSATZZUORDNUNGEN
+ * (Tabelle document_links, 2. und 3. Zuordnung).
+ *
+ * Ohne den zweiten Weg fand Max Boris' Rechnung nur unter „Boris", nicht
+ * unter „Wald Chalet" — obwohl sie dort als 2. Zuordnung haengt.
+ */
+async function dokumentIdsFuerObjekt(
+  spalte: 'provider_id' | 'house_id' | 'vendor_id' | 'booking_id' | 'service_task_id' | 'linen_order_id',
+  entityType: string,
+  objektId: string,
+): Promise<string[]> {
+  const [haupt, zusatz] = await Promise.all([
+    supabase.from('documents').select('id').eq(spalte, objektId),
+    supabase.from('document_links').select('document_id')
+      .eq('entity_type', entityType).eq('entity_id', objektId),
+  ]);
+
+  if (haupt.error) console.error('dokumentIdsFuerObjekt (haupt):', haupt.error.message);
+  if (zusatz.error) console.error('dokumentIdsFuerObjekt (zusatz):', zusatz.error.message);
+
+  return [...new Set([
+    ...(haupt.data || []).map((r: any) => r.id),
+    ...(zusatz.data || []).map((r: any) => r.document_id),
+  ])];
+}
+
+/**
  * Haengt an eine Liste von Treffern die zugehoerigen Dokumente an.
  *
  * @param zeilen   Treffer der aufrufenden Suche
@@ -472,26 +500,66 @@ async function dokumenteAnhaengen(
   const ids = [...new Set(zeilen.map(z => z?.id).filter(Boolean))];
   if (ids.length === 0) return zeilen;
 
-  // EINE Abfrage fuer alle Treffer, nicht je Treffer eine.
-  const { data, error } = await supabase
-    .from('documents')
-    .select(`id, file_name, ${spalte}, document_types:document_type_id (name)`)
-    .in(spalte, ids)
-    .order('created_at', { ascending: false });
+  // Zwei Wege, je EINE Abfrage fuer alle Treffer:
+  //   Hauptbezug  -> Spalte in documents
+  //   Zusatz      -> document_links (2. und 3. Zuordnung)
+  const entityType = spalte === 'booking_id' ? 'buchung'
+    : spalte === 'service_task_id' ? 'reinigung'
+    : spalte === 'linen_order_id' ? 'waesche'
+    : 'haus';
 
-  if (error) {
+  const [haupt, links] = await Promise.all([
+    supabase
+      .from('documents')
+      .select(`id, file_name, ${spalte}, document_types:document_type_id (name)`)
+      .in(spalte, ids)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('document_links')
+      .select('document_id, entity_id')
+      .eq('entity_type', entityType)
+      .in('entity_id', ids),
+  ]);
+
+  if (haupt.error) {
     // Dokumente sind Beiwerk. Faellt die Abfrage aus, liefert die Suche
     // trotzdem ihr eigentliches Ergebnis.
-    console.error('dokumenteAnhaengen:', error.message);
+    console.error('dokumenteAnhaengen:', haupt.error.message);
     return zeilen;
   }
+  if (links.error) console.error('dokumenteAnhaengen (links):', links.error.message);
 
   const proObjekt = new Map<string, any[]>();
-  for (const d of data || []) {
-    const key = (d as any)[spalte];
-    if (!key) continue;
-    if (!proObjekt.has(key)) proObjekt.set(key, []);
-    proObjekt.get(key)!.push(d);
+  const merken = (objektId: string, dok: any) => {
+    if (!objektId || !dok) return;
+    const liste = proObjekt.get(objektId) ?? [];
+    if (liste.some((x) => x.id === dok.id)) return; // nicht doppelt
+    liste.push(dok);
+    proObjekt.set(objektId, liste);
+  };
+
+  for (const d of haupt.data || []) merken((d as any)[spalte], d);
+
+  // Die ueber document_links gefundenen Dokumente kennen wir noch nicht
+  // alle: Ihre Bezugsspalte zeigt auf ein ANDERES Objekt, sie stehen also
+  // nicht zwingend in haupt.data. Die fehlenden nachladen.
+  const nachId = new Map<string, any>((haupt.data || []).map((d: any) => [d.id, d]));
+
+  const fehlende = [...new Set((links.data || []).map((l: any) => l.document_id))]
+    .filter((id) => !nachId.has(id));
+
+  if (fehlende.length > 0) {
+    const { data: extra, error: extraError } = await supabase
+      .from('documents')
+      .select('id, file_name, document_types:document_type_id (name)')
+      .in('id', fehlende);
+
+    if (extraError) console.error('dokumenteAnhaengen (extra):', extraError.message);
+    for (const d of extra || []) nachId.set((d as any).id, d);
+  }
+
+  for (const l of links.data || []) {
+    merken((l as any).entity_id, nachId.get((l as any).document_id));
   }
 
   return zeilen.map(z => {
@@ -507,6 +575,59 @@ async function dokumenteAnhaengen(
       dokumente_gesamt: treffer.length,
     };
   });
+}
+
+/**
+ * Laedt die Zusatzzuordnungen zu einer Liste von Dokumenten und loest die
+ * Namen auf. Je Tabelle EINE Abfrage, nicht je Verweis eine.
+ */
+async function weitereBezuege(documentIds: string[]): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (documentIds.length === 0) return out;
+
+  const { data: links, error } = await supabase
+    .from('document_links')
+    .select('document_id, entity_type, entity_id')
+    .in('document_id', documentIds);
+
+  if (error) {
+    console.error('weitereBezuege:', error.message);
+    return out;
+  }
+  if (!links || links.length === 0) return out;
+
+  const namen = new Map<string, string>();
+  const idsVon = (art: string) =>
+    [...new Set(links.filter((l: any) => l.entity_type === art).map((l: any) => l.entity_id))];
+
+  const laden = async (art: string, tabelle: string, felder: string, text: (r: any) => string) => {
+    const ids = idsVon(art);
+    if (ids.length === 0) return;
+    const { data } = await supabase.from(tabelle).select(felder).in('id', ids);
+    for (const r of (data || []) as any[]) namen.set(`${art}:${r.id}`, text(r));
+  };
+
+  const datum = (d?: string | null) =>
+    d ? new Date(d).toLocaleDateString('de-DE') : 'ohne Datum';
+
+  await Promise.all([
+    laden('haus', 'houses', 'id, name', (r) => r.name),
+    laden('provider', 'service_providers', 'id, name', (r) => r.name),
+    laden('vendor', 'document_vendors', 'id, name', (r) => r.name),
+    laden('buchung', 'bookings', 'id, check_in, guests!bookings_guest_id_fkey(name)',
+      (r) => `Buchung ${datum(r.check_in)} · ${r.guests?.name ?? 'ohne Gast'}`),
+    laden('reinigung', 'service_tasks', 'id, scheduled_date, houses:house_id(name)',
+      (r) => `Reinigung ${datum(r.scheduled_date)} · ${r.houses?.name ?? '—'}`),
+    laden('waesche', 'linen_orders', 'id, delivery_date, houses:house_id(name)',
+      (r) => `Wäsche ${datum(r.delivery_date)} · ${r.houses?.name ?? '—'}`),
+  ]);
+
+  for (const l of links as any[]) {
+    const liste = out.get(l.document_id) ?? [];
+    liste.push(namen.get(`${l.entity_type}:${l.entity_id}`) ?? 'unbekannt');
+    out.set(l.document_id, liste);
+  }
+  return out;
 }
 
 /**
@@ -567,7 +688,18 @@ async function executeSearchDocuments(params: any) {
     const spalte = t.art === 'Dienstleister' ? 'provider_id'
       : t.art === 'Haus' ? 'house_id'
       : 'vendor_id';
-    query = query.eq(spalte, t.id);
+    const entityType = t.art === 'Dienstleister' ? 'provider'
+      : t.art === 'Haus' ? 'haus'
+      : 'vendor';
+
+    // Ueber BEIDE Wege suchen: Hauptbezug UND Zusatzzuordnung.
+    // Boris' Rechnung haengt an Boris (1. Zuordnung) und am Wald Chalet
+    // (2. Zuordnung) — sie muss unter beiden gefunden werden.
+    const ids = await dokumentIdsFuerObjekt(spalte as any, entityType, t.id);
+    if (ids.length === 0) {
+      return { success: true, data: [], count: 0 };
+    }
+    query = query.in('id', ids);
   }
 
   // ---- Dokumenttyp ---------------------------------------------------------
@@ -599,7 +731,13 @@ async function executeSearchDocuments(params: any) {
     return { success: false, error: error.message };
   }
 
-  const ergebnis = (data || []).map((d: any) => ({
+  const zeilen = data || [];
+
+  // Zusatzzuordnungen (2. und 3.) nachladen und benennen, damit Max sie
+  // erwaehnen kann. Ohne das saehe er nur den Hauptbezug.
+  const weitere = await weitereBezuege(zeilen.map((d: any) => d.id));
+
+  const ergebnis = zeilen.map((d: any) => ({
     id: d.id,
     dateiname: d.file_name,
     typ: d.document_types?.name ?? null,
@@ -607,6 +745,7 @@ async function executeSearchDocuments(params: any) {
       ?? d.document_vendors?.name
       ?? d.houses?.name
       ?? null,
+    weitere_bezuege: weitere.get(d.id) ?? [],
     ordner: d.onedrive_path,
     web_url: d.onedrive_web_url,
     abgelegt_am: d.created_at,
@@ -1732,7 +1871,7 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "search_documents",
-        description: "Sucht abgelegte DOKUMENTE (Rechnungen, Nächtigungsabgaben, Hausunterlagen, Verträge …). Sie liegen in OneDrive; du lieferst Namen, Ablageort und einen Knopf zum Öffnen. NUTZE ES bei Fragen wie 'Hast du die Boris-Rechnung von August?', 'Welche Dokumente gibt es zum Venediger Chalet?', 'Gibt es schon eine Kurtaxenrechnung?'. Der Parameter `objekt` ist ein NAME, keine UUID — schreibe einfach 'Boris', 'Venediger' oder 'Gemeinde Neukirchen' hinein; das Tool sucht selbst in Dienstleistern, Häusern und Vendoren. Passt der Name auf MEHRERE Objekte, meldet das Tool das mit einer Trefferliste: lege sie Uli zur Auswahl vor, statt zu raten. Reine Leseoperation — es wird nichts geändert und keine Datei geöffnet. Den INHALT eines Dokuments kannst du nicht lesen; wenn Uli danach fragt, sage das ehrlich und biete den Knopf zum Öffnen an.",
+        description: "Sucht abgelegte DOKUMENTE (Rechnungen, Nächtigungsabgaben, Hausunterlagen, Verträge …). Sie liegen in OneDrive; du lieferst Namen, Ablageort und einen Knopf zum Öffnen. NUTZE ES bei Fragen wie 'Hast du die Boris-Rechnung von August?', 'Welche Dokumente gibt es zum Venediger Chalet?', 'Gibt es schon eine Kurtaxenrechnung?'. Der Parameter `objekt` ist ein NAME, keine UUID — schreibe einfach 'Boris', 'Venediger' oder 'Gemeinde Neukirchen' hinein; das Tool sucht selbst in Dienstleistern, Häusern und Vendoren. Passt der Name auf MEHRERE Objekte, meldet das Tool das mit einer Trefferliste: lege sie Uli zur Auswahl vor, statt zu raten. Ein Dokument kann MEHREREN Objekten zugeordnet sein: Boris' Sammelrechnung hängt am Dienstleister und zusätzlich an Häusern und einzelnen Reinigungen. Das Tool findet sie unter JEDEM dieser Objekte, und `weitere_bezuege` nennt die übrigen — erwähne sie, wenn sie zur Frage passen. Reine Leseoperation — es wird nichts geändert und keine Datei geöffnet. Den INHALT eines Dokuments kannst du nicht lesen; wenn Uli danach fragt, sage das ehrlich und biete den Knopf zum Öffnen an.",
         parameters: {
           type: "object",
           properties: {
