@@ -17,7 +17,7 @@ import DocumentSettings from '@/components/Documents/DocumentSettings';
 import {
   onedrive, bezugLabel, useOneDriveStatus, useDocumentTypes, useDocuments,
   useUploadDocument, useLinkExisting, useRemoveDocument, useEntities,
-  useLocations, useSaveLocation,
+  useLocations, useSaveLocation, useVendors,
   type DocumentType, type LinkTarget, type OneDriveFolder, type OneDriveFile,
   type EntityOption,
 } from '@/hooks/useDocuments';
@@ -67,7 +67,7 @@ export default function DocumentsTab() {
   const [view, setView] = useState<'suche' | 'ordner'>('suche');
   const [dialog, setDialog] = useState<'upload' | 'settings' | null>(null);
   const [query, setQuery] = useState('');
-  const [fHouse, setFHouse] = useState<string[]>([]);
+  const [fObjekt, setFObjekt] = useState<string[]>([]);
   const [fType, setFType] = useState<string[]>([]);
   const [fYear, setFYear] = useState<string[]>([]);
   const [limit, setLimit] = useState(25);
@@ -81,17 +81,44 @@ export default function DocumentsTab() {
     },
   });
 
+  const { data: providers = [] } = useQuery({
+    queryKey: ['providers-min'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('service_providers').select('id, name').eq('is_active', true).order('name');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: vendors = [] } = useVendors(true);
+
+  /**
+   * Ein Dokument haengt an HOECHSTENS EINEM Objekt. Der Schluessel traegt die
+   * Art mit, weil Kennungen aus verschiedenen Tabellen kommen und sonst
+   * theoretisch kollidieren koennten.
+   *
+   * Bis 21.08.2026 filterte die Spalte nur nach `house_id`. Dokumente an
+   * Dienstleistern oder Vendoren fielen samt und sonders unter „ohne Haus"
+   * und liessen sich gar nicht filtern.
+   */
+  const objektKey = (d: any): string =>
+    d.provider_id ? `provider:${d.provider_id}`
+      : d.vendor_id ? `vendor:${d.vendor_id}`
+      : d.house_id ? `haus:${d.house_id}`
+      : '';
+
   const toggle = (arr: string[], set: (v: string[]) => void, v: string) => {
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
     setLimit(25);
   };
-  const resetAll = () => { setQuery(''); setFHouse([]); setFType([]); setFYear([]); setLimit(25); };
-  const activeCount = fHouse.length + fType.length + fYear.length + (query ? 1 : 0);
+  const resetAll = () => { setQuery(''); setFObjekt([]); setFType([]); setFYear([]); setLimit(25); };
+  const activeCount = fObjekt.length + fType.length + fYear.length + (query ? 1 : 0);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     return docs.filter((d) => {
-      if (fHouse.length && !fHouse.includes(d.house_id ?? '')) return false;
+      if (fObjekt.length && !fObjekt.includes(objektKey(d))) return false;
       if (fType.length && !fType.includes(d.document_type_id ?? '')) return false;
       if (fYear.length && !fYear.includes(d.created_at.slice(0, 4))) return false;
       if (!q) return true;
@@ -100,23 +127,38 @@ export default function DocumentsTab() {
         || (d.document_types?.name ?? '').toLowerCase().includes(q)
         || bezugLabel(d).toLowerCase().includes(q);
     });
-  }, [docs, query, fHouse, fType, fYear]);
+  }, [docs, query, fObjekt, fType, fYear]);
 
-  const countBy = (dim: 'house' | 'type' | 'year') => {
+  const countBy = (dim: 'objekt' | 'type' | 'year') => {
     const base = docs.filter((d) => {
-      if (dim !== 'house' && fHouse.length && !fHouse.includes(d.house_id ?? '')) return false;
+      if (dim !== 'objekt' && fObjekt.length && !fObjekt.includes(objektKey(d))) return false;
       if (dim !== 'type' && fType.length && !fType.includes(d.document_type_id ?? '')) return false;
       if (dim !== 'year' && fYear.length && !fYear.includes(d.created_at.slice(0, 4))) return false;
       return true;
     });
     const m: Record<string, number> = {};
     for (const d of base) {
-      const k = dim === 'house' ? (d.house_id ?? '') : dim === 'type' ? (d.document_type_id ?? '') : d.created_at.slice(0, 4);
+      const k = dim === 'objekt' ? objektKey(d)
+        : dim === 'type' ? (d.document_type_id ?? '')
+        : d.created_at.slice(0, 4);
       m[k] = (m[k] || 0) + 1;
     }
     return m;
   };
-  const cHouse = countBy('house'), cType = countBy('type'), cYear = countBy('year');
+  const cObjekt = countBy('objekt'), cType = countBy('type'), cYear = countBy('year');
+
+  /**
+   * Alle Objekte in EINER Spalte, nach Art gruppiert und farblich getrennt.
+   * Bewusst nicht drei Spalten: ein Dokument haengt an genau einem Objekt,
+   * getrennte Spalten waeren UND-verknuepft und lieferten bei zwei Arten
+   * immer null Treffer.
+   */
+  const objektEintraege = useMemo(() => [
+    ...(providers as any[]).map((p) => ({ key: `provider:${p.id}`, label: p.name, n: cObjekt[`provider:${p.id}`], color: 'emerald' })),
+    ...(houses as any[]).map((h) => ({ key: `haus:${h.id}`, label: h.name, n: cObjekt[`haus:${h.id}`], color: 'amber' })),
+    ...vendors.map((v) => ({ key: `vendor:${v.id}`, label: v.name, n: cObjekt[`vendor:${v.id}`], color: 'slate' })),
+    { key: '', label: 'ohne Bezug', n: cObjekt[''] },
+  ], [providers, houses, vendors, cObjekt]);
   const years = [...new Set(docs.map((d) => d.created_at.slice(0, 4)))].sort().reverse();
 
   const grouped = useMemo(() => {
@@ -215,9 +257,7 @@ export default function DocumentsTab() {
                 {activeCount} Filter zurücksetzen
               </Button>
             )}
-            <Facet title="Haus" sel={fHouse} set={setFHouse}
-              items={[...houses.map((h: any) => ({ key: h.id, label: h.name, n: cHouse[h.id] })),
-                      { key: '', label: 'ohne Haus', n: cHouse[''] }]} />
+            <Facet title="Objekt" sel={fObjekt} set={setFObjekt} items={objektEintraege} />
             <Facet title="Typ" sel={fType} set={setFType}
               items={types.map((t) => ({ key: t.id, label: t.name, n: cType[t.id], color: t.color }))} />
             <Facet title="Jahr" sel={fYear} set={setFYear}
