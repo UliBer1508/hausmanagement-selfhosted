@@ -453,6 +453,15 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   const { data: locations = [] } = useLocations();
   const saveLocation = useSaveLocation();
 
+  // Bereits verknuepfte Dateien, damit der Auswaehler sie kennzeichnen kann.
+  // useDocuments ist von der Uebersicht her ohnehin geladen — react-query
+  // liefert aus dem Zwischenspeicher, es entsteht keine zweite Abfrage.
+  const { data: alleDokumente = [] } = useDocuments();
+  const verknuepft = useMemo(
+    () => new Map(alleDokumente.map((d) => [d.onedrive_item_id, d])),
+    [alleDokumente],
+  );
+
   const [source, setSource] = useState<'pc' | 'od'>('pc');
   const [file, setFile] = useState<File | null>(null);
   const [existing, setExisting] = useState<OneDriveFile | null>(null);
@@ -642,7 +651,11 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
               <input ref={inputRef} type="file" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
             </div>
           ) : (
-            <OneDrivePicker selected={existing} onSelect={(f) => { setExisting(f); setErr(''); }} />
+            <OneDrivePicker
+              selected={existing}
+              verknuepft={verknuepft}
+              onSelect={(f) => { setExisting(f); setErr(''); }}
+            />
           )}
 
           {(file || existing) && (
@@ -770,7 +783,21 @@ function ZuordnungZeile({
   );
 }
 
-function OneDrivePicker({ selected, onSelect }: { selected: OneDriveFile | null; onSelect: (f: OneDriveFile) => void }) {
+/**
+ * Datei-Auswaehler fuer Quelle „OneDrive".
+ *
+ * Zeigt an, welche Dateien BEREITS verknuepft sind. Ohne diese Kennzeichnung
+ * sahen alle Dateien gleich aus: Man waehlte eine schon verknuepfte, bekam
+ * beim Hochladen die Meldung „bereits verknuepft" und wusste vorher nicht,
+ * woran man war. Eine bereits verknuepfte Datei ist nicht anklickbar.
+ */
+function OneDrivePicker({
+  selected, verknuepft, onSelect,
+}: {
+  selected: OneDriveFile | null;
+  verknuepft: Map<string, any>;
+  onSelect: (f: OneDriveFile) => void;
+}) {
   const [stack, setStack] = useState<{ id: string; name: string }[]>([{ id: 'root', name: 'OneDrive' }]);
   const current = stack[stack.length - 1];
   const pfad = stack.length === 1 ? 'OneDrive' : stack.slice(1).map((x) => x.name).join(' / ');
@@ -803,17 +830,40 @@ function OneDrivePicker({ selected, onSelect }: { selected: OneDriveFile | null;
           </button>
         ))}
 
-        {data?.files.map((f) => (
-          <button key={f.id} onClick={() => onSelect(f)}
-            className={`flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left text-sm ${selected?.id === f.id ? 'bg-primary/10 text-primary' : 'hover:bg-muted'}`}>
-            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1 truncate">{f.name}</span>
-            {selected?.id === f.id && <Check className="h-4 w-4 shrink-0" />}
-          </button>
-        ))}
+        {data?.files.map((f) => {
+          const schon = verknuepft.get(f.id);
+          return (
+            <button
+              key={f.id}
+              onClick={() => !schon && onSelect(f)}
+              disabled={!!schon}
+              title={schon ? `Bereits verknüpft: ${schon.document_types?.name ?? 'ohne Typ'} · ${bezugLabel(schon)}` : undefined}
+              className={`flex w-full items-center gap-2.5 rounded px-2 py-1.5 text-left text-sm ${
+                schon ? 'cursor-not-allowed opacity-60'
+                  : selected?.id === f.id ? 'bg-primary/10 text-primary'
+                  : 'hover:bg-muted'}`}
+            >
+              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate">{f.name}</span>
+              {schon ? (
+                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                  verknüpft
+                </span>
+              ) : selected?.id === f.id ? (
+                <Check className="h-4 w-4 shrink-0" />
+              ) : null}
+            </button>
+          );
+        })}
 
         {data && data.folders.length === 0 && data.files.length === 0 && (
           <p className="px-2 py-4 text-center text-xs text-muted-foreground">Dieser Ordner ist leer.</p>
+        )}
+
+        {data && data.files.length > 0 && data.files.every((f) => verknuepft.has(f.id)) && (
+          <p className="px-2 py-2 text-center text-xs text-muted-foreground">
+            Alle Dateien in diesem Ordner sind bereits verknüpft.
+          </p>
         )}
       </div>
     </div>
