@@ -1166,6 +1166,15 @@ const OriginalDashboard = () => {
   }, [linenData]);
 
 
+  // Abmelden — Logik stand bis 21.08.2026 direkt im Kachel-Knopf.
+  // Beim Verschieben in den Header ausgelagert, damit sie nur einmal
+  // existiert und nicht beim naechsten Umbau versehentlich verdoppelt wird.
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    toast({ title: 'Abgemeldet', description: 'Du wurdest erfolgreich abgemeldet.' });
+    navigate('/login', { replace: true });
+  };
+
   const renderTabContent = () => {
     const overviewElement = (
       <OverviewTab
@@ -1278,6 +1287,21 @@ const OriginalDashboard = () => {
               </p>
             </div>
           </div>
+
+          {/* Abmelden — seit 21.08.2026 im Header statt als Kachel.
+              Auf schmalen Geraeten faellt die Beschriftung weg, damit der
+              Titel nicht umbricht; das Symbol bleibt und aria-label traegt
+              die Bedeutung. */}
+          <button
+            type="button"
+            onClick={handleLogout}
+            aria-label="Abmelden"
+            title="Abmelden"
+            className="flex shrink-0 items-center gap-2 rounded-lg border border-gray-300 bg-white px-2.5 py-2 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50 sm:px-3.5"
+          >
+            <span className="text-lg leading-none">🚪</span>
+            <span className="hidden sm:inline">Abmelden</span>
+          </button>
         </div>
       </div>
 
@@ -1422,18 +1446,6 @@ const OriginalDashboard = () => {
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={async () => {
-                await supabase.auth.signOut();
-                toast({ title: 'Abgemeldet', description: 'Du wurdest erfolgreich abgemeldet.' });
-                navigate('/login', { replace: true });
-              }}
-              className="flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium text-left transition-all shadow-sm hover:shadow-md hover:-translate-y-0.5 bg-white border-gray-200 text-gray-800 hover:border-gray-300"
-            >
-              <span className="text-lg leading-none shrink-0">🚪</span>
-              <span className="truncate">Abmelden</span>
-            </button>
           </nav>
         </div>
 
