@@ -196,3 +196,43 @@ Tab „Dokumente" (📄) zwischen „Preise" und „Einstellungen": Lazy-Import 
 `@/components/Documents/DocumentsTab`, Eintrag in der `tabs`-Liste, Fall in
 `renderTabContent`. Zwölf Tabs insgesamt.
 ```
+
+
+---
+
+# THEMA C — Max und die Dokumente (21.08.2026)
+
+## C1 — Ergänzung in Abschnitt 12 (Dokumentenverwaltung)
+
+**Einfügen ans Ende des Abschnitts 12, VOR dem Betriebs-Block.**
+
+```markdown
+### Max' Zugriff (21.08.2026)
+
+**Vollständig: `docs/Max-und-Dokumente.md`.**
+
+Max liest **nur die Datenbank, nie OneDrive**. `documents` trägt Name, Typ,
+Bezug, Pfad und `onedrive_web_url` — für Suchen und Verweisen reicht das.
+
+| Werkzeug | Zweck |
+|---|---|
+| `search_documents` | Suche nach Objekt, Typ, Zeitraum, Dateiname. `objekt` ist ein NAME; das Werkzeug löst ihn in service_providers / houses / document_vendors selbst auf und meldet Mehrdeutigkeit, statt zu raten. |
+| `dokumenteAnhaengen()` | Hilfsfunktion: hängt Dokumente an die Treffer von `search_bookings`, `search_cleaning_tasks` und `search_linen_orders`. |
+
+> ⚠️ **Doppelgänger:** Die Anreicherung steht EINMAL in `dokumenteAnhaengen()`
+> und wird DREIMAL aufgerufen. Ein viertes Suchwerkzeug ruft dieselbe Funktion
+> auf — nicht kopieren.
+
+`buildEntityLinks` erzeugt Links vom Typ **`document`** mit zusätzlichem Feld
+`url`. In `ChatMessage.tsx` ist das der einzige Typ, der KEINEN Tabwechsel
+auslöst, sondern `window.open(url, '_blank', 'noopener,noreferrer')` — die
+Datei liegt nicht in der App.
+
+**Max kennt den INHALT nicht.** Das steht ausdrücklich in der
+Werkzeugbeschreibung, damit er aus `Boris_Rechnung_August.pdf` keine Summe
+herleitet. Stufe 3 (Inhalt lesen per Gemini) ist entworfen, aber NICHT
+gebaut — siehe `docs/Vorschlag-Max-Dokumente.md`.
+
+`search_documents` ist rein lesend und braucht daher KEINEN Eintrag in
+`max_ablaeufe` (siehe dortige `systempruefung`).
+```
