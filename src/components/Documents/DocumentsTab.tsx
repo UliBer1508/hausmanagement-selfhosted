@@ -35,7 +35,7 @@ import {
 
 const LINK_TARGETS: { key: LinkTarget; label: string }[] = [
   { key: 'provider', label: 'Dienstleister' },
-  { key: 'vendor', label: 'Absender' },
+  { key: 'vendor', label: 'Vendor' },
   { key: 'haus', label: 'Haus' },
   { key: 'buchung', label: 'Buchung' },
   { key: 'reinigung', label: 'Reinigung' },
