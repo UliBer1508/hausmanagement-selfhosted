@@ -288,6 +288,8 @@ export interface DocumentRow {
   houses: { name: string } | null;
   service_providers: { name: string } | null;
   document_vendors: { name: string } | null;
+  /** 2. und 3. Zuordnung, nachtraeglich aufgeloest (siehe useDocuments). */
+  zusatz?: Zuordnung[];
 }
 
 /** Zeigt an, wozu ein Dokument gehoert — fuer Liste und Suche. */
@@ -318,9 +320,80 @@ export function useDocuments() {
         .limit(2000);
 
       if (error) throw error;
-      return (data ?? []) as unknown as DocumentRow[];
+      const zeilen = (data ?? []) as unknown as DocumentRow[];
+      if (zeilen.length === 0) return zeilen;
+
+      // Zusatzzuordnungen in EINER Abfrage nachladen, nicht je Dokument.
+      const { data: links, error: linkError } = await supabase
+        .from('document_links')
+        .select('document_id, entity_type, entity_id, position')
+        .in('document_id', zeilen.map((z) => z.id))
+        .order('position');
+
+      if (linkError) {
+        // Zusatzzuordnungen sind Beiwerk — die Liste bleibt nutzbar.
+        console.error('document_links nicht gelesen:', linkError.message);
+        return zeilen;
+      }
+      if (!links || links.length === 0) return zeilen;
+
+      const namen = await objektNamen(links as any[]);
+
+      const proDok = new Map<string, Zuordnung[]>();
+      for (const l of links as any[]) {
+        const liste = proDok.get(l.document_id) ?? [];
+        liste.push({
+          art: l.entity_type as LinkTarget,
+          id: l.entity_id,
+          label: namen.get(`${l.entity_type}:${l.entity_id}`) ?? 'unbekannt',
+        });
+        proDok.set(l.document_id, liste);
+      }
+
+      return zeilen.map((z) => ({ ...z, zusatz: proDok.get(z.id) ?? [] }));
     },
   });
+}
+
+/**
+ * Loest die Namen zu einer gemischten Liste von Verweisen auf.
+ * Je Tabelle EINE Abfrage, nicht je Verweis eine.
+ */
+async function objektNamen(links: Array<{ entity_type: string; entity_id: string }>) {
+  const namen = new Map<string, string>();
+
+  const idsVon = (art: string) =>
+    [...new Set(links.filter((l) => l.entity_type === art).map((l) => l.entity_id))];
+
+  const laden = async (
+    art: string,
+    tabelle: string,
+    felder: string,
+    beschriften: (r: any) => string,
+  ) => {
+    const ids = idsVon(art);
+    if (ids.length === 0) return;
+    const { data } = await supabase.from(tabelle as any).select(felder).in('id', ids);
+    for (const r of (data ?? []) as any[]) namen.set(`${art}:${r.id}`, beschriften(r));
+  };
+
+  const datum = (d?: string | null) =>
+    d ? new Date(d).toLocaleDateString('de-DE') : 'ohne Datum';
+
+  await Promise.all([
+    laden('haus', 'houses', 'id, name', (r) => r.name),
+    laden('provider', 'service_providers', 'id, name', (r) => r.name),
+    laden('vendor', 'document_vendors', 'id, name', (r) => r.name),
+    laden('buchung', 'bookings',
+      'id, check_in, houses:house_id(name), guests!bookings_guest_id_fkey(name)',
+      (r) => `${datum(r.check_in)} · ${r.guests?.name ?? 'ohne Gast'}`),
+    laden('reinigung', 'service_tasks', 'id, scheduled_date, houses:house_id(name)',
+      (r) => `${datum(r.scheduled_date)} · ${r.houses?.name ?? '—'}`),
+    laden('waesche', 'linen_orders', 'id, delivery_date, houses:house_id(name)',
+      (r) => `${datum(r.delivery_date)} · ${r.houses?.name ?? '—'}`),
+  ]);
+
+  return namen;
 }
 
 /** Dokumente eines einzelnen Objekts — fuer den Abschnitt auf den Karten. */
@@ -349,8 +422,22 @@ export function useDocumentsFor(
 
 /* --------------------------------------------------------- Ablage-Ablauf */
 
+/** Eine Zuordnung: Art plus Kennung des Objekts. */
+export interface Zuordnung {
+  art: LinkTarget;
+  id: string;
+  /** Nur fuer die Anzeige, wird nicht gespeichert. */
+  label?: string;
+}
+
 export interface DocumentLinks {
   typeId: string;
+  /**
+   * 2. und 3. Zuordnung. Die ERSTE steht in den Spalten unten
+   * (houseId, providerId, …) und ist der Hauptbezug — sie bestimmt
+   * Ablageort und Anzeige.
+   */
+  zusatz?: Zuordnung[];
   houseId?: string | null;
   bookingId?: string | null;
   serviceTaskId?: string | null;
@@ -376,6 +463,31 @@ const linkColumns = (l: DocumentLinks) => ({
   vendor_id: l.vendorId ?? null,
   note: l.note ?? null,
 });
+
+/**
+ * Schreibt die 2. und 3. Zuordnung nach document_links.
+ *
+ * Bewusst NACH dem Dokument-Insert und mit eigenem Fehlerpfad: Die Datei
+ * liegt dann bereits in OneDrive und das Dokument in der Datenbank. Ein
+ * Fehlschlag hier darf den Vorgang nicht als gescheitert erscheinen
+ * lassen — die Zusatzzuordnungen sind nachtraeglich ergaenzbar, ein
+ * verlorener Upload nicht.
+ */
+async function zusatzSchreiben(documentId: string, zusatz?: Zuordnung[]) {
+  const zeilen = (zusatz ?? [])
+    .filter((z) => z && z.art && z.art !== 'keine' && z.id)
+    .map((z, i) => ({
+      document_id: documentId,
+      entity_type: z.art,
+      entity_id: z.id,
+      position: i + 2, // die 1. Zuordnung steht am Dokument selbst
+    }));
+
+  if (zeilen.length === 0) return;
+
+  const { error } = await supabase.from('document_links').insert(zeilen as any);
+  if (error) console.error('Zusatzzuordnungen nicht gespeichert:', error.message);
+}
 
 /** Laedt die Datei in Bloecken direkt zu Microsoft. */
 async function putInChunks(uploadUrl: string, file: File, onProgress?: (p: number) => void) {
@@ -446,6 +558,8 @@ export function useUploadDocument() {
       if (!data || data.length === 0) {
         throw new Error('Datei liegt in OneDrive, aber die Verknuepfung wurde nicht gespeichert.');
       }
+
+      await zusatzSchreiben(data[0].id as string, input.zusatz);
       return data[0].id as string;
     },
     onSuccess: () => {
@@ -479,6 +593,8 @@ export function useLinkExisting() {
         if (error.code === '23505') throw new Error('Diese Datei ist bereits verknuepft.');
         throw error;
       }
+
+      await zusatzSchreiben(data![0].id as string, input.zusatz);
       return data![0].id as string;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
