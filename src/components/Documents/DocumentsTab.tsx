@@ -108,6 +108,21 @@ export default function DocumentsTab() {
       : d.house_id ? `haus:${d.house_id}`
       : '';
 
+  /**
+   * Alle Objekte eines Dokuments — Hauptbezug plus Zusatzzuordnungen.
+   *
+   * Folge: Ein Dokument mit mehreren Zuordnungen erscheint unter JEDEM
+   * dieser Objekte, und die Summe der Zähler ist größer als die Zahl der
+   * Dokumente. Das ist bei Mehrfachbezügen richtig so.
+   */
+  const objektKeys = (d: any): string[] => {
+    const keys = [objektKey(d)];
+    for (const z of d.zusatz ?? []) {
+      if (z?.art && z?.id) keys.push(`${z.art === 'haus' ? 'haus' : z.art}:${z.id}`);
+    }
+    return keys;
+  };
+
   const toggle = (arr: string[], set: (v: string[]) => void, v: string) => {
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
     setLimit(25);
@@ -118,7 +133,7 @@ export default function DocumentsTab() {
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     return docs.filter((d) => {
-      if (fObjekt.length && !fObjekt.includes(objektKey(d))) return false;
+      if (fObjekt.length && !objektKeys(d).some((k) => fObjekt.includes(k))) return false;
       if (fType.length && !fType.includes(d.document_type_id ?? '')) return false;
       if (fYear.length && !fYear.includes(d.created_at.slice(0, 4))) return false;
       if (!q) return true;
@@ -131,16 +146,19 @@ export default function DocumentsTab() {
 
   const countBy = (dim: 'objekt' | 'type' | 'year') => {
     const base = docs.filter((d) => {
-      if (dim !== 'objekt' && fObjekt.length && !fObjekt.includes(objektKey(d))) return false;
+      if (dim !== 'objekt' && fObjekt.length && !objektKeys(d).some((k) => fObjekt.includes(k))) return false;
       if (dim !== 'type' && fType.length && !fType.includes(d.document_type_id ?? '')) return false;
       if (dim !== 'year' && fYear.length && !fYear.includes(d.created_at.slice(0, 4))) return false;
       return true;
     });
     const m: Record<string, number> = {};
     for (const d of base) {
-      const k = dim === 'objekt' ? objektKey(d)
-        : dim === 'type' ? (d.document_type_id ?? '')
-        : d.created_at.slice(0, 4);
+      if (dim === 'objekt') {
+        // Ein Dokument zaehlt bei JEDEM verknuepften Objekt.
+        for (const k of new Set(objektKeys(d))) m[k] = (m[k] || 0) + 1;
+        continue;
+      }
+      const k = dim === 'type' ? (d.document_type_id ?? '') : d.created_at.slice(0, 4);
       m[k] = (m[k] || 0) + 1;
     }
     return m;
@@ -333,7 +351,15 @@ function Row({ d, onRemove, hidePath }: any) {
       </div>
       <div className="min-w-0">
         <Badge variant="secondary" className={color}>{d.document_types?.name ?? 'ohne Typ'}</Badge>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{bezugLabel(d)}</p>
+        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          {bezugLabel(d)}
+          {/* 2. und 3. Zuordnung als Zusatz — der Hauptbezug steht vorn. */}
+          {(d.zusatz ?? []).map((z: any) => (
+            <span key={`${z.art}:${z.id}`} className="ml-1.5 rounded bg-muted px-1.5 py-0.5">
+              {z.label}
+            </span>
+          ))}
+        </p>
       </div>
       <span className="text-sm text-muted-foreground">{fmtDate(d.created_at)}</span>
       <div className="flex gap-3 sm:justify-end">
@@ -438,6 +464,12 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   const [entityId, setEntityId] = useState('');
   const [entitySearch, setEntitySearch] = useState('');
 
+  // 2. und 3. Zuordnung — optional, gehen nach document_links.
+  const [art2, setArt2] = useState<LinkTarget>('keine');
+  const [id2, setId2] = useState('');
+  const [art3, setArt3] = useState<LinkTarget>('keine');
+  const [id3, setId3] = useState('');
+
   const [folder, setFolder] = useState<{ id: string; path: string } | null>(null);
   const [folderTouched, setFolderTouched] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -478,8 +510,14 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     if (target !== 'keine' && !entityId) { setErr('Bitte ein Objekt zum Verknüpfen wählen.'); return; }
     if (source === 'pc' && !folder) { setErr('Bitte einen Zielordner wählen.'); return; }
 
+    const zusatz = [
+      { art: art2, id: id2 },
+      { art: art3, id: id3 },
+    ].filter((z) => z.art !== 'keine' && z.id);
+
     const links = {
       typeId,
+      zusatz,
       houseId: target === 'haus' ? entityId : (chosen?.houseId ?? null),
       bookingId: target === 'buchung' ? entityId : null,
       serviceTaskId: target === 'reinigung' ? entityId : null,
@@ -546,43 +584,36 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 
         <div>
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">2 · Wozu gehört es</p>
-          <div className="grid gap-3 sm:grid-cols-[190px_1fr]">
-            <div>
-              <Label>Zuordnung</Label>
-              <Select value={target} onValueChange={(v: any) => { setTarget(v); setEntityId(''); setErr(''); }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {LINK_TARGETS.map((l) => <SelectItem key={l.key} value={l.key}>{l.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Objekt</Label>
-              {target === 'keine' ? (
-                <Input disabled value="Kein Bezug" />
-              ) : (
-                <>
-                  {target === 'buchung' && (
-                    <Input className="mb-1.5" placeholder="Gast suchen…" value={entitySearch}
-                      onChange={(e) => setEntitySearch(e.target.value)} />
-                  )}
-                  <Select value={entityId} onValueChange={(v) => { setEntityId(v); setErr(''); }}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={isFetching ? 'Wird geladen…' : 'Objekt wählen…'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {entities.length === 0 && !isFetching && (
-                        <div className="px-2 py-3 text-sm text-muted-foreground">
-                          {target === 'vendor' ? 'Noch keine Absender — unter Einstellungen anlegen.' : 'Nichts gefunden.'}
-                        </div>
-                      )}
-                      {entities.map((e) => <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </>
-              )}
-            </div>
-          </div>
+
+          {/* Drei Zuordnungen, alle gleich aufgebaut: Art links, Auswahl rechts.
+              Die ERSTE ist Pflicht und bestimmt den Ablageort — sie landet in
+              den Spalten von `documents`. Die zweite und dritte kommen nach
+              document_links; nur so sind zwei Häuser gleichzeitig möglich. */}
+          <ZuordnungZeile
+            nummer={1}
+            art={target}
+            objektId={entityId}
+            onArt={(v) => { setTarget(v); setEntityId(''); setErr(''); }}
+            onObjekt={(v) => { setEntityId(v); setErr(''); }}
+          />
+          <ZuordnungZeile
+            nummer={2}
+            art={art2}
+            objektId={id2}
+            onArt={(v) => { setArt2(v); setId2(''); }}
+            onObjekt={setId2}
+          />
+          <ZuordnungZeile
+            nummer={3}
+            art={art3}
+            objektId={id3}
+            onArt={(v) => { setArt3(v); setId3(''); }}
+            onObjekt={setId3}
+          />
+
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Die 1. Zuordnung bestimmt den Ablageort. Die weiteren sind optional.
+          </p>
         </div>
 
         <div>
@@ -669,6 +700,73 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Eine Zuordnungszeile: Art links, Objekt rechts.
+ *
+ * Jede Zeile laedt ihre eigene Objektliste ueber useEntities. Drei Zeilen
+ * heissen drei Abfragen — bei „kein Bezug" laeuft keine, und die Ergebnisse
+ * werden von react-query je Art zwischengespeichert, sodass zwei Zeilen mit
+ * derselben Art nur einmal laden.
+ */
+function ZuordnungZeile({
+  nummer, art, objektId, onArt, onObjekt,
+}: {
+  nummer: 1 | 2 | 3;
+  art: LinkTarget;
+  objektId: string;
+  onArt: (v: LinkTarget) => void;
+  onObjekt: (v: string) => void;
+}) {
+  const [suche, setSuche] = useState('');
+  const { data: objekte = [], isFetching } = useEntities(art, suche);
+
+  return (
+    <div className="mb-3 grid gap-3 sm:grid-cols-[190px_1fr]">
+      <div>
+        <Label>
+          {nummer}. Zuordnung
+          {nummer > 1 && <span className="ml-1 font-normal text-muted-foreground">optional</span>}
+        </Label>
+        <Select value={art} onValueChange={(v: any) => onArt(v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {LINK_TARGETS.map((l) => <SelectItem key={l.key} value={l.key}>{l.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label>Objekt</Label>
+        {art === 'keine' ? (
+          <Input disabled value="—" />
+        ) : (
+          <>
+            {art === 'buchung' && (
+              <Input className="mb-1.5" placeholder="Gast suchen…" value={suche}
+                onChange={(e) => setSuche(e.target.value)} />
+            )}
+            <Select value={objektId} onValueChange={onObjekt}>
+              <SelectTrigger>
+                <SelectValue placeholder={isFetching ? 'Wird geladen…' : 'Objekt wählen…'} />
+              </SelectTrigger>
+              <SelectContent>
+                {objekte.length === 0 && !isFetching && (
+                  <div className="px-2 py-3 text-sm text-muted-foreground">
+                    {art === 'vendor'
+                      ? 'Noch keine Vendoren — unter Einstellungen anlegen.'
+                      : 'Nichts gefunden.'}
+                  </div>
+                )}
+                {objekte.map((e) => <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
