@@ -347,7 +347,9 @@ async function executeSearchBookings(params: any) {
   const filteredData = data?.filter(b => b.houses !== null) || [];
 
   console.log(`Found ${filteredData.length} bookings`);
-  return { success: true, data: filteredData, count: filteredData.length };
+  // Stufe 2: haengende Dokumente anfuegen (siehe dokumenteAnhaengen).
+  const mitDok = await dokumenteAnhaengen(filteredData, 'booking_id');
+  return { success: true, data: mitDok, count: mitDok.length };
 }
 
 async function executeSearchCleaningTasks(params: any) {
@@ -429,6 +431,187 @@ async function executeSearchCleaningTasks(params: any) {
   }
 
   const ergebnis = gastNameEinsetzen(filteredData);
+  // Stufe 2: haengende Dokumente anfuegen (siehe dokumenteAnhaengen).
+  const mitDok = await dokumenteAnhaengen(ergebnis, 'service_task_id');
+  return { success: true, data: mitDok, count: mitDok.length };
+}
+
+/* ===========================================================================
+   DOKUMENTE — Stufe 1 und 2 (21.08.2026)
+
+   Stufe 1: search_documents. Reine Leseoperation auf `documents`.
+   Stufe 2: dokumenteAnhaengen() reichert die Treffer der drei bestehenden
+            Suchwerkzeuge um die daran haengenden Dokumente an.
+
+   Kein OneDrive-Zugriff: `documents` traegt Name, Typ, Pfad und web_url.
+   Die Datei wird nicht geladen, nur verwiesen.
+
+   DOPPELGAENGER: Stufe 2 betrifft DREI Werkzeuge (Buchung, Reinigung,
+   Waesche). Die Anreicherung steht deshalb EINMAL in dokumenteAnhaengen()
+   und wird dreimal aufgerufen — nicht dreimal kopiert.
+   =========================================================================== */
+
+/**
+ * Haengt an eine Liste von Treffern die zugehoerigen Dokumente an.
+ *
+ * @param zeilen   Treffer der aufrufenden Suche
+ * @param spalte   Bezugsspalte in `documents` (z. B. 'booking_id')
+ * @param maxProZeile  Hoechstens so viele je Treffer; darueber nur die Anzahl.
+ *
+ * Bewusst knapp: nur id, Name und Typ. Pfad und URL wuerden Max' Kontext
+ * fuellen, ohne der Antwort zu helfen — wer mehr will, fragt nach, dann
+ * greift search_documents.
+ */
+async function dokumenteAnhaengen(
+  zeilen: any[],
+  spalte: 'booking_id' | 'service_task_id' | 'linen_order_id' | 'house_id',
+  maxProZeile = 3,
+) {
+  if (!Array.isArray(zeilen) || zeilen.length === 0) return zeilen;
+
+  const ids = [...new Set(zeilen.map(z => z?.id).filter(Boolean))];
+  if (ids.length === 0) return zeilen;
+
+  // EINE Abfrage fuer alle Treffer, nicht je Treffer eine.
+  const { data, error } = await supabase
+    .from('documents')
+    .select(`id, file_name, ${spalte}, document_types:document_type_id (name)`)
+    .in(spalte, ids)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    // Dokumente sind Beiwerk. Faellt die Abfrage aus, liefert die Suche
+    // trotzdem ihr eigentliches Ergebnis.
+    console.error('dokumenteAnhaengen:', error.message);
+    return zeilen;
+  }
+
+  const proObjekt = new Map<string, any[]>();
+  for (const d of data || []) {
+    const key = (d as any)[spalte];
+    if (!key) continue;
+    if (!proObjekt.has(key)) proObjekt.set(key, []);
+    proObjekt.get(key)!.push(d);
+  }
+
+  return zeilen.map(z => {
+    const treffer = proObjekt.get(z?.id) || [];
+    if (treffer.length === 0) return z;
+    return {
+      ...z,
+      dokumente: treffer.slice(0, maxProZeile).map((d: any) => ({
+        id: d.id,
+        name: d.file_name,
+        typ: d.document_types?.name ?? null,
+      })),
+      dokumente_gesamt: treffer.length,
+    };
+  });
+}
+
+/**
+ * Sucht Dokumente. Uli nennt Namen, nicht Kennungen — deshalb loest das
+ * Werkzeug `objekt` selbst auf: es sucht denselben Namen in
+ * service_providers, houses UND document_vendors und filtert die passende
+ * Spalte. Bei Treffern in mehreren Tabellen meldet es Mehrdeutigkeit,
+ * statt zu raten (max_ablaeufe: "bei Mehrdeutigkeit IMMER nachfragen").
+ */
+async function executeSearchDocuments(params: any) {
+  console.log('Executing search_documents with params:', params);
+
+  let query = supabase
+    .from('documents')
+    .select(`
+      id, file_name, mime_type, size_bytes, created_at,
+      onedrive_path, onedrive_web_url,
+      document_types:document_type_id (name),
+      houses:house_id (name),
+      service_providers:provider_id (name),
+      document_vendors:vendor_id (name)
+    `)
+    .order('created_at', { ascending: false });
+
+  // ---- objekt aufloesen ----------------------------------------------------
+  const objekt = typeof params.objekt === 'string' ? params.objekt.trim() : '';
+  if (objekt) {
+    const suche = `%${objekt}%`;
+
+    const [prov, haus, vend] = await Promise.all([
+      supabase.from('service_providers').select('id, name').ilike('name', suche),
+      supabase.from('houses').select('id, name').ilike('name', suche),
+      supabase.from('document_vendors').select('id, name').ilike('name', suche),
+    ]);
+
+    const treffer: Array<{ art: string; id: string; name: string }> = [
+      ...(prov.data || []).map(r => ({ art: 'Dienstleister', id: r.id, name: r.name })),
+      ...(haus.data || []).map(r => ({ art: 'Haus', id: r.id, name: r.name })),
+      ...(vend.data || []).map(r => ({ art: 'Vendor', id: r.id, name: r.name })),
+    ];
+
+    if (treffer.length === 0) {
+      return {
+        success: false,
+        error: `Kein Objekt mit dem Namen „${objekt}" gefunden. Es gibt Dienstleister, Häuser und Vendoren (Rechnungsabsender wie Gemeinde oder Energieversorger).`,
+      };
+    }
+    if (treffer.length > 1) {
+      return {
+        success: false,
+        mehrdeutig: true,
+        treffer,
+        error: `„${objekt}" passt auf mehrere Objekte. Lege sie Uli zur Auswahl vor und frage nach, welches gemeint ist.`,
+      };
+    }
+
+    const t = treffer[0];
+    const spalte = t.art === 'Dienstleister' ? 'provider_id'
+      : t.art === 'Haus' ? 'house_id'
+      : 'vendor_id';
+    query = query.eq(spalte, t.id);
+  }
+
+  // ---- Dokumenttyp ---------------------------------------------------------
+  if (typeof params.typ === 'string' && params.typ.trim()) {
+    const { data: typen } = await supabase
+      .from('document_types')
+      .select('id, name')
+      .ilike('name', `%${params.typ.trim()}%`);
+
+    if (!typen || typen.length === 0) {
+      return { success: false, error: `Keinen Dokumenttyp „${params.typ}" gefunden.` };
+    }
+    query = query.in('document_type_id', typen.map(t => t.id));
+  }
+
+  if (params.von) query = query.gte('created_at', params.von);
+  // `bis` ist ein Tag, created_at ein Zeitstempel — sonst faellt der letzte
+  // Tag heraus.
+  if (params.bis) query = query.lte('created_at', `${params.bis}T23:59:59`);
+
+  if (typeof params.dateiname === 'string' && params.dateiname.trim()) {
+    query = query.ilike('file_name', `%${params.dateiname.trim()}%`);
+  }
+
+  const { data, error } = await query.limit(params.limit || 20);
+
+  if (error) {
+    console.error('Error searching documents:', error);
+    return { success: false, error: error.message };
+  }
+
+  const ergebnis = (data || []).map((d: any) => ({
+    id: d.id,
+    dateiname: d.file_name,
+    typ: d.document_types?.name ?? null,
+    gehoert_zu: d.service_providers?.name
+      ?? d.document_vendors?.name
+      ?? d.houses?.name
+      ?? null,
+    ordner: d.onedrive_path,
+    web_url: d.onedrive_web_url,
+    abgelegt_am: d.created_at,
+  }));
+
   return { success: true, data: ergebnis, count: ergebnis.length };
 }
 
@@ -638,7 +821,9 @@ async function executeSearchLinenOrders(params: any) {
   }
 
   const ergebnis = gastNameEinsetzen(data || []);
-  return { success: true, data: ergebnis, count: ergebnis.length };
+  // Stufe 2: haengende Dokumente anfuegen (siehe dokumenteAnhaengen).
+  const mitDok = await dokumenteAnhaengen(ergebnis, 'linen_order_id');
+  return { success: true, data: mitDok, count: mitDok.length };
 }
 
 /**
@@ -1395,6 +1580,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeSearchBookings(args);
     case 'search_cleaning_tasks':
       return await executeSearchCleaningTasks(args);
+    case 'search_documents':
+      return await executeSearchDocuments(args);
     case 'search_houses':
       return await executeSearchHouses(args);
     case 'search_guests':
@@ -1538,6 +1725,25 @@ function getToolDefinitions() {
             exclude_cancelled: { type: "boolean", description: "Stornierte ausschließen (default: true)" },
             limit: { type: "number", description: "Max Ergebnisse" }
           }
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "search_documents",
+        description: "Sucht abgelegte DOKUMENTE (Rechnungen, Nächtigungsabgaben, Hausunterlagen, Verträge …). Sie liegen in OneDrive; du lieferst Namen, Ablageort und einen Knopf zum Öffnen. NUTZE ES bei Fragen wie 'Hast du die Boris-Rechnung von August?', 'Welche Dokumente gibt es zum Venediger Chalet?', 'Gibt es schon eine Kurtaxenrechnung?'. Der Parameter `objekt` ist ein NAME, keine UUID — schreibe einfach 'Boris', 'Venediger' oder 'Gemeinde Neukirchen' hinein; das Tool sucht selbst in Dienstleistern, Häusern und Vendoren. Passt der Name auf MEHRERE Objekte, meldet das Tool das mit einer Trefferliste: lege sie Uli zur Auswahl vor, statt zu raten. Reine Leseoperation — es wird nichts geändert und keine Datei geöffnet. Den INHALT eines Dokuments kannst du nicht lesen; wenn Uli danach fragt, sage das ehrlich und biete den Knopf zum Öffnen an.",
+        parameters: {
+          type: "object",
+          properties: {
+            objekt: { type: "string", description: "Name des Objekts: Dienstleister (Boris, Amela, Teuni), Haus (Venediger, Wald) oder Vendor (Gemeinde Neukirchen, Salzburg AG)." },
+            typ: { type: "string", description: "Dokumenttyp, z. B. 'Rechnung' oder 'Nächtigungsabgabe'. Teiltreffer genügt." },
+            von: { type: "string", description: "Ablagedatum ab, YYYY-MM-DD" },
+            bis: { type: "string", description: "Ablagedatum bis, YYYY-MM-DD" },
+            dateiname: { type: "string", description: "Teil des Dateinamens, z. B. 'RG-0001'." },
+            limit: { type: "number", description: "Höchstzahl der Treffer, Vorgabe 20" },
+          },
+          required: [],
         }
       }
     },
@@ -3058,6 +3264,22 @@ function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string;
           houseName: d.house,
         },
       } as any);
+      continue;
+    }
+
+    // Dokumente: Knopf, der die Datei in OneDrive oeffnet.
+    // Anders als die uebrigen Links kein Tabwechsel in der App, sondern ein
+    // externer Verweis — deshalb traegt der Link ein Feld `url`.
+    if (tr.tool === 'search_documents' && Array.isArray(result.data)) {
+      for (const d of result.data.slice(0, 5)) {
+        if (!d?.web_url) continue;
+        links.push({
+          id: String(d.id),
+          type: 'document',
+          label: `${d.dateiname} in OneDrive öffnen`,
+          url: d.web_url,
+        } as any);
+      }
       continue;
     }
 
