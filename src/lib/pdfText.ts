@@ -470,6 +470,51 @@ export async function leseDateiText(file: File): Promise<string> {
 export interface Kandidat {
   id: string;
   name: string;
+  /**
+   * Weitere Begriffe, unter denen dasselbe Objekt im Dokument auftauchen
+   * kann — Adresse, Objektnummer, Zaehlpunkt. Fremde Absender benennen
+   * Objekte selten so wie das System: Die Gemeinde schreibt „Trattenbach
+   * 299", nicht „Wald Chalet".
+   */
+  begriffe?: string[];
+}
+
+/**
+ * Baut Suchbegriffe aus einer Anschrift.
+ *
+ * NUR Strasse MIT Hausnummer, niemals die Strasse allein. Grund, am
+ * 23.08.2026 an einer echten Rechnung belegt: Ulis Wohnanschrift lautet
+ * „Venedigersiedlung 315", das Venediger Chalet steht auf Nummer 316.
+ * Der blosse Strassenname haette jede an Uli adressierte Post dem Chalet
+ * zugeordnet — der Briefkopf steht in JEDEM Dokument.
+ *
+ * Ort und Postleitzahl bleiben aussen vor: beide Chalets liegen in
+ * Neukirchen, das unterscheidet nichts.
+ *
+ * Zusaetzlich wird die Hausnummer ohne Zusatz gebildet: Das System fuehrt
+ * „Trattenbach 299/17", die Gemeinde schreibt „Trattenbach 299".
+ */
+export function adressBegriffe(address?: string | null): string[] {
+  if (!address) return [];
+
+  // Zeilenumbrueche kommen vor (Haus Berlin) und muessen weg.
+  const erste = address.replace(/[\r\n]+/g, ' ').split(',')[0].trim();
+  if (!erste) return [];
+
+  // Muster: Wortfolge, dann Hausnummer (ggf. mit Zusatz wie 299/17).
+  // Die Nummer muss NICHT am Ende stehen — „Einsteinstrasse 13 Berlin
+  // Falkensee" hat den Ort ohne Komma dahinter.
+  const m = erste.match(/^(.+?)\s+(\d+)\s*([/\-]\s*\w+)?(?=\s|$)/);
+  if (!m) return erste.length >= 6 ? [erste.toLowerCase()] : [];
+
+  const strasse = m[1].trim().toLowerCase();
+  const nummer = m[2];
+  const zusatz = (m[3] ?? '').replace(/\s+/g, '');
+
+  const menge = new Set<string>();
+  menge.add(`${strasse} ${nummer}`);
+  if (zusatz) menge.add(`${strasse} ${nummer}${zusatz}`);
+  return [...menge];
 }
 
 /** Ein gefundener Treffer samt Begruendung. */
@@ -492,8 +537,8 @@ export interface Treffer {
  * Woerter unter vier Zeichen fallen raus: "AG" oder "am" traefen sonst
  * in jedem zweiten Dokument.
  */
-function begriffeAus(name: string): string[] {
-  const roh = name.toLowerCase().trim();
+function begriffeAus(k: Kandidat): string[] {
+  const roh = k.name.toLowerCase().trim();
   const menge = new Set<string>();
 
   // vollstaendiger Name ohne Klammern
@@ -501,14 +546,22 @@ function begriffeAus(name: string): string[] {
   if (ohneKlammern.length >= 4) menge.add(ohneKlammern);
 
   // Klammerinhalt als eigener Begriff
-  for (const k of roh.matchAll(/\(([^)]*)\)/g)) {
-    const inhalt = k[1].trim();
+  for (const kl of roh.matchAll(/\(([^)]*)\)/g)) {
+    const inhalt = kl[1].trim();
     if (inhalt.length >= 4) menge.add(inhalt);
   }
 
   // Einzelwoerter, sofern lang genug
   for (const w of ohneKlammern.split(/[\s/,.-]+/)) {
     if (w.length >= 4) menge.add(w);
+  }
+
+  // Mitgegebene Zusatzbegriffe (Adresse, Objektnummer) unveraendert.
+  // Sie werden NICHT in Einzelwoerter zerlegt: „venedigersiedlung 316"
+  // ist als Ganzes aussagekraeftig, die Strasse allein waere irrefuehrend.
+  for (const b of k.begriffe ?? []) {
+    const t = b.trim().toLowerCase();
+    if (t.length >= 4) menge.add(t);
   }
 
   return [...menge];
@@ -597,7 +650,7 @@ export function findeTreffer(text: string, kandidaten: Kandidat[]): Treffer[] {
   // Zaehlen, in wie vielen Kandidatennamen jedes Einzelwort vorkommt.
   const wortZaehler = new Map<string, number>();
   for (const k of kandidaten) {
-    for (const b of begriffeAus(k.name)) {
+    for (const b of begriffeAus(k)) {
       if (b.includes(' ')) continue; // nur Einzelwoerter pruefen
       wortZaehler.set(b, (wortZaehler.get(b) ?? 0) + 1);
     }
@@ -608,7 +661,7 @@ export function findeTreffer(text: string, kandidaten: Kandidat[]): Treffer[] {
       let punkte = 0;
       const begriffe: Array<{ begriff: string; anzahl: number }> = [];
 
-      for (const b of begriffeAus(k.name)) {
+      for (const b of begriffeAus(k)) {
         // Einzelwort, das mehrere Kandidaten teilen -> ueberspringen.
         if (!b.includes(' ') && (wortZaehler.get(b) ?? 0) > 1) continue;
 
