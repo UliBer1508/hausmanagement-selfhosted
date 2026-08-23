@@ -3,6 +3,7 @@ import {
   Search, Plus, X, Upload, FileText, Image as ImageIcon, Folder, FolderPlus,
   ChevronRight, ExternalLink, Trash2, Settings2, List, FolderTree,
   ArrowLeft, AlertTriangle, Loader2, HardDrive, Cloud, Check, StickyNote,
+  ScanLine, Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,7 @@ import {
   type DocumentType, type LinkTarget, type OneDriveFolder, type OneDriveFile,
   type EntityOption,
 } from '@/hooks/useDocuments';
+import { leseDateiText, findeTreffer, trefferBegruendung, type Treffer } from '@/lib/pdfText';
 
 /**
  * DocumentsTab — Uebersicht, Suche und Ablage.
@@ -582,6 +584,81 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   const [progress, setProgress] = useState(0);
   const [err, setErr] = useState('');
 
+  /* ---------------------------------------------------------------
+     DOKUMENT LESEN
+     Liest den Text der gewaehlten PDF und traegt gefundene Attribute
+     in die Felder ein. Was nicht gefunden wird, bleibt wie es ist —
+     dann waehlt der Mensch selbst. Nichts wird ueberschrieben, was
+     bereits von Hand gesetzt wurde.
+
+     Es wird nur gesucht, was im System ANGELEGT ist. Ein unbekannter
+     Absender kann nicht gefunden werden; das meldet die Anzeige.
+  --------------------------------------------------------------- */
+  const [liest, setLiest] = useState(false);
+  const [leseFehler, setLeseFehler] = useState('');
+  const [gefunden, setGefunden] = useState<{
+    typ?: Treffer;
+    zuordnungen: Array<{ art: LinkTarget; treffer: Treffer }>;
+  } | null>(null);
+
+  // Objektlisten fuer den Abgleich. Sie sind ohnehin geladen, weil die
+  // Zuordnungszeilen sie brauchen — react-query liefert aus dem Speicher.
+  const { data: alleHaeuser = [] } = useEntities('haus', '');
+  const { data: alleProvider = [] } = useEntities('provider', '');
+  const { data: alleVendoren = [] } = useEntities('vendor', '');
+
+  const dokumentLesen = async () => {
+    if (!file) return;
+    setLiest(true);
+    setLeseFehler('');
+    setGefunden(null);
+
+    try {
+      const text = await leseDateiText(file);
+
+      // 1 — Dokumenttyp
+      const typTreffer = findeTreffer(
+        text,
+        types.map((t) => ({ id: t.id, name: t.name })),
+      )[0];
+      if (typTreffer) setTypeId(typTreffer.id);
+
+      // 2 — Objekte. Alle drei Arten gemeinsam bewerten, damit der
+      // staerkste Treffer gewinnt, egal aus welcher Liste er stammt.
+      const alle = [
+        ...findeTreffer(text, alleProvider.map((e) => ({ id: e.id, name: e.label })))
+          .map((t) => ({ art: 'provider' as LinkTarget, treffer: t })),
+        ...findeTreffer(text, alleVendoren.map((e) => ({ id: e.id, name: e.label })))
+          .map((t) => ({ art: 'vendor' as LinkTarget, treffer: t })),
+        ...findeTreffer(text, alleHaeuser.map((e) => ({ id: e.id, name: e.label })))
+          .map((t) => ({ art: 'haus' as LinkTarget, treffer: t })),
+      ];
+
+      // Der ABSENDER gehoert auf Platz 1, nicht der punktstaerkste Treffer:
+      // Die 1. Zuordnung bestimmt den Ablageort, und eine Sammelrechnung
+      // gehoert zum Dienstleister — nicht zu einem der genannten Haeuser.
+      const absender = alle.filter((x) => x.art === 'provider' || x.art === 'vendor')
+        .sort((a, b) => b.treffer.punkte - a.treffer.punkte);
+      const uebrige = alle.filter((x) => x.art === 'haus')
+        .sort((a, b) => b.treffer.punkte - a.treffer.punkte);
+      const reihe = [...absender, ...uebrige].slice(0, 3);
+
+      if (reihe[0]) { setTarget(reihe[0].art); setEntityId(reihe[0].treffer.id); }
+      if (reihe[1]) { setArt2(reihe[1].art); setId2(reihe[1].treffer.id); }
+      if (reihe[2]) { setArt3(reihe[2].art); setId3(reihe[2].treffer.id); }
+
+      setGefunden({ typ: typTreffer, zuordnungen: reihe });
+      if (!typTreffer && reihe.length === 0) {
+        setLeseFehler('Text gelesen, aber nichts Bekanntes gefunden. Bitte von Hand wählen.');
+      }
+      setErr('');
+    } catch (e: any) {
+      setLeseFehler(e.message);
+    } finally {
+      setLiest(false);
+    }
+  };
+
   const type = types.find((t) => t.id === typeId);
   const { data: entities = [], isFetching } = useEntities(target, entitySearch);
   const chosen: EntityOption | undefined = entities.find((e) => e.id === entityId);
@@ -608,7 +685,15 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     setFolderTouched(false);
   }, [entityId, typeId, target]);
 
-  const pick = (f?: File | null) => { if (f) { setFile(f); setErr(''); } };
+  // Neue Datei -> altes Leseergebnis verwerfen. Sonst stuende unter der
+  // neuen Datei noch die Begruendung der vorigen.
+  const pick = (f?: File | null) => {
+    if (!f) return;
+    setFile(f);
+    setErr('');
+    setGefunden(null);
+    setLeseFehler('');
+  };
 
   const submit = () => {
     if (!type) { setErr('Bitte einen Typ wählen.'); return; }
@@ -767,11 +852,50 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
                 </p>
               </div>
               {!busy && (
-                <button onClick={() => { setFile(null); setExisting(null); }} aria-label="Auswahl entfernen">
+                <button onClick={() => { setFile(null); setExisting(null); setGefunden(null); setLeseFehler(''); }}
+                  aria-label="Auswahl entfernen">
                   <X className="h-4 w-4 text-muted-foreground" />
                 </button>
               )}
             </div>
+          )}
+
+          {/* Lesen geht nur bei einer Datei vom PC: eine Datei aus OneDrive
+              liegt dort und muesste erst heruntergeladen werden. */}
+          {file && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) && (
+            <>
+              <Button variant="outline" className="mt-2 w-full" onClick={dokumentLesen} disabled={liest || busy}>
+                {liest
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Liest…</>
+                  : <><ScanLine className="mr-2 h-4 w-4" /> Dokument lesen</>}
+              </Button>
+
+              {leseFehler && (
+                <p className="mt-1.5 text-xs text-amber-700">{leseFehler}</p>
+              )}
+
+              {gefunden && (gefunden.typ || gefunden.zuordnungen.length > 0) && (
+                <div className="mt-1.5 rounded-md bg-primary/5 px-2.5 py-2">
+                  <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-primary">
+                    <Sparkles className="h-3.5 w-3.5" /> Aus dem Dokument gelesen — Felder oben sind
+                    vorbelegt und frei änderbar
+                  </p>
+                  {gefunden.typ && (
+                    <p className="text-xs text-muted-foreground">
+                      Typ <span className="font-medium text-foreground">{gefunden.typ.name}</span>
+                      {' · '}{trefferBegruendung(gefunden.typ)}
+                    </p>
+                  )}
+                  {gefunden.zuordnungen.map((z, i) => (
+                    <p key={`${z.art}:${z.treffer.id}`} className="text-xs text-muted-foreground">
+                      {i + 1}. Zuordnung{' '}
+                      <span className="font-medium text-foreground">{z.treffer.name}</span>
+                      {' · '}{trefferBegruendung(z.treffer)}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 
