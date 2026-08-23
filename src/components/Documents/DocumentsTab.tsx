@@ -3,7 +3,7 @@ import {
   Search, Plus, X, Upload, FileText, Image as ImageIcon, Folder, FolderPlus,
   ChevronRight, ExternalLink, Trash2, Settings2, List, FolderTree,
   ArrowLeft, AlertTriangle, Loader2, HardDrive, Cloud, Check, StickyNote,
-  ScanLine, Sparkles,
+  ScanLine, Sparkles, Anchor,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1119,6 +1119,43 @@ function OneDrivePicker({
  * Der Pfad wird aus dem Klickweg gebaut, NICHT aus itemInfo — die
  * Aktion liefert bei einem Ordner den Pfad des ELTERNordners.
  */
+/**
+ * Startordner ("Anker") fuer den Zielordner-Baum.
+ *
+ * Gemerkt wird die OneDrive-KENNUNG, nicht der Pfad — so ueberlebt der
+ * Anker Umbenennen und Verschieben in OneDrive. Der Pfad wird nur zur
+ * Anzeige mitgefuehrt und darf veralten.
+ *
+ * Bewusst in localStorage und nicht in der Datenbank: Es gibt im Projekt
+ * keine allgemeine Einstellungstabelle, und document_locations laesst
+ * durch seinen CHECK-Constraint keinen globalen Eintrag zu. Eine eigene
+ * Tabelle fuer eine einzige Einstellung waere unverhaeltnismaessig.
+ * FOLGE: Der Anker gilt je Geraet und Browser — auf dem Handy muss er
+ * einmal neu gesetzt werden.
+ */
+const ANKER_KEY = 'dokumente.startordner';
+
+interface Anker { id: string; name: string; path: string; }
+
+function ankerLesen(): Anker | null {
+  try {
+    const roh = localStorage.getItem(ANKER_KEY);
+    if (!roh) return null;
+    const a = JSON.parse(roh);
+    return a?.id && a?.name ? a as Anker : null;
+  } catch {
+    // Beschaedigter Eintrag darf den Dialog nicht lahmlegen.
+    return null;
+  }
+}
+
+function ankerSchreiben(a: Anker | null) {
+  try {
+    if (a) localStorage.setItem(ANKER_KEY, JSON.stringify(a));
+    else localStorage.removeItem(ANKER_KEY);
+  } catch { /* privater Modus o. Ae. — dann eben ohne Anker */ }
+}
+
 function Zielordner({
   gewaehlt, vorbelegt, onWaehlen,
 }: {
@@ -1127,18 +1164,60 @@ function Zielordner({
   onWaehlen: (id: string, path: string) => void;
 }) {
   const { toast } = useToast();
-  const [stack, setStack] = useState<{ id: string; name: string }[]>([{ id: 'root', name: 'OneDrive' }]);
+  const [anker, setAnker] = useState<Anker | null>(() => ankerLesen());
+
+  // Der Baum startet beim Anker, wenn einer gesetzt ist. Die Wurzel bleibt
+  // als unterste Stufe im Stapel — dadurch fuehrt die Brotkrume immer
+  // zurueck zum ganzen OneDrive.
+  const [stack, setStack] = useState<{ id: string; name: string }[]>(() => {
+    const a = ankerLesen();
+    return a
+      ? [{ id: 'root', name: 'OneDrive' }, { id: a.id, name: a.name }]
+      : [{ id: 'root', name: 'OneDrive' }];
+  });
+
   const [neuerName, setNeuerName] = useState('');
   const [legeAn, setLegeAn] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const current = stack[stack.length - 1];
   const pfad = stack.slice(1).map((x) => x.name).join(' / ');
+  const imAnker = !!anker && current.id === anker.id;
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, refetch, error } = useQuery({
     queryKey: ['onedrive-ziel', current.id],
     queryFn: () => onedrive<{ folders: OneDriveFolder[] }>('listFolders', { parentId: current.id }),
   });
+
+  // Anker zeigt ins Leere (Ordner in OneDrive geloescht): zurueck zur
+  // Wurzel, statt eine leere Liste ohne Erklaerung zu zeigen.
+  useEffect(() => {
+    if (!error || !imAnker) return;
+    setStack([{ id: 'root', name: 'OneDrive' }]);
+    setAnker(null);
+    ankerSchreiben(null);
+    toast({
+      title: 'Startordner nicht mehr vorhanden',
+      description: 'Der gemerkte Ordner existiert in OneDrive nicht mehr. Der Baum beginnt wieder ganz oben.',
+    });
+  }, [error, imAnker, toast]);
+
+  /** Springt zu einer Stufe der Brotkrume — 0 ist die OneDrive-Wurzel. */
+  const springeZu = (index: number) => setStack((s) => s.slice(0, index + 1));
+
+  const ankerSetzen = () => {
+    if (stack.length === 1) return; // die Wurzel als Anker waere sinnlos
+    const neu: Anker = { id: current.id, name: current.name, path: pfad };
+    setAnker(neu);
+    ankerSchreiben(neu);
+    toast({ title: 'Startordner gemerkt', description: pfad });
+  };
+
+  const ankerLoesen = () => {
+    setAnker(null);
+    ankerSchreiben(null);
+    toast({ title: 'Startordner aufgehoben', description: 'Der Baum beginnt wieder bei OneDrive.' });
+  };
 
   const anlegen = async () => {
     const name = neuerName.trim();
@@ -1168,19 +1247,65 @@ function Zielordner({
   return (
     <>
       <div className="rounded-md border">
-        <div className="flex items-center gap-2 border-b px-2.5 py-2">
+        {/* Brotkrume: jede Stufe anklickbar. „OneDrive" ganz links fuehrt
+            immer zum ganzen Baum zurueck — der Anker ist ein Startpunkt,
+            keine Sperre. */}
+        <div className="flex items-center gap-1.5 border-b px-2.5 py-2">
           {stack.length > 1 && (
-            <button onClick={() => setStack((s) => s.slice(0, -1))} aria-label="Eine Ebene zurück">
-              <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+            <button onClick={() => setStack((s) => s.slice(0, -1))}
+              className="shrink-0" aria-label="Eine Ebene zurück">
+              <ArrowLeft className="h-4 w-4 text-muted-foreground hover:text-foreground" />
             </button>
           )}
-          <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-            {pfad || 'OneDrive'}
-          </span>
-          <button onClick={() => setLegeAn((v) => !v)} aria-label="Ordner hier anlegen">
+
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto font-mono text-xs">
+            {stack.map((s, i) => (
+              <React.Fragment key={`${s.id}-${i}`}>
+                {i > 0 && <span className="shrink-0 text-muted-foreground/50">/</span>}
+                <button
+                  onClick={() => springeZu(i)}
+                  disabled={i === stack.length - 1}
+                  className={`shrink-0 rounded px-1 py-0.5 ${
+                    i === stack.length - 1
+                      ? 'font-medium text-foreground'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                >
+                  {s.name}
+                </button>
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* Anker: aktueller Ordner wird Startpunkt. Im Ankerordner selbst
+              wird das Symbol zum Aufheben. */}
+          {stack.length > 1 && (
+            imAnker ? (
+              <button onClick={ankerLoesen} className="shrink-0" title="Startordner aufheben">
+                <Anchor className="h-4 w-4 text-primary" />
+              </button>
+            ) : (
+              <button onClick={ankerSetzen} className="shrink-0"
+                title="Diesen Ordner als Startordner merken">
+                <Anchor className="h-4 w-4 text-muted-foreground/50 hover:text-primary" />
+              </button>
+            )
+          )}
+
+          <button onClick={() => setLegeAn((v) => !v)} className="shrink-0"
+            aria-label="Ordner hier anlegen">
             <FolderPlus className="h-4 w-4 text-muted-foreground hover:text-primary" />
           </button>
         </div>
+
+        {anker && !imAnker && (
+          <button
+            onClick={() => setStack([{ id: 'root', name: 'OneDrive' }, { id: anker.id, name: anker.name }])}
+            className="flex w-full items-center gap-1.5 border-b bg-primary/5 px-2.5 py-1.5 text-left text-xs text-primary hover:bg-primary/10"
+          >
+            <Anchor className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Zurück zum Startordner: {anker.path || anker.name}</span>
+          </button>
+        )}
 
         {legeAn && (
           <div className="flex gap-1.5 border-b p-2">
