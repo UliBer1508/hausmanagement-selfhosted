@@ -2,11 +2,12 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   Search, Plus, X, Upload, FileText, Image as ImageIcon, Folder, FolderPlus,
   ChevronRight, ExternalLink, Trash2, Settings2, List, FolderTree,
-  ArrowLeft, AlertTriangle, Loader2, HardDrive, Cloud, Check,
+  ArrowLeft, AlertTriangle, Loader2, HardDrive, Cloud, Check, StickyNote,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -17,7 +18,7 @@ import DocumentSettings from '@/components/Documents/DocumentSettings';
 import {
   onedrive, bezugLabel, useOneDriveStatus, useDocumentTypes, useDocuments,
   useUploadDocument, useLinkExisting, useRemoveDocument, useEntities,
-  useLocations, useSaveLocation, useVendors,
+  useLocations, useSaveLocation, useVendors, useUpdateDocumentNote,
   type DocumentType, type LinkTarget, type OneDriveFolder, type OneDriveFile,
   type EntityOption,
 } from '@/hooks/useDocuments';
@@ -31,6 +32,12 @@ import {
  *
  * ABLAGEORT wird nicht abgeleitet, sondern festgelegt: gemerkt je
  * Kombination aus Objekt und Dokumenttyp in document_locations.
+ *
+ * NOTIZ (23.08.2026): freier Text am Dokument, `documents.note`. In der
+ * Liste steht nur ein Zeichen dafuer, DASS es eine Notiz gibt; der Text
+ * selbst steht im Notiz-Fenster und ist dort aenderbar. Bewusst nicht in
+ * der Zeile ausgeschrieben — die Zeile ist schon dicht, und eine Notiz
+ * kann mehrere Saetze lang sein.
  */
 
 const LINK_TARGETS: { key: LinkTarget; label: string }[] = [
@@ -66,6 +73,8 @@ export default function DocumentsTab() {
 
   const [view, setView] = useState<'suche' | 'ordner'>('suche');
   const [dialog, setDialog] = useState<'upload' | 'settings' | null>(null);
+  // Dokument, dessen Notiz gerade angesehen/geaendert wird.
+  const [noteDocId, setNoteDocId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [fObjekt, setFObjekt] = useState<string[]>([]);
   const [fType, setFType] = useState<string[]>([]);
@@ -92,6 +101,14 @@ export default function DocumentsTab() {
   });
 
   const { data: vendors = [] } = useVendors(true);
+
+  // Das Notiz-Fenster liest aus der LISTE, nicht aus einer Kopie: nach dem
+  // Speichern laedt useDocuments neu, und der angezeigte Text ist dann der
+  // frisch gespeicherte. Eine eingefrorene Kopie zeigte den alten Stand.
+  const noteDoc = useMemo(
+    () => docs.find((d) => d.id === noteDocId) ?? null,
+    [docs, noteDocId],
+  );
 
   /**
    * Ein Dokument haengt an HOECHSTENS EINEM Objekt. Der Schluessel traegt die
@@ -140,6 +157,7 @@ export default function DocumentsTab() {
       return d.file_name.toLowerCase().includes(q)
         || (d.onedrive_path ?? '').toLowerCase().includes(q)
         || (d.document_types?.name ?? '').toLowerCase().includes(q)
+        || (d.note ?? '').toLowerCase().includes(q)
         || bezugLabel(d).toLowerCase().includes(q);
     });
   }, [docs, query, fObjekt, fType, fYear]);
@@ -247,7 +265,7 @@ export default function DocumentsTab() {
         <div className="flex min-w-[240px] flex-1 items-center gap-2 rounded-md border px-3">
           <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
           <input value={query} onChange={(e) => { setQuery(e.target.value); setView('suche'); setLimit(25); }}
-            placeholder="Dateiname, Typ, Objekt, Ordner…"
+            placeholder="Dateiname, Typ, Objekt, Ordner, Notiz…"
             className="h-9 w-full bg-transparent text-sm outline-none" />
           {query && <button onClick={() => setQuery('')} aria-label="Suche leeren"><X className="h-4 w-4 text-muted-foreground" /></button>}
         </div>
@@ -302,11 +320,13 @@ export default function DocumentsTab() {
                     </p>
                     <div className="overflow-hidden rounded-xl border bg-card">
                       {g.items.map((d) => (
-                        <Row key={d.id} d={d} onRemove={() =>
-                          removeDoc.mutate({ id: d.id, itemId: d.onedrive_item_id }, {
-                            onSuccess: () => toast({ title: 'Verknüpfung entfernt', description: 'Die Datei bleibt in OneDrive.' }),
-                            onError: (e: any) => toast({ title: 'Fehler', description: e.message, variant: 'destructive' }),
-                          })} />
+                        <Row key={d.id} d={d}
+                          onNote={() => setNoteDocId(d.id)}
+                          onRemove={() =>
+                            removeDoc.mutate({ id: d.id, itemId: d.onedrive_item_id }, {
+                              onSuccess: () => toast({ title: 'Verknüpfung entfernt', description: 'Die Datei bleibt in OneDrive.' }),
+                              onError: (e: any) => toast({ title: 'Fehler', description: e.message, variant: 'destructive' }),
+                            })} />
                       ))}
                     </div>
                   </div>
@@ -321,25 +341,29 @@ export default function DocumentsTab() {
           </div>
         </div>
       ) : (
-        <FolderBrowser docs={docs} onRemove={(d: any) =>
-          removeDoc.mutate({ id: d.id, itemId: d.onedrive_item_id }, {
-            onSuccess: () => toast({ title: 'Verknüpfung entfernt', description: 'Die Datei bleibt in OneDrive.' }),
-          })} />
+        <FolderBrowser docs={docs}
+          onNote={(d: any) => setNoteDocId(d.id)}
+          onRemove={(d: any) =>
+            removeDoc.mutate({ id: d.id, itemId: d.onedrive_item_id }, {
+              onSuccess: () => toast({ title: 'Verknüpfung entfernt', description: 'Die Datei bleibt in OneDrive.' }),
+            })} />
       )}
 
       {dialog === 'upload' && (
         <AblageDialog types={types.filter((t) => t.is_active)} onClose={() => setDialog(null)} />
       )}
       {dialog === 'settings' && <DocumentSettings onClose={() => setDialog(null)} />}
+      {noteDoc && <NotizDialog d={noteDoc} onClose={() => setNoteDocId(null)} />}
     </div>
   );
 }
 
-function Row({ d, onRemove, hidePath }: any) {
+function Row({ d, onRemove, onNote, hidePath }: any) {
   const isImg = (d.mime_type ?? '').startsWith('image/');
   const color = COLORS[d.document_types?.color ?? 'slate'] ?? COLORS.slate;
+  const hatNotiz = !!(d.note && d.note.trim());
   return (
-    <div className="grid grid-cols-1 gap-2 border-t px-4 py-2.5 first:border-t-0 sm:grid-cols-[2fr_1.6fr_100px_70px] sm:items-center">
+    <div className="grid grid-cols-1 gap-2 border-t px-4 py-2.5 first:border-t-0 sm:grid-cols-[2fr_1.6fr_100px_100px] sm:items-center">
       <div className="flex min-w-0 items-center gap-2.5">
         {isImg ? <ImageIcon className="h-4 w-4 shrink-0 text-primary" /> : <FileText className="h-4 w-4 shrink-0 text-primary" />}
         <div className="min-w-0">
@@ -363,6 +387,14 @@ function Row({ d, onRemove, hidePath }: any) {
       </div>
       <span className="text-sm text-muted-foreground">{fmtDate(d.created_at)}</span>
       <div className="flex gap-3 sm:justify-end">
+        {/* Notiz: gefuelltes Zeichen = vorhanden, blasses = noch keine.
+            Der Text steht bewusst NICHT in der Zeile (kann lang sein). */}
+        <button onClick={onNote}
+          title={hatNotiz ? 'Notiz ansehen oder ändern' : 'Notiz hinzufügen'}
+          aria-label={hatNotiz ? 'Notiz ansehen oder ändern' : 'Notiz hinzufügen'}>
+          <StickyNote className={`h-[18px] w-[18px] ${
+            hatNotiz ? 'fill-amber-200 text-amber-600' : 'text-muted-foreground/40 hover:text-muted-foreground'}`} />
+        </button>
         {d.onedrive_web_url && (
           <a href={d.onedrive_web_url} target="_blank" rel="noreferrer" aria-label="In OneDrive öffnen">
             <ExternalLink className="h-[18px] w-[18px] text-muted-foreground hover:text-foreground" />
@@ -376,9 +408,70 @@ function Row({ d, onRemove, hidePath }: any) {
   );
 }
 
+/* ---------------------------------------------------------------- Notiz */
+
+/**
+ * Notiz ansehen und aendern.
+ *
+ * Leerer Text loescht die Notiz (der Hook macht daraus NULL) — deshalb
+ * braucht es keinen eigenen Loeschen-Knopf: Text markieren, entfernen,
+ * speichern. Der Hinweis darunter sagt das ausdruecklich, sonst raet man.
+ */
+function NotizDialog({ d, onClose }: { d: any; onClose: () => void }) {
+  const { toast } = useToast();
+  const speichern = useUpdateDocumentNote();
+  const [text, setText] = useState<string>(d.note ?? '');
+
+  const unveraendert = text.trim() === (d.note ?? '').trim();
+
+  const sichern = () => {
+    speichern.mutate({ id: d.id, note: text }, {
+      onSuccess: (wert) => {
+        toast({
+          title: wert ? 'Notiz gespeichert' : 'Notiz entfernt',
+          description: d.file_name,
+        });
+        onClose();
+      },
+      onError: (e: any) => toast({ title: 'Fehler', description: e.message, variant: 'destructive' }),
+    });
+  };
+
+  return (
+    <Dialog open onOpenChange={() => !speichern.isPending && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Notiz</DialogTitle>
+          <DialogDescription className="truncate">{d.file_name}</DialogDescription>
+        </DialogHeader>
+
+        <Textarea
+          autoFocus
+          rows={7}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Eigener Vermerk zu diesem Dokument…"
+          disabled={speichern.isPending}
+        />
+
+        <p className="text-xs text-muted-foreground">
+          Freier Text. Leeren und speichern entfernt die Notiz.
+        </p>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={onClose} disabled={speichern.isPending}>Abbrechen</Button>
+          <Button onClick={sichern} disabled={speichern.isPending || unveraendert}>
+            {speichern.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Speichert…</> : 'Speichern'}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ------------------------------------------------------------ Ordneransicht */
 
-function FolderBrowser({ docs, onRemove }: any) {
+function FolderBrowser({ docs, onRemove, onNote }: any) {
   const [stack, setStack] = useState<{ id: string; name: string }[]>([{ id: 'root', name: 'OneDrive' }]);
   const current = stack[stack.length - 1];
 
@@ -422,7 +515,9 @@ function FolderBrowser({ docs, onRemove }: any) {
       {data?.files.map((f) => {
         const linked = byItemId[f.id];
         return linked ? (
-          <Row key={f.id} d={linked} hidePath onRemove={() => onRemove(linked)} />
+          <Row key={f.id} d={linked} hidePath
+            onNote={() => onNote(linked)}
+            onRemove={() => onRemove(linked)} />
         ) : (
           <div key={f.id} className="flex items-center gap-2.5 border-t px-4 py-2.5">
             <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -479,6 +574,9 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   const [art3, setArt3] = useState<LinkTarget>('keine');
   const [id3, setId3] = useState('');
 
+  // Freier Vermerk. Bleibt leer, wenn nichts eingegeben wird.
+  const [note, setNote] = useState('');
+
   const [folder, setFolder] = useState<{ id: string; path: string } | null>(null);
   const [folderTouched, setFolderTouched] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -527,6 +625,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     const links = {
       typeId,
       zusatz,
+      note,
       houseId: target === 'haus' ? entityId : (chosen?.houseId ?? null),
       bookingId: target === 'buchung' ? entityId : null,
       serviceTaskId: target === 'reinigung' ? entityId : null,
@@ -695,6 +794,21 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
             </div>
           </div>
         )}
+
+        {/* Notiz: rein optional, freier Text. Wird spaeter ueber das
+            Notiz-Zeichen in der Liste geaendert. */}
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            5 · Notiz <span className="normal-case tracking-normal">(optional)</span>
+          </p>
+          <Textarea
+            rows={2}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Eigener Vermerk zu diesem Dokument…"
+            disabled={busy}
+          />
+        </div>
 
         {busy && progress > 0 && (
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -905,8 +1019,8 @@ function Zielordner({
   const anlegen = async () => {
     const name = neuerName.trim();
     if (!name) return;
-    if (/[/\:*?"<>|]/.test(name)) {
-      toast({ title: 'Ungültiger Name', description: 'Ohne / \ : * ? " < > |', variant: 'destructive' });
+    if (/[/\\:*?"<>|]/.test(name)) {
+      toast({ title: 'Ungültiger Name', description: 'Ohne / \\ : * ? " < > |', variant: 'destructive' });
       return;
     }
     setBusy(true);
