@@ -18,6 +18,13 @@ import { supabase } from '@/integrations/supabase/client';
  * Kombination aus Objekt und Dokumenttyp in document_locations gemerkt
  * und beim naechsten Mal vorgeschlagen. document_types.folder_rule und
  * .link_target sind veraltet und werden nicht mehr ausgewertet.
+ *
+ * NOTIZ (seit 23.08.2026): documents.note ist ein freies Textfeld. Die
+ * Spalte existierte seit dem ersten Entwurf und wurde von linkColumns()
+ * auch geschrieben — nur gab es in der Oberflaeche kein Eingabefeld, und
+ * die Leseabfrage holte die Spalte nicht. Beides ist jetzt ergaenzt.
+ * Der Inhalt stammt ausschliesslich vom Menschen; keine Automatik
+ * schreibt hier hinein.
  */
 
 export type LinkTarget =
@@ -284,6 +291,8 @@ export interface DocumentRow {
   linen_order_id: string | null;
   provider_id: string | null;
   vendor_id: string | null;
+  /** Freier Vermerk des Menschen. Leer = keine Notiz. */
+  note: string | null;
   document_types: { name: string; color: string } | null;
   houses: { name: string } | null;
   service_providers: { name: string } | null;
@@ -310,7 +319,7 @@ export function useDocuments() {
           id, file_name, size_bytes, mime_type,
           onedrive_item_id, onedrive_web_url, onedrive_path, created_at,
           document_type_id, house_id, booking_id, service_task_id,
-          linen_order_id, provider_id, vendor_id,
+          linen_order_id, provider_id, vendor_id, note,
           document_types:document_type_id (name, color),
           houses:house_id (name),
           service_providers:provider_id (name),
@@ -396,7 +405,13 @@ async function objektNamen(links: Array<{ entity_type: string; entity_id: string
   return namen;
 }
 
-/** Dokumente eines einzelnen Objekts — fuer den Abschnitt auf den Karten. */
+/**
+ * Dokumente eines einzelnen Objekts — fuer den Abschnitt auf den Karten.
+ *
+ * ACHTUNG, eigene Feldliste: Diese Abfrage ist NICHT dieselbe wie in
+ * useDocuments(). Wer hier ein Feld braucht, muss es hier ergaenzen —
+ * `note` wird bewusst nicht geladen, weil die Karten sie nicht anzeigen.
+ */
 export function useDocumentsFor(
   column: 'house_id' | 'booking_id' | 'service_task_id' | 'linen_order_id' | 'provider_id' | 'vendor_id',
   id?: string,
@@ -461,8 +476,40 @@ const linkColumns = (l: DocumentLinks) => ({
   linen_order_id: l.linenOrderId ?? null,
   provider_id: l.providerId ?? null,
   vendor_id: l.vendorId ?? null,
-  note: l.note ?? null,
+  note: l.note?.trim() || null,
 });
+
+/**
+ * Aendert die Notiz eines bestehenden Dokuments.
+ *
+ * Leerer Text wird zu NULL — sonst stuende in der Datenbank ein leerer
+ * String, den die Anzeige als „Notiz vorhanden" werten wuerde.
+ *
+ * `.select('id')` und die Pruefung auf null Zeilen sind Pflicht: Ohne sie
+ * meldete ein Update auch dann Erfolg, wenn RLS oder eine falsche Kennung
+ * gar keine Zeile getroffen haben.
+ */
+export function useUpdateDocumentNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, note }: { id: string; note: string }) => {
+      const wert = note.trim() || null;
+
+      const { data, error } = await supabase
+        .from('documents')
+        .update({ note: wert } as any)
+        .eq('id', id)
+        .select('id');
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('Notiz wurde nicht gespeichert (keine Zeile betroffen).');
+      }
+      return wert;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
+  });
+}
 
 /**
  * Schreibt die 2. und 3. Zuordnung nach document_links.
