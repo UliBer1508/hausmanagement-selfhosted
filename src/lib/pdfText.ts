@@ -517,11 +517,72 @@ function begriffeAus(name: string): string[] {
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * Sucht alle Kandidaten im Text und gibt die Treffer sortiert zurueck.
+ * Bewertet einen einzelnen Begriff im Text.
  *
- * Mehrwortige Begriffe zaehlen staerker: "wald chalet" ist aussagekraeftiger
- * als "wald". Ohne diese Gewichtung gewinnt bei zwei aehnlichen Namen der
- * kuerzere, nur weil er oefter als Teilwort vorkommt.
+ * ZWEI KORREKTUREN vom 23.08.2026, beide an einer echten Rechnung der
+ * Marktgemeinde Neukirchen nachgewiesen. Dort gewann faelschlich der Typ
+ * „Rechnung" gegen „Nächtigungsabgabe", obwohl letzteres als Ueberschrift
+ * im Dokument steht:
+ *
+ *  (a) TEILWOERTER ZAEHLEN NUR HALB. „rechnung" traf zweimal — einmal
+ *      davon in „RechnungsNUMMER". Aber jedes Dokument hat eine
+ *      Rechnungsnummer; das ist kein Beleg dafuer, dass es eine Rechnung
+ *      IST. Ein Treffer am Wortanfang mit Fortsetzung wiegt darum weniger
+ *      als ein eigenstaendiges Wort.
+ *
+ *      Ganz ausschliessen waere falsch: deutsche Komposita. Steht im
+ *      System „Wald Chalet" und im Dokument „Waldchalet", muss „wald"
+ *      weiterhin treffen duerfen.
+ *
+ *  (b) LAENGERE BEGRIFFE WIEGEN SCHWERER. „Nächtigungsabgabe" kann kaum
+ *      zufaellig auftauchen, „Rechnung" steht fast ueberall. Ohne diese
+ *      Gewichtung gewinnt das haeufigere Allerweltswort gegen das
+ *      seltene, aussagekraeftige.
+ */
+function bewerteBegriff(lower: string, begriff: string): { punkte: number; anzahl: number } {
+  const b = escapeRe(begriff);
+
+  /* WARUM NICHT \b:
+     JavaScript zaehlt bei \b nur [A-Za-z0-9_] als Wortzeichen. Umlaute und
+     ß gelten als Trennzeichen — in „Großvenediger" sieht \b darum eine
+     Wortgrenze zwischen „Groß" und „venediger". Am 23.08.2026 an der
+     Rechnung der Marktgemeinde nachgewiesen: „Venediger Chalet" bekam
+     Punkte, obwohl im Dokument nur der ORTSNAME „Neukirchen am
+     Großvenediger" stand. Mit \p{L} und /u stimmt die Grenze. */
+  const VOR = '(?<![\\p{L}\\p{N}])';
+  const NACH = '(?![\\p{L}\\p{N}])';
+
+  const exakt = lower.match(new RegExp(`${VOR}${b}${NACH}`, 'gu'))?.length ?? 0;
+  const alleAnfang = lower.match(new RegExp(`${VOR}${b}`, 'gu'))?.length ?? 0;
+  const teil = Math.max(0, alleAnfang - exakt);
+
+  if (exakt === 0 && teil === 0) return { punkte: 0, anzahl: 0 };
+
+  // Wortanzahl und Zeichenlaenge bestimmen die Aussagekraft.
+  // Bezug 10 Zeichen. Die Untergrenze 0.7 schuetzt kurze, aber echte Namen:
+  // „Amela" hat nur fuenf Zeichen und darf deswegen nicht unter die
+  // Nachweisschwelle rutschen.
+  const gewicht = begriff.split(' ').length * Math.max(0.7, begriff.length / 10);
+
+  return {
+    punkte: (exakt + teil * 0.5) * gewicht,
+    anzahl: exakt + teil,
+  };
+}
+
+/**
+ * Ab dieser Punktzahl gilt ein Treffer als vorschlagenswert.
+ *
+ * Ein EINZELNER Treffer, der nur am Wortanfang sitzt, kommt auf rund 0.45
+ * und liegt damit darunter. Genau so ein Fall: „Venedigersiedlung" in Ulis
+ * Anschrift liess „Venediger Chalet" aufscheinen, obwohl das Dokument ein
+ * ganz anderes Objekt betraf. Ein exakter Treffer eines kurzen Namens
+ * kommt auf 0.7 und bleibt erhalten.
+ */
+const MIN_PUNKTE = 0.6;
+
+/**
+ * Sucht alle Kandidaten im Text und gibt die Treffer sortiert zurueck.
  *
  * GEMEINSAME WOERTER ZAEHLEN NICHT. "Venediger Chalet" und "Wald Chalet"
  * teilen sich das Wort "chalet" — es kommt in jeder Rechnung vor, die eines
@@ -551,15 +612,16 @@ export function findeTreffer(text: string, kandidaten: Kandidat[]): Treffer[] {
         // Einzelwort, das mehrere Kandidaten teilen -> ueberspringen.
         if (!b.includes(' ') && (wortZaehler.get(b) ?? 0) > 1) continue;
 
-        const m = lower.match(new RegExp(escapeRe(b), 'g'));
-        if (!m) continue;
-        punkte += m.length * b.split(' ').length;
-        begriffe.push({ begriff: b, anzahl: m.length });
+        const { punkte: p, anzahl } = bewerteBegriff(lower, b);
+        if (anzahl === 0) continue;
+        punkte += p;
+        begriffe.push({ begriff: b, anzahl });
       }
 
-      return { id: k.id, name: k.name, punkte, begriffe };
+      // Auf eine Nachkommastelle runden — die Anzeige soll lesbar bleiben.
+      return { id: k.id, name: k.name, punkte: Math.round(punkte * 10) / 10, begriffe };
     })
-    .filter((t) => t.punkte > 0)
+    .filter((t) => t.punkte >= MIN_PUNKTE)
     .sort((a, b) => b.punkte - a.punkte);
 }
 
