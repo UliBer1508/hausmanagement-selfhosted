@@ -23,7 +23,7 @@ import {
   type DocumentType, type LinkTarget, type OneDriveFolder, type OneDriveFile,
   type EntityOption,
 } from '@/hooks/useDocuments';
-import { leseDateiText, findeTreffer, trefferBegruendung, type Treffer } from '@/lib/pdfText';
+import { leseDateiText, findeTreffer, trefferBegruendung, adressBegriffe, type Treffer } from '@/lib/pdfText';
 
 /**
  * DocumentsTab — Uebersicht, Suche und Ablage.
@@ -603,9 +603,41 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 
   // Objektlisten fuer den Abgleich. Sie sind ohnehin geladen, weil die
   // Zuordnungszeilen sie brauchen — react-query liefert aus dem Speicher.
-  const { data: alleHaeuser = [] } = useEntities('haus', '');
   const { data: alleProvider = [] } = useEntities('provider', '');
   const { data: alleVendoren = [] } = useEntities('vendor', '');
+
+  /*
+   * Haeuser mit ANSCHRIFT und OBJEKTNUMMER — eigene Abfrage, weil
+   * useEntities nur id und name liefert.
+   *
+   * Grund: Fremde Absender benennen die Objekte nicht so wie das System.
+   * Die Marktgemeinde Neukirchen schreibt „Chalet 17, Trattenbach 299",
+   * nirgends steht „Wald Chalet". Ohne Anschrift als Suchbegriff bleibt
+   * die Zuordnung leer, obwohl sie fuer einen Menschen eindeutig ist.
+   */
+  const { data: haeuserRoh = [] } = useQuery({
+    queryKey: ['houses-suchbegriffe'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('houses')
+        .select('id, name, address, external_objektnummer')
+        .order('name');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const alleHaeuser = useMemo(
+    () => (haeuserRoh as any[]).map((h) => ({
+      id: h.id,
+      label: h.name,
+      begriffe: [
+        ...adressBegriffe(h.address),
+        ...(h.external_objektnummer ? [String(h.external_objektnummer)] : []),
+      ],
+    })),
+    [haeuserRoh],
+  );
 
   const dokumentLesen = async () => {
     if (!file) return;
@@ -630,7 +662,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           .map((t) => ({ art: 'provider' as LinkTarget, treffer: t })),
         ...findeTreffer(text, alleVendoren.map((e) => ({ id: e.id, name: e.label })))
           .map((t) => ({ art: 'vendor' as LinkTarget, treffer: t })),
-        ...findeTreffer(text, alleHaeuser.map((e) => ({ id: e.id, name: e.label })))
+        ...findeTreffer(text, alleHaeuser.map((e) => ({ id: e.id, name: e.label, begriffe: e.begriffe })))
           .map((t) => ({ art: 'haus' as LinkTarget, treffer: t })),
       ];
 
