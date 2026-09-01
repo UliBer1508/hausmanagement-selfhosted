@@ -580,6 +580,18 @@ const OriginalDashboard = () => {
   const { data: bookingsData, isLoading: bookingsLoading } = useQuery({
     queryKey: ['dashboard-bookings-v2'],
     queryFn: async () => {
+      // WICHTIG: booked_guests, guest_surcharge_amount und guests_changed_at
+      // muessen mitgeladen werden — BookingOverviewFixed.tsx (Tab "Buchungen")
+      // laedt sie bereits. Fehlten sie hier, verhielt sich derselbe
+      // Bearbeiten-Dialog in der Uebersicht anders als in der Buchungsliste:
+      //  - booked_guests ist die eingefrorene "vorher"-Gaestezahl. Ohne sie
+      //    rechnet CreateBookingForm.tsx (baselineGuests, ~Z.150) mit der
+      //    AKTUELLEN Zahl, und persistCharges() ueberschreibt booked_guests bei
+      //    jeder Aenderung erneut, obwohl es nur einmal gesetzt werden darf.
+      //  - booked_guests + guest_surcharge_amount speisen das Abweichungs-Badge
+      //    in BookingCard.tsx (~Z.246), das hier ohne sie nie erscheinen konnte.
+      // Hinweis: Die Spaltenliste unten ist ein PostgREST-String — dort duerfen
+      // KEINE //-Kommentare stehen, sie wuerden mitgesendet.
       const { data, error } = await supabase
         .from('bookings')
         .select(`
@@ -591,6 +603,9 @@ const OriginalDashboard = () => {
           number_of_guests,
           number_of_adults,
           number_of_children,
+          booked_guests,
+          guest_surcharge_amount,
+          guests_changed_at,
           house_id,
           booking_amount,
           currency,
