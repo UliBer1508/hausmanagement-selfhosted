@@ -305,7 +305,16 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
       const values = getDefaultValues();
       form.reset(values);
     }
-  }, [initialData, mode, form, prefillData]);
+    // ACHTUNG bei Aenderungen: NICHT auf [initialData] hoeren.
+    // initialData ist bei jedem Refetch ein NEUES Objekt (React Query baut die
+    // Zeilen neu, withGuestData() kopiert sie nochmals). Im Uebersicht-Tab
+    // horcht OriginalDashboard.tsx per Realtime auf jede Aenderung der Tabelle
+    // bookings; persistCharges() schreibt dort MITTEN im Zahlungslink-Ablauf in
+    // bookings. Das loeste einen Refetch -> neues initialData -> form.reset()
+    // waehrend der Vorgang noch lief. Im Buchungen-Tab gibt es diese Realtime-
+    // Subscription nicht, weshalb derselbe Dialog dort funktionierte.
+    // Zuruecksetzen ist nur noetig, wenn eine ANDERE Buchung geladen wird.
+  }, [initialData?.id, mode, form, prefillData]);
 
   // Auto-disable cleaning task creation for historical bookings
   useEffect(() => {
