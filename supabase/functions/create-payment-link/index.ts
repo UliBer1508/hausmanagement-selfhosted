@@ -83,19 +83,16 @@ Deno.serve(async (req) => {
 
     const currency = (charges[0].currency || 'EUR').toLowerCase()
 
-    const stripe = new Stripe(stripeKey, { apiVersion: '2024-12-18.acacia' })
-
-    // 2. Build line_items (one per charge)
-    const line_items = charges.map((c) => ({
-      price_data: {
-        currency,
-        unit_amount: Math.round(Number(c.amount) * 100),
-        product_data: {
-          name: c.description || `Zusatzforderung (${c.charge_type})`,
-        },
-      },
-      quantity: 1,
-    }))
+    // WICHTIG: httpClient: Stripe.createFetchHttpClient() ist in der Deno Edge
+    // Runtime zwingend erforderlich. Ohne diese Option versucht die Stripe-SDK,
+    // Node's http/https-Modul zu nutzen, was in Supabase Edge Functions (Deno)
+    // nicht zuverlaessig funktioniert und zu haengenden/undefiniert fehlschlagenden
+    // Requests fuehrt (siehe stripe-webhook/index.ts als funktionierende Referenz;
+    // vgl. auch supabase/supabase#7878).
+    const stripe = new Stripe(stripeKey, {
+      apiVersion: '2024-12-18.acacia',
+      httpClient: Stripe.createFetchHttpClient(),
+    })
 
     // price_data is not supported on paymentLinks line_items directly — create prices first
     const prices = await Promise.all(
