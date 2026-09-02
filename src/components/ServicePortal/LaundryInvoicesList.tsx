@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { RefreshCw, FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge, ListChecks, Search, CalendarIcon, X, Trash2, MoreHorizontal, FileUp } from 'lucide-react';
+import { FileText, Check, AlertCircle, Eye, Plus, Pencil, Merge, Search, CalendarIcon, X, Trash2, MoreHorizontal } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,13 +14,11 @@ import { Calendar } from '@/components/ui/calendar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { useLaundryInvoices, useSyncLaundryInvoices, useMarkInvoicePaid, useDeleteLaundryInvoice, useInvoiceStats, LaundryInvoice } from '@/hooks/useLaundryInvoices';
+import { useLaundryInvoices, useMarkInvoicePaid, useDeleteLaundryInvoice, useInvoiceStats, LaundryInvoice } from '@/hooks/useLaundryInvoices';
 import { InvoiceDetailsDialog } from './InvoiceDetailsDialog';
 import { CreateInvoiceDialog } from './CreateInvoiceDialog';
 import { EditInvoiceDialog } from './EditInvoiceDialog';
 import { MergeInvoicesDialog } from './MergeInvoicesDialog';
-import { AssignOrdersToInvoiceDialog } from './AssignOrdersToInvoiceDialog';
-import { ImportInvoicePdfDialog } from './ImportInvoicePdfDialog';
 
 const isDraftInvoice = (invoice: LaundryInvoice) =>
   invoice.rechnungsnummer?.startsWith('ENTWURF') && invoice.bruttobetrag === 0;
@@ -33,8 +31,6 @@ export const LaundryInvoicesList = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
   const [mergePreselectedId, setMergePreselectedId] = useState<string | undefined>();
-  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
-  const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
@@ -45,7 +41,6 @@ export const LaundryInvoicesList = () => {
     status: statusFilter !== 'all' ? statusFilter : undefined,
   });
   const { stats, isLoading: statsLoading } = useInvoiceStats();
-  const syncMutation = useSyncLaundryInvoices();
   const markPaidMutation = useMarkInvoicePaid();
   const deleteMutation = useDeleteLaundryInvoice();
 
@@ -181,34 +176,25 @@ export const LaundryInvoicesList = () => {
               <FileText className="h-5 w-5" />
               Rechnungen (Teuni / Wäsche Oberpinzgau)
             </CardTitle>
+            {/*
+              02.09.2026 — vier Knoepfe entfernt:
+              „PDF einlesen"        Rechnungen werden beim Ablegen in der
+                                    Dokumentenverwaltung gelesen. Der alte Weg
+                                    legte den Beleg NICHT ab.
+              „Sync"                sprach die REST-Schnittstelle an, die Teuni
+                                    nie in Betrieb genommen hat (siehe
+                                    docs/portal-endpoints/README.md). Genau eine
+                                    Bestellung trug je eine external_bestellnummer.
+              „Zusammenfuehren"     arbeitete auf ENTWURF-%-Rechnungen. Die
+                                    entstanden durch den am 23.07.2026 entfernten
+                                    Trigger; neue kann es nicht mehr geben. Im
+                                    Zeilenmenue bleibt der Aufruf fuer Altbestand.
+              „Rechnung + Zuordnung" konnte dasselbe wie der neue Weg, nur ohne PDF.
+              „Rechnung" (manuell) BLEIBT — Rueckfallweg, wenn ein PDF nicht
+                                    lesbar ist. pdfText.ts verliert nachweislich
+                                    einzelne Zeilen.
+            */}
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setMergePreselectedId(undefined);
-                  setMergeDialogOpen(true);
-                }}
-              >
-                <Merge className="h-4 w-4 mr-1" />
-                Zusammenführen
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAssignDialogOpen(true)}
-              >
-                <ListChecks className="h-4 w-4 mr-1" />
-                Rechnung + Zuordnung
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setImportDialogOpen(true)}
-              >
-                <FileUp className="h-4 w-4 mr-1" />
-                PDF einlesen
-              </Button>
               <Button
                 variant="default"
                 size="sm"
@@ -216,15 +202,6 @@ export const LaundryInvoicesList = () => {
               >
                 <Plus className="h-4 w-4 mr-1" />
                 Rechnung
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => syncMutation.mutate()}
-                disabled={syncMutation.isPending}
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-                Sync
               </Button>
             </div>
           </div>
@@ -434,16 +411,9 @@ export const LaundryInvoicesList = () => {
             <div className="text-center py-8 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-3 opacity-30" />
               <p>Keine Rechnungen gefunden</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={() => syncMutation.mutate()}
-                disabled={syncMutation.isPending}
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-                Rechnungen synchronisieren
-              </Button>
+              <p className="mt-1 text-xs">
+                Rechnungen entstehen beim Ablegen des PDF in der Dokumentenverwaltung.
+              </p>
             </div>
           )}
         </CardContent>
@@ -457,10 +427,6 @@ export const LaundryInvoicesList = () => {
       />
 
       {/* Create Invoice Dialog */}
-      <ImportInvoicePdfDialog
-        open={importDialogOpen}
-        onOpenChange={setImportDialogOpen}
-      />
 
       <CreateInvoiceDialog
         open={createDialogOpen}
@@ -479,10 +445,6 @@ export const LaundryInvoicesList = () => {
         preselectedInvoiceId={mergePreselectedId}
       />
       {/* Assign Orders to Invoice Dialog */}
-      <AssignOrdersToInvoiceDialog
-        open={assignDialogOpen}
-        onOpenChange={setAssignDialogOpen}
-      />
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteInvoice} onOpenChange={(open) => !open && setDeleteInvoice(null)}>
         <AlertDialogContent>
