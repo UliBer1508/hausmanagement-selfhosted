@@ -723,7 +723,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     queryFn: async () => {
       const { data, error } = await supabase
         .from('service_providers')
-        .select('id, name, alias, contact_email, service_type')
+        .select('id, name, alias, contact_email, dokument_begriffe, service_type')
         .eq('is_active', true);
       if (error) throw error;
       return data ?? [];
@@ -745,10 +745,25 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
    * Die Mailadresse wird zusaetzlich ohne Domaene aufgenommen: Im PDF
    * steht sie vollstaendig, aber Zeilenumbrueche oder Sperrsatz koennen
    * sie zerreissen — der Namensteil allein ist robuster.
+   *
+   * ACHTUNG, am 02.09.2026 an RG-0117 gemessen: Name und Mailadresse
+   * reichen NICHT. pdfToText() verliert bei dieser Rechnung ausgerechnet
+   * die Zeilen "Waesche Pinzgau" und "waeschepinzgau@gmail.com" — die
+   * Zeilen direkt darueber und darunter kommen an. Deshalb gibt es
+   * dokument_begriffe: Dort steht, woran der Absender in SEINEN
+   * Dokumenten tatsaechlich erkennbar ist (Inhabername, Anschrift).
+   * Gemessene Punkte: "Christiaan van den Berge" 9.60 gegen 2.00 fuer
+   * die Gemeinde, die sonst ueber den Ortsnamen aus Ulis eigener
+   * Anschrift gewann.
    */
   const providerKandidaten = useMemo(
     () => (providerRoh as any[]).map((pv) => {
       const begriffe: string[] = [];
+      // dokument_begriffe: wie der Absender sich auf SEINEN Dokumenten
+      // nennt. Gepflegt wird das in den Stammdaten, nicht im Code.
+      for (const b of (pv.dokument_begriffe ?? []) as string[]) {
+        if (b && String(b).trim().length >= 4) begriffe.push(String(b).trim());
+      }
       if (pv.alias) begriffe.push(String(pv.alias));
       if (pv.contact_email) {
         begriffe.push(String(pv.contact_email));
