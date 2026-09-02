@@ -953,11 +953,6 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     return aeltere.length ? aeltere[aeltere.length - 1] : null;
   }, [rechnung, fruehereRechnungen]);
 
-  useEffect(() => {
-    if (!rechnung || imZeitraum.length === 0) return;
-    setGewaehlte(new Set(imZeitraum.map((b: any) => b.id as string)));
-  }, [rechnung, imZeitraum]);
-
   /*
    * Die Rechnung nennt einen Zeitraum, die Bestellungen tragen ein
    * Lieferdatum — daraus ergibt sich die Zuordnung von selbst. Was
@@ -978,6 +973,15 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     const drin = new Set(imZeitraum.map((b: any) => b.id));
     return (offeneBestellungen as any[]).filter((b) => !drin.has(b.id));
   }, [offeneBestellungen, imZeitraum]);
+
+  // MUSS nach imZeitraum stehen: Die Dependency-Liste wird beim Rendern
+  // ausgewertet, nicht erst beim Ausfuehren. Stand der Effekt davor, griff
+  // er auf ein noch nicht initialisiertes const zu -> die Seite stuerzte ab.
+  // esbuild meldet das nicht, es prueft nur Syntax.
+  useEffect(() => {
+    if (!rechnung || imZeitraum.length === 0) return;
+    setGewaehlte(new Set(imZeitraum.map((b: any) => b.id as string)));
+  }, [rechnung, imZeitraum]);
 
   const gewaehlteZeilen = useMemo(
     () => (offeneBestellungen as any[]).filter((b) => gewaehlteBestellungen.has(b.id)),
