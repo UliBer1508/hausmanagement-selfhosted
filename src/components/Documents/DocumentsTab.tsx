@@ -661,7 +661,6 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 
   // Objektlisten fuer den Abgleich. Sie sind ohnehin geladen, weil die
   // Zuordnungszeilen sie brauchen — react-query liefert aus dem Speicher.
-  const { data: alleProvider = [] } = useEntities('provider', '');
   const { data: alleVendoren = [] } = useEntities('vendor', '');
 
   /*
@@ -724,11 +723,42 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     queryFn: async () => {
       const { data, error } = await supabase
         .from('service_providers')
-        .select('id, name, service_type');
+        .select('id, name, alias, contact_email, service_type')
+        .eq('is_active', true);
       if (error) throw error;
       return data ?? [];
     },
   });
+
+  /*
+   * Dienstleister mit ZUSATZBEGRIFFEN — derselbe Grund wie bei den
+   * Haeusern eine Zeile weiter unten: Fremde Absender benennen sich
+   * nicht so, wie das System sie fuehrt.
+   *
+   * Am 02.09.2026 an RG-0117 belegt: Der Dienstleister heisst im System
+   * „Teuni". Auf seiner Rechnung steht dieses Wort NIRGENDS — dort
+   * stehen „Waesche Pinzgau", der Inhabername und die Mailadresse. Ohne
+   * Zusatzbegriffe wurde die Rechnung deshalb der Gemeinde Neukirchen
+   * zugeordnet (Treffer auf den Ortsnamen im Briefkopf) und die
+   * Rechnungserkennung sprang gar nicht erst an.
+   *
+   * Die Mailadresse wird zusaetzlich ohne Domaene aufgenommen: Im PDF
+   * steht sie vollstaendig, aber Zeilenumbrueche oder Sperrsatz koennen
+   * sie zerreissen — der Namensteil allein ist robuster.
+   */
+  const providerKandidaten = useMemo(
+    () => (providerRoh as any[]).map((pv) => {
+      const begriffe: string[] = [];
+      if (pv.alias) begriffe.push(String(pv.alias));
+      if (pv.contact_email) {
+        begriffe.push(String(pv.contact_email));
+        const vorDomaene = String(pv.contact_email).split('@')[0];
+        if (vorDomaene.length >= 4) begriffe.push(vorDomaene);
+      }
+      return { id: pv.id as string, name: pv.name as string, begriffe };
+    }),
+    [providerRoh],
+  );
 
   const [rechnung, setRechnung] = useState<RechnungsErgebnis | null>(null);
   const [rechnungProviderId, setRechnungProviderId] = useState<string | null>(null);
@@ -799,7 +829,9 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       // 2 — Objekte. Alle drei Arten gemeinsam bewerten, damit der
       // staerkste Treffer gewinnt, egal aus welcher Liste er stammt.
       const alle = [
-        ...findeTreffer(text, alleProvider.map((e) => ({ id: e.id, name: e.label })))
+        // providerKandidaten statt alleProvider: mit Alias und Mailadresse,
+        // sonst wird ein Absender nur unter seinem internen Namen gesucht.
+        ...findeTreffer(text, providerKandidaten)
           .map((t) => ({ art: 'provider' as LinkTarget, treffer: t })),
         ...findeTreffer(text, alleVendoren.map((e) => ({ id: e.id, name: e.label })))
           .map((t) => ({ art: 'vendor' as LinkTarget, treffer: t })),
