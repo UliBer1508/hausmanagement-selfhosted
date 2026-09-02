@@ -721,12 +721,29 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   const { data: providerRoh = [] } = useQuery({
     queryKey: ['provider-service-type'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Zweistufig, absichtlich: PostgREST antwortet mit einem FEHLER,
+      // wenn eine angeforderte Spalte fehlt — nicht mit einem leeren Feld.
+      // Am 02.09.2026 erlebt: dokument_begriffe war noch nicht angelegt,
+      // die Abfrage brach ab, damit war die Providerliste leer und es
+      // wurde ueberhaupt kein Dienstleister mehr erkannt. Ohne sichtbaren
+      // Fehler. Die Zusatzspalte darf den Grundfall nicht mitreissen.
+      const basis = await supabase
         .from('service_providers')
-        .select('id, name, alias, contact_email, dokument_begriffe, service_type')
+        .select('id, name, alias, contact_email, service_type')
         .eq('is_active', true);
-      if (error) throw error;
-      return data ?? [];
+      if (basis.error) throw basis.error;
+
+      const mitBegriffen = await supabase
+        .from('service_providers')
+        .select('id, dokument_begriffe')
+        .eq('is_active', true);
+      if (mitBegriffen.error) {
+        console.warn('dokument_begriffe nicht lesbar — Erkennung nur über Name, Alias und E-Mail.', mitBegriffen.error.message);
+        return basis.data ?? [];
+      }
+
+      const nachId = new Map((mitBegriffen.data ?? []).map((r: any) => [r.id, r.dokument_begriffe]));
+      return (basis.data ?? []).map((pv: any) => ({ ...pv, dokument_begriffe: nachId.get(pv.id) ?? null }));
     },
   });
 
@@ -779,6 +796,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   const [rechnungProviderId, setRechnungProviderId] = useState<string | null>(null);
   const [gewaehlteBestellungen, setGewaehlte] = useState<Set<string>>(new Set());
   const [rechnungAnlegen, setRechnungAnlegen] = useState(true);
+  const [zeigeAlle, setZeigeAlle] = useState(false);
 
   // Offene Bestellungen dieses Dienstleisters. Seit dem 23.07.2026 ist
   // laundry_invoice_id bei allen Bestellungen null (Trigger entfernt) —
@@ -936,16 +954,30 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   }, [rechnung, fruehereRechnungen]);
 
   useEffect(() => {
-    if (!rechnung || offeneBestellungen.length === 0) return;
+    if (!rechnung || imZeitraum.length === 0) return;
+    setGewaehlte(new Set(imZeitraum.map((b: any) => b.id as string)));
+  }, [rechnung, imZeitraum]);
+
+  /*
+   * Die Rechnung nennt einen Zeitraum, die Bestellungen tragen ein
+   * Lieferdatum — daraus ergibt sich die Zuordnung von selbst. Was
+   * hineinfaellt, wird gewaehlt; alles andere ist nicht Handarbeit,
+   * sondern gehoert schlicht nicht dazu und bleibt eingeklappt.
+   */
+  const imZeitraum = useMemo(() => {
+    if (!rechnung) return [];
     const bis = rechnung.rechnung.rechnungsdatum;
-    const treffer = (offeneBestellungen as any[]).filter((b) => {
+    return (offeneBestellungen as any[]).filter((b) => {
       const d = (b.delivery_date ?? b.order_date) as string | null;
-      if (!d) return false;
-      if (d > bis) return false;
+      if (!d || d > bis) return false;
       return vorRechnungsdatum ? d > vorRechnungsdatum : true;
     });
-    setGewaehlte(new Set(treffer.map((b) => b.id as string)));
   }, [rechnung, offeneBestellungen, vorRechnungsdatum]);
+
+  const ausserhalb = useMemo(() => {
+    const drin = new Set(imZeitraum.map((b: any) => b.id));
+    return (offeneBestellungen as any[]).filter((b) => !drin.has(b.id));
+  }, [offeneBestellungen, imZeitraum]);
 
   const gewaehlteZeilen = useMemo(
     () => (offeneBestellungen as any[]).filter((b) => gewaehlteBestellungen.has(b.id)),
@@ -1319,18 +1351,19 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
                   </table>
 
                   {/* Bestellungen zum Abhaken */}
-                  {offeneBestellungen.length > 0 && (
+                  {(imZeitraum.length > 0 || ausserhalb.length > 0) && (
                     <>
                       <p className="mb-1 text-xs font-medium text-amber-900">
-                        Welche Wäschebestellungen deckt diese Rechnung ab?
+                        {imZeitraum.length} Wäschelieferung{imZeitraum.length === 1 ? '' : 'en'} im
+                        Abrechnungszeitraum
+                        {vorRechnungsdatum ? ` (nach dem ${fmtDate(vorRechnungsdatum)})` : ''}
+                        {' '}bis {fmtDate(rechnung.rechnung.rechnungsdatum)} — bereits zugeordnet
                       </p>
                       <p className="mb-1.5 text-xs text-amber-800">
-                        Vorausgewählt ist der Zeitraum
-                        {vorRechnungsdatum ? ` nach dem ${fmtDate(vorRechnungsdatum)}` : ''}
-                        {' '}bis zum Rechnungsdatum. Ältere bleiben sichtbar.
+                        Aus dem Lieferdatum ermittelt. Nur prüfen und ggf. korrigieren.
                       </p>
-                      <div className="mb-3 max-h-52 space-y-1 overflow-y-auto rounded bg-white/60 p-1.5">
-                        {(offeneBestellungen as any[]).map((b) => (
+                      <div className="mb-2 space-y-1 rounded bg-white/60 p-1.5">
+                        {imZeitraum.map((b: any) => (
                           <label key={b.id} className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs hover:bg-amber-100">
                             <input
                               type="checkbox"
@@ -1356,7 +1389,59 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
                             </span>
                           </label>
                         ))}
+                        {imZeitraum.length === 0 && (
+                          <p className="px-1.5 py-1 text-xs text-amber-800">
+                            Keine Lieferung in diesem Zeitraum gefunden.
+                          </p>
+                        )}
                       </div>
+
+                      {/* Alles ausserhalb des Zeitraums gehoert im Normalfall
+                          nicht dazu und bleibt eingeklappt — sonst sieht die
+                          fertige Zuordnung nach Handarbeit aus. */}
+                      {ausserhalb.length > 0 && (
+                        <div className="mb-2">
+                          <button
+                            type="button"
+                            className="text-xs underline text-amber-800"
+                            onClick={() => setZeigeAlle((v) => !v)}
+                          >
+                            {zeigeAlle
+                              ? 'Ältere und spätere ausblenden'
+                              : `${ausserhalb.length} weitere offene Bestellung${ausserhalb.length === 1 ? '' : 'en'} außerhalb des Zeitraums anzeigen`}
+                          </button>
+                          {zeigeAlle && (
+                            <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded bg-white/40 p-1.5">
+                              {ausserhalb.map((b: any) => (
+                                <label key={b.id} className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs hover:bg-amber-100">
+                                  <input
+                                    type="checkbox"
+                                    className="mt-0.5"
+                                    checked={gewaehlteBestellungen.has(b.id)}
+                                    onChange={(e) => {
+                                      const next = new Set(gewaehlteBestellungen);
+                                      if (e.target.checked) next.add(b.id); else next.delete(b.id);
+                                      setGewaehlte(next);
+                                    }}
+                                  />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="font-medium">
+                                      {b.delivery_date ? fmtDate(b.delivery_date) : 'ohne Lieferdatum'}
+                                    </span>
+                                    {' · '}{b.houses?.name ?? 'Haus unbekannt'}
+                                    {b.bookings && (
+                                      <>
+                                        {' · '}{getGuestName(b.bookings)}
+                                        {' · '}{b.bookings.number_of_guests} Gäste
+                                      </>
+                                    )}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Gegenrechnung — reine Sichtpruefung, blockiert nichts */}
                       {vergleich.length > 0 && (
