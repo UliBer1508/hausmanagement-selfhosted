@@ -24,6 +24,8 @@ import {
   type EntityOption,
 } from '@/hooks/useDocuments';
 import { leseDateiText, findeTreffer, trefferBegruendung, adressBegriffe, type Treffer } from '@/lib/pdfText';
+import { useCreateLaundryInvoice } from '@/hooks/useLaundryInvoices';
+import { getGuestName } from '@/lib/guestHelpers';
 
 /**
  * DocumentsTab — Uebersicht, Suche und Ablage.
@@ -543,6 +545,62 @@ function FolderBrowser({ docs, onRemove, onNote }: any) {
 
 /* --------------------------------------------------------------- Ablegen */
 
+/* ================================================================
+   WAESCHERECHNUNG — Hilfsmittel
+   ================================================================ */
+
+interface RechnungsPosition {
+  pos: number; artikel: string; bezeichnung: string;
+  menge: number; einheit: string; preis: number;
+  gesamt: number; summe: number; ust: number;
+}
+
+interface RechnungsErgebnis {
+  ok: boolean;
+  bereits_erfasst: boolean;
+  erfasst_info: string | null;
+  rechnung: {
+    rechnungsnummer: string; rechnungsdatum: string;
+    faelligkeitsdatum: string | null;
+    bruttobetrag: number; nettobetrag: number;
+  };
+  positionen: RechnungsPosition[];
+  preisabweichungen: Array<Record<string, unknown>>;
+  warnungen: string[];
+  hinweise: string[];
+}
+
+/*
+ * Rechnungsartikel -> Mengenschluessel der Bestellung.
+ *
+ * WARUM NUR ZUM VERGLEICH: Die Zahlen dienen der Sichtpruefung, nicht der
+ * Entscheidung. Teuni liefert nachweislich auch Vorrat (Badvorleger), und
+ * die Paketmengen wichen an zwei geprueften Rechnungen von der Gaestezahl
+ * ab (RG-0082: eine zu wenig, RG-0117: zwei zu viel). Die Auswahl trifft
+ * daher der Mensch; die Tabelle zeigt nur, wo es klemmt.
+ *
+ * Das Waeschepaket entspricht einem Gast. Als Zaehlgroesse dient
+ * `bedding`, weil es je Gast genau einmal vorkommt.
+ *
+ * Artikelnummern werden GROSS verglichen: Teuni schreibt sie mal
+ * "MWHT", mal "mwht" (PDF gegenueber der frueheren Schnittstelle).
+ */
+const ARTIKEL_ZU_SCHLUESSEL: Record<string, string> = {
+  MWR: 'bedding', MW3: 'bedding', MW4: 'bedding',
+  MWHT: 'sink_towels',
+  MWBVL: 'bath_mats',
+  MWST: 'sauna_towels',
+  MWBT: 'large_towels',
+  // Lohnwaesche und Kleinunternehmerzeile haben keinen Mengenbezug.
+  WT2: '', WT3: '', WTB2: '', WTB3: '', KLGEW: '', MWSPLT1: '',
+};
+
+const mengeAusBestellungen = (bestellungen: any[], schluessel: string) =>
+  bestellungen.reduce((summe, b) => {
+    const items = (b.items ?? {}) as Record<string, number>;
+    return summe + Number(items[schluessel] ?? 0);
+  }, 0);
+
 function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () => void }) {
   const { toast } = useToast();
   const upload = useUploadDocument();
@@ -639,6 +697,89 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     [haeuserRoh],
   );
 
+  /* ---------------------------------------------------------------
+     WAESCHERECHNUNG — Positionen lesen und Bestellungen zuordnen
+
+     Kein neues Kennzeichen noetig: Der erkannte Absender ist ein
+     service_provider, und dessen service_type sagt bereits, worum es
+     geht ('laundry' vs. 'cleaning'). Ist der Absender der Waesche-
+     Dienstleister, werden zusaetzlich die Rechnungspositionen gelesen
+     und die noch nicht abgerechneten Bestellungen zur Auswahl gestellt.
+
+     Die Zuordnung zu Buchungen entsteht NICHT aus der Rechnung — die
+     Positionen sind Summen ohne Buchungsbezug. Sie entsteht ueber die
+     Bestellungen: linen_orders traegt house_id und booking_id. Die
+     Rechnung wird an die Bestellungen gehaengt, der Rest ergibt sich.
+
+     Der Gastname kommt aus der guests-Relation, NICHT aus der Kopiespalte
+     bookings.guest_name. Die faellt in Etappe 6 der Gastdaten-Entdopplung
+     weg; wer sie hier abfragt, legt eine weitere Fundstelle an, die vorher
+     gefunden werden muss — PostgREST antwortet dann mit einem Fehler, nicht
+     mit einem leeren Ergebnis.
+  --------------------------------------------------------------- */
+  const createInvoice = useCreateLaundryInvoice();
+
+  const { data: providerRoh = [] } = useQuery({
+    queryKey: ['provider-service-type'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('service_providers')
+        .select('id, name, service_type');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const [rechnung, setRechnung] = useState<RechnungsErgebnis | null>(null);
+  const [rechnungProviderId, setRechnungProviderId] = useState<string | null>(null);
+  const [gewaehlteBestellungen, setGewaehlte] = useState<Set<string>>(new Set());
+  const [rechnungAnlegen, setRechnungAnlegen] = useState(true);
+
+  // Offene Bestellungen dieses Dienstleisters. Seit dem 23.07.2026 ist
+  // laundry_invoice_id bei allen Bestellungen null (Trigger entfernt) —
+  // die Liste reicht daher weiter zurueck als der Rechnungszeitraum.
+  // Vorausgewaehlt wird nur der Zeitraum, sichtbar bleibt alles.
+  const { data: offeneBestellungen = [] } = useQuery({
+    queryKey: ['offene-linen-orders', rechnungProviderId],
+    enabled: !!rechnungProviderId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_orders')
+        .select(`
+          id,
+          delivery_date,
+          order_date,
+          total_items,
+          items,
+          house_id,
+          houses:house_id (name),
+          bookings:booking_id (
+            id, check_in, number_of_guests,
+            guests!bookings_guest_id_fkey (name)
+          )
+        `)
+        .eq('provider_id', rechnungProviderId as string)
+        .is('laundry_invoice_id', null)
+        .order('delivery_date', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Untere Zeitgrenze = Datum der zuletzt erfassten aelteren Rechnung.
+  const { data: fruehereRechnungen = [] } = useQuery({
+    queryKey: ['rechnungsdaten-fuer-zeitraum'],
+    enabled: !!rechnung,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('laundry_invoices')
+        .select('rechnungsdatum')
+        .order('rechnungsdatum', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const dokumentLesen = async () => {
     if (!file) return;
     setLiest(true);
@@ -684,6 +825,39 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
         setLeseFehler('Text gelesen, aber nichts Bekanntes gefunden. Bitte von Hand wählen.');
       }
       setErr('');
+
+      // 3 — Waescherechnung? Der service_type des erkannten Dienstleisters
+      //     entscheidet; ein zusaetzliches Kennzeichen braucht es nicht.
+      const providerTreffer = reihe.find((x) => x.art === 'provider');
+      const waescheDienstleister = providerTreffer
+        ? (providerRoh as any[]).find(
+            (pv) => pv.id === providerTreffer.treffer.id && pv.service_type === 'laundry',
+          )
+        : null;
+
+      if (waescheDienstleister) {
+        try {
+          const base64 = await new Promise<string>((res, rej) => {
+            const r = new FileReader();
+            r.onload = () => res(String(r.result).split(',')[1] ?? '');
+            r.onerror = () => rej(new Error('Datei nicht lesbar'));
+            r.readAsDataURL(file);
+          });
+          const { data: rData, error: rErr } = await supabase.functions.invoke(
+            'import-teuni-invoice', { body: { pdf_base64: base64 } },
+          );
+          // Kein Fehler nach aussen: Ein Lieferschein desselben Absenders
+          // enthaelt keine Rechnungsnummer. Das ist kein Fehlerfall, es
+          // gibt dann eben nichts zu uebernehmen.
+          if (!rErr && rData?.ok) {
+            setRechnung(rData as RechnungsErgebnis);
+            setRechnungProviderId(waescheDienstleister.id);
+            setRechnungAnlegen(!rData.bereits_erfasst);
+          }
+        } catch {
+          /* stillschweigend: die Ablage funktioniert auch ohne Rechnungsdaten */
+        }
+      }
     } catch (e: any) {
       setLeseFehler(e.message);
     } finally {
@@ -697,6 +871,61 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 
   // Festgelegten Ablageort suchen: Objekt (bzw. dessen Ablageort-Objekt)
   // plus Dokumenttyp.
+  /*
+   * Vorauswahl: alles, was bis zum Rechnungsdatum geliefert wurde und
+   * nach der zuletzt erfassten aelteren Rechnung liegt. Aeltere
+   * Bestellungen bleiben sichtbar, aber unmarkiert — seit dem Wegfall
+   * des Trigger-Automatismus liegt dort ein Altbestand, der sich beim
+   * Durcharbeiten der Rechnungen nach und nach leert.
+   */
+  const vorRechnungsdatum = useMemo(() => {
+    if (!rechnung) return null;
+    const aktuell = rechnung.rechnung.rechnungsdatum;
+    const aeltere = (fruehereRechnungen as any[])
+      .map((r) => r.rechnungsdatum as string)
+      .filter((d) => d && d < aktuell)
+      .sort();
+    return aeltere.length ? aeltere[aeltere.length - 1] : null;
+  }, [rechnung, fruehereRechnungen]);
+
+  useEffect(() => {
+    if (!rechnung || offeneBestellungen.length === 0) return;
+    const bis = rechnung.rechnung.rechnungsdatum;
+    const treffer = (offeneBestellungen as any[]).filter((b) => {
+      const d = (b.delivery_date ?? b.order_date) as string | null;
+      if (!d) return false;
+      if (d > bis) return false;
+      return vorRechnungsdatum ? d > vorRechnungsdatum : true;
+    });
+    setGewaehlte(new Set(treffer.map((b) => b.id as string)));
+  }, [rechnung, offeneBestellungen, vorRechnungsdatum]);
+
+  const gewaehlteZeilen = useMemo(
+    () => (offeneBestellungen as any[]).filter((b) => gewaehlteBestellungen.has(b.id)),
+    [offeneBestellungen, gewaehlteBestellungen],
+  );
+
+  // Gegenrechnung je Rechnungsposition. Positionen ohne Mengenbezug
+  // (Lohnwaesche, Kleinunternehmerzeile) bleiben aussen vor.
+  const vergleich = useMemo(() => {
+    if (!rechnung) return [];
+    return rechnung.positionen
+      .map((pos) => {
+        const schluessel = ARTIKEL_ZU_SCHLUESSEL[pos.artikel.toUpperCase()];
+        if (!schluessel) return null;
+        return {
+          artikel: pos.artikel,
+          bezeichnung: pos.bezeichnung,
+          laut_rechnung: pos.menge,
+          laut_auswahl: mengeAusBestellungen(gewaehlteZeilen, schluessel),
+        };
+      })
+      .filter(Boolean) as Array<{
+        artikel: string; bezeichnung: string;
+        laut_rechnung: number; laut_auswahl: number;
+      }>;
+  }, [rechnung, gewaehlteZeilen]);
+
   const gemerkt = useMemo(() => {
     if (!chosen?.locationId || !typeId) return null;
     return locations.find(
@@ -725,6 +954,9 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     setErr('');
     setGefunden(null);
     setLeseFehler('');
+    setRechnung(null);
+    setRechnungProviderId(null);
+    setGewaehlte(new Set());
   };
 
   const submit = () => {
@@ -764,10 +996,81 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       });
     };
 
+    /*
+     * Reihenfolge bewusst: erst Datei, dann Dokumentzeile, dann Rechnung.
+     * Scheitert der Upload, entsteht KEINE Rechnung ohne Beleg. Scheitert
+     * umgekehrt die Rechnung, liegt die Datei bereits sauber ab und der
+     * Vorgang kann wiederholt werden — der harmlosere Fall.
+     */
+    const rechnungNachtragen = async (documentId: string) => {
+      if (!rechnungAnlegen || !rechnung || rechnung.bereits_erfasst) return;
+      const r = rechnung.rechnung;
+
+      const angelegt: any = await createInvoice.mutateAsync({
+        rechnungsnummer: r.rechnungsnummer,
+        rechnungsdatum: r.rechnungsdatum,
+        faelligkeitsdatum: r.faelligkeitsdatum ?? undefined,
+        nettobetrag: r.nettobetrag,
+        mwst_satz: 0,   // Teuni: Kleinunternehmerregelung, 0 % USt
+        mwst_betrag: 0,
+        bruttobetrag: r.bruttobetrag,
+        // Positionen mitgeben — ohne sie waere spaeter keine Pruefung
+        // moeglich, warum welche Bestellung zugeordnet wurde.
+        positionen: rechnung.positionen.map((pos) => ({
+          id: crypto.randomUUID(),
+          rechnung_id: '',
+          artikelnummer: pos.artikel,
+          bezeichnung: pos.bezeichnung,
+          menge: pos.menge,
+          einzelpreis: pos.preis,
+          gesamtpreis: pos.summe,
+        })),
+        notes: `Aus PDF gelesen bei der Ablage am ${new Date().toLocaleDateString('de-DE')}`,
+      });
+
+      if (!angelegt?.id) return;
+
+      // Bestellungen an die Rechnung haengen. Ueber deren booking_id und
+      // house_id haengt damit auch die Buchung an der Rechnung.
+      const ids = [...gewaehlteBestellungen];
+      if (ids.length > 0) {
+        const { data: zug, error: zErr } = await supabase
+          .from('linen_orders')
+          .update({ laundry_invoice_id: angelegt.id })
+          .in('id', ids)
+          .select('id');
+        if (zErr) throw zErr;
+        if (!zug || zug.length === 0) {
+          throw new Error('Rechnung angelegt, aber keine Bestellung wurde zugeordnet.');
+        }
+      }
+
+      // Beleg und Rechnung verbinden. `.select('id')` ist Pflicht: ohne
+      // die Zeilenpruefung meldete das Update auch dann Erfolg, wenn RLS
+      // oder eine falsche Kennung gar nichts getroffen haben.
+      const { data: verk, error: vErr } = await supabase
+        .from('documents')
+        .update({ laundry_invoice_id: angelegt.id } as any)
+        .eq('id', documentId)
+        .select('id');
+      if (vErr) throw vErr;
+      if (!verk || verk.length === 0) {
+        throw new Error('Rechnung angelegt, aber die Verknüpfung zum Beleg wurde nicht gespeichert.');
+      }
+    };
+
     if (source === 'pc') {
       upload.mutate({ file: file!, folderId: folder!.id, ...links, onProgress: setProgress }, {
-        onSuccess: () => {
+        onSuccess: async (documentId: string) => {
           merken();
+          try {
+            await rechnungNachtragen(documentId);
+          } catch (e: any) {
+            // Die Datei liegt bereits richtig. Der Dialog bleibt offen,
+            // damit der Fehler nicht unbemerkt verschwindet.
+            setErr(`Datei abgelegt, aber: ${e.message}`);
+            return;
+          }
           toast({ title: 'Abgelegt', description: `„${file!.name}" liegt in ${folder!.path || 'OneDrive'}.` });
           onClose();
         },
@@ -925,6 +1228,134 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
                       {' · '}{trefferBegruendung(z.treffer)}
                     </p>
                   ))}
+                </div>
+              )}
+
+              {/* ---- Waescherechnung: Positionen und Zuordnung ---- */}
+              {rechnung && (
+                <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-3">
+                  <p className="mb-1 text-sm font-semibold text-amber-900">
+                    Rechnung {rechnung.rechnung.rechnungsnummer} vom{' '}
+                    {fmtDate(rechnung.rechnung.rechnungsdatum)}
+                    {' · '}
+                    {rechnung.rechnung.bruttobetrag.toFixed(2).replace('.', ',')} €
+                  </p>
+
+                  {rechnung.bereits_erfasst && (
+                    <p className="mb-2 text-xs font-medium text-amber-800">
+                      {rechnung.erfasst_info} — es wird keine zweite Rechnung angelegt.
+                    </p>
+                  )}
+
+                  {rechnung.warnungen.length > 0 && (
+                    <ul className="mb-2 list-disc pl-4 text-xs text-amber-800">
+                      {rechnung.warnungen.map((w, i) => <li key={i}>{w}</li>)}
+                    </ul>
+                  )}
+
+                  {/* Positionen */}
+                  <table className="mb-3 w-full text-xs">
+                    <tbody>
+                      {rechnung.positionen.map((pos) => (
+                        <tr key={pos.pos} className="border-b border-amber-200 last:border-0">
+                          <td className="py-1 pr-2 font-mono">{pos.artikel}</td>
+                          <td className="py-1 pr-2">{pos.bezeichnung}</td>
+                          <td className="py-1 pr-2 text-right whitespace-nowrap">
+                            {pos.menge} {pos.einheit}
+                          </td>
+                          <td className="py-1 text-right whitespace-nowrap">
+                            {pos.summe.toFixed(2).replace('.', ',')} €
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Bestellungen zum Abhaken */}
+                  {offeneBestellungen.length > 0 && (
+                    <>
+                      <p className="mb-1 text-xs font-medium text-amber-900">
+                        Welche Wäschebestellungen deckt diese Rechnung ab?
+                      </p>
+                      <p className="mb-1.5 text-xs text-amber-800">
+                        Vorausgewählt ist der Zeitraum
+                        {vorRechnungsdatum ? ` nach dem ${fmtDate(vorRechnungsdatum)}` : ''}
+                        {' '}bis zum Rechnungsdatum. Ältere bleiben sichtbar.
+                      </p>
+                      <div className="mb-3 max-h-52 space-y-1 overflow-y-auto rounded bg-white/60 p-1.5">
+                        {(offeneBestellungen as any[]).map((b) => (
+                          <label key={b.id} className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs hover:bg-amber-100">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5"
+                              checked={gewaehlteBestellungen.has(b.id)}
+                              onChange={(e) => {
+                                const next = new Set(gewaehlteBestellungen);
+                                if (e.target.checked) next.add(b.id); else next.delete(b.id);
+                                setGewaehlte(next);
+                              }}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="font-medium">
+                                {b.delivery_date ? fmtDate(b.delivery_date) : 'ohne Lieferdatum'}
+                              </span>
+                              {' · '}{b.houses?.name ?? 'Haus unbekannt'}
+                              {b.bookings && (
+                                <>
+                                  {' · '}{getGuestName(b.bookings)}
+                                  {' · '}{b.bookings.number_of_guests} Gäste
+                                </>
+                              )}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+
+                      {/* Gegenrechnung — reine Sichtpruefung, blockiert nichts */}
+                      {vergleich.length > 0 && (
+                        <table className="mb-2 w-full text-xs">
+                          <thead>
+                            <tr className="text-amber-900">
+                              <th className="text-left font-medium">Artikel</th>
+                              <th className="text-right font-medium">Rechnung</th>
+                              <th className="text-right font-medium">Auswahl</th>
+                              <th className="w-6" />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {vergleich.map((v) => {
+                              const gleich = v.laut_rechnung === v.laut_auswahl;
+                              return (
+                                <tr key={v.artikel}>
+                                  <td className="py-0.5">{v.bezeichnung}</td>
+                                  <td className="py-0.5 text-right">{v.laut_rechnung}</td>
+                                  <td className="py-0.5 text-right">{v.laut_auswahl}</td>
+                                  <td className="py-0.5 text-right">{gleich ? '✓' : '≠'}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      )}
+                      <p className="mb-2 text-xs text-amber-800">
+                        Abweichungen sind kein Hindernis: Teuni liefert auch Vorrat,
+                        und die Paketmengen wichen schon von der Gästezahl ab.
+                        Die Auswahl entscheidest du.
+                      </p>
+                    </>
+                  )}
+
+                  {!rechnung.bereits_erfasst && (
+                    <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-amber-900">
+                      <input
+                        type="checkbox"
+                        checked={rechnungAnlegen}
+                        onChange={(e) => setRechnungAnlegen(e.target.checked)}
+                      />
+                      Rechnung anlegen, mit diesem Beleg und den gewählten
+                      Bestellungen verknüpfen
+                    </label>
+                  )}
                 </div>
               )}
             </>
