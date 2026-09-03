@@ -793,6 +793,14 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   );
 
   const [rechnung, setRechnung] = useState<RechnungsErgebnis | null>(null);
+  /*
+   * Warum ein eigener Hinweis: Beim Lesen einer Waescherechnung konnte der
+   * Rechnungsteil bisher stillschweigend ausfallen (Function nicht erreichbar,
+   * Text nicht lesbar). Die Ablage lief weiter, der Nutzer sah nur "Abgelegt",
+   * und die Rechnung fehlte in der Tabelle, ohne dass es jemand bemerkte.
+   * Das ist genau der Fall aus Lesson 6.5 ("Erfolgsmeldung ist nicht Erfolg").
+   */
+  const [rechnungHinweis, setRechnungHinweis] = useState<string | null>(null);
   const [rechnungProviderId, setRechnungProviderId] = useState<string | null>(null);
   const [gewaehlteBestellungen, setGewaehlte] = useState<Set<string>>(new Set());
   const [rechnungAnlegen, setRechnungAnlegen] = useState(true);
@@ -848,6 +856,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     setLiest(true);
     setLeseFehler('');
     setGefunden(null);
+    setRechnungHinweis(null);
 
     try {
       const text = await leseDateiText(file);
@@ -918,9 +927,21 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
             setRechnung(rData as RechnungsErgebnis);
             setRechnungProviderId(waescheDienstleister.id);
             setRechnungAnlegen(!rData.bereits_erfasst);
+          } else {
+            // Kein Abbruch: Ein Lieferschein desselben Absenders enthaelt
+            // keine Rechnungsnummer, das ist ein gueltiger Fall. Aber der
+            // Nutzer erfaehrt es jetzt, statt spaeter eine fehlende
+            // Rechnung zu suchen.
+            setRechnungHinweis(
+              rErr?.message
+                ? `Rechnungsdaten konnten nicht gelesen werden: ${rErr.message}`
+                : 'Im PDF wurden keine Rechnungsdaten gefunden (z. B. Lieferschein statt Rechnung). Es wird keine Rechnung angelegt.',
+            );
           }
-        } catch {
-          /* stillschweigend: die Ablage funktioniert auch ohne Rechnungsdaten */
+        } catch (e: any) {
+          setRechnungHinweis(
+            `Rechnungsdaten konnten nicht gelesen werden: ${e?.message ?? 'unbekannter Fehler'}. Die Ablage funktioniert, eine Rechnung wird aber nicht angelegt.`,
+          );
         }
       }
     } catch (e: any) {
@@ -1085,8 +1106,21 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
      * umgekehrt die Rechnung, liegt die Datei bereits sauber ab und der
      * Vorgang kann wiederholt werden — der harmlosere Fall.
      */
-    const rechnungNachtragen = async (documentId: string) => {
-      if (!rechnungAnlegen || !rechnung || rechnung.bereits_erfasst) return;
+    /*
+     * Rueckgabe: null = Rechnung wurde angelegt und verknuepft.
+     * Ein Text = es wurde bewusst KEINE Rechnung angelegt, mit Begruendung.
+     * Der Aufrufer zeigt diesen Text an. Frueher stand hier ein nacktes
+     * `return` — die Ablage meldete Erfolg, die Rechnung fehlte, und niemand
+     * erfuhr davon (Lesson 6.5).
+     */
+    const rechnungNachtragen = async (documentId: string): Promise<string | null> => {
+      if (!rechnung) return null;   // kein Lesevorgang / keine Waescherechnung
+      if (rechnung.bereits_erfasst) {
+        return `${rechnung.erfasst_info} Der Beleg wurde abgelegt, aber nicht mit ihr verknuepft.`;
+      }
+      if (!rechnungAnlegen) {
+        return `Rechnung ${rechnung.rechnung.rechnungsnummer} wurde auf deinen Wunsch nicht angelegt.`;
+      }
       const r = rechnung.rechnung;
 
       const angelegt: any = await createInvoice.mutateAsync({
@@ -1111,7 +1145,12 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
         notes: `Aus PDF gelesen bei der Ablage am ${new Date().toLocaleDateString('de-DE')}`,
       });
 
-      if (!angelegt?.id) return;
+      // Kein stilles `return`: Kommt hier keine Kennung zurueck, ist der
+      // Insert fehlgeschlagen. Alles Weitere (Bestellungen, Beleg) haenge
+      // ins Leere — der Nutzer muss es erfahren.
+      if (!angelegt?.id) {
+        throw new Error('Die Rechnung konnte nicht angelegt werden (keine Kennung zurueckgemeldet).');
+      }
 
       // Bestellungen an die Rechnung haengen. Ueber deren booking_id und
       // house_id haengt damit auch die Buchung an der Rechnung.
@@ -1140,21 +1179,36 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       if (!verk || verk.length === 0) {
         throw new Error('Rechnung angelegt, aber die Verknüpfung zum Beleg wurde nicht gespeichert.');
       }
+      return null;
     };
 
     if (source === 'pc') {
       upload.mutate({ file: file!, folderId: folder!.id, ...links, onProgress: setProgress }, {
         onSuccess: async (documentId: string) => {
           merken();
+          let hinweis: string | null = null;
           try {
-            await rechnungNachtragen(documentId);
+            hinweis = await rechnungNachtragen(documentId);
           } catch (e: any) {
             // Die Datei liegt bereits richtig. Der Dialog bleibt offen,
             // damit der Fehler nicht unbemerkt verschwindet.
             setErr(`Datei abgelegt, aber: ${e.message}`);
             return;
           }
-          toast({ title: 'Abgelegt', description: `„${file!.name}" liegt in ${folder!.path || 'OneDrive'}.` });
+          /*
+           * Zwei verschiedene Meldungen, weil es zwei verschiedene Dinge sind:
+           * "abgelegt und Rechnung angelegt" ist ein anderer Ausgang als
+           * "abgelegt, aber ohne Rechnung". Frueher sahen beide gleich aus.
+           */
+          if (hinweis) {
+            toast({
+              title: 'Abgelegt — ohne Rechnung',
+              description: hinweis,
+              variant: 'destructive',
+            });
+          } else {
+            toast({ title: 'Abgelegt', description: `„${file!.name}" liegt in ${folder!.path || 'OneDrive'}.` });
+          }
           onClose();
         },
         onError: (e: any) => setErr(e.message),
@@ -1290,6 +1344,15 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 
               {leseFehler && (
                 <p className="mt-1.5 text-xs text-amber-700">{leseFehler}</p>
+              )}
+
+              {/* Der Absender ist ein Waeschedienstleister, aber es kamen
+                  keine Rechnungsdaten. Sichtbar machen, solange der Nutzer
+                  noch reagieren kann — nicht erst im Toast nach der Ablage. */}
+              {rechnungHinweis && (
+                <p className="mt-1.5 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                  {rechnungHinweis}
+                </p>
               )}
 
               {gefunden && (gefunden.typ || gefunden.zuordnungen.length > 0) && (
