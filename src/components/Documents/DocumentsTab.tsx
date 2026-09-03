@@ -25,6 +25,10 @@ import {
 } from '@/hooks/useDocuments';
 import { leseDateiText, findeTreffer, trefferBegruendung, adressBegriffe, ortsBegriffe, type Treffer } from '@/lib/pdfText';
 import { useCreateLaundryInvoice } from '@/hooks/useLaundryInvoices';
+import CleaningInvoicePanel, {
+  type ReinigungsErgebnis,
+} from '@/components/Documents/CleaningInvoicePanel';
+import { useCreateCleaningInvoice } from '@/hooks/useCleaningInvoices';
 import { getGuestName } from '@/lib/guestHelpers';
 
 /**
@@ -734,6 +738,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
      mit einem leeren Ergebnis.
   --------------------------------------------------------------- */
   const createInvoice = useCreateLaundryInvoice();
+  const createCleaningInvoice = useCreateCleaningInvoice();
 
   const { data: providerRoh = [] } = useQuery({
     queryKey: ['provider-service-type'],
@@ -819,6 +824,16 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
    */
   const [rechnungHinweis, setRechnungHinweis] = useState<string | null>(null);
   const [rechnungProviderId, setRechnungProviderId] = useState<string | null>(null);
+
+  /* ---- Reinigungsrechnung (Boris) — eigener Pfad, siehe CleaningInvoicePanel ----
+   * Bewusst getrennt vom Waeschepfad: Boris' Rechnung schluesselt auf und
+   * ordnet sich selbst zu; Teunis Sammelrechnung tut das nicht. Ein
+   * gemeinsamer State haette beide Faelle vermischt. */
+  const [reinigung, setReinigung] = useState<ReinigungsErgebnis | null>(null);
+  const [reinigungLaeuft, setReinigungLaeuft] = useState(false);
+  const [reinigungHinweis, setReinigungHinweis] = useState<string | null>(null);
+  const [reinigungProviderId, setReinigungProviderId] = useState<string | null>(null);
+  const [reinigungAnlegen, setReinigungAnlegen] = useState(true);
   const [gewaehlteBestellungen, setGewaehlte] = useState<Set<string>>(new Set());
   const [rechnungAnlegen, setRechnungAnlegen] = useState(true);
   const [zeigeAlle, setZeigeAlle] = useState(false);
@@ -874,6 +889,8 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     setLeseFehler('');
     setGefunden(null);
     setRechnungHinweis(null);
+    setReinigungHinweis(null);
+    setReinigung(null);
 
     try {
       const text = await leseDateiText(file);
@@ -917,14 +934,60 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       }
       setErr('');
 
-      // 3 — Waescherechnung? Der service_type des erkannten Dienstleisters
-      //     entscheidet; ein zusaetzliches Kennzeichen braucht es nicht.
+      // 3 — Rechnung? Der service_type des erkannten Dienstleisters
+      //     entscheidet, welcher Pfad laeuft: 'laundry' -> Teuni,
+      //     'cleaning' -> Boris. Ein zusaetzliches Kennzeichen braucht es
+      //     nicht.
       const providerTreffer = reihe.find((x) => x.art === 'provider');
-      const waescheDienstleister = providerTreffer
-        ? (providerRoh as any[]).find(
-            (pv) => pv.id === providerTreffer.treffer.id && pv.service_type === 'laundry',
-          )
+      const erkannterProvider = providerTreffer
+        ? (providerRoh as any[]).find((pv) => pv.id === providerTreffer.treffer.id)
         : null;
+      const waescheDienstleister =
+        erkannterProvider?.service_type === 'laundry' ? erkannterProvider : null;
+      const reinigungsDienstleister =
+        erkannterProvider?.service_type === 'cleaning' ? erkannterProvider : null;
+
+      /* ---- Reinigungsrechnung ----
+       * Amela stellt keine Rechnungen; ihre Abrechnung laeuft weiter ueber
+       * den ProviderBillingDialog. Der Aufruf schadet dort trotzdem nicht:
+       * Ohne Rechnungsnummer im PDF meldet die Function das, und es wird
+       * nur ein Hinweis angezeigt. */
+      if (reinigungsDienstleister) {
+        setReinigungLaeuft(true);
+        try {
+          const base64 = await new Promise<string>((res, rej) => {
+            const r = new FileReader();
+            r.onload = () => res(String(r.result).split(',')[1] ?? '');
+            r.onerror = () => rej(new Error('Datei nicht lesbar'));
+            r.readAsDataURL(file);
+          });
+          const { data: cData, error: cErr } = await supabase.functions.invoke(
+            'import-boris-invoice',
+            { body: { pdf_base64: base64, provider_id: reinigungsDienstleister.id } },
+          );
+          if (!cErr && cData?.ok) {
+            setReinigung(cData as ReinigungsErgebnis);
+            setReinigungProviderId(reinigungsDienstleister.id);
+            setReinigungAnlegen(!cData.bereits_erfasst);
+          } else {
+            // Kein Abbruch: Ein Angebot oder eine Terminbestaetigung
+            // desselben Absenders traegt keine Rechnungsnummer. Der Nutzer
+            // erfaehrt es aber, statt spaeter eine fehlende Rechnung zu
+            // suchen (Lesson 6.5).
+            setReinigungHinweis(
+              cErr?.message
+                ? `Rechnungsdaten konnten nicht gelesen werden: ${cErr.message}`
+                : (cData?.error ?? 'Im PDF wurden keine Rechnungsdaten gefunden. Es wird keine Rechnung angelegt.'),
+            );
+          }
+        } catch (e: any) {
+          setReinigungHinweis(
+            `Rechnungsdaten konnten nicht gelesen werden: ${e?.message ?? 'unbekannter Fehler'}. Die Ablage funktioniert, eine Rechnung wird aber nicht angelegt.`,
+          );
+        } finally {
+          setReinigungLaeuft(false);
+        }
+      }
 
       if (waescheDienstleister) {
         try {
@@ -1078,6 +1141,9 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     setRechnung(null);
     setRechnungProviderId(null);
     setGewaehlte(new Set());
+    setReinigung(null);
+    setReinigungHinweis(null);
+    setReinigungProviderId(null);
   };
 
   const submit = () => {
@@ -1199,13 +1265,79 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       return null;
     };
 
+    /*
+     * Reinigungsrechnung nachtragen — gleiche Bauart wie
+     * rechnungNachtragen, aber eigener Pfad fuer den eigenen Fall.
+     *
+     * Rueckgabe wie dort: null = angelegt, ein Text = bewusst nicht
+     * angelegt, mit Begruendung. Kein stilles `return` (Lesson 6.5).
+     */
+    const reinigungNachtragen = async (documentId: string): Promise<string | null> => {
+      if (!reinigung || !reinigungProviderId) return null;
+      if (reinigung.bereits_erfasst) {
+        return `${reinigung.erfasst_info} Der Beleg wurde abgelegt, aber nicht mit ihr verknuepft.`;
+      }
+      if (!reinigungAnlegen) {
+        return `Rechnung ${reinigung.rechnung.rechnungsnummer} wurde auf deinen Wunsch nicht angelegt.`;
+      }
+
+      const r = reinigung.rechnung;
+      const ergebnis = await createCleaningInvoice.mutateAsync({
+        providerId: reinigungProviderId,
+        rechnungsnummer: r.rechnungsnummer,
+        rechnungsdatum: r.rechnungsdatum,
+        faelligkeitsdatum: r.faelligkeitsdatum,
+        nettobetrag: r.nettobetrag,
+        mwstSatz: r.mwst_satz,
+        mwstBetrag: r.mwst_betrag,
+        bruttobetrag: r.bruttobetrag,
+        // ALLE Positionen mitgeben, auch die ohne zugeordnete Reinigung:
+        // Sie standen auf dem Papier und gehoeren zur Rechnungssumme.
+        positionen: reinigung.positionen.map((p) => ({
+          pos: p.pos,
+          beschreibung: p.beschreibung,
+          datum: p.datum,
+          betrag: p.betrag,
+          task_id: p.zuordnung === 'eindeutig' ? p.task_id : null,
+          haus_name: p.haus_name,
+        })),
+        notes: `Aus PDF gelesen bei der Ablage am ${new Date().toLocaleDateString('de-DE')}`,
+      });
+
+      // Beleg und Rechnung verbinden. `.select('id')` ist Pflicht — sonst
+      // meldet das Update auch bei null betroffenen Zeilen Erfolg.
+      const { data: verk, error: vErr } = await supabase
+        .from('documents')
+        .update({ cleaning_invoice_id: ergebnis.id } as any)
+        .eq('id', documentId)
+        .select('id');
+      if (vErr) throw vErr;
+      if (!verk || verk.length === 0) {
+        throw new Error('Rechnung angelegt, aber die Verknüpfung zum Beleg wurde nicht gespeichert.');
+      }
+
+      // Nicht alle Positionen fanden eine Reinigung? Das ist kein Fehler,
+      // aber der Nutzer muss es erfahren — sonst faellt es erst bei der
+      // naechsten Abrechnung auf.
+      const ohne = reinigung.positionen.length - ergebnis.erkannt;
+      if (ohne > 0) {
+        return `Rechnung ${r.rechnungsnummer} angelegt. ${ohne} von ${reinigung.positionen.length} Positionen konnten keiner Reinigung zugeordnet werden.`;
+      }
+      return null;
+    };
+
     if (source === 'pc') {
       upload.mutate({ file: file!, folderId: folder!.id, ...links, onProgress: setProgress }, {
         onSuccess: async (documentId: string) => {
           merken();
           let hinweis: string | null = null;
           try {
+            // Beide Pfade aufrufen: Welcher greift, entscheidet der
+            // erkannte Dienstleister. Es kann immer nur einer sein — ein
+            // Dokument hat einen Absender.
             hinweis = await rechnungNachtragen(documentId);
+            const cHinweis = await reinigungNachtragen(documentId);
+            if (cHinweis) hinweis = cHinweis;
           } catch (e: any) {
             // Die Datei liegt bereits richtig. Der Dialog bleibt offen,
             // damit der Fehler nicht unbemerkt verschwindet.
@@ -1219,7 +1351,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
            */
           if (hinweis) {
             toast({
-              title: 'Abgelegt — ohne Rechnung',
+              title: 'Abgelegt — bitte lesen',
               description: hinweis,
               variant: 'destructive',
             });
@@ -1393,6 +1525,18 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
                   ))}
                 </div>
               )}
+
+              {/* ---- Reinigungsrechnung: eigene Ansicht, siehe
+                   CleaningInvoicePanel. Schliesst den Waeschekasten nicht
+                   aus — ein Dokument kann nur einen Absender haben, es
+                   erscheint also immer hoechstens eines von beiden. ---- */}
+              <CleaningInvoicePanel
+                laeuft={reinigungLaeuft}
+                ergebnis={reinigung}
+                hinweis={reinigungHinweis}
+                anlegen={reinigungAnlegen}
+                onAnlegen={setReinigungAnlegen}
+              />
 
               {/* ---- Waescherechnung: Positionen und Zuordnung ---- */}
               {rechnung && (
