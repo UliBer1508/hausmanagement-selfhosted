@@ -1,0 +1,63 @@
+name: Auto Version Bump
+
+# Zählt bei jedem Push auf main die Version in package.json automatisch hoch.
+# Diese Version wird im Footer der App angezeigt (AppLayout.tsx liest package.json).
+#
+# Steuerung über die Commit-Message:
+#   [major]  -> 2.x.x  ->  3.0.0   (großer Meilenstein)
+#   [minor]  -> 2.0.x  ->  2.1.0   (neues Feature fertig)
+#   sonst    -> 2.0.0  ->  2.0.1   (Patch, Standard)
+#
+# Der Bump-Commit selbst trägt [skip version] und triggert den Workflow
+# daher nicht erneut (keine Endlosschleife).
+#
+# Hinweis: NICHT zu verwechseln mit public/version.json — die wird vom
+# versionStampPlugin in vite.config.ts bei jedem Build erzeugt und dient
+# ausschliesslich dem PWA-Cache-Busting.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    if: "!contains(github.event.head_commit.message, '[skip version]')"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump-Typ aus Commit-Message ermitteln
+        id: bumptype
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+        run: |
+          if [[ "$COMMIT_MSG" == *"[major]"* ]]; then
+            echo "type=major" >> "$GITHUB_OUTPUT"
+          elif [[ "$COMMIT_MSG" == *"[minor]"* ]]; then
+            echo "type=minor" >> "$GITHUB_OUTPUT"
+          else
+            echo "type=patch" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Version in package.json hochzaehlen
+        id: bump
+        run: |
+          npm version ${{ steps.bumptype.outputs.type }} --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Neue Version: $NEW_VERSION (Typ: ${{ steps.bumptype.outputs.type }})"
+
+      - name: Aenderung zurueckcommitten
+        run: |
+          git config user.name "version-bot"
+          git config user.email "version-bot@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore: Version ${{ steps.bump.outputs.version }} [skip version]"
+          git push
