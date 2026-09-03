@@ -23,7 +23,7 @@ import {
   type DocumentType, type LinkTarget, type OneDriveFolder, type OneDriveFile,
   type EntityOption,
 } from '@/hooks/useDocuments';
-import { leseDateiText, findeTreffer, trefferBegruendung, adressBegriffe, type Treffer } from '@/lib/pdfText';
+import { leseDateiText, findeTreffer, trefferBegruendung, adressBegriffe, ortsBegriffe, type Treffer } from '@/lib/pdfText';
 import { useCreateLaundryInvoice } from '@/hooks/useLaundryInvoices';
 import { getGuestName } from '@/lib/guestHelpers';
 
@@ -677,7 +677,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
-        .select('id, name, address, external_objektnummer')
+        .select('id, name, address, external_objektnummer, dokument_begriffe')
         .order('name');
       if (error) throw error;
       return data ?? [];
@@ -691,8 +691,25 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       begriffe: [
         ...adressBegriffe(h.address),
         ...(h.external_objektnummer ? [String(h.external_objektnummer)] : []),
+        // Schreibvarianten des Absenders: Boris schreibt "Vendiger" und
+        // "Wald, Chalet 17". Gepflegt in den Stammdaten, nicht im Code.
+        ...((h.dokument_begriffe ?? []) as string[]).filter((b) => b && b.trim().length >= 4),
       ],
     })),
+    [haeuserRoh],
+  );
+
+  /*
+   * Ortsnamen, die als EINZELWORT nicht zaehlen duerfen.
+   *
+   * Abgeleitet aus den Hausadressen, nicht von Hand gepflegt. Verhindert,
+   * dass "Gemeinde Neukirchen" ueber Ulis Briefkopf ("Neukirchen 5741")
+   * auf einer fremden Rechnung als Absender erscheint — am 03.09.2026 an
+   * Boris' Rechnung 002048/2026 beobachtet, wo die Gemeinde auf Platz 2
+   * landete, obwohl das Wort "Gemeinde" im Dokument nicht vorkommt.
+   */
+  const orte = useMemo(
+    () => ortsBegriffe((haeuserRoh as any[]).map((h) => h.address)),
     [haeuserRoh],
   );
 
@@ -873,11 +890,11 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       const alle = [
         // providerKandidaten statt alleProvider: mit Alias und Mailadresse,
         // sonst wird ein Absender nur unter seinem internen Namen gesucht.
-        ...findeTreffer(text, providerKandidaten)
+        ...findeTreffer(text, providerKandidaten, orte)
           .map((t) => ({ art: 'provider' as LinkTarget, treffer: t })),
-        ...findeTreffer(text, alleVendoren.map((e) => ({ id: e.id, name: e.label })))
+        ...findeTreffer(text, alleVendoren.map((e) => ({ id: e.id, name: e.label })), orte)
           .map((t) => ({ art: 'vendor' as LinkTarget, treffer: t })),
-        ...findeTreffer(text, alleHaeuser.map((e) => ({ id: e.id, name: e.label, begriffe: e.begriffe })))
+        ...findeTreffer(text, alleHaeuser.map((e) => ({ id: e.id, name: e.label, begriffe: e.begriffe })), orte)
           .map((t) => ({ art: 'haus' as LinkTarget, treffer: t })),
       ];
 
