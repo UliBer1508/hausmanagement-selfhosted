@@ -517,6 +517,62 @@ export function adressBegriffe(address?: string | null): string[] {
   return [...menge];
 }
 
+/**
+ * Ortsnamen aus einer Anschrift — als AUSSCHLUSSliste fuer Einzelbegriffe.
+ *
+ * ANLASS, am 03.09.2026 an Boris' Rechnung 002048/2026 belegt: Der
+ * Kandidat "Gemeinde Neukirchen" wird von begriffeAus() in Einzelwoerter
+ * zerlegt, darunter "neukirchen". Ulis Briefkopf lautet "Neukirchen 5741"
+ * — die Gemeinde bekam damit auf einer REINIGUNGSrechnung den zweiten
+ * Platz, obwohl das Wort "Gemeinde" im Dokument nirgends steht.
+ *
+ * Der Ortsname ist als Unterscheidungsmerkmal wertlos: Beide Chalets
+ * liegen in Neukirchen, Uli wohnt dort, viele Absender sitzen dort. Genau
+ * das steht seit dem 23.08.2026 schon im Kommentar von adressBegriffe()
+ * ("Ort und Postleitzahl bleiben aussen vor") — dort wurde es beachtet,
+ * bei NAMEN nicht.
+ *
+ * Der VOLLE Name bleibt unberuehrt: "gemeinde neukirchen" darf weiter
+ * treffen. Nur das Einzelwort faellt weg. Steht die Gemeinde also
+ * tatsaechlich als Absender auf einem Dokument, wird sie erkannt.
+ *
+ * Gebildet wird die Liste aus den Adressen selbst, nicht aus einer
+ * gepflegten Aufzaehlung — was das System an Orten kennt, ergibt sich
+ * aus seinen Objekten.
+ */
+export function ortsBegriffe(addresses: Array<string | null | undefined>): Set<string> {
+  const orte = new Set<string>();
+
+  for (const address of addresses) {
+    if (!address) continue;
+    const flach = address.replace(/[\r\n]+/g, ', ');
+
+    // Alles NACH dem ersten Komma ist Ort und Postleitzahl:
+    // "Venedigersiedlung 316, 5741 Neukirchen am GV"
+    const teile = flach.split(',').slice(1).join(' ');
+    for (const w of teile.split(/[\s/,.-]+/)) {
+      const wort = w.trim().toLowerCase();
+      // Unter vier Zeichen wird ohnehin nie zum Begriff; Ziffernfolgen
+      // (Postleitzahl) sind keine Ortsnamen.
+      if (wort.length >= 4 && !/^\d+$/.test(wort)) orte.add(wort);
+    }
+
+    // Ohne Komma steht der Ort hinter der Hausnummer:
+    // "Einsteinstrasse 13 Berlin Falkensee"
+    if (teile.length === 0) {
+      const m = flach.match(/^.+?\s+\d+\s*(?:[/\-]\s*\w+)?\s+(.+)$/);
+      if (m) {
+        for (const w of m[1].split(/[\s/,.-]+/)) {
+          const wort = w.trim().toLowerCase();
+          if (wort.length >= 4 && !/^\d+$/.test(wort)) orte.add(wort);
+        }
+      }
+    }
+  }
+
+  return orte;
+}
+
 /** Ein gefundener Treffer samt Begruendung. */
 export interface Treffer {
   id: string;
@@ -644,7 +700,16 @@ const MIN_PUNKTE = 0.6;
  * eines gemeint war. Der VOLLE Name bleibt als Begriff erhalten, nur das
  * geteilte Einzelwort faellt weg.
  */
-export function findeTreffer(text: string, kandidaten: Kandidat[]): Treffer[] {
+export function findeTreffer(
+  text: string,
+  kandidaten: Kandidat[],
+  /**
+   * Ortsnamen, die als EINZELWORT nicht zaehlen — aus ortsBegriffe().
+   * Ohne Angabe verhaelt sich die Funktion wie bisher; die vorhandenen
+   * Aufrufer bleiben damit unveraendert gueltig.
+   */
+  orte?: Set<string>,
+): Treffer[] {
   const lower = text.toLowerCase();
 
   // Zaehlen, in wie vielen Kandidatennamen jedes Einzelwort vorkommt.
@@ -664,6 +729,10 @@ export function findeTreffer(text: string, kandidaten: Kandidat[]): Treffer[] {
       for (const b of begriffeAus(k)) {
         // Einzelwort, das mehrere Kandidaten teilen -> ueberspringen.
         if (!b.includes(' ') && (wortZaehler.get(b) ?? 0) > 1) continue;
+
+        // Einzelwort, das ein ORTSNAME ist -> ueberspringen. Der volle
+        // Name ("gemeinde neukirchen") bleibt als Begriff erhalten.
+        if (!b.includes(' ') && orte?.has(b)) continue;
 
         const { punkte: p, anzahl } = bewerteBegriff(lower, b);
         if (anzahl === 0) continue;
