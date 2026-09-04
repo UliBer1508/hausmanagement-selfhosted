@@ -15,9 +15,7 @@ import { Save, RotateCcw, Plus, Trash2, Info } from 'lucide-react';
 import { LinenItemConfig, ItemColor, LinenColor, ITEM_COLORS, LINEN_COLORS } from '@/types/linen';
 import { migrateOldToNewStructure, groupByCategory } from '@/lib/linenMigration';
 import { LinenItemDialog } from './LinenItemDialog';
-import TeuniSourcePanel from './TeuniSourcePanel';
-import { Switch } from '@/components/ui/switch';
-import { useLinenAutomationSettings } from '@/hooks/useLinenAutomationSettings';
+import { useLaundryArticles } from '@/hooks/useLaundryArticles';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,43 +40,15 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
   const [hasMigrated, setHasMigrated] = useState(false);
-  const { settings: automationSettings } = useLinenAutomationSettings();
-  const teuniSyncEnabled = !!(automationSettings as any)?.teuni_stammdaten_sync_enabled;
-  const [updatingSource, setUpdatingSource] = useState(false);
 
-  const handleSourceChange = async (toTeuni: boolean) => {
-    if (!house?.id) return;
-    const next = toTeuni ? 'teuni' : 'own';
-    setUpdatingSource(true);
-    try {
-      const { data: existing } = await supabase
-        .from('linen_set_definitions')
-        .select('id')
-        .eq('house_id', house.id)
-        .maybeSingle();
-      if (existing) {
-        const { error } = await supabase
-          .from('linen_set_definitions')
-          .update({ linen_source: next } as any)
-          .eq('house_id', house.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('linen_set_definitions')
-          .insert({ house_id: house.id, linen_source: next } as any);
-        if (error) throw error;
-      }
-      await queryClient.invalidateQueries({ queryKey: ['linen-definitions', house.id] });
-      toast({
-        title: 'Quelle geändert',
-        description: next === 'teuni' ? 'Teuni Wäscheartikel & -sets aktiv.' : 'Eigene Wäscheartikel aktiv.',
-      });
-    } catch (e: any) {
-      toast({ variant: 'destructive', title: 'Fehler', description: e?.message || 'Unbekannter Fehler' });
-    } finally {
-      setUpdatingSource(false);
-    }
-  };
+  /*
+   * Teunis Sortiment (laundry_articles). Seit 04.09.2026 die Quelle fuer die
+   * Spalte "Teuni-Artikel": vorher stand dort ein Freitextfeld mit selbst
+   * vergebenen WA-Nummern aus dem abgeloesten externen System. Auswahlliste
+   * statt Freitext, damit keine Nummer eingetragen werden kann, die es nicht
+   * gibt — ein Tippfehler wuerde beim Rechnungsabgleich still ins Leere laufen.
+   */
+  const { data: teuniArtikel = [], isLoading: artikelLaden } = useLaundryArticles();
 
   // Fetch current linen set definitions
   const { data: linenDef, isLoading } = useQuery({
@@ -95,8 +65,6 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     },
     enabled: !!house?.id,
   });
-
-  const linenSource: 'own' | 'teuni' = ((linenDef as any)?.linen_source as 'own' | 'teuni') || 'own';
 
   // Migrate old structure to new on first load + auto-save missing colors
   useEffect(() => {
@@ -254,23 +222,18 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                 Definieren Sie, welche Wäschesets pro Gast oder pro Buchung benötigt werden
               </CardDescription>
             </div>
+            {/* Der Umschalter "Eigene / Teuni" ist am 04.09.2026 entfallen.
+                Er schaltete auf TeuniSourcePanel, das seine Artikel ueber
+                useExternalStammdaten aus dem FREMDEN Supabase-Projekt von
+                Waesche Oberpinzgau holte — diese Anbindung ist tot. Es gibt
+                jetzt nur noch eine Quelle: Teunis Artikel SIND unsere
+                Artikel, nachzulesen in laundry_articles. */}
             <div className="flex gap-2">
-              <div className="flex items-center gap-2 mr-2 px-3 py-1 rounded-md border bg-muted/30">
-                <span className={`text-xs font-medium ${linenSource === 'own' ? 'text-foreground' : 'text-muted-foreground'}`}>Eigene</span>
-                <Switch
-                  checked={linenSource === 'teuni'}
-                  disabled={!teuniSyncEnabled || updatingSource}
-                  onCheckedChange={handleSourceChange}
-                />
-                <span className={`text-xs font-medium ${linenSource === 'teuni' ? 'text-foreground' : 'text-muted-foreground'}`}>Teuni</span>
-              </div>
-              {linenSource === 'own' && (
-                <Button onClick={() => setShowAddDialog(true)} size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Neues Item
-                </Button>
-              )}
-              {linenSource === 'own' && hasChanges && (
+              <Button onClick={() => setShowAddDialog(true)} size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Neues Item
+              </Button>
+              {hasChanges && (
                 <>
                   <Button onClick={handleReset} variant="outline" size="sm">
                     <RotateCcw className="w-4 h-4 mr-2" />
@@ -286,26 +249,26 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
           </div>
         </CardHeader>
         <CardContent>
-          {!teuniSyncEnabled && (
-            <Alert className="mb-4">
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                Teuni-Stammdaten-Sync ist global deaktiviert. In den <strong>Einstellungen → Wäsche-Automatisierung</strong> einschalten, um Teuni-Artikel und -Sets pro Haus nutzen zu können.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {linenSource === 'teuni' ? (
-            <TeuniSourcePanel house={{ id: house.id, name: house.name }} />
-          ) : (
           <>
           <Alert className="mb-4">
             <Info className="h-4 w-4" />
             <AlertDescription>
               Die Tabelle ist immer editierbar. Änderungen werden mit <strong>Speichern</strong> übernommen.
-              <strong>Ext. Artikelnr.</strong>: Für farbbasierte Artikel mehrere Nummern mit "/" trennen (z.B. WA001/WA005 für grau/weiß gestreift).
+              <strong> Teuni-Artikel</strong>: der Artikel, unter dem Teuni diese Position berechnet.
+              Mehrere Zeilen dürfen denselben Artikel tragen — „Mietwäsche Paket 5 Tlg“ deckt
+              fünf Positionen ab und wird einmal je Gast berechnet, nicht fünfmal.
             </AlertDescription>
           </Alert>
+
+          {teuniArtikel.length === 0 && !artikelLaden && (
+            <Alert className="mb-4">
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Noch keine Wäscheartikel erfasst. Sie entstehen beim Einlesen einer
+                Rechnung von Teuni im Tab <strong>Dokumente</strong>.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {Object.entries(groupedItems).map(([category, categoryItems]) => (
             categoryItems.length > 0 && (
@@ -327,7 +290,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                         )}
                         <TableHead className="w-[80px]">Winter</TableHead>
                         <TableHead className="w-[80px]">Sommer</TableHead>
-                        <TableHead className="w-[200px]">Ext. Artikelnr.</TableHead>
+                        <TableHead className="w-[200px]">Teuni-Artikel</TableHead>
                         <TableHead className="w-[60px]">Aktionen</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -430,47 +393,36 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                             )}
                           </TableCell>
                           <TableCell>
-                            {/* Externe Artikelnummer - für farbbasierte Items */}
-                            {(category === 'Badbereich' || category === 'Wellness' || category === 'Schlafbereich' || category === 'Küchenbereich') ? (
-                              <Input
-                                placeholder={category === 'Schlafbereich' ? 'WA001/WA005' : 'WA008'}
-                                value={(() => {
-                                  const extMap = item.external_artikelnummer || {};
-                                  // Zeige kompaktes Format: WA001/WA005
-                                  const values = Object.values(extMap).filter(Boolean);
-                                  return values.join('/');
-                                })()}
-                                onChange={(e) => {
-                                  // Parse: WA001 oder WA001/WA005 für mehrere Farben
-                                  const input = e.target.value.trim();
-                                  const parts = input.split('/').map(p => p.trim()).filter(Boolean);
-                                  
-                                  // Für Schlafbereich: erste = grey_striped, zweite = white_striped
-                                  // Für Badbereich/Wellness: erste = white, zweite = grey
-                                  let newMap: Record<string, string> = {};
-                                  if (category === 'Schlafbereich') {
-                                    if (parts[0]) newMap['grey_striped'] = parts[0];
-                                    if (parts[1]) newMap['white_striped'] = parts[1];
-                                  } else {
-                                    if (parts[0]) newMap['white'] = parts[0];
-                                    if (parts[1]) newMap['grey'] = parts[1];
-                                  }
-                                  updateItem(item.key, { external_artikelnummer: newMap });
-                                }}
-                                className="w-28 text-xs"
-                              />
-                            ) : (
-                              <Input
-                                placeholder="WA011"
-                                value={item.external_artikelnummer?.['default'] || ''}
-                                onChange={(e) => {
-                                  updateItem(item.key, { 
-                                    external_artikelnummer: { 'default': e.target.value.trim() } 
-                                  });
-                                }}
-                                className="w-20 text-xs"
-                              />
-                            )}
+                            {/*
+                              Teuni-Artikel statt Freitext (04.09.2026).
+                              Vorher: selbst vergebene WA-Nummern, farbabhaengig
+                              per "/" aufgeteilt (WA001/WA005). Teuni fuehrt
+                              KEINE getrennten Nummern je Farbe — MW3 ist MW3,
+                              ob bunt oder weiss. Deshalb ein Wert unter
+                              'default'; die Farbe steht weiterhin in der
+                              eigenen Spalte daneben und bleibt unsere Angabe.
+                            */}
+                            <Select
+                              value={item.external_artikelnummer?.['default'] || '__keiner__'}
+                              onValueChange={(v) => updateItem(item.key, {
+                                external_artikelnummer: v === '__keiner__' ? {} : { default: v },
+                              })}
+                            >
+                              <SelectTrigger className="w-[190px] text-xs">
+                                <SelectValue placeholder={artikelLaden ? 'lädt…' : 'kein Artikel'} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__keiner__">— kein Artikel —</SelectItem>
+                                {teuniArtikel
+                                  .filter((a) => a.status !== 'ignorieren')
+                                  .map((a) => (
+                                    <SelectItem key={a.id} value={a.artikelnummer}>
+                                      {a.artikelnummer} · {a.bezeichnung ?? '—'}
+                                      {a.preis !== null && ` · ${a.preis.toFixed(2).replace('.', ',')} €`}
+                                    </SelectItem>
+                                  ))}
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                           <TableCell>
                             <Button
@@ -490,7 +442,6 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
             )
           ))}
           </>
-          )}
         </CardContent>
       </Card>
 
