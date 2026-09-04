@@ -570,6 +570,15 @@ interface RechnungsErgebnis {
   };
   positionen: RechnungsPosition[];
   preisabweichungen: Array<Record<string, unknown>>;
+  /*
+   * Artikel, die auf der Rechnung stehen, aber noch nicht im Sortiment
+   * (laundry_articles). Die Edge Function legt sie bewusst NICHT selbst an —
+   * geschrieben wird erst nach Freigabe hier, wie beim Rechnungsbetrag auch.
+   * Feld ist optional: eine aeltere Fassung der Function liefert es nicht.
+   */
+  neue_artikel?: Array<{
+    artikelnummer: string; bezeichnung: string; einheit: string; preis: number;
+  }>;
   warnungen: string[];
   hinweise: string[];
 }
@@ -836,6 +845,10 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   const [reinigungAnlegen, setReinigungAnlegen] = useState(true);
   const [gewaehlteBestellungen, setGewaehlte] = useState<Set<string>>(new Set());
   const [rechnungAnlegen, setRechnungAnlegen] = useState(true);
+  // Neue Artikel ins Sortiment uebernehmen. Vorbelegt mit true: sie stehen
+  // auf einer echten Rechnung, gehoeren also zu Teunis Sortiment. Der Preis
+  // kommt von dort — geprueft wird er beim naechsten Mal gegen genau ihn.
+  const [artikelUebernehmen, setArtikelUebernehmen] = useState(true);
   const [zeigeAlle, setZeigeAlle] = useState(false);
 
   // Offene Bestellungen dieses Dienstleisters. Seit dem 23.07.2026 ist
@@ -1196,6 +1209,68 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
      * `return` — die Ablage meldete Erfolg, die Rechnung fehlte, und niemand
      * erfuhr davon (Lesson 6.5).
      */
+    /*
+     * Neue Artikel ins Sortiment uebernehmen (laundry_articles +
+     * laundry_article_prices).
+     *
+     * WARUM HIER UND NICHT IN DER EDGE FUNCTION: gleicher Grundsatz wie beim
+     * Rechnungsbetrag — bei Stammdaten soll keine automatische Erkennung
+     * etwas anlegen, das niemand angesehen hat. Die Function meldet nur.
+     *
+     * Rueckgabe wie bei den anderen Nachtrag-Funktionen: null = erledigt,
+     * ein Text = bewusst nicht oder nur teilweise gemacht, mit Begruendung.
+     * Kein stilles `return` (Lesson 6.5).
+     */
+    const artikelNachtragen = async (): Promise<string | null> => {
+      const neue = rechnung?.neue_artikel ?? [];
+      if (neue.length === 0) return null;
+      if (!artikelUebernehmen) {
+        return `${neue.length} neue${neue.length === 1 ? 'r' : ''} Artikel wurde${neue.length === 1 ? '' : 'n'} auf deinen Wunsch nicht ins Sortiment uebernommen.`;
+      }
+      if (!rechnungProviderId) {
+        return 'Neue Artikel konnten nicht uebernommen werden: kein Dienstleister erkannt.';
+      }
+
+      const datum = rechnung!.rechnung.rechnungsdatum;
+
+      // status 'neu': der Artikel ist erfasst, aber noch nicht durchgesehen.
+      // Farbe und Zuordnung bleiben leer — sie stehen nicht auf der Rechnung
+      // und werden hier bewusst nicht geraten.
+      const { data: angelegteArtikel, error: aErr } = await supabase
+        .from('laundry_articles')
+        .insert(neue.map((a) => ({
+          provider_id: rechnungProviderId,
+          artikelnummer: a.artikelnummer,
+          bezeichnung: a.bezeichnung,
+          einheit: a.einheit,
+          status: 'neu',
+          erstmals_gesehen: datum,
+          zuletzt_gesehen: datum,
+        })) as any)
+        .select('id, artikelnummer');
+      if (aErr) throw aErr;
+      if (!angelegteArtikel || angelegteArtikel.length === 0) {
+        throw new Error('Die neuen Artikel konnten nicht ins Sortiment uebernommen werden.');
+      }
+
+      // Preis je Artikel. gueltig_bis bleibt null = aktuell gueltig; erst eine
+      // spaetere Rechnung mit anderem Preis schliesst diesen Stand ab.
+      const preise = angelegteArtikel.map((row: any) => {
+        const q = neue.find((n) => n.artikelnummer === row.artikelnummer);
+        return { article_id: row.id, preis: q?.preis ?? 0, gueltig_ab: datum };
+      });
+
+      const { data: angelegtePreise, error: pErr } = await supabase
+        .from('laundry_article_prices')
+        .insert(preise as any)
+        .select('id');
+      if (pErr) throw pErr;
+      if (!angelegtePreise || angelegtePreise.length !== preise.length) {
+        throw new Error('Artikel angelegt, aber nicht zu jedem wurde der Preis gespeichert.');
+      }
+      return null;
+    };
+
     const rechnungNachtragen = async (documentId: string): Promise<string | null> => {
       if (!rechnung) return null;   // kein Lesevorgang / keine Waescherechnung
       if (rechnung.bereits_erfasst) {
@@ -1335,9 +1410,15 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
             // Beide Pfade aufrufen: Welcher greift, entscheidet der
             // erkannte Dienstleister. Es kann immer nur einer sein — ein
             // Dokument hat einen Absender.
+            // Artikel ZUERST: erst danach existiert der Preisstand, gegen
+            // den ein spaeteres erneutes Einlesen dieser Rechnung prueft.
+            const aHinweis = await artikelNachtragen();
             hinweis = await rechnungNachtragen(documentId);
             const cHinweis = await reinigungNachtragen(documentId);
             if (cHinweis) hinweis = cHinweis;
+            // Der Artikelhinweis ersetzt die anderen nicht — beides kann
+            // zutreffen ("Rechnung angelegt, Artikel aber nicht uebernommen").
+            if (aHinweis) hinweis = hinweis ? `${hinweis} ${aHinweis}` : aHinweis;
           } catch (e: any) {
             // Die Datei liegt bereits richtig. Der Dialog bleibt offen,
             // damit der Fehler nicht unbemerkt verschwindet.
@@ -1558,6 +1639,51 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
                     <ul className="mb-2 list-disc pl-4 text-xs text-amber-800">
                       {rechnung.warnungen.map((w, i) => <li key={i}>{w}</li>)}
                     </ul>
+                  )}
+
+                  {/* Hinweise sind keine Warnungen: Umbenennungen und noch
+                      nicht bestaetigte Artikel sind Beobachtungen, keine
+                      Beanstandungen. Bis 04.09.2026 wurden sie gar nicht
+                      angezeigt — die Function lieferte sie, der Dialog
+                      verschluckte sie. */}
+                  {rechnung.hinweise.length > 0 && (
+                    <ul className="mb-2 list-disc pl-4 text-xs text-amber-700/80">
+                      {rechnung.hinweise.map((h, i) => <li key={i}>{h}</li>)}
+                    </ul>
+                  )}
+
+                  {/* Neue Artikel ins Sortiment uebernehmen */}
+                  {(rechnung.neue_artikel?.length ?? 0) > 0 && (
+                    <div className="mb-3 rounded border border-amber-400 bg-white/70 p-2">
+                      <p className="mb-1 text-xs font-medium text-amber-900">
+                        {rechnung.neue_artikel!.length} Artikel {rechnung.neue_artikel!.length === 1 ? 'steht' : 'stehen'} noch nicht im Sortiment
+                      </p>
+                      <table className="mb-1.5 w-full text-xs">
+                        <tbody>
+                          {rechnung.neue_artikel!.map((a) => (
+                            <tr key={a.artikelnummer}>
+                              <td className="py-0.5 pr-2 font-mono">{a.artikelnummer}</td>
+                              <td className="py-0.5 pr-2">{a.bezeichnung}</td>
+                              <td className="py-0.5 text-right whitespace-nowrap">
+                                {a.preis.toFixed(2).replace('.', ',')} € / {a.einheit}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <label className="flex cursor-pointer items-start gap-2 text-xs text-amber-900">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={artikelUebernehmen}
+                          onChange={(e) => setArtikelUebernehmen(e.target.checked)}
+                        />
+                        <span>
+                          Ins Sortiment übernehmen — der Preis von dieser Rechnung gilt
+                          ab {fmtDate(rechnung.rechnung.rechnungsdatum)} als Vergleichswert.
+                        </span>
+                      </label>
+                    </div>
                   )}
 
                   {/* Positionen */}
