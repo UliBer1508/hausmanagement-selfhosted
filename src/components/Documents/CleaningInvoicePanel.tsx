@@ -139,6 +139,15 @@ export default function CleaningInvoicePanel({
         </ul>
       )}
 
+      {/* Hinweise sind keine Fehler, muessen aber sichtbar sein: hier
+          steht unter anderem, wenn die Umsatzsteuer nicht gelesen, sondern
+          aus Netto und Brutto errechnet wurde. */}
+      {ergebnis.hinweise.length > 0 && (
+        <ul className="mb-2 list-disc pl-4 text-xs text-amber-800">
+          {ergebnis.hinweise.map((h, i) => <li key={i}>{h}</li>)}
+        </ul>
+      )}
+
       {/* Positionen mit ihrer Zuordnung.
           Die Reihenfolge ist die der Rechnung, nicht nach Datum sortiert —
           so laesst sich Zeile fuer Zeile gegen das Papier pruefen. */}
