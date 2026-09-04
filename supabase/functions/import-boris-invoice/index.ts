@@ -576,11 +576,51 @@ serve(async (req) => {
     const mNetto = text.match(RE_NETTO);
     const nettobetrag = mNetto ? zahl(mNetto[1]) : null;
 
+    /*
+     * MwSt: erst lesen, dann rechnen.
+     *
+     * ANLASS, am 03.09.2026 an Rechnung 002048/2026 beobachtet: Netto und
+     * Brutto wurden sauber gelesen, Satz und Betrag blieben leer. Der
+     * Unterschied zwischen den Regeln ist das PROZENTZEICHEN — nur
+     * RE_SATZ und RE_MWST verlangen es. Vermutlich kommt es aus der
+     * Textextraktion nicht sauber heraus; nachgewiesen ist das nicht.
+     *
+     * Statt die Regel auf eine Vermutung hin umzubauen, wird gerechnet:
+     * Netto und Brutto stehen fest, alles andere ergibt sich zwingend
+     * daraus. Das haelt auch, wenn Boris das Zeichen weglaesst oder seine
+     * Software es anders setzt.
+     *
+     * Die gelesenen Werte haben Vorrang — gerechnet wird nur, was fehlt.
+     */
     const mSatz = text.match(RE_SATZ);
-    const mwst_satz = mSatz ? zahl(mSatz[1]) : null;
-
     const mMwst = text.match(RE_MWST);
-    const mwst_betrag = mMwst ? zahl(mMwst[1]) : null;
+
+    let mwst_satz = mSatz ? zahl(mSatz[1]) : null;
+    let mwst_betrag = mMwst ? zahl(mMwst[1]) : null;
+    let mwst_gerechnet = false;
+
+    if (nettobetrag !== null) {
+      if (mwst_betrag === null) {
+        const diff = round2(bruttobetrag - nettobetrag);
+        // Nur uebernehmen, wenn es plausibel ist. Ein negativer Wert
+        // hiesse, dass Netto und Brutto vertauscht gelesen wurden — dann
+        // lieber leer lassen als etwas Falsches speichern.
+        if (diff >= 0) {
+          mwst_betrag = diff;
+          mwst_gerechnet = true;
+        }
+      }
+      if (mwst_satz === null && mwst_betrag !== null && nettobetrag > 0) {
+        mwst_satz = round2((mwst_betrag / nettobetrag) * 100);
+        mwst_gerechnet = true;
+      }
+    }
+
+    if (mwst_gerechnet) {
+      hinweise.push(
+        `Umsatzsteuer war im PDF nicht lesbar und wurde aus Netto und Brutto errechnet: ${mwst_betrag?.toFixed(2)} EUR (${mwst_satz?.toFixed(2)} %). Bitte gegen die Rechnung pruefen.`,
+      );
+    }
 
     // ---- Haeuser laden, fuer die Zuordnung
     const supabase = createClient(
@@ -640,7 +680,10 @@ serve(async (req) => {
         `Summe der Positionen (${summePositionen.toFixed(2)} EUR) weicht vom ausgewiesenen Nettobetrag (${nettobetrag.toFixed(2)} EUR) ab.`,
       );
     }
-    if (nettobetrag !== null && mwst_betrag !== null) {
+    // Nur pruefen, wenn die MwSt GELESEN wurde. Ist sie aus Netto und
+    // Brutto errechnet, ginge die Rechnung zwangslaeufig auf — die
+    // Pruefung wuerde sich selbst bestaetigen und waere wertlos.
+    if (nettobetrag !== null && mwst_betrag !== null && !mwst_gerechnet) {
       const erwartet = nettobetrag + mwst_betrag;
       if (Math.abs(erwartet - bruttobetrag) > 0.02) {
         warnungen.push(
