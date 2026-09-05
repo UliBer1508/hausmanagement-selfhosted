@@ -41,7 +41,24 @@ export interface LinenItemConfig {
   season?: 'winter' | 'summer' | null;
   active: boolean;
   color?: ItemColor | LinenColor; // Artikelfarbe (ItemColor für Badbereich/Wellness, LinenColor für Schlafbereich)
-  external_artikelnummer?: Record<string, string>; // Farb-basiertes Mapping: { "grey_striped": "WA001", "white_striped": "WA005" }
+  external_artikelnummer?: Record<string, string>; // Teuni-Artikelnummer unter 'default'; Altbestand: farbbasiert { "grey_striped": "WA001" }
+  /*
+   * Diese Zeile bestimmt die berechnete Menge ihres Artikels (05.09.2026).
+   *
+   * Hintergrund: „Mietwäsche Paket 5 Tlg" (MW4) ist EIN Artikel, der mehrere
+   * Set-Positionen abdeckt — bei Wald Bettwäsche, Kissenbezüge und
+   * Spannbetttücher. Alle drei tragen denselben Artikel und denselben Preis.
+   * Wer je Set-Zeile rechnet, zählt das Paket dreifach.
+   *
+   * Regel: Tragen mehrere Zeilen denselben Artikel, ist GENAU EINE mit
+   * preis_zaehlt = true die abrechnungsrelevante; die übrigen stehen auf
+   * false und gehen mit 0 in die Kostenrechnung ein — nicht als „Preis
+   * fehlt", denn sie sind im Paket enthalten.
+   *
+   * Trägt ein Artikel nur EINE Zeile, ist das Feld gegenstandslos und bleibt
+   * undefined. Wer es liest, behandelt undefined wie true.
+   */
+  preis_zaehlt?: boolean;
 }
 
 export interface LinenSetDefinition {
