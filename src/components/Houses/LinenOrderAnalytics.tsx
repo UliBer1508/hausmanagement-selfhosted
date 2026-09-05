@@ -20,7 +20,7 @@ import { formatCurrency, translateItemType, getLabelsFromLinenDef } from '@/lib/
 // Etappe 4: Gastfelder aus der guests-Relation (siehe guestHelpers.ts)
 import { withGuestData } from '@/lib/guestHelpers';
 import { useLaundryArticles } from '@/hooks/useLaundryArticles';
-import { mengenFuerBuchung, kostenFuerMengen, type SetZeilen } from '@/lib/linenPricing';
+import { mengenFuerBuchung, artikelAufteilung, type SetZeilen } from '@/lib/linenPricing';
 
 interface LinenOrderAnalyticsProps {
   house: any;
@@ -209,22 +209,41 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
     // nicht die Zerlegung nach Artikeln. Sie zeigt daher "womit die Kosten
     // heute entstuenden" — die Kennzahlen oben (Gesamt/Monat/Bestellung)
     // basieren dagegen auf den realen total_cost-Werten.
-    const costByItemType = Object.entries(
+    /*
+     * Kosten nach TEUNI-ARTIKEL (umgestellt 05.09.2026).
+     *
+     * Vorher wurde je Set-Schluessel gerechnet. Das ergab zwei Probleme:
+     *
+     *   Alte Bestellungen tragen Schluessel, die es im heutigen Set nicht
+     *   mehr gibt (`bedding`, `large_towels`, `pillow_cases`,
+     *   `spannbetttuch`, `small_towels`). Sie fanden keinen Preis und
+     *   standen mit 0,00 EUR in der Liste — bei je 41 Stueck.
+     *
+     *   Und das Paket wurde fuenffach gezaehlt: alle fuenf Bettpositionen
+     *   trugen den vollen Preis von MW4, die Summe der Balken lag damit
+     *   ueber den Gesamtkosten.
+     *
+     * artikelAufteilung() loest beide auf: alte Schluessel ueber
+     * `alte_schluessel` an der Set-Zeile, Paketartikel genau einmal.
+     */
+    const costByItemType = Object.values(
       ordersWithBookings.reduce((acc, order) => {
-        if (order.items && typeof order.items === 'object') {
-          Object.entries(order.items as Record<string, number>).forEach(([itemType, quantity]) => {
-            if (!acc[itemType]) acc[itemType] = 0;
-            acc[itemType] += quantity * (preisJeSchluessel[itemType] || 0);
-          });
+        if (!order.items || typeof order.items !== 'object') return acc;
+        const { posten } = artikelAufteilung(
+          order.items as Record<string, number>,
+          setZeilen,
+          artikel,
+        );
+        for (const p of posten) {
+          if (!acc[p.artikelnummer]) {
+            acc[p.artikelnummer] = { itemType: p.artikelnummer, label: p.bezeichnung, totalCost: 0 };
+          }
+          acc[p.artikelnummer].totalCost += p.betrag;
         }
         return acc;
-      }, {} as Record<string, number>)
+      }, {} as Record<string, { itemType: string; label: string; totalCost: number }>)
     )
-      .map(([itemType, totalCost]) => ({
-        itemType,
-        label: translateItemType(itemType, customLabels),
-        totalCost: Math.round(totalCost)
-      }))
+      .map((e) => ({ ...e, totalCost: Math.round(e.totalCost) }))
       .sort((a, b) => b.totalCost - a.totalCost);
 
     const mostExpensiveItem = costByItemType[0] || { label: 'N/A', totalCost: 0 };
@@ -238,31 +257,43 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
       costByItemType,
       mostExpensiveItem
     };
-  }, [ordersWithBookings, preisJeSchluessel, customLabels]);
+  }, [ordersWithBookings, preisJeSchluessel, setZeilen, artikel, customLabels]);
 
   // Verbrauchsdaten - use dynamic labels
   const consumptionData = useMemo(() => {
     if (!ordersWithBookings || !linenDefinitions) return null;
 
-    const topItems = Object.entries(
+    /*
+     * Meistbestellte TEUNI-ARTIKEL statt Set-Schluessel.
+     *
+     * Vorher standen hier Bettwaesche, Badetuecher, Kopfkissen,
+     * Handtuecher, Spannbetttuecher mit je 41 Stueck und je 0,00 EUR —
+     * fuenf Zeilen fuer EIN Paket, und keine davon mit Preis, weil die
+     * Schluessel im heutigen Set nicht mehr vorkommen.
+     */
+    const topItems = Object.values(
       ordersWithBookings.reduce((acc, order) => {
-        if (order.items && typeof order.items === 'object') {
-          Object.entries(order.items as Record<string, number>).forEach(([itemType, quantity]) => {
-            if (!acc[itemType]) {
-              acc[itemType] = { totalQuantity: 0, totalCost: 0 };
-            }
-            acc[itemType].totalQuantity += quantity;
-            acc[itemType].totalCost += quantity * (preisJeSchluessel[itemType] || 0);
-          });
+        if (!order.items || typeof order.items !== 'object') return acc;
+        const { posten } = artikelAufteilung(
+          order.items as Record<string, number>,
+          setZeilen,
+          artikel,
+        );
+        for (const p of posten) {
+          if (!acc[p.artikelnummer]) {
+            acc[p.artikelnummer] = {
+              itemType: p.artikelnummer,
+              label: p.bezeichnung,
+              totalQuantity: 0,
+              totalCost: 0,
+            };
+          }
+          acc[p.artikelnummer].totalQuantity += p.menge;
+          acc[p.artikelnummer].totalCost += p.betrag;
         }
         return acc;
-      }, {} as Record<string, { totalQuantity: number; totalCost: number }>)
+      }, {} as Record<string, { itemType: string; label: string; totalQuantity: number; totalCost: number }>)
     )
-      .map(([itemType, data]) => ({
-        itemType,
-        label: translateItemType(itemType, customLabels),
-        ...data
-      }))
       .sort((a, b) => b.totalQuantity - a.totalQuantity)
       .slice(0, 5);
 
@@ -271,23 +302,29 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
       .filter(o => o.bookings)
       .reduce((sum, o) => sum + (o.bookings?.number_of_guests || 0), 0);
 
-    const consumptionPerGuest = Object.entries(
+    // Verbrauch je Gast, ebenfalls nach Artikel — sonst zaehlt ein Paket
+    // fuenffach und der Schnitt je Gast ist um das Fuenffache zu hoch.
+    const consumptionPerGuest = Object.values(
       ordersWithBookings.reduce((acc, order) => {
-        if (order.items && typeof order.items === 'object') {
-          Object.entries(order.items as Record<string, number>).forEach(([itemType, quantity]) => {
-            if (!acc[itemType]) acc[itemType] = 0;
-            acc[itemType] += quantity;
-          });
+        if (!order.items || typeof order.items !== 'object') return acc;
+        const { posten } = artikelAufteilung(
+          order.items as Record<string, number>,
+          setZeilen,
+          artikel,
+        );
+        for (const p of posten) {
+          if (!acc[p.artikelnummer]) {
+            acc[p.artikelnummer] = { itemType: p.artikelnummer, label: p.bezeichnung, menge: 0 };
+          }
+          acc[p.artikelnummer].menge += p.menge;
         }
         return acc;
-      }, {} as Record<string, number>)
+      }, {} as Record<string, { itemType: string; label: string; menge: number }>)
     )
-      .map(([itemType, totalQuantity]) => ({
-        itemType,
-        label: translateItemType(itemType, customLabels),
-        avgPerGuest: totalGuestsFromBookings > 0 
-          ? totalQuantity / totalGuestsFromBookings 
-          : 0
+      .map((e) => ({
+        itemType: e.itemType,
+        label: e.label,
+        avgPerGuest: totalGuestsFromBookings > 0 ? e.menge / totalGuestsFromBookings : 0,
       }))
       .sort((a, b) => b.avgPerGuest - a.avgPerGuest);
 
@@ -297,7 +334,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
       totalBookings: ordersWithBookings.filter(o => o.bookings).length,
       totalGuests: totalGuestsFromBookings
     };
-  }, [ordersWithBookings, linenDefinitions, preisJeSchluessel, customLabels]);
+  }, [ordersWithBookings, linenDefinitions, setZeilen, artikel, customLabels]);
 
   // Prognose-Daten
   const forecastData = useMemo(() => {
