@@ -89,7 +89,12 @@ export const useBookingLinenOrders = (houseId: string) => {
   });
 
   // Check order status
-  const { data: orderStatus, isLoading: statusLoading, refetch } = useQuery<OrderStatusResponse>({
+  const {
+    data: orderStatus,
+    isLoading: statusLoading,
+    error: statusError,
+    refetch,
+  } = useQuery<OrderStatusResponse>({
     queryKey: ['booking-orders-status', houseId, config?.lookahead_bookings],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke('check-booking-linen-orders', {
@@ -99,7 +104,26 @@ export const useBookingLinenOrders = (houseId: string) => {
         }
       });
 
-      if (error) throw error;
+      /*
+       * Den ECHTEN Grund herausholen (05.09.2026).
+       *
+       * functions.invoke meldet bei jedem Fehlschlag nur "Edge Function
+       * returned a non-2xx status code". Was tatsaechlich schiefging, steht
+       * im Antwortkoerper — die Funktion legt es dort als { error: "..." }
+       * ab. Ohne diesen Block landet die nichtssagende Meldung im globalen
+       * Toast (App.tsx QueryCache) und die Ursache bleibt unsichtbar.
+       */
+      if (error) {
+        let grund = (error as Error).message;
+        try {
+          const koerper = await (error as any)?.context?.json?.();
+          if (koerper?.error) grund = koerper.error;
+        } catch {
+          // Antwortkoerper nicht lesbar — dann bleibt es bei der
+          // allgemeinen Meldung.
+        }
+        throw new Error(grund);
+      }
       
       // Sort bookings by check-in date (earliest first)
       if (data?.bookings) {
@@ -345,6 +369,16 @@ export const useBookingLinenOrders = (houseId: string) => {
     activeOrders,
     allMissingBookings: allMissingBookings || [],
     isLoading: configLoading || statusLoading,
+    /*
+     * Fehler der Edge Function check-booking-linen-orders (05.09.2026).
+     *
+     * Vorher wurde er verschluckt: die Komponente zeigte pauschal "Keine
+     * Daten verfuegbar. Bitte pruefen Sie die Konfiguration." — eine Meldung,
+     * die auf einen Konfigurationsfehler zeigt, obwohl die Funktion in
+     * Wahrheit abgestuerzt sein kann. Sie hat uns einen halben Tag gekostet,
+     * weil sie die Ursache nicht nennt.
+     */
+    statusError,
     isLoadingAllMissing: allMissingLoading,
     createOrder: createOrderMutation.mutate,
     createOrderFromData: createOrderFromDataMutation.mutateAsync,
