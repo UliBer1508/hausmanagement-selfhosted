@@ -92,22 +92,52 @@ serve(async (req) => {
       .eq('house_id', house_id)
       .maybeSingle();
 
-    // 4. Load pricing
-    const { data: aiSettings } = await supabase
-      .from('ai_linen_settings')
-      .select('prices')
-      .eq('house_id', house_id)
-      .maybeSingle();
+    // 4b. Artikel und Preise (umgestellt 05.09.2026)
+    //
+    // Vorher standen hier ai_linen_settings.prices und eine hartcodierte
+    // Ersatzliste mit erfundenen Werten (bedding 30, kitchen_towels 12 —
+    // tatsaechlich 9,50 und 1,50). Der Nachschlag lief ueber den
+    // SET-SCHLUESSEL; Venediger nennt die Bettwaesche-Zeile `bettwaesche`,
+    // die Preisliste kannte nur `bedding`, der groesste Posten fiel aus.
+    //
+    // Jetzt derselbe Weg wie in generate-booking-linen-order: ueber die
+    // Artikelnummer an der Set-Zeile, mit Aufloesung der Nachfolgekette
+    // (MWR -> MW3 -> MW4) und Beachtung der Abrechnungsart.
+    const { data: artikelRoh, error: artikelError } = await supabase
+      .from('laundry_articles')
+      .select('id, artikelnummer, abrechnungsart, nachfolger_id, laundry_article_prices(preis, gueltig_ab, gueltig_bis)');
 
-    const prices = aiSettings?.prices || {
-      bedding: 30,
-      large_towels: 18,
-      small_towels: 10,
-      sauna_towels: 20,
-      sink_towels: 8,
-      bath_mats: 15,
-      kitchen_towels: 12,
+    if (artikelError) throw artikelError;
+
+    const artikelNachId = new Map<string, any>();
+    const artikelNachNummer = new Map<string, any>();
+    for (const a of (artikelRoh ?? []) as any[]) {
+      artikelNachId.set(a.id, a);
+      const nr = String(a.artikelnummer).toUpperCase();
+      if (!artikelNachNummer.has(nr)) artikelNachNummer.set(nr, a);
+    }
+
+    const aktuellerArtikel = (start: any) => {
+      let cur = start;
+      let n = 0;
+      while (cur?.nachfolger_id && n < 10) {
+        const next = artikelNachId.get(cur.nachfolger_id);
+        if (!next) break;
+        cur = next;
+        n++;
+      }
+      return cur;
     };
+
+    const preisVon = (artikel: any): number | null => {
+      const g = (artikel?.laundry_article_prices ?? [])
+        .filter((p: any) => p.gueltig_bis === null)
+        .sort((x: any, y: any) => String(y.gueltig_ab).localeCompare(String(x.gueltig_ab)))[0];
+      return g ? Number(g.preis) : null;
+    };
+
+    // Set-Zeilen des Hauses: Menge, Berechnungsart, Artikel, Abrechnungsmarke
+    const setZeilen = (linenDef?.custom_categories ?? {}) as Record<string, any>;
 
     // 5. Check each booking for existing order
     const bookingStatuses: BookingOrderStatus[] = [];
@@ -135,22 +165,80 @@ serve(async (req) => {
       if (!hasOrder) {
         ordersMissing++;
         
-        // Calculate required items
-        if (linenDef) {
-          requiredItems = {
-            bedding: booking.number_of_guests * (linenDef.bedding_per_guest || 1),
-            large_towels: booking.number_of_guests * (linenDef.large_towels_per_guest || 1),
-            small_towels: booking.number_of_guests * (linenDef.small_towels_per_guest || 1),
-            sauna_towels: booking.number_of_guests * (linenDef.sauna_towels_per_guest || 1),
-            sink_towels: linenDef.sink_towels_per_booking || 1,
-            bath_mats: linenDef.bath_mats_per_booking || 1,
-            kitchen_towels: linenDef.kitchen_towels_per_booking || 0,
-          };
+        // Mengen aus custom_categories (umgestellt 05.09.2026)
+        //
+        // Vorher wurden sie aus den alten Spalten bedding_per_guest usw.
+        // gebildet. Die setzt LinenSetRulesTab beim Speichern eines
+        // Waeschesets ALLE auf 0 — und `0 || 1` ergibt in JavaScript 1.
+        // Die Funktion meldete daher fuer jede Position 1 Stueck je Gast,
+        // voellig unabhaengig vom tatsaechlichen Set.
+        const zeilen = Object.entries(setZeilen);
+        if (zeilen.length > 0) {
+          requiredItems = {};
 
-          // Calculate cost
-          estimatedCost = Object.entries(requiredItems).reduce((sum, [key, qty]) => {
-            return sum + (qty * (prices[key] || 0));
-          }, 0);
+          for (const [key, cfg] of zeilen) {
+            if (!cfg?.active) continue;
+
+            // Saisonale Zeilen nur in ihrer Saison
+            if (cfg.availability === 'seasonal') {
+              const monat = checkInDate.getMonth() + 1;
+              const winter = monat >= 10 || monat <= 4;
+              if (cfg.season === 'winter' && !winter) continue;
+              if (cfg.season === 'summer' && winter) continue;
+            }
+
+            const anzahl = Number(cfg.quantity ?? 0);
+            if (!anzahl) continue;
+
+            const menge = cfg.calculation_type === 'per_guest'
+              ? booking.number_of_guests * anzahl
+              : anzahl;
+            if (menge > 0) requiredItems[key] = menge;
+          }
+
+          // Kosten ueber die Artikelnummer.
+          //
+          // Paketartikel decken mehrere Positionen ab und werden EINMAL
+          // berechnet; welche Zeile abrechnet, sagt preis_zaehlt. Stueck-
+          // artikel verhalten sich gegenteilig: MWHT steht in beiden
+          // Haeusern auf Geschirr- und WB-Handtuechern und wird beide Male
+          // berechnet.
+          const zeileArtikel: Record<string, any> = {};
+          for (const [key, cfg] of zeilen) {
+            const nr = cfg?.external_artikelnummer?.default;
+            if (!nr) continue;
+            const gefunden = artikelNachNummer.get(String(nr).toUpperCase());
+            if (gefunden) zeileArtikel[key] = aktuellerArtikel(gefunden);
+          }
+
+          const paketGruppen = new Map<string, string[]>();
+          for (const key of Object.keys(requiredItems)) {
+            const a = zeileArtikel[key];
+            if (a?.abrechnungsart === 'paket') {
+              paketGruppen.set(a.id, [...(paketGruppen.get(a.id) ?? []), key]);
+            }
+          }
+          const rechnetAb = new Map<string, string>();
+          for (const [artikelId, keys] of paketGruppen) {
+            const markiert = keys.filter((k) => setZeilen[k]?.preis_zaehlt === true);
+            rechnetAb.set(artikelId, markiert.length === 1 ? markiert[0] : keys[0]);
+          }
+
+          let summe = 0;
+          let mitPreis = 0;
+          for (const [key, menge] of Object.entries(requiredItems)) {
+            const artikel = zeileArtikel[key];
+            if (!artikel) continue;
+            if (artikel.abrechnungsart === 'paket' && rechnetAb.get(artikel.id) !== key) continue;
+            const preis = preisVon(artikel);
+            if (typeof preis === 'number' && preis > 0) {
+              summe += menge * preis;
+              mitPreis++;
+            }
+          }
+
+          // Kein einziger Preis greift -> "nicht berechenbar", nicht 0.
+          estimatedCost = mitPreis > 0 ? Math.round(summe * 100) / 100 : undefined;
         }
 
         // Determine urgency
