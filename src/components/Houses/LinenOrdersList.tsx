@@ -13,12 +13,21 @@ import { getGuestName } from '@/lib/guestHelpers';
 interface LinenOrdersListProps {
   onEditOrder?: (order: any) => void;
   onDeleteOrder?: (order: any) => Promise<void>;
+  /*
+   * Auf ein Haus festnageln (05.09.2026).
+   *
+   * Wird die Liste im Wäsche-Dialog eines Hauses angezeigt, ist die Hausfrage
+   * bereits beantwortet — die Auswahlliste "Alle Häuser" waere dort irrefuehrend.
+   * Ist houseId gesetzt, filtert die Liste fest auf dieses Haus und blendet
+   * die Hausauswahl aus. Ohne houseId bleibt alles wie bisher.
+   */
+  houseId?: string;
 }
 
-const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) => {
+const LinenOrdersList = ({ onEditOrder, onDeleteOrder, houseId }: LinenOrdersListProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('offen');
-  const [houseFilter, setHouseFilter] = useState<string>('all');
+  const [houseFilter, setHouseFilter] = useState<string>(houseId ?? 'all');
   const [timeFilter, setTimeFilter] = useState<string>('all');
   const [syncingOrderId, setSyncingOrderId] = useState<string | null>(null);
   const hasInitializedFilter = useRef(false);
@@ -42,7 +51,6 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
           ),
           bookings (
             id,
-            guest_name,
             guest_email,
             check_in,
             check_out,
@@ -59,16 +67,28 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
     },
   });
 
-  // Dynamischer Default: Wenn offene Bestellungen existieren → Filter auf 'offen'
+  /*
+   * Startfilter (korrigiert 05.09.2026).
+   *
+   * Vorher stand der Filter fest auf 'offen' und wurde nur dann auf 'offen'
+   * GESETZT, wenn offene Bestellungen existierten — das war wirkungslos, denn
+   * dort stand er ohnehin schon. Gab es KEINE offenen Bestellungen, blieb der
+   * Filter trotzdem auf 'offen' und die Liste erschien leer, obwohl sie voll
+   * war. Bei Venediger etwa: 28 Bestellungen, davon 0 mit Status 'offen'
+   * (3 'ausstehend', der Rest 'delivered' oder 'cancelled').
+   *
+   * Jetzt: offene Bestellungen vorhanden -> 'offen', sonst 'all'.
+   */
   useEffect(() => {
     if (!hasInitializedFilter.current && linenOrders && linenOrders.length > 0) {
-      const hasOpenOrders = linenOrders.some(order => order.status === 'offen');
-      if (hasOpenOrders) {
-        setStatusFilter('offen');
-      }
+      const relevante = houseId
+        ? linenOrders.filter((o) => o.house_id === houseId)
+        : linenOrders;
+      const hasOpenOrders = relevante.some((order) => order.status === 'offen');
+      setStatusFilter(hasOpenOrders ? 'offen' : 'all');
       hasInitializedFilter.current = true;
     }
-  }, [linenOrders]);
+  }, [linenOrders, houseId]);
 
   // Fetch houses for filter
   const { data: houses } = useQuery({
@@ -171,7 +191,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
       {/* Filter Bar */}
       <Card>
         <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className={`grid grid-cols-1 gap-4 ${houseId ? 'md:grid-cols-3' : 'md:grid-cols-4'}`}>
             {/* Search */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -197,20 +217,22 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder }: LinenOrdersListProps) =
               </SelectContent>
             </Select>
 
-            {/* House Filter */}
-            <Select value={houseFilter} onValueChange={setHouseFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Haus filtern" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Häuser</SelectItem>
-                {houses?.map(house => (
-                  <SelectItem key={house.id} value={house.id}>
-                    {house.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* House Filter — entfaellt, wenn die Liste auf ein Haus festgelegt ist */}
+            {!houseId && (
+              <Select value={houseFilter} onValueChange={setHouseFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Haus filtern" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Häuser</SelectItem>
+                  {houses?.map(house => (
+                    <SelectItem key={house.id} value={house.id}>
+                      {house.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
 
             {/* Time Filter */}
             <Select value={timeFilter} onValueChange={setTimeFilter}>

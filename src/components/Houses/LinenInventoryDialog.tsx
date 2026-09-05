@@ -25,6 +25,7 @@ import LinenSetRulesTab from './LinenSetRulesTab';
 import { LinenOrderAnalytics } from './LinenOrderAnalytics';
 import LinenPricesTab from './LinenPricesTab';
 import { BookingLinenOverview } from './BookingLinenOverview';
+import LinenOrdersList from './LinenOrdersList';
 
 interface LinenInventoryDialogProps {
   house: any;
@@ -250,7 +251,20 @@ const LinenInventoryDialog = ({ house, open, onOpenChange }: LinenInventoryDialo
                   </TabsList>
 
         <TabsContent value="smart-analysis" className="space-y-6">
-          {/* Buchungsbasierte Wäscheübersicht (Zero-Stock) */}
+          {/*
+            Die Wäschebestellungen dieses Hauses (05.09.2026).
+
+            Liest linen_orders direkt und zeigt sie mit Status-, Such- und
+            Zeitfilter. Dieselbe Liste wie auf der globalen Wäscheseite, hier
+            auf dieses Haus festgelegt.
+
+            Darunter BookingLinenOverview: die beantwortet eine ANDERE Frage —
+            für welche der nächsten Buchungen noch KEINE Bestellung existiert.
+            Sie liest bookings, nicht linen_orders, und ist deshalb kein Ersatz
+            für die Bestellliste.
+          */}
+          <LinenOrdersList houseId={house.id} />
+
           <BookingLinenOverview houseId={house.id} />
         </TabsContent>
 
