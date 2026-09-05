@@ -54,6 +54,19 @@ export interface SetZeile {
   season?: 'winter' | 'summer';
   external_artikelnummer?: Record<string, string>;
   preis_zaehlt?: boolean;
+  /*
+   * Frühere Namen dieser Position (56_waescheset_alte_schluessel.sql).
+   *
+   * Bestellungen halten fest, was geliefert wurde — mit den Schluesseln,
+   * die damals galten. Venediger fuehrte neun Positionen, heute fuenf;
+   * `bedding`, `pillow_cases`, `spannbetttuch`, `large_towels` und
+   * `small_towels` sind im Paket MW4 aufgegangen. Ohne diese Liste findet
+   * eine Auswertung fuer alte Bestellungen keinen Artikel und keinen Preis.
+   *
+   * Die REIHENFOLGE zaehlt: bei einem Paketartikel bestimmt der erste in
+   * der Bestellung vorkommende Eintrag die Menge.
+   */
+  alte_schluessel?: string[];
   [k: string]: any;
 }
 
@@ -213,4 +226,99 @@ export const kostenFuerMengen = (
     jeZeile,
     ohnePreis,
   };
+};
+
+
+/**
+ * Zu welcher Set-Zeile gehört ein Bestellschlüssel?
+ *
+ * Erst direkt, dann über die früheren Namen. Gibt null zurück, wenn der
+ * Schlüssel nirgends vorkommt — das ist eine echte Lücke und soll sichtbar
+ * bleiben, nicht stillschweigend verschwinden.
+ */
+export const setZeileFuerSchluessel = (
+  schluessel: string,
+  zeilen: SetZeilen,
+): string | null => {
+  if (zeilen?.[schluessel]) return schluessel;
+  for (const [key, zeile] of Object.entries(zeilen ?? {})) {
+    if (zeile?.alte_schluessel?.includes(schluessel)) return key;
+  }
+  return null;
+};
+
+export interface ArtikelPosten {
+  artikelnummer: string;
+  bezeichnung: string;
+  menge: number;
+  betrag: number;
+  /** Set-Schlüssel, die auf diesen Artikel entfallen. */
+  schluessel: string[];
+}
+
+/**
+ * Bestellpositionen nach TEUNI-ARTIKEL zusammenfassen.
+ *
+ * Der Unterschied zur Aufschlüsselung nach Set-Schlüssel: sie ist über die
+ * Zeit und über beide Häuser hinweg vergleichbar. Venediger nennt die
+ * Bettwäsche `bettwaesche`, Wald `bettwaescheset`, alte Bestellungen
+ * `bedding` — alle drei sind MW4.
+ *
+ * Paketartikel werden EINMAL gezählt: die Menge stammt aus der
+ * abrechnenden Zeile, die übrigen Positionen sind darin enthalten.
+ * Stückartikel werden summiert.
+ *
+ * Positionen ohne zuordenbaren Artikel erscheinen NICHT im Ergebnis; sie
+ * stehen in `ohneArtikel`, damit eine Lücke sichtbar bleibt statt als
+ * 0,00 € durchzurutschen.
+ */
+export const artikelAufteilung = (
+  items: Record<string, number>,
+  zeilen: SetZeilen,
+  artikel: LaundryArticle[],
+): { posten: ArtikelPosten[]; ohneArtikel: string[] } => {
+  const zuordnung = artikelJeZeile(zeilen, artikel);
+  const ohneArtikel: string[] = [];
+
+  // Bestellschlüssel -> Set-Zeile -> Artikel
+  const jeArtikel = new Map<string, { art: LaundryArticle; eintraege: Array<[string, string, number]> }>();
+
+  for (const [schluessel, menge] of Object.entries(items ?? {})) {
+    if (!menge) continue;
+    const zeile = setZeileFuerSchluessel(schluessel, zeilen);
+    const art = zeile ? zuordnung[zeile] : undefined;
+    if (!zeile || !art) {
+      ohneArtikel.push(schluessel);
+      continue;
+    }
+    const eintrag = jeArtikel.get(art.id) ?? { art, eintraege: [] };
+    eintrag.eintraege.push([schluessel, zeile, menge]);
+    jeArtikel.set(art.id, eintrag);
+  }
+
+  const posten: ArtikelPosten[] = [];
+  for (const { art, eintraege } of jeArtikel.values()) {
+    let menge: number;
+
+    if (art.abrechnungsart === 'paket') {
+      // Genau einmal zählen. Bevorzugt die Zeile mit preis_zaehlt, sonst
+      // die erste — dieselbe Regel wie in kostenFuerMengen().
+      const markiert = eintraege.filter(([, zeile]) => zeilen[zeile]?.preis_zaehlt === true);
+      const massgeblich = markiert.length === 1 ? markiert[0] : eintraege[0];
+      menge = massgeblich[2];
+    } else {
+      menge = eintraege.reduce((sum, [, , m]) => sum + m, 0);
+    }
+
+    const preis = art.preis ?? 0;
+    posten.push({
+      artikelnummer: art.artikelnummer,
+      bezeichnung: art.bezeichnung ?? art.artikelnummer,
+      menge,
+      betrag: Math.round(menge * preis * 100) / 100,
+      schluessel: eintraege.map(([k]) => k),
+    });
+  }
+
+  return { posten, ohneArtikel };
 };
