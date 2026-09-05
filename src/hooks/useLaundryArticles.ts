@@ -52,6 +52,19 @@ export interface LaundryArticle {
   nachfolger_nummer: string | null;
   /** Darf auf einer Set-Zeile stehen. */
   set_faehig: boolean;
+  /*
+   * Wie Teuni diesen Artikel berechnet (aus 54_waescheartikel_abrechnungsart.sql):
+   *
+   *   'stueck' — je Stueck. Steht der Artikel auf mehreren Set-Zeilen,
+   *              werden ALLE summiert. MWHT etwa liegt bei beiden Haeusern
+   *              auf Geschirr- und WB-Handtuechern; 2 + 3 Stueck ergeben
+   *              5 x 1,50.
+   *
+   *   'paket'  — als Bündel. Deckt es mehrere Set-Positionen ab, wird es
+   *              EINMAL berechnet. Welche Zeile abrechnet, sagt preis_zaehlt
+   *              am Set-Eintrag.
+   */
+  abrechnungsart: 'stueck' | 'paket';
   /** Zuletzt gueltiger Preis, oder null wenn keiner hinterlegt ist. */
   preis: number | null;
   gueltig_ab: string | null;
@@ -88,7 +101,7 @@ export function useLaundryArticles(providerAlias = 'teuni') {
 
       const { data, error } = await (supabase as any)
         .from('laundry_articles')
-        .select('id, artikelnummer, bezeichnung, einheit, farbe, status, nachfolger_id, set_faehig, laundry_article_prices(preis, gueltig_ab, gueltig_bis)')
+        .select('id, artikelnummer, bezeichnung, einheit, farbe, status, nachfolger_id, set_faehig, abrechnungsart, laundry_article_prices(preis, gueltig_ab, gueltig_bis)')
         .eq('provider_id', (provider as any).id)
         .order('artikelnummer');
       if (error) throw error;
@@ -117,6 +130,10 @@ export function useLaundryArticles(providerAlias = 'teuni') {
           // Faellt die Spalte aus irgendeinem Grund weg, ist der Artikel
           // waehlbar — die Liste wird zu lang, aber nichts verschwindet.
           set_faehig: a.set_faehig ?? true,
+          // Faellt die Spalte weg, gilt 'stueck' — der Normalfall. Ein
+          // faelschlich als Stueck gefuehrtes Paket rechnet zu HOCH und
+          // faellt auf; umgekehrt bliebe es unbemerkt.
+          abrechnungsart: (a.abrechnungsart ?? 'stueck') as 'stueck' | 'paket',
           preis: aktuell ? Number(aktuell.preis) : null,
           gueltig_ab: aktuell?.gueltig_ab ?? null,
         };
