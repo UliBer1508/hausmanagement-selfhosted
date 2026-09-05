@@ -19,20 +19,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatCurrency, translateItemType, getLabelsFromLinenDef } from '@/lib/linenOrderHelpers';
 // Etappe 4: Gastfelder aus der guests-Relation (siehe guestHelpers.ts)
 import { withGuestData } from '@/lib/guestHelpers';
+import { useLaundryArticles } from '@/hooks/useLaundryArticles';
+import { mengenFuerBuchung, kostenFuerMengen, type SetZeilen } from '@/lib/linenPricing';
 
 interface LinenOrderAnalyticsProps {
   house: any;
 }
-
-const defaultPrices = {
-  bedding: 30,
-  large_towels: 18,
-  small_towels: 10,
-  sauna_towels: 20,
-  bath_mats: 15,
-  sink_towels: 8,
-  kitchen_towels: 12
-};
 
 export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
   const sixMonthsAgo = format(subMonths(new Date(), 6), 'yyyy-MM-dd');
@@ -64,19 +56,20 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
   });
 
   // Preise laden
-  const { data: prices } = useQuery({
-    queryKey: ['ai-linen-prices', house.id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('ai_linen_settings')
-        .select('prices')
-        .eq('house_id', house.id)
-        .maybeSingle();
-      
-      if (error && error.code !== 'PGRST116') throw error;
-      return data?.prices || defaultPrices;
-    }
-  });
+  /*
+   * Teuni-Artikel mit ihren aktuellen Preisen (umgestellt 05.09.2026).
+   *
+   * Vorher stand hier ai_linen_settings.prices — eine hausbezogene
+   * Preisliste, die von Hand gepflegt und mit dem SET-SCHLUESSEL
+   * nachgeschlagen wurde. Venediger nennt die Bettwaesche-Zeile
+   * `bettwaesche`, die Liste kannte nur `bedding`: der groesste Posten
+   * fiel still aus jeder Auswertung. Seit die Preismaske umgestellt ist,
+   * wird diese Liste ausserdem gar nicht mehr gepflegt.
+   *
+   * Der Preis kommt jetzt vom Artikel, ueber die Artikelnummer an der
+   * Set-Zeile. Die gemeinsame Logik dafuer steht in lib/linenPricing.
+   */
+  const { data: artikel = [] } = useLaundryArticles();
 
   // Zukünftige Buchungen
   const { data: upcomingBookings } = useQuery({
@@ -131,9 +124,42 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
   // Extract dynamic labels from linen definitions
   const customLabels = getLabelsFromLinenDef(linenDefinitions);
 
+  /*
+   * Set-Zeilen des Hauses und Preis je Set-Schluessel.
+   *
+   * `preisJeSchluessel` ersetzt das alte `prices`-Objekt an allen Stellen,
+   * die frueher ai_linen_settings.prices nachschlugen. Der Schluessel ist
+   * derselbe wie in linen_orders.items, der Preis kommt jetzt aber ueber
+   * die Artikelnummer.
+   *
+   * ACHTUNG bei Paketartikeln: mehrere Set-Zeilen koennen auf MW4 zeigen.
+   * Hier traegt jede davon den vollen Paketpreis — die Aufschluesselung
+   * "Kosten nach Artikel" zeigt damit, WOMIT die Kosten entstehen, nicht
+   * eine summierbare Zerlegung. Fuer Summen wird kostenFuerMengen()
+   * benutzt, das die Paketregel beachtet.
+   */
+  const setZeilen = ((linenDefinitions?.custom_categories ?? {}) as SetZeilen);
+
+  const preisJeSchluessel = useMemo(() => {
+    const p: Record<string, number> = {};
+    for (const [key, zeile] of Object.entries(setZeilen)) {
+      const nr = zeile?.external_artikelnummer?.['default'];
+      if (!nr) continue;
+      let a = artikel.find((x) => x.artikelnummer.toUpperCase() === String(nr).toUpperCase());
+      let n = 0;
+      while (a?.nachfolger_id && n < 10) {
+        const next = artikel.find((x) => x.id === a!.nachfolger_id);
+        if (!next) break;
+        a = next; n++;
+      }
+      if (a?.preis != null) p[key] = a.preis;
+    }
+    return p;
+  }, [setZeilen, artikel]);
+
   // Kostenberechnungen
   const costsData = useMemo(() => {
-    if (!ordersWithBookings || !prices) return null;
+    if (!ordersWithBookings) return null;
 
     // REALE Kosten: der bei der Bestellung festgeschriebene Wert (total_cost).
     // NICHT live aus items x prices rechnen — sonst schreibt jede spaetere
@@ -143,7 +169,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
     const liveCost = (items: any) => {
       if (!items || typeof items !== 'object') return 0;
       return Object.entries(items as Record<string, number>).reduce((total, [itemType, quantity]) => {
-        return total + (quantity * (prices[itemType] || 0));
+        return total + (quantity * (preisJeSchluessel[itemType] || 0));
       }, 0);
     };
     const realOrderCost = (order: any) =>
@@ -188,7 +214,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
         if (order.items && typeof order.items === 'object') {
           Object.entries(order.items as Record<string, number>).forEach(([itemType, quantity]) => {
             if (!acc[itemType]) acc[itemType] = 0;
-            acc[itemType] += quantity * (prices[itemType] || 0);
+            acc[itemType] += quantity * (preisJeSchluessel[itemType] || 0);
           });
         }
         return acc;
@@ -212,7 +238,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
       costByItemType,
       mostExpensiveItem
     };
-  }, [ordersWithBookings, prices, customLabels]);
+  }, [ordersWithBookings, preisJeSchluessel, customLabels]);
 
   // Verbrauchsdaten - use dynamic labels
   const consumptionData = useMemo(() => {
@@ -226,7 +252,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
               acc[itemType] = { totalQuantity: 0, totalCost: 0 };
             }
             acc[itemType].totalQuantity += quantity;
-            acc[itemType].totalCost += quantity * (prices?.[itemType] || 0);
+            acc[itemType].totalCost += quantity * (preisJeSchluessel[itemType] || 0);
           });
         }
         return acc;
@@ -271,24 +297,32 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
       totalBookings: ordersWithBookings.filter(o => o.bookings).length,
       totalGuests: totalGuestsFromBookings
     };
-  }, [ordersWithBookings, linenDefinitions, prices, customLabels]);
+  }, [ordersWithBookings, linenDefinitions, preisJeSchluessel, customLabels]);
 
   // Prognose-Daten
   const forecastData = useMemo(() => {
     if (!upcomingBookings || !linenDefinitions) return null;
 
-    const calculateBookingDemand = (booking: any) => {
-      const demand: Record<string, number> = {
-        bedding: (linenDefinitions.bedding_per_guest || 1) * booking.number_of_guests,
-        large_towels: (linenDefinitions.large_towels_per_guest || 1) * booking.number_of_guests,
-        small_towels: (linenDefinitions.small_towels_per_guest || 1) * booking.number_of_guests,
-        sauna_towels: (linenDefinitions.sauna_towels_per_guest || 1) * booking.number_of_guests,
-        bath_mats: linenDefinitions.bath_mats_per_booking || 1,
-        sink_towels: linenDefinitions.sink_towels_per_booking || 1,
-        kitchen_towels: linenDefinitions.kitchen_towels_per_booking || 0
-      };
-      return demand;
-    };
+    /*
+     * Bedarf einer Buchung aus dem Waescheset (umgestellt 05.09.2026).
+     *
+     * Vorher standen hier die alten Spalten bedding_per_guest usw. Die
+     * setzt LinenSetRulesTab beim Speichern eines Waeschesets ALLE auf 0,
+     * und `0 || 1` ergibt in JavaScript 1 — die Prognose meldete also je
+     * Position ein Stueck pro Gast, unabhaengig vom tatsaechlichen Set.
+     * Ausserdem waren die sieben Positionen fest verdrahtet; Venediger und
+     * Wald fuehren heute je fuenf, teils unter anderen Schluesseln.
+     *
+     * mengenFuerBuchung() beachtet zusaetzlich `active` und die Saison —
+     * ein Saunatuch im Sommerset faellt aus der Prognose, wenn es dort
+     * nicht vorgesehen ist.
+     */
+    const calculateBookingDemand = (booking: any) =>
+      mengenFuerBuchung(
+        setZeilen,
+        booking.number_of_guests || 0,
+        booking.check_in ? new Date(booking.check_in) : undefined,
+      );
 
     const forecastedDemand = Object.entries(
       upcomingBookings.reduce((acc, booking) => {
@@ -311,7 +345,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
     );
 
     const estimatedCost = forecastedDemand.reduce(
-      (sum, item) => sum + item.quantity * (prices?.[item.itemType] || 0), 0
+      (sum, item) => sum + item.quantity * (preisJeSchluessel[item.itemType] || 0), 0
     );
 
     return {
@@ -321,7 +355,7 @@ export const LinenOrderAnalytics = ({ house }: LinenOrderAnalyticsProps) => {
       estimatedCost,
       calculateBookingDemand
     };
-  }, [upcomingBookings, linenDefinitions, prices, customLabels]);
+  }, [upcomingBookings, linenDefinitions, preisJeSchluessel, customLabels]);
 
   if (ordersLoading) {
     return (
