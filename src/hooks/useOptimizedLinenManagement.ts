@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { mengenFuerBuchung, type SetZeilen } from '@/lib/linenPricing';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { format, addDays } from 'date-fns';
@@ -68,39 +69,40 @@ const calculatePredictiveAnalytics = (
   let nextWeekDemand = 0;
   let nextMonthDemand = 0;
 
-  // Corrected mapping: Use the exact database field names
-  const perGuestItems = ['bedding', 'large_towels', 'small_towels', 'sauna_towels', 'blankets', 'pillow_cases'];
-  const isPerGuest = perGuestItems.includes(itemType);
-  
-  const perGuestKey = `${itemType}_per_guest`;
-  const perBookingKey = `${itemType}_per_booking`;
+  /*
+   * Bedarf aus dem Waescheset (umgestellt 05.09.2026).
+   *
+   * Vorher wurde `linenDef[`${itemType}_per_guest`]` gelesen — die alten
+   * Spalten. LinenSetRulesTab setzt sie beim Speichern eines Waeschesets
+   * ALLE auf 0. Da hier `if (linenDef[perGuestKey])` geprueft wurde und 0
+   * in JavaScript falsch ist, zaehlte gar kein Bedarf mehr: die Prognose
+   * stand vollstaendig auf null, ohne Fehlermeldung.
+   *
+   * Zusaetzlich war die Zuordnung "pro Gast oder pro Buchung" hier fest
+   * verdrahtet. Sie steht aber je Set-Zeile in calculation_type und ist
+   * damit einstellbar — Venediger rechnet Badvorleger pro Buchung, ein
+   * anderes Haus koennte es anders halten.
+   *
+   * mengenFuerBuchung() liest beides aus custom_categories und beachtet
+   * zusaetzlich `active` und die Saison.
+   */
+  const zeilen = (linenDef?.custom_categories ?? {}) as SetZeilen;
 
-  console.log(`[Predictive] Analyzing ${itemType}:`, {
-    nextWeekBookings: nextWeekBookings.length,
-    nextMonthBookings: nextMonthBookings.length,
-    perGuestKey,
-    perBookingKey,
-    linenDefValue: linenDef[perGuestKey] || linenDef[perBookingKey] || 0
-  });
+  const bedarfFuer = (booking: any): number => {
+    const mengen = mengenFuerBuchung(
+      zeilen,
+      booking.number_of_guests || 0,
+      booking.check_in ? new Date(booking.check_in) : undefined,
+    );
+    return mengen[itemType] ?? 0;
+  };
 
   nextWeekBookings.forEach(booking => {
-    if (isPerGuest && linenDef[perGuestKey]) {
-      const demand = booking.number_of_guests * linenDef[perGuestKey];
-      nextWeekDemand += demand;
-      console.log(`  Week: ${booking.guest_name} = ${booking.number_of_guests} × ${linenDef[perGuestKey]} = ${demand}`);
-    } else if (!isPerGuest && linenDef[perBookingKey]) {
-      nextWeekDemand += linenDef[perBookingKey];
-      console.log(`  Week: ${booking.guest_name} = ${linenDef[perBookingKey]}`);
-    }
+    nextWeekDemand += bedarfFuer(booking);
   });
 
   nextMonthBookings.forEach(booking => {
-    if (isPerGuest && linenDef[perGuestKey]) {
-      const demand = booking.number_of_guests * linenDef[perGuestKey];
-      nextMonthDemand += demand;
-    } else if (!isPerGuest && linenDef[perBookingKey]) {
-      nextMonthDemand += linenDef[perBookingKey];
-    }
+    nextMonthDemand += bedarfFuer(booking);
   });
 
   // Calculate reorder point
@@ -178,22 +180,37 @@ export const useOptimizedLinenManagement = () => {
       const linenDef = house.linen_set_definitions?.[0] || {};
       const upcomingBookings = house.bookings || [];
 
-      const linenTypes = [
-        // Bedroom category
-        { key: 'bedding', label: 'Bettwäsche', category: 'bedroom' as const, perGuestKey: 'bedding_per_guest', perBookingKey: null },
-        { key: 'blankets', label: 'Decken', category: 'bedroom' as const, perGuestKey: 'blankets_per_guest', perBookingKey: null },
-        { key: 'pillow_cases', label: 'Kissenbezüge', category: 'bedroom' as const, perGuestKey: 'pillow_cases_per_guest', perBookingKey: null },
-        
-        // Bathroom category
-        { key: 'large_towels', label: 'Badetücher', category: 'bathroom' as const, perGuestKey: 'large_towels_per_guest', perBookingKey: null },
-        { key: 'small_towels', label: 'Handtücher', category: 'bathroom' as const, perGuestKey: 'small_towels_per_guest', perBookingKey: null },
-        { key: 'sauna_towels', label: 'Saunatücher', category: 'bathroom' as const, perGuestKey: 'sauna_towels_per_guest', perBookingKey: null },
-        { key: 'bath_mats', label: 'Badematten', category: 'bathroom' as const, perGuestKey: null, perBookingKey: 'bath_mats_per_booking' },
-        { key: 'sink_towels', label: 'Waschbecken-Tücher', category: 'bathroom' as const, perGuestKey: null, perBookingKey: 'sink_towels_per_booking' },
-        
-        // Kitchen category
-        { key: 'kitchen_towels', label: 'Küchentücher', category: 'kitchen' as const, perGuestKey: null, perBookingKey: 'kitchen_towels_per_booking' },
-      ];
+      /*
+       * Die betrachteten Positionen kommen aus dem WAESCHESET des Hauses
+       * (umgestellt 05.09.2026).
+       *
+       * Vorher stand hier eine feste Liste von neun Positionen mit fest
+       * verdrahteten Spaltennamen und deutschen Beschriftungen. Sie passte
+       * zu keinem der beiden Haeuser mehr: Venediger und Wald fuehren je
+       * fuenf Zeilen, `bedding` heisst dort `bettwaesche` bzw.
+       * `bettwaescheset`, und `blankets` gibt es nirgends. Die Liste
+       * erzeugte also neun Auswertungszeilen, von denen die meisten nichts
+       * beschrieben.
+       *
+       * Die Kategorie wird aus der Set-Zeile uebernommen; kennt sie keine,
+       * faellt sie unter 'kitchen' — die Kategorie steuert nur die
+       * Gruppierung in der Anzeige.
+       */
+      const zeilen = (linenDef?.custom_categories ?? {}) as SetZeilen;
+
+      const kategorieVon = (wert?: string): 'bedroom' | 'bathroom' | 'kitchen' => {
+        if (wert === 'Schlafbereich') return 'bedroom';
+        if (wert === 'Badbereich' || wert === 'Wellness') return 'bathroom';
+        return 'kitchen';
+      };
+
+      const linenTypes = Object.entries(zeilen)
+        .filter(([, z]) => z?.active)
+        .map(([key, z]) => ({
+          key,
+          label: z.label || key,
+          category: kategorieVon(z.category),
+        }));
 
       const analysisResults: LinenDemandAnalysis[] = [];
       let criticalCount = 0;
@@ -215,11 +232,12 @@ export const useOptimizedLinenManagement = () => {
             (new Date(booking.check_in).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
           );
 
-          if (type.perGuestKey && linenDef[type.perGuestKey]) {
-            bookingDemand = booking.number_of_guests * linenDef[type.perGuestKey];
-          } else if (type.perBookingKey && linenDef[type.perBookingKey]) {
-            bookingDemand = linenDef[type.perBookingKey];
-          }
+          // Menge aus der Set-Zeile statt aus den genullten Altspalten
+          bookingDemand = mengenFuerBuchung(
+            zeilen,
+            booking.number_of_guests || 0,
+            booking.check_in ? new Date(booking.check_in) : undefined,
+          )[type.key] ?? 0;
 
           if (bookingDemand > 0) {
             bookingDetails.push({
@@ -252,23 +270,18 @@ export const useOptimizedLinenManagement = () => {
         // Calculate trend (simplified - could be enhanced with historical data)
         const recentBookings = upcomingBookings.slice(0, 3);
         const laterBookings = upcomingBookings.slice(3, 6);
-        const recentDemand = recentBookings.reduce((sum: number, b: any) => {
-          if (type.perGuestKey && linenDef[type.perGuestKey]) {
-            return sum + (b.number_of_guests * linenDef[type.perGuestKey]);
-          } else if (type.perBookingKey && linenDef[type.perBookingKey]) {
-            return sum + linenDef[type.perBookingKey];
-          }
-          return sum;
-        }, 0);
+        // Auch der Trend rechnet aus dem Waescheset — vorher aus den
+        // genullten Altspalten, was ihn dauerhaft auf 'stable' festhielt,
+        // weil beide Seiten des Vergleichs 0 ergaben.
+        const bedarfSumme = (liste: any[]) =>
+          liste.reduce((sum: number, b: any) => sum + (mengenFuerBuchung(
+            zeilen,
+            b.number_of_guests || 0,
+            b.check_in ? new Date(b.check_in) : undefined,
+          )[type.key] ?? 0), 0);
 
-        const laterDemand = laterBookings.reduce((sum: number, b: any) => {
-          if (type.perGuestKey && linenDef[type.perGuestKey]) {
-            return sum + (b.number_of_guests * linenDef[type.perGuestKey]);
-          } else if (type.perBookingKey && linenDef[type.perBookingKey]) {
-            return sum + linenDef[type.perBookingKey];
-          }
-          return sum;
-        }, 0);
+        const recentDemand = bedarfSumme(recentBookings);
+        const laterDemand = bedarfSumme(laterBookings);
 
         let trend: LinenDemandAnalysis['trend'] = 'stable';
         if (laterDemand > recentDemand * 1.2) trend = 'increasing';
