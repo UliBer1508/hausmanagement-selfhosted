@@ -80,6 +80,47 @@ serve(async (req) => {
 
     if (rulesError) console.error('Error fetching linen rules:', rulesError);
 
+    /*
+     * Teuni-Artikel mit Preisen (umgestellt 05.09.2026).
+     *
+     * Vorher wurde der Preis aus ai_settings.prices genommen, mit
+     * Pauschalfallback 15 EUR fuer JEDEN Artikel. Ein Badvorleger kostet
+     * 1,10 — der Fallback lag also um das Dreizehnfache daneben, und
+     * ai_settings.prices wird seit der Umstellung der Preismaske gar nicht
+     * mehr gepflegt.
+     */
+    const { data: artikelRoh } = await supabase
+      .from('laundry_articles')
+      .select('id, artikelnummer, abrechnungsart, nachfolger_id, laundry_article_prices(preis, gueltig_ab, gueltig_bis)');
+
+    const artikelNachId = new Map<string, any>();
+    const artikelNachNummer = new Map<string, any>();
+    for (const a of (artikelRoh ?? []) as any[]) {
+      artikelNachId.set(a.id, a);
+      const nr = String(a.artikelnummer).toUpperCase();
+      if (!artikelNachNummer.has(nr)) artikelNachNummer.set(nr, a);
+    }
+
+    // Preis je SET-SCHLUESSEL, aufgeloest ueber Artikelnummer und
+    // Nachfolgekette (MWR -> MW3 -> MW4).
+    const preisJeSchluessel: Record<string, number> = {};
+    const setZeilen = (linenRules?.custom_categories ?? {}) as Record<string, any>;
+    for (const [key, zeile] of Object.entries(setZeilen)) {
+      const nr = (zeile as any)?.external_artikelnummer?.default;
+      if (!nr) continue;
+      let a = artikelNachNummer.get(String(nr).toUpperCase());
+      let n = 0;
+      while (a?.nachfolger_id && n < 10) {
+        const next = artikelNachId.get(a.nachfolger_id);
+        if (!next) break;
+        a = next; n++;
+      }
+      const gueltig = (a?.laundry_article_prices ?? [])
+        .filter((pr: any) => pr.gueltig_bis === null)
+        .sort((x: any, y: any) => String(y.gueltig_ab).localeCompare(String(x.gueltig_ab)))[0];
+      if (gueltig) preisJeSchluessel[key] = Number(gueltig.preis);
+    }
+
     const settings = ai_settings || getDefaultAISettings();
     const rules = linenRules || getDefaultLinenRules();
 
@@ -94,7 +135,8 @@ serve(async (req) => {
     const orderSuggestion = generateOrderSuggestion(
       optimization.current_stock,
       optimization.recommended_stock,
-      settings
+      settings,
+      preisJeSchluessel
     );
 
     const result = {
@@ -147,7 +189,19 @@ function calculateOptimalInventory(
   settings: AISettings,
   maxGuests: number
 ) {
-  const linenTypes = ['bedding', 'large_towels', 'small_towels', 'bath_mats', 'sink_towels', 'sauna_towels'];
+  /*
+   * Positionen aus dem Waescheset (umgestellt 05.09.2026).
+   *
+   * Vorher eine feste Liste von sechs Schluesseln, die zu keinem der
+   * beiden Haeuser mehr passt: Venediger fuehrt `bettwaesche`, Wald
+   * `bettwaescheset`, `bedding` gibt es nirgends. Die Mengen kamen aus
+   * den Altspalten `${type}_per_guest`, die LinenSetRulesTab beim
+   * Speichern eines Sets auf 0 setzt — die Prognose war damit leer.
+   */
+  const zeilen = (rules?.custom_categories ?? {}) as Record<string, any>;
+  const linenTypes = Object.entries(zeilen)
+    .filter(([, z]) => (z as any)?.active)
+    .map(([key]) => key);
   
   const forecasted: LinenItem = {};
   const recommended: LinenItem = {};
@@ -174,9 +228,11 @@ function calculateOptimalInventory(
 
   // Calculate demand for each linen type
   linenTypes.forEach(type => {
-    const perGuest = rules[`${type}_per_guest`] || 0;
-    const perBooking = rules[`${type}_per_booking`] || 0;
-    
+    const zeile = zeilen[type] ?? {};
+    const anzahl = Number(zeile.quantity ?? 0);
+    const perGuest = zeile.calculation_type === 'per_guest' ? anzahl : 0;
+    const perBooking = zeile.calculation_type === 'per_guest' ? 0 : anzahl;
+
     const baseDemand = (totalGuests * perGuest) + (totalBookings * perBooking);
     forecasted[type] = Math.ceil(baseDemand * demandMultiplier);
     
@@ -242,7 +298,8 @@ function analyzeBookingPattern(bookings: any[]): number {
 function generateOrderSuggestion(
   currentStock: LinenItem,
   recommendedStock: LinenItem,
-  aiSettings: AISettings
+  aiSettings: AISettings,
+  preisJeSchluessel: Record<string, number>
 ) {
   const orderItems: any = {};
   let totalOrderValue = 0;
@@ -266,31 +323,48 @@ function generateOrderSuggestion(
     }
   });
 
-  // Berechne realistische Kosten basierend auf Benutzerpreisen
-  let estimatedCost = 0;
+  /*
+   * Kosten aus den Artikelpreisen.
+   *
+   * Kein Pauschalfallback mehr: Positionen ohne hinterlegten Preis gehen
+   * NICHT mit einem geschaetzten Wert ein, sondern werden gemeldet. Greift
+   * kein einziger Preis, bleibt estimated_cost leer — "nicht berechenbar"
+   * statt "kostenlos".
+   */
+  let summe = 0;
+  let mitPreis = 0;
+  const ohnePreis: string[] = [];
   Object.entries(orderItems).forEach(([itemType, details]: [string, any]) => {
-    const price = aiSettings.prices[itemType as keyof typeof aiSettings.prices] || 15;
-    estimatedCost += details.order_quantity * price;
+    const price = preisJeSchluessel[itemType];
+    if (typeof price === 'number' && price > 0) {
+      summe += details.order_quantity * price;
+      mitPreis++;
+    } else {
+      ohnePreis.push(itemType);
+    }
   });
+  const estimatedCost = mitPreis > 0 ? Math.round(summe * 100) / 100 : undefined;
 
   return {
     items: orderItems,
     total_items: totalOrderValue,
     has_urgent_items: Object.values(orderItems).some((item: any) => item.urgency === 'high'),
     estimated_cost: estimatedCost,
+    ohne_preis: ohnePreis,
     order_priority: totalOrderValue > 10 ? 'high' : totalOrderValue > 5 ? 'medium' : 'low'
   };
 }
 
+/*
+ * Ersatzregeln, wenn ein Haus gar kein Waescheset hat.
+ *
+ * Vorher standen hier sechs erfundene Altspalten mit je 1 Stueck. Die
+ * werden nirgends mehr gelesen — und ein erfundenes Set waere ohnehin
+ * schlechter als gar keines: es liefert Zahlen, die niemand hinterfragt.
+ * Ohne Set gibt es keine Positionen und damit keine Empfehlung.
+ */
 function getDefaultLinenRules() {
-  return {
-    bedding_per_guest: 1,
-    large_towels_per_guest: 1,
-    small_towels_per_guest: 1,
-    bath_mats_per_booking: 1,
-    sink_towels_per_booking: 1,
-    sauna_towels_per_guest: 1
-  };
+  return { custom_categories: {} };
 }
 
 function checkBufferStatus(
