@@ -37,6 +37,7 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     activeOrders,
     allMissingBookings,
     isLoading,
+    statusError,
     isLoadingAllMissing,
     createOrderFromData,
     isCreatingOrder,
@@ -198,11 +199,37 @@ export const BookingLinenOverview = ({ houseId }: BookingLinenOverviewProps) => 
     );
   }
 
+  /*
+   * Fehler benennen statt verschleiern (05.09.2026).
+   *
+   * Hier stand pauschal "Keine Daten verfuegbar. Bitte pruefen Sie die
+   * Konfiguration." — unabhaengig davon, ob die Edge Function abgestuerzt
+   * ist, keine Buchungen existieren oder wirklich etwas fehlkonfiguriert
+   * ist. Die Meldung hat auf eine falsche Faehrte gefuehrt.
+   */
+  if (statusError) {
+    return (
+      <Alert variant="destructive">
+        <AlertDescription>
+          <strong>Die Bestellübersicht konnte nicht geladen werden.</strong>
+          <div className="mt-1 font-mono text-xs break-all">
+            {(statusError as any)?.message ?? String(statusError)}
+          </div>
+          <div className="mt-2 text-xs">
+            Die Bestellliste darüber ist davon nicht betroffen — sie liest die
+            Bestellungen direkt.
+          </div>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   if (!orderStatus || !orderStatus.summary || !orderStatus.bookings) {
     return (
       <Alert>
         <AlertDescription>
-          Keine Daten verfügbar. Bitte prüfen Sie die Konfiguration.
+          Für dieses Haus liegen keine bevorstehenden Buchungen vor, für die
+          eine Wäschebestellung nötig wäre.
         </AlertDescription>
       </Alert>
     );
