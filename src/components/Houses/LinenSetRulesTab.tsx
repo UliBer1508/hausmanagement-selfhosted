@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { Save, RotateCcw, Plus, Trash2, Info } from 'lucide-react';
+import { Save, RotateCcw, Plus, Trash2, Info, Pencil } from 'lucide-react';
 import { LinenItemConfig, ItemColor, LinenColor, ITEM_COLORS, LINEN_COLORS } from '@/types/linen';
 import { migrateOldToNewStructure, groupByCategory } from '@/lib/linenMigration';
 import { LinenItemDialog } from './LinenItemDialog';
@@ -189,6 +189,8 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
   const [originalItems, setOriginalItems] = useState<Record<string, LinenItemConfig>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  // Zeile, die gerade bearbeitet wird — null heisst: neu anlegen (05.09.2026)
+  const [editKey, setEditKey] = useState<string | null>(null);
   const [deleteKey, setDeleteKey] = useState<string | null>(null);
   const [hasMigrated, setHasMigrated] = useState(false);
 
@@ -336,12 +338,20 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     return null;
   };
 
-  // Add new item
+  /*
+   * Zeile anlegen oder aendern.
+   *
+   * Beim Bearbeiten behaelt der Dialog den urspruenglichen `key` bei, die
+   * Zeile wird also an derselben Stelle ersetzt. Danach laeuft die
+   * Paketnormalisierung, weil sich die Artikelzuordnung theoretisch
+   * geaendert haben koennte.
+   */
   const handleAddItem = (newItem: LinenItemConfig) => {
-    setItems(prev => ({
+    setItems(prev => normalisierePaketgruppen({
       ...prev,
-      [newItem.key]: newItem
+      [newItem.key]: newItem,
     }));
+    setEditKey(null);
   };
 
   // Delete item
@@ -530,7 +540,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                         <TableHead className="w-[80px]">Winter</TableHead>
                         <TableHead className="w-[80px]">Sommer</TableHead>
                         <TableHead className="w-[200px]">Teuni-Artikel</TableHead>
-                        <TableHead className="w-[60px]">Aktionen</TableHead>
+                        <TableHead className="w-[100px]">Aktionen</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -655,13 +665,24 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                             />
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setDeleteKey(item.key)}
-                            >
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Name, Symbol und Kategorie bearbeiten"
+                                onClick={() => { setEditKey(item.key); setShowAddDialog(true); }}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Zeile löschen"
+                                onClick={() => setDeleteKey(item.key)}
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -677,9 +698,13 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
 
       <LinenItemDialog
         open={showAddDialog}
-        onOpenChange={setShowAddDialog}
+        onOpenChange={(offen) => {
+          setShowAddDialog(offen);
+          if (!offen) setEditKey(null);
+        }}
         onSave={handleAddItem}
         existingKeys={Object.keys(items)}
+        bearbeiten={editKey ? items[editKey] : null}
       />
 
       <AlertDialog open={!!deleteKey} onOpenChange={() => setDeleteKey(null)}>

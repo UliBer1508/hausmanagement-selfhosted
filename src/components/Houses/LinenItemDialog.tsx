@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,18 @@ interface LinenItemDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (item: LinenItemConfig) => void;
   existingKeys: string[];
+  /*
+   * Zu bearbeitende Zeile (05.09.2026). Fehlt sie, wird eine neue angelegt.
+   *
+   * WICHTIG: Beim Bearbeiten bleibt der `key` UNVERAENDERT. Er ist die
+   * Kennung, unter der die Position in linen_orders.items und in den
+   * `alte_schluessel` anderer Zeilen steht. Wuerde er sich mit dem Namen
+   * aendern, verloeren alle bisherigen Bestellungen ihre Zuordnung — genau
+   * das ist frueher mit `bedding` passiert und hat elf Codestellen ins
+   * Leere laufen lassen. Der Name ist eine Beschriftung, der Schluessel
+   * eine Kennung; nur das eine ist aenderbar.
+   */
+  bearbeiten?: LinenItemConfig | null;
 }
 
 const CATEGORY_ICONS: Record<string, string[]> = {
@@ -21,7 +33,8 @@ const CATEGORY_ICONS: Record<string, string[]> = {
   'Küchenbereich': ['🍴', '🍽️', '🥄', '🍳']
 };
 
-export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: LinenItemDialogProps) => {
+export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys, bearbeiten }: LinenItemDialogProps) => {
+  const istBearbeitung = !!bearbeiten;
   const [label, setLabel] = useState('');
   const [icon, setIcon] = useState('');
   const [category, setCategory] = useState<LinenItemConfig['category']>('Schlafbereich');
@@ -32,10 +45,39 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
   const [itemColor, setItemColor] = useState<ItemColor>('white');
   const [linenColor, setLinenColor] = useState<LinenColor>('white_striped');
 
+  /*
+   * Felder fuellen, wenn der Dialog aufgeht.
+   *
+   * Beim Bearbeiten aus der uebergebenen Zeile, beim Anlegen leer. Ohne
+   * diesen Effekt wuerde der Dialog beim zweiten Oeffnen noch die Werte
+   * des vorigen Aufrufs zeigen.
+   */
+  useEffect(() => {
+    if (!open) return;
+    if (bearbeiten) {
+      setLabel(bearbeiten.label ?? '');
+      setIcon(bearbeiten.icon ?? '');
+      setCategory(bearbeiten.category ?? 'Schlafbereich');
+      setQuantity(bearbeiten.quantity ?? 1);
+      setCalculationType(bearbeiten.calculation_type ?? 'per_guest');
+      setAvailability(bearbeiten.availability ?? 'year_round');
+      setSeason(bearbeiten.season ?? null);
+      if (bearbeiten.category === 'Schlafbereich') {
+        setLinenColor((bearbeiten.color as LinenColor) ?? 'white_striped');
+      } else {
+        setItemColor((bearbeiten.color as ItemColor) ?? 'white');
+      }
+    } else {
+      handleReset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, bearbeiten]);
+
   const handleSave = () => {
     if (!label.trim()) return;
 
-    const key = generateKeyFromLabel(label, existingKeys);
+    // Beim Bearbeiten bleibt der Schluessel, wie er ist.
+    const key = bearbeiten ? bearbeiten.key : generateKeyFromLabel(label, existingKeys);
 
     // Bestimme Farbe basierend auf Kategorie
     const selectedColor = category === 'Schlafbereich' 
@@ -44,7 +86,18 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
         ? itemColor 
         : undefined;
 
+    /*
+     * Beim Bearbeiten wird die bestehende Zeile ERWEITERT, nicht ersetzt.
+     *
+     * Der Dialog kennt nur einen Teil der Felder. Ein frisch gebautes
+     * Objekt wuerde alles Uebrige stillschweigend loeschen: die
+     * Teuni-Artikelnummer (external_artikelnummer.default), die
+     * Abrechnungsmarke preis_zaehlt und die frueheren Namen
+     * alte_schluessel. Damit waeren Preis und Auswertung der Position weg,
+     * ohne dass jemand etwas davon merkt.
+     */
     const newItem: LinenItemConfig = {
+      ...(bearbeiten ?? {}),
       key,
       label: label.trim(),
       icon: icon || CATEGORY_ICONS[category][0],
@@ -53,9 +106,13 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
       calculation_type: calculationType,
       availability,
       season: availability === 'seasonal' ? season : null,
-      active: true,
+      active: bearbeiten ? bearbeiten.active !== false : true,
       color: selectedColor,
-      external_artikelnummer: selectedColor ? { [selectedColor]: '' } : undefined
+      // Nur beim Anlegen setzen — beim Bearbeiten bleibt die vorhandene
+      // Artikelzuordnung unangetastet.
+      external_artikelnummer: bearbeiten
+        ? bearbeiten.external_artikelnummer
+        : (selectedColor ? { [selectedColor]: '' } : undefined),
     };
 
     onSave(newItem);
@@ -79,7 +136,9 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Neues Wäsche-Item</DialogTitle>
+          <DialogTitle>
+            {istBearbeitung ? `„${bearbeiten?.label}" bearbeiten` : 'Neues Wäsche-Item'}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
@@ -91,6 +150,12 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
               onChange={(e) => setLabel(e.target.value)}
               placeholder="z.B. Yogamatten"
             />
+            {istBearbeitung && (
+              <p className="text-xs text-muted-foreground">
+                Interne Kennung: <span className="font-mono">{bearbeiten?.key}</span> — bleibt
+                unverändert, damit bisherige Bestellungen zugeordnet bleiben.
+              </p>
+            )}
           </div>
 
           <div className="grid gap-2">
@@ -235,7 +300,7 @@ export const LinenItemDialog = ({ open, onOpenChange, onSave, existingKeys }: Li
             Abbrechen
           </Button>
           <Button onClick={handleSave} disabled={!label.trim() || (availability === 'seasonal' && !season)}>
-            Hinzufügen
+            {istBearbeitung ? 'Speichern' : 'Hinzufügen'}
           </Button>
         </DialogFooter>
       </DialogContent>
