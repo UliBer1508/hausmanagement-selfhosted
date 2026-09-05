@@ -31,6 +31,58 @@ interface LinenSetRulesTabProps {
   house: any;
 }
 
+/** Artikelnummer einer Set-Zeile, oder null. */
+const artikelVon = (item: LinenItemConfig): string | null =>
+  item?.external_artikelnummer?.['default'] || null;
+
+/**
+ * Set-Zeilen nach Artikelnummer gruppieren. Nur Zeilen MIT Artikel.
+ */
+function gruppiereNachArtikel(
+  items: Record<string, LinenItemConfig>,
+): Map<string, string[]> {
+  const gruppen = new Map<string, string[]>();
+  for (const [key, item] of Object.entries(items)) {
+    const nr = artikelVon(item);
+    if (!nr) continue;
+    gruppen.set(nr, [...(gruppen.get(nr) ?? []), key]);
+  }
+  return gruppen;
+}
+
+/**
+ * Sorgt dafuer, dass in jeder Paketgruppe GENAU EINE Zeile abrechnet.
+ *
+ * Wird nach jeder Artikelaenderung aufgerufen, nicht beim Laden. Beim Laden
+ * wuerde eine stille Korrektur sofort "ungespeicherte Aenderungen" erzeugen,
+ * ohne dass jemand etwas getan hat — verwirrend und schwer nachzuvollziehen.
+ * Altbestand faengt stattdessen die Pruefung vor dem Speichern ab.
+ *
+ * Einzelzeilen bekommen preis_zaehlt = undefined: bei einem Artikel, der nur
+ * einmal vorkommt, ist die Marke gegenstandslos, und ein gespeichertes true
+ * wuerde nur so aussehen, als gaebe es eine Entscheidung zu treffen.
+ */
+function normalisierePaketgruppen(
+  items: Record<string, LinenItemConfig>,
+): Record<string, LinenItemConfig> {
+  const next = { ...items };
+  for (const keys of gruppiereNachArtikel(items).values()) {
+    if (keys.length === 1) {
+      if (next[keys[0]].preis_zaehlt !== undefined) {
+        next[keys[0]] = { ...next[keys[0]], preis_zaehlt: undefined };
+      }
+      continue;
+    }
+    // Bereits markierte Zeile behalten, sonst die erste der Gruppe nehmen.
+    // Waeren mehrere markiert (Altbestand), gewinnt die erste.
+    const gewinner = keys.find((k) => next[k].preis_zaehlt === true) ?? keys[0];
+    for (const k of keys) {
+      next[k] = { ...next[k], preis_zaehlt: k === gewinner };
+    }
+  }
+  return next;
+}
+
 /*
  * Auswahl des Teuni-Artikels fuer eine Set-Zeile.
  *
@@ -51,14 +103,22 @@ function ArtikelWahl({
   wert,
   artikel,
   laedt,
+  geteilt,
+  zaehlt,
   onChange,
+  onZaehlt,
 }: {
   /** Aktuell gespeicherte Artikelnummer, oder leer. */
   wert: string;
   /** Alle Artikel des Dienstleisters, ungefiltert. */
   artikel: LaundryArticle[];
   laedt: boolean;
+  /** Derselbe Artikel steht auf mehr als einer Set-Zeile. */
+  geteilt: boolean;
+  /** Diese Zeile ist die abrechnungsrelevante ihrer Gruppe. */
+  zaehlt: boolean;
   onChange: (nummer: string | null) => void;
+  onZaehlt: () => void;
 }) {
   const waehlbare = artikel.filter(istWaehlbar);
   const gesetzt = wert ? artikel.find((a) => a.artikelnummer === wert) : undefined;
@@ -68,37 +128,57 @@ function ArtikelWahl({
     a.preis !== null ? ` · ${a.preis.toFixed(2).replace('.', ',')} €` : '';
 
   return (
-    <Select
-      value={wert || '__keiner__'}
-      onValueChange={(v) => onChange(v === '__keiner__' ? null : v)}
-    >
-      <SelectTrigger className="w-[190px] text-xs">
-        <SelectValue placeholder={laedt ? 'lädt…' : 'kein Artikel'} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="__keiner__">— kein Artikel —</SelectItem>
+    <div className="space-y-1">
+      <Select
+        value={wert || '__keiner__'}
+        onValueChange={(v) => onChange(v === '__keiner__' ? null : v)}
+      >
+        <SelectTrigger className="w-[190px] text-xs">
+          <SelectValue placeholder={laedt ? 'lädt…' : 'kein Artikel'} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__keiner__">— kein Artikel —</SelectItem>
 
-        {waehlbare.map((a) => (
-          <SelectItem key={a.id} value={a.artikelnummer}>
-            {a.artikelnummer} · {a.bezeichnung ?? '—'}
-            {preisText(a)}
-          </SelectItem>
-        ))}
+          {waehlbare.map((a) => (
+            <SelectItem key={a.id} value={a.artikelnummer}>
+              {a.artikelnummer} · {a.bezeichnung ?? '—'}
+              {preisText(a)}
+            </SelectItem>
+          ))}
 
-        {/* Gespeicherter, aber nicht mehr waehlbarer Artikel. Bleibt sichtbar,
-            damit klar wird, WAS gespeichert ist und WARUM es zu ersetzen ist. */}
-        {gesetztFehlt && (
-          <SelectItem value={wert}>
-            {wert} · {gesetzt?.bezeichnung ?? 'unbekannter Artikel'}
-            {gesetzt?.nachfolger_nummer
-              ? ` — ersetzt durch ${gesetzt.nachfolger_nummer}`
-              : gesetzt
-                ? ' — nicht mehr wählbar'
-                : ' — nicht im Sortiment'}
-          </SelectItem>
-        )}
-      </SelectContent>
-    </Select>
+          {/* Gespeicherter, aber nicht mehr waehlbarer Artikel. Bleibt sichtbar,
+              damit klar wird, WAS gespeichert ist und WARUM es zu ersetzen ist. */}
+          {gesetztFehlt && (
+            <SelectItem value={wert}>
+              {wert} · {gesetzt?.bezeichnung ?? 'unbekannter Artikel'}
+              {gesetzt?.nachfolger_nummer
+                ? ` — ersetzt durch ${gesetzt.nachfolger_nummer}`
+                : gesetzt
+                  ? ' — nicht mehr wählbar'
+                  : ' — nicht im Sortiment'}
+            </SelectItem>
+          )}
+        </SelectContent>
+      </Select>
+
+      {/*
+        Erscheint nur, wenn derselbe Artikel auf mehreren Zeilen steht — also
+        bei einem Paket. Bewusst ein Ankreuzfeld, das sich nur EINschalten
+        laesst: Ausschalten wuerde die Gruppe ohne abrechnende Zeile
+        zuruecklassen, und der Preis waere dann fuer niemanden bestimmt.
+        Umschalten geschieht dadurch, dass eine ANDERE Zeile angekreuzt wird.
+      */}
+      {geteilt && (
+        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <Checkbox
+            checked={zaehlt}
+            onCheckedChange={(c) => { if (c) onZaehlt(); }}
+            className="h-3.5 w-3.5"
+          />
+          <span>{zaehlt ? 'wird berechnet' : 'im Paket enthalten'}</span>
+        </label>
+      )}
+    </div>
   );
 }
 
@@ -188,6 +268,74 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     }));
   };
 
+  /*
+   * Artikel einer Zeile setzen oder entfernen.
+   *
+   * Eigener Handler statt updateItem, weil die Aenderung ueber die Zeile
+   * hinaus wirkt: entsteht dadurch eine Paketgruppe, muss darin genau eine
+   * Zeile abrechnen. Eine alte Marke der geaenderten Zeile faellt weg — sie
+   * gehoerte zum vorherigen Artikel.
+   */
+  const setArtikel = (key: string, nummer: string | null) => {
+    setItems(prev => normalisierePaketgruppen({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        external_artikelnummer: nummer === null ? {} : { default: nummer },
+        preis_zaehlt: undefined,
+      },
+    }));
+  };
+
+  /*
+   * Diese Zeile rechnet ab, die uebrigen der Gruppe nicht. Wirkt auf alle
+   * Zeilen mit derselben Artikelnummer, quer ueber die Kategorien: bei Wald
+   * liegen Bettwaesche, Kissenbezuege und Spannbetttuecher zwar alle im
+   * Schlafbereich, das ist aber Zufall und keine Regel.
+   */
+  const setPreiszeile = (nummer: string, key: string) => {
+    setItems(prev => {
+      const next = { ...prev };
+      for (const [k, item] of Object.entries(prev)) {
+        if (artikelVon(item) === nummer) {
+          next[k] = { ...item, preis_zaehlt: k === key };
+        }
+      }
+      return next;
+    });
+  };
+
+  /*
+   * Welche Set-Zeilen teilen sich einen Artikel? Wird fuer die Anzeige der
+   * Abrechnungsmarke gebraucht.
+   */
+  const artikelGruppen = useMemo(() => gruppiereNachArtikel(items), [items]);
+
+  /*
+   * Vor dem Speichern: In jeder Paketgruppe muss genau eine Zeile abrechnen.
+   *
+   * setArtikel haelt das im laufenden Betrieb ein — diese Pruefung faengt
+   * Altbestand ab, der vor dem 05.09.2026 gespeichert wurde und noch keine
+   * Marke traegt. Lieber eine Meldung als eine Kostenrechnung, die ein Paket
+   * dreifach zaehlt oder gar nicht.
+   *
+   * Rueckgabe: null = in Ordnung, sonst der Grund im Klartext.
+   */
+  const pruefePaketgruppen = (): string | null => {
+    for (const [nummer, keys] of artikelGruppen) {
+      if (keys.length < 2) continue;
+      const markiert = keys.filter((k) => items[k].preis_zaehlt === true);
+      const namen = keys.map((k) => items[k].label).join(', ');
+      if (markiert.length === 0) {
+        return `${nummer} steht auf mehreren Zeilen (${namen}). Kreuze an, welche davon berechnet wird.`;
+      }
+      if (markiert.length > 1) {
+        return `${nummer} ist auf ${markiert.length} Zeilen als berechnet markiert. Es darf nur eine sein.`;
+      }
+    }
+    return null;
+  };
+
   // Add new item
   const handleAddItem = (newItem: LinenItemConfig) => {
     setItems(prev => ({
@@ -267,6 +415,24 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
     setHasChanges(false);
   };
 
+  /*
+   * Speichern nur, wenn jede Paketgruppe genau eine abrechnende Zeile hat.
+   * Steht hier und nicht in der Mutation, damit die Meldung den konkreten
+   * Grund nennen kann statt eines allgemeinen Fehlers.
+   */
+  const handleSave = () => {
+    const grund = pruefePaketgruppen();
+    if (grund) {
+      toast({
+        title: 'Noch nicht speicherbar',
+        description: grund,
+        variant: 'destructive',
+      });
+      return;
+    }
+    saveMutation.mutate();
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -310,7 +476,7 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                     <RotateCcw className="w-4 h-4 mr-2" />
                     Zurücksetzen
                   </Button>
-                  <Button onClick={() => saveMutation.mutate()} size="sm">
+                  <Button onClick={handleSave} size="sm">
                     <Save className="w-4 h-4 mr-2" />
                     Speichern
                   </Button>
@@ -327,7 +493,9 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
               Die Tabelle ist immer editierbar. Änderungen werden mit <strong>Speichern</strong> übernommen.
               <strong> Teuni-Artikel</strong>: der Artikel, unter dem Teuni diese Position berechnet.
               Mehrere Zeilen dürfen denselben Artikel tragen — „Mietwäsche Paket 5 Tlg“ deckt
-              fünf Positionen ab und wird einmal je Gast berechnet, nicht fünfmal.
+              mehrere Positionen ab. Dann erscheint unter der Auswahl ein Kästchen: kreuze die
+              eine Zeile an, über die das Paket berechnet wird. Die übrigen sind darin enthalten
+              und gehen nicht zusätzlich in die Kosten ein.
             </AlertDescription>
           </Alert>
 
@@ -474,12 +642,16 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                               eigenen Spalte daneben und bleibt unsere Angabe.
                             */}
                             <ArtikelWahl
-                              wert={item.external_artikelnummer?.['default'] || ''}
+                              wert={artikelVon(item) ?? ''}
                               artikel={teuniArtikel}
                               laedt={artikelLaden}
-                              onChange={(nummer) => updateItem(item.key, {
-                                external_artikelnummer: nummer === null ? {} : { default: nummer },
-                              })}
+                              geteilt={(artikelGruppen.get(artikelVon(item) ?? '')?.length ?? 0) > 1}
+                              zaehlt={item.preis_zaehlt === true}
+                              onChange={(nummer) => setArtikel(item.key, nummer)}
+                              onZaehlt={() => {
+                                const nr = artikelVon(item);
+                                if (nr) setPreiszeile(nr, item.key);
+                              }}
                             />
                           </TableCell>
                           <TableCell>
