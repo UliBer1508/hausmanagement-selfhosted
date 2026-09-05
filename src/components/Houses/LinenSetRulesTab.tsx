@@ -15,7 +15,7 @@ import { Save, RotateCcw, Plus, Trash2, Info } from 'lucide-react';
 import { LinenItemConfig, ItemColor, LinenColor, ITEM_COLORS, LINEN_COLORS } from '@/types/linen';
 import { migrateOldToNewStructure, groupByCategory } from '@/lib/linenMigration';
 import { LinenItemDialog } from './LinenItemDialog';
-import { useLaundryArticles } from '@/hooks/useLaundryArticles';
+import { useLaundryArticles, istWaehlbar, type LaundryArticle } from '@/hooks/useLaundryArticles';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +29,77 @@ import {
 
 interface LinenSetRulesTabProps {
   house: any;
+}
+
+/*
+ * Auswahl des Teuni-Artikels fuer eine Set-Zeile.
+ *
+ * Angeboten wird nur, was fachlich auf eine Set-Zeile gehoert (istWaehlbar):
+ * kein KLGEW, keine Lohnwaesche, und von einer Nummernfolge wie
+ * MWR -> MW3 -> MW4 nur die aktuelle. Wuerde man hier MW3 waehlen koennen,
+ * waehrend MW4 die aktuelle Nummer ist, brächten neue Rechnungen ihren Preis
+ * an MW4 — die Set-Zeile bliebe an MW3 haengen und der Preis fröre still ein.
+ *
+ * ABER: Ein bereits GESPEICHERTER Artikel wird immer angezeigt, auch wenn er
+ * nicht mehr waehlbar ist. Sonst saehe das Feld leer aus, obwohl ein Wert in
+ * der Datenbank steht — der schlimmere Fehler, weil er unsichtbar ist.
+ * Venediger traegt heute MW3 auf `bettwaesche`; nach dem Setzen der Kette ist
+ * MW3 nicht mehr waehlbar und muss trotzdem sichtbar bleiben, samt Hinweis
+ * auf den Nachfolger.
+ */
+function ArtikelWahl({
+  wert,
+  artikel,
+  laedt,
+  onChange,
+}: {
+  /** Aktuell gespeicherte Artikelnummer, oder leer. */
+  wert: string;
+  /** Alle Artikel des Dienstleisters, ungefiltert. */
+  artikel: LaundryArticle[];
+  laedt: boolean;
+  onChange: (nummer: string | null) => void;
+}) {
+  const waehlbare = artikel.filter(istWaehlbar);
+  const gesetzt = wert ? artikel.find((a) => a.artikelnummer === wert) : undefined;
+  const gesetztFehlt = !!wert && !waehlbare.some((a) => a.artikelnummer === wert);
+
+  const preisText = (a: LaundryArticle) =>
+    a.preis !== null ? ` · ${a.preis.toFixed(2).replace('.', ',')} €` : '';
+
+  return (
+    <Select
+      value={wert || '__keiner__'}
+      onValueChange={(v) => onChange(v === '__keiner__' ? null : v)}
+    >
+      <SelectTrigger className="w-[190px] text-xs">
+        <SelectValue placeholder={laedt ? 'lädt…' : 'kein Artikel'} />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="__keiner__">— kein Artikel —</SelectItem>
+
+        {waehlbare.map((a) => (
+          <SelectItem key={a.id} value={a.artikelnummer}>
+            {a.artikelnummer} · {a.bezeichnung ?? '—'}
+            {preisText(a)}
+          </SelectItem>
+        ))}
+
+        {/* Gespeicherter, aber nicht mehr waehlbarer Artikel. Bleibt sichtbar,
+            damit klar wird, WAS gespeichert ist und WARUM es zu ersetzen ist. */}
+        {gesetztFehlt && (
+          <SelectItem value={wert}>
+            {wert} · {gesetzt?.bezeichnung ?? 'unbekannter Artikel'}
+            {gesetzt?.nachfolger_nummer
+              ? ` — ersetzt durch ${gesetzt.nachfolger_nummer}`
+              : gesetzt
+                ? ' — nicht mehr wählbar'
+                : ' — nicht im Sortiment'}
+          </SelectItem>
+        )}
+      </SelectContent>
+    </Select>
+  );
 }
 
 const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
@@ -402,27 +473,14 @@ const LinenSetRulesTab = ({ house }: LinenSetRulesTabProps) => {
                               'default'; die Farbe steht weiterhin in der
                               eigenen Spalte daneben und bleibt unsere Angabe.
                             */}
-                            <Select
-                              value={item.external_artikelnummer?.['default'] || '__keiner__'}
-                              onValueChange={(v) => updateItem(item.key, {
-                                external_artikelnummer: v === '__keiner__' ? {} : { default: v },
+                            <ArtikelWahl
+                              wert={item.external_artikelnummer?.['default'] || ''}
+                              artikel={teuniArtikel}
+                              laedt={artikelLaden}
+                              onChange={(nummer) => updateItem(item.key, {
+                                external_artikelnummer: nummer === null ? {} : { default: nummer },
                               })}
-                            >
-                              <SelectTrigger className="w-[190px] text-xs">
-                                <SelectValue placeholder={artikelLaden ? 'lädt…' : 'kein Artikel'} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="__keiner__">— kein Artikel —</SelectItem>
-                                {teuniArtikel
-                                  .filter((a) => a.status !== 'ignorieren')
-                                  .map((a) => (
-                                    <SelectItem key={a.id} value={a.artikelnummer}>
-                                      {a.artikelnummer} · {a.bezeichnung ?? '—'}
-                                      {a.preis !== null && ` · ${a.preis.toFixed(2).replace('.', ',')} €`}
-                                    </SelectItem>
-                                  ))}
-                              </SelectContent>
-                            </Select>
+                            />
                           </TableCell>
                           <TableCell>
                             <Button
