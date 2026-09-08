@@ -21,6 +21,13 @@ import { translateItemType, formatCurrency } from '@/lib/linenOrderHelpers';
 import { LinenColor, LINEN_COLORS, getLinenColorLabel, ItemColor, ITEM_COLORS } from '@/types/linen';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  setZeileFuerSchluessel,
+  kostenFuerMengen,
+  mengenFuerBuchung,
+  type SetZeilen,
+} from '@/lib/linenPricing';
+import { useLaundryArticles } from '@/hooks/useLaundryArticles';
 
 // Dynamisch prüfen ob Artikel Farbauswahl braucht basierend auf Kategorie
 const getItemCategory = (itemType: string, linenDef: any): string | null => {
@@ -320,6 +327,17 @@ const LinenOrderDialog = ({
   const [itemColors, setItemColors] = useState<Record<string, ItemColor | LinenColor>>({});
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
+  // Positionen, die unter einem früheren Namen in der Bestellung standen:
+  // Set-Zeile -> alter Schlüssel. Nur zur Anzeige, damit nachvollziehbar
+  // bleibt, woher eine Menge stammt.
+  const [uebernommenAusAltenNamen, setUebernommenAusAltenNamen] = useState<Record<string, string>>({});
+  // Bestellschlüssel ohne jede Entsprechung im heutigen Set.
+  const [unbekannteSchluessel, setUnbekannteSchluessel] = useState<string[]>([]);
+
+  // Teunis Artikel samt aktuellem Preisstand. Grundlage der Kostenrechnung
+  // im Bearbeiten-Modus, wo keine Edge-Function-Vorschau vorliegt.
+  const { data: laundryArticles = [] } = useLaundryArticles();
+
   // Debug logging for generatedOrderData
   useEffect(() => {
     if (open) {
@@ -445,16 +463,65 @@ const LinenOrderDialog = ({
             });
           });
         }
-        
-        // Bestehende Werte überschreiben
-        // Nur Werte aus orderItems übernehmen, die auch in allAvailableItems existieren
+
+        /*
+         * Bestehende Mengen übernehmen — auch unter FRÜHEREN Namen.
+         *
+         * Bis 08.09.2026 stand hier `if (key in allAvailableItems)` ohne
+         * else-Zweig. Jeder Bestellschlüssel, den das heutige Wäscheset nicht
+         * mehr als Zeile führt, verschwand damit stillschweigend aus dem
+         * Formular — während die Wäschekarte daneben die gespeicherten Werte
+         * roh anzeigte. Zwei Ansichten derselben Bestellung, zwei Zahlen.
+         *
+         * Fall Tal Yehuda (Venediger, Check-in 01.10.2026): die Bestellung
+         * führt `bedding`, `pillow_cases`, `spannbetttuch`, `large_towels`
+         * und `small_towels` mit je 6 Stück. Venediger fasst diese fünf seit
+         * dem 05.09. zur Paketzeile `bettwaesche` (MW4) zusammen. Ergebnis im
+         * Formular: 8 statt 38 Teile, Bettwäsche auf 0.
+         *
+         * Schlimmer als die Anzeige war das Speichern: alle Aufrufer
+         * ERSETZEN `items` durch das, was hier steht. Ein Klick auf
+         * "Bestellung aktualisieren" hätte die 30 Bettwäscheteile dauerhaft
+         * gelöscht und die Bestellung so an Teuni gegeben.
+         *
+         * `setZeileFuerSchluessel()` löst den alten Namen über die Liste
+         * `alte_schluessel` an der Set-Zeile auf (56_waescheset_alte_schluessel.sql).
+         * Bei einem Paket bestimmt der ERSTE in der Bestellung vorkommende
+         * Eintrag dieser Liste die Menge — die fünf Bettpositionen ergeben
+         * zusammen 6 Pakete, nicht 30.
+         */
+        const zeilen = (effectiveLinenDefinition?.custom_categories ?? {}) as SetZeilen;
         const mergedItems = { ...allAvailableItems };
-        Object.entries(orderItems).forEach(([key, value]) => {
-          if (key in allAvailableItems) {
-            mergedItems[key] = value as number;
+        const ausAltenNamen: Record<string, string> = {};
+
+        Object.keys(allAvailableItems).forEach((zeileKey) => {
+          // 1. Der Schlüssel steht selbst in der Bestellung -> direkt übernehmen.
+          if (zeileKey in orderItems) {
+            mergedItems[zeileKey] = Number((orderItems as any)[zeileKey]) || 0;
+            return;
+          }
+          // 2. Sonst: erster früherer Name, der in der Bestellung vorkommt.
+          //    Die Reihenfolge in `alte_schluessel` ist bewusst gesetzt.
+          const frueher: string[] = (zeilen?.[zeileKey]?.alte_schluessel ?? []) as string[];
+          const treffer = frueher.find((s) => s in orderItems);
+          if (treffer) {
+            mergedItems[zeileKey] = Number((orderItems as any)[treffer]) || 0;
+            ausAltenNamen[zeileKey] = treffer;
           }
         });
+
+        /*
+         * Schlüssel, die sich weder direkt noch über einen früheren Namen
+         * zuordnen lassen. Sie werden nicht heimlich verworfen, sondern
+         * angezeigt — eine Lücke im Set soll sichtbar bleiben.
+         */
+        const unbekannt = Object.keys(orderItems).filter(
+          (k) => setZeileFuerSchluessel(k, zeilen) === null,
+        );
+
         setEditableItems(mergedItems);
+        setUebernommenAusAltenNamen(ausAltenNamen);
+        setUnbekannteSchluessel(unbekannt);
       }
     }
   }, [open, mode, orderItems, selectedBooking, effectiveLinenDefinition]);
@@ -464,6 +531,32 @@ const LinenOrderDialog = ({
     [editableItems]
   );
 
+  /*
+   * Kosten aus den MENGEN IM FORMULAR, über die Artikelnummer der Set-Zeile.
+   *
+   * Bis 08.09.2026 kam der Betrag ausschließlich aus `generatedOrderData`,
+   * also aus der Vorschau der Edge Function beim Anlegen. Im Bearbeiten-Modus
+   * gibt es die nicht: `estimatedCost` war dort immer null. Zwei Folgen:
+   *
+   *   - Der Dialog zeigte beim Bearbeiten überhaupt keinen Betrag.
+   *   - OriginalDashboard schreibt `total_cost: orderData.estimatedCost ...
+   *     : null`. Jedes Speichern setzte den gespeicherten Betrag auf NULL.
+   *
+   * Jetzt wird bei jeder Mengenänderung neu gerechnet — dieselbe Rechnung,
+   * die `55_bestellkosten_2026_nachrechnen.sql` verwendet hat. Damit gehen
+   * Menge und Betrag nicht mehr auseinander (Fehler 5.5 der Session vom
+   * 05.09.: Bestellung Maximilian Herr, 104 Teile zum Preis von 38).
+   */
+  const eigeneKosten = useMemo(() => {
+    const zeilen = (effectiveLinenDefinition?.custom_categories ?? {}) as SetZeilen;
+    if (Object.keys(zeilen).length === 0 || laundryArticles.length === 0) return null;
+    const mengen = Object.fromEntries(
+      Object.entries(editableItems).filter(([, v]) => Number(v) > 0),
+    ) as Record<string, number>;
+    if (Object.keys(mengen).length === 0) return null;
+    return kostenFuerMengen(mengen, zeilen, laundryArticles);
+  }, [editableItems, effectiveLinenDefinition, laundryArticles]);
+
   // WICHTIG: estimatedCost darf NICHT auf 0 fallen, wenn keine Berechnung
   // vorliegt. Ein echter 0-Betrag ist bei bestellten Artikeln unmöglich; der
   // Wert landete früher als total_cost = 0.00 in der DB (der `?? null`-Operator
@@ -471,17 +564,59 @@ const LinenOrderDialog = ({
   // — die Bestellung sah dann kostenlos aus, ohne Fehlermeldung.
   // Fälle: 2d7247bf (Adnan, 17.05.2026), e4f8fffb (Niels, 11.05.2026).
   // null bedeutet "nicht berechnet", 0 würde "kostenlos" bedeuten.
+  //
+  // Die eigene Rechnung hat Vorrang vor der Vorschau: sie folgt den Mengen
+  // im Formular, und `generate-booking-linen-order` schlägt den Preis noch
+  // über `ai_linen_settings.prices` nach — dort fehlt der Venediger-Schlüssel
+  // `bettwaesche`, der größte Posten fällt also aus.
   const estimatedCost: number | null =
-    typeof generatedOrderData?.estimated_cost === 'number'
-      ? generatedOrderData.estimated_cost
-      : null;
+    eigeneKosten
+      ? eigeneKosten.betrag
+      : (typeof generatedOrderData?.estimated_cost === 'number'
+          ? generatedOrderData.estimated_cost
+          : null);
   // Für Anzeige-Vergleiche (>0, >500) ohne Null-Sonderfälle:
   const estimatedCostValue = estimatedCost ?? 0;
   const itemDetails = generatedOrderData?.item_details || [];
-  // Artikel ohne hinterlegten Preis (aus generate-booking-linen-order).
-  // Werden angezeigt, damit sichtbar ist, warum ein Betrag fehlt oder zu
-  // niedrig wirkt — statt still mit 0 EUR zu rechnen.
-  const missingPrices: string[] = generatedOrderData?.missing_prices || [];
+  // Artikel ohne hinterlegten Preis. Werden angezeigt, damit sichtbar ist,
+  // warum ein Betrag fehlt oder zu niedrig wirkt — statt still mit 0 EUR zu
+  // rechnen. Im Paket enthaltene Positionen stehen bewusst NICHT hier: die
+  // kosten 0, was etwas anderes ist als "kein Preis".
+  const missingPrices: string[] = eigeneKosten
+    ? eigeneKosten.ohnePreis
+    : (generatedOrderData?.missing_prices || []);
+
+  /*
+   * Passt die Bestellung noch zur Buchung?
+   *
+   * Wird die Personenzahl einer Buchung geändert, zieht das System eine
+   * bereits angelegte Bestellung NICHT nach — weder im Buchungsformular noch
+   * über einen Trigger; `create-linen-order-for-booking` und
+   * `auto-create-linen-orders` überspringen Buchungen mit vorhandener
+   * Bestellung. Der Sollstand wird hier nur ERRECHNET und angezeigt.
+   * Übernommen wird er ausschließlich auf Klick.
+   */
+  const sollMengen = useMemo(() => {
+    const zeilen = (effectiveLinenDefinition?.custom_categories ?? {}) as SetZeilen;
+    const gaeste = Number(internalSelectedBooking?.number_of_guests) || 0;
+    if (Object.keys(zeilen).length === 0 || gaeste === 0) return null;
+    const checkIn = internalSelectedBooking?.check_in
+      ? new Date(internalSelectedBooking.check_in)
+      : undefined;
+    return mengenFuerBuchung(zeilen, gaeste, checkIn);
+  }, [effectiveLinenDefinition, internalSelectedBooking]);
+
+  const mengenWeichenAb = useMemo(() => {
+    if (mode !== 'edit' || !sollMengen) return false;
+    return Object.entries(sollMengen).some(
+      ([key, menge]) => (Number(editableItems[key]) || 0) !== menge,
+    );
+  }, [mode, sollMengen, editableItems]);
+
+  const uebernehmeSollMengen = () => {
+    if (!sollMengen) return;
+    setEditableItems((prev) => ({ ...prev, ...sollMengen }));
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -759,8 +894,10 @@ const LinenOrderDialog = ({
             </Card>
           )}
 
-          {/* Kosten-Preview wenn verfügbar */}
-          {generatedOrderData && estimatedCostValue > 0 && (
+          {/* Kosten. Nicht mehr an generatedOrderData gebunden — im
+              Bearbeiten-Modus gibt es die Vorschau nicht, der Betrag wird
+              aus den Mengen im Formular gerechnet. */}
+          {estimatedCostValue > 0 && (
             <Card className="border-primary/50 bg-primary/5">
               <CardContent className="pt-6">
                 <div className="text-center space-y-1">
@@ -774,6 +911,64 @@ const LinenOrderDialog = ({
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Personenzahl der Buchung passt nicht zu den Mengen */}
+          {mengenWeichenAb && sollMengen && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
+              <p className="text-sm text-blue-900">
+                <strong>Die Mengen passen nicht zur Buchung.</strong> Für{' '}
+                {internalSelectedBooking?.number_of_guests} Gäste sieht das Wäscheset
+                andere Mengen vor als hier eingetragen sind. Bestellungen werden bei
+                einer Änderung der Personenzahl nicht automatisch angepasst.
+              </p>
+              <div className="text-xs text-blue-800 space-y-0.5">
+                {Object.entries(sollMengen)
+                  .filter(([key, menge]) => (Number(editableItems[key]) || 0) !== menge)
+                  .map(([key, menge]) => (
+                    <div key={key}>
+                      {dynamicLabels[key] || key}: {editableItems[key] || 0} →{' '}
+                      <strong>{menge}</strong>
+                    </div>
+                  ))}
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={uebernehmeSollMengen}>
+                Mengen aus dem Wäscheset übernehmen
+              </Button>
+            </div>
+          )}
+
+          {/* Positionen, die unter einem früheren Namen gespeichert waren */}
+          {Object.keys(uebernommenAusAltenNamen).length > 0 && (
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+              <p className="text-sm text-slate-700">
+                <strong>Hinweis:</strong> Diese Bestellung stammt aus der Zeit vor der
+                Umstellung des Wäschesets. Übernommen wurde:{' '}
+                {Object.entries(uebernommenAusAltenNamen)
+                  .map(([zeile, alt]) => `${alt} → ${dynamicLabels[zeile] || zeile}`)
+                  .join(', ')}
+                . Beim Speichern wird die Bestellung auf die heutigen Bezeichnungen
+                umgestellt.
+              </p>
+            </div>
+          )}
+
+          {/* Schlüssel ohne Entsprechung im heutigen Set */}
+          {unbekannteSchluessel.length > 0 && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>
+                  {unbekannteSchluessel.length}{' '}
+                  {unbekannteSchluessel.length === 1 ? 'Position' : 'Positionen'} aus der
+                  gespeicherten Bestellung {unbekannteSchluessel.length === 1 ? 'lässt' : 'lassen'}{' '}
+                  sich keiner Zeile des Wäschesets zuordnen
+                </strong>{' '}
+                ({unbekannteSchluessel.join(', ')}). Beim Speichern gehen sie verloren.
+                Bitte im Wäscheset unter „frühere Namen" ergänzen, bevor die Bestellung
+                gespeichert wird.
+              </AlertDescription>
+            </Alert>
           )}
 
           {missingPrices.length > 0 && (
