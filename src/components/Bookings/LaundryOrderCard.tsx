@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Trash2, CheckCircle, Link2, RotateCcw, ChevronDown, StickyNote } from 'lucide-react';
+import { Trash2, CheckCircle, Link2, RotateCcw, ChevronDown, StickyNote, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getLinenColorLabel, LinenColor, getItemColorLabel, ItemColor } from '@/types/linen';
 import { translateItemType, getLinenStatusBadge } from '@/lib/linenOrderHelpers';
@@ -14,7 +14,8 @@ import NotesQuickDialog from '@/components/shared/NotesQuickDialog';
 import ChangedByLine from '@/components/shared/ChangedByLine';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { mengenFuerBuchung, type SetZeilen } from '@/lib/linenPricing';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -131,6 +132,86 @@ const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = f
   const houseName = order.houses?.name || 'Unbekannt';
   const guestName = order.bookings ? getGuestName(order.bookings) : null;
 
+  /*
+   * Passt die bestellte Menge noch zur Gästezahl der Buchung?
+   *
+   * Ergänzt am 08.09.2026. Die Buchungskarte zeigt seit jeher ein Badge
+   * "gebucht 6 → 7", wenn die Personenzahl geändert wurde. Auf der
+   * Wäschekarte war dagegen nicht erkennbar, ob die Bestellung dieser
+   * Änderung gefolgt ist — und weil bis dahin nichts sie nachzog, war sie
+   * es meistens nicht. Fall Tal Yehuda: sieben Gäste, Bettwäsche für sechs,
+   * an der Karte nicht zu sehen.
+   *
+   * Verglichen wird gegen den Sollstand aus dem Wäscheset, nicht gegen eine
+   * Notiz im Text. Nur so ist die Anzeige verlässlich, auch wenn die Menge
+   * von Hand geändert wurde.
+   *
+   * Die Abfrage teilt sich den Schlüssel mit LinenOrderDialog, wird also
+   * je Haus nur einmal geladen und aus dem Cache bedient.
+   */
+  const { data: linenDef } = useQuery({
+    queryKey: ['linen-set-definition', order.house_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_set_definitions')
+        .select('*')
+        .eq('house_id', order.house_id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!order.house_id && !!order.bookings?.number_of_guests,
+  });
+
+  const mengenAbgleich = useMemo(() => {
+    const zeilen = ((linenDef as any)?.custom_categories ?? {}) as SetZeilen;
+    const gaeste = Number(order.bookings?.number_of_guests) || 0;
+    const items = (order.items ?? {}) as Record<string, number>;
+    if (!gaeste || Object.keys(zeilen).length === 0 || Object.keys(items).length === 0) {
+      return null;
+    }
+
+    const checkIn = order.bookings?.check_in ? new Date(order.bookings.check_in) : undefined;
+    const soll = mengenFuerBuchung(zeilen, gaeste, checkIn);
+
+    // Ist-Menge je Set-Zeile — auch unter früheren Namen, sonst gälte jede
+    // Bestellung von vor der Set-Umstellung als abweichend.
+    const ist: Record<string, number> = {};
+    for (const [key, zeile] of Object.entries(zeilen)) {
+      if (key in items) {
+        ist[key] = Number(items[key]) || 0;
+        continue;
+      }
+      const frueher = (zeile?.alte_schluessel ?? []) as string[];
+      const treffer = frueher.find((s) => s in items);
+      if (treffer) ist[key] = Number(items[treffer]) || 0;
+    }
+
+    const abweichungen = Object.entries(soll).filter(
+      ([key, menge]) => (ist[key] ?? 0) !== menge,
+    );
+
+    // Für wie viele Gäste ist die Bestellung tatsächlich gerechnet?
+    // Erste aktive per_guest-Zeile, deren Menge vorliegt.
+    let bestellteGaeste: number | null = null;
+    for (const [key, zeile] of Object.entries(zeilen)) {
+      const proGast = Number(zeile?.quantity ?? 0);
+      if (zeile?.active && zeile?.calculation_type === 'per_guest' && proGast > 0 && ist[key] != null) {
+        bestellteGaeste = Math.round(ist[key] / proGast);
+        break;
+      }
+    }
+
+    return { passt: abweichungen.length === 0, bestellteGaeste, gaeste, abweichungen };
+  }, [linenDef, order.items, order.bookings?.number_of_guests, order.bookings?.check_in]);
+
+  // Wurde die Gästezahl der Buchung überhaupt geändert? Nur dann ist die
+  // Bestätigung "angepasst" eine Aussage. `booked_guests` liefern nicht alle
+  // Abfragen mit — fehlt es, bleibt die Bestätigung aus, die Warnung nicht.
+  const gebuchteGaeste = order.bookings?.booked_guests ?? null;
+  const gaestezahlGeaendert =
+    gebuchteGaeste != null && gebuchteGaeste !== order.bookings?.number_of_guests;
+
   const isClickable = !isPending && !!onEdit;
   const handleCardClick = async () => {
     if (!isClickable || !onEdit) return;
@@ -222,6 +303,29 @@ const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = f
                 <span className="text-muted-foreground font-normal text-base"> ({order.bookings.number_of_guests})</span>
               )}
             </div>
+          )}
+
+          {/* Stimmt die Bestellung noch mit der Buchung überein?
+              Gegenstück zum Badge "gebucht 6 → 7" auf der Buchungskarte. */}
+          {mengenAbgleich && !mengenAbgleich.passt && (
+            <Badge
+              variant="outline"
+              className="w-fit gap-1 border-amber-400 bg-amber-50 text-amber-900 whitespace-normal text-left"
+            >
+              <AlertTriangle className="w-3 h-3 shrink-0" />
+              {mengenAbgleich.bestellteGaeste != null
+                ? `Wäsche für ${mengenAbgleich.bestellteGaeste} · Buchung ${mengenAbgleich.gaeste} Gäste`
+                : `Menge passt nicht zu ${mengenAbgleich.gaeste} Gästen`}
+            </Badge>
+          )}
+          {mengenAbgleich && mengenAbgleich.passt && gaestezahlGeaendert && (
+            <Badge
+              variant="outline"
+              className="w-fit gap-1 border-emerald-400 bg-emerald-50 text-emerald-900"
+            >
+              <CheckCircle className="w-3 h-3 shrink-0" />
+              angepasst {gebuchteGaeste} → {order.bookings?.number_of_guests}
+            </Badge>
           )}
 
           {variant === 'full' && order.bookings?.check_in && order.bookings?.check_out && (
