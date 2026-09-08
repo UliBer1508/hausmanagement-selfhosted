@@ -28,6 +28,7 @@ import {
   type SetZeilen,
 } from '@/lib/linenPricing';
 import { useLaundryArticles } from '@/hooks/useLaundryArticles';
+import { getGuestName } from '@/lib/guestHelpers';
 
 // Dynamisch prüfen ob Artikel Farbauswahl braucht basierend auf Kategorie
 const getItemCategory = (itemType: string, linenDef: any): string | null => {
@@ -819,7 +820,7 @@ const LinenOrderDialog = ({
                   <SelectItem value="none">Keine Buchung zuordnen</SelectItem>
                   {availableBookings.map((booking) => (
                     <SelectItem key={booking.id} value={booking.id}>
-                      {booking.guest_name} ({booking.number_of_guests} Gäste) - {
+                      {getGuestName(booking)} ({booking.number_of_guests} Gäste) - {
                         format(new Date(booking.check_in), 'dd.MM.yyyy', { locale: de })
                       }
                     </SelectItem>
@@ -847,7 +848,11 @@ const LinenOrderDialog = ({
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-blue-700 font-medium">Gast:</span>
-                    <span className="ml-2">{internalSelectedBooking.guest_name || 'N/A'}</span>
+                    {/* Gastname aus der guests-Relation (Etappe 4). Die
+                        Kopiespalte booking.guest_name ist bei neueren
+                        Buchungen leer — hier stand deshalb "N/A", obwohl die
+                        Buchung korrekt verknüpft war. */}
+                    <span className="ml-2">{getGuestName(internalSelectedBooking)}</span>
                   </div>
                   <div>
                     <span className="text-blue-700 font-medium">Gäste:</span>
