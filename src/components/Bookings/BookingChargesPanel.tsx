@@ -3,7 +3,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, CreditCard, Mail, Copy, CheckCircle2 } from 'lucide-react';
+import { Loader2, CreditCard, Mail, Copy, CheckCircle2, Ban, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useBookingCharges } from '@/hooks/useBookingCharges';
@@ -33,11 +43,24 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
   const { data: charges, isLoading } = useBookingCharges(bookingId);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [busy, setBusy] = useState<'create' | 'send' | null>(null);
+  const [busy, setBusy] = useState<'create' | 'send' | 'cancel' | 'delete' | null>(null);
+  // Rückfrage vor Stornieren/Löschen
+  const [pendingAction, setPendingAction] = useState<{ art: 'cancel' | 'delete'; charge: any } | null>(null);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['booking_charges', bookingId] });
 
-  const totalCharges = (charges || []).reduce((s, c) => s + Number(c.amount || 0), 0);
+  /*
+   * Stornierte Posten gehören in keine Summe.
+   *
+   * Bis 08.09.2026 summierte `totalCharges` ALLE Zeilen — eine stornierte
+   * Forderung hätte im Kopf weitergezählt und die Zeile "davon
+   * Zusatzforderungen" wäre höher gewesen als die Summe der gültigen Posten.
+   * Dieselbe Regel gilt in der MASTER-Doku bereits für stornierte
+   * Wäschebestellungen und Rechnungen: "Storniert gehört in keine Summe."
+   */
+  const totalCharges = (charges || [])
+    .filter((c) => c.status !== 'cancelled')
+    .reduce((s, c) => s + Number(c.amount || 0), 0);
   const openCharges = (charges || [])
     .filter((c) => c.status === 'open')
     .reduce((s, c) => s + Number(c.amount || 0), 0);
@@ -103,6 +126,78 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
   const handleCopy = async (url: string) => {
     await navigator.clipboard.writeText(url);
     toast({ title: 'Kopiert', description: 'Zahlungslink in Zwischenablage.' });
+  };
+
+  /*
+   * Forderung stornieren.
+   *
+   * Ergänzt am 08.09.2026. Es gab bis dahin keinen Weg, eine falsch
+   * berechnete Forderung wieder loszuwerden — nur über SQL. Anlass:
+   * Buchung Tal Yehuda, für eine Erhöhung um EINEN Gast entstanden zwei
+   * Posten über zusammen 259,70 EUR statt 39,60 EUR.
+   *
+   * Storniert wird über `status = 'cancelled'`, nicht gelöscht:
+   *   - `create-payment-link` sammelt ausschliesslich `status = 'open'`,
+   *     die Forderung fällt also aus jedem künftigen Link heraus.
+   *   - Die Summen im Kopf dieser Karte zählen weiterhin alle Zeilen —
+   *     deshalb rechnen sie unten `cancelled` heraus.
+   *   - Der Vorgang bleibt sichtbar. Eine spurlos verschwundene Forderung
+   *     ist bei einer Rückfrage des Gastes nicht mehr nachvollziehbar.
+   *
+   * ACHTUNG Stripe: Hängt die Forderung bereits in einem erstellten Link,
+   * ist der BETRAG DORT EINGEFROREN (MASTER, Abschnitt 3). Das Stornieren
+   * hier ändert den Link nicht — er muss bei Stripe storniert und neu
+   * erstellt werden.
+   */
+  const handleCancelCharge = async (charge: any) => {
+    setBusy('cancel');
+    try {
+      const { error } = await supabase
+        .from('booking_charges')
+        .update({ status: 'cancelled' })
+        .eq('id', charge.id);
+      if (error) throw error;
+      toast({
+        title: 'Forderung storniert',
+        description: charge.payment?.payment_url
+          ? 'Sie zählt nicht mehr mit. Der bereits erstellte Zahlungslink enthält sie weiterhin — bitte bei Stripe stornieren.'
+          : 'Sie zählt nicht mehr mit und geht in keinen Zahlungslink mehr ein.',
+        duration: 9000,
+      });
+      refresh();
+    } catch (e: any) {
+      toast({ title: 'Fehler', description: e.message, variant: 'destructive' });
+    } finally {
+      setBusy(null);
+      setPendingAction(null);
+    }
+  };
+
+  /*
+   * Forderung endgültig löschen.
+   *
+   * Nur für Posten ohne Zahlungsbezug. Hängt eine Zahlung daran, bleibt
+   * nach dem Löschen ein Zahlungssatz ohne Gegenstück zurück
+   * (payments.booking_charge_id ist ON DELETE SET NULL) — die Buchhaltung
+   * wäre dann nicht mehr nachvollziehbar. Für solche Posten gibt es
+   * ausschliesslich das Stornieren.
+   */
+  const handleDeleteCharge = async (charge: any) => {
+    setBusy('delete');
+    try {
+      const { error } = await supabase
+        .from('booking_charges')
+        .delete()
+        .eq('id', charge.id);
+      if (error) throw error;
+      toast({ title: 'Forderung gelöscht', description: charge.description });
+      refresh();
+    } catch (e: any) {
+      toast({ title: 'Fehler', description: e.message, variant: 'destructive' });
+    } finally {
+      setBusy(null);
+      setPendingAction(null);
+    }
   };
 
   return (
@@ -200,6 +295,37 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
                     </div>
                   )}
 
+                  {/* Stornieren/Löschen — nur solange nicht bezahlt.
+                      Eine bezahlte Forderung anzufassen würde die Zahlung
+                      ohne Gegenstück zurücklassen. */}
+                  {charge.status === 'open' && (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={busy !== null}
+                        onClick={() => setPendingAction({ art: 'cancel', charge })}
+                      >
+                        <Ban className="w-4 h-4 mr-2" />
+                        Stornieren
+                      </Button>
+                      {!charge.payment && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:text-destructive"
+                          disabled={busy !== null}
+                          onClick={() => setPendingAction({ art: 'delete', charge })}
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Löschen
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
                   {charge.status === 'paid' && charge.payment && (
                     <div className="flex items-center gap-2 text-sm text-green-700">
                       <CheckCircle2 className="w-4 h-4" />
@@ -221,6 +347,57 @@ const BookingChargesPanel = ({ bookingId, bookingAmount, guestEmail, guestName }
           </>
         )}
       </CardContent>
+
+      {/* Rückfrage vor Stornieren/Löschen */}
+      <AlertDialog
+        open={pendingAction !== null}
+        onOpenChange={(o) => { if (!o) setPendingAction(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction?.art === 'delete' ? 'Forderung löschen?' : 'Forderung stornieren?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <span className="block font-medium text-foreground">
+                {pendingAction?.charge?.description}
+              </span>
+              <span className="block mb-3">{fmt(pendingAction?.charge?.amount)}</span>
+              {pendingAction?.art === 'delete' ? (
+                <span>
+                  Die Forderung wird endgültig entfernt und taucht nirgends mehr auf.
+                  Das lässt sich nicht rückgängig machen.
+                </span>
+              ) : (
+                <span>
+                  Die Forderung bleibt zur Nachvollziehbarkeit sichtbar, zählt aber
+                  nicht mehr mit und geht in keinen weiteren Zahlungslink ein.
+                  {pendingAction?.charge?.payment?.payment_url && (
+                    <strong className="block mt-2 text-destructive">
+                      Achtung: Diese Forderung hängt in einem bereits erstellten
+                      Zahlungslink. Dessen Betrag ist bei Stripe eingefroren — der Link
+                      muss dort storniert und neu erstellt werden.
+                    </strong>
+                  )}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className={pendingAction?.art === 'delete' ? 'bg-destructive hover:bg-destructive/90' : ''}
+              onClick={() => {
+                if (!pendingAction) return;
+                if (pendingAction.art === 'delete') handleDeleteCharge(pendingAction.charge);
+                else handleCancelCharge(pendingAction.charge);
+              }}
+            >
+              {pendingAction?.art === 'delete' ? 'Endgültig löschen' : 'Stornieren'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 };

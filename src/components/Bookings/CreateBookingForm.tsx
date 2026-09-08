@@ -154,6 +154,12 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   const [showChargeAskDialog, setShowChargeAskDialog] = useState(false);
   const [pendingDelta, setPendingDelta] = useState<{ new_guests: number; new_nights: number } | null>(null);
 
+  // Schritt 3 des Ablaufs: Gästezahl, auf die die Wäschebestellung noch
+  // nachgezogen werden muss. Wird beim Speichern gesetzt und erst NACH
+  // Abschluss der Zusatzkosten abgearbeitet — siehe
+  // docs/Prozess-Gaestezahl-Aenderung.md.
+  const [pendingLinenGuests, setPendingLinenGuests] = useState<number | null>(null);
+
   // Freies Reinigungs-/Sonstiges-Feld im Aufrechnen-Schritt
   const [extraDesc, setExtraDesc] = useState('');
   const [extraAmount, setExtraAmount] = useState('');
@@ -681,13 +687,37 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           0,
           Math.round((data.check_out.getTime() - data.check_in.getTime()) / msPerDay)
         );
+
+        // === Wäschemenge vormerken ===
+        //
+        // Der Ablauf ist festgelegt (docs/Prozess-Gaestezahl-Aenderung.md):
+        //   1. Gästezahl ändern
+        //   2. Zusatzkosten berechnen und Zahlungslink erstellen
+        //   3. ERST DANN die Wäschebestellung anpassen
+        //
+        // Deshalb wird hier nur gemerkt, dass die Anpassung aussteht. Sie
+        // läuft am Ende jedes Zweigs — nach "Forderungen anlegen", nach
+        // "Zahlungslink erstellen" und auch nach "Nein, nur merken", denn
+        // die Wäsche wird unabhängig davon gebraucht, ob der Gast dafür
+        // zahlt.
+        //
+        // Bei einer REDUZIERUNG gibt es keine Rückfrage; dann wird direkt
+        // unten angepasst.
+        const linenNachzuziehen = new_guests !== baselineGuests;
+
         const isIncrease = new_guests > baselineGuests;
         if (isIncrease) {
           // Erst fragen, ob Zusatzkosten erhoben werden sollen.
           // (Reduzierung tut bewusst nichts — man erstattet Gästen nichts zurück.)
+          setPendingLinenGuests(new_guests);
           setPendingDelta({ new_guests, new_nights });
           setShowChargeAskDialog(true);
           return; // Dialog übernimmt; onSuccess folgt nach der Entscheidung.
+        }
+
+        // Reduzierung: keine Zusatzkosten, Wäsche trotzdem anpassen.
+        if (linenNachzuziehen) {
+          await runLinenAdjustment(initialData.id, new_guests);
         }
       } else {
         console.log('Creating new booking');
@@ -879,6 +909,133 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     }
   };
 
+  /**
+   * Zieht die Wäschebestellung einer Buchung auf die aktuelle Gästezahl nach.
+   *
+   * Wird nach dem Speichern einer geänderten Personenzahl aufgerufen. Der Weg
+   * entspricht dem Max-Tool `update_linen_for_booking` (chat-assistant), damit
+   * es nur EINEN Rechenweg gibt: Mengen und Betrag kommen aus
+   * `generate-booking-linen-order`, die bestehende Bestellung wird ersetzt.
+   *
+   * Drei Punkte, die hier bewusst so sind:
+   *
+   * 1. `total_cost` wird MITGESCHRIEBEN. Ohne das wandert die Menge und der
+   *    Betrag bleibt stehen — genau der Fehler, der die Bestellung
+   *    a538893c (Maximilian Herr, 02.01.2026) auf 104 Teile zum Preis von 38
+   *    gebracht hat. 0 ist dabei kein gültiger Betrag: `null` heißt "nicht
+   *    berechenbar", 0 hieße "kostenlos".
+   *
+   * 2. Der Status wird NICHT verändert. Steht die Bestellung schon auf
+   *    `ausstehend`, liegt sie bei Teuni — sie auf `offen` zurückzusetzen
+   *    würde den Freigabe-Trigger auslösen und einen zweiten Vorgang öffnen.
+   *    Stattdessen wird ein max_actions-Eintrag angelegt: Teuni muss über die
+   *    geänderte Menge informiert werden (Ablauf update_linen_for_booking,
+   *    Schritt 4).
+   *
+   * 3. Stornierte Bestellungen bleiben unberührt.
+   */
+  const adjustLinenOrderToGuests = async (bookingId: string, guests: number) => {
+    const { data: orders, error: findErr } = await supabase
+      .from('linen_orders')
+      .select('id, status, total_items')
+      .eq('booking_id', bookingId)
+      .neq('status', 'cancelled')
+      .order('created_at', { ascending: false })
+      .limit(1);
+    if (findErr) throw findErr;
+
+    // Keine Bestellung vorhanden: nichts nachzuziehen. Das Anlegen macht die
+    // Automatik (auto-create-linen-orders), nicht dieses Formular.
+    if (!orders || orders.length === 0) return;
+    const order = orders[0];
+
+    const { data: calc, error: calcErr } = await supabase.functions.invoke(
+      'generate-booking-linen-order',
+      { body: { booking_id: bookingId } }
+    );
+    if (calcErr) throw calcErr;
+    if (!calc?.success) throw new Error(calc?.error || 'Mengenberechnung fehlgeschlagen');
+
+    const neueMenge = calc.total_items ?? 0;
+    const alteMenge = order.total_items;
+    const nowIso = new Date().toISOString();
+
+    const { error: updErr } = await supabase
+      .from('linen_orders')
+      .update({
+        items: calc.order_items,
+        total_items: neueMenge,
+        // 0 ist KEIN gültiger Betrag — bestellte Artikel kosten etwas.
+        total_cost: calc.estimated_cost ? calc.estimated_cost : null,
+        item_variants: calc.item_variants ?? undefined,
+        linen_color: calc.linen_color ?? undefined,
+        notes: `Wäschemenge an ${guests} Gäste angepasst (${new Date().toLocaleDateString('de-DE')}). Grund: geänderte Gästezahl.`,
+        updated_at: nowIso,
+      })
+      .eq('id', order.id);
+    if (updErr) throw updErr;
+
+    // Vorgang sichtbar machen: Teuni muss die geänderte Menge sehen.
+    try {
+      await supabase.from('max_actions').insert({
+        action_type: 'update_linen_for_booking',
+        status: 'wartet_uli',
+        booking_id: bookingId,
+        waiting_for: 'teuni',
+        last_step: `Wäschemenge angepasst (${alteMenge} → ${neueMenge} Teile, ${guests} Gäste) — Teuni muss informiert werden`,
+        details: {
+          order_id: order.id,
+          alte_menge: alteMenge,
+          neue_menge: neueMenge,
+          gaeste: guests,
+          status_der_bestellung: order.status,
+        },
+        created_by: 'uli',
+      });
+    } catch (logErr) {
+      // Der Log darf die Anpassung nicht verhindern.
+      console.error('max_actions-Log (Wäscheanpassung) fehlgeschlagen:', logErr);
+    }
+
+    toast({
+      title: 'Wäschebestellung angepasst',
+      description:
+        `${alteMenge} → ${neueMenge} Teile für ${guests} Gäste` +
+        (calc.estimated_cost ? `, ${Number(calc.estimated_cost).toFixed(2).replace('.', ',')} EUR` : '') +
+        (order.status === 'ausstehend'
+          ? '. Die Bestellung liegt bereits bei Teuni — bitte über die Änderung informieren.'
+          : '.'),
+      duration: 9000,
+    });
+  };
+
+  /**
+   * Schritt 3 ausführen: Wäschebestellung auf die neue Gästezahl bringen.
+   *
+   * Eigener Wrapper, weil der Aufruf an vier Endpunkten steht (Reduzierung,
+   * "Nein, nur merken", "Forderungen anlegen", "Zahlungslink erstellen") und
+   * ein Fehler dort den jeweiligen Vorgang NICHT abbrechen darf — die
+   * Forderungen sind dann bereits angelegt. Er wird stattdessen deutlich
+   * gemeldet, damit die Bestellung von Hand geprüft wird.
+   */
+  const runLinenAdjustment = async (bookingId: string, guests: number) => {
+    try {
+      await adjustLinenOrderToGuests(bookingId, guests);
+    } catch (e) {
+      console.error('Wäschemenge konnte nicht angepasst werden:', e);
+      toast({
+        title: 'Wäsche NICHT angepasst',
+        description:
+          'Die Gästezahl wurde gespeichert, die Wäschebestellung konnte aber nicht ' +
+          'nachgezogen werden. Bitte in der Wäschekarte prüfen.',
+        variant: 'destructive',
+        duration: 12000,
+      });
+    } finally {
+      setPendingLinenGuests(null);
+    }
+  };
+
   const handleCheckAndDeleteBooking = async () => {
     if (!initialData?.id) return;
 
@@ -977,11 +1134,48 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     }
   };
 
-  // "Nein, nicht berechnen" -> nur merken (Notiz), nichts anlegen
-  const handleAskNo = () => {
+  // "Nein, nicht berechnen" -> Änderung vermerken, keine Forderung anlegen
+  const handleAskNo = async () => {
     setShowChargeAskDialog(false);
+    const guests = pendingDelta?.new_guests ?? null;
     setPendingDelta(null);
+
+    /*
+     * "Nur merken" muss auch wirklich merken.
+     *
+     * Bis 08.09.2026 zeigte dieser Zweig einen Toast und tat sonst nichts:
+     * kein Feld, keine Notiz, kein Vermerk. Eine Erhöhung ohne Zusatzkosten
+     * war danach nirgends auffindbar, und `booked_guests` blieb leer — was
+     * die nächste Änderung gegen einen falschen Ausgangswert rechnen liess.
+     */
+    if (initialData?.id) {
+      try {
+        const patch: Record<string, unknown> = {
+          guests_changed_at: new Date().toISOString(),
+          guest_surcharge_amount: 0,
+        };
+        if ((initialData as any).booked_guests == null && baselineGuests > 0) {
+          patch.booked_guests = baselineGuests;
+        }
+        const { error } = await supabase.from('bookings').update(patch).eq('id', initialData.id);
+        if (error) throw error;
+      } catch (e) {
+        console.error('Vermerk zur Gästezahl-Änderung fehlgeschlagen:', e);
+        toast({
+          title: 'Vermerk nicht gespeichert',
+          description: 'Die Änderung konnte nicht dokumentiert werden. Bitte melden.',
+          variant: 'destructive',
+        });
+      }
+    }
+
     toast({ title: 'Notiz', description: 'Mehr Gäste erfasst — keine Zusatzkosten berechnet.' });
+
+    // Schritt 3: Wäsche trotzdem anpassen — sie wird unabhängig davon
+    // gebraucht, ob der Gast dafür zahlt.
+    if (initialData?.id && guests) {
+      await runLinenAdjustment(initialData.id, guests);
+    }
     onSuccess();
   };
 
@@ -1065,6 +1259,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         description: `${deltaResult?.charges.length || 0} Posten wurden als offene Forderung gespeichert.`,
       });
       setDeltaResult(null);
+      // Schritt 3: erst jetzt, nach Abschluss der Zusatzkosten.
+      if (initialData?.id && pendingLinenGuests) {
+        await runLinenAdjustment(initialData.id, pendingLinenGuests);
+      }
       onSuccess();
     } catch (e: any) {
       toast({
@@ -1125,6 +1323,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
       }
 
       setDeltaResult(null);
+      // Schritt 3: erst nach Forderungen UND Zahlungslink.
+      if (initialData?.id && pendingLinenGuests) {
+        await runLinenAdjustment(initialData.id, pendingLinenGuests);
+      }
       onSuccess();
     } catch (err: any) {
       console.error('Payment-Link/E-Mail Fehler:', err);
