@@ -2,6 +2,39 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
+/*
+ * Mengen und Kosten einer Wäschebestellung für EINE Buchung.
+ *
+ * Aufgerufen von: auto-create-linen-orders, create-linen-order-for-booking,
+ * dem Tool update_linen_for_booking im chat-assistant und dem Knopf
+ * "Wäsche berechnen" im Buchungsformular. Was hier falsch gerechnet wird,
+ * ist an allen vier Stellen falsch.
+ *
+ * ============================================================
+ * UMSTELLUNG 08.09.2026 — Preise kommen vom ARTIKEL
+ * ============================================================
+ *
+ * Vorher schlug diese Funktion die Preise über `ai_linen_settings.prices`
+ * nach, mit einer hartcodierten Ersatzliste (bedding 30, kitchen_towels 5).
+ * Beides war falsch:
+ *
+ *   - Der Nachschlag lief über den SET-SCHLÜSSEL. Venediger nennt die
+ *     Bettwäsche-Zeile `bettwaesche`, die Preisliste kannte nur `bedding` —
+ *     der größte Posten jeder Bestellung fiel still aus der Rechnung.
+ *   - Die Ersatzwerte waren erfunden. Bettwäsche kostet 9,50, nicht 30;
+ *     Geschirrtücher 1,50, nicht 5.
+ *
+ * Der Weg führt jetzt über die Artikelnummer an der Set-Zeile
+ * (`external_artikelnummer.default`), mit Auflösung der Nachfolgekette
+ * (MWR -> MW3 -> MW4) und Beachtung der Abrechnungsart. Damit rechnet diese
+ * Funktion dasselbe wie `check-booking-linen-orders`, `linenPricing.ts` im
+ * Frontend und `55_bestellkosten_2026_nachrechnen.sql`.
+ *
+ * Ein fehlender Preis ist NICHT dasselbe wie ein Preis von 0. Greift kein
+ * einziger Preis, ist `estimated_cost` null — "nicht berechenbar" statt
+ * "kostenlos".
+ */
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -21,7 +54,7 @@ serve(async (req) => {
     const { booking_id } = await req.json();
     console.log('🧺 Generating linen order for booking:', booking_id);
 
-    // 1. Load booking with house data
+    // 1. Buchung mit Haus laden
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .select(`
@@ -45,9 +78,10 @@ serve(async (req) => {
       throw bookingError;
     }
 
-    console.log('✅ Booking loaded:', { guest: booking.guest_name, guests: booking.number_of_guests });
+    const guestName = (booking as any).guests?.name || (booking as any).guest_name || 'Unbekannt';
+    console.log('✅ Booking loaded:', { guest: guestName, guests: booking.number_of_guests });
 
-    // 2. Load linen set definitions for this house
+    // 2. Wäscheset des Hauses laden
     const { data: rules, error: rulesError } = await supabase
       .from('linen_set_definitions')
       .select('*')
@@ -63,36 +97,28 @@ serve(async (req) => {
       throw new Error('Keine Wäsche-Definitionen für dieses Haus gefunden. Bitte legen Sie zuerst Wäsche-Regeln an.');
     }
 
-    console.log('✅ Linen rules loaded for house:', booking.houses.name);
+    console.log('✅ Linen rules loaded for house:', (booking as any).houses?.name);
 
-    // 3. Calculate order items (WITHOUT safety buffer, ONLY for this booking)
-    // Prefer the new flexible custom_categories config if available
+    // 3. Mengen aus dem Set (ohne Sicherheitspuffer, nur für diese Buchung)
     const orderItems: Record<string, number> = {};
-    const itemVariants: Record<string, string> = {}; // NEU: Farbvarianten speichern
+    const itemVariants: Record<string, string> = {};
 
-    const customCategories = (rules as any).custom_categories as
-      | Record<string, any>
-      | null;
+    const setZeilen = ((rules as any).custom_categories ?? {}) as Record<string, any>;
     const numberOfGuests: number = booking.number_of_guests || 0;
 
-    if (customCategories && Object.keys(customCategories).length > 0) {
+    if (Object.keys(setZeilen).length > 0) {
       console.log('🧮 Using custom_categories for linen calculation');
 
-      let checkInDate: Date | null = null;
-      if (booking.check_in) {
-        checkInDate = new Date(booking.check_in);
-      }
+      const checkInDate: Date | null = booking.check_in ? new Date(booking.check_in) : null;
 
       const isWinter = (date: Date) => {
         const month = date.getUTCMonth() + 1; // 1-12
-        // Simple season split: Nov–Mar = winter, Apr–Oct = summer
         return month === 11 || month === 12 || month <= 3;
       };
 
-      for (const [key, config] of Object.entries(customCategories)) {
+      for (const [key, config] of Object.entries(setZeilen)) {
         if (!config || (config as any).active === false) continue;
 
-        // Seasonal availability check
         if ((config as any).availability === 'seasonal' && checkInDate) {
           const season = (config as any).season;
           if (season === 'winter' && !isWinter(checkInDate)) continue;
@@ -111,13 +137,15 @@ serve(async (req) => {
 
         if (qty > 0) {
           orderItems[key] = qty;
-          // NEU: Farbe aus Regeln extrahieren
           if ((config as any).color) {
             itemVariants[key] = (config as any).color;
           }
         }
       }
     } else {
+      // Rückfall auf die alten Spalten. ACHTUNG: LinenSetRulesTab setzt sie
+      // beim Speichern eines Sets alle auf 0 — dieser Zweig liefert dann
+      // nichts. Das ist gewollt: lieber leer als erfunden.
       console.log('↩️ Falling back to legacy linen definition columns');
       if ((rules as any).bedding_per_guest) {
         orderItems.bedding = numberOfGuests * (rules as any).bedding_per_guest;
@@ -142,7 +170,6 @@ serve(async (req) => {
       }
     }
 
-    // Remove items with 0 quantity (safety)
     Object.keys(orderItems).forEach((key) => {
       if (!orderItems[key] || orderItems[key] === 0) {
         delete orderItems[key];
@@ -151,46 +178,93 @@ serve(async (req) => {
 
     console.log('📦 Calculated order items:', orderItems);
 
-    // 4. Load prices from AI settings
-    const { data: aiSettings } = await supabase
-      .from('ai_linen_settings')
-      .select('prices')
-      .eq('house_id', booking.house_id)
-      .maybeSingle();
+    // 4. Artikel samt Preisstand laden
+    const { data: artikelRoh, error: artikelError } = await supabase
+      .from('laundry_articles')
+      .select('id, artikelnummer, bezeichnung, abrechnungsart, nachfolger_id, laundry_article_prices(preis, gueltig_ab, gueltig_bis)');
 
-    const defaultPrices = {
-      bedding: 30,
-      large_towels: 18,
-      small_towels: 10,
-      sauna_towels: 20,
-      bath_mats: 15,
-      sink_towels: 8,
-      kitchen_towels: 5
+    if (artikelError) throw artikelError;
+
+    const artikelNachId = new Map<string, any>();
+    const artikelNachNummer = new Map<string, any>();
+    for (const a of (artikelRoh ?? []) as any[]) {
+      artikelNachId.set(a.id, a);
+      const nr = String(a.artikelnummer).toUpperCase();
+      if (!artikelNachNummer.has(nr)) artikelNachNummer.set(nr, a);
+    }
+
+    // Nachfolgekette: Teuni vergibt für dieselbe Leistung neue Nummern.
+    // Abbruch nach zehn Schritten, damit ein versehentlicher Zyklus die
+    // Schleife nicht endlos laufen lässt.
+    const aktuellerArtikel = (start: any) => {
+      let cur = start;
+      let n = 0;
+      while (cur?.nachfolger_id && n < 10) {
+        const next = artikelNachId.get(cur.nachfolger_id);
+        if (!next) break;
+        cur = next;
+        n++;
+      }
+      return cur;
     };
 
-    const prices = aiSettings?.prices || defaultPrices;
-    console.log('💶 Using prices:', prices);
+    const preisVon = (artikel: any): number | null => {
+      const g = (artikel?.laundry_article_prices ?? [])
+        .filter((p: any) => p.gueltig_bis === null)
+        .sort((x: any, y: any) => String(y.gueltig_ab).localeCompare(String(x.gueltig_ab)))[0];
+      return g ? Number(g.preis) : null;
+    };
 
-    // 5. Calculate costs
-    //
-    // WICHTIG (21.07.2026): Ein fehlender Preis ist NICHT dasselbe wie ein
-    // Preis von 0. Früher wurde `prices[item] || 0` gerechnet — Artikel ohne
-    // hinterlegten Preis flossen still mit 0 EUR ein, der Gesamtbetrag war
-    // zu niedrig und niemand konnte es sehen.
-    // Beispiel: pillow_cases und spannbetttuch stehen in custom_categories,
-    // aber in KEINEM der defaultPrices-Objekte (weder hier noch in
-    // useLinenAI.ts). Bei Hubert Middelbos ergab das 69 EUR statt des
-    // korrekten Betrags.
-    // Ab jetzt: fehlende Preise werden gesammelt und zurückgemeldet;
-    // greift KEIN einziger Preis, ist estimated_cost null (= "nicht
-    // berechenbar") statt 0 (= "kostenlos").
+    // Artikel je bestellter Set-Zeile
+    const zeileArtikel: Record<string, any> = {};
+    for (const key of Object.keys(orderItems)) {
+      const nr = setZeilen?.[key]?.external_artikelnummer?.default;
+      if (!nr) continue;
+      const gefunden = artikelNachNummer.get(String(nr).toUpperCase());
+      if (gefunden) zeileArtikel[key] = aktuellerArtikel(gefunden);
+    }
+
+    // Paketartikel decken mehrere Positionen ab und werden EINMAL berechnet;
+    // welche Zeile abrechnet, sagt preis_zaehlt. Stückartikel verhalten sich
+    // gegenteilig: MWHT steht auf Geschirr- und WB-Handtüchern und wird
+    // beide Male berechnet.
+    const paketGruppen = new Map<string, string[]>();
+    for (const key of Object.keys(orderItems)) {
+      const a = zeileArtikel[key];
+      if (a?.abrechnungsart === 'paket') {
+        paketGruppen.set(a.id, [...(paketGruppen.get(a.id) ?? []), key]);
+      }
+    }
+    const rechnetAb = new Map<string, string>();
+    for (const [artikelId, keys] of paketGruppen) {
+      const markiert = keys.filter((k) => setZeilen?.[k]?.preis_zaehlt === true);
+      rechnetAb.set(artikelId, markiert.length === 1 ? markiert[0] : keys[0]);
+    }
+
+    // 5. Kosten
     let totalCost = 0;
     const missingPrices: string[] = [];
     let pricedItemCount = 0;
 
     const itemDetails = Object.entries(orderItems).map(([item, qty]: [string, any]) => {
-      const rawPrice = prices[item];
-      const hasPrice = typeof rawPrice === 'number' && rawPrice > 0;
+      const artikel = zeileArtikel[item];
+
+      // Im Paket enthalten: kostet 0 — und das ist etwas anderes als
+      // "kein Preis". Deshalb NICHT in missingPrices aufnehmen.
+      if (artikel?.abrechnungsart === 'paket' && rechnetAb.get(artikel.id) !== item) {
+        return {
+          item,
+          quantity: qty,
+          unit_price: 0,
+          total_price: 0,
+          price_missing: false,
+          im_paket_enthalten: true,
+          artikelnummer: artikel.artikelnummer ?? null,
+        };
+      }
+
+      const preis = preisVon(artikel);
+      const hasPrice = typeof preis === 'number' && preis > 0;
 
       if (!hasPrice) {
         missingPrices.push(item);
@@ -198,15 +272,18 @@ serve(async (req) => {
         pricedItemCount++;
       }
 
-      const price = hasPrice ? rawPrice : 0;
+      const price = hasPrice ? (preis as number) : 0;
       const itemTotal = qty * price;
       totalCost += itemTotal;
+
       return {
         item,
         quantity: qty,
         unit_price: price,
-        total_price: itemTotal,
-        price_missing: !hasPrice
+        total_price: Math.round(itemTotal * 100) / 100,
+        price_missing: !hasPrice,
+        im_paket_enthalten: false,
+        artikelnummer: artikel?.artikelnummer ?? null,
       };
     });
 
@@ -214,10 +291,6 @@ serve(async (req) => {
       console.warn('⚠️ Keine Preise hinterlegt für:', missingPrices.join(', '));
     }
 
-    // null = kein einziger Artikel hatte einen Preis -> Betrag nicht ermittelbar.
-    // Alle Anzeige-Stellen prüfen bereits auf `typeof === 'number'` bzw. `> 0`
-    // und blenden dann sauber aus (LaundryOrderCard, TeuniOrdersOverview,
-    // BookingOverviewFixed).
     const estimatedCost = pricedItemCount > 0
       ? Math.round(totalCost * 100) / 100
       : null;
@@ -227,18 +300,29 @@ serve(async (req) => {
     console.log('✅ Order generated successfully:', {
       booking_id,
       total_items: totalItems,
-      total_cost: totalCost,
+      total_cost: estimatedCost,
       missing_prices: missingPrices
     });
 
-    console.log('🎨 Item variants (colors):', itemVariants);
-
-    // Bestimme die Haupt-Wäschefarbe aus der Bettwäsche-Regel
-    let linenColor = 'white_striped'; // Fallback
-    if (itemVariants.bedding) {
-      linenColor = itemVariants.bedding;
-    } else if (itemVariants.pillow_cases) {
-      linenColor = itemVariants.pillow_cases;
+    /*
+     * Hauptfarbe der Bestellung.
+     *
+     * Bis 05.09.2026 wurde sie über `itemVariants.bedding` bestimmt. Diesen
+     * Schlüssel führt kein Haus mehr (Venediger `bettwaesche`, Wald
+     * `bettwaescheset`) — jede Bestellung ging mit dem Rückfallwert
+     * `white_striped` hinaus, unabhängig von der Einstellung im Set. Jetzt
+     * über die Kategorie Schlafbereich, ohne festen Schlüsselnamen.
+     */
+    let linenColor: string | null = null;
+    for (const [key, farbe] of Object.entries(itemVariants)) {
+      if (setZeilen?.[key]?.category === 'Schlafbereich') {
+        linenColor = farbe;
+        break;
+      }
+    }
+    if (!linenColor) {
+      const ersteFarbe = Object.values(itemVariants)[0];
+      linenColor = (ersteFarbe as string) ?? null;
     }
     console.log('🎨 Main linen color:', linenColor);
 
@@ -247,15 +331,15 @@ serve(async (req) => {
       booking: {
         id: booking.id,
         // Gastname aus der guests-Relation (Etappe 4, Block 1)
-        guest_name: (booking as any).guests?.name || booking.guest_name,
+        guest_name: guestName,
         number_of_guests: booking.number_of_guests,
         check_in: booking.check_in,
         check_out: booking.check_out,
-        house: booking.houses
+        house: (booking as any).houses
       },
       order_items: orderItems,
       item_variants: itemVariants,
-      linen_color: linenColor, // NEU: Haupt-Wäschefarbe für die Bestellung
+      linen_color: linenColor,
       item_details: itemDetails,
       total_items: totalItems,
       estimated_cost: estimatedCost,
