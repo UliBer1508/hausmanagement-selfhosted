@@ -306,7 +306,12 @@ const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = f
           )}
 
           {/* Stimmt die Bestellung noch mit der Buchung überein?
-              Gegenstück zum Badge "gebucht 6 → 7" auf der Buchungskarte. */}
+              Gegenstück zum Badge "gebucht 6 → 7" auf der Buchungskarte.
+
+              Der Text nennt beide Zahlen, damit erkennbar ist, WORAN es
+              liegt: Wurde die Gästezahl geändert und die Bestellung nicht
+              nachgezogen, steht "noch für 6 · gebucht 7". Weicht die Menge
+              ohne Gästezahl-Änderung ab, wurde sie von Hand verstellt. */}
           {mengenAbgleich && !mengenAbgleich.passt && (
             <Badge
               variant="outline"
@@ -314,17 +319,21 @@ const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = f
             >
               <AlertTriangle className="w-3 h-3 shrink-0" />
               {mengenAbgleich.bestellteGaeste != null
-                ? `Wäsche für ${mengenAbgleich.bestellteGaeste} · Buchung ${mengenAbgleich.gaeste} Gäste`
+                ? (gaestezahlGeaendert
+                    ? `nicht angepasst: Wäsche für ${mengenAbgleich.bestellteGaeste}, gebucht ${gebuchteGaeste} → ${mengenAbgleich.gaeste}`
+                    : `Wäsche für ${mengenAbgleich.bestellteGaeste} · Buchung ${mengenAbgleich.gaeste} Gäste`)
                 : `Menge passt nicht zu ${mengenAbgleich.gaeste} Gästen`}
             </Badge>
           )}
-          {mengenAbgleich && mengenAbgleich.passt && gaestezahlGeaendert && (
+          {mengenAbgleich && mengenAbgleich.passt && (
             <Badge
               variant="outline"
               className="w-fit gap-1 border-emerald-400 bg-emerald-50 text-emerald-900"
             >
               <CheckCircle className="w-3 h-3 shrink-0" />
-              angepasst {gebuchteGaeste} → {order.bookings?.number_of_guests}
+              {gaestezahlGeaendert
+                ? `angepasst ${gebuchteGaeste} → ${order.bookings?.number_of_guests}`
+                : `Wäsche für ${mengenAbgleich.gaeste} Gäste`}
             </Badge>
           )}
 
