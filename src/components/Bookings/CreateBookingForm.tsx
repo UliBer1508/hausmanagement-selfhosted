@@ -143,12 +143,21 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   const [isCalculatingDelta, setIsCalculatingDelta] = useState(false);
   const [isSendingPaymentLink, setIsSendingPaymentLink] = useState(false);
 
-  // Baseline = die GEBUCHTE Personenzahl beim Öffnen des Dialogs (eingefroren).
-  // Verhindert, dass sich das Delta an einem Zwischenstand aufhängt
-  // (das war die Ursache der 14-Personen-Fehlberechnung).
-  const baselineGuests = mode === 'edit' && initialData
-    ? ((initialData as any).booked_guests ?? initialData.number_of_guests ?? 0)
-    : 0;
+  /*
+   * Die ursprünglich gebuchte Gästezahl wird NICHT mehr aus dem
+   * Buchungsobjekt im Browser abgeleitet.
+   *
+   * Früher stand hier:
+   *   const baselineGuests = initialData.booked_guests
+   *                       ?? initialData.number_of_guests ?? 0;
+   *
+   * Enthielt das Objekt die Spalten nicht — was davon abhängt, welche
+   * Abfrage den Dialog geöffnet hat —, war der Wert 0, und daraus wurde ein
+   * Delta über die volle Gästezahl. Der Wert wird jetzt nach dem Speichern
+   * frisch aus der Buchung gelesen und hier abgelegt, damit die Rückfrage
+   * dieselbe Zahl anzeigt, mit der `calculate-booking-delta` rechnet.
+   */
+  const [gebuchteGaesteDb, setGebuchteGaesteDb] = useState<number | null>(null);
 
   // Ja/Nein-Frage "Zusatzkosten erheben?" vor dem Aufrechnen
   const [showChargeAskDialog, setShowChargeAskDialog] = useState(false);
@@ -663,6 +672,24 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         source: 'manual',
       };
 
+      /*
+       * `booked_guests` beim ANLEGEN setzen, nicht nachträglich.
+       *
+       * Bis 08.09.2026 blieb die Spalte leer, bis zum ersten Mal
+       * Zusatzkosten angelegt wurden. Bis dahin behalf sich jede Stelle mit
+       * einem Ersatzwert — und ein fehlender Ersatzwert wurde zu 0. Genau
+       * so entstand die Fehlberechnung bei Tal Yehuda: gerechnet wurde
+       * 7 minus 0 statt 7 minus 6.
+       *
+       * Die ursprünglich gebuchte Personenzahl ist beim Anlegen bekannt.
+       * Sie hier zu setzen macht jeden Ersatzwert überflüssig.
+       * Beim Bearbeiten wird sie NICHT überschrieben — sonst wäre sie kein
+       * "ursprünglich" mehr.
+       */
+      if (mode !== 'edit') {
+        (bookingData as any).booked_guests = numberOfGuests;
+      }
+
       console.log('Prepared booking data for save:', bookingData);
 
       if (mode === 'edit' && initialData) {
@@ -703,9 +730,57 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         //
         // Bei einer REDUZIERUNG gibt es keine Rückfrage; dann wird direkt
         // unten angepasst.
-        const linenNachzuziehen = new_guests !== baselineGuests;
+        /*
+         * Ob eine Erhöhung vorliegt, entscheidet die DATENBANK.
+         *
+         * Bis 08.09.2026 stand hier `new_guests > baselineGuests`, und
+         * `baselineGuests` kam aus dem Buchungsobjekt im Browser:
+         * `booked_guests ?? number_of_guests ?? 0`. Zwei Fehlerbilder:
+         *
+         *   - Fehlten beide Spalten im Objekt, war der Wert 0. Dann galt
+         *     jedes Speichern als Erhöhung um die volle Gästezahl.
+         *   - Enthielt das Objekt bereits die erhöhte Zahl, war die
+         *     Bedingung falsch und es wurde NIE gefragt — die Zusatzkosten
+         *     fielen still aus.
+         *
+         * Welche Abfrage welche Spalte mitlädt, darf darüber nicht
+         * entscheiden. Die Buchung ist an dieser Stelle bereits gespeichert
+         * (Schritt 1 des Ablaufs), also steht der Sollstand in der Tabelle.
+         */
+        let gebuchteGaeste: number | null = null;
+        try {
+          const { data: frisch, error: frischErr } = await supabase
+            .from('bookings')
+            .select('booked_guests, number_of_guests')
+            .eq('id', initialData.id)
+            .single();
+          if (frischErr) throw frischErr;
+          gebuchteGaeste =
+            frisch?.booked_guests === null || frisch?.booked_guests === undefined
+              ? null
+              : Number(frisch.booked_guests);
+          setGebuchteGaesteDb(gebuchteGaeste);
+        } catch (e) {
+          console.error('Konnte gebuchte Gästezahl nicht lesen:', e);
+        }
 
-        const isIncrease = new_guests > baselineGuests;
+        // Kein Ausgangswert lesbar: nicht raten. Lieber keine Rückfrage als
+        // eine Forderung über die volle Gästezahl.
+        if (gebuchteGaeste === null || !Number.isFinite(gebuchteGaeste) || gebuchteGaeste <= 0) {
+          toast({
+            title: 'Zusatzkosten nicht prüfbar',
+            description:
+              'In der Buchung ist keine ursprünglich gebuchte Gästezahl hinterlegt. ' +
+              'Es wurden keine Zusatzkosten berechnet.',
+            variant: 'destructive',
+            duration: 12000,
+          });
+        }
+
+        const linenNachzuziehen =
+          gebuchteGaeste !== null ? new_guests !== gebuchteGaeste : false;
+
+        const isIncrease = gebuchteGaeste !== null && new_guests > gebuchteGaeste;
         if (isIncrease) {
           // Erst fragen, ob Zusatzkosten erhoben werden sollen.
           // (Reduzierung tut bewusst nichts — man erstattet Gästen nichts zurück.)
@@ -1104,18 +1179,53 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         'calculate-booking-delta',
         {
           body: {
+            // NUR die booking_id. Gästezahl, gebuchte Ausgangszahl und
+            // Nächte liest die Funktion selbst aus der Buchung — die ist zu
+            // diesem Zeitpunkt bereits gespeichert (Schritt 1 des Ablaufs).
+            //
+            // Bis 08.09.2026 wurden `baseline_guests`, `new_guests` und
+            // `new_nights` von hier mitgeschickt. `baselineGuests` fiel auf
+            // 0 zurück, sobald das Buchungsobjekt weder `booked_guests` noch
+            // `number_of_guests` enthielt — und welche Abfrage welche Spalte
+            // mitlädt, entschied damit über einen Geldbetrag.
             booking_id: initialData.id,
-            baseline_guests: baselineGuests,
-            new_guests: pendingDelta.new_guests,
-            new_nights: pendingDelta.new_nights,
             persist: false,
           },
         }
       );
       if (error) throw error;
+
+      // Die Funktion konnte keine Ausgangs-Gästezahl ermitteln und hat
+      // deshalb bewusst NICHTS gerechnet. Früher entstanden hier
+      // stillschweigend Forderungen über die volle Gästezahl.
+      if ((deltaData as any)?.warnung) {
+        toast({
+          title: 'Zusatzkosten nicht berechenbar',
+          description: (deltaData as any).warnung,
+          variant: 'destructive',
+          duration: 15000,
+        });
+        setDeltaResult(null);
+        if (initialData?.id && pendingLinenGuests) {
+          await runLinenAdjustment(initialData.id, pendingLinenGuests);
+        }
+        onSuccess();
+        return;
+      }
+
       const charges = deltaData?.charges || [];
       if (charges.length > 0) {
-        setDeltaResult({ charges, total_amount: deltaData.total_amount || 0 });
+        // Rechenweg und bestehende Forderungen mit übernehmen, damit die
+        // Vorschau offenlegt, gegen welche Zahl gerechnet wurde.
+        setDeltaResult({
+          charges,
+          total_amount: deltaData.total_amount || 0,
+          baseline_verwendet: (deltaData as any).baseline_verwendet,
+          neue_gaestezahl: (deltaData as any).neue_gaestezahl,
+          naechte: (deltaData as any).naechte,
+          delta: (deltaData as any).delta,
+          bereits_berechnet: (deltaData as any).bereits_berechnet,
+        } as any);
         // Panel offen lassen zum Korrigieren; NICHT schließen.
       } else {
         toast({ title: 'Keine Zusatzkosten', description: 'Für diese Änderung fallen keine Posten an.' });
@@ -1154,9 +1264,8 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           guests_changed_at: new Date().toISOString(),
           guest_surcharge_amount: 0,
         };
-        if ((initialData as any).booked_guests == null && baselineGuests > 0) {
-          patch.booked_guests = baselineGuests;
-        }
+        // `booked_guests` wird beim Anlegen der Buchung gesetzt und hier
+        // bewusst nicht nachgetragen — siehe Begründung in persistCharges().
         const { error } = await supabase.from('bookings').update(patch).eq('id', initialData.id);
         if (error) throw error;
       } catch (e) {
@@ -1240,9 +1349,18 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         guests_changed_at: new Date().toISOString(),
         guest_surcharge_amount: Math.round(surcharge * 100) / 100,
       };
-      if ((initialData as any).booked_guests == null) {
-        patch.booked_guests = baselineGuests;
-      }
+      /*
+       * `booked_guests` wird hier NICHT mehr geschrieben.
+       *
+       * Bis 08.09.2026 stand hier `patch.booked_guests = baselineGuests` —
+       * mit einem Wert aus dem Browser, der auf 0 fallen konnte. Damit
+       * schrieb ausgerechnet der Vorgang, der die Ausgangszahl braucht,
+       * unter Umständen eine 0 hinein und verdarb jede weitere Berechnung.
+       *
+       * Die Spalte wird jetzt beim ANLEGEN der Buchung gesetzt und ist
+       * damit immer vorhanden. Nachträglich etwas hineinzuschreiben, hiesse
+       * eine "ursprünglich gebuchte" Zahl zu erfinden.
+       */
       await supabase.from('bookings').update(patch).eq('id', initialData.id);
     } catch (e) {
       console.error('Konnte Gästezahl-Übergang nicht speichern:', e);
@@ -1926,11 +2044,46 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
                   <p className="font-semibold text-amber-900">
                     Diese Änderung erzeugt {deltaResult.total_amount.toFixed(2).replace('.', ',')} € Zusatzkosten:
                   </p>
+                  {/* Rechenweg offenlegen. Die Fehlberechnung bei Tal Yehuda
+                      (7 statt 1 Zusatzperson, dreimal) blieb unbemerkt, weil
+                      nirgends stand, gegen welche Zahl gerechnet wurde. */}
+                  {typeof (deltaResult as any).baseline_verwendet === 'number' && (
+                    <p className="text-xs text-amber-800 mt-1">
+                      Gerechnet aus der Buchung: {(deltaResult as any).neue_gaestezahl} Gäste
+                      {' '}minus {(deltaResult as any).baseline_verwendet} gebucht
+                      {' '}= <strong>{(deltaResult as any).delta} zusätzliche Person
+                      {(deltaResult as any).delta === 1 ? '' : 'en'}</strong>
+                      {(deltaResult as any).naechte ? `, ${(deltaResult as any).naechte} Nächte` : ''}
+                    </p>
+                  )}
                   <p className="text-xs text-amber-800 mt-1">
                     Beträge bei Bedarf anpassen, dann als Forderung anlegen oder Zahlungslink senden.
                   </p>
                 </div>
               </div>
+
+              {/* Für diese Buchung bestehen bereits Zusatzforderungen */}
+              {Array.isArray((deltaResult as any).bereits_berechnet) &&
+                (deltaResult as any).bereits_berechnet.length > 0 && (
+                <div className="rounded-md border border-red-300 bg-red-50 p-3 mb-3">
+                  <p className="text-sm font-semibold text-red-900">
+                    Achtung: Für diese Buchung {(deltaResult as any).bereits_berechnet.length === 1
+                      ? 'besteht bereits eine Zusatzforderung'
+                      : `bestehen bereits ${(deltaResult as any).bereits_berechnet.length} Zusatzforderungen`}
+                  </p>
+                  <div className="text-xs text-red-800 mt-1 space-y-0.5">
+                    {(deltaResult as any).bereits_berechnet.map((b: any, i: number) => (
+                      <div key={i}>
+                        {Number(b.amount).toFixed(2).replace('.', ',')} € · {b.description}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-red-800 mt-2">
+                    Legst du jetzt weitere an, wird doppelt gefordert. Prüfe, ob die
+                    bestehenden Posten stattdessen storniert gehören.
+                  </p>
+                </div>
+              )}
 
               {/* Editierbare Posten */}
               <div className="space-y-2 mb-3">
@@ -2089,9 +2242,11 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
             <AlertDialogDescription>
               Es kommen{' '}
               <strong>
-                {pendingDelta ? Math.max(0, pendingDelta.new_guests - baselineGuests) : 0}
+                {pendingDelta && gebuchteGaesteDb !== null
+                  ? Math.max(0, pendingDelta.new_guests - gebuchteGaesteDb)
+                  : 0}
               </strong>{' '}
-              zusätzliche Person(en) gegenüber der gebuchten Zahl ({baselineGuests}).
+              zusätzliche Person(en) gegenüber der gebuchten Zahl ({gebuchteGaesteDb ?? '—'}).
               Sollen dafür Zusatzkosten (Bettwäsche, Ortstaxe, ggf. Reinigung) berechnet
               und ein Zahlungslink vorbereitet werden?
             </AlertDialogDescription>
