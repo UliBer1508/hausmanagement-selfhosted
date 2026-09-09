@@ -55,6 +55,7 @@ const LinenOrdersList = ({ onEditOrder, onDeleteOrder, houseId }: LinenOrdersLis
             check_in,
             check_out,
             number_of_guests,
+            booked_guests,
             guest_id,
             guests (*)
           )
