@@ -67,7 +67,7 @@ const LinenDashboard = () => {
         .select(`
           *,
           houses!linen_orders_house_id_fkey(id, name),
-          bookings!linen_orders_booking_id_fkey(id, guest_name, number_of_guests, check_in, check_out, external_booking_id)
+          bookings!linen_orders_booking_id_fkey(id, guest_name, number_of_guests, booked_guests, check_in, check_out, external_booking_id)
         `)
         .eq('id', orderId)
         .maybeSingle();
@@ -138,7 +138,7 @@ const LinenDashboard = () => {
         .select(`
           *,
           houses!linen_orders_house_id_fkey!inner(id, name, rental_type),
-          bookings!linen_orders_booking_id_fkey(id, guest_name, number_of_guests, check_in, check_out, external_booking_id)
+          bookings!linen_orders_booking_id_fkey(id, guest_name, number_of_guests, booked_guests, check_in, check_out, external_booking_id)
         `)
         .eq('houses.rental_type', 'tourist')
         .eq('status', 'offen')
@@ -166,7 +166,7 @@ const LinenDashboard = () => {
         .select(`
           *,
           houses!linen_orders_house_id_fkey!inner(id, name, rental_type),
-          bookings!linen_orders_booking_id_fkey(id, guest_name, number_of_guests, check_in, check_out, external_booking_id)
+          bookings!linen_orders_booking_id_fkey(id, guest_name, number_of_guests, booked_guests, check_in, check_out, external_booking_id)
         `)
         .eq('houses.rental_type', 'tourist')
         .eq('status', 'offen')
