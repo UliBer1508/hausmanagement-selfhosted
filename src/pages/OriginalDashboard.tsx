@@ -667,6 +667,7 @@ const OriginalDashboard = () => {
             check_in,
             check_out,
             number_of_guests,
+            booked_guests,
             guests (*)
           )
         `)
@@ -855,7 +856,8 @@ const OriginalDashboard = () => {
           bookings!linen_orders_booking_id_fkey (
             id,
             guest_name,
-            number_of_guests
+            number_of_guests,
+            booked_guests
           )
         `)
         .eq('houses.rental_type', 'tourist');
