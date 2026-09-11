@@ -145,11 +145,22 @@ export const mengenFuerBuchung = (
   for (const [key, zeile] of Object.entries(zeilen ?? {})) {
     if (!zeile?.active) continue;
 
-    // Winter = Dezember bis Ende Maerz (einheitlich seit 11.09.2026).
-    // Vorher stand hier Oktober-April, waehrend die erzeugende Edge Function
-    // mit November-Maerz rechnete — dadurch meldete die Pruefung Abweichungen,
-    // die keine waren.
-    if (zeile.availability === 'seasonal' && checkIn) {
+    /*
+     * Saisonale Zeilen nur in ihrer Saison.
+     * Winter = Dezember bis Ende Maerz (einheitlich seit 11.09.2026).
+     *
+     * OHNE Check-in-Datum wird die Zeile UEBERSPRUNGEN, nicht eingeschlossen.
+     * Bis 11.09.2026 stand hier `&& checkIn` — fehlte das Datum, entfiel die
+     * ganze Pruefung und der saisonale Artikel galt als bestellt, egal in
+     * welchem Monat. Genau so entstand auf der Uebersicht die dauerhafte
+     * Meldung "nicht angepasst": die dortige Abfrage laedt `check_in` nicht
+     * mit, also erwartete die Pruefung ganzjaehrig Saunatuecher.
+     *
+     * Eine Rechnung, die das Datum nicht kennt, darf ueber die Saison nichts
+     * behaupten.
+     */
+    if (zeile.availability === 'seasonal') {
+      if (!checkIn) continue;
       const monat = checkIn.getMonth() + 1;
       const winter = monat === 12 || monat <= 3;
       if (zeile.season === 'winter' && !winter) continue;
