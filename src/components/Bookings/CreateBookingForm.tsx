@@ -141,6 +141,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   // Delta charges state (Zusatzkosten bei Erhöhung)
   const [deltaResult, setDeltaResult] = useState<{ charges: any[]; total_amount: number } | null>(null);
   const [isCalculatingDelta, setIsCalculatingDelta] = useState(false);
+  // Ergebnis einer Pruefung ohne offene Posten ("alles bereits abgerechnet").
+  const [zusatzkostenStand, setZusatzkostenStand] = useState<
+    { zuwachs: number; abgerechnet: number; urspruenglich: number; jetzt: number } | null
+  >(null);
   const [isSendingPaymentLink, setIsSendingPaymentLink] = useState(false);
 
   /*
@@ -756,18 +760,50 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         const alteGaestezahl = Number(initialData.number_of_guests) || 0;
         const linenNachzuziehen = new_guests !== alteGaestezahl;
 
-        const isIncrease = new_guests > alteGaestezahl;
-        if (isIncrease) {
+        /*
+         * Gefragt wird nicht "wurde gerade erhoeht?", sondern
+         * "steht noch etwas offen?".
+         *
+         * Bis 11.09.2026 hing die Rueckfrage allein an
+         * `new_guests > alteGaestezahl`. Damit war eine offene Zusatzperson
+         * unsichtbar, sobald der Moment der Aenderung vorbei war: wurde eine
+         * Forderung storniert oder geloescht, oder hatte man beim ersten Mal
+         * "nur merken" gewaehlt, fuehrte kein Weg zurueck zur Berechnung —
+         * ausser die Gaestezahl kuenstlich hoch und wieder runter zu setzen.
+         *
+         * `calculate-booking-delta` beantwortet die Frage serverseitig: es
+         * kennt den Zuwachs aus der Buchung und die bereits abgerechneten
+         * Personen aus `booking_charges`. Bleibt ein Rest, wird gefragt.
+         * Ist alles abgerechnet, passiert nichts — auch dann nicht, wenn
+         * gerade erhoeht wurde.
+         */
+        let offeneZusatzkosten = false;
+        try {
+          const { data: pruef, error: pruefErr } = await supabase.functions.invoke(
+            'calculate-booking-delta',
+            { body: { booking_id: initialData.id, persist: false } }
+          );
+          if (pruefErr) throw pruefErr;
+          offeneZusatzkosten = Number((pruef as any)?.delta) > 0;
+        } catch (e) {
+          console.error('Zusatzkosten-Pruefung fehlgeschlagen:', e);
+          // Nicht raten: lieber fragen als still uebergehen. Die Vorschau
+          // selbst rechnet gleich erneut und legt den Rechenweg offen.
+          offeneZusatzkosten = new_guests > alteGaestezahl;
+        }
+
+        if (offeneZusatzkosten) {
           setGebuchteGaesteDb(alteGaestezahl);
           // Erst fragen, ob Zusatzkosten erhoben werden sollen.
-          // (Reduzierung tut bewusst nichts — man erstattet Gästen nichts zurück.)
-          setPendingLinenGuests(new_guests);
+          // (Reduzierung erzeugt nie eine Forderung — man erstattet nichts
+          // zurueck. Der Zuwachs kann dadurch aber wieder offen werden.)
+          setPendingLinenGuests(linenNachzuziehen ? new_guests : null);
           setPendingDelta({ new_guests, new_nights });
           setShowChargeAskDialog(true);
           return; // Dialog übernimmt; onSuccess folgt nach der Entscheidung.
         }
 
-        // Reduzierung: keine Zusatzkosten, Wäsche trotzdem anpassen.
+        // Nichts offen: Wäsche trotzdem anpassen, wenn sich die Zahl geändert hat.
         if (linenNachzuziehen) {
           await runLinenAdjustment(initialData.id, new_guests);
         }
@@ -1147,6 +1183,66 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   // === Delta-Panel Handler ===
 
   // "Ja, Zusatzkosten berechnen" -> Vorschau holen (persist=false, schreibt nichts)
+  /*
+   * Zusatzkosten pruefen, ohne die Gaestezahl zu aendern.
+   *
+   * Die Rueckfrage "Zusatzkosten berechnen?" erscheint nur bei einer
+   * ERHOEHUNG. Wurde eine Forderung storniert oder geloescht und soll neu
+   * gestellt werden, gab es bis 11.09.2026 keinen Weg dorthin — ausser die
+   * Gaestezahl kuenstlich hoch und wieder runter zu setzen. Das erzeugte
+   * zwei Meldungen an Teuni und zwei Waesche-Neuberechnungen fuer nichts.
+   *
+   * Dieser Knopf ruft dieselbe Funktion auf und aendert nichts: keine
+   * Gaestezahl, keine Waesche, kein Vermerk. Er beantwortet die drei Fragen
+   * in einem Schritt — ist schon berechnet, was ist berechnet, und faellt
+   * jetzt noch etwas an.
+   */
+  const handlePruefeZusatzkosten = async () => {
+    if (!initialData?.id) return;
+    setIsCalculatingDelta(true);
+    setZusatzkostenStand(null);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        'calculate-booking-delta',
+        { body: { booking_id: initialData.id, persist: false } }
+      );
+      if (error) throw error;
+
+      const charges = data?.charges || [];
+      if (charges.length > 0) {
+        setDeltaResult({
+          charges,
+          total_amount: data.total_amount || 0,
+          zuwachs_gesamt: (data as any).zuwachs_gesamt,
+          bereits_abgerechnet: (data as any).bereits_abgerechnet,
+          urspruenglich_gebucht: (data as any).urspruenglich_gebucht,
+          neue_gaestezahl: (data as any).neue_gaestezahl,
+          naechte: (data as any).naechte,
+          delta: (data as any).delta,
+          bereits_berechnet: (data as any).bereits_berechnet,
+        } as any);
+      } else {
+        // Nichts offen. Das ist eine Aussage und keine Fehlanzeige — der
+        // Stand wird angezeigt, damit nachvollziehbar ist WARUM nichts anfaellt.
+        setDeltaResult(null);
+        setZusatzkostenStand({
+          zuwachs: Number((data as any).zuwachs_gesamt) || 0,
+          abgerechnet: Number((data as any).bereits_abgerechnet) || 0,
+          urspruenglich: Number((data as any).urspruenglich_gebucht) || 0,
+          jetzt: Number((data as any).neue_gaestezahl) || 0,
+        });
+      }
+    } catch (e: any) {
+      toast({
+        title: 'Prüfung fehlgeschlagen',
+        description: e.message || 'Zusatzkosten konnten nicht geprüft werden.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCalculatingDelta(false);
+    }
+  };
+
   const handleAskYes = async () => {
     setShowChargeAskDialog(false);
     if (!pendingDelta || !initialData?.id) { onSuccess(); return; }
@@ -2035,6 +2131,44 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
                 {prefilledOrderData.note}
               </p>
             )}
+
+            {/* Zusatzkosten pruefen — sichtbar, sobald ein Zuwachs vorliegt.
+                Aendert nichts, rechnet nur. */}
+            {Number((initialData as any)?.delta_guests) > 0 && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePruefeZusatzkosten}
+                  disabled={isCalculatingDelta}
+                  className="w-full mt-2 border-amber-400 text-amber-900 hover:bg-amber-50"
+                >
+                  <AlertCircle className="w-4 h-4 mr-2" />
+                  {isCalculatingDelta
+                    ? 'Prüfe Zusatzkosten...'
+                    : 'Zusatzkosten prüfen / neu berechnen'}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-1 text-center">
+                  Ändert nichts an Buchung, Wäsche oder Dienstleistern.
+                </p>
+              </>
+            )}
+
+            {zusatzkostenStand && (
+              <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 mt-2">
+                <p className="text-sm font-semibold text-emerald-900">
+                  Keine offenen Zusatzkosten
+                </p>
+                <p className="text-xs text-emerald-800 mt-1">
+                  Ursprünglich {zusatzkostenStand.urspruenglich} Gäste, jetzt{' '}
+                  {zusatzkostenStand.jetzt} — Zuwachs {zusatzkostenStand.zuwachs},
+                  davon bereits abgerechnet {zusatzkostenStand.abgerechnet}.
+                  {zusatzkostenStand.zuwachs > zusatzkostenStand.abgerechnet
+                    ? ' Für die Differenz fallen keine Posten an (keine Sätze hinterlegt).'
+                    : ' Es ist alles abgerechnet.'}
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -2249,17 +2383,34 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           <AlertDialogHeader>
             <AlertDialogTitle>Zusatzkosten berechnen?</AlertDialogTitle>
             <AlertDialogDescription>
-              Es kommen{' '}
-              <strong>
-                {pendingDelta && gebuchteGaesteDb !== null
-                  ? Math.max(0, pendingDelta.new_guests - gebuchteGaesteDb)
-                  : 0}
-              </strong>{' '}
-              zusätzliche Person(en) gegenüber dem bisherigen Stand ({gebuchteGaesteDb ?? '—'}).
-              Wie viel davon noch nicht abgerechnet ist, wird im nächsten Schritt
-              aus der Buchung ermittelt.
-              Sollen dafür Zusatzkosten (Bettwäsche, Ortstaxe, ggf. Reinigung) berechnet
-              und ein Zahlungslink vorbereitet werden?
+              {offenerStand ? (
+                <>
+                  Ursprünglich <strong>{offenerStand.urspruenglich}</strong> Gäste gebucht,
+                  jetzt <strong>{pendingDelta?.new_guests ?? '—'}</strong> — Zuwachs{' '}
+                  <strong>{offenerStand.zuwachs}</strong>
+                  {offenerStand.abgerechnet > 0
+                    ? <>, davon bereits abgerechnet <strong>{offenerStand.abgerechnet}</strong></>
+                    : null}
+                  . Noch nicht abgerechnet:{' '}
+                  <strong>
+                    {offenerStand.offen} Person{offenerStand.offen === 1 ? '' : 'en'}
+                  </strong>.
+                  {' '}Sollen dafür Zusatzkosten (Bettwäsche, Ortstaxe, ggf. Reinigung)
+                  berechnet und ein Zahlungslink vorbereitet werden?
+                </>
+              ) : (
+                <>
+                  Es kommen{' '}
+                  <strong>
+                    {pendingDelta && gebuchteGaesteDb !== null
+                      ? Math.max(0, pendingDelta.new_guests - gebuchteGaesteDb)
+                      : 0}
+                  </strong>{' '}
+                  zusätzliche Person(en) gegenüber dem bisherigen Stand ({gebuchteGaesteDb ?? '—'}).
+                  Sollen dafür Zusatzkosten (Bettwäsche, Ortstaxe, ggf. Reinigung)
+                  berechnet und ein Zahlungslink vorbereitet werden?
+                </>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
