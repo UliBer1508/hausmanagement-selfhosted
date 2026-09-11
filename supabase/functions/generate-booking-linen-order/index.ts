@@ -111,9 +111,18 @@ serve(async (req) => {
 
       const checkInDate: Date | null = booking.check_in ? new Date(booking.check_in) : null;
 
+      /*
+       * Wintersaison: Dezember bis Ende Maerz.
+       *
+       * Diese Regel stand bis 11.09.2026 an fuenf Stellen im Code, in drei
+       * verschiedenen Fassungen (Nov-Maerz, Okt-April). Folge: die Bestellung
+       * wurde nach der einen Regel erzeugt und nach der anderen geprueft —
+       * eine Buchung am 01.10. bekam korrekt 0 Saunatuecher, die Pruefung
+       * meldete trotzdem dauerhaft "nicht angepasst".
+       */
       const isWinter = (date: Date) => {
         const month = date.getUTCMonth() + 1; // 1-12
-        return month === 11 || month === 12 || month <= 3;
+        return month === 12 || month <= 3;
       };
 
       for (const [key, config] of Object.entries(setZeilen)) {
