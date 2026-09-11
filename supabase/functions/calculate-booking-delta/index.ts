@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
     // --- RECHNEN-Zweig (persist=false): nur Vorschau, nichts wird geschrieben ---
     const { data: booking, error: bErr } = await supabase
       .from('bookings')
-      .select('id, house_id, booked_guests, number_of_guests, check_in, check_out')
+      .select('id, house_id, delta_guests, number_of_guests, check_in, check_out')
       .eq('id', booking_id)
       .maybeSingle();
     if (bErr || !booking) {
@@ -118,12 +118,12 @@ Deno.serve(async (req) => {
      * Bis 08.09.2026 schickte der Client `baseline_guests`, `new_guests` und
      * `new_nights` mit, und die Funktion rechnete damit. Der Client bildete
      * die Ausgangszahl aus
-     * `initialData.booked_guests ?? initialData.number_of_guests ?? 0` —
+     * `initialData.delta_guests ?? initialData.number_of_guests ?? 0` —
      * enthielt das Buchungsobjekt, mit dem der Dialog geöffnet wurde, keines
      * von beiden, landete dort eine 0. Die Rückfrage erschien trotzdem
      * (7 > 0), gerechnet wurde gegen null Personen.
      *
-     * Fall Tal Yehuda: `booked_guests = 6` stand korrekt in der Datenbank,
+     * Fall Tal Yehuda: `delta_guests = 6` stand korrekt in der Datenbank,
      * gerechnet wurde dreimal mit 7 zusätzlichen Personen. 49 statt 7
      * Ortstaxe-Einheiten, 122,50 und 137,20 EUR statt 19,60 EUR.
      *
@@ -153,20 +153,20 @@ Deno.serve(async (req) => {
      * größtmöglichen. Eine Buchung mit null Gästen gibt es nicht.
      */
     const base =
-      booking.booked_guests === null || booking.booked_guests === undefined
+      booking.delta_guests === null || booking.delta_guests === undefined
         ? null
-        : Number(booking.booked_guests);
+        : Number(booking.delta_guests);
 
     if (base === null || !Number.isFinite(base) || base <= 0) {
       console.warn('⚠️ Keine Ausgangs-Gästezahl in der Buchung', {
-        booking_id, booked_guests: booking.booked_guests,
+        booking_id, delta_guests: booking.delta_guests,
       });
       return new Response(JSON.stringify({
         charges: [],
         total_amount: 0,
         persisted: false,
         warnung:
-          'In der Buchung ist keine ursprünglich gebuchte Gästezahl hinterlegt (booked_guests). ' +
+          'In der Buchung ist keine ursprünglich gebuchte Gästezahl hinterlegt (delta_guests). ' +
           'Ohne sie lässt sich nicht bestimmen, wie viele Personen hinzugekommen sind. ' +
           'Bitte den Wert in der Buchung setzen und erneut versuchen.',
       }), {
