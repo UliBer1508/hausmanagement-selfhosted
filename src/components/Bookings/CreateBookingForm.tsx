@@ -148,7 +148,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
    * Buchungsobjekt im Browser abgeleitet.
    *
    * Früher stand hier:
-   *   const baselineGuests = initialData.booked_guests
+   *   const baselineGuests = initialData.delta_guests
    *                       ?? initialData.number_of_guests ?? 0;
    *
    * Enthielt das Objekt die Spalten nicht — was davon abhängt, welche
@@ -673,7 +673,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
       };
 
       /*
-       * `booked_guests` beim ANLEGEN setzen, nicht nachträglich.
+       * `delta_guests` beim ANLEGEN setzen, nicht nachträglich.
        *
        * Bis 08.09.2026 blieb die Spalte leer, bis zum ersten Mal
        * Zusatzkosten angelegt wurden. Bis dahin behalf sich jede Stelle mit
@@ -687,7 +687,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
        * "ursprünglich" mehr.
        */
       if (mode !== 'edit') {
-        (bookingData as any).booked_guests = numberOfGuests;
+        (bookingData as any).delta_guests = numberOfGuests;
       }
 
       console.log('Prepared booking data for save:', bookingData);
@@ -735,7 +735,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
          *
          * Bis 08.09.2026 stand hier `new_guests > baselineGuests`, und
          * `baselineGuests` kam aus dem Buchungsobjekt im Browser:
-         * `booked_guests ?? number_of_guests ?? 0`. Zwei Fehlerbilder:
+         * `delta_guests ?? number_of_guests ?? 0`. Zwei Fehlerbilder:
          *
          *   - Fehlten beide Spalten im Objekt, war der Wert 0. Dann galt
          *     jedes Speichern als Erhöhung um die volle Gästezahl.
@@ -751,14 +751,14 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         try {
           const { data: frisch, error: frischErr } = await supabase
             .from('bookings')
-            .select('booked_guests, number_of_guests')
+            .select('delta_guests, number_of_guests')
             .eq('id', initialData.id)
             .single();
           if (frischErr) throw frischErr;
           gebuchteGaeste =
-            frisch?.booked_guests === null || frisch?.booked_guests === undefined
+            frisch?.delta_guests === null || frisch?.delta_guests === undefined
               ? null
-              : Number(frisch.booked_guests);
+              : Number(frisch.delta_guests);
           setGebuchteGaesteDb(gebuchteGaeste);
         } catch (e) {
           console.error('Konnte gebuchte Gästezahl nicht lesen:', e);
@@ -1185,7 +1185,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
             //
             // Bis 08.09.2026 wurden `baseline_guests`, `new_guests` und
             // `new_nights` von hier mitgeschickt. `baselineGuests` fiel auf
-            // 0 zurück, sobald das Buchungsobjekt weder `booked_guests` noch
+            // 0 zurück, sobald das Buchungsobjekt weder `delta_guests` noch
             // `number_of_guests` enthielt — und welche Abfrage welche Spalte
             // mitlädt, entschied damit über einen Geldbetrag.
             booking_id: initialData.id,
@@ -1255,7 +1255,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
      *
      * Bis 08.09.2026 zeigte dieser Zweig einen Toast und tat sonst nichts:
      * kein Feld, keine Notiz, kein Vermerk. Eine Erhöhung ohne Zusatzkosten
-     * war danach nirgends auffindbar, und `booked_guests` blieb leer — was
+     * war danach nirgends auffindbar, und `delta_guests` blieb leer — was
      * die nächste Änderung gegen einen falschen Ausgangswert rechnen liess.
      */
     if (initialData?.id) {
@@ -1264,7 +1264,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           guests_changed_at: new Date().toISOString(),
           guest_surcharge_amount: 0,
         };
-        // `booked_guests` wird beim Anlegen der Buchung gesetzt und hier
+        // `delta_guests` wird beim Anlegen der Buchung gesetzt und hier
         // bewusst nicht nachgetragen — siehe Begründung in persistCharges().
         const { error } = await supabase.from('bookings').update(patch).eq('id', initialData.id);
         if (error) throw error;
@@ -1340,7 +1340,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     });
     if (error) throw error;
 
-    // Übergang dokumentieren: booked_guests (das "vorher") NUR setzen, wenn noch leer,
+    // Übergang dokumentieren: delta_guests (das "vorher") NUR setzen, wenn noch leer,
     // damit es bei weiteren Änderungen nicht überschrieben wird.
     try {
       const surcharge = (deltaResult.charges || [])
@@ -1350,9 +1350,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         guest_surcharge_amount: Math.round(surcharge * 100) / 100,
       };
       /*
-       * `booked_guests` wird hier NICHT mehr geschrieben.
+       * `delta_guests` wird hier NICHT mehr geschrieben.
        *
-       * Bis 08.09.2026 stand hier `patch.booked_guests = baselineGuests` —
+       * Bis 08.09.2026 stand hier `patch.delta_guests = baselineGuests` —
        * mit einem Wert aus dem Browser, der auf 0 fallen konnte. Damit
        * schrieb ausgerechnet der Vorgang, der die Ausgangszahl braucht,
        * unter Umständen eine 0 hinein und verdarb jede weitere Berechnung.
