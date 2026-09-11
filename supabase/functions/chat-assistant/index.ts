@@ -1067,7 +1067,12 @@ async function executeGetBookingFullContext(params: any) {
         check_in: b.check_in,
         check_out: b.check_out,
         number_of_guests: b.number_of_guests,
-        delta_guests: b.delta_guests,
+        // `delta_guests` ist der kumulierte Zuwachs gegenueber der
+        // urspruenglichen Buchung (seit 11.09.2026), nicht die
+        // urspruengliche Zahl. Beides sprechend benannt uebergeben, damit
+        // Max es nicht verwechselt.
+        zusaetzliche_gaeste: b.delta_guests ?? 0,
+        urspruenglich_gebucht: (b.number_of_guests ?? 0) - (b.delta_guests ?? 0),
         guest_surcharge_amount: b.guest_surcharge_amount,
         status: b.status,
         payment_status: b.payment_status,
