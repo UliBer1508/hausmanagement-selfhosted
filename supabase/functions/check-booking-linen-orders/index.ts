@@ -179,10 +179,11 @@ serve(async (req) => {
           for (const [key, cfg] of zeilen) {
             if (!cfg?.active) continue;
 
-            // Saisonale Zeilen nur in ihrer Saison
+            // Saisonale Zeilen nur in ihrer Saison.
+            // Winter = Dezember bis Ende Maerz (einheitlich seit 11.09.2026).
             if (cfg.availability === 'seasonal') {
               const monat = checkInDate.getMonth() + 1;
-              const winter = monat >= 10 || monat <= 4;
+              const winter = monat === 12 || monat <= 3;
               if (cfg.season === 'winter' && !winter) continue;
               if (cfg.season === 'summer' && winter) continue;
             }
