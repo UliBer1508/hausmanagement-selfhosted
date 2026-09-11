@@ -1067,7 +1067,7 @@ async function executeGetBookingFullContext(params: any) {
         check_in: b.check_in,
         check_out: b.check_out,
         number_of_guests: b.number_of_guests,
-        booked_guests: b.booked_guests,
+        delta_guests: b.delta_guests,
         guest_surcharge_amount: b.guest_surcharge_amount,
         status: b.status,
         payment_status: b.payment_status,
