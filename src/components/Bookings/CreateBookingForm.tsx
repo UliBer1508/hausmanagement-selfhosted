@@ -148,6 +148,22 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   const [isSendingPaymentLink, setIsSendingPaymentLink] = useState(false);
 
   /*
+   * FIX 11.09.2026: `offenerStand` wurde im "Zusatzkosten berechnen?"-Dialog
+   * (weiter unten im JSX) verwendet, aber nirgends deklariert. Da JSX-Ausdrücke
+   * beim Rendern der Komponente sofort ausgewertet werden — unabhängig davon,
+   * ob der Dialog gerade sichtbar ist —, warf das bei JEDEM Rendern von
+   * CreateBookingForm einen ReferenceError. Das passierte schon beim Öffnen
+   * des Bearbeiten-Dialogs, also bei jedem Klick auf eine Buchungskarte in der
+   * Übersicht. Die Route-ErrorBoundary fing das ab ("Diese Seite konnte nicht
+   * geladen werden"). Dieser State hält jetzt das Prüfergebnis aus
+   * `calculate-booking-delta` (persist:false), das in performBookingUpdate()
+   * ohnehin schon geholt wird.
+   */
+  const [offenerStand, setOffenerStand] = useState<
+    { urspruenglich: number; zuwachs: number; abgerechnet: number; offen: number } | null
+  >(null);
+
+  /*
    * Die ursprünglich gebuchte Gästezahl wird NICHT mehr aus dem
    * Buchungsobjekt im Browser abgeleitet.
    *
@@ -778,12 +794,17 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
          * gerade erhoeht wurde.
          */
         let offeneZusatzkosten = false;
+        // FIX 11.09.2026: Ergebnis der Prüfung nach außen sichtbar machen,
+        // damit der Dialog unten (offenerStand) es anzeigen kann, statt es
+        // nach der Berechnung von offeneZusatzkosten zu verwerfen.
+        let pruefData: any = null;
         try {
           const { data: pruef, error: pruefErr } = await supabase.functions.invoke(
             'calculate-booking-delta',
             { body: { booking_id: initialData.id, persist: false } }
           );
           if (pruefErr) throw pruefErr;
+          pruefData = pruef;
           offeneZusatzkosten = Number((pruef as any)?.delta) > 0;
         } catch (e) {
           console.error('Zusatzkosten-Pruefung fehlgeschlagen:', e);
@@ -799,6 +820,15 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           // zurueck. Der Zuwachs kann dadurch aber wieder offen werden.)
           setPendingLinenGuests(linenNachzuziehen ? new_guests : null);
           setPendingDelta({ new_guests, new_nights });
+          // FIX 11.09.2026: offenerStand aus dem bereits geholten Prüfergebnis
+          // befüllen — vorher war die Variable nie gesetzt (siehe Kommentar
+          // bei der State-Deklaration oben).
+          setOffenerStand(pruefData ? {
+            urspruenglich: Number(pruefData.urspruenglich_gebucht) || 0,
+            zuwachs: Number(pruefData.zuwachs_gesamt) || 0,
+            abgerechnet: Number(pruefData.bereits_abgerechnet) || 0,
+            offen: Number(pruefData.delta) || 0,
+          } : null);
           setShowChargeAskDialog(true);
           return; // Dialog übernimmt; onSuccess folgt nach der Entscheidung.
         }
@@ -1316,6 +1346,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     } finally {
       setIsCalculatingDelta(false);
       setPendingDelta(null);
+      setOffenerStand(null);
     }
   };
 
@@ -1324,6 +1355,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     setShowChargeAskDialog(false);
     const guests = pendingDelta?.new_guests ?? null;
     setPendingDelta(null);
+    setOffenerStand(null);
 
     /*
      * "Nur merken" muss auch wirklich merken.
