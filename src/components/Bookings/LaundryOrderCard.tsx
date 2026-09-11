@@ -206,9 +206,9 @@ const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = f
   }, [linenDef, order.items, order.bookings?.number_of_guests, order.bookings?.check_in]);
 
   // Wurde die Gästezahl der Buchung überhaupt geändert? Nur dann ist die
-  // Bestätigung "angepasst" eine Aussage. `booked_guests` liefern nicht alle
+  // Bestätigung "angepasst" eine Aussage. `delta_guests` liefern nicht alle
   // Abfragen mit — fehlt es, bleibt die Bestätigung aus, die Warnung nicht.
-  const gebuchteGaeste = order.bookings?.booked_guests ?? null;
+  const gebuchteGaeste = order.bookings?.delta_guests ?? null;
   const gaestezahlGeaendert =
     gebuchteGaeste != null && gebuchteGaeste !== order.bookings?.number_of_guests;
 
