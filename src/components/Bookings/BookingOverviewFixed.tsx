@@ -1014,9 +1014,9 @@ const BookingOverviewFixed = ({ autoOpenBookingId, onBookingOpened }: BookingOve
                         )}
                       </span>
                       {(booking as any).delta_guests != null &&
-                        (booking as any).delta_guests < booking.number_of_guests && (
+                        (booking as any).delta_guests > 0 && (
                         <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
-                          ⚠️ gebucht {(booking as any).delta_guests} → {booking.number_of_guests}
+                          ⚠️ gebucht {booking.number_of_guests - (booking as any).delta_guests} → {booking.number_of_guests}
                           {(booking as any).guest_surcharge_amount
                             ? ` · +${Number((booking as any).guest_surcharge_amount).toLocaleString('de-DE')} €`
                             : ''}

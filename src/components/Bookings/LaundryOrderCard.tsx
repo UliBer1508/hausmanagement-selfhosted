@@ -205,12 +205,22 @@ const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = f
     return { passt: abweichungen.length === 0, bestellteGaeste, gaeste, abweichungen };
   }, [linenDef, order.items, order.bookings?.number_of_guests, order.bookings?.check_in]);
 
-  // Wurde die Gästezahl der Buchung überhaupt geändert? Nur dann ist die
-  // Bestätigung "angepasst" eine Aussage. `delta_guests` liefern nicht alle
-  // Abfragen mit — fehlt es, bleibt die Bestätigung aus, die Warnung nicht.
-  const gebuchteGaeste = order.bookings?.delta_guests ?? null;
-  const gaestezahlGeaendert =
-    gebuchteGaeste != null && gebuchteGaeste !== order.bookings?.number_of_guests;
+  /*
+   * Wurde die Gästezahl der Buchung überhaupt geändert? Nur dann ist die
+   * Bestätigung "angepasst" eine Aussage. `delta_guests` liefern nicht alle
+   * Abfragen mit — fehlt es, bleibt die Bestätigung aus, die Warnung nicht.
+   *
+   * Seit 11.09.2026 hält `delta_guests` den kumulierten Zuwachs. Die
+   * ursprünglich gebuchte Zahl ist `number_of_guests - delta_guests`.
+   * Geprüft wird auf `!== 0`, nicht auf `> 0`: die Wäsche muss auch bei
+   * WENIGER Gästen angepasst werden, sonst liefert und berechnet Teuni zu viel.
+   */
+  const zuwachs = order.bookings?.delta_guests ?? null;
+  const gebuchteGaeste =
+    zuwachs != null && order.bookings?.number_of_guests != null
+      ? order.bookings.number_of_guests - zuwachs
+      : null;
+  const gaestezahlGeaendert = zuwachs != null && zuwachs !== 0;
 
   const isClickable = !isPending && !!onEdit;
   const handleCardClick = async () => {

@@ -243,10 +243,15 @@ const BookingCard = ({ booking, colorVariant, onBookingUpdated }: BookingCardPro
                 )}
               </span>
               {stayCounts && categoryBadge}
+              {/* Zuwachs gegenueber der urspruenglichen Buchung. `delta_guests`
+                  haelt seit 11.09.2026 den kumulierten Zuwachs, nicht mehr die
+                  urspruengliche Zahl — die ist `number_of_guests - delta_guests`.
+                  Angezeigt werden nur Erhoehungen; eine Reduzierung erzeugt
+                  keine Forderung und braucht keine Warnung. */}
               {(booking as any).delta_guests != null &&
-                (booking as any).delta_guests < booking.number_of_guests && (
+                (booking as any).delta_guests > 0 && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-300">
-                  ⚠️ gebucht {(booking as any).delta_guests} → {booking.number_of_guests}
+                  ⚠️ gebucht {booking.number_of_guests - (booking as any).delta_guests} → {booking.number_of_guests}
                   {(booking as any).guest_surcharge_amount
                     ? ` · +${Number((booking as any).guest_surcharge_amount).toLocaleString('de-DE')} €`
                     : ''}

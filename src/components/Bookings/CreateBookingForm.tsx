@@ -673,22 +673,15 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
       };
 
       /*
-       * `delta_guests` beim ANLEGEN setzen, nicht nachträglich.
+       * `delta_guests` wird hier NICHT gesetzt.
        *
-       * Bis 08.09.2026 blieb die Spalte leer, bis zum ersten Mal
-       * Zusatzkosten angelegt wurden. Bis dahin behalf sich jede Stelle mit
-       * einem Ersatzwert — und ein fehlender Ersatzwert wurde zu 0. Genau
-       * so entstand die Fehlberechnung bei Tal Yehuda: gerechnet wurde
-       * 7 minus 0 statt 7 minus 6.
-       *
-       * Die ursprünglich gebuchte Personenzahl ist beim Anlegen bekannt.
-       * Sie hier zu setzen macht jeden Ersatzwert überflüssig.
-       * Beim Bearbeiten wird sie NICHT überschrieben — sonst wäre sie kein
-       * "ursprünglich" mehr.
+       * Die Spalte hat seit 11.09.2026 `DEFAULT 0` und haelt den kumulierten
+       * Zuwachs gegenueber der urspruenglichen Buchung. Eine neue Buchung hat
+       * per Definition keinen Zuwachs. Fortgeschrieben wird ausschliesslich
+       * vom Trigger `trg_fortschreiben_delta_guests` — kein Anwendungspfad
+       * schreibt die Spalte, auch nicht der Excel-Import oder die
+       * Anfrage-Uebernahme.
        */
-      if (mode !== 'edit') {
-        (bookingData as any).delta_guests = numberOfGuests;
-      }
 
       console.log('Prepared booking data for save:', bookingData);
 
@@ -747,41 +740,25 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
          * entscheiden. Die Buchung ist an dieser Stelle bereits gespeichert
          * (Schritt 1 des Ablaufs), also steht der Sollstand in der Tabelle.
          */
-        let gebuchteGaeste: number | null = null;
-        try {
-          const { data: frisch, error: frischErr } = await supabase
-            .from('bookings')
-            .select('delta_guests, number_of_guests')
-            .eq('id', initialData.id)
-            .single();
-          if (frischErr) throw frischErr;
-          gebuchteGaeste =
-            frisch?.delta_guests === null || frisch?.delta_guests === undefined
-              ? null
-              : Number(frisch.delta_guests);
-          setGebuchteGaesteDb(gebuchteGaeste);
-        } catch (e) {
-          console.error('Konnte gebuchte Gästezahl nicht lesen:', e);
-        }
+        /*
+         * Erhoehung oder nicht?
+         *
+         * Entschieden wird gegen den Stand VOR dieser Bearbeitung. Der steht
+         * im Objekt, mit dem der Dialog geoeffnet wurde. Gerechnet wird damit
+         * nicht — das macht `calculate-booking-delta` serverseitig aus
+         * `delta_guests` und den bestehenden Forderungen. Hier geht es nur um
+         * die Frage, ob ueberhaupt gefragt werden muss.
+         *
+         * Die frühere Abfrage der "urspruenglich gebuchten" Zahl entfaellt:
+         * es gibt keinen Fall "kein Ausgangswert" mehr, weil ein leerer
+         * Zuwachs jetzt schlicht 0 bedeutet.
+         */
+        const alteGaestezahl = Number(initialData.number_of_guests) || 0;
+        const linenNachzuziehen = new_guests !== alteGaestezahl;
 
-        // Kein Ausgangswert lesbar: nicht raten. Lieber keine Rückfrage als
-        // eine Forderung über die volle Gästezahl.
-        if (gebuchteGaeste === null || !Number.isFinite(gebuchteGaeste) || gebuchteGaeste <= 0) {
-          toast({
-            title: 'Zusatzkosten nicht prüfbar',
-            description:
-              'In der Buchung ist keine ursprünglich gebuchte Gästezahl hinterlegt. ' +
-              'Es wurden keine Zusatzkosten berechnet.',
-            variant: 'destructive',
-            duration: 12000,
-          });
-        }
-
-        const linenNachzuziehen =
-          gebuchteGaeste !== null ? new_guests !== gebuchteGaeste : false;
-
-        const isIncrease = gebuchteGaeste !== null && new_guests > gebuchteGaeste;
+        const isIncrease = new_guests > alteGaestezahl;
         if (isIncrease) {
+          setGebuchteGaesteDb(alteGaestezahl);
           // Erst fragen, ob Zusatzkosten erhoben werden sollen.
           // (Reduzierung tut bewusst nichts — man erstattet Gästen nichts zurück.)
           setPendingLinenGuests(new_guests);
@@ -1220,7 +1197,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         setDeltaResult({
           charges,
           total_amount: deltaData.total_amount || 0,
-          baseline_verwendet: (deltaData as any).baseline_verwendet,
+          zuwachs_gesamt: (deltaData as any).zuwachs_gesamt,
+          bereits_abgerechnet: (deltaData as any).bereits_abgerechnet,
+          urspruenglich_gebucht: (deltaData as any).urspruenglich_gebucht,
           neue_gaestezahl: (deltaData as any).neue_gaestezahl,
           naechte: (deltaData as any).naechte,
           delta: (deltaData as any).delta,
@@ -1264,10 +1243,17 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           guests_changed_at: new Date().toISOString(),
           guest_surcharge_amount: 0,
         };
-        // `delta_guests` wird beim Anlegen der Buchung gesetzt und hier
-        // bewusst nicht nachgetragen — siehe Begründung in persistCharges().
-        const { error } = await supabase.from('bookings').update(patch).eq('id', initialData.id);
+        /*
+         * `delta_guests` wird hier nicht geschrieben — das macht der Trigger.
+         *
+         * `.select()` ist Pflicht: ohne sie meldet Supabase `error === null`,
+         * auch wenn NULL Zeilen betroffen waren, und der Code bestaetigt
+         * einen Erfolg, den es nicht gab (CODING-GUIDE B3).
+         */
+        const { data: upd, error } = await supabase
+          .from('bookings').update(patch).eq('id', initialData.id).select('id');
         if (error) throw error;
+        if (!upd || upd.length === 0) throw new Error('Keine Zeile aktualisiert');
       } catch (e) {
         console.error('Vermerk zur Gästezahl-Änderung fehlgeschlagen:', e);
         toast({
@@ -1340,30 +1326,48 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     });
     if (error) throw error;
 
-    // Übergang dokumentieren: delta_guests (das "vorher") NUR setzen, wenn noch leer,
-    // damit es bei weiteren Änderungen nicht überschrieben wird.
+    /*
+     * Uebergang dokumentieren.
+     *
+     * `guest_surcharge_amount` haelt die Summe ALLER nicht stornierten
+     * Zusatzforderungen dieser Buchung, nicht nur die des letzten Vorgangs.
+     * Bis 11.09.2026 wurde der Wert ueberschrieben — nach der zweiten
+     * Aenderung zeigte das Badge deshalb nur den letzten Betrag, sah aber
+     * wie die Gesamtsumme aus.
+     *
+     * `delta_guests` wird hier NICHT geschrieben — das macht der Trigger
+     * `trg_fortschreiben_delta_guests` im selben Schreibvorgang wie
+     * `number_of_guests`.
+     */
     try {
-      const surcharge = (deltaResult.charges || [])
+      const { data: alleForderungen } = await supabase
+        .from('booking_charges')
+        .select('amount')
+        .eq('booking_id', initialData.id)
+        .eq('origin', 'auto_delta')
+        .neq('status', 'cancelled');
+
+      const summe = (alleForderungen ?? [])
         .reduce((s: number, c: any) => s + Number(c.amount || 0), 0);
+
       const patch: Record<string, unknown> = {
         guests_changed_at: new Date().toISOString(),
-        guest_surcharge_amount: Math.round(surcharge * 100) / 100,
+        guest_surcharge_amount: Math.round(summe * 100) / 100,
       };
-      /*
-       * `delta_guests` wird hier NICHT mehr geschrieben.
-       *
-       * Bis 08.09.2026 stand hier `patch.delta_guests = baselineGuests` —
-       * mit einem Wert aus dem Browser, der auf 0 fallen konnte. Damit
-       * schrieb ausgerechnet der Vorgang, der die Ausgangszahl braucht,
-       * unter Umständen eine 0 hinein und verdarb jede weitere Berechnung.
-       *
-       * Die Spalte wird jetzt beim ANLEGEN der Buchung gesetzt und ist
-       * damit immer vorhanden. Nachträglich etwas hineinzuschreiben, hiesse
-       * eine "ursprünglich gebuchte" Zahl zu erfinden.
-       */
-      await supabase.from('bookings').update(patch).eq('id', initialData.id);
+
+      // `.select()` ist Pflicht — ohne sie meldet Supabase `error === null`,
+      // auch wenn NULL Zeilen betroffen waren (CODING-GUIDE B3).
+      const { data: upd, error: updErr } = await supabase
+        .from('bookings').update(patch).eq('id', initialData.id).select('id');
+      if (updErr) throw updErr;
+      if (!upd || upd.length === 0) throw new Error('Keine Zeile aktualisiert');
     } catch (e) {
       console.error('Konnte Gästezahl-Übergang nicht speichern:', e);
+      toast({
+        title: 'Vermerk nicht gespeichert',
+        description: 'Die Forderungen wurden angelegt, der Vermerk in der Buchung nicht. Bitte melden.',
+        variant: 'destructive',
+      });
     }
 
     return data;
@@ -2047,11 +2051,16 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
                   {/* Rechenweg offenlegen. Die Fehlberechnung bei Tal Yehuda
                       (7 statt 1 Zusatzperson, dreimal) blieb unbemerkt, weil
                       nirgends stand, gegen welche Zahl gerechnet wurde. */}
-                  {typeof (deltaResult as any).baseline_verwendet === 'number' && (
+                  {typeof (deltaResult as any).zuwachs_gesamt === 'number' && (
                     <p className="text-xs text-amber-800 mt-1">
-                      Gerechnet aus der Buchung: {(deltaResult as any).neue_gaestezahl} Gäste
-                      {' '}minus {(deltaResult as any).baseline_verwendet} gebucht
-                      {' '}= <strong>{(deltaResult as any).delta} zusätzliche Person
+                      Gerechnet aus der Buchung: ursprünglich{' '}
+                      {(deltaResult as any).urspruenglich_gebucht} Gäste, jetzt{' '}
+                      {(deltaResult as any).neue_gaestezahl} — Zuwachs{' '}
+                      {(deltaResult as any).zuwachs_gesamt}
+                      {(deltaResult as any).bereits_abgerechnet > 0
+                        ? `, davon bereits abgerechnet ${(deltaResult as any).bereits_abgerechnet}`
+                        : ''}
+                      {' '}= <strong>{(deltaResult as any).delta} zu berechnende Person
                       {(deltaResult as any).delta === 1 ? '' : 'en'}</strong>
                       {(deltaResult as any).naechte ? `, ${(deltaResult as any).naechte} Nächte` : ''}
                     </p>
@@ -2246,7 +2255,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
                   ? Math.max(0, pendingDelta.new_guests - gebuchteGaesteDb)
                   : 0}
               </strong>{' '}
-              zusätzliche Person(en) gegenüber der gebuchten Zahl ({gebuchteGaesteDb ?? '—'}).
+              zusätzliche Person(en) gegenüber dem bisherigen Stand ({gebuchteGaesteDb ?? '—'}).
+              Wie viel davon noch nicht abgerechnet ist, wird im nächsten Schritt
+              aus der Buchung ermittelt.
               Sollen dafür Zusatzkosten (Bettwäsche, Ortstaxe, ggf. Reinigung) berechnet
               und ein Zahlungslink vorbereitet werden?
             </AlertDialogDescription>
