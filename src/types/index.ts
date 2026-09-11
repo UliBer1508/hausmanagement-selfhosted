@@ -83,6 +83,12 @@ export interface Booking {
   number_of_guests: number;
   number_of_adults?: number;
   number_of_children?: number;
+  // Gaestezahl-Aenderung. Siehe docs/Prozess-Gaestezahl-Aenderung.md.
+  // Bis 11.09.2026 fehlten diese drei Felder im Interface — deshalb stand an
+  // jeder Verwendungsstelle `(booking as any)`.
+  delta_guests?: number | null;
+  guests_changed_at?: string | null;
+  guest_surcharge_amount?: number | null;
   house_id: string;
   status?: 'confirmed' | 'checked_in' | 'completed' | 'cancelled';
   payment_status?: 'pending' | 'paid' | 'partial' | null;
