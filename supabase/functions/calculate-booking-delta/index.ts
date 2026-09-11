@@ -147,32 +147,21 @@ Deno.serve(async (req) => {
         : 0;
 
     /*
-     * ACHTUNG `Number(null)` ergibt 0, und 0 ist finit — die frühere Prüfung
-     * `Number.isFinite(base)` fing einen fehlenden Wert deshalb NICHT ab.
-     * Eine unbekannte Ausgangszahl muss zu KEINEM Delta führen, nicht zum
-     * größtmöglichen. Eine Buchung mit null Gästen gibt es nicht.
+     * Der Zuwachs kommt fertig aus der Buchung.
+     *
+     * Seit 11.09.2026 hält `delta_guests` nicht mehr die ursprünglich
+     * gebuchte Zahl, sondern den KUMULIERTEN Zuwachs gegenüber der
+     * ursprünglichen Buchung: 6 -> 7 ergibt 1, danach 7 -> 9 ergibt 3.
+     * Fortgeschrieben wird er ausschliesslich vom Datenbank-Trigger
+     * `trg_fortschreiben_delta_guests`, im selben Schreibvorgang wie
+     * `number_of_guests`. Beide Werte koennen deshalb nicht auseinanderlaufen.
+     *
+     * Die urspruengliche Gaestezahl ist jederzeit `number_of_guests - zuwachs`.
+     *
+     * Ein fehlender Wert bedeutet jetzt "keine Aenderung" und nicht mehr
+     * "unbekannt" — die frühere Abbruch-Warnung entfaellt dadurch.
      */
-    const base =
-      booking.delta_guests === null || booking.delta_guests === undefined
-        ? null
-        : Number(booking.delta_guests);
-
-    if (base === null || !Number.isFinite(base) || base <= 0) {
-      console.warn('⚠️ Keine Ausgangs-Gästezahl in der Buchung', {
-        booking_id, delta_guests: booking.delta_guests,
-      });
-      return new Response(JSON.stringify({
-        charges: [],
-        total_amount: 0,
-        persisted: false,
-        warnung:
-          'In der Buchung ist keine ursprünglich gebuchte Gästezahl hinterlegt (delta_guests). ' +
-          'Ohne sie lässt sich nicht bestimmen, wie viele Personen hinzugekommen sind. ' +
-          'Bitte den Wert in der Buchung setzen und erneut versuchen.',
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200,
-      });
-    }
+    const zuwachs = Number(booking.delta_guests) || 0;
 
     if (!Number.isFinite(new_guests) || new_guests <= 0) {
       return new Response(JSON.stringify({ error: 'Booking has no guest count' }), {
@@ -180,7 +169,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const delta = new_guests - base;
     const charges: any[] = [];
 
     /*
@@ -197,7 +185,7 @@ Deno.serve(async (req) => {
      */
     const { data: vorhandene } = await supabase
       .from('booking_charges')
-      .select('id, charge_type, description, amount, status, created_at')
+      .select('id, charge_type, description, quantity, amount, status, created_at')
       .eq('booking_id', booking_id)
       .eq('origin', 'auto_delta')
       .neq('status', 'cancelled');
@@ -205,10 +193,38 @@ Deno.serve(async (req) => {
     const bereitsBerechnet = (vorhandene ?? []).map((c: any) => ({
       charge_type: c.charge_type,
       description: c.description,
+      quantity: Number(c.quantity) || 0,
       amount: Number(c.amount),
       status: c.status,
       created_at: c.created_at,
     }));
+
+    /*
+     * Wie viele Personen sind bereits abgerechnet?
+     *
+     * Nicht aus einem mitgefuehrten Zaehler — der kann driften —, sondern aus
+     * dem Geldbestand selbst. Die Bettwaesche wird je Person berechnet,
+     * `quantity` ist also genau die Personenzahl. Stornierte Posten sind
+     * oben bereits ausgefiltert und zaehlen damit nicht mit; wird eine
+     * Forderung storniert, faellt die Person automatisch wieder in die
+     * offene Menge zurueck.
+     *
+     * Die Ortstaxe taugt dafuer nicht: ihre `quantity` ist
+     * Personen x Naechte.
+     */
+    const bereitsAbgerechnetePersonen = (vorhandene ?? [])
+      .filter((c: any) => c.charge_type === 'linen')
+      .reduce((s: number, c: any) => s + (Number(c.quantity) || 0), 0);
+
+    /*
+     * Zu berechnen ist nur, was noch nicht abgerechnet wurde.
+     *
+     * 6 -> 7: zuwachs 1, abgerechnet 0 -> 1 Person.
+     * 7 -> 9: zuwachs 3, abgerechnet 1 -> 2 Personen (nicht 3).
+     * 9 -> 7: zuwachs 1, abgerechnet 3 -> 0 (keine Erstattung).
+     * Danach wieder auf 9: zuwachs 3, abgerechnet 3 -> 0, er hat gezahlt.
+     */
+    const delta = Math.max(0, zuwachs - bereitsAbgerechnetePersonen);
 
     if (delta > 0) {
       const fees = house.additional_fees || {};
@@ -246,14 +262,16 @@ Deno.serve(async (req) => {
     const total_amount = round2(charges.reduce((s, c) => s + Number(c.amount || 0), 0));
 
     // Vorschau: charges tragen bewusst KEINE id (noch nicht in der DB).
-    // `baseline_verwendet` und `delta` gehen mit zurück, damit im Dialog
-    // sichtbar ist, GEGEN WAS gerechnet wurde — der stille Rechenweg war
-    // der Grund, warum die Fehlberechnung dreimal unbemerkt blieb.
+    // Der vollstaendige Rechenweg geht mit zurueck (Zuwachs, bereits
+    // abgerechnet, daraus das Delta) — der stille Rechenweg war der Grund,
+    // warum die Fehlberechnung bei Tal Yehuda dreimal unbemerkt blieb.
     return new Response(JSON.stringify({
       charges,
       total_amount,
       persisted: false,
-      baseline_verwendet: base,
+      zuwachs_gesamt: zuwachs,
+      bereits_abgerechnet: bereitsAbgerechnetePersonen,
+      urspruenglich_gebucht: new_guests - zuwachs,
       neue_gaestezahl: new_guests,
       naechte: new_nights,
       delta,
