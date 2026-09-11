@@ -145,9 +145,13 @@ export const mengenFuerBuchung = (
   for (const [key, zeile] of Object.entries(zeilen ?? {})) {
     if (!zeile?.active) continue;
 
+    // Winter = Dezember bis Ende Maerz (einheitlich seit 11.09.2026).
+    // Vorher stand hier Oktober-April, waehrend die erzeugende Edge Function
+    // mit November-Maerz rechnete — dadurch meldete die Pruefung Abweichungen,
+    // die keine waren.
     if (zeile.availability === 'seasonal' && checkIn) {
       const monat = checkIn.getMonth() + 1;
-      const winter = monat >= 10 || monat <= 4;
+      const winter = monat === 12 || monat <= 3;
       if (zeile.season === 'winter' && !winter) continue;
       if (zeile.season === 'summer' && winter) continue;
     }

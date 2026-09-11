@@ -26,11 +26,12 @@ interface CustomCategoryConfig {
 }
 
 /**
- * Prüft ob ein Datum in der Wintersaison liegt (November - März)
+ * Prüft ob ein Datum in der Wintersaison liegt (Dezember - Ende März).
+ * Einheitlich seit 11.09.2026; vorher stand hier November - März.
  */
 const isWinterSeason = (date: Date): boolean => {
   const month = date.getMonth() + 1;
-  return month >= 11 || month <= 3;
+  return month === 12 || month <= 3;
 };
 
 /**
