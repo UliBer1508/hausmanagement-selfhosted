@@ -139,7 +139,7 @@ const ConnectedBookingView = () => {
             check_in,
             check_out,
             number_of_guests,
-            booked_guests,
+            delta_guests,
             guests (*)
           )
         `);
@@ -182,7 +182,7 @@ const ConnectedBookingView = () => {
             check_in,
             check_out,
             number_of_guests,
-            booked_guests,
+            delta_guests,
             guests (*)
           )
         `);
