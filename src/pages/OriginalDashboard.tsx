@@ -857,7 +857,9 @@ const OriginalDashboard = () => {
             id,
             guest_name,
             number_of_guests,
-            delta_guests
+            delta_guests,
+            check_in,
+            check_out
           )
         `)
         .eq('houses.rental_type', 'tourist');
