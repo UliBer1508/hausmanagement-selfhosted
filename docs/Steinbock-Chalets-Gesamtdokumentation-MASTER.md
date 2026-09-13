@@ -496,6 +496,15 @@ im echten Test bewiesen (E-Mail angekommen).
     trägt zudem eine völlig andere Saisonkurve als `pricing-engine`.
   - **`booking-analysis` (Selbstkalibrierung) wird nirgends aufgerufen**;
     `pricing_config.calibration` ist bei beiden Häusern `null`.
+  - **`booking_amount` = Netto-Auszahlung, nicht Gastpreis (NEU 12.09.2026, von
+    Uli bestätigt).** Bei allen Portalen steht dort der Betrag, den Uli
+    ausgezahlt bekommt; der Gast zahlt 15–30 % mehr. Die Preisempfehlung im
+    Gäste-Tab zeigte deshalb bis 12.09.2026 systematisch 15–30 % zu wenig an.
+    Umrechnung jetzt über `lib/platformMarkup.ts`, Sätze editierbar unter
+    Einstellungen → „Plattform-Aufschlag". Details in `CODE-INDEX.md` Modul 12.
+  - **Marktvergleich in der Lückenanalyse gilt für BEIDE Häuser** (Vorgabe Uli,
+    12.09.2026) — abweichend von „Nur Venediger Chalet" oben, das weiterhin für
+    `pricing-engine` & Co. gilt.
 - **E-Mail:** send-guest-email (denomailer SMTP über smtp.gmail.com:465), zentrale
   Vorschau via MailPreviewProvider.tsx. Absender steinbockchalets@gmail.com.
 - **Zahlungen:** create-payment-link, stripe-webhook. Live-Key auf Hausverwaltung.

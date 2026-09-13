@@ -170,6 +170,19 @@ Danach Etappe 5/6: `guest_id` auf `NOT NULL`, Kopiespalten löschen.
 | Verknüpfte Ansicht + Übersicht | `Bookings/BookingCard.tsx` |
 | Tab „Buchungen" (Liste/Detail) | `Bookings/BookingOverviewFixed.tsx` |
 
+### ⚠️ Preis-Umrechnung existiert DOPPELT: `src/lib/` UND `_shared/` (NEU 12.09.2026)
+
+| Datei | Rolle |
+|---|---|
+| `src/lib/platformMarkup.ts` | **führend** — Frontend (Gäste-Tab, Einstellungen) |
+| `supabase/functions/_shared/platformMarkup.ts` | Spiegel für Edge Functions (`analyze-vacancy`) |
+
+Deno kann `src/` nicht importieren, deshalb liegt die Logik zweimal vor.
+**Regel:** Wer eine ändert, zieht die andere im selben Commit nach. Laufen sie
+auseinander, zeigen ML-Box und KI-Box in derselben Karte verschiedene Preise —
+genau der Effekt, der den Nachtpreis-Bug vom 06.09.2026 so schwer auffindbar
+machte.
+
 ### ⚠️ Chat-Komponenten existieren DOPPELT: `components/` UND `components/Chat/`
 
 **Drei Max-Komponenten liegen zweimal im Repo** — einmal in `src/components/`,
@@ -286,7 +299,11 @@ Weitere Gäste-Dialoge/Bausteine: `GuestDetailsDialog`, `GuestEditDialog`,
 `GuestEmailDialog`, `GuestMergeDialog`, `GuestDuplicatesDialog`,
 `GuestPersonalization`, `GuestAppTracking`, `GuestSessionDetail`,
 `AppReviewsSection`, `EmailTemplateEditor`, `DynamicPricingPanel`,
-`MLSettingsDialog`, `CreateActionDialog`, `ActionDetailsDialog`.
+`MLSettingsDialog`, `CreateActionDialog`, `ActionDetailsDialog`,
+`VacancyCompetitorInsight` (**NEU 12.09.2026** — Wettbewerbs-/Marktvergleich in
+der Karte „Freie Zeiträume"; zwei getrennte Quellen: manuelle Wettbewerberpreise
+aus `weekly_pricing` und AirROI-Regionaldaten aus `market_data_cache`,
+**read-only**, löst keinen Sync aus).
 
 ---
 
@@ -593,6 +610,43 @@ from market_data_cache where source = 'airroi' group by location;
 `adr_min = adr_max = 120` bedeutet Totalausfall; `verschiedene_preise = 1`
 bedeutet, dass nur der Summary-Endpunkt antwortet.
 
+**Wer `market_data_cache` liest, MUSS diesen Fall abfangen** — sonst zeigt die
+Oberfläche die erfundenen 120 € als echten Marktpreis an. Umgesetzt in
+`fetchRegionalMarketDataReadOnly()` (`services/marketOccupancyService.ts`) und in
+`analyze-vacancy`: ein einziger ADR-Wert **und** dieser gleich 120 → Datensatz
+wird verworfen (lieber keine Zahl als eine erfundene); ein einziger ADR-Wert ≠ 120
+→ nutzbar, aber als `summaryOnly` gekennzeichnet und in der UI als grob markiert.
+
+### AirROI-Listing-Endpunkte — der bisher ungenutzte Teil (13.09.2026)
+
+`airroi-sync` ruft **nur** `/markets/summary` und `/markets/metrics/all` auf —
+daher die grobe Auflösung. Die Listing-Endpunkte lösen genau die Lücken, die das
+gescheiterte Scraping hinterlassen hat:
+
+| Endpunkt | Liefert | Kosten (Standard) |
+|---|---|---|
+| `GET /listings/comparables` | Vergleichsobjekte per Adresse + Zimmer/Bäder/Gäste + Radius | 0,10 $ |
+| `GET /listings/future/rates` | bis 365 Tage künftige Tagespreise + Verfügbarkeit, **pro Objekt** | 0,10 $ |
+| `GET /listings/metrics/all` | bis 60 Monate Historie je Objekt | 0,10 $ |
+| `POST /listings/search/radius` | Umkreissuche ohne Ähnlichkeitsfilter | 0,50 $ |
+
+`pricing_info.cleaning_fee` und `extra_guest_fee` kommen **pro Objekt** mit —
+damit ist der echte Nachtpreis der Konkurrenz erstmals herausrechenbar.
+
+**Preisliste ist nicht einheitlich:** nur `/markets/search` und `/markets/lookup`
+kosten 0,01 $. `/markets/metrics/all` — das `airroi-sync` monatlich aufruft —
+kostet **0,50 $**. Aktuelle Liste: https://www.airroi.com/api/pricing
+
+**Es gibt keine Tarifstufen**, die Endpunkte sperren: AirROI ist Pay-as-you-go
+mit Guthaben. Ein Fehlschlag heißt Key ungültig (401/403), Guthaben leer (402)
+oder keine Daten in der Region (200 mit leerer Liste). `airroi-query`
+unterscheidet diese drei Fälle im Klartext.
+
+**Einschränkungen:** AirROI ist eine **Airbnb**-Datenbasis — Booking.com und Vrbo
+fehlen. `exact_location` ist oft `false` (Airbnb verschleiert die Lage,
+Entfernungen nur ungefähr). Die Doku empfiehlt für ländliche Gegenden
+ausdrücklich einen großen Radius und `room_type=entire_home`.
+
 ### Wettbewerber-Scraping — gescheiterter Versuch
 
 `scrape-competitor-prices` und `search-competitors` liefern **keine Daten**: Die
@@ -600,12 +654,45 @@ Buchungsportale sperren Scraper aus. Der Cron
 `monthly-competitor-price-scraping` (monatlich am 15.) läuft weiterhin, ohne
 verwertbares Ergebnis. Nicht als nutzbare Marktdatenquelle einplanen.
 
+### `booking_amount` ist die NETTO-AUSZAHLUNG, nicht der Gastpreis (12.09.2026)
+
+**Von Uli bestätigt:** In `bookings.booking_amount` steht bei **allen** Portalen
+(Belvilla, Booking.com, Airbnb) der Betrag, den Uli **ausgezahlt** bekommt. Der
+Gast zahlt 15–30 % mehr; das Portal schlägt seine Provision oben drauf. Belvilla
+gibt +30 % an (von Uli bezweifelt, vermutlich mehr).
+
+**Folge, die lange unbemerkt war:** Die Preisempfehlung in der Lückenanalyse
+(Gäste-Tab) wurde aus `booking_amount` gerechnet und als Nachtpreis angezeigt —
+also in der Einheit „Auszahlung", während der Wert, den Uli im Portal einträgt,
+ein **Verkaufspreis** ist. Die Empfehlung lag damit systematisch 15–30 % zu
+niedrig, unabhängig von jedem Marktvergleich. Zusätzlich sind AirROI-ADR-Werte
+Verkaufspreise — ein Vergleich mit Auszahlungen vergleicht zwei Einheiten.
+
+**Seit 12.09.2026:** Umrechnung über `src/lib/platformMarkup.ts` (Sätze je
+Plattform, editierbar unter Einstellungen → „Plattform-Aufschlag", gespeichert in
+`system_settings.platform_markups`, Startwert 25 %, Direktbuchung 0 %). Die
+Hochrechnung erfolgt **pro Buchung mit deren eigener Plattform, bevor gemittelt
+wird** — ein Aufschlag auf einen plattformgemischten Durchschnitt wäre falsch.
+
+> ⚠️ **Neuer Doppelgänger (bewusst, siehe Abschnitt 3):**
+> `src/lib/platformMarkup.ts` und `supabase/functions/_shared/platformMarkup.ts`
+> enthalten dieselbe Logik, weil Deno `src/` nicht importieren kann. Die
+> Frontend-Datei führt. **Wer eine ändert, muss die andere im selben Schritt
+> nachziehen** — sonst entsteht genau die Drift, die unten für die Preisfaktoren
+> beschrieben ist.
+
 ### Preisberechnung betrifft nur Venediger Chalet
 
 **Wald Chalet wird ausschließlich über Belvilla vermietet; Belvilla setzt dort
 die Preise.** Sämtliche Preislogik (`pricing-engine`, `daily-pricing`,
 Faktoren, Lückenrabatte, Marktdaten) ist damit nur für Venediger Chalet
 relevant.
+
+> **Ergänzung 12.09.2026 (Vorgabe Uli):** Für den Wettbewerbs-/Marktvergleich in
+> der Lückenanalyse gilt das **nicht** — dort werden **beide Häuser**
+> berücksichtigt, ausdrücklich auch um zu prüfen, ob Belvilla das Wald Chalet
+> vernünftig bepreist. Die Einschränkung oben bleibt für `pricing-engine` &
+> Co. bestehen.
 
 ### Faktoren stehen an vier Stellen — Driftgefahr
 
@@ -652,6 +739,17 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
 - `Settings/RatingReminderSettingsCard.tsx` — Bewertungs-Erinnerungen
 - `Settings/GuestImportCard.tsx` — Gästeliste importieren
 - `Settings/AirROISyncCard.tsx` — AirROI-Abgleich
+- `Settings/AirROIQueryCard.tsx` — **NEU 13.09.2026:** manuelle AirROI-Abfrage
+  (Vergleichsobjekte, Reinigungsgebühren, künftige Tagespreise). Läuft
+  **nie automatisch** — jeder Aufruf kostet Guthaben; Karte zeigt die Kosten
+  vorher und verlangt eine Bestätigung. Edge Function: `airroi-query`
+  (schreibt nichts). Übernehmen der Treffer nach `competitor_properties` per
+  getrenntem zweiten Knopf. **Nicht verwechseln mit `AirROISyncCard.tsx`** —
+  die stößt `airroi-sync` an (Marktaggregate nach `market_data_cache`).
+- `Settings/PlatformMarkupSettingsCard.tsx` — **NEU 12.09.2026:** Plattform-Aufschlag
+  (Auszahlung → Verkaufspreis) je Portal. Hook: `usePlatformMarkups()` in
+  `useSystemSettings.ts`, Logik in `lib/platformMarkup.ts`. Wirkt auf die
+  Preisempfehlung im Gäste-Tab und auf `analyze-vacancy`.
 - `CalendarSync/CalendarSyncCard.tsx` — **NEU 17.07.:** iCal-Kalender-Sync
   (siehe Modul 13b).
 ---
@@ -1072,7 +1170,9 @@ Basis: `use-toast`, `use-mobile`.
 Fallback), `guestKeyHelpers` (`getGuestKey()`: `guest_id` > `guest_email` >
 `guest_name` — Schlüssel für Gast-Gruppierung, siehe Abschnitt 2b), `dateHelpers`,
 `holidayCalendar`, `schoolHolidays`, `linenCalculation`, `linenOrderHelpers`,
-`linenMigration`, `mailtoHelper`, `nameNormalization`, `ratingHelpers`,
+`linenMigration`, `mailtoHelper`, `nameNormalization`, `platformMarkup`
+(**NEU 12.09.2026** — Auszahlung ↔ Verkaufspreis je Plattform; Spiegel in
+`supabase/functions/_shared/platformMarkup.ts`), `ratingHelpers`,
 `utilityStatementPdf`, `utils` (`cn()`).
 
 ### Integrationen / Backend
@@ -1097,6 +1197,7 @@ Fallback), `guestKeyHelpers` (`getGuestKey()`: `guest_id` > `guest_email` >
 | `send-guest-email` | Gmail-SMTP-Versand (auch für Morgen-E-Mail) |
 | `create-payment-link`, `stripe-webhook` | Zahlungen |
 | `pricing-engine`, `daily-pricing`, `scrape-competitor-prices` | Preise |
+| `airroi-query` | **NEU 13.09.2026** — manuelle AirROI-Abfrage (Vergleichsobjekte, Tagespreise). Kostenpflichtig, admin-geschützt, schreibt nichts. Kein Cron, bewusst nur per Knopfdruck. |
 - Tiefen-Doku: `System-Knowledge.md`, `docs/` (z. B.
   `Database-Relational-Assessment.md`, `Waesche-Management-Gesamtsystem.md`,
   `Linen-Order-Status-Standard.md`)
