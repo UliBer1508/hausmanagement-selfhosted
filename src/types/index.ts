@@ -169,6 +169,12 @@ export interface House {
   linen_in_use?: any;
   ordered_linen?: any;
   default_cleaning_hours?: number;
+  /** Preiskonfiguration je Haus (Preise-Tab, PricingConfigCard):
+   *  base_price / min_price / max_price plus Faktoren der pricing-engine.
+   *  Ergaenzt 13.09.2026 — das Feld existiert in der Tabelle `houses` und
+   *  wurde von `useHousePricingConfig` schon gelesen, fehlte hier aber. */
+  pricing_config?: Record<string, unknown> | null;
+  additional_fees?: Record<string, unknown> | null;
   created_at?: string;
   updated_at?: string;
   // Legacy fields for compatibility
