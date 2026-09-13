@@ -97,13 +97,25 @@ serve(async (req) => {
     // echte Nachtpreise (ohne Nebenkosten) statt Rohsummen zu berechnen.
     const { data: house, error: houseError } = await supabase
       .from('houses')
-      .select('name, address, additional_fees')
+      .select('name, address, additional_fees, pricing_config')
       .eq('id', houseId)
       .single();
 
     if (houseError) throw houseError;
 
     const additionalFees = house.additional_fees as AdditionalFees | null;
+
+    // Fix (13.09.2026): Mindest-/Hoechstpreis aus houses.pricing_config
+    // (gepflegt im Preise-Tab, PricingConfigCard). Die KI-Analyse hat diese
+    // Grenzen vorher komplett ignoriert und Preise unterhalb des
+    // Mindestpreises empfohlen - bei Venediger 280-330 EUR gegen einen
+    // Mindestpreis von 445 EUR.
+    const hausPreisCfg = (house.pricing_config ?? {}) as Record<string, unknown>;
+    const alsZahl = (v: unknown) =>
+      Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null;
+    const minPreis = alsZahl(hausPreisCfg.min_price);
+    const maxPreis = alsZahl(hausPreisCfg.max_price);
+    const basisPreis = alsZahl(hausPreisCfg.base_price);
 
     // Fix (2026-09-12): Wettbewerberpreise laden. Mirror von
     // useHouseCompetitorPricing (src/hooks/useCompetitorAnalysis.ts) — bewusst
@@ -403,6 +415,15 @@ serve(async (req) => {
         abgedeckteTage: regionalDaysCovered,
         nurSummaryEndpunkt: regionalSummaryOnly,
       },
+      // Fix (13.09.2026): harte Preisgrenzen des Vermieters aus dem Preise-Tab.
+      preisgrenzenVermieterEURProNacht: {
+        hinweis: (minPreis || maxPreis)
+          ? "VERBINDLICHE Vorgabe des Vermieters. Deine Empfehlung MUSS innerhalb dieser Grenzen liegen. Liegen Markt oder Historie darunter, sage das im reasoning deutlich - aber unterschreite den Mindestpreis NICHT."
+          : "Keine Preisgrenzen hinterlegt.",
+        mindestpreis: minPreis,
+        hoechstpreis: maxPreis,
+        basispreis: basisPreis,
+      },
       historicalData: {
         totalBookings: bookings.length,
         monthlyStats: {
@@ -448,6 +469,10 @@ WETTBEWERBSVERGLEICH (unbedingt beachten, siehe "wettbewerbspreiseEURProNacht"):
 - Wenn eigene Historie und Wettbewerbspreise deutlich auseinanderliegen: nenne beide Werte explizit in "reasoning" und erkläre, wohin du dich orientierst und warum (z.B. "eigene Historie basiert auf älteren, ggf. günstigeren Jahren").
 - Erfinde NIEMALS Wettbewerbspreise, wenn anzahlPreise = 0 ist - weise stattdessen im reasoning darauf hin, dass kein Marktvergleich verfügbar war.
 - Liegen keine Wettbewerberpreise vor, aber "regionaleMarktdatenEURProNacht" hat einen Wert: nutze diesen groben Regionsschnitt als zweitbeste Orientierung (besser als nur Eigen-Historie, aber schwächer als ein echter Wettbewerbspreis).
+
+PREISGRENZEN (hoechste Prioritaet, siehe "preisgrenzenVermieterEURProNacht"):
+- Sind mindestpreis/hoechstpreis gesetzt, MUSS suggestedPriceMin >= mindestpreis und suggestedPriceMax <= hoechstpreis sein. Diese Vorgabe schlaegt Historie, Wettbewerb und Regionaldaten.
+- Liegt der Markt unter dem Mindestpreis, empfiehl trotzdem den Mindestpreis und weise im reasoning ausdruecklich darauf hin, dass der Markt darunter liegt und die Buchungswahrscheinlichkeit dadurch sinkt.
 
 ANALYSE-KRITERIEN:
 1. Lead-Time: Je näher der Termin, desto dringender
@@ -578,6 +603,40 @@ Liefere eine strukturierte Analyse mit:
       }
     } else {
       console.warn('analyze-vacancy: Kein historischer Preis/Nacht-Referenzwert vorhanden - keine Plausibilitätsprüfung möglich.');
+    }
+
+    // Fix (13.09.2026): Harte Preisgrenzen des Vermieters durchsetzen.
+    // Der Systemprompt weist die KI zwar an, sie einzuhalten - darauf ist aber
+    // kein Verlass. Diese Klammer steht BEWUSST NACH der Plausibilitätsprüfung
+    // oben, damit sie das letzte Wort hat. Die Anpassung wird im reasoning
+    // benannt, nicht still vorgenommen: dass Markt und Historie darunter
+    // liegen, ist für Uli eine Information und kein Störgeräusch.
+    if (minPreis !== null || maxPreis !== null) {
+      const vorherMin = analysis.suggestedPriceMin;
+      const vorherMax = analysis.suggestedPriceMax;
+
+      if (minPreis !== null && analysis.suggestedPriceMin < minPreis) {
+        analysis.suggestedPriceMin = minPreis;
+        if (analysis.suggestedPriceMax < minPreis) analysis.suggestedPriceMax = minPreis;
+      }
+      if (maxPreis !== null && analysis.suggestedPriceMax > maxPreis) {
+        analysis.suggestedPriceMax = maxPreis;
+        if (analysis.suggestedPriceMin > maxPreis) analysis.suggestedPriceMin = maxPreis;
+      }
+
+      if (vorherMin !== analysis.suggestedPriceMin || vorherMax !== analysis.suggestedPriceMax) {
+        console.warn(
+          `analyze-vacancy: Empfehlung an die Preisgrenzen des Hauses angepasst ` +
+          `(Mindestpreis ${minPreis ?? '-'}, Höchstpreis ${maxPreis ?? '-'}): ` +
+          `€${vorherMin}-€${vorherMax} -> €${analysis.suggestedPriceMin}-€${analysis.suggestedPriceMax}.`
+        );
+        analysis.reasoning +=
+          ` (Hinweis: Die Empfehlung lautete zunächst €${vorherMin}-€${vorherMax}/Nacht und wurde auf ` +
+          `deine im Preise-Tab hinterlegten Grenzen angepasst` +
+          `${minPreis !== null ? `, Mindestpreis €${minPreis}` : ''}` +
+          `${maxPreis !== null ? `, Höchstpreis €${maxPreis}` : ''}. ` +
+          `Liegt der Markt darunter, sinkt die Buchungswahrscheinlichkeit entsprechend.)`;
+      }
     }
 
     console.log('Vacancy analysis completed:', analysis);
