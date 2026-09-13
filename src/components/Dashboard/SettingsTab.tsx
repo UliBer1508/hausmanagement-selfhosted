@@ -12,6 +12,8 @@ import {
   Settings, Save, Send, Clock, CheckCircle,
 } from 'lucide-react';
 import RatingReminderSettingsCard from '@/components/Settings/RatingReminderSettingsCard';
+import PlatformMarkupSettingsCard from '@/components/Settings/PlatformMarkupSettingsCard';
+import AirROIQueryCard from '@/components/Settings/AirROIQueryCard';
 import MaxMorningSummaryCard from '@/components/Settings/MaxMorningSummaryCard';
 import MaxAutomationScheduleCard from '@/components/Settings/MaxAutomationScheduleCard';
 import GuestImportCard from '@/components/Settings/GuestImportCard';
@@ -405,6 +407,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
         {/* Bewertungs-Erinnerungen */}
         <RatingReminderSettingsCard />
+
+        {/* Plattform-Aufschlag: Auszahlung -> Verkaufspreis (wirkt auf Preisempfehlungen) */}
+        <PlatformMarkupSettingsCard />
+
+        {/* AirROI-Abfrage von Hand (kostenpflichtig, daher nie automatisch) */}
+        <AirROIQueryCard />
 
         {/* Gästeliste Import */}
         <GuestImportCard />
