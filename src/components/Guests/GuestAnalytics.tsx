@@ -16,6 +16,9 @@ import { useHouses } from '@/hooks/useHouses';
 import { useVacancyAI } from '@/hooks/useVacancyAI';
 import { MLSettingsDialog, type MLSettings, DEFAULT_ML_SETTINGS, loadMLSettings } from './MLSettingsDialog';
 import { checkHolidayPeriod, type HolidayMatch } from '@/lib/holidayCalendar';
+import VacancyCompetitorInsight from './VacancyCompetitorInsight';
+import { usePlatformMarkups } from '@/hooks/useSystemSettings';
+import { grossFromNet, withMarkupDefaults, type PlatformMarkupSettings } from '@/lib/platformMarkup';
 // Etappe 4: Gastfelder aus der guests-Relation (siehe guestHelpers.ts)
 import { withGuestData } from '@/lib/guestHelpers';
 
@@ -49,7 +52,10 @@ interface Vacancy {
 interface HistoricalReference {
   matchingBooking: {
     guestName: string;
+    /** Netto-Auszahlung/Nacht */
     pricePerNight: number;
+    /** Verkaufspreis/Nacht (Auszahlung + Plattform-Aufschlag) */
+    grossPricePerNight: number;
     platform: string;
     nationality: string;
     leadDays: number;
@@ -58,9 +64,12 @@ interface HistoricalReference {
     additionalCosts: number;
   } | null;
   monthStats: {
+    /** Verkaufspreis/Nacht (Auszahlung + Plattform-Aufschlag) */
     avgPricePerNight: number;
     minPricePerNight: number;
     maxPricePerNight: number;
+    /** Netto-Auszahlung/Nacht, zur Transparenz mitgefuehrt */
+    avgNetPricePerNight: number;
     avgLeadDays: number;
     topPlatforms: string[];
     topNationalities: string[];
@@ -96,12 +105,26 @@ interface HouseOccupancy {
 }
 
 // Calculate real price per night (subtract ancillary costs)
+//
+// Fix (12.09.2026): `bookingAmount` ist die NETTO-AUSZAHLUNG vom Portal, nicht
+// der Gastpreis (von Uli bestaetigt). Wird `platform` + `markups` uebergeben,
+// liefert die Funktion zusaetzlich den hochgerechneten VERKAUFSPREIS pro Nacht
+// - also den Betrag, den Uli im Portal eintraegt. Nur der ist mit
+// AirROI-Marktpreisen vergleichbar und nur der taugt als Preisempfehlung.
+// Rechenweg zentral in src/lib/platformMarkup.ts.
 const calculateRealPricePerNight = (
   bookingAmount: number,
   nights: number,
   guests: number,
-  additionalFees: AdditionalFees
-): { realPricePerNight: number; totalAdditionalCosts: number; breakdown: { fixedCosts: number; variableCosts: number } } => {
+  additionalFees: AdditionalFees,
+  platform?: string | null,
+  markups?: PlatformMarkupSettings | null
+): {
+  realPricePerNight: number;
+  grossPricePerNight: number;
+  totalAdditionalCosts: number;
+  breakdown: { fixedCosts: number; variableCosts: number }
+} => {
   const fixedCosts = 
     (additionalFees.cleaning_fee_per_stay || 0) +
     (additionalFees.electricity_fee_per_stay || 0) +
@@ -111,11 +134,15 @@ const calculateRealPricePerNight = (
   const variableCosts = (additionalFees.tourist_tax_per_night || 0) * nights * guests;
   const totalAdditionalCosts = fixedCosts + variableCosts;
   
-  // Real overnight price = (total - ancillary costs) / nights
+  // Real overnight price = (total - ancillary costs) / nights -> Netto-Auszahlung
   const realPricePerNight = Math.max(0, (bookingAmount - totalAdditionalCosts) / nights);
+  const rounded = Math.round(realPricePerNight * 100) / 100;
   
   return {
-    realPricePerNight: Math.round(realPricePerNight * 100) / 100,
+    realPricePerNight: rounded,
+    // Pro Buchung mit DEREN Plattform hochrechnen - nie auf einen Durchschnitt,
+    // der Plattformen mit unterschiedlichen Saetzen mischt.
+    grossPricePerNight: grossFromNet(rounded, platform, markups),
     totalAdditionalCosts,
     breakdown: { fixedCosts, variableCosts }
   };
@@ -125,7 +152,8 @@ const calculateRealPricePerNight = (
 const findMatchingHistoricalBooking = (
   vacancy: Vacancy,
   allBookings: any[],
-  houseId: string
+  houseId: string,
+  markups?: PlatformMarkupSettings | null
 ): HistoricalReference['matchingBooking'] => {
   const vacancyStart = parseISO(vacancy.start);
   const vacancyMonth = vacancyStart.getMonth();
@@ -146,17 +174,20 @@ const findMatchingHistoricalBooking = (
   // Best reference: similar duration + highest real price/night
   const sortedBookings = matchingBookings.map(b => {
     const nights = differenceInDays(new Date(b.check_out), new Date(b.check_in));
-    const { realPricePerNight, totalAdditionalCosts } = calculateRealPricePerNight(
+    const { realPricePerNight, grossPricePerNight, totalAdditionalCosts } = calculateRealPricePerNight(
       b.booking_amount,
       nights,
       b.number_of_guests,
-      b.houses.additional_fees
+      b.houses.additional_fees,
+      b.platform,
+      markups
     );
     const leadDays = differenceInDays(new Date(b.check_in), new Date(b.created_at));
     
     return {
       guestName: b.guest_name,
       pricePerNight: realPricePerNight,
+      grossPricePerNight,
       platform: getPlatformLabel(b.platform),
       nationality: b.nationality || 'N/A',
       leadDays,
@@ -173,7 +204,8 @@ const findMatchingHistoricalBooking = (
 const getMonthlyStats = (
   month: number,
   allBookings: any[],
-  houseId: string
+  houseId: string,
+  markups?: PlatformMarkupSettings | null
 ): HistoricalReference['monthStats'] => {
   const monthBookings = allBookings.filter(b => {
     if (b.house_id !== houseId || b.status === 'cancelled') return false;
@@ -184,8 +216,22 @@ const getMonthlyStats = (
   
   if (monthBookings.length === 0) return null;
   
-  // Calculate REAL prices/night (without ancillary costs)
+  // Fix (12.09.2026): Verkaufspreise (Auszahlung + Plattform-Aufschlag je Buchung),
+  // damit die Statistik in derselben Einheit steht wie die Empfehlung und wie
+  // die AirROI-Marktpreise. Die Netto-Auszahlung wird zusaetzlich ausgewiesen.
   const pricesPerNight = monthBookings.map(b => {
+    const nights = differenceInDays(new Date(b.check_out), new Date(b.check_in));
+    return calculateRealPricePerNight(
+      b.booking_amount,
+      nights,
+      b.number_of_guests,
+      b.houses.additional_fees,
+      b.platform,
+      markups
+    ).grossPricePerNight;
+  });
+
+  const netPricesPerNight = monthBookings.map(b => {
     const nights = differenceInDays(new Date(b.check_out), new Date(b.check_in));
     return calculateRealPricePerNight(
       b.booking_amount,
@@ -228,6 +274,7 @@ const getMonthlyStats = (
     avgPricePerNight: Math.round(pricesPerNight.reduce((a, b) => a + b, 0) / pricesPerNight.length),
     minPricePerNight: Math.round(Math.min(...pricesPerNight)),
     maxPricePerNight: Math.round(Math.max(...pricesPerNight)),
+    avgNetPricePerNight: Math.round(netPricesPerNight.reduce((a, b) => a + b, 0) / netPricesPerNight.length),
     avgLeadDays: Math.round(leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length),
     topPlatforms,
     topNationalities,
@@ -366,7 +413,8 @@ const calculateSuggestedPrice = (
   startDate: Date,
   historicalBookings: any[],
   settings: MLSettings,
-  holidayMatch: HolidayMatch
+  holidayMatch: HolidayMatch,
+  markups?: PlatformMarkupSettings | null
 ): { min: number; max: number } => {
   const month = startDate.getMonth();
   
@@ -378,17 +426,23 @@ const calculateSuggestedPrice = (
   
   if (sameMonthBookings.length === 0) {
     // Fallback: Use overall average if no data for this month
+    // (Werte sind Verkaufspreise pro Nacht, wie die Empfehlung insgesamt.)
     return { min: 400, max: 600 };
   }
   
+  // Fix (12.09.2026): VERKAUFSPREIS je Buchung (Auszahlung + Plattform-Aufschlag),
+  // dann mitteln. Vorher wurde die Netto-Auszahlung als Empfehlung angezeigt -
+  // wer die im Portal eintrug, bekam nach Provision 15-30 % weniger heraus.
   const realPrices = sameMonthBookings.map(b => {
     const nights = differenceInDays(new Date(b.check_out), new Date(b.check_in));
     return calculateRealPricePerNight(
       b.booking_amount,
       nights,
       b.number_of_guests,
-      b.houses.additional_fees
-    ).realPricePerNight;
+      b.houses.additional_fees,
+      b.platform,
+      markups
+    ).grossPricePerNight;
   });
   
   const avgRealPrice = realPrices.reduce((sum, p) => sum + p, 0) / realPrices.length;
@@ -483,7 +537,8 @@ const findVacanciesWithML = (
   startDate: Date, 
   endDate: Date,
   settings: MLSettings,
-  houseId: string
+  houseId: string,
+  markups?: PlatformMarkupSettings | null
 ): VacancyML[] => {
   const basicVacancies = findVacancies(bookings, startDate, endDate);
   
@@ -508,15 +563,15 @@ const findVacanciesWithML = (
     
     // Get historical references
     const matchingBooking = settings.showHistoricalReference 
-      ? findMatchingHistoricalBooking(vacancy, allHistoricalBookings, houseId)
+      ? findMatchingHistoricalBooking(vacancy, allHistoricalBookings, houseId, markups)
       : null;
-    const monthStats = getMonthlyStats(month, allHistoricalBookings, houseId);
+    const monthStats = getMonthlyStats(month, allHistoricalBookings, houseId, markups);
     
     return {
       ...vacancy,
       ml: {
         bookingProbability: calculateBookingProbability(vacancyStart, vacancy.days, allHistoricalBookings, settings, holidayMatch),
-        suggestedPrice: calculateSuggestedPrice(vacancyStart, allHistoricalBookings, settings, holidayMatch),
+        suggestedPrice: calculateSuggestedPrice(vacancyStart, allHistoricalBookings, settings, holidayMatch, markups),
         bestChannel: bestChannelResult.channel,
         bestChannelReason: bestChannelResult.reason,
         targetNationalities: getTargetNationalities(vacancyStart, allHistoricalBookings),
@@ -563,6 +618,9 @@ const GuestAnalytics = () => {
   
   const { data: allHouses } = useHouses();
   const { analyzeVacancy, isAnalyzing } = useVacancyAI();
+  // Plattform-Aufschlag: Auszahlung -> Verkaufspreis (src/lib/platformMarkup.ts)
+  const { data: storedMarkups } = usePlatformMarkups();
+  const markups = withMarkupDefaults(storedMarkups);
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -616,7 +674,8 @@ const GuestAnalytics = () => {
 
   // Fetch booking data for analytics
   const { data: analyticsData, isLoading } = useQuery({
-    queryKey: ['guest-analytics', selectedHouseId, selectedYear],
+    // markups gehen in den Key: aendert Uli die Saetze, muss neu gerechnet werden.
+    queryKey: ['guest-analytics', selectedHouseId, selectedYear, markups],
     queryFn: async () => {
       let query = supabase
         .from('bookings')
@@ -772,7 +831,7 @@ const GuestAnalytics = () => {
         }
         
         // Find vacancies with ML analysis (free periods)
-        const vacancies = findVacanciesWithML(houseBookings, activeBookings, today, sixMonthsLater, mlSettings, house.id);
+        const vacancies = findVacanciesWithML(houseBookings, activeBookings, today, sixMonthsLater, mlSettings, house.id, markups);
         
         perHouseOccupancy.push({
           houseId: house.id,
@@ -1268,6 +1327,15 @@ const GuestAnalytics = () => {
                           </Button>
                         </div>
 
+                        {/* Wettbewerbsvergleich — NEU (12.09.2026), unabhängig von ML/KI-Anzeige */}
+                        <VacancyCompetitorInsight
+                          houseId={house.houseId}
+                          vacancyStart={vacancy.start}
+                          vacancyEnd={vacancy.end}
+                          ownSuggestedMin={vacancy.ml.suggestedPrice.min}
+                          ownSuggestedMax={vacancy.ml.suggestedPrice.max}
+                        />
+
                         {/* Conditional Display: KI-Analyse or ML Analysis Box */}
                         {aiAnalyses[`${vacancy.start}_${vacancy.end}`] ? (
                           /* KI-ANALYSE ERGEBNISSE */
@@ -1293,7 +1361,7 @@ const GuestAnalytics = () => {
                             {/* KI-Preisempfehlung */}
                             <div className="text-sm">
                               <div className="flex items-start gap-1">
-                                <span>💰 KI-Preisempfehlung:</span>
+                                <span>💰 KI-Preisempfehlung <span className="text-xs text-muted-foreground">(Verkaufspreis)</span>:</span>
                                 <div className="font-bold">
                                   <div>€{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMin} - €{aiAnalyses[`${vacancy.start}_${vacancy.end}`].suggestedPriceMax} /Nacht</div>
                                   <div>
@@ -1366,7 +1434,7 @@ const GuestAnalytics = () => {
                             <div className="space-y-1">
                               <div className="flex items-center justify-between text-sm">
                                 <span className="flex items-center gap-2">
-                                  💰 Preisempfehlung:
+                                  💰 Preisempfehlung <span className="text-xs text-muted-foreground">(Verkaufspreis)</span>:
                                 </span>
                                 <div className="font-bold text-right">
                                   <div>€{vacancy.ml.suggestedPrice.min.toLocaleString()} - €{vacancy.ml.suggestedPrice.max.toLocaleString()} /Nacht</div>
@@ -1377,6 +1445,15 @@ const GuestAnalytics = () => {
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 → Basierend auf {format(parseISO(vacancy.start), 'MMMM', { locale: de })}-Durchschnitt
+                              </p>
+                              {/* Einheit klarstellen (12.09.2026): booking_amount ist die
+                                  Netto-Auszahlung, die Empfehlung ist der Verkaufspreis. */}
+                              <p className="text-xs text-muted-foreground">
+                                → Betrag, den du im Portal einträgst (inkl. Provisions-Aufschlag).
+                                {vacancy.historical?.monthStats?.avgNetPricePerNight ? (
+                                  <> Historisch blieben dir davon ⌀ €
+                                  {vacancy.historical.monthStats.avgNetPricePerNight.toLocaleString()}/Nacht.</>
+                                ) : null}
                               </p>
                             </div>
 
