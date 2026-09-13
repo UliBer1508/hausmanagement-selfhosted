@@ -688,3 +688,88 @@ export const useUpdateScrapingParams = () => {
     },
   });
 };
+
+// ─── Wettbewerbspreise für die Freie-Zeiträume-Analyse (Gäste-Tab) ────────────
+// NEU (12.09.2026): Verbindet die manuell gepflegten Wettbewerber-Daten
+// (competitor_properties + weekly_pricing, gefüllt über ManualCompetitorDialog)
+// mit der Preisanalyse pro Haus im Gäste-Tab. Nutzt bewusst NICHT
+// scrape-competitor-prices/search-competitors — diese liefern laut
+// docs/CODE-INDEX.md ("Wettbewerber-Scraping — gescheiterter Versuch") keine
+// Daten, weil die Buchungsportale automatisiertes Scraping blockieren. Manuell
+// über weekly_pricing.source='manual' erfasste Preise sind der einzige aktuell
+// funktionierende Wettbewerbs-Datenpfad im Repo.
+
+export interface CompetitorPriceSnapshot {
+  competitorId: string;
+  propertyName: string;
+  platform?: string | null;
+  pricePerNight: number;
+  periodStart: string;
+  periodEnd: string;
+  nights: number;
+  scrapedAt?: string | null;
+  source: string;
+}
+
+export interface HouseCompetitorPricing {
+  competitors: Pick<CompetitorPropertyRow, 'id' | 'property_name' | 'platform'>[];
+  snapshots: CompetitorPriceSnapshot[];
+}
+
+// Hook: Lade alle Wettbewerber + deren manuell erfasste Periodenpreise für ein Haus.
+// Wird einmal pro Haus geladen (nicht pro Lücke) und im UI clientseitig nach
+// Zeitraum/Monat gefiltert (siehe VacancyCompetitorInsight.tsx).
+export const useHouseCompetitorPricing = (house_id: string) => {
+  return useQuery({
+    queryKey: ['house-competitor-pricing', house_id],
+    queryFn: async (): Promise<HouseCompetitorPricing> => {
+      const { data: competitors, error: compError } = await supabase
+        .from('competitor_properties')
+        .select('id, property_name, platform')
+        .eq('house_id', house_id)
+        .eq('is_active', true);
+
+      if (compError) throw compError;
+      if (!competitors || competitors.length === 0) {
+        return { competitors: [], snapshots: [] };
+      }
+
+      const ids = competitors.map((c) => c.id);
+      const byId = new Map(competitors.map((c) => [c.id, c]));
+
+      // period_total_price + period_nights = manuell erfasster Gesamtpreis für
+      // einen Aufenthalt (siehe useAddCompetitor). Das ist der einzige Weg, wie
+      // heute reale Wettbewerbspreise ins System kommen (source: 'manual').
+      const { data: weekly, error: weeklyError } = await supabase
+        .from('weekly_pricing')
+        .select('*')
+        .in('competitor_property_id', ids)
+        .not('period_total_price', 'is', null)
+        .not('period_nights', 'is', null)
+        .order('scraped_at', { ascending: false, nullsFirst: false });
+
+      if (weeklyError) throw weeklyError;
+
+      const snapshots: CompetitorPriceSnapshot[] = (weekly ?? [])
+        .filter((w) => (w.period_nights ?? 0) > 0 && w.period_total_price)
+        .map((w) => {
+          const c = byId.get(w.competitor_property_id!);
+          return {
+            competitorId: w.competitor_property_id!,
+            propertyName: c?.property_name ?? 'Unbekannter Wettbewerber',
+            platform: c?.platform,
+            pricePerNight: Math.round((w.period_total_price! / w.period_nights!) * 100) / 100,
+            periodStart: w.period_check_in ?? w.date,
+            periodEnd: w.period_check_out ?? w.date,
+            nights: w.period_nights!,
+            scrapedAt: w.scraped_at ?? w.created_at,
+            source: w.source ?? 'manual',
+          };
+        });
+
+      return { competitors, snapshots };
+    },
+    enabled: !!house_id,
+    staleTime: 5 * 60 * 1000,
+  });
+};

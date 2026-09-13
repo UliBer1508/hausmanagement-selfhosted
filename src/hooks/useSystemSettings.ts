@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Json } from '@/integrations/supabase/types';
+import type { PlatformMarkupSettings } from '@/lib/platformMarkup';
 
 export interface EmailSettings {
   email: string;
@@ -40,7 +41,7 @@ export interface MorningSummarySettings {
   email_to: string;              // Empfänger der Morgen-Übersicht
 }
 
-type SettingsValue = EmailSettings | ProfileSettings | AppearanceSettings | RatingReminderSettings | ContactSettings | MorningSummarySettings | Record<string, unknown>;
+type SettingsValue = EmailSettings | ProfileSettings | AppearanceSettings | RatingReminderSettings | ContactSettings | MorningSummarySettings | PlatformMarkupSettings | Record<string, unknown>;
 
 export function useSystemSettings<T extends SettingsValue>(key: string) {
   const queryClient = useQueryClient();
@@ -146,3 +147,9 @@ export const DEFAULT_RATING_REMINDER_SETTINGS: RatingReminderSettings = {
   require_platform: true,
   rental_type_filter: 'tourist',
 };
+
+// Plattform-Aufschlag-Sätze (Netto-Auszahlung -> Verkaufspreis).
+// Logik und Startwerte in src/lib/platformMarkup.ts (einzige Quelle der Wahrheit).
+export function usePlatformMarkups() {
+  return useSystemSettings<PlatformMarkupSettings>('platform_markups');
+}
