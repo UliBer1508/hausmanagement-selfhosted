@@ -81,6 +81,16 @@ interface VacancyML extends Vacancy {
   ml: {
     bookingProbability: number;
     suggestedPrice: { min: number; max: number };
+    /** Preisgrenzen aus houses.pricing_config (Preise-Tab). Gesetzt, wenn die
+     *  rohe Empfehlung ausserhalb lag und angepasst wurde. */
+    priceBounds?: {
+      minPrice: number | null;
+      maxPrice: number | null;
+      rawMin: number;
+      rawMax: number;
+      angehoben: boolean;
+      gedeckelt: boolean;
+    };
     bestChannel: string;
     bestChannelReason: string;
     targetNationalities: string[];
@@ -103,6 +113,22 @@ interface HouseOccupancy {
   vacancies: VacancyML[];
   totalOccupancyRate: number;
 }
+
+/** Liest die Preisgrenzen aus houses.pricing_config (gepflegt im Preise-Tab,
+ *  PricingConfigCard: Basispreis / Mindestpreis / Hoechstpreis).
+ *  Fix (13.09.2026): Die Lueckenanalyse hat diese Werte vorher komplett
+ *  ignoriert und Preise unterhalb des Mindestpreises empfohlen. */
+const readPriceBounds = (
+  pricingConfig: unknown,
+): { minPrice: number | null; maxPrice: number | null; basePrice: number | null } => {
+  const cfg = (pricingConfig ?? {}) as Record<string, unknown>;
+  const num = (v: unknown) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
+  return {
+    minPrice: num(cfg.min_price),
+    maxPrice: num(cfg.max_price),
+    basePrice: num(cfg.base_price),
+  };
+};
 
 // Calculate real price per night (subtract ancillary costs)
 //
@@ -538,7 +564,8 @@ const findVacanciesWithML = (
   endDate: Date,
   settings: MLSettings,
   houseId: string,
-  markups?: PlatformMarkupSettings | null
+  markups?: PlatformMarkupSettings | null,
+  bounds?: { minPrice: number | null; maxPrice: number | null; basePrice: number | null }
 ): VacancyML[] => {
   const basicVacancies = findVacancies(bookings, startDate, endDate);
   
@@ -566,12 +593,44 @@ const findVacanciesWithML = (
       ? findMatchingHistoricalBooking(vacancy, allHistoricalBookings, houseId, markups)
       : null;
     const monthStats = getMonthlyStats(month, allHistoricalBookings, houseId, markups);
+
+    // Fix (13.09.2026): Mindest-/Hoechstpreis aus dem Preise-Tab beachten.
+    // Die rohe Empfehlung wird NICHT still ueberschrieben - beide Werte werden
+    // mitgefuehrt, damit die Oberflaeche sagen kann, dass angehoben wurde und
+    // worauf die Rohempfehlung lautete. Stilles Anheben wuerde verbergen, dass
+    // Markt und Historie einen niedrigeren Preis nahelegen.
+    const rohePreisempfehlung = calculateSuggestedPrice(
+      vacancyStart, allHistoricalBookings, settings, holidayMatch, markups,
+    );
+    const begrenztePreisempfehlung = (() => {
+      const minP = bounds?.minPrice ?? null;
+      const maxP = bounds?.maxPrice ?? null;
+      let { min, max } = rohePreisempfehlung;
+      const angehoben = minP !== null && min < minP;
+      const gedeckelt = maxP !== null && max > maxP;
+      if (angehoben) { min = minP!; max = Math.max(max, minP!); }
+      if (gedeckelt) { max = maxP!; min = Math.min(min, maxP!); }
+      return {
+        werte: { min: Math.round(min), max: Math.round(max) },
+        info: (angehoben || gedeckelt)
+          ? {
+              minPrice: minP,
+              maxPrice: maxP,
+              rawMin: rohePreisempfehlung.min,
+              rawMax: rohePreisempfehlung.max,
+              angehoben,
+              gedeckelt,
+            }
+          : undefined,
+      };
+    })();
     
     return {
       ...vacancy,
       ml: {
         bookingProbability: calculateBookingProbability(vacancyStart, vacancy.days, allHistoricalBookings, settings, holidayMatch),
-        suggestedPrice: calculateSuggestedPrice(vacancyStart, allHistoricalBookings, settings, holidayMatch, markups),
+        suggestedPrice: begrenztePreisempfehlung.werte,
+        priceBounds: begrenztePreisempfehlung.info,
         bestChannel: bestChannelResult.channel,
         bestChannelReason: bestChannelResult.reason,
         targetNationalities: getTargetNationalities(vacancyStart, allHistoricalBookings),
@@ -831,7 +890,10 @@ const GuestAnalytics = () => {
         }
         
         // Find vacancies with ML analysis (free periods)
-        const vacancies = findVacanciesWithML(houseBookings, activeBookings, today, sixMonthsLater, mlSettings, house.id, markups);
+        const vacancies = findVacanciesWithML(
+          houseBookings, activeBookings, today, sixMonthsLater, mlSettings, house.id, markups,
+          readPriceBounds(houses?.find(h => h.id === house.id)?.pricing_config),
+        );
         
         perHouseOccupancy.push({
           houseId: house.id,
@@ -1448,6 +1510,18 @@ const GuestAnalytics = () => {
                               </p>
                               {/* Einheit klarstellen (12.09.2026): booking_amount ist die
                                   Netto-Auszahlung, die Empfehlung ist der Verkaufspreis. */}
+                              {vacancy.ml.priceBounds && (
+                                <p className="text-xs font-medium text-amber-700 dark:text-amber-500">
+                                  {vacancy.ml.priceBounds.angehoben && (
+                                    <>⚠️ Auf deinen Mindestpreis (€{vacancy.ml.priceBounds.minPrice}) angehoben.
+                                    Historie und Markt legten €{Math.round(vacancy.ml.priceBounds.rawMin)}–
+                                    €{Math.round(vacancy.ml.priceBounds.rawMax)} nahe.</>
+                                  )}
+                                  {vacancy.ml.priceBounds.gedeckelt && (
+                                    <> ⚠️ Auf deinen Höchstpreis (€{vacancy.ml.priceBounds.maxPrice}) gedeckelt.</>
+                                  )}
+                                </p>
+                              )}
                               <p className="text-xs text-muted-foreground">
                                 → Betrag, den du im Portal einträgst (inkl. Provisions-Aufschlag).
                                 {vacancy.historical?.monthStats?.avgNetPricePerNight ? (
