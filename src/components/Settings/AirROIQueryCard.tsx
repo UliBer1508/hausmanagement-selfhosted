@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, Loader2, AlertTriangle, CheckCircle2, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import AirROIComparablesPicker, { type AirroiObjekt } from './AirROIComparablesPicker';
 import { useHouses } from '@/hooks/useHouses';
 import { useToast } from '@/hooks/use-toast';
 
@@ -83,6 +84,9 @@ export default function AirROIQueryCard() {
   const [laeuft, setLaeuft] = useState(false);
   const [ergebnis, setErgebnis] = useState<any>(null);
   const [uebernehmeLaeuft, setUebernehmeLaeuft] = useState(false);
+  // Uli waehlt selbst, welche Objekte vergleichbar sind (Apartments vs. Chalet).
+  const [ausgewaehlteIds, setAusgewaehlteIds] = useState<Array<string | number>>([]);
+  const [zeigeRohdaten, setZeigeRohdaten] = useState(false);
 
   const toggle = (key: SchrittKey) => {
     setBestaetigt(false);
@@ -119,6 +123,16 @@ export default function AirROIQueryCard() {
       });
       if (error) throw error;
       setErgebnis(data);
+      // Startzustand: alles ausgewählt — Uli wählt ab, was nicht passt.
+      const schritte: any[] = data?.schritte ?? [];
+      const treffer = schritte.find(
+        (s: any) => (s.schritt === 'comparables' || s.schritt === 'radius_search') && s?.daten?.objekte?.length,
+      );
+      setAusgewaehlteIds(
+        (treffer?.daten?.objekte ?? [])
+          .map((o: any) => o.listing_id)
+          .filter((id: any) => id !== null && id !== undefined),
+      );
       toast({
         title: 'Abfrage abgeschlossen',
         description: `${data?.ergebnis ?? '—'} · Kosten ca. $${data?.kosten_usd ?? '?'}`,
@@ -145,11 +159,19 @@ export default function AirROIQueryCard() {
     return treffer?.daten?.objekte ?? [];
   }, [ergebnis]);
 
+  // Nur die ausgewählten Objekte — der ganze Zweck der Auswahl.
+  const zuUebernehmen = useMemo(
+    () => gefundeneObjekte.filter((o: any) =>
+      ausgewaehlteIds.some((id) => String(id) === String(o.listing_id)),
+    ),
+    [gefundeneObjekte, ausgewaehlteIds],
+  );
+
   const uebernehmen = async () => {
-    if (!houseId || gefundeneObjekte.length === 0) return;
+    if (!houseId || zuUebernehmen.length === 0) return;
     setUebernehmeLaeuft(true);
     try {
-      const zeilen = gefundeneObjekte.map((o) => ({
+      const zeilen = zuUebernehmen.map((o) => ({
         house_id: houseId,
         competitor_name: o.name ?? `Airbnb ${o.listing_id}`,
         property_name: o.name ?? `Airbnb ${o.listing_id}`,
@@ -163,9 +185,15 @@ export default function AirROIQueryCard() {
         is_active: true,
         // Herkunft festhalten, damit später erkennbar ist, woher das Objekt kam
         // und ob die Lage genau oder von Airbnb verschleiert ist.
-        notes: `AirROI listing_id ${o.listing_id}${o.genaue_lage === false ? ' · Lage ungefähr' : ''}${
-          o.reinigungsgebuehr ? ` · Reinigung ${o.reinigungsgebuehr} ${o.waehrung ?? ''}` : ''
-        }`,
+        property_url: o.url ?? null,
+        notes: [
+          `AirROI listing_id ${o.listing_id}`,
+          o.objektart ?? o.typ,
+          o.genaue_lage === false ? 'Lage ungefähr' : null,
+          o.reinigungsgebuehr ? `Reinigung ${o.reinigungsgebuehr} ${o.waehrung ?? ''}`.trim() : null,
+          o.adr_12monate ? `ADR ${Math.round(o.adr_12monate)}` : null,
+          'von Uli als vergleichbar bestätigt',
+        ].filter(Boolean).join(' · '),
       }));
 
       // CODING-GUIDE B3: schreibende Kommandos immer mit .select() abschließen
@@ -403,39 +431,49 @@ export default function AirROIQueryCard() {
 
             {gefundeneObjekte.length > 0 && (
               <div className="space-y-2">
-                <div className="rounded-lg border p-3 space-y-1">
-                  {gefundeneObjekte.slice(0, 8).map((o: any, i: number) => (
-                    <div key={i} className="flex flex-wrap justify-between gap-2 text-xs">
-                      <span className="truncate max-w-[60%]">{o.name}</span>
-                      <span className="text-muted-foreground">
-                        {o.schlafzimmer ?? '?'} SZ · {o.gaeste ?? '?'} G ·{' '}
-                        {o.adr_12monate ? `Ø €${Math.round(o.adr_12monate)}` : 'kein ADR'}
-                      </span>
-                    </div>
-                  ))}
-                  {gefundeneObjekte.length > 8 && (
-                    <p className="text-xs text-muted-foreground">
-                      … und {gefundeneObjekte.length - 8} weitere
-                    </p>
-                  )}
-                </div>
+                <AirROIComparablesPicker
+                  objekte={gefundeneObjekte as AirroiObjekt[]}
+                  ausgewaehlteIds={ausgewaehlteIds}
+                  onAuswahlChange={setAusgewaehlteIds}
+                />
                 <Button
                   variant="outline"
                   className="w-full"
                   onClick={uebernehmen}
-                  disabled={uebernehmeLaeuft}
+                  disabled={uebernehmeLaeuft || zuUebernehmen.length === 0}
                 >
                   {uebernehmeLaeuft ? (
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   ) : (
                     <Download className="w-4 h-4 mr-2" />
                   )}
-                  {gefundeneObjekte.length} Objekte als Wettbewerber übernehmen
+                  {zuUebernehmen.length} ausgewählte Objekte als Wettbewerber übernehmen
                 </Button>
                 <p className="text-xs text-muted-foreground">
                   Danach erscheinen sie im Gäste-Tab beim Wettbewerbsvergleich. Kostet nichts
                   extra — die Daten sind schon abgerufen.
                 </p>
+
+                {/* Rohdaten: belegt, welche Felder AirROI wirklich liefert.
+                    Das Antwortschema ist öffentlich nicht vollständig
+                    dokumentiert — hier steht es statt einer Vermutung. */}
+                <button
+                  type="button"
+                  className="text-xs underline text-muted-foreground"
+                  onClick={() => setZeigeRohdaten((v) => !v)}
+                >
+                  {zeigeRohdaten ? 'Rohdaten ausblenden' : 'Rohdaten des ersten Objekts anzeigen'}
+                </button>
+                {zeigeRohdaten && (
+                  <pre className="text-[10px] leading-tight bg-muted/50 rounded-lg p-3 overflow-auto max-h-72">
+                    {JSON.stringify(
+                      (ergebnis?.schritte ?? []).find((s: any) => s?.daten?.rohdaten_erstes_objekt)
+                        ?.daten?.rohdaten_erstes_objekt ?? {},
+                      null,
+                      2,
+                    )}
+                  </pre>
+                )}
               </div>
             )}
           </div>
