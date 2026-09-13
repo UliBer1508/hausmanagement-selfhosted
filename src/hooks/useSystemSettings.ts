@@ -56,7 +56,13 @@ export function useSystemSettings<T extends SettingsValue>(key: string) {
         .maybeSingle();
       
       if (error) throw error;
-      return data?.value as T | null;
+      // Fix (13.09.2026): `data` ist null, wenn die Zeile fehlt — und
+      // `null?.value` ergibt UNDEFINED, nicht null. React Query v5 verbietet
+      // undefined als Ergebnis und wirft "data is undefined". Das traf bisher
+      // nicht auf, weil für alle bestehenden Schlüssel eine Zeile existiert;
+      // beim ersten neuen Schlüssel (platform_markups) schlug es sofort zu.
+      // `?? null` macht den dokumentierten Rückgabetyp `T | null` wahr.
+      return ((data?.value as T) ?? null);
     },
   });
 
