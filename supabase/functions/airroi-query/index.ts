@@ -81,6 +81,14 @@ function kompakt(l: any) {
     listing_id: l?.listing_info?.listing_id ?? null,
     name: l?.listing_info?.listing_name ?? null,
     typ: l?.listing_info?.listing_type ?? null,
+    // Eignungsmerkmale: Uli entscheidet damit, ob ein Objekt wirklich
+    // vergleichbar ist (Apartment vs. Chalet, Ausstattung, Niveau).
+    objektart: l?.property_details?.property_type ?? l?.listing_info?.property_type ?? null,
+    zimmer: l?.property_details?.bedrooms ?? null,
+    flaeche: l?.property_details?.square_feet ?? null,
+    ausstattung: Array.isArray(l?.amenities) ? l.amenities.slice(0, 40) : null,
+    url: l?.listing_info?.listing_url
+      ?? (l?.listing_info?.listing_id ? `https://www.airbnb.com/rooms/${l.listing_info.listing_id}` : null),
     schlafzimmer: l?.property_details?.bedrooms ?? null,
     baeder: l?.property_details?.baths ?? null,
     gaeste: l?.property_details?.guests ?? null,
@@ -282,6 +290,11 @@ serve(async (req) => {
             ),
             mit_genauer_lage: vergleichsobjekte.filter((l) => l?.location_info?.exact_location).length,
             objekte: vergleichsobjekte.map(kompakt),
+            // Erstes Objekt unveraendert. Das AirROI-Antwortschema ist
+            // oeffentlich nicht vollstaendig dokumentiert - so ist nach dem
+            // ersten Lauf belegt, welche Felder es wirklich gibt, statt dass
+            // wir Feldnamen raten. Kostet nichts extra.
+            rohdaten_erstes_objekt: vergleichsobjekte[0] ?? null,
           },
         });
       }
