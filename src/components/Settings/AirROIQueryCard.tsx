@@ -72,7 +72,18 @@ const SCHRITTE: Array<{
 
 export default function AirROIQueryCard() {
   const { toast } = useToast();
-  const { data: houses } = useHouses();
+  const { data: alleHaeuser } = useHouses();
+
+  // Fix (13.09.2026): Nur touristisch vermietete Häuser. Wettbewerbs- und
+  // Preisanalyse gibt es für Festvermietungen nicht — die standen hier
+  // versehentlich mit zur Auswahl. Gleiche Bedingung wie im Gäste-Tab und in
+  // HouseStackedCalendar: fehlendes rental_type gilt als touristisch
+  // (siehe HouseCard.tsx, wo `!house.rental_type` ebenfalls als touristisch
+  // behandelt wird).
+  const houses = useMemo(
+    () => (alleHaeuser ?? []).filter((h) => h.rental_type === 'tourist' || !h.rental_type),
+    [alleHaeuser],
+  );
 
   const [houseId, setHouseId] = useState<string>('');
   const [aktiveSchritte, setAktiveSchritte] = useState<SchrittKey[]>(['market_search', 'comparables']);
