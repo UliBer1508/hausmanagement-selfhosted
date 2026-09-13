@@ -291,3 +291,119 @@ export function useMarketData(location: string, startDate: Date, days = 180) {
 
   return { data, loading, error };
 }
+// ─── Read-only Zugriff für die Freie-Zeiträume-Analyse (Gäste-Tab) ────────────
+// NEU (12.09.2026): Liest NUR den bestehenden Cache, löst KEINEN neuen
+// Scrape/Sync aus (das passiert weiterhin nur im Preise-Tab / Cron). Filtert
+// explizit source='estimated' heraus — das sind KEINE echten Marktdaten,
+// sondern eine aus den eigenen season_factors berechnete Formel
+// (siehe estimateOccupancyFromSeason oben). Nur 'airroi' und 'competitor'
+// gelten hier als "echtes" externes Signal.
+//
+// WICHTIG zum Cache-Schlüssel: airroi-sync schreibt market_data_cache.location
+// als `airroi_district || airroi_locality` aus system_settings.pricing_config
+// (z.B. "Neukirchen am Großvenediger") — NICHT als houses.address. Wer hier mit
+// der Hausadresse sucht, bekommt still null zurück.
+/** Default-Wert, den airroi-sync bei unbrauchbarer API-Antwort schreibt (siehe CODE-INDEX Modul 12). */
+export const AIRROI_FALLBACK_ADR = 120;
+
+export interface RegionalMarketSnapshot {
+  avgPricePerNight: number;
+  occupancyRate: number;
+  source: string;
+  daysCovered: number;
+  fetchedAt: string | null;
+  location: string;
+  /** true = nur ein einziger ADR-Wert im Zeitraum -> nur Summary-Endpunkt, grobe Aufloesung. */
+  summaryOnly: boolean;
+}
+
+/** Liest den AirROI-Cache-Schlüssel aus system_settings.pricing_config. */
+export async function resolveMarketLocationKey(): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'pricing_config')
+      .maybeSingle();
+    const cfg = (data?.value as any) ?? {};
+    const district = String(cfg.airroi_district ?? '').trim();
+    const locality = String(cfg.airroi_locality ?? '').trim();
+    const key = district || locality;
+    return key || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchRegionalMarketDataReadOnly(
+  dateFrom: string,
+  dateTo: string,
+): Promise<RegionalMarketSnapshot | null> {
+  const location = await resolveMarketLocationKey();
+  if (!location) return null;
+
+  const { data, error } = await supabase
+    .from('market_data_cache')
+    .select('avg_price, occupancy_rate, source, fetched_at')
+    .eq('location', location)
+    .in('source', ['airroi', 'competitor'])
+    .gte('date', dateFrom)
+    .lte('date', dateTo)
+    .not('avg_price', 'is', null);
+
+  if (error || !data || data.length === 0) return null;
+
+  const prices = data.map((r: any) => Number(r.avg_price)).filter((n) => Number.isFinite(n));
+  const occs = data.map((r: any) => Number(r.occupancy_rate)).filter((n) => Number.isFinite(n));
+  if (prices.length === 0) return null;
+
+  // WICHTIG (Befund aus docs/CODE-INDEX.md, Modul 12, "Stille Fallback-Falle in
+  // airroi-sync"): Antwortet die AirROI-API mit HTTP 200 ohne brauchbare Zahlen,
+  // greifen in airroi-sync die Defaults `occupancy 0.6` / `adr 120` - und es
+  // werden trotzdem 365 Zeilen mit source='airroi' geschrieben. Ohne die
+  // folgende Pruefung wuerden wir diese erfundenen 120 EUR als echten
+  // Marktpreis anzeigen. Diagnose laut Doku:
+  //   adr_min == adr_max == 120        -> Totalausfall, unbrauchbar
+  //   genau ein verschiedener Preis    -> nur Summary-Endpunkt, grob
+  const distinctPrices = new Set(prices);
+  const isFallbackGarbage =
+    distinctPrices.size === 1 && prices[0] === AIRROI_FALLBACK_ADR;
+  if (isFallbackGarbage) return null;
+
+  const summaryOnly = distinctPrices.size === 1;
+
+  const newestFetch = data
+    .map((r: any) => r.fetched_at)
+    .filter(Boolean)
+    .sort()
+    .pop() as string | undefined;
+
+  return {
+    avgPricePerNight: Math.round((prices.reduce((a, b) => a + b, 0) / prices.length) * 100) / 100,
+    occupancyRate: occs.length ? occs.reduce((a, b) => a + b, 0) / occs.length : 0,
+    source: data[0].source as string,
+    daysCovered: data.length,
+    fetchedAt: newestFetch ?? null,
+    location,
+    summaryOnly,
+  };
+}
+
+export function useRegionalMarketDataReadOnly(dateFrom: string, dateTo: string) {
+  const [snapshot, setSnapshot] = useState<RegionalMarketSnapshot | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchRegionalMarketDataReadOnly(dateFrom, dateTo)
+      .then((s) => !cancelled && setSnapshot(s))
+      .catch(() => !cancelled && setSnapshot(null))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [dateFrom, dateTo]);
+
+  return { snapshot, loading };
+}
