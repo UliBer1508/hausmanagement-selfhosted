@@ -172,9 +172,12 @@ export interface House {
   /** Preiskonfiguration je Haus (Preise-Tab, PricingConfigCard):
    *  base_price / min_price / max_price plus Faktoren der pricing-engine.
    *  Ergaenzt 13.09.2026 — das Feld existiert in der Tabelle `houses` und
-   *  wurde von `useHousePricingConfig` schon gelesen, fehlte hier aber. */
-  pricing_config?: Record<string, unknown> | null;
-  additional_fees?: Record<string, unknown> | null;
+   *  wurde von `useHousePricingConfig` schon gelesen, fehlte hier aber.
+   *  Typ bewusst `any` wie bei den Nachbarfeldern (linen_stock, amenities):
+   *  in den generierten Supabase-Typen ist die Spalte `Json`, und ein
+   *  engerer Typ wie `Record<string, unknown>` erzeugt Fehler in
+   *  useHouses.ts (Insert/Update-Overloads passen dann nicht mehr). */
+  pricing_config?: any;
   created_at?: string;
   updated_at?: string;
   // Legacy fields for compatibility
