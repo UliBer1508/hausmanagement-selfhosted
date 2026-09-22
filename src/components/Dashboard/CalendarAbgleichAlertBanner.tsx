@@ -56,7 +56,9 @@ const CalendarAbgleichAlertBanner = () => {
     );
   }
 
-  const gruppen = data?.meldung.gruppen ?? [];
+  // Änderungen (neue/stornierte Buchungen) zeigt BookingChangesAlertBanner
+  // mit "Gesehen"-Knopf — hier nur die Unterschiede, sonst stünde alles doppelt.
+  const gruppen = (data?.meldung.gruppen ?? []).filter((g) => g.art !== "aenderung");
   if (gruppen.length === 0) return null;
 
   return (
