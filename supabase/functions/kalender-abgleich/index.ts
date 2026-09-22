@@ -194,6 +194,10 @@ type BefundArt =
   // Vorher tauchte eine Kollision nur einmal im Toast/in der Mail von ical-sync
   // auf und war danach nirgends mehr sichtbar.
   | 'kollision'
+  // Neue/geänderte/stornierte Buchung oder Portal-Belegung, noch nicht als
+  // "Gesehen" quittiert (Tabelle buchungs_aenderungen, SQL 56). Kein Problem,
+  // sondern eine Information — NEU 22.09.2026.
+  | 'aenderung'
   | 'fehlende_buchung'
   | 'langsperre'
   | 'feed_fehler'
@@ -259,6 +263,11 @@ const MELDUNG_TEXTE: Record<BefundArt, {
       'Im Portal nachsehen und die Buchung in der Hausverwaltung anlegen. Ohne Eintrag gibt es ' +
       'keine Reinigung, keine Wäsche und keinen Gästekontakt.',
   },
+  aenderung: {
+    stufe: 'hinweis',
+    titel: (n) => n === 1 ? '1 neue Änderung bei den Buchungen' : `${n} neue Änderungen bei den Buchungen`,
+    hinweis: 'Zur Kenntnis — in der Übersicht mit „Gesehen" bestätigen.',
+  },
   feed_fehler: {
     stufe: 'warnung',
     titel: (n) => n === 1 ? '1 Portal-Feed meldet einen Fehler' : `${n} Portal-Feeds melden einen Fehler`,
@@ -278,7 +287,7 @@ const MELDUNG_TEXTE: Record<BefundArt, {
 
 // Reihenfolge = Dringlichkeit.
 const RANG: Record<BefundArt, number> = {
-  kollision: 0, fehlende_buchung: 1, feed_fehler: 2, direktbuchung_pruefen: 3, langsperre: 4,
+  kollision: 0, fehlende_buchung: 1, feed_fehler: 2, aenderung: 3, direktbuchung_pruefen: 4, langsperre: 5,
 };
 
 function baueMeldung(befunde: Befund[]): Meldung {
@@ -427,7 +436,7 @@ serve(async (req) => {
     }
 
     // --- 3. Je Haus abgleichen --------------------------------------------
-    const hausIds = [...new Set(feeds.map((f: any) => f.house_id))];
+    const hausIds: string[] = [...new Set<string>(feeds.map((f: any) => String(f.house_id)))];
     let gepruefteHaeuser = 0;
 
     for (const houseId of hausIds) {
@@ -435,19 +444,33 @@ serve(async (req) => {
         (feeds.find((f: any) => f.house_id === houseId) as any)?.houses?.name ?? 'Objekt';
 
       // Externe Blocks: nur laufende und künftige
-      const { data: blocks } = await supabase
+      const { data: blocks, error: blocksErr } = await supabase
         .from('external_blocks')
         .select('platform, start_date, end_date, summary, collision_booking_id')
         .eq('house_id', houseId)
         .gte('end_date', heute);
 
       // Eigene Buchungen: nur laufende und künftige, keine Stornos
-      const { data: bookings } = await supabase
+      const { data: bookings, error: bookingsErr } = await supabase
         .from('bookings')
         .select('id, check_in, check_out, guests!bookings_guest_id_fkey(name)')
         .eq('house_id', houseId)
         .neq('status', 'cancelled')
         .gte('check_out', heute);
+
+      // Ladefehler NICHT stillschweigend überspringen (ergänzt 22.09.2026):
+      // Sonst sähe das Ergebnis aus wie "keine Unterschiede", obwohl gar
+      // nicht verglichen wurde.
+      if (blocksErr || bookingsErr) {
+        const fehler = (blocksErr ?? bookingsErr)?.message ?? 'unbekannter Fehler';
+        console.error('[kalender-abgleich] Laden fehlgeschlagen:', hausName, blocksErr ?? bookingsErr);
+        befunde.push({
+          art: 'feed_fehler',
+          haus: hausName, house_id: houseId, platform: 'hausverwaltung',
+          text: `Abgleich nicht möglich — ${blocksErr ? 'Portal-Belegungen' : 'Buchungen'} konnten nicht geladen werden (${fehler.slice(0, 120)}).`,
+        });
+        continue;
+      }
 
       if (!blocks?.length) continue;
       gepruefteHaeuser++;
@@ -654,7 +677,37 @@ serve(async (req) => {
 
     // Wichtigstes zuerst (Reihenfolge siehe RANG oben).
     befunde.sort((a, b) => RANG[a.art] - RANG[b.art] || (a.von ?? '').localeCompare(b.von ?? ''));
-    const meldung = baueMeldung(befunde);
+
+    // --- Offene Änderungen (SQL 56, NEU 22.09.2026) -----------------------
+    // Nicht Teil von `befunde` (die bleiben reine Abgleich-Befunde, z. B. für
+    // Max' Tool check_kalender_abgleich), aber Teil der `meldung` — damit
+    // Sync-Meldung, Morgen-Übersicht und Mail sie mit demselben Text zeigen
+    // wie der Banner. Fehlt die Tabelle noch, bleibt die Liste leer.
+    const aenderungBefunde: Array<Befund & { id: string; gemailt: boolean }> = [];
+    {
+      const { data: offen, error: aendErr } = await supabase
+        .from('buchungs_aenderungen')
+        .select('id, house_id, platform, von, bis, text, gemailt_am, houses(name)')
+        .is('gesehen_am', null)
+        .order('erkannt_am', { ascending: true })
+        .limit(50);
+      if (aendErr) console.error('[kalender-abgleich] buchungs_aenderungen:', aendErr);
+      for (const a of offen ?? []) {
+        aenderungBefunde.push({
+          id: (a as any).id,
+          gemailt: !!(a as any).gemailt_am,
+          art: 'aenderung',
+          haus: (a as any).houses?.name ?? 'Objekt',
+          house_id: (a as any).house_id,
+          platform: (a as any).platform ?? '',
+          von: (a as any).von ?? undefined,
+          bis: (a as any).bis ?? undefined,
+          text: (a as any).text,
+        });
+      }
+    }
+
+    const meldung = baueMeldung([...befunde, ...aenderungBefunde]);
 
     // --- E-Mail bei NEUEN Befunden ----------------------------------------
     //
@@ -673,7 +726,8 @@ serve(async (req) => {
     let mailGesendet = false;
     let neueBefunde = 0;
 
-    if (settings.mail_enabled && befunde.length > 0) {
+    const aenderungenUngemailt = aenderungBefunde.filter((a) => !a.gemailt);
+    if (settings.mail_enabled && (befunde.length > 0 || aenderungenUngemailt.length > 0)) {
       const neu: Befund[] = [];
 
       for (const b of befunde) {
@@ -701,10 +755,11 @@ serve(async (req) => {
 
       neueBefunde = neu.length;
 
-      if (neu.length > 0) {
-        // Die Mail enthält nur die NEUEN Befunde, aber in derselben
-        // Formulierung wie Banner, Sync-Meldung und Morgen-Übersicht.
-        const neuMeldung = baueMeldung(neu);
+      if (neu.length > 0 || aenderungenUngemailt.length > 0) {
+        // Die Mail enthält nur die NEUEN Befunde und noch nicht gemailten
+        // Änderungen, aber in derselben Formulierung wie Banner,
+        // Sync-Meldung und Morgen-Übersicht.
+        const neuMeldung = baueMeldung([...neu, ...aenderungenUngemailt]);
         const kritisch = neuMeldung.gruppen.some((g) => g.stufe === 'kritisch');
         const betreff = `${kritisch ? '‼️' : 'ℹ️'} Kalender-Abgleich: ${neuMeldung.titel}`;
 
@@ -741,12 +796,19 @@ serve(async (req) => {
             // Erst NACH erfolgreichem Versand merken. Schlägt die Mail fehl,
             // wird beim nächsten Lauf erneut versucht — besser eine Mail zu viel
             // als eine fehlende Buchung, von der niemand erfährt.
-            await supabase.from('kalender_abgleich_meldungen').insert(
-              neu.map((b) => ({
-                house_id: b.house_id, art: b.art, platform: b.platform,
-                von: b.von ?? null, bis: b.bis ?? null, text: b.text,
-              })),
-            );
+            if (neu.length > 0) {
+              await supabase.from('kalender_abgleich_meldungen').insert(
+                neu.map((b) => ({
+                  house_id: b.house_id, art: b.art, platform: b.platform,
+                  von: b.von ?? null, bis: b.bis ?? null, text: b.text,
+                })),
+              );
+            }
+            if (aenderungenUngemailt.length > 0) {
+              await supabase.from('buchungs_aenderungen')
+                .update({ gemailt_am: new Date().toISOString() })
+                .in('id', aenderungenUngemailt.map((a) => a.id));
+            }
           }
         } catch (e) {
           console.error('[kalender-abgleich] Mail-Ausnahme:', e);
@@ -778,6 +840,9 @@ serve(async (req) => {
       mail_gesendet: mailGesendet,
       alles_ok: befunde.length === 0,
       befunde,
+      // Offene (nicht quittierte) Änderungen — Anzeige im Banner mit
+      // "Gesehen"-Knopf (BookingChangesAlertBanner).
+      aenderungen: aenderungBefunde.map(({ gemailt: _g, ...rest }) => rest),
       // Fertig formulierte Meldung — Quelle für Sync-Meldung, Banner,
       // Morgen-Übersicht und Mail (siehe baueMeldung).
       meldung,
