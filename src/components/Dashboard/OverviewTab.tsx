@@ -8,6 +8,7 @@ import BookingInquiryAlertBanner from '@/components/Dashboard/BookingInquiryAler
 import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBanner';
 import RatingReminderBanner from '@/components/Dashboard/RatingReminderBanner';
 import CleaningStatusAlertBanner from '@/components/Dashboard/CleaningStatusAlertBanner';
+import CalendarAbgleichAlertBanner from '@/components/Dashboard/CalendarAbgleichAlertBanner';
 import BookingCard from '@/components/Bookings/BookingCard';
 import ServiceTaskCard from '@/components/Bookings/ServiceTaskCard';
 import LaundryOrderCard from '@/components/Bookings/LaundryOrderCardWithStatus';
@@ -85,6 +86,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   return (
     <div>
+      {/* Zuerst: Unterschiede Portale ↔ Hausverwaltung (fehlende Buchung,
+          Doppelbuchung) — dringender als alle anderen Hinweise. */}
+      <CalendarAbgleichAlertBanner />
       <BookingInquiryAlertBanner />
       <GuestContactAlertBanner />
       <div className="mt-4">
