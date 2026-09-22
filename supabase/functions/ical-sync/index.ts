@@ -81,6 +81,25 @@ function istRueckspiegelung(evStart: string, evEnd: string, checkIn: string, che
   return toDay(evStart) === toDay(checkIn) && toDay(evEnd) === toDay(checkOut);
 }
 
+// YYYY-MM-DD -> DD.MM.YYYY (reines Datum, keine Zeitzonenumrechnung)
+function datumDE(v: string): string {
+  const [j, m, t] = toDay(v).split('-');
+  return `${t}.${m}.${j}`;
+}
+
+// Eintrag für die Tabelle buchungs_aenderungen (SQL 56). Der Text wird hier
+// EINMAL formuliert und überall unverändert angezeigt (Banner, Sync-Meldung,
+// Morgen-Übersicht, Mail).
+interface PortalAenderung {
+  house_id: string;
+  quelle: 'portal';
+  art: 'neu' | 'geaendert' | 'entfernt';
+  platform: string;
+  von: string;
+  bis: string;
+  text: string;
+}
+
 function parseICal(text: string): VEvent[] {
   const lines = unfoldLines(text);
   const events: VEvent[] = [];
@@ -139,18 +158,26 @@ serve(async (req) => {
     );
 
     let dryRun = true;
+    // Optional nur EIN Haus (NEU 22.09.2026): Das Buchungsformular und Max
+    // stoßen vor der Belegungsprüfung (SQL 57, pruefe_belegung) einen Sync nur
+    // für das betroffene Haus an — schneller, und die übrigen Feeds bleiben
+    // unberührt. Ohne house_id: alle Feeds wie bisher (Cron, Knopf).
+    let nurHausId: string | null = null;
     try {
       const body = await req.json();
       if (body && body.dry_run === false) dryRun = false;
+      if (body && typeof body.house_id === 'string' && body.house_id) nurHausId = body.house_id;
     } catch (_) { /* kein Body -> dry_run bleibt true */ }
 
-    console.log(`📅 [ical-sync] Start. dry_run=${dryRun}`);
+    console.log(`📅 [ical-sync] Start. dry_run=${dryRun} haus=${nurHausId ?? 'alle'}`);
 
     // 1. Aktive Feeds laden
-    const { data: feeds, error: feedsErr } = await supabase
+    let feedQuery = supabase
       .from('ical_feeds')
       .select('id, house_id, platform, feed_url, houses(name)')
       .eq('is_active', true);
+    if (nurHausId) feedQuery = feedQuery.eq('house_id', nurHausId);
+    const { data: feeds, error: feedsErr } = await feedQuery;
     if (feedsErr) throw feedsErr;
 
     if (!feeds || feeds.length === 0) {
@@ -159,6 +186,23 @@ serve(async (req) => {
 
     const summary: any[] = [];
     const neueKollisionen: any[] = [];
+    const aenderungen: PortalAenderung[] = [];
+    const heute = new Date().toISOString().slice(0, 10);
+
+    // Mindestdauer wie im Kalender-Abgleich: Kürzere Blocks sind
+    // Mindestaufenthalts-Sperren der Portale — deren Kommen und Gehen ist kein
+    // Hinweis wert (sonst Dauerrauschen im Banner).
+    let minNaechte = 4;
+    try {
+      const { data: ka } = await supabase
+        .from('system_settings').select('value')
+        .eq('key', 'kalender_abgleich_settings').maybeSingle();
+      minNaechte = Number(ka?.value?.min_naechte) || 4;
+    } catch (_) { /* Standardwert */ }
+    const naechte = (von: string, bis: string) =>
+      Math.round((Date.parse(toDay(bis)) - Date.parse(toDay(von))) / 86400000);
+    const relevant = (von: string, bis: string) =>
+      toDay(bis) >= heute && naechte(von, bis) >= minNaechte;
 
     for (const feed of feeds) {
       const houseName = (feed as any).houses?.name || 'Objekt';
@@ -195,6 +239,19 @@ serve(async (req) => {
       // Zeitstempel VOR dem Verarbeiten der Events. Alles, was danach nicht
       // aktualisiert wurde, kam in diesem Feed-Durchlauf nicht mehr vor.
       const laufBeginn = new Date().toISOString();
+
+      // Erster Lauf eines Feeds? Dann ist JEDER Block "neu" — das wäre kein
+      // Hinweis, sondern eine Flut. Änderungen werden erst ab dem zweiten
+      // Lauf festgehalten.
+      let erstlauf = true;
+      if (!dryRun) {
+        const { count } = await supabase
+          .from('external_blocks')
+          .select('id', { count: 'exact', head: true })
+          .eq('house_id', feed.house_id)
+          .eq('platform', feed.platform);
+        erstlauf = !count;
+      }
 
       for (const ev of events) {
         // Kollisionspruefung: Ueberlapp block[start,end) mit booking[check_in,check_out),
@@ -246,7 +303,7 @@ serve(async (req) => {
         // Upsert external_block (über platform+external_uid)
         const { data: existing } = await supabase
           .from('external_blocks')
-          .select('id, collision_booking_id, collision_notified')
+          .select('id, collision_booking_id, collision_notified, start_date, end_date')
           .eq('platform', feed.platform)
           .eq('external_uid', ev.uid)
           .maybeSingle();
@@ -276,6 +333,32 @@ serve(async (req) => {
           wasNotified = false;
         }
         upserts++;
+
+        // ---- Änderung festhalten (SQL 56, NEU 22.09.2026) --------------------
+        // Booking.com meldet eine neue Buchung oft als VERLÄNGERTEN Block
+        // (Zeiser verlängerte Kerscher 25.–29.12. auf 25.12.–03.01.). Deshalb
+        // zählt jede Datumsänderung, nicht nur ein neuer Block.
+        if (!erstlauf) {
+          const altVon = existing ? toDay(existing.start_date) : null;
+          const altBis = existing ? toDay(existing.end_date) : null;
+          if (!existing && relevant(ev.start, ev.end)) {
+            aenderungen.push({
+              house_id: feed.house_id, quelle: 'portal', art: 'neu', platform: feed.platform,
+              von: ev.start, bis: ev.end,
+              text: `${feed.platform} meldet neue Belegung: ${datumDE(ev.start)}–${datumDE(ev.end)}`,
+            });
+          } else if (
+            existing && altVon && altBis &&
+            (altVon !== toDay(ev.start) || altBis !== toDay(ev.end)) &&
+            (relevant(ev.start, ev.end) || relevant(altVon, altBis))
+          ) {
+            aenderungen.push({
+              house_id: feed.house_id, quelle: 'portal', art: 'geaendert', platform: feed.platform,
+              von: ev.start, bis: ev.end,
+              text: `${feed.platform} meldet geänderte Belegung: ${datumDE(altVon)}–${datumDE(altBis)} → ${datumDE(ev.start)}–${datumDE(ev.end)}`,
+            });
+          }
+        }
 
         // NEUE Kollision (vorher keine, jetzt eine, noch nicht gemeldet) -> merken
         if (collisionBookingId && !wasNotified) {
@@ -319,8 +402,19 @@ serve(async (req) => {
           .eq('house_id', feed.house_id)
           .eq('platform', feed.platform)
           .lt('last_seen_at', laufBeginn)
-          .select('id');
+          .select('id, start_date, end_date');
         entfernt = veraltet?.length ?? 0;
+        // Weggefallene Belegung = Stornierung oder Freigabe im Portal.
+        for (const v of veraltet ?? []) {
+          const von = toDay((v as any).start_date);
+          const bis = toDay((v as any).end_date);
+          if (!relevant(von, bis)) continue;
+          aenderungen.push({
+            house_id: feed.house_id, quelle: 'portal', art: 'entfernt', platform: feed.platform,
+            von, bis,
+            text: `${feed.platform} meldet ${datumDE(von)}–${datumDE(bis)} nicht mehr (Stornierung oder Freigabe)`,
+          });
+        }
       }
 
       if (!dryRun) {
@@ -334,6 +428,18 @@ serve(async (req) => {
         feed: `${feed.platform}/${houseName}`, status: 'ok',
         events: events.length, upserts, entfernt, kollisionen: kollisionenImFeed,
       });
+    }
+
+    // 3b. Änderungen speichern. Fehlt die Tabelle (SQL 56 noch nicht
+    // ausgeführt), wird das nur geloggt — der Sync selbst läuft weiter.
+    let aenderungenGespeichert = 0;
+    if (!dryRun && aenderungen.length > 0) {
+      const { data: gesp, error: aendErr } = await supabase
+        .from('buchungs_aenderungen')
+        .insert(aenderungen)
+        .select('id');
+      if (aendErr) console.error('❌ buchungs_aenderungen:', aendErr);
+      aenderungenGespeichert = gesp?.length ?? 0;
     }
 
     // 4. Bei NEUEN Kollisionen: EINE gebündelte E-Mail an Uli (nur echt, nicht dry_run)
@@ -386,6 +492,8 @@ serve(async (req) => {
       modus: dryRun ? 'dry_run' : 'echt',
       feeds: feeds.length,
       neue_kollisionen: neueKollisionen.length,
+      aenderungen: aenderungen.length,
+      aenderungen_gespeichert: aenderungenGespeichert,
       mail_gesendet: mailGesendet,
       details: summary,
       kollisionen: neueKollisionen,
