@@ -93,11 +93,20 @@ export async function fetchKalenderAbgleich(): Promise<KalenderAbgleichErgebnis>
   if (!data?.success) {
     throw new Error(data?.error ?? "Kalender-Abgleich hat keine Antwort geliefert.");
   }
+  const befunde = (data.befunde as KalenderBefund[]) ?? [];
+  // Befunde vorhanden, aber keine `meldung`: Die Edge Function läuft noch in
+  // der alten Fassung (nicht neu deployt). Dann KEINE Entwarnung zeigen —
+  // genau diesen Fall gab es am 22.09.2026 beim ersten Test.
+  if (!data.meldung && befunde.length > 0) {
+    throw new Error(
+      `kalender-abgleich meldet ${befunde.length} Befund(e), ist aber noch nicht neu deployt`,
+    );
+  }
   return {
     geprueft_am: data.geprueft_am ?? null,
     feeds_aktiv: Number(data.feeds_aktiv ?? 0),
     anzahl: Number(data.anzahl ?? 0),
-    befunde: (data.befunde as KalenderBefund[]) ?? [],
+    befunde,
     bloecke: (data.bloecke as KalenderBlockInfo[]) ?? [],
     // Ohne Feeds liefert die Function keine `meldung` — dann gibt es auch
     // nichts abzugleichen.
