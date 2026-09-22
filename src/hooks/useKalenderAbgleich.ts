@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type KalenderBefundArt =
   | "kollision"
+  | "aenderung"
   | "fehlende_buchung"
   | "feed_fehler"
   | "direktbuchung_pruefen"
