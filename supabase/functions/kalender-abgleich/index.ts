@@ -123,9 +123,13 @@ interface AbgleichSettings {
     langsperre: boolean;
     feed_fehler: boolean;
     direktbuchung_pruefen: boolean;
+    kollision: boolean;
   };
   mail_enabled: boolean; // E-Mail bei neuen Befunden
-  mail_to: string;
+  // Empfänger. In system_settings als Text ("a@x.de") ODER als Liste
+  // (["a@x.de", "b@y.de"]) erlaubt — ergänzt 22.09.2026: Die Warnung ging
+  // bisher nur an max.steinbock@gmail.com und kam bei Uli nicht an.
+  mail_to: string[];
   // Wie lange nach Anlage/Änderung einer Direktbuchung gewartet wird, bevor
   // erinnert wird. Die Portale rufen den Feed alle 30 Min bis wenige Stunden ab.
   direktbuchung_karenz_stunden: number;
@@ -136,12 +140,21 @@ const DEFAULTS: AbgleichSettings = {
   max_naechte: 30,
   checks: {
     fehlende_buchung: true, langsperre: true, feed_fehler: true,
-    direktbuchung_pruefen: true,
+    direktbuchung_pruefen: true, kollision: true,
   },
   mail_enabled: true,
-  mail_to: 'max.steinbock@gmail.com',
+  mail_to: ['max.steinbock@gmail.com'],
   direktbuchung_karenz_stunden: 24,
 };
+
+// Text oder Liste -> bereinigte Liste gültiger Adressen.
+function leseEmpfaenger(v: unknown): string[] {
+  const roh = Array.isArray(v) ? v : typeof v === 'string' ? v.split(/[,;]/) : [];
+  const liste = roh
+    .map((x) => String(x ?? '').trim())
+    .filter((x) => x.includes('@'));
+  return [...new Set(liste)];
+}
 
 async function ladeSettings(supabase: any): Promise<AbgleichSettings> {
   try {
@@ -157,7 +170,9 @@ async function ladeSettings(supabase: any): Promise<AbgleichSettings> {
         max_naechte: Number(v.max_naechte) || DEFAULTS.max_naechte,
         checks: { ...DEFAULTS.checks, ...(v.checks ?? {}) },
         mail_enabled: v.mail_enabled !== false,
-        mail_to: typeof v.mail_to === 'string' && v.mail_to ? v.mail_to : DEFAULTS.mail_to,
+        mail_to: leseEmpfaenger(v.mail_to).length > 0
+          ? leseEmpfaenger(v.mail_to)
+          : DEFAULTS.mail_to,
         direktbuchung_karenz_stunden:
           Number(v.direktbuchung_karenz_stunden) || DEFAULTS.direktbuchung_karenz_stunden,
       };
@@ -173,6 +188,12 @@ async function ladeSettings(supabase: any): Promise<AbgleichSettings> {
 // ---------------------------------------------------------------------------
 
 type BefundArt =
+  // Portal-Belegung überschneidet sich mit einer EIGENEN Buchung eines anderen
+  // Kanals -> mögliche Doppelbuchung. Ermittelt von ical-sync
+  // (external_blocks.collision_booking_id), hier nur ausgewiesen. NEU 22.09.2026:
+  // Vorher tauchte eine Kollision nur einmal im Toast/in der Mail von ical-sync
+  // auf und war danach nirgends mehr sichtbar.
+  | 'kollision'
   | 'fehlende_buchung'
   | 'langsperre'
   | 'feed_fehler'
@@ -189,6 +210,141 @@ interface Befund {
   bis?: string;
   naechte?: number;
   text: string;
+}
+
+// ---------------------------------------------------------------------------
+// Meldung — EINE Formulierung für alle Ausgabestellen (NEU 22.09.2026)
+// ---------------------------------------------------------------------------
+//
+// WARUM: Am 22.09.2026 kam nachts eine Booking.com-Buchung herein. Die Mail
+// dieser Funktion meldete "1 Buchung(en) fehlen im System", der Knopf
+// "Jetzt synchronisieren" meldete gleichzeitig "keine Kollisionen" — zwei
+// Stellen, zwei Aussagen, und die beruhigende war die sichtbare.
+//
+// Seitdem gilt: Überschriften, Hinweise und Zeilen werden NUR hier gebaut und
+// als `meldung` zurückgegeben. Sync-Meldung (CalendarSyncCard), Banner in der
+// Übersicht (CalendarAbgleichAlertBanner), Morgen-Übersicht und E-Mail zeigen
+// genau diese Texte. Wer eine Formulierung ändern will, ändert sie hier.
+
+type MeldungStufe = 'kritisch' | 'warnung' | 'hinweis';
+
+interface MeldungGruppe {
+  art: BefundArt;
+  stufe: MeldungStufe;
+  titel: string;     // z. B. "1 Buchung fehlt im System"
+  hinweis: string;   // was zu tun ist
+  zeilen: string[];  // "Venediger Chalet: 29.12.2026–03.01.2027 ist bei …"
+}
+
+interface Meldung {
+  alles_ok: boolean;
+  titel: string;     // Kurzfassung, z. B. für Betreff und Banner-Kopf
+  gruppen: MeldungGruppe[];
+}
+
+const MELDUNG_TEXTE: Record<BefundArt, {
+  stufe: MeldungStufe;
+  titel: (n: number) => string;
+  hinweis: string;
+}> = {
+  kollision: {
+    stufe: 'kritisch',
+    titel: (n) => n === 1 ? '1 mögliche Doppelbuchung' : `${n} mögliche Doppelbuchungen`,
+    hinweis: 'Sofort im Portal prüfen und einen der beiden Kanäle sperren bzw. stornieren.',
+  },
+  fehlende_buchung: {
+    stufe: 'kritisch',
+    titel: (n) => n === 1 ? '1 Buchung fehlt in der Hausverwaltung' : `${n} Buchungen fehlen in der Hausverwaltung`,
+    hinweis:
+      'Im Portal nachsehen und die Buchung in der Hausverwaltung anlegen. Ohne Eintrag gibt es ' +
+      'keine Reinigung, keine Wäsche und keinen Gästekontakt.',
+  },
+  feed_fehler: {
+    stufe: 'warnung',
+    titel: (n) => n === 1 ? '1 Portal-Feed meldet einen Fehler' : `${n} Portal-Feeds melden einen Fehler`,
+    hinweis: 'Solange der Feed fehlschlägt, ist der Abgleich für dieses Haus nicht aktuell.',
+  },
+  direktbuchung_pruefen: {
+    stufe: 'hinweis',
+    titel: (n) => n === 1 ? '1 Direktbuchung in den Portalen prüfen' : `${n} Direktbuchungen in den Portalen prüfen`,
+    hinweis: 'In Airbnb, Booking.com und VRBO kontrollieren und danach in der Buchungskarte abhaken.',
+  },
+  langsperre: {
+    stufe: 'hinweis',
+    titel: (n) => n === 1 ? '1 lange Sperre in einem Portal' : `${n} lange Sperren in den Portalen`,
+    hinweis: 'Prüfen, ob die Sperre gewollt ist — sonst ist der Zeitraum unverkäuflich.',
+  },
+};
+
+// Reihenfolge = Dringlichkeit.
+const RANG: Record<BefundArt, number> = {
+  kollision: 0, fehlende_buchung: 1, feed_fehler: 2, direktbuchung_pruefen: 3, langsperre: 4,
+};
+
+function baueMeldung(befunde: Befund[]): Meldung {
+  const arten = [...new Set(befunde.map((b) => b.art))].sort((a, b) => RANG[a] - RANG[b]);
+  const gruppen: MeldungGruppe[] = arten.map((art) => {
+    const liste = befunde.filter((b) => b.art === art);
+    const t = MELDUNG_TEXTE[art];
+    return {
+      art,
+      stufe: t.stufe,
+      titel: t.titel(liste.length),
+      hinweis: t.hinweis,
+      zeilen: liste.map((b) => `${b.haus}: ${b.text}`),
+    };
+  });
+
+  const titel = gruppen.length === 0
+    ? 'Kalender stimmt mit den Portalen überein'
+    : gruppen.map((g) => g.titel).join(' · ');
+
+  return { alles_ok: gruppen.length === 0, titel, gruppen };
+}
+
+// Textfassung (Fallback für Mailprogramme ohne HTML).
+function meldungAlsText(m: Meldung): string {
+  const teile = m.gruppen.map((g) => {
+    const marke = g.stufe === 'kritisch' ? '‼️ ' : g.stufe === 'warnung' ? '⚠️ ' : 'ℹ️ ';
+    return `${marke}${g.titel.toUpperCase()}\n${g.zeilen.map((z) => `• ${z}`).join('\n')}\n→ ${g.hinweis}`;
+  });
+  return (
+    `Der Kalender-Abgleich hat Unterschiede zwischen den Portalen und der Hausverwaltung gefunden.\n\n` +
+    `${teile.join('\n\n')}\n\n` +
+    `Diese Mail kommt einmalig je Befund. In der Übersicht (Banner) und in der Morgen-Übersicht ` +
+    `bleibt der Punkt sichtbar, bis er erledigt ist.`
+  );
+}
+
+const esc = (s: string): string =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// HTML-Fassung: kritische Punkte rot hinterlegt, ganz oben.
+function meldungAlsHtml(m: Meldung): string {
+  const farben: Record<MeldungStufe, { rand: string; grund: string; schrift: string }> = {
+    kritisch: { rand: '#dc2626', grund: '#fef2f2', schrift: '#991b1b' },
+    warnung:  { rand: '#d97706', grund: '#fffbeb', schrift: '#92400e' },
+    hinweis:  { rand: '#2563eb', grund: '#eff6ff', schrift: '#1e40af' },
+  };
+  const bloecke = m.gruppen.map((g) => {
+    const f = farben[g.stufe];
+    const zeilen = g.zeilen.map((z) => `<li style="margin:4px 0">${esc(z)}</li>`).join('');
+    return (
+      `<div style="border-left:5px solid ${f.rand};background:${f.grund};padding:12px 16px;margin:0 0 16px;border-radius:6px">` +
+      `<div style="font-size:17px;font-weight:bold;color:${f.schrift};margin-bottom:6px">${esc(g.titel)}</div>` +
+      `<ul style="margin:0 0 8px;padding-left:20px;color:#111827;font-size:15px">${zeilen}</ul>` +
+      `<div style="color:${f.schrift};font-size:14px"><strong>Was tun:</strong> ${esc(g.hinweis)}</div>` +
+      `</div>`
+    );
+  }).join('');
+  return (
+    `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;color:#111827">` +
+    `<p style="font-size:15px">Der Kalender-Abgleich hat <strong>Unterschiede zwischen den Portalen und der Hausverwaltung</strong> gefunden:</p>` +
+    bloecke +
+    `<p style="font-size:12px;color:#6b7280">Diese Mail kommt einmalig je Befund. In der Übersicht (Banner) und in der ` +
+    `Morgen-Übersicht bleibt der Punkt sichtbar, bis er erledigt ist.</p>` +
+    `</div>`
+  );
 }
 
 // Einordnung eines einzelnen Portal-Blocks.
@@ -281,7 +437,7 @@ serve(async (req) => {
       // Externe Blocks: nur laufende und künftige
       const { data: blocks } = await supabase
         .from('external_blocks')
-        .select('platform, start_date, end_date, summary')
+        .select('platform, start_date, end_date, summary, collision_booking_id')
         .eq('house_id', houseId)
         .gte('end_date', heute);
 
@@ -334,6 +490,28 @@ serve(async (req) => {
           start_date: tag(b.start_date), end_date: tag(b.end_date),
           art, naechte: n, buchungen: [...namen], offene_tage: offen,
         });
+      }
+
+      // --- Prüfung 0: Kollisionen (mögliche Doppelbuchung) ----------------
+      // Die Entscheidung "Kollision ja/nein" trifft ical-sync (Herkunfts-,
+      // Rückspiegelungs- und Wechseltagsregel liegen dort). Hier wird sie nur
+      // ausgewiesen, damit sie überall sichtbar bleibt, bis sie aufgelöst ist.
+      if (settings.checks.kollision) {
+        for (const b of blocks) {
+          const bid = (b as any).collision_booking_id as string | null;
+          if (!bid) continue;
+          const eigene = (bookings ?? []).find((x: any) => x.id === bid) as any;
+          const eigeneText = eigene
+            ? ` mit der Buchung „${eigene.guests?.name ?? 'ohne Namen'}" (${formatDE(eigene.check_in)}–${formatDE(eigene.check_out)})`
+            : ' mit einer eigenen Buchung';
+          befunde.push({
+            art: 'kollision',
+            haus: hausName, house_id: houseId, platform: b.platform,
+            von: tag(b.start_date), bis: tag(b.end_date),
+            naechte: naechte(b.start_date, b.end_date),
+            text: `${b.platform} meldet ${formatDE(b.start_date)}–${formatDE(b.end_date)} als belegt – überschneidet sich${eigeneText}.`,
+          });
+        }
       }
 
       // --- Prüfung 5: Langsperren ----------------------------------------
@@ -393,7 +571,7 @@ serve(async (req) => {
             art: 'fehlende_buchung',
             haus: hausName, house_id: houseId, platform: platListe,
             von: z.von, bis: z.bis, naechte: n,
-            text: `${formatDE(z.von)}–${formatDE(z.bis)} ist bei ${platListe} belegt, im System aber frei (${n} Nächte).`,
+            text: `${formatDE(z.von)}–${formatDE(z.bis)} ist bei ${platListe} belegt, in der Hausverwaltung aber frei (${n} Nächte).`,
           });
         }
       }
@@ -474,11 +652,9 @@ serve(async (req) => {
       }
     }
 
-    // Wichtigstes zuerst: fehlende Buchungen vor Langsperren vor Feed-Fehlern.
-    const rang: Record<BefundArt, number> = {
-      fehlende_buchung: 0, direktbuchung_pruefen: 1, langsperre: 2, feed_fehler: 3,
-    };
-    befunde.sort((a, b) => rang[a.art] - rang[b.art] || (a.von ?? '').localeCompare(b.von ?? ''));
+    // Wichtigstes zuerst (Reihenfolge siehe RANG oben).
+    befunde.sort((a, b) => RANG[a.art] - RANG[b.art] || (a.von ?? '').localeCompare(b.von ?? ''));
+    const meldung = baueMeldung(befunde);
 
     // --- E-Mail bei NEUEN Befunden ----------------------------------------
     //
@@ -526,28 +702,11 @@ serve(async (req) => {
       neueBefunde = neu.length;
 
       if (neu.length > 0) {
-        // Fehlende Buchungen sind dringender als Hinweise: Dahinter steckt ein
-        // Gast, der anreist, ohne dass Reinigung und Wäsche geplant sind.
-        const fehlende = neu.filter((b) => b.art === 'fehlende_buchung');
-        const direktNeu = neu.filter((b) => b.art === 'direktbuchung_pruefen');
-        const betreff = fehlende.length > 0
-          ? `⚠️ ${fehlende.length} Buchung(en) fehlen im System`
-          : direktNeu.length > 0
-            ? `Direktbuchung in den Portalen prüfen (${direktNeu.length})`
-            : `Kalender-Abgleich: ${neu.length} neue(r) Hinweis(e)`;
-
-        const zeilen = neu.map((b) => `• ${b.haus}: ${b.text}`).join('\n');
-        const body =
-          (fehlende.length > 0
-            ? `Der Kalender-Abgleich hat ${fehlende.length} Zeitraum/Zeiträume gefunden, ` +
-              `die bei einem Portal belegt sind, im System aber nicht.\n\n` +
-              `Dahinter steckt in der Regel eine Buchung, die noch nicht nachgetragen wurde: ` +
-              `Ohne Eintrag gibt es keine Reinigung, keine Wäsche und keinen Gästekontakt — ` +
-              `und der Zeitraum könnte versehentlich noch einmal vergeben werden.\n\n`
-            : `Der Kalender-Abgleich hat neue Hinweise gefunden.\n\n`) +
-          `${zeilen}\n\n` +
-          `Bitte im jeweiligen Portal nachsehen. Diese Meldung kommt einmalig je Befund; ` +
-          `in der Morgen-Übersicht bleibt sie sichtbar, bis sie erledigt ist.`;
+        // Die Mail enthält nur die NEUEN Befunde, aber in derselben
+        // Formulierung wie Banner, Sync-Meldung und Morgen-Übersicht.
+        const neuMeldung = baueMeldung(neu);
+        const kritisch = neuMeldung.gruppen.some((g) => g.stufe === 'kritisch');
+        const betreff = `${kritisch ? '‼️' : 'ℹ️'} Kalender-Abgleich: ${neuMeldung.titel}`;
 
         try {
           // ACHTUNG bei der Schnittstelle: send-guest-email erwartet
@@ -555,18 +714,29 @@ serve(async (req) => {
           // `bodyTemplate` — NICHT to/subject/body. Ein Aufruf mit den
           // naheliegenden Namen wird mit HTTP 400 abgelehnt und die Mail geht
           // nie raus. (Geprüft am 19.07.2026 in send-guest-email/index.ts.)
-          const { error: mailErr } = await supabase.functions.invoke('send-guest-email', {
+          // `htmlTemplate` ist optional (ergänzt 22.09.2026) — ältere Aufrufer
+          // ohne HTML funktionieren unverändert.
+          const { data: mailRes, error: mailErr } = await supabase.functions.invoke('send-guest-email', {
             body: {
               // Nur `email` — die weiteren Recipient-Felder dienen der
               // Platzhalter-Ersetzung und werden hier nicht gebraucht.
-              recipients: [{ email: settings.mail_to }],
+              recipients: settings.mail_to.map((email) => ({ email })),
               subjectTemplate: betreff,
-              bodyTemplate: body,
+              bodyTemplate: meldungAlsText(neuMeldung),
+              htmlTemplate: meldungAlsHtml(neuMeldung),
             },
           });
-          if (mailErr) {
-            console.error('[kalender-abgleich] Mail fehlgeschlagen:', mailErr);
+          // send-guest-email antwortet auch dann mit HTTP 200, wenn der
+          // SMTP-Versand für JEDEN Empfänger scheiterte ({ sent: 0, failed }).
+          // Nur mailErr zu prüfen hieße: Befund als "gemeldet" merken, obwohl
+          // keine Mail rausging — und nie wieder versuchen.
+          const gesendet = Number(mailRes?.sent ?? 0);
+          if (mailErr || gesendet === 0) {
+            console.error('[kalender-abgleich] Mail fehlgeschlagen:', mailErr ?? mailRes?.failed);
           } else {
+            if (Array.isArray(mailRes?.failed) && mailRes.failed.length > 0) {
+              console.error('[kalender-abgleich] Mail teilweise fehlgeschlagen:', mailRes.failed);
+            }
             mailGesendet = true;
             // Erst NACH erfolgreichem Versand merken. Schlägt die Mail fehl,
             // wird beim nächsten Lauf erneut versucht — besser eine Mail zu viel
@@ -608,6 +778,9 @@ serve(async (req) => {
       mail_gesendet: mailGesendet,
       alles_ok: befunde.length === 0,
       befunde,
+      // Fertig formulierte Meldung — Quelle für Sync-Meldung, Banner,
+      // Morgen-Übersicht und Mail (siehe baueMeldung).
+      meldung,
       // Einordnung JEDES Blocks — fuer die Belegungsliste in CalendarSyncCard.
       bloecke,
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
