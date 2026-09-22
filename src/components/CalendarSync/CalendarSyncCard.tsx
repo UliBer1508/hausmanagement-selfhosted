@@ -9,6 +9,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { RefreshCw, Calendar, Trash2, AlertTriangle, Plus, Link, Check, Upload, ChevronDown, ChevronUp, ListChecks } from "lucide-react";
 import { cn } from "@/lib/utils";
+import useKalenderAbgleich, {
+  fetchKalenderAbgleich,
+  KALENDER_ABGLEICH_QUERY_KEY,
+  type KalenderAbgleichErgebnis,
+  type KalenderBlockArt,
+  type KalenderBlockInfo,
+} from "@/hooks/useKalenderAbgleich";
 
 // =============================================================================
 // CalendarSync — iCal-Import + Kollisionswarnung (Modul CalendarSync, Phase 1)
@@ -59,25 +66,14 @@ interface ExternalBlock {
   last_seen_at: string | null;
 }
 
-// Einordnung eines Blocks, geliefert von der Edge Function kalender-abgleich.
-// Die Rohdaten aus external_blocks sagen nur "Zeitraum X ist belegt" — erst der
-// Abgleich weiss, ob dahinter eine Buchung steht, eine Sperre, oder eine Luecke.
-type BlockArt = "gedeckt" | "sperrzeit" | "langsperre" | "luecke";
-
-interface BlockInfo {
-  house_id: string;
-  platform: string;
-  start_date: string;
-  end_date: string;
-  art: BlockArt;
-  naechte: number;
-  buchungen: string[];
-  offene_tage: number;
-}
+// Einordnung eines Blocks (KalenderBlockInfo) kommt aus der Edge Function
+// kalender-abgleich, geladen über useKalenderAbgleich. Die Rohdaten aus
+// external_blocks sagen nur "Zeitraum X ist belegt" — erst der Abgleich weiss,
+// ob dahinter eine Buchung steht, eine Sperre, oder eine Luecke.
 
 // Darstellung je Einordnung. Nur "luecke" ist ein echtes Problem und wird rot
 // hervorgehoben; "langsperre" ist eine Rueckfrage, kein Fehler.
-const ART_ANZEIGE: Record<BlockArt, { label: string; klasse: string; rahmen: string }> = {
+const ART_ANZEIGE: Record<KalenderBlockArt, { label: string; klasse: string; rahmen: string }> = {
   gedeckt:    { label: "",             klasse: "text-muted-foreground", rahmen: "border-border/60" },
   sperrzeit:  { label: "Sperrzeit",    klasse: "text-muted-foreground", rahmen: "border-border/40 bg-muted/30" },
   langsperre: { label: "Langsperre",   klasse: "text-amber-700 dark:text-amber-400", rahmen: "border-amber-500/50 bg-amber-500/5" },
@@ -179,18 +175,12 @@ const CalendarSyncCard = () => {
   // und von der Morgen-Uebersicht gebraucht wird (eine Quelle der Wahrheit).
   //
   // Faellt der Aufruf aus, bleibt die Liste nutzbar, nur ohne Einordnung.
-  const { data: einordnung } = useQuery({
-    queryKey: ["kalender-abgleich-bloecke"],
-    enabled: zeigeBelegungen,
-    queryFn: async (): Promise<BlockInfo[]> => {
-      const { data, error } = await supabase.functions.invoke("kalender-abgleich", { body: {} });
-      if (error) throw error;
-      return (data?.bloecke as BlockInfo[]) ?? [];
-    },
-  });
+  // Derselbe Query-Key wie der Banner in der Uebersicht (22.09.2026).
+  const { data: abgleich } = useKalenderAbgleich({ enabled: zeigeBelegungen });
+  const einordnung = abgleich?.bloecke;
 
   // Zuordnung Block -> Einordnung. Schluessel wie in der Function.
-  const infoZu = (b: ExternalBlock): BlockInfo | undefined =>
+  const infoZu = (b: ExternalBlock): KalenderBlockInfo | undefined =>
     einordnung?.find(
       (e) =>
         e.house_id === b.house_id &&
@@ -241,25 +231,81 @@ const CalendarSyncCard = () => {
       toast({ title: "Löschen fehlgeschlagen", description: e?.message, variant: "destructive" }),
   });
 
-  // Sync manuell auslösen (echter Lauf)
+  // Sync manuell auslösen (echter Lauf) — und DANACH den Kalender-Abgleich.
+  //
+  // WARUM ZWEI SCHRITTE (22.09.2026): ical-sync liest nur die Feeds ein und
+  // prüft Überschneidungen mit VORHANDENEN Buchungen. Eine Portal-Buchung, die
+  // in der Hausverwaltung fehlt, ist für ical-sync keine Kollision — der Toast
+  // meldete deshalb "keine Kollisionen", während kalender-abgleich dieselbe
+  // Lücke per Mail als "fehlt im System" meldete. Jetzt zeigt der Toast die
+  // Antwort von kalender-abgleich: dieselben Texte wie Banner, Mail und
+  // Morgen-Übersicht. fetchQuery aktualisiert zugleich den Banner-Cache.
   const runSync = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke("ical-sync", {
+      const { data: sync, error } = await supabase.functions.invoke("ical-sync", {
         body: { dry_run: false },
       });
       if (error) throw error;
-      return data;
+
+      let abgleich: KalenderAbgleichErgebnis | null = null;
+      let abgleichFehler: string | null = null;
+      try {
+        abgleich = await queryClient.fetchQuery({
+          queryKey: KALENDER_ABGLEICH_QUERY_KEY,
+          queryFn: fetchKalenderAbgleich,
+          staleTime: 0,
+        });
+      } catch (e) {
+        console.error("[CalendarSyncCard] kalender-abgleich", e);
+        abgleichFehler = e instanceof Error ? e.message : "unbekannter Fehler";
+      }
+      return { sync, abgleich, abgleichFehler };
     },
-    onSuccess: (data: any) => {
-      const koll = data?.neue_kollisionen ?? 0;
-      toast({
-        title: koll > 0 ? `⚠️ ${koll} Kollision(en) erkannt` : "Sync abgeschlossen",
-        description: koll > 0
-          ? "Details in der Morgen-Übersicht und per E-Mail."
-          : `${data?.feeds ?? 0} Feed(s) abgeglichen, keine Kollisionen.`,
-        variant: koll > 0 ? "destructive" : undefined,
-      });
+    onSuccess: ({ sync, abgleich, abgleichFehler }) => {
       queryClient.invalidateQueries({ queryKey: ["ical-feeds"] });
+      queryClient.invalidateQueries({ queryKey: ["external-blocks"] });
+      const feedsText = `${sync?.feeds ?? 0} Feed(s) eingelesen.`;
+
+      // Abgleich nicht möglich -> ausdrücklich KEINE Entwarnung.
+      if (!abgleich) {
+        toast({
+          title: "Feeds eingelesen – Abgleich fehlgeschlagen",
+          description: `${feedsText} Ob Buchungen in der Hausverwaltung fehlen, konnte nicht geprüft werden (${abgleichFehler}).`,
+          variant: "destructive",
+          duration: 20000,
+        });
+        return;
+      }
+
+      const { meldung } = abgleich;
+      if (meldung.gruppen.length === 0) {
+        toast({
+          title: "Sync abgeschlossen – keine Unterschiede",
+          description: `${feedsText} Jede Portal-Belegung ist in der Hausverwaltung als Buchung vorhanden.`,
+        });
+        return;
+      }
+
+      const kritisch = meldung.gruppen.some((g) => g.stufe === "kritisch");
+      toast({
+        title: `⚠️ ${meldung.titel}`,
+        description: (
+          <div className="space-y-2 text-sm">
+            {meldung.gruppen.map((g) => (
+              <div key={g.art}>
+                <div className="font-semibold">{g.titel}</div>
+                {g.zeilen.map((z) => (
+                  <div key={z}>• {z}</div>
+                ))}
+                <div className="opacity-90">{g.hinweis}</div>
+              </div>
+            ))}
+            <div className="opacity-80">{feedsText} Hinweis auch als Banner in der Übersicht.</div>
+          </div>
+        ),
+        variant: kritisch ? "destructive" : undefined,
+        duration: 30000,
+      });
     },
     onError: (e: any) =>
       toast({ title: "Sync fehlgeschlagen", description: e?.message, variant: "destructive" }),
@@ -286,8 +332,10 @@ const CalendarSyncCard = () => {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Liest Belegungen von Airbnb, Booking.com, VRBO und Belvilla ein und warnt bei
-        Überschneidungen mit eigenen Buchungen. iCal liefert nur Zeiträume (keine
+        Liest Belegungen von Airbnb, Booking.com, VRBO und Belvilla ein und vergleicht sie
+        mit den Buchungen der Hausverwaltung: fehlende Buchungen, mögliche Doppelbuchungen
+        und Feed-Fehler werden hier, als Banner in der Übersicht und per E-Mail gemeldet.
+        iCal liefert nur Zeiträume (keine
         Gastdaten) und ist verzögert — ein Sicherheitsnetz, kein Echtzeitschutz.
         Der automatische Abgleich läuft täglich; du kannst ihn hier auch manuell starten.
       </p>
