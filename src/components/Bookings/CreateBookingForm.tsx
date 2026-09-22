@@ -15,6 +15,7 @@ import { normalizeRating, getMaxRatingForPlatform } from '@/lib/ratingHelpers';
 import { COUNTRIES } from '@/lib/countries';
 import { GuestSuggestions } from './GuestSuggestions';
 import BookingChargesPanel from './BookingChargesPanel';
+import useBelegungspruefung, { type BelegungsTreffer } from '@/hooks/useBelegungspruefung';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -135,6 +136,14 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
   const [showCancelCleaningDialog, setShowCancelCleaningDialog] = useState(false);
   const [relatedCleaningTasks, setRelatedCleaningTasks] = useState<any[]>([]);
   const [pendingBookingData, setPendingBookingData] = useState<any>(null);
+  // Warnung aus der Belegungsprüfung (Portal belegt / Portale nicht erreichbar),
+  // wartet auf "Trotzdem speichern" oder "Abbrechen".
+  const [portalWarnung, setPortalWarnung] = useState<{
+    treffer: BelegungsTreffer[];
+    syncFehler: string | null;
+    data: BookingFormData;
+  } | null>(null);
+  const { pruefeBelegung } = useBelegungspruefung();
   const [linenOrderDialogOpen, setLinenOrderDialogOpen] = useState(false);
   const [prefilledOrderData, setPrefilledOrderData] = useState<any>(null);
 
@@ -434,92 +443,62 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
     }
   };
 
-  const performBookingUpdate = async (data: BookingFormData) => {
+  const performBookingUpdate = async (data: BookingFormData, opts?: { portalBestaetigt?: boolean }) => {
     try {
       let createdBookingId: string | undefined;
       console.log('performBookingUpdate - check_in:', data.check_in.toISOString());
       console.log('performBookingUpdate - check_out:', data.check_out.toISOString());
       
-      // Check for conflicting bookings (skip for same booking in edit mode)
-      let query = supabase
-        .from('bookings')
-        // Gastname wird in der Konflikt-Meldung angezeigt (weiter unten:
-        // "Konflikt mit Buchung von ..."), deshalb wird er gebraucht.
-        // Quelle ist die guests-Relation (Etappe 4, Block 2).
-        .select('id, check_in, check_out, status, guests!bookings_guest_id_fkey(name)')
-        .eq('house_id', data.house_id)
-        .in('status', ['confirmed', 'checked_in']);
+      // ── Belegungsprüfung (NEU 22.09.2026, SQL 57 pruefe_belegung) ──────────
+      //
+      // Ersetzt die frühere Prüfung, die nur EIGENE Buchungen kannte und
+      // Uhrzeiten statt Tage verglich. Jetzt: erst ical-sync für dieses Haus
+      // (frische Portal-Daten), dann dieselbe DB-Regel, die auch Max nutzt.
+      //   eigene_buchung            -> Speichern gesperrt (wie bisher)
+      //   portal_belegt/_sperre     -> Warnung mit "Trotzdem speichern"
+      //   Portale nicht erreichbar  -> Warnung mit "Trotzdem speichern"
+      //   passt (gleiches Portal)   -> kein Hinweis nötig
+      //
+      // Übersprungen, wenn sich nichts Prüfenswertes geändert hat (Bearbeiten
+      // ohne neues Haus/Datum) oder die Buchung storniert wird — sonst würde
+      // jede Notiz-Änderung Portale abfragen, und ein Storno könnte an einem
+      // Konflikt scheitern.
+      const tag = (d: Date | string) => format(new Date(d), 'yyyy-MM-dd');
+      const pruefenNoetig =
+        data.status !== 'cancelled' && (
+          mode !== 'edit' || !initialData ||
+          initialData.house_id !== data.house_id ||
+          tag(initialData.check_in) !== tag(data.check_in) ||
+          tag(initialData.check_out) !== tag(data.check_out) ||
+          initialData.status === 'cancelled'
+        );
 
-      // Only exclude the current booking ID in edit mode
-      if (mode === 'edit' && initialData) {
-        query = query.neq('id', initialData.id);
-      }
-
-      const { data: allBookings, error: conflictError } = await query;
-      
-      console.log('🔍 CONFLICT CHECK START');
-      console.log('House ID:', data.house_id);
-      console.log('New booking times:', data.check_in.toISOString(), 'to', data.check_out.toISOString());
-      console.log('All non-cancelled bookings for this house:', allBookings);
-
-      if (conflictError) throw conflictError;
-      
-      // Manual overlap check
-      const conflictingBookings = allBookings?.filter(booking => {
-        // ✅ CHECK 1: Eigene Buchung im Edit-Mode ausschließen
-        if (mode === 'edit' && initialData?.id && booking.id === initialData.id) {
-          console.log('⏭️ SKIPPING: Same booking being edited (ID:', booking.id, ')');
-          return false;
-        }
-        
-        // ✅ CHECK 2: Stornierte Buchungen ignorieren
-        if (booking.status === 'cancelled') {
-          console.log('⏭️ SKIPPING: Cancelled booking (ID:', booking.id, ')');
-          return false;
-        }
-        
-        const bookingCheckIn = new Date(booking.check_in);
-        const bookingCheckOut = new Date(booking.check_out);
-        const newCheckIn = data.check_in;
-        const newCheckOut = data.check_out;
-        
-        console.log('---');
-        console.log('Checking booking:', (booking as any).guests?.name || booking.guest_name, booking.status);
-        console.log('Existing: CheckIn:', bookingCheckIn.toISOString(), 'CheckOut:', bookingCheckOut.toISOString());
-        console.log('New:      CheckIn:', newCheckIn.toISOString(), 'CheckOut:', newCheckOut.toISOString());
-        
-        // Check if there's an overlap
-        const condition1 = bookingCheckIn < newCheckOut;
-        const condition2 = bookingCheckOut > newCheckIn;
-        
-        // Allow same-day turnover: If check-out time equals check-in time exactly, it's NOT a conflict
-        const isSameDayTurnover = bookingCheckOut.getTime() === newCheckIn.getTime();
-        
-        const hasOverlap = condition1 && condition2 && !isSameDayTurnover;
-        
-        console.log('Overlap check: bookingCheckIn < newCheckOut?', condition1);
-        console.log('Overlap check: bookingCheckOut > newCheckIn?', condition2);
-        console.log('Same-day turnover (exact match)?', isSameDayTurnover);
-        console.log('Has overlap?', hasOverlap);
-        
-        if (hasOverlap) {
-          console.log('❌ CONFLICT FOUND with:', (booking as any).guests?.name || booking.guest_name);
-        }
-        
-        return hasOverlap;
-      }) || [];
-      
-      console.log('🔍 CONFLICT CHECK END - Total conflicts:', conflictingBookings.length);
-
-      if (conflictingBookings && conflictingBookings.length > 0) {
-        const conflictDetails = conflictingBookings[0];
-        toast({
-          title: 'Buchungskonflikt',
-          description: `Konflikt mit Buchung von ${(conflictDetails as any).guests?.name || conflictDetails.guest_name} (${format(new Date(conflictDetails.check_in), 'dd.MM.yyyy HH:mm', { locale: de })} - ${format(new Date(conflictDetails.check_out), 'dd.MM.yyyy HH:mm', { locale: de })})`,
-          variant: 'destructive',
+      if (pruefenNoetig) {
+        const { treffer, syncFehler } = await pruefeBelegung({
+          houseId: data.house_id,
+          checkIn: data.check_in,
+          checkOut: data.check_out,
+          ausserBookingId: mode === 'edit' ? initialData?.id ?? null : null,
+          platform: data.platform ?? null,
         });
-        setIsSubmitting(false);
-        return;
+
+        const eigene = treffer.filter((t) => t.art === 'eigene_buchung');
+        if (eigene.length > 0) {
+          toast({
+            title: 'Buchungskonflikt',
+            description: eigene.map((t) => t.text).join(' · '),
+            variant: 'destructive',
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        const warnungen = treffer.filter((t) => t.art === 'portal_belegt' || t.art === 'portal_sperre');
+        if ((warnungen.length > 0 || syncFehler) && !opts?.portalBestaetigt) {
+          setPortalWarnung({ treffer: warnungen, syncFehler, data });
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Phase II: Gast erstellen oder finden (verbesserte Duplikat-Erkennung)
@@ -2361,6 +2340,54 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           )}
         </div>
       </form>
+
+      {/* AlertDialog: Belegungsprüfung — Portal meldet belegt (NEU 22.09.2026) */}
+      <AlertDialog open={!!portalWarnung} onOpenChange={(offen) => { if (!offen) setPortalWarnung(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              {portalWarnung && portalWarnung.treffer.length > 0
+                ? 'Zeitraum bei einem Portal belegt'
+                : 'Portale nicht erreichbar'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                {portalWarnung?.treffer.map((t) => (
+                  <div key={`${t.platform}-${t.von}-${t.bis}`} className="rounded bg-muted p-2">• {t.text}</div>
+                ))}
+                {portalWarnung?.syncFehler && (
+                  <div className="text-amber-700 dark:text-amber-400">
+                    Die Portale konnten gerade nicht abgefragt werden ({portalWarnung.syncFehler}).
+                    Geprüft wurde mit dem letzten bekannten Stand.
+                  </div>
+                )}
+                <div>
+                  Bitte im Portal nachsehen. Ist dort wirklich gebucht, droht eine Doppelbuchung.
+                  Ist es nur eine eigene Sperre, kannst du trotzdem speichern.
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setPortalWarnung(null)}>
+              Abbrechen
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const w = portalWarnung;
+                setPortalWarnung(null);
+                if (w) {
+                  setIsSubmitting(true);
+                  performBookingUpdate(w.data, { portalBestaetigt: true });
+                }
+              }}
+            >
+              Trotzdem speichern
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* AlertDialog für Reinigungsstornierung */}
       <AlertDialog open={showCancelCleaningDialog} onOpenChange={setShowCancelCleaningDialog}>
