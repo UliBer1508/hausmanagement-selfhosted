@@ -287,8 +287,9 @@ const CalendarSyncCard = () => {
       }
 
       const kritisch = meldung.gruppen.some((g) => g.stufe === "kritisch");
+      const warnung = meldung.gruppen.some((g) => g.stufe !== "hinweis");
       toast({
-        title: `⚠️ ${meldung.titel}`,
+        title: `${warnung ? "⚠️" : "ℹ️"} ${meldung.titel}`,
         description: (
           <div className="space-y-2 text-sm">
             {meldung.gruppen.map((g) => (
