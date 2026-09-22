@@ -96,6 +96,65 @@ async function executeAcceptBookingInquiry(params: any) {
     return { success: false, error: `Anfrage ist bereits ${inquiry.status}` };
   }
 
+  // 1b. Belegungsprüfung (NEU 22.09.2026, SQL 57 pruefe_belegung).
+  //
+  // WARUM: Bis hierher legte Max die Buchung ohne JEDE Prüfung an — auch über
+  // eine bestehende eigene Buchung hinweg. Jetzt dieselbe Regel wie im
+  // Buchungsformular: erst ical-sync für das Haus (frische Portal-Daten), dann
+  //   eigene_buchung        -> NICHT anlegen, Uli den Konflikt nennen
+  //   portal_belegt/_sperre -> NICHT anlegen, Uli fragen; erst nach seinem
+  //                            "trotzdem" erneut mit trotz_portal_belegung=true
+  let portalStandHinweis: string | null = null;
+  try {
+    const { data: syncRes, error: syncErr } = await supabase.functions.invoke('ical-sync', {
+      body: { dry_run: false, house_id: inquiry.house_id },
+    });
+    if (syncErr || syncRes?.success === false) {
+      portalStandHinweis = 'Die Portale konnten gerade nicht abgefragt werden — geprüft wurde mit dem letzten bekannten Stand.';
+    }
+  } catch (e) {
+    console.error('accept_booking_inquiry: ical-sync', e);
+    portalStandHinweis = 'Die Portale konnten gerade nicht abgefragt werden — geprüft wurde mit dem letzten bekannten Stand.';
+  }
+
+  const berlinTag = (v: string) =>
+    new Date(v).toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+  const { data: belegung, error: belegungErr } = await supabase.rpc('pruefe_belegung', {
+    p_house_id: inquiry.house_id,
+    p_von: berlinTag(inquiry.check_in),
+    p_bis: berlinTag(inquiry.check_out),
+    p_ausser_booking_id: null,
+    p_platform: null,   // Anfrage ueber die Website = Direktbuchung
+  });
+  if (belegungErr) {
+    return {
+      success: false,
+      error: `Belegungsprüfung nicht möglich (${belegungErr.message}) — Buchung wurde NICHT angelegt.`,
+    };
+  }
+  const treffer = (belegung ?? []) as Array<{ art: string; text: string }>;
+  const eigene = treffer.filter((t) => t.art === 'eigene_buchung');
+  if (eigene.length > 0) {
+    return {
+      success: false,
+      konflikt: true,
+      error: `Buchung NICHT angelegt — ${eigene.map((t) => t.text).join(' · ')}`,
+    };
+  }
+  const portal = treffer.filter((t) => t.art === 'portal_belegt' || t.art === 'portal_sperre');
+  if (portal.length > 0 && params?.trotz_portal_belegung !== true) {
+    return {
+      success: false,
+      rueckfrage: true,
+      portal_befunde: portal.map((t) => t.text),
+      hinweis:
+        `Buchung NICHT angelegt. ${portal.map((t) => t.text).join(' · ')}. ` +
+        (portalStandHinweis ? `${portalStandHinweis} ` : '') +
+        'Frage Uli, ob er im Portal nachsehen und die Anfrage trotzdem annehmen will. ' +
+        'Nur nach seinem ausdrücklichen "trotzdem" erneut mit trotz_portal_belegung=true aufrufen.',
+    };
+  }
+
   // 2. Gast zuerst in `guests` anlegen oder wiederfinden.
   //
   // Etappe 5 (13.08.2026): Bis hierher entstanden Gaeste nur als Nebenwirkung —
@@ -192,7 +251,8 @@ async function executeAcceptBookingInquiry(params: any) {
     guest_name: inquiry.guest_name,
     house_name: inquiry.houses?.name,
     check_in: inquiry.check_in,
-    check_out: inquiry.check_out
+    check_out: inquiry.check_out,
+    ...(portalStandHinweis ? { hinweis: portalStandHinweis } : {}),
   };
 }
 
@@ -1806,11 +1866,15 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "accept_booking_inquiry",
-        description: "Bestätigt eine Buchungsanfrage und erstellt Buchung + Reinigung",
+        description: "Bestätigt eine Buchungsanfrage und erstellt Buchung + Reinigung. Prüft vorher die Belegung (eigene Buchungen und Portale). Bei Konflikt wird NICHTS angelegt.",
         parameters: {
           type: "object",
           properties: {
-            inquiry_id: { type: "string", description: "UUID der Anfrage" }
+            inquiry_id: { type: "string", description: "UUID der Anfrage" },
+            trotz_portal_belegung: {
+              type: "boolean",
+              description: "Nur setzen, wenn Uli nach einer Portal-Warnung ausdrücklich 'trotzdem annehmen' gesagt hat. Hebt KEINE Überschneidung mit eigenen Buchungen auf."
+            }
           },
           required: ["inquiry_id"]
         }
