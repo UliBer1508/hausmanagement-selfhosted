@@ -27,7 +27,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { recipients, subjectTemplate, bodyTemplate } = await req.json();
+    // htmlTemplate ist OPTIONAL (ergänzt 22.09.2026 für die hervorgehobene
+    // Kalender-Abgleich-Mail). Ohne htmlTemplate verhält sich die Funktion
+    // exakt wie bisher: reine Textmail. Mit htmlTemplate geht eine
+    // multipart-Mail raus (Text als Fallback, HTML für die Darstellung).
+    const { recipients, subjectTemplate, bodyTemplate, htmlTemplate } = await req.json();
 
     if (!Array.isArray(recipients) || recipients.length === 0 || !subjectTemplate || !bodyTemplate) {
       return new Response(
@@ -62,11 +66,15 @@ Deno.serve(async (req) => {
       try {
         const personalizedSubject = replacePlaceholders(subjectTemplate, r);
         const personalizedBody = replacePlaceholders(bodyTemplate, r);
+        const personalizedHtml = typeof htmlTemplate === 'string' && htmlTemplate
+          ? replacePlaceholders(htmlTemplate, r)
+          : undefined;
         await client.send({
           from: GMAIL_USER,
           to: r.email,
           subject: personalizedSubject,
           content: personalizedBody,
+          ...(personalizedHtml ? { html: personalizedHtml } : {}),
         });
         sent++;
       } catch (e) {
