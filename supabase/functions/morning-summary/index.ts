@@ -377,6 +377,9 @@ serve(async (req) => {
     // Morgen-Uebersicht trotzdem erscheinen. Ein fehlender Abschnitt ist
     // aergerlich, eine ausbleibende Tagesuebersicht waere schlimmer.
     let kalenderBefunde: any[] = [];
+    // Fertig formulierte Gruppen aus kalender-abgleich (22.09.2026): dieselben
+    // Überschriften und Hinweise wie Banner, Sync-Meldung und Mail.
+    let kalenderGruppen: any[] = [];
     if (includeCfg.kalender_abgleich !== false) {
       try {
         const { data: ka } = await supabase.functions.invoke('kalender-abgleich', {
@@ -384,6 +387,7 @@ serve(async (req) => {
         });
         if (ka?.success && Array.isArray(ka.befunde)) {
           kalenderBefunde = ka.befunde;
+          kalenderGruppen = Array.isArray(ka.meldung?.gruppen) ? ka.meldung.gruppen : [];
         }
       } catch (e) {
         console.error('[morning-summary] kalender-abgleich nicht erreichbar:', e);
@@ -448,7 +452,17 @@ serve(async (req) => {
     // Eine fehlende Buchung ist dringender als das Tagesgeschaeft: Sie bedeutet
     // einen Gast, von dem niemand weiss, und einen Zeitraum, der versehentlich
     // noch einmal vergeben werden koennte.
-    if (kalenderBefunde.length > 0) {
+    if (kalenderGruppen.length > 0) {
+      kalenderGruppen.forEach((g: any) => {
+        const marke = g.stufe === 'kritisch' ? '📆' : g.stufe === 'warnung' ? '⚠️' : '🔍';
+        message += `${marke} **${g.titel}**\n`;
+        (g.zeilen ?? []).forEach((z: string) => {
+          message += `• ${z}\n`;
+        });
+        message += `_${g.hinweis}_\n\n`;
+      });
+    } else if (kalenderBefunde.length > 0) {
+      // Rückfall, falls kalender-abgleich noch ohne `meldung` deployt ist.
       const fehlende = kalenderBefunde.filter((b: any) => b.art === 'fehlende_buchung');
       const sonstige = kalenderBefunde.filter((b: any) => b.art !== 'fehlende_buchung');
 
