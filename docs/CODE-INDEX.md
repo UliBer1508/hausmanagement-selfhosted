@@ -925,6 +925,21 @@ ist damit vom Abgleich ausgeschlossen. Ein Vergleich der Portale untereinander i
 **nicht möglich**: Portal-Feeds enthalten nur die jeweils eigenen Buchungen, nicht
 die importierten Fremd-Blocks (dieselbe Regel, die auch `ical-export` befolgt).
 
+**Buchungs-Änderungen mit „Gesehen"-Quittung (22.09.2026, angepasst 24.09.2026):**
+- Tabelle `buchungs_aenderungen` (SQL `56_...`). Zwei Quellen: Trigger
+  `trg_log_buchungs_aenderung` auf `bookings` (`quelle='hausverwaltung'`: neu,
+  verschoben, storniert) und `ical-sync` (`quelle='portal'`).
+- Anzeige: Banner in der Übersicht (`useBuchungsAenderungen.ts`), Morgen-Übersicht
+  und — einmalig, über `gemailt_am` — die Mail von `kalender-abgleich`.
+- **Eigene Eingaben sind still (SQL `58_...`):** Ändert ein eingeloggter Admin
+  (Formular, Buchungskarte, Anfrage annehmen im Browser), wird der Eintrag mit
+  gesetztem `gesehen_am`/`gemailt_am` geschrieben → kein Banner, keine Mail.
+  Edge Functions (Max, `import-guest-list`) laufen mit service_role,
+  `auth.uid()` ist dort NULL → wird weiter gemeldet.
+- Mail-Einleitung und Betreff richten sich nach dem Inhalt: enthält die Mail nur
+  Änderungs-Hinweise, heißt es „Bei den Buchungen hat sich etwas geändert" statt
+  „Unterschiede zwischen den Portalen und der Hausverwaltung".
+
 ---
 
 ## 13a. MAX — der KI-Assistent (Stand 12.07.2026)
