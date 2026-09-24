@@ -311,6 +311,26 @@ function baueMeldung(befunde: Befund[]): Meldung {
   return { alles_ok: gruppen.length === 0, titel, gruppen };
 }
 
+// Einleitungssatz der Mail — abhängig vom Inhalt (NEU 24.09.2026).
+// WARUM: Die Mail begann immer mit "Unterschiede zwischen den Portalen und der
+// Hausverwaltung gefunden", auch wenn sie nur einen Änderungs-Hinweis enthielt
+// (z. B. "Neue Buchung Jeroen De vos"). Dann gab es gar keinen Unterschied —
+// der Satz war falsch und hat unnötig beunruhigt.
+function nurAenderungen(m: Meldung): boolean {
+  return m.gruppen.length > 0 && m.gruppen.every((g) => g.art === 'aenderung');
+}
+
+function einleitung(m: Meldung): { vor: string; fett: string; nach: string } {
+  if (nurAenderungen(m)) {
+    return { vor: 'Bei den Buchungen hat sich ', fett: 'etwas geändert', nach: ' (kein Abgleich-Problem)' };
+  }
+  return {
+    vor: 'Der Kalender-Abgleich hat ',
+    fett: 'Unterschiede zwischen den Portalen und der Hausverwaltung',
+    nach: ' gefunden',
+  };
+}
+
 // Textfassung (Fallback für Mailprogramme ohne HTML).
 function meldungAlsText(m: Meldung): string {
   const teile = m.gruppen.map((g) => {
@@ -318,7 +338,7 @@ function meldungAlsText(m: Meldung): string {
     return `${marke}${g.titel.toUpperCase()}\n${g.zeilen.map((z) => `• ${z}`).join('\n')}\n→ ${g.hinweis}`;
   });
   return (
-    `Der Kalender-Abgleich hat Unterschiede zwischen den Portalen und der Hausverwaltung gefunden.\n\n` +
+    `${einleitung(m).vor}${einleitung(m).fett}${einleitung(m).nach}.\n\n` +
     `${teile.join('\n\n')}\n\n` +
     `Diese Mail kommt einmalig je Befund. In der Übersicht (Banner) und in der Morgen-Übersicht ` +
     `bleibt der Punkt sichtbar, bis er erledigt ist.`
@@ -348,7 +368,7 @@ function meldungAlsHtml(m: Meldung): string {
   }).join('');
   return (
     `<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;color:#111827">` +
-    `<p style="font-size:15px">Der Kalender-Abgleich hat <strong>Unterschiede zwischen den Portalen und der Hausverwaltung</strong> gefunden:</p>` +
+    `<p style="font-size:15px">${esc(einleitung(m).vor)}<strong>${esc(einleitung(m).fett)}</strong>${esc(einleitung(m).nach)}:</p>` +
     bloecke +
     `<p style="font-size:12px;color:#6b7280">Diese Mail kommt einmalig je Befund. In der Übersicht (Banner) und in der ` +
     `Morgen-Übersicht bleibt der Punkt sichtbar, bis er erledigt ist.</p>` +
@@ -761,7 +781,11 @@ serve(async (req) => {
         // Sync-Meldung und Morgen-Übersicht.
         const neuMeldung = baueMeldung([...neu, ...aenderungenUngemailt]);
         const kritisch = neuMeldung.gruppen.some((g) => g.stufe === 'kritisch');
-        const betreff = `${kritisch ? '‼️' : 'ℹ️'} Kalender-Abgleich: ${neuMeldung.titel}`;
+        // Betreff wie die Einleitung: reine Änderungs-Hinweise nicht als
+        // "Kalender-Abgleich" ausgeben (NEU 24.09.2026).
+        const betreff = nurAenderungen(neuMeldung)
+          ? `ℹ️ Buchungen: ${neuMeldung.titel}`
+          : `${kritisch ? '‼️' : 'ℹ️'} Kalender-Abgleich: ${neuMeldung.titel}`;
 
         try {
           // ACHTUNG bei der Schnittstelle: send-guest-email erwartet
