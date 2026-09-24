@@ -36,6 +36,35 @@
 7. Changelog      → was/welche Dateien/warum/welche Felder
 ```
 
+## Neue Tabellen: GRANTs sind Pflicht (ab 30.10.2026)
+
+Supabase vergibt ab dem **30.10.2026** für neue Tabellen im Schema `public`
+**keinen automatischen Data-API-Zugriff** mehr. Bestehende Tabellen behalten
+ihre Rechte — die laufende App ist nicht betroffen.
+
+**Regel:** Jede SQL-Datei (`supabase/SQL/` oder `supabase/migrations/`), die
+eine Tabelle mit `CREATE TABLE public.…` anlegt, enthält **in derselben Datei**
+die GRANTs:
+
+```sql
+-- anon NUR, wenn die Tabelle bewusst öffentlich lesbar sein soll
+-- (Gast-, Buchungs-, Rechnungsdaten: NIEMALS anon)
+grant select on public.<tabelle> to anon;
+
+grant select, insert, update, delete on public.<tabelle> to authenticated;
+grant select, insert, update, delete on public.<tabelle> to service_role;
+```
+
+- RLS (`enable row level security` + Policies) bleibt zusätzlich nötig — GRANT
+  öffnet die Tür für die API, RLS regelt, wer welche Zeilen sieht.
+- Fehlt ein GRANT, antwortet die API mit `permission denied` (die Meldung
+  enthält das fehlende GRANT-Statement).
+- Gilt auch für neue Projekte, Preview-Branches und `supabase db reset`.
+  Achtung: Die älteren Skripte `01`, `31`, `35`, `51`, `52`, `56` legen
+  Tabellen **ohne** vollständige GRANTs an. Bei einem Neuaufbau aus diesen
+  Skripten die GRANTs nachziehen.
+- Prüfen: Supabase-Dashboard → Einstellungen der Data API → freigegebene Tabellen.
+
 ## So wird es bei Claude verankert
 
 Es genügt der Hinweis in der Aufgabe: **„nach CODING-GUIDE und CODE-INDEX
