@@ -25,6 +25,11 @@
 -- unverändert angezeigt: Banner, Sync-Meldung, Morgen-Übersicht, E-Mail.
 --
 -- Idempotent: mehrfaches Ausführen ist unschädlich.
+--
+-- NACHTRAG 24.09.2026: Die Funktion log_buchungs_aenderung wird durch
+-- 58_buchungs_aenderungen_eigene_still.sql ersetzt (eigene Eingaben von Uli
+-- werden sofort als gesehen/gemailt markiert). Bei einer Wiederherstellung
+-- 58 NACH dieser Datei ausführen.
 -- =============================================================================
 
 create table if not exists public.buchungs_aenderungen (
