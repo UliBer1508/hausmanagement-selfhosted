@@ -2,26 +2,15 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { ArrowDownLeft, ArrowUpRight, MessageSquarePlus, Inbox } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { useToast } from '@/hooks/use-toast';
 import {
   useGuestCommunications,
-  useLogCommunication,
   type GuestCommunication,
 } from '@/hooks/useGuestCommunications';
+import { channelLabel } from '@/lib/communicationChannels';
+import LogCommunicationDialog from './LogCommunicationDialog';
 
 interface Props {
   guestEmail?: string | null;
@@ -57,8 +46,8 @@ const HistoryItem = ({ item }: { item: GuestCommunication }) => {
             {directionIcon(item.direction)}
             {directionLabel(item.direction)}
           </Badge>
-          <Badge variant="outline" className="text-[10px] uppercase">
-            {item.channel}
+          <Badge variant="outline" className="text-[10px]">
+            {channelLabel(item.channel)}
           </Badge>
         </div>
         <span className="text-xs text-muted-foreground">
@@ -88,52 +77,7 @@ const HistoryItem = ({ item }: { item: GuestCommunication }) => {
 
 const GuestCommunicationHistory = ({ guestEmail, guestId, guestName, className }: Props) => {
   const { data, isLoading } = useGuestCommunications(guestEmail, guestId);
-  const logMutation = useLogCommunication();
-  const { toast } = useToast();
-
   const [open, setOpen] = useState(false);
-  const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
-  const [occurredAt, setOccurredAt] = useState<string>(() =>
-    new Date().toISOString().slice(0, 16),
-  );
-
-  const resetForm = () => {
-    setSubject('');
-    setBody('');
-    setOccurredAt(new Date().toISOString().slice(0, 16));
-  };
-
-  const handleSave = async () => {
-    if (!body.trim() && !subject.trim()) {
-      toast({
-        title: 'Bitte etwas eintragen',
-        description: 'Betreff oder Text muss ausgefüllt sein.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    try {
-      await logMutation.mutateAsync({
-        guestId: guestId ?? null,
-        guestEmail: guestEmail ?? null,
-        guestName: guestName ?? null,
-        direction: 'inbound',
-        subject: subject.trim() || null,
-        body: body.trim() || null,
-        occurredAt: new Date(occurredAt).toISOString(),
-      });
-      toast({ title: 'Antwort gespeichert' });
-      resetForm();
-      setOpen(false);
-    } catch (err: any) {
-      toast({
-        title: 'Fehler beim Speichern',
-        description: err.message,
-        variant: 'destructive',
-      });
-    }
-  };
 
   return (
     <Card className={className}>
@@ -150,7 +94,7 @@ const GuestCommunicationHistory = ({ guestEmail, guestId, guestName, className }
           disabled={!guestEmail && !guestId}
         >
           <MessageSquarePlus className="h-4 w-4 mr-2" />
-          Antwort notieren
+          Nachricht notieren
         </Button>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -171,60 +115,17 @@ const GuestCommunicationHistory = ({ guestEmail, guestId, guestName, className }
         )}
       </CardContent>
 
-      <Dialog
+      {/* Richtung und Kanal wählbar (26.09.2026) — vorher nur "Antwort des
+          Gastes" per E-Mail. */}
+      <LogCommunicationDialog
         open={open}
-        onOpenChange={(o) => {
-          setOpen(o);
-          if (!o) resetForm();
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Antwort des Gastes notieren</DialogTitle>
-            <DialogDescription>
-              Kopiere Betreff und Text aus der Gast-Antwort hier hinein.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="reply-subject">Betreff</Label>
-              <Input
-                id="reply-subject"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Re: …"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="reply-body">Text</Label>
-              <Textarea
-                id="reply-body"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={6}
-                placeholder="Antwort des Gastes…"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="reply-date">Empfangen am</Label>
-              <Input
-                id="reply-date"
-                type="datetime-local"
-                value={occurredAt}
-                onChange={(e) => setOccurredAt(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={logMutation.isPending}>
-              Abbrechen
-            </Button>
-            <Button onClick={handleSave} disabled={logMutation.isPending}>
-              {logMutation.isPending ? 'Speichert…' : 'Speichern'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={setOpen}
+        guestId={guestId}
+        guestEmail={guestEmail}
+        guestName={guestName}
+        defaultDirection="outbound"
+        defaultChannel="airbnb"
+      />
     </Card>
   );
 };
