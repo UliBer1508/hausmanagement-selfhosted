@@ -20,6 +20,10 @@ export interface GuestContactReminder {
   number_of_children: number | null;
   guest_contact_status: string;
   booking_amount: number | null;
+  // Portal der Buchung — belegt im Kontakt-Banner den Kanal beim Notieren
+  // der Nachricht vor (26.09.2026).
+  platform: string | null;
+  guest_id: string | null;
   nationality: string | null;
   houses: {
     id: string;
@@ -52,6 +56,7 @@ export const useGuestContactReminders = () => {
           number_of_children,
           guest_contact_status,
           booking_amount,
+          platform,
           guests!bookings_guest_id_fkey(id, name, email, phone, nationality),
           houses!bookings_house_id_fkey!inner(id, name, rental_type)
         `)
