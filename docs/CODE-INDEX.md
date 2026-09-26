@@ -295,6 +295,16 @@ BookingOverviewFixed.tsx                 Liste + Detail im Buchungs-Tab
 | segments | `GuestSegments.tsx` |
 | marketing | `MarketingActions.tsx` (+ `RebookingCampaign`) |
 
+**Nachricht notieren (26.09.2026):** `Guests/LogCommunicationDialog.tsx` ist der
+EINE Dialog zum manuellen Erfassen von Gästekommunikation in
+`guest_communications` — Richtung (ich → Gast / Gast → ich) und Kanal wählbar.
+Kanalliste zentral in `src/lib/communicationChannels.ts` (Werte der Portale =
+`bookings.platform`). Genutzt von `GuestCommunicationHistory` (Gast-Details) und
+`Dashboard/GuestContactAlertBanner` (Knopf „Kontaktiert" öffnet den Dialog,
+Speichern ODER „Nur als kontaktiert markieren" setzt `guest_contact_status`).
+Der Dialog selbst schreibt nie in `bookings`. Stufe 2 (Airbnb-Mails automatisch
+einlesen) ist offen, siehe MASTER Abschnitt 7.
+
 Weitere Gäste-Dialoge/Bausteine: `GuestDetailsDialog`, `GuestEditDialog`,
 `GuestEmailDialog`, `GuestMergeDialog`, `GuestDuplicatesDialog`,
 `GuestPersonalization`, `GuestAppTracking`, `GuestSessionDetail`,

@@ -649,6 +649,24 @@ geschlossen, wechselt der Status zurueck auf `ok` und die Meldung verschwindet.
 - **Änderung bei Check-in-Verschiebung** (analog zur Gästezahl bei Wäsche).
 - **Max als Preis-Erklärer** (liest/zusammenfasst vorhandene Preis-Empfehlungen).
 - **Zweiter AI-Provider** (größerer Umbau wegen Gemini-spezifischem Tool-Format).
+- **Airbnb-Nachrichten automatisch einlesen (Stufe 2, eingetragen 26.09.2026).**
+  Stufe 1 ist umgesetzt: Nachrichten werden von Hand über „Nachricht notieren"
+  in `guest_communications` gespeichert (Richtung + Kanal wählbar, siehe
+  CODE-INDEX). Stufe 2 soll EINGEHENDE Gast-Nachrichten automatisch erfassen:
+  - Quelle: die Benachrichtigungs-Mails von Airbnb. Uli ist bei Airbnb mit
+    **uli.berresheim@hotmail.de** angemeldet — die Mails landen dort, NICHT im
+    Gmail-Konto (am 26.09.2026 geprüft: dort 0 Airbnb-Mails in 30 Tagen).
+  - Zugang: die bestehende Microsoft-App „Steinbock Dokumente"
+    (Client-ID `32a496ba-…`, heute nur OneDrive) um die Graph-Berechtigung
+    `Mail.Read` erweitern; neue Edge Function liest Mails von Airbnb, ordnet sie
+    über Gastname + Zeitraum der Buchung zu und schreibt
+    `channel='airbnb', direction='inbound'`. Doppelte über die Mail-ID vermeiden.
+  - **Eigene (ausgehende) Nachrichten bleiben manuell:** Airbnb schickt sie nicht
+    per Mail, eine offene API für Privatvermieter gibt es nicht, Scraping
+    verstößt gegen die Nutzungsbedingungen.
+  - Achtung Namensgleichheit: Uli tritt bei Airbnb unter dem Vermieternamen
+    **„Max"** auf. In Mails/Texten ist „Max" dort der Gastgeber (Uli), nicht der
+    KI-Assistent — beim Parsen und in Max-Prompts auseinanderhalten.
 
 ### ✅ ERLEDIGT: Liefertermin-Änderung für Wäsche (Teuni)
 
