@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Bell, Check, X, Mail, Phone, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,10 +9,19 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { openEmail } from '@/lib/mailtoHelper';
+import LogCommunicationDialog from '@/components/Guests/LogCommunicationDialog';
+import { channelForPlatform } from '@/lib/communicationChannels';
 
 const GuestContactAlertBanner = () => {
   const { guestsToContact, isLoading, markAsContacted, markAsNotRequired, isUpdating } = useGuestContactReminders();
   const { toast } = useToast();
+
+  // "Kontaktiert" öffnet zuerst den Dialog "Nachricht notieren" (26.09.2026).
+  // WARUM: Uli schreibt Gäste meist über Airbnb an. Diese Nachricht landet
+  // sonst nirgends in der Hausverwaltung — der Status "kontaktiert" sagte nur
+  // DASS, aber nicht WAS geschrieben wurde. Wer nichts notieren will, nimmt
+  // "Nur als kontaktiert markieren" — dann wie bisher.
+  const [notizFuer, setNotizFuer] = useState<typeof guestsToContact[number] | null>(null);
 
   // Marketing-Aktionen für alle angezeigten Buchungen laden
   const { bookingActionsMap, toggleAction, isToggling } = useBookingMarketingActions(
@@ -196,7 +206,7 @@ const GuestContactAlertBanner = () => {
                       </Button>
                       <Button
                         size="sm"
-                        onClick={(e) => { e.stopPropagation(); handleMarkContacted(booking.id, booking.guest_name); }}
+                        onClick={(e) => { e.stopPropagation(); setNotizFuer(booking); }}
                         disabled={isUpdating}
                         className="bg-green-600 hover:bg-green-700 text-white w-full sm:w-auto"
                       >
@@ -267,6 +277,19 @@ const GuestContactAlertBanner = () => {
           </div>
         </div>
       </div>
+
+      <LogCommunicationDialog
+        open={notizFuer !== null}
+        onOpenChange={(o) => { if (!o) setNotizFuer(null); }}
+        guestId={notizFuer?.guest_id ?? null}
+        guestEmail={notizFuer?.guest_email ?? null}
+        guestName={notizFuer?.guest_name ?? null}
+        defaultDirection="outbound"
+        defaultChannel={channelForPlatform(notizFuer?.platform)}
+        onSaved={() => { if (notizFuer) handleMarkContacted(notizFuer.id, notizFuer.guest_name); }}
+        skipLabel="Nur als kontaktiert markieren"
+        onSkip={() => { if (notizFuer) handleMarkContacted(notizFuer.id, notizFuer.guest_name); }}
+      />
     </div>
   );
 };
