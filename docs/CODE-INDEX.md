@@ -205,6 +205,19 @@ Vorsicht Pflicht. Einstiegskette: `App.tsx` → `Chat/ChatAssistant.tsx` → `Ch
 `integrations/externalLaundry/` (externes Wäsche-System — zwei VERSCHIEDENE Clients,
 nicht verwechseln).)*
 
+### ⚠️ Soll-Miete (Dauermiete) existiert DOPPELT: `src/hooks/` UND Edge Function (NEU 28.09.2026)
+
+| Datei | Rolle |
+|---|---|
+| `src/hooks/useTenantRentChanges.ts` → `getActiveRent` + `getActiveAdditionalCosts` | **führend** — genutzt von `TenantPayments.tsx` (Soll-Summe), `EditPaymentDialog.tsx` (Soll-Hinweis), `TenantContracts.tsx`, `RentHistoryDialog.tsx` |
+| `supabase/functions/generate-tenant-payments/index.ts` → `getWarmRentForDate` | Spiegel für die automatische Monatsbuchung |
+
+Soll = **Warmmiete** zum Stichtag: letzte Mietänderung aus `tenant_rent_changes`
+mit `effective_date <= Stichtag` (sonst `tenant_info.monthly_rent` = Kaltmiete)
+plus Nebenkosten (letzte Änderung mit `new_additional_costs`, sonst
+`tenant_info.additional_costs`). **Regel:** Wer eine Seite ändert, zieht die
+andere im selben Commit nach.
+
 ### Technische Fallen (12.07.2026 teuer erkauft — VOR dem Ändern lesen!)
 
 **1. Unvollständige Feldlisten bei Supabase-Joins.**
@@ -329,6 +342,25 @@ aus `weekly_pricing` und AirROI-Regionaldaten aus `market_data_cache`,
 | analytics | `TenantAnalytics.tsx` (+ `OverallPerformance`, `ObjectPerformanceCard`) |
 
 > Nebenkosten-Abrechnungs-PDF: `lib/utilityStatementPdf.ts`.
+
+**Mietzahlungen (`tenant_payments`) — Regeln (28.09.2026):**
+- Leere Formularfelder werden in `EditPaymentDialog.tsx` als `null` gespeichert.
+  `payment_date` ist `DATE` (lehnt `''` ab), `payment_method` hat einen
+  CHECK-Constraint (nur `bank_transfer`/`cash`/`direct_debit`). Vorher ließ sich
+  eine offene Zahlung ohne Bezahlt-Datum nicht speichern.
+- Status „Bezahlt" ohne Datum → `payment_date` = heute.
+- Mieterhöhung: **nur offene** Zahlungen (`pending`/`overdue`) mit Fälligkeit ab
+  dem Wirksamkeitsdatum werden angepasst — **von Hand** im Dialog (Soll-Hinweis
+  mit Knopf „Übernehmen"). Bezahlte Zahlungen bleiben unverändert. Bewusst
+  **keine** Sammelanpassung (Uli-Vorgabe).
+- Edge Function `generate-tenant-payments` (Cron, Tag = `payment_day`) legt neue
+  Monate mit der Soll-Warmmiete inkl. Mietänderungen an (vorher nur
+  `tenant_info.monthly_rent`). Ändert nie bestehende Zeilen.
+- ⚠️ **Offen (28.09.2026):** `generate-tenant-payments` überspringt Verträge
+  **ohne `contract_end`** (unbefristet, `reason: 'incomplete_contract_data'`).
+  Beide aktuellen Mietverträge (Winthirstrasse, Falkensee) sind unbefristet —
+  für sie legt die Automatik derzeit **keine** Zahlungen an; sie werden von Hand
+  erfasst.
 
 ---
 
