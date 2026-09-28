@@ -5,13 +5,39 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+interface RentChange {
+  effective_date: string;
+  new_rent: number;
+  new_additional_costs: number | null;
+}
+
+// Soll-Warmmiete zu einem Stichtag — gleiche Logik wie getActiveRent /
+// getActiveAdditionalCosts in src/hooks/useTenantRentChanges.ts und der
+// Soll-Berechnung in src/components/Tenants/TenantPayments.tsx:
+// letzte Mietänderung mit effective_date <= Stichtag gewinnt, sonst Basiswert.
+function getWarmRentForDate(
+  rentChanges: RentChange[],
+  baseRent: number,
+  baseAdditionalCosts: number,
+  dateStr: string,
+): number {
+  const applicable = rentChanges
+    .filter(rc => rc.effective_date <= dateStr)
+    .sort((a, b) => b.effective_date.localeCompare(a.effective_date))
+  const rent = applicable[0] ? Number(applicable[0].new_rent) : baseRent
+  const withCosts = applicable.find(rc => rc.new_additional_costs !== null && rc.new_additional_costs !== undefined)
+  const additional = withCosts ? Number(withCosts.new_additional_costs) : baseAdditionalCosts
+  return rent + additional
+}
+
 interface TenantInfo {
   tenant_name?: string;
   tenant_email?: string;
   tenant_phone?: string;
   contract_start?: string;
   contract_end?: string;
-  monthly_rent?: number;
+  monthly_rent?: number;       // KALTMIETE (Basis, ohne Mietänderungen)
+  additional_costs?: number;   // Nebenkosten-Vorauszahlung (Basis)
   deposit_amount?: number;
   payment_day?: number;
   payment_method?: 'bank_transfer' | 'cash' | 'direct_debit';
@@ -138,13 +164,39 @@ Deno.serve(async (req) => {
       const dueDate = new Date(today.getFullYear(), today.getMonth(), todayDay)
       const dueDateStr = dueDate.toISOString().split('T')[0]
 
+      // Soll-Warmmiete zum Fälligkeitsdatum inkl. Mietänderungen ermitteln.
+      // (Früher wurde hier nur tenant_info.monthly_rent eingetragen — Mieterhöhungen
+      //  aus tenant_rent_changes und die Nebenkosten fehlten.)
+      const { data: rentChanges, error: rentChangesError } = await supabase
+        .from('tenant_rent_changes')
+        .select('effective_date, new_rent, new_additional_costs')
+        .eq('house_id', house.id)
+
+      if (rentChangesError) {
+        console.error(`❌ Error loading rent changes for ${house.name}:`, rentChangesError)
+        results.push({
+          house_id: house.id,
+          house_name: house.name,
+          status: 'error',
+          error: rentChangesError.message
+        })
+        continue
+      }
+
+      const amount = getWarmRentForDate(
+        (rentChanges || []) as RentChange[],
+        tenantInfo.monthly_rent,
+        tenantInfo.additional_costs || 0,
+        dueDateStr,
+      )
+
       // Erstelle neue Zahlung
       const { data: newPayment, error: insertError } = await supabase
         .from('tenant_payments')
         .insert({
           house_id: house.id,
           due_date: dueDateStr,
-          amount: tenantInfo.monthly_rent,
+          amount,
           status: 'pending',
           payment_method: tenantInfo.payment_method || 'bank_transfer',
           notes: `Automatisch generiert am ${today.toISOString().split('T')[0]}`
@@ -163,14 +215,14 @@ Deno.serve(async (req) => {
         continue
       }
 
-      console.log(`✅ Created payment for ${house.name}: ${tenantInfo.monthly_rent} EUR due ${dueDateStr}`)
+      console.log(`✅ Created payment for ${house.name}: ${amount} EUR due ${dueDateStr}`)
       results.push({
         house_id: house.id,
         house_name: house.name,
         status: 'created',
         payment_id: newPayment.id,
         due_date: dueDateStr,
-        amount: tenantInfo.monthly_rent
+        amount
       })
     }
 
