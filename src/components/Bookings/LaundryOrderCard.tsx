@@ -342,7 +342,7 @@ const LaundryOrderCard = ({ order, colorVariant, variant = 'full', isPending = f
             >
               <CheckCircle className="w-3 h-3 shrink-0" />
               {gaestezahlGeaendert
-                ? `angepasst ${gebuchteGaeste} → ${order.bookings?.number_of_guests}`
+                ? `Wäsche von ${gebuchteGaeste} auf ${order.bookings?.number_of_guests} Gäste angepasst`
                 : `Wäsche für ${mengenAbgleich.gaeste} Gäste`}
             </Badge>
           )}
