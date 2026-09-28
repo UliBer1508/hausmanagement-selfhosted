@@ -23,7 +23,7 @@ ist, während die Zusatzkosten noch offen sind.
 | 2 | System | Zusatzkosten berechnen: Bettwäsche + Ortstaxe für die zusätzlichen Personen |
 | 3 | Uli | Beträge prüfen, ggf. korrigieren, Forderungen anlegen und Zahlungslink erstellen |
 | 4 | System | Wäschebestellung auf die neue Gästezahl anpassen |
-| 5 | Uli | Teuni über die geänderte Menge informieren |
+| 5 | System | Teuni wird automatisch informiert: Pflichtdialog im Portal (quittieren) + Mengenabgleich auf ihrer Buchungskarte |
 
 Schritt 4 läuft auch dann, wenn in Schritt 3 **keine** Zusatzkosten erhoben
 werden. Die Wäsche ist eine physische Größe: der siebte Gast braucht ein Bett
@@ -99,16 +99,19 @@ Hinterlegt als `houses.additional_fees.tourist_tax` mit `mode: per_person`.
 
 | Feld | Bedeutung |
 |---|---|
-| `bookings.booked_guests` | ursprünglich gebuchte Zahl, wird **einmal** eingefroren und danach nie überschrieben |
 | `bookings.number_of_guests` | aktuelle Zahl |
+| `bookings.delta_guests` | **kumulierter** Unterschied zur ursprünglichen Buchung (plus oder minus). Ursprünglich gebucht = `number_of_guests − delta_guests`. Gepflegt **nur** vom DB-Trigger `trg_fortschreiben_delta_guests` (SQL 54) — nie vom Anwendungscode |
 | `bookings.guests_changed_at` | Zeitpunkt der Änderung |
 | `bookings.guest_surcharge_amount` | Summe der erhobenen Zusatzkosten, `0` wenn bewusst keine erhoben wurden |
 | `booking_charges` | die einzelnen Posten, `origin = 'auto_delta'`, Status `open` |
-| `max_actions` | Vorgang „Wäsche angepasst — Teuni informieren" |
+| `max_actions` | Vorgang „Wäsche angepasst" — reine Information, wird **gleich abgeschlossen** angelegt (seit 28.09.2026) |
+| `booking_change_notifications` | ein Eintrag je Änderung (DB-Trigger `notify_booking_guest_count_change`), trägt den Pflichtdialog im Teuni-Portal; `acknowledged_at`/`acknowledged_by` = Teunis Quittung |
 
-Das Delta rechnet **immer** gegen `booked_guests`, nie gegen einen
-Zwischenstand. Fehlt der Wert, darf **kein** Delta entstehen — eine fehlende
-Ausgangszahl ist etwas anderes als eine Ausgangszahl von null.
+> **Geändert am 11.09.2026 (SQL 54):** Bis dahin hieß das Feld `booked_guests`
+> und hielt die eingefrorene Ursprungszahl. Seitdem heißt es `delta_guests` und
+> hält den Zuwachs. `calculate-booking-delta` rechnet mit diesem Zuwachs
+> (`Number(delta_guests) || 0`) — also immer gegen die ursprüngliche Buchung,
+> nie gegen einen Zwischenstand.
 
 Auch der Fall „keine Zusatzkosten" wird festgehalten: `guests_changed_at` und
 `guest_surcharge_amount = 0`. Eine Erhöhung ohne Spur in den Daten ist später
@@ -129,7 +132,33 @@ Ersetzt werden `items`, `total_items` **und `total_cost`**. Die Menge zu
 Der **Status bleibt unverändert**. Steht die Bestellung auf `ausstehend`,
 liegt sie bereits bei Teuni; ein Rücksetzen auf `offen` würde den
 Freigabe-Trigger auslösen und einen zweiten Vorgang eröffnen. Stattdessen
-entsteht ein `max_actions`-Eintrag mit `waiting_for = 'teuni'`.
+entsteht ein `max_actions`-Eintrag „Wäsche angepasst" — seit 28.09.2026
+**sofort mit Status `abgeschlossen`**, mit Gastname.
+
+### Wie Teuni informiert wird (Schritt 5, Uli-Entscheidung 28.09.2026)
+
+Teuni wird **automatisch** informiert, weder Uli noch Max schicken eine
+Nachricht:
+
+1. **Pflichtdialog im Portal.** Der DB-Trigger
+   `notify_booking_guest_count_change` legt bei jeder Änderung von
+   `number_of_guests` einen Eintrag in `booking_change_notifications` an —
+   sofern die Buchung eine Wäschebestellung im Status `offen`, `ausstehend`,
+   `pending` oder `bestätigt` hat. Teuni muss „Verstanden – Bestätigen"
+   drücken. Beleg Tal Yehuda: alle 7 Änderungen vom 01.–11.09.2026 quittiert.
+2. **Dauerhaft auf der Buchungskarte.** Das Teuni-Portal zeigt denselben
+   Mengenabgleich wie die Wäschekarte der Hausverwaltung, z. B. „Wäsche von
+   6 auf 7 Gäste angepasst" oder gelb „nicht angepasst: …".
+
+Der Max-Vorgang wartet deshalb nicht auf Teuni. Bis 28.09.2026 stand er auf
+`waiting_for = 'teuni'` — und nichts schloss ihn je, weil der einzige
+Schließ-Trigger nur auf `offen → ausstehend` reagiert. Altfälle schließt
+`supabase/SQL/59_waesche_vorgaenge_abschliessen.sql`.
+
+Auch über Max (Chat, `update_linen_for_booking`) gilt dasselbe: Vorgang
+abgeschlossen, keine zusätzliche Nachricht an Teuni — nur wenn Uli es
+ausdrücklich verlangt. Der Chat-Weg schreibt seit 28.09.2026 auch
+`total_cost` mit (vorher nur `items`/`total_items`).
 
 Beispiel Tal Yehuda:
 
@@ -179,4 +208,8 @@ Offen, mit dem Fall Tal Yehuda belegt:
 | `supabase/functions/create-payment-link/index.ts` | gebündelter Link über alle offenen Forderungen |
 | `supabase/functions/generate-booking-linen-order/index.ts` | Mengen und Betrag für Schritt 4 |
 | `src/components/Houses/AdditionalFeesTab.tsx` | Pflege von `linen_fee` und `tourist_tax` |
-| `max_ablaeufe`, Aktion `update_linen_for_booking` | derselbe Vorgang, ausgelöst per Chatbefehl an Max |
+| `max_ablaeufe`, Aktion `update_linen_for_booking` | derselbe Vorgang, ausgelöst per Chatbefehl an Max (Schritt 4 seit SQL 59: `system`, automatische Information) |
+| `supabase/functions/chat-assistant/index.ts` (`executeUpdateLinenForBooking`) | Chat-Weg zu Schritt 4 |
+| DB-Trigger `notify_booking_guest_count_change` → `booking_change_notifications` | Schritt 5, Pflichtdialog im Teuni-Portal |
+| Teuni-Portal `src/components/BookingCard.tsx` + `src/lib/linenMengen.ts` | Schritt 5, Mengenabgleich auf der Buchungskarte (Kopie der Rechnung aus `LaundryOrderCard.tsx`) |
+| `supabase/SQL/59_waesche_vorgaenge_abschliessen.sql` | Schließ-Trigger kennt `auto_linen_created`; Ablauf-Schritt 4; Altfälle schließen |

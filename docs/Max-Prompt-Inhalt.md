@@ -68,8 +68,10 @@ Das ist die wichtigste Sicherheitsphilosophie. Max **fragt zuerst, handelt nach 
   Uli muss auf "geplant" setzen; Wäsche = "offen", muss auf "ausstehend").
 - **Wäsche bei geänderter (erhöhter) Gästezahl** (update_linen_for_booking):
   Erst fragen "Soll ich auf X Gäste anpassen?". Nach "ja" wird die bestehende
-  Bestellung ersetzt (egal welcher Status). Danach MUSS Max anbieten, Teuni per
-  Nachricht zu informieren — sonst weiß Teuni nichts von der Änderung.
+  Bestellung ersetzt (egal welcher Status). Teuni wird **automatisch** informiert
+  (Pflichtdialog im Portal + Hinweis auf ihrer Buchungskarte). Max bietet seit
+  28.09.2026 **keine** zusätzliche Nachricht mehr an — nur auf ausdrücklichen
+  Wunsch von Uli. Der Vorgang ist sofort abgeschlossen.
 - **Reinigungstermin verschieben** (reschedule_cleaning): Erst altes + neues Datum
   bestätigen lassen. Nach "ja" wird der Termin als Entwurf (draft) markiert; Uli
   muss prüfen und auf "geplant" setzen.
