@@ -35,7 +35,7 @@ interface TenantInfo {
   tenant_email?: string;
   tenant_phone?: string;
   contract_start?: string;
-  contract_end?: string;
+  contract_end?: string | null; // leer/null = UNBEFRISTET (so im ganzen Modul, z. B. TenantContracts.tsx)
   monthly_rent?: number;       // KALTMIETE (Basis, ohne Mietänderungen)
   additional_costs?: number;   // Nebenkosten-Vorauszahlung (Basis)
   deposit_amount?: number;
@@ -115,7 +115,10 @@ Deno.serve(async (req) => {
       const tenantInfo = house.tenant_info as TenantInfo
 
       // Validierung: Vertragsdaten vorhanden?
-      if (!tenantInfo.contract_start || !tenantInfo.contract_end || !tenantInfo.monthly_rent) {
+      // contract_end ist KEIN Pflichtfeld: fehlt es, ist der Vertrag unbefristet.
+      // (Bis 28.09.2026 wurde hier auch contract_end verlangt — dadurch wurden alle
+      //  unbefristeten Verträge still übersprungen und nie eine Zahlung angelegt.)
+      if (!tenantInfo.contract_start || !tenantInfo.monthly_rent) {
         console.log(`⚠️ Skipping ${house.name}: Missing contract data`)
         results.push({
           house_id: house.id,
@@ -128,9 +131,9 @@ Deno.serve(async (req) => {
 
       // Validierung: Vertrag aktiv?
       const contractStart = new Date(tenantInfo.contract_start)
-      const contractEnd = new Date(tenantInfo.contract_end)
-      if (today < contractStart || today > contractEnd) {
-        console.log(`⚠️ Skipping ${house.name}: Contract not active (${tenantInfo.contract_start} - ${tenantInfo.contract_end})`)
+      const contractEnd = tenantInfo.contract_end ? new Date(tenantInfo.contract_end) : null
+      if (today < contractStart || (contractEnd && today > contractEnd)) {
+        console.log(`⚠️ Skipping ${house.name}: Contract not active (${tenantInfo.contract_start} - ${tenantInfo.contract_end || 'unbefristet'})`)
         results.push({
           house_id: house.id,
           house_name: house.name,
