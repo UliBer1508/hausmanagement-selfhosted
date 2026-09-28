@@ -2170,7 +2170,7 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "update_linen_for_booking",
-        description: "Passt die Wäschebestellung einer Buchung an die aktuelle (geänderte) Gästezahl an. Anlass: Uli hat die Gästezahl erhöht und braucht mehr Wäsche. Berechnet die neue Menge und ERSETZT die bestehende Bestellung (items + total_items werden aktualisiert) - unabhängig vom Status (auch wenn bereits in Bearbeitung oder geliefert, denn es wird mehr Wäsche gebraucht). Nutze dieses Tool, wenn eine Buchung eine geänderte Gästezahl hat und die Wäsche angepasst werden muss. WICHTIG: (1) Rufe es NUR nach ausdrücklicher Zustimmung von Uli auf - frage zuerst 'Soll ich die Wäschebestellung auf X Gäste anpassen?'. (2) Nach der Anpassung MUSST du anbieten, Teuni per Nachricht zu informieren (send_provider_message an Teuni), damit sie die geänderte Menge sieht. WICHTIG — ID SELBST BESCHAFFEN: Nennt Uli nur einen Gastnamen (z.B. 'Luca'), SUCHE die booking_id selbst mit search_bookings({guest_name: 'Luca'}). Frage NICHT nach einer ID, ohne vorher gesucht zu haben — Uli kennt keine UUIDs auswendig. Nur bei MEHREREN Treffern legst du sie ihm zur Auswahl vor (mit Haus und Datum), nur bei KEINEM Treffer meldest du das und fragst nach.",
+        description: "Passt die Wäschebestellung einer Buchung an die aktuelle (geänderte) Gästezahl an. Anlass: Uli hat die Gästezahl erhöht und braucht mehr Wäsche. Berechnet die neue Menge und ERSETZT die bestehende Bestellung (items + total_items werden aktualisiert) - unabhängig vom Status (auch wenn bereits in Bearbeitung oder geliefert, denn es wird mehr Wäsche gebraucht). Nutze dieses Tool, wenn eine Buchung eine geänderte Gästezahl hat und die Wäsche angepasst werden muss. WICHTIG: (1) Rufe es NUR nach ausdrücklicher Zustimmung von Uli auf - frage zuerst 'Soll ich die Wäschebestellung auf X Gäste anpassen?'. (2) Teuni wird AUTOMATISCH informiert (Pflichtdialog im Teuni-Portal + Hinweis auf ihrer Buchungskarte). Schicke ihr KEINE zusätzliche Nachricht und biete das auch nicht an — nur wenn Uli es ausdrücklich verlangt. WICHTIG — ID SELBST BESCHAFFEN: Nennt Uli nur einen Gastnamen (z.B. 'Luca'), SUCHE die booking_id selbst mit search_bookings({guest_name: 'Luca'}). Frage NICHT nach einer ID, ohne vorher gesucht zu haben — Uli kennt keine UUIDs auswendig. Nur bei MEHREREN Treffern legst du sie ihm zur Auswahl vor (mit Haus und Datum), nur bei KEINEM Treffer meldest du das und fragst nach.",
         parameters: {
           type: "object",
           properties: {
@@ -2901,7 +2901,9 @@ async function executeCreateLinenForBooking(params: any) {
  * Ablauf: neue Menge berechnen (generate-booking-linen-order, rechnet per_guest),
  * bestehende Bestellung ERSETZEN (items/total_items aktualisieren) - egal welcher
  * Status. Falls keine Bestellung existiert, wird eine neue angelegt.
- * Danach: Teuni muss informiert werden (Max sendet die Nachricht separat).
+ * Teuni wird automatisch informiert (Pflichtdialog im Portal über DB-Trigger
+ * notify_booking_guest_count_change + Mengenabgleich auf ihrer Buchungskarte).
+ * Der Vorgang ist deshalb sofort abgeschlossen (Uli-Entscheidung 28.09.2026).
  * NUR nach ausdrücklicher Zustimmung des Nutzers aufrufen.
  */
 async function executeUpdateLinenForBooking(params: any) {
@@ -2921,6 +2923,8 @@ async function executeUpdateLinenForBooking(params: any) {
     const newItems = calc.order_items ?? calc.items ?? {};
     const newTotal = calc.total_items ?? 0;
     const guests = calc.booking?.number_of_guests ?? null;
+    const gastName = calc.booking?.guest_name && calc.booking.guest_name !== 'Unbekannt'
+      ? calc.booking.guest_name : null;
     const nowIso = new Date().toISOString();
     const note = `Wäschemenge angepasst an ${guests ?? '?'} Gäste (durch Max, ${formatDateDE(nowIso.split('T')[0])}). Grund: geänderte Gästezahl.`;
 
@@ -2942,6 +2946,10 @@ async function executeUpdateLinenForBooking(params: any) {
         .update({
           items: newItems,
           total_items: newTotal,
+          // Betrag MUSS mitwandern (Prozess-Gaestezahl-Aenderung.md, Abschnitt 4),
+          // sonst Menge neu, Preis alt. Fehlte hier bis 28.09.2026 — das
+          // Buchungsformular schrieb ihn schon. 0 ist kein gültiger Betrag.
+          total_cost: calc.estimated_cost ? calc.estimated_cost : null,
           item_variants: calc.item_variants ?? undefined,
           linen_color: calc.linen_color ?? undefined,
           notes: note,
@@ -2950,12 +2958,18 @@ async function executeUpdateLinenForBooking(params: any) {
         })
         .eq('id', order.id);
       if (updErr) return { success: false, error: updErr.message };
+      // Nur Information, daher sofort abgeschlossen (28.09.2026). Teuni sieht
+      // die Änderung automatisch im Portal (Dialog + Buchungskarte).
       await logMaxAction({
         action_type: 'update_linen_for_booking',
-        status: 'wartet_uli',
+        status: 'abgeschlossen',
         booking_id: params.booking_id,
-        waiting_for: 'teuni',
-        last_step: `Wäschemenge angepasst (${oldTotal} → ${newTotal}) — Teuni muss informiert werden`,
+        guest_name: gastName,
+        waiting_for: null,
+        last_step: `Wäschemenge angepasst (${oldTotal} → ${newTotal}) — ` +
+          (order.status === 'offen'
+            ? 'Teuni sieht die Bestellung nach der Freigabe'
+            : 'Teuni wird im Portal informiert'),
         details: { order_id: order.id, alte_menge: oldTotal, neue_menge: newTotal, gaeste: guests },
         created_by: 'uli',
       });
@@ -2967,8 +2981,8 @@ async function executeUpdateLinenForBooking(params: any) {
         alte_menge: oldTotal,
         neue_menge: newTotal,
         gaeste: guests,
-        teuni_informieren: true,
-        hinweis: `Wäschebestellung aktualisiert (von ${oldTotal} auf ${newTotal} Teile, Status war "${order.status}"). WICHTIG: Teuni muss über die Änderung informiert werden - biete an, ihr eine Nachricht zu senden.`,
+        teuni_informieren: false,
+        hinweis: `Wäschebestellung aktualisiert (von ${oldTotal} auf ${newTotal} Teile, Status war "${order.status}"). Teuni wird automatisch im Portal informiert (Pflichtdialog + Hinweis auf der Buchungskarte) — KEINE extra Nachricht anbieten.`,
       };
     } else {
       // 3b. Keine Bestellung vorhanden -> gezielt EINE für DIESE Buchung anlegen.
@@ -3019,8 +3033,8 @@ async function executeUpdateLinenForBooking(params: any) {
         order_id: created.linen_order_id,
         neue_menge: angelegteMenge,
         gaeste: guests,
-        teuni_informieren: true,
-        hinweis: `Es gab noch keine Bestellung — es wurde eine neue für ${created.guest_name || 'den Gast'} angelegt (${angelegteMenge} Teile, Status "offen"). Bitte prüfe sie und setze sie auf "ausstehend". Danach sollte Teuni informiert werden.`,
+        teuni_informieren: false,
+        hinweis: `Es gab noch keine Bestellung — es wurde eine neue für ${created.guest_name || 'den Gast'} angelegt (${angelegteMenge} Teile, Status "offen"). Bitte prüfe sie und setze sie auf "ausstehend". Danach sieht Teuni sie automatisch im Portal.`,
       };
     }
   } catch (e) {
@@ -4232,7 +4246,7 @@ Wenn create_cleaning_for_booking mit bereits_vorhanden=true antwortet, wurde KEI
 Wenn eine Buchung eine geänderte (erhöhte) Gästezahl hat, ist mehr Wäsche nötig.
 - Frage zuerst: "Soll ich die Wäschebestellung auf X Gäste anpassen?" und warte auf ein klares "ja".
 - Erst dann rufst du update_linen_for_booking auf. Die bestehende Bestellung wird ersetzt (mehr Wäsche), egal welcher Status.
-- Danach MUSST du anbieten, Teuni zu informieren: sende ihr per send_provider_message die geänderte Menge. Teuni muss die Änderung sehen.
+- Teuni wird AUTOMATISCH informiert: Sie bekommt im Portal einen Pflichtdialog zur geänderten Gästezahl und sieht auf ihrer Buchungskarte, ob die Wäsche angepasst ist. Biete KEINE zusätzliche Nachricht an Teuni an. Nur wenn Uli ausdrücklich darum bittet, sendest du eine per send_provider_message.
 
 📅 REINIGUNGSTERMIN VERSCHIEBEN (reschedule_cleaning):
 Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst du die Reinigung verschieben.
