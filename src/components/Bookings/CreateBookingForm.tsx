@@ -1025,9 +1025,12 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
    * 2. Der Status wird NICHT verändert. Steht die Bestellung schon auf
    *    `ausstehend`, liegt sie bei Teuni — sie auf `offen` zurückzusetzen
    *    würde den Freigabe-Trigger auslösen und einen zweiten Vorgang öffnen.
-   *    Stattdessen wird ein max_actions-Eintrag angelegt: Teuni muss über die
-   *    geänderte Menge informiert werden (Ablauf update_linen_for_booking,
-   *    Schritt 4).
+   *    Stattdessen wird ein max_actions-Eintrag angelegt — seit 28.09.2026
+   *    gleich ABGESCHLOSSEN, als reine Information. Teuni erfährt die Änderung
+   *    automatisch: Pflichtdialog im Portal (DB-Trigger
+   *    notify_booking_guest_count_change) und dauerhaft der Mengenabgleich auf
+   *    ihrer Buchungskarte. Vorher wartete der Vorgang auf Teuni, und nichts
+   *    schloss ihn je (SQL 59).
    *
    * 3. Stornierte Bestellungen bleiben unberührt.
    */
@@ -1072,14 +1075,20 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
       .eq('id', order.id);
     if (updErr) throw updErr;
 
-    // Vorgang sichtbar machen: Teuni muss die geänderte Menge sehen.
+    // Vorgang protokollieren — nur zur Information, daher gleich abgeschlossen.
+    // Teuni wird automatisch im Portal informiert (Dialog + Buchungskarte).
+    const gastName = initialData?.id === bookingId ? getGuestName(initialData) : null;
     try {
-      await supabase.from('max_actions').insert({
+      const { data: logRows, error: logErr } = await supabase.from('max_actions').insert({
         action_type: 'update_linen_for_booking',
-        status: 'wartet_uli',
+        status: 'abgeschlossen',
         booking_id: bookingId,
-        waiting_for: 'teuni',
-        last_step: `Wäschemenge angepasst (${alteMenge} → ${neueMenge} Teile, ${guests} Gäste) — Teuni muss informiert werden`,
+        guest_name: gastName && gastName !== 'Unbekannt' ? gastName : null,
+        waiting_for: null,
+        last_step: `Wäschemenge angepasst (${alteMenge} → ${neueMenge} Teile, ${guests} Gäste) — ` +
+          (order.status === 'offen'
+            ? 'Teuni sieht die Bestellung nach der Freigabe'
+            : 'Teuni wird im Portal informiert'),
         details: {
           order_id: order.id,
           alte_menge: alteMenge,
@@ -1088,7 +1097,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           status_der_bestellung: order.status,
         },
         created_by: 'uli',
-      });
+      }).select('id');
+      if (logErr) throw logErr;
+      if (!logRows || logRows.length === 0) throw new Error('max_actions: keine Zeile angelegt');
     } catch (logErr) {
       // Der Log darf die Anpassung nicht verhindern.
       console.error('max_actions-Log (Wäscheanpassung) fehlgeschlagen:', logErr);
@@ -1100,7 +1111,7 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         `${alteMenge} → ${neueMenge} Teile für ${guests} Gäste` +
         (calc.estimated_cost ? `, ${Number(calc.estimated_cost).toFixed(2).replace('.', ',')} EUR` : '') +
         (order.status === 'ausstehend'
-          ? '. Die Bestellung liegt bereits bei Teuni — bitte über die Änderung informieren.'
+          ? '. Teuni wird im Portal automatisch informiert.'
           : '.'),
       duration: 9000,
     });
