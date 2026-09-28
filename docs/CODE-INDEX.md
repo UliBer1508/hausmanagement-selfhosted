@@ -355,12 +355,12 @@ aus `weekly_pricing` und AirROI-Regionaldaten aus `market_data_cache`,
   **keine** Sammelanpassung (Uli-Vorgabe).
 - Edge Function `generate-tenant-payments` (Cron, Tag = `payment_day`) legt neue
   Monate mit der Soll-Warmmiete inkl. Mietänderungen an (vorher nur
-  `tenant_info.monthly_rent`). Ändert nie bestehende Zeilen.
-- ⚠️ **Offen (28.09.2026):** `generate-tenant-payments` überspringt Verträge
-  **ohne `contract_end`** (unbefristet, `reason: 'incomplete_contract_data'`).
-  Beide aktuellen Mietverträge (Winthirstrasse, Falkensee) sind unbefristet —
-  für sie legt die Automatik derzeit **keine** Zahlungen an; sie werden von Hand
-  erfasst.
+  `tenant_info.monthly_rent`). Ändert nie bestehende Zeilen und legt nichts an,
+  wenn im Monat schon eine Zahlung existiert.
+- Unbefristete Verträge (`contract_end` leer) werden gebucht — bis 28.09.2026
+  wurden sie still übersprungen (`incomplete_contract_data`), die Automatik hat
+  für Winthirstrasse und Falkensee nie eine Zahlung angelegt.
+- Ablauf, Regeln und Prüf-SQL: **`docs/Prozess-Mieterhoehung-und-Mietzahlungen.md`**.
 
 ---
 

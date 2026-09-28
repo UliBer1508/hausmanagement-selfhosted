@@ -508,7 +508,10 @@ im echten Test bewiesen (E-Mail angekommen).
 - **E-Mail:** send-guest-email (denomailer SMTP über smtp.gmail.com:465), zentrale
   Vorschau via MailPreviewProvider.tsx. Absender steinbockchalets@gmail.com.
 - **Zahlungen:** create-payment-link, stripe-webhook. Live-Key auf Hausverwaltung.
-- **Kosten-Delta:** calculate-booking-delta (erkennt Änderungen), generate-tenant-payments.
+- **Kosten-Delta:** calculate-booking-delta (erkennt Änderungen).
+- **Mietzahlungen Dauermiete:** generate-tenant-payments (Cron täglich 06:00, bucht
+  am Zahltag die Soll-Warmmiete inkl. Miethistorie; unbefristete Verträge seit
+  28.09.2026 eingeschlossen). Ablauf: `docs/Prozess-Mieterhoehung-und-Mietzahlungen.md`.
 - **Bundle/PWA:** vite.config manualChunks-Splitting, React.lazy für Tabs,
   version.json + NetworkFirst für PWA-Updates.
 - **Länderliste** zentral in `src/lib/countries.ts` (81 Länder; UK statt GB wegen
