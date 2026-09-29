@@ -1,7 +1,7 @@
-# AGENTS.md — Arbeitsanweisung für KI-Agenten (Lovable, Claude)
+# AGENTS.md — Arbeitsanweisung für KI-Agenten (Claude)
 
-Diese Datei wird vom Lovable-Agenten immer gelesen (unabhängig von der
-Session-Länge) und gilt zusätzlich für Claude. Sie ist verbindlich.
+Diese Datei gilt für jeden KI-Agenten, der an diesem Repo arbeitet
+(derzeit Claude). Sie ist verbindlich.
 
 ## Vor JEDER Code-Änderung
 0. `docs/ARBEITSWEISE-CLAUDE-LESSONS.md` lesen. Dort stehen die Fehler, die schon
