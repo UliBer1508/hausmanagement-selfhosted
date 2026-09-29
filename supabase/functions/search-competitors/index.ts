@@ -169,7 +169,7 @@ Falls KEINE Ergebnisse: []
         throw new Error('Perplexity API Rate-Limit erreicht. Bitte später erneut versuchen.');
       }
       if (perplexityResponse.status === 402) {
-        throw new Error('Perplexity API: Keine Credits verfügbar. Bitte Lovable Workspace aufladen.');
+        throw new Error('Perplexity API: Keine Credits verfügbar. Bitte Guthaben im Perplexity-Konto aufladen.');
       }
       if (perplexityResponse.status === 400) {
         throw new Error('Perplexity API: Ungültige Anfrage. Modell möglicherweise nicht verfügbar.');
