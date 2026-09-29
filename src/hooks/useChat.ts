@@ -74,7 +74,7 @@ export const useChat = () => {
           );
         }
         if (response.status === 402) {
-          throw new Error('Lovable AI Credits aufgebraucht. Bitte Credits aufladen.');
+          throw new Error(errorData.error || 'KI-Guthaben aufgebraucht (Google Gemini). Bitte Kontingent im Google-AI-Konto prüfen.');
         }
 
         throw new Error(errorData.error || `HTTP ${response.status}`);

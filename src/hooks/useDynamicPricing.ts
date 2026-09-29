@@ -1,6 +1,5 @@
 // useDynamicPricing.ts
 // PriceLabs-inspirierter Algorithmus für Ferienhaus Manager
-// Einbinden in dein Lovable-Projekt unter /src/hooks/useDynamicPricing.ts
 import { DEFAULT_PRICING_CONFIG, usePricingSettings, type PricingConfig } from './usePricingSettings';
 import { getHolidayWeight } from '@/lib/schoolHolidays';
 

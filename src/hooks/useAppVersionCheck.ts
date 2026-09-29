@@ -9,13 +9,10 @@ export function useAppVersionCheck(intervalMs = 20_000) {
   const reloading = useRef(false);
 
   useEffect(() => {
-    // Skip in Lovable preview iframe — no SW there anyway
+    // Skip inside iframes — no SW there anyway
     let inIframe = false;
     try { inIframe = window.self !== window.top; } catch { inIframe = true; }
-    const host = window.location.hostname;
-    const isPreviewHost =
-      host.includes("id-preview--") || host.includes("lovableproject.com");
-    if (inIframe || isPreviewHost) return;
+    if (inIframe) return;
 
     let cancelled = false;
 
