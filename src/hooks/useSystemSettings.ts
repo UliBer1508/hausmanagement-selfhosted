@@ -41,7 +41,16 @@ export interface MorningSummarySettings {
   email_to: string;              // Empfänger der Morgen-Übersicht
 }
 
-type SettingsValue = EmailSettings | ProfileSettings | AppearanceSettings | RatingReminderSettings | ContactSettings | MorningSummarySettings | PlatformMarkupSettings | Record<string, unknown>;
+// Naechtliche Datensicherung (SQL 60). Wird vom Skript Backup-Supabase.ps1 auf dem
+// PN40 zu Beginn jedes Laufs gelesen; warn_after_hours nutzt nur die Anzeige.
+export interface BackupSettings {
+  enabled: boolean;            // false = Lauf wird als "pausiert" protokolliert, nichts gesichert
+  retention_days: number;      // Sicherungen aelter als X Tage loescht das Skript
+  include_storage: boolean;    // Dateien (Hausbilder, Mietbelege) mitsichern
+  warn_after_hours: number;    // Karte warnt, wenn die letzte gelungene Sicherung aelter ist
+}
+
+type SettingsValue = EmailSettings | ProfileSettings | AppearanceSettings | RatingReminderSettings | ContactSettings | MorningSummarySettings | PlatformMarkupSettings | BackupSettings | Record<string, unknown>;
 
 export function useSystemSettings<T extends SettingsValue>(key: string) {
   const queryClient = useQueryClient();
@@ -159,3 +168,15 @@ export const DEFAULT_RATING_REMINDER_SETTINGS: RatingReminderSettings = {
 export function usePlatformMarkups() {
   return useSystemSettings<PlatformMarkupSettings>('platform_markups');
 }
+
+// Naechtliche Datensicherung (Karte Einstellungen -> Datensicherung)
+export function useBackupSettings() {
+  return useSystemSettings<BackupSettings>('backup_settings');
+}
+
+export const DEFAULT_BACKUP_SETTINGS: BackupSettings = {
+  enabled: true,
+  retention_days: 30,
+  include_storage: true,
+  warn_after_hours: 30,
+};
