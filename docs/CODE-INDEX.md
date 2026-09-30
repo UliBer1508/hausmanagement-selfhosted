@@ -794,6 +794,14 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
   Preisempfehlung im Gäste-Tab und auf `analyze-vacancy`.
 - `CalendarSync/CalendarSyncCard.tsx` — **NEU 17.07.:** iCal-Kalender-Sync
   (siehe Modul 13b).
+- `Settings/BackupSettingsCard.tsx` — **NEU 30.09.2026:** Datensicherung.
+  Zeigt letzte Sicherung, Verlauf, Warnung bei Ausbleiben; Einstellungen
+  (aktiv, Dateien, Aufbewahrung, Warnschwelle). Daten: Tabelle `backup_runs`
+  (Hook `useBackupRuns.ts`, Helfer `lib/backupStatus.ts`), Einstellungen
+  `system_settings.backup_settings` (`useBackupSettings()` in
+  `useSystemSettings.ts`). Geschrieben wird beides vom Skript
+  `Backup-Supabase.ps1` auf dem PN40, nicht von der App. SQL:
+  `supabase/SQL/60_datensicherung.sql`. Doku: `docs/Datensicherung.md`.
 ---
 
 ## 13c. Modul „Kalender" (Tab 📅) — nachgetragen 18.08.2026
