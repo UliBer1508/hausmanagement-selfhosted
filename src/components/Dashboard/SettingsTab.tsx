@@ -17,6 +17,7 @@ import AirROIQueryCard from '@/components/Settings/AirROIQueryCard';
 import MaxMorningSummaryCard from '@/components/Settings/MaxMorningSummaryCard';
 import MaxAutomationScheduleCard from '@/components/Settings/MaxAutomationScheduleCard';
 import GuestImportCard from '@/components/Settings/GuestImportCard';
+import BackupSettingsCard from '@/components/Settings/BackupSettingsCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import CalendarSyncCard from '@/components/CalendarSync/CalendarSyncCard';
@@ -417,6 +418,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         {/* Gästeliste Import */}
         <GuestImportCard />
         <CalendarSyncCard />
+
+        {/* Naechtliche Datensicherung (PN40 -> OneDrive), Protokoll aus backup_runs */}
+        <BackupSettingsCard />
 
         {/* System */}
         <Card>
