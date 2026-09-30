@@ -142,6 +142,14 @@ die laufende Produktion). Vorgehen dann gemeinsam planen.
 
 ---
 
+## Verbindung zur Hausverwaltung (Skript v3, 30.09.2026)
+
+Einstellungen lesen und Protokoll schreiben laufen über die **direkte
+Datenbankverbindung** (psql mit dem Datenbank-Passwort). Die REST-Schnittstelle
+lehnte den Secret-Key `backup_pn40` am 30.09.2026 dauerhaft mit 401 ab, während
+der Dateispeicher ihn akzeptierte. Der Secret-Key wird deshalb nur noch für die
+Dateien gebraucht. Erster protokollierter Lauf: 30.09.2026 09:25, erfolgreich.
+
 ## Wo das Datenbank-Passwort steht
 
 Die Datenbank wurde am 31.07.2025 **über Vercel** angelegt (Vercel Marketplace).
