@@ -1382,6 +1382,51 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           }
         }
 
+        /*
+         * Rueckfall wie in der Liste (useDocuments.buchungenZuordnen): Passt
+         * keine Nummer, aber gibt es GENAU eine Buchung mit demselben Gast am
+         * selben Anreisetag, ist sie es vermutlich. Anlass 01.10.2026: Die
+         * Nummer war mit Leerzeichen eingetragen — ohne Rueckfall hiess es
+         * „nicht im System", obwohl die Buchung da war.
+         */
+        const u = !buchung ? leseBuchungsUnterlage(text) : null;
+        if (u) {
+          const { data: amTag, error: tErr } = await supabase
+            .from('bookings')
+            .select('id, house_id, check_in, external_booking_id, guests!bookings_guest_id_fkey(name)')
+            .gte('check_in', u.anreise)
+            .lte('check_in', `${u.anreise}T23:59:59`)
+            .neq('status', 'cancelled');
+          if (tErr) throw tErr;
+          const norm = (s?: string | null) => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+          const passend = ((amTag ?? []) as unknown as Array<{
+            id: string; house_id: string; check_in: string; external_booking_id: string | null;
+            guests: { name: string } | null;
+          }>).filter((x) => norm(x.guests?.name) === norm(u.gast));
+          if (passend.length === 1) {
+            const b = passend[0];
+            buchung = {
+              art: 'buchung',
+              treffer: {
+                id: b.id,
+                name: `${fmtDate(b.check_in)} · ${b.guests?.name ?? 'ohne Gast'}`,
+                punkte: 80,
+                begriffe: [],
+                grund: b.external_booking_id
+                  ? `Gast und Anreise — Nummer dort „${b.external_booking_id}"`
+                  : 'Gast und Anreise — ohne Buchungsnummer erfasst',
+              },
+            };
+            const h = alleHaeuser.find((x) => x.id === b.house_id);
+            if (h) {
+              belegHaeuser.push({
+                art: 'haus',
+                treffer: { id: h.id, name: h.label, punkte: 100, begriffe: [], grund: 'Haus der Buchung' },
+              });
+            }
+          }
+        }
+
         const portal = absender.find((x) => x.art === 'portal');
         const portalKey = portal ? portale.find((p) => p.id === portal.treffer.id)?.key : undefined;
         if (!buchung && portal && portalKey) {
@@ -1426,8 +1471,9 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       // Buchungsunterlage (bisher Belvilla): Daten fuer „Buchung anlegen" merken.
       const unterlage = leseBuchungsUnterlage(text);
       setAusgelesen(unterlage);
-      const ref = buchungsNummer
-        ?? unterlage?.nummer
+      // Die Nummer, wie sie im DOKUMENT steht — der Abgleich ignoriert Leerzeichen.
+      const ref = unterlage?.nummer
+        ?? buchungsNummer
         ?? (typNeu?.pruefung === 'buchung' ? findeReferenz(text, 'buchung') : null)
         ?? (typNeu?.pruefung === 'zahlung' ? findeReferenz(text, 'zahlung') : null);
       if (ref) setReferenz(ref);
