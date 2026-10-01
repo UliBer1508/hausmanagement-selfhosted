@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import type { Pruefung, ProviderRechnung, BuchungInfo } from '@/lib/documentStatus';
 
 /**
  * useDocuments.ts — Zugriffe fuer die Dokumentenverwaltung.
@@ -26,6 +27,11 @@ import { supabase } from '@/integrations/supabase/client';
  * Der Inhalt stammt ausschliesslich vom Menschen; keine Automatik
  * schreibt hier hinein.
  *
+ * STATUS (seit 01.10.2026, SQL 62): document_types.pruefung sagt, was
+ * „erledigt" heisst (Zahlung / Buchung erfasst). Die Logik steht in
+ * lib/documentStatus.ts; hier werden nur die Daten dazu geladen und die
+ * Zahlung geschrieben — bei Teuni/Boris in DEREN Rechnungsdatensatz.
+ *
  * BUCHUNGSPORTAL (seit 01.10.2026, SQL 61): eigene Zuordnungsart 'portal'
  * mit Tabelle booking_portals und Spalte documents.portal_id — gebaut wie
  * Vendor. Anlass: Eine Belvilla-Buchungsuebersicht liess sich Belvilla
@@ -45,13 +51,19 @@ export interface DocumentType {
   color: string;
   is_active: boolean;
   sort_order: number;
+  /** Was „erledigt" heisst (SQL 62). */
+  pruefung: Pruefung;
 }
+
+export type Zahlart = 'einzug' | 'ueberweisung';
 
 export interface DocumentVendor {
   id: string;
   name: string;
   note: string | null;
   is_active: boolean;
+  /** Vorbelegung der Zahlart beim Ablegen (SQL 62). */
+  zahlart_standard: Zahlart | null;
 }
 
 /** Buchungsportal (SQL 61). key = Wert in bookings.platform. */
@@ -61,6 +73,7 @@ export interface BookingPortal {
   name: string;
   dokument_begriffe: string[];
   is_active: boolean;
+  zahlart_standard: Zahlart | null;
 }
 
 /**
@@ -77,7 +90,7 @@ export function useBookingPortals() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tabelle fehlt in types.ts
       const { data, error } = await (supabase as any)
         .from('booking_portals')
-        .select('id, key, name, dokument_begriffe, is_active')
+        .select('id, key, name, dokument_begriffe, is_active, zahlart_standard')
         .order('sort_order');
       if (error) throw error;
       return (data ?? []) as BookingPortal[];
@@ -136,7 +149,7 @@ export function useDocumentTypes(includeInactive = false) {
     queryFn: async () => {
       let q = supabase
         .from('document_types')
-        .select('id, name, folder_name, color, is_active, sort_order')
+        .select('id, name, folder_name, color, is_active, sort_order, pruefung')
         .order('sort_order');
       if (!includeInactive) q = q.eq('is_active', true);
 
@@ -168,6 +181,7 @@ export function useSaveDocumentType() {
         color: t.color ?? 'slate',
         is_active: t.is_active ?? true,
         sort_order: t.sort_order ?? 100,
+        pruefung: t.pruefung ?? 'keine',
       };
 
       const query = t.id
@@ -191,7 +205,7 @@ export function useVendors(includeInactive = false) {
     queryFn: async () => {
       let q = supabase
         .from('document_vendors')
-        .select('id, name, note, is_active')
+        .select('id, name, note, is_active, zahlart_standard')
         .order('name');
       if (!includeInactive) q = q.eq('is_active', true);
 
@@ -209,7 +223,10 @@ export function useSaveVendor() {
       const name = v.name.trim();
       if (!name) throw new Error('Bitte einen Namen eingeben.');
 
-      const payload = { name, note: v.note?.trim() || null, is_active: v.is_active ?? true };
+      const payload = {
+        name, note: v.note?.trim() || null, is_active: v.is_active ?? true,
+        zahlart_standard: v.zahlart_standard ?? null,
+      };
 
       const query = v.id
         ? supabase.from('document_vendors').update(payload as any).eq('id', v.id).select('id')
@@ -330,7 +347,19 @@ export interface DocumentRow {
   portal_id: string | null;
   /** Freier Vermerk des Menschen. Leer = keine Notiz. */
   note: string | null;
-  document_types: { name: string; color: string } | null;
+  /** SQL 62: Buchungs-/Rechnungsnummer und Zahlung (ohne Provider-Rechnung). */
+  referenz: string | null;
+  zahlart: Zahlart | null;
+  betrag: number | null;
+  faellig_am: string | null;
+  bezahlt_am: string | null;
+  laundry_invoice_id: string | null;
+  cleaning_invoice_id: string | null;
+  laundry_invoices: (ProviderRechnung & { rechnungsnummer: string; bruttobetrag: number }) | null;
+  cleaning_invoices: (ProviderRechnung & { rechnungsnummer: string; bruttobetrag: number }) | null;
+  /** Gefundene Buchung — nachtraeglich ermittelt (siehe buchungenZuordnen). */
+  buchung_info?: BuchungInfo | null;
+  document_types: { name: string; color: string; pruefung: Pruefung } | null;
   houses: { name: string } | null;
   service_providers: { name: string } | null;
   document_vendors: { name: string } | null;
@@ -359,7 +388,11 @@ export function useDocuments() {
           onedrive_item_id, onedrive_web_url, onedrive_path, created_at,
           document_type_id, house_id, booking_id, service_task_id,
           linen_order_id, provider_id, vendor_id, portal_id, note,
-          document_types:document_type_id (name, color),
+          referenz, zahlart, betrag, faellig_am, bezahlt_am,
+          laundry_invoice_id, cleaning_invoice_id,
+          laundry_invoices:laundry_invoice_id (status, bezahlt_am, faelligkeitsdatum, rechnungsnummer, bruttobetrag),
+          cleaning_invoices:cleaning_invoice_id (status, bezahlt_am, faelligkeitsdatum, rechnungsnummer, bruttobetrag),
+          document_types:document_type_id (name, color, pruefung),
           houses:house_id (name),
           service_providers:provider_id (name),
           document_vendors:vendor_id (name),
@@ -369,38 +402,91 @@ export function useDocuments() {
         .limit(2000);
 
       if (error) throw error;
-      const zeilen = (data ?? []) as unknown as DocumentRow[];
-      if (zeilen.length === 0) return zeilen;
+      const roh = (data ?? []) as unknown as DocumentRow[];
+      if (roh.length === 0) return roh;
 
       // Zusatzzuordnungen in EINER Abfrage nachladen, nicht je Dokument.
       const { data: links, error: linkError } = await supabase
         .from('document_links')
         .select('document_id, entity_type, entity_id, position')
-        .in('document_id', zeilen.map((z) => z.id))
+        .in('document_id', roh.map((z) => z.id))
         .order('position');
 
+      let zeilen = roh;
       if (linkError) {
         // Zusatzzuordnungen sind Beiwerk — die Liste bleibt nutzbar.
         console.error('document_links nicht gelesen:', linkError.message);
-        return zeilen;
+      } else if (links && links.length > 0) {
+        const namen = await objektNamen(links as any[]);
+
+        const proDok = new Map<string, Zuordnung[]>();
+        for (const l of links as any[]) {
+          const liste = proDok.get(l.document_id) ?? [];
+          liste.push({
+            art: l.entity_type as LinkTarget,
+            id: l.entity_id,
+            label: namen.get(`${l.entity_type}:${l.entity_id}`) ?? 'unbekannt',
+          });
+          proDok.set(l.document_id, liste);
+        }
+        zeilen = roh.map((z) => ({ ...z, zusatz: proDok.get(z.id) ?? [] }));
       }
-      if (!links || links.length === 0) return zeilen;
 
-      const namen = await objektNamen(links as any[]);
-
-      const proDok = new Map<string, Zuordnung[]>();
-      for (const l of links as any[]) {
-        const liste = proDok.get(l.document_id) ?? [];
-        liste.push({
-          art: l.entity_type as LinkTarget,
-          id: l.entity_id,
-          label: namen.get(`${l.entity_type}:${l.entity_id}`) ?? 'unbekannt',
-        });
-        proDok.set(l.document_id, liste);
-      }
-
-      return zeilen.map((z) => ({ ...z, zusatz: proDok.get(z.id) ?? [] }));
+      return buchungenZuordnen(zeilen);
     },
+  });
+}
+
+/**
+ * Findet zu Buchungsunterlagen die Buchung im System — fuer den Status
+ * „Buchung erfasst" (SQL 62).
+ *
+ * Reihenfolge: (1) direkt verknuepft (booking_id), (2) als 2./3. Zuordnung,
+ * (3) ueber die Referenz = bookings.external_booking_id (Gross-/Klein-
+ * schreibung egal — Uli tippt die Nummer beim Anlegen der Buchung ein).
+ *
+ * Nur Dokumente, deren Typ die Pruefung 'buchung' hat, bekommen ein
+ * Ergebnis. Fehler sind Beiwerk: Die Liste bleibt nutzbar, der Status
+ * zeigt dann „nicht im System" — deshalb wird der Fehler protokolliert.
+ */
+async function buchungenZuordnen(zeilen: DocumentRow[]): Promise<DocumentRow[]> {
+  const relevant = zeilen.filter((z) => z.document_types?.pruefung === 'buchung');
+  if (relevant.length === 0) return zeilen;
+
+  const ids = new Set<string>();
+  for (const z of relevant) {
+    if (z.booking_id) ids.add(z.booking_id);
+    for (const zu of z.zusatz ?? []) if (zu.art === 'buchung') ids.add(zu.id);
+  }
+  const mitReferenz = relevant.some((z) => z.referenz?.trim());
+
+  const felder = 'id, check_in, external_booking_id, guests!bookings_guest_id_fkey(name)';
+  const [perId, perNummer] = await Promise.all([
+    ids.size > 0
+      ? supabase.from('bookings').select(felder).in('id', [...ids])
+      : Promise.resolve({ data: [], error: null }),
+    mitReferenz
+      ? supabase.from('bookings').select(felder).not('external_booking_id', 'is', null).limit(5000)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (perId.error) console.error('[Dokumente] Buchungen (id) nicht gelesen:', perId.error.message);
+  if (perNummer.error) console.error('[Dokumente] Buchungen (Nummer) nicht gelesen:', perNummer.error.message);
+
+  type B = { id: string; check_in: string; external_booking_id: string | null; guests: { name: string } | null };
+  const info = (b: B): BuchungInfo => ({ id: b.id, check_in: b.check_in, gast: b.guests?.name ?? null });
+  const nachId = new Map(((perId.data ?? []) as unknown as B[]).map((b) => [b.id, b]));
+  const nachNummer = new Map<string, B>();
+  for (const b of (perNummer.data ?? []) as unknown as B[]) {
+    const n = (b.external_booking_id ?? '').trim().toLowerCase();
+    if (n) nachNummer.set(n, b);
+  }
+
+  return zeilen.map((z) => {
+    if (z.document_types?.pruefung !== 'buchung') return z;
+    const direkt = (z.booking_id && nachId.get(z.booking_id))
+      || (z.zusatz ?? []).filter((zu) => zu.art === 'buchung').map((zu) => nachId.get(zu.id)).find(Boolean)
+      || (z.referenz ? nachNummer.get(z.referenz.trim().toLowerCase()) : undefined);
+    return { ...z, buchung_info: direkt ? info(direkt) : null };
   });
 }
 
@@ -502,6 +588,11 @@ export interface DocumentLinks {
   vendorId?: string | null;
   portalId?: string | null;
   note?: string;
+  /** SQL 62 */
+  referenz?: string;
+  zahlart?: Zahlart | null;
+  betrag?: number | null;
+  faelligAm?: string | null;
 }
 
 export interface UploadInput extends DocumentLinks {
@@ -520,6 +611,10 @@ const linkColumns = (l: DocumentLinks) => ({
   vendor_id: l.vendorId ?? null,
   portal_id: l.portalId ?? null,
   note: l.note?.trim() || null,
+  referenz: l.referenz?.trim() || null,
+  zahlart: l.zahlart ?? null,
+  betrag: l.betrag ?? null,
+  faellig_am: l.faelligAm || null,
 });
 
 /**
@@ -549,6 +644,79 @@ export function useUpdateDocumentNote() {
         throw new Error('Notiz wurde nicht gespeichert (keine Zeile betroffen).');
       }
       return wert;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
+  });
+}
+
+/**
+ * Setzt ein Dokument auf bezahlt (Datum) oder zurueck auf offen (null).
+ *
+ * EINE WAHRHEIT: Haengt eine Teuni- oder Boris-Rechnung am Dokument, wird
+ * DEREN Datensatz geschrieben — derselbe, den die Provider-Abrechnung und
+ * das Provider-Portal zeigen. Bei Boris zieht der DB-Trigger die
+ * Reinigungen auf payment_status = 'paid' mit (useCleaningInvoices).
+ * Nur ohne Provider-Rechnung landet das Datum am Dokument selbst.
+ *
+ * `.select('id')` und die Pruefung auf null Zeilen sind Pflicht (RLS).
+ */
+export function useSetDocumentPaid() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ doc, bezahltAm }: { doc: DocumentRow; bezahltAm: string | null }) => {
+      const status = bezahltAm ? 'bezahlt' : 'offen';
+      let ergebnis;
+      if (doc.laundry_invoice_id) {
+        ergebnis = await supabase.from('laundry_invoices')
+          .update({ status, bezahlt_am: bezahltAm })
+          .eq('id', doc.laundry_invoice_id).select('id');
+      } else if (doc.cleaning_invoice_id) {
+        ergebnis = await supabase.from('cleaning_invoices')
+          .update({ status, bezahlt_am: bezahltAm })
+          .eq('id', doc.cleaning_invoice_id).select('id');
+      } else {
+        ergebnis = await supabase.from('documents')
+          .update({ bezahlt_am: bezahltAm } as never)
+          .eq('id', doc.id).select('id');
+      }
+      if (ergebnis.error) throw ergebnis.error;
+      if (!ergebnis.data || ergebnis.data.length === 0) {
+        throw new Error('Zahlung wurde nicht gespeichert (keine Zeile betroffen).');
+      }
+      return bezahltAm;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['documents'] });
+      qc.invalidateQueries({ queryKey: ['laundry-invoices'] });
+      qc.invalidateQueries({ queryKey: ['cleaning-invoices'] });
+    },
+  });
+}
+
+/**
+ * Aendert Referenz und Zahlungsangaben eines Dokuments (ohne bezahlt_am —
+ * das laeuft ueber useSetDocumentPaid, weil es bei Provider-Rechnungen
+ * woanders hingeschrieben wird).
+ */
+export function useSaveDocumentDetails() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (d: {
+      id: string; referenz: string; zahlart: Zahlart | null;
+      betrag: number | null; faelligAm: string | null;
+    }) => {
+      const { data, error } = await supabase
+        .from('documents')
+        .update({
+          referenz: d.referenz.trim() || null,
+          zahlart: d.zahlart,
+          betrag: d.betrag,
+          faellig_am: d.faelligAm || null,
+        } as never)
+        .eq('id', d.id)
+        .select('id');
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('Angaben wurden nicht gespeichert (keine Zeile betroffen).');
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
   });
