@@ -581,6 +581,12 @@ export interface Treffer {
   punkte: number;
   /** Welche Begriffe wie oft vorkamen — fuer die Anzeige. */
   begriffe: Array<{ begriff: string; anzahl: number }>;
+  /**
+   * Begruendung, wenn der Treffer NICHT aus Woertern stammt, sondern aus
+   * einem Beleg (Buchungsnummer, Portal -> Haus). Ersetzt dann die
+   * Begriffsliste in der Anzeige.
+   */
+  grund?: string;
 }
 
 /**
@@ -593,6 +599,24 @@ export interface Treffer {
  * Woerter unter vier Zeichen fallen raus: "AG" oder "am" traefen sonst
  * in jedem zweiten Dokument.
  */
+/**
+ * Woerter, die nur sagen, WAS ein Objekt ist — nicht WELCHES.
+ * Sie zaehlen nie als Einzelbegriff; der volle Name bleibt erhalten.
+ *
+ * ANLASS, am 01.10.2026 an der Belvilla-Buchungsuebersicht 1FYTQE8D belegt:
+ * Sie wurde „Haus Berlin Falkensee" zugeordnet, obwohl Berlin nirgends
+ * vorkommt. Von dem Namen blieb als Einzelwort nur „haus" uebrig („berlin"
+ * und „falkensee" fallen als Ortsnamen weg, siehe ortsBegriffe), und „haus"
+ * traf als Wortanfang in HAUScode und HAUStiere — zwei halbe Treffer,
+ * 0,7 Punkte, knapp ueber der Schwelle. Kein anderes Haus hatte Punkte.
+ * „chalet" ist schon durch die Regel „gemeinsame Woerter zaehlen nicht"
+ * abgedeckt, steht aber fuer den Fall eines einzigen Chalets mit drin.
+ */
+const GATTUNGSWOERTER = new Set([
+  'haus', 'hauses', 'häuser', 'chalet', 'chalets', 'wohnung', 'apartment',
+  'ferienhaus', 'ferienwohnung', 'villa', 'hütte', 'objekt', 'zimmer',
+]);
+
 function begriffeAus(k: Kandidat): string[] {
   const roh = k.name.toLowerCase().trim();
   const menge = new Set<string>();
@@ -607,9 +631,9 @@ function begriffeAus(k: Kandidat): string[] {
     if (inhalt.length >= 4) menge.add(inhalt);
   }
 
-  // Einzelwoerter, sofern lang genug
+  // Einzelwoerter, sofern lang genug und nicht nur eine Gattung
   for (const w of ohneKlammern.split(/[\s/,.-]+/)) {
-    if (w.length >= 4) menge.add(w);
+    if (w.length >= 4 && !GATTUNGSWOERTER.has(w)) menge.add(w);
   }
 
   // Mitgegebene Zusatzbegriffe (Adresse, Objektnummer) unveraendert.
@@ -749,7 +773,35 @@ export function findeTreffer(
 
 /** Kurzfassung der Begruendung fuer die Anzeige unter einem Feld. */
 export function trefferBegruendung(t: Treffer): string {
+  if (t.grund) return t.grund;
   return t.begriffe
     .map((b) => `„${b.begriff}“ ${b.anzahl}×`)
     .join(', ');
+}
+
+/**
+ * Sucht die externe Buchungsnummer einer Buchung im Text.
+ *
+ * Portale (Belvilla, Booking.com, Airbnb) drucken ihre Buchungsnummer auf
+ * jede Unterlage — sie ist der eindeutigste Bezug, den ein Dokument haben
+ * kann. Verglichen wird mit bookings.external_booking_id.
+ *
+ * Nur Nummern ab fuenf Zeichen: kuerzere trafen sonst Hausnummern oder
+ * Betraege. Als ganzes Wort (\p{L}\p{N}-Grenze wie in bewerteBegriff),
+ * ohne Ruecksicht auf Gross- und Kleinschreibung.
+ *
+ * Treffen MEHRERE Buchungen, wird keine geliefert — dann entscheidet der
+ * Mensch, statt dass geraten wird.
+ */
+export function findeBuchungsnummer<B extends { external_booking_id: string | null }>(
+  text: string,
+  buchungen: B[],
+): B | null {
+  const lower = text.toLowerCase();
+  const treffer = buchungen.filter((b) => {
+    const nr = (b.external_booking_id ?? '').trim().toLowerCase();
+    if (nr.length < 5) return false;
+    return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(nr)}(?![\\p{L}\\p{N}])`, 'u').test(lower);
+  });
+  return treffer.length === 1 ? treffer[0] : null;
 }
