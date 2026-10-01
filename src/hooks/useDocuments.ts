@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Pruefung, ProviderRechnung, BuchungInfo } from '@/lib/documentStatus';
 import type { GeleseneBuchung } from '@/lib/buchungsUnterlage';
+import { buchungsnummerSchluessel } from '@/lib/pdfText';
 
 /**
  * useDocuments.ts — Zugriffe fuer die Dokumentenverwaltung.
@@ -496,7 +497,8 @@ async function buchungenZuordnen(zeilen: DocumentRow[]): Promise<DocumentRow[]> 
   const nachId = new Map(((perId.data ?? []) as unknown as B[]).map((b) => [b.id, b]));
   const nachNummer = new Map<string, B>();
   for (const b of (perNummer.data ?? []) as unknown as B[]) {
-    const n = (b.external_booking_id ?? '').trim().toLowerCase();
+    // Ohne Leerzeichen: „1F YT QE 8D" in der Buchung = „1FYTQE8D" im Dokument.
+    const n = buchungsnummerSchluessel(b.external_booking_id);
     if (n) nachNummer.set(n, b);
   }
 
@@ -506,7 +508,7 @@ async function buchungenZuordnen(zeilen: DocumentRow[]): Promise<DocumentRow[]> 
       || (z.zusatz ?? []).filter((zu) => zu.art === 'buchung').map((zu) => nachId.get(zu.id)).find(Boolean);
     if (verknuepft) return { ...z, buchung_info: info(verknuepft, 'verknuepft') };
 
-    const perNr = z.referenz ? nachNummer.get(z.referenz.trim().toLowerCase()) : undefined;
+    const perNr = z.referenz ? nachNummer.get(buchungsnummerSchluessel(z.referenz)) : undefined;
     if (perNr) return { ...z, buchung_info: info(perNr, 'nummer') };
 
     // Rueckfall: gleicher Gast am gleichen Anreisetag — nur bei GENAU einem Treffer.
