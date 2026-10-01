@@ -14,13 +14,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import CreateBookingDialog, { type BookingPrefillData } from '@/components/Bookings/CreateBookingDialog';
+import {
+  leseBuchungsUnterlage, notizAusUnterlage, type GeleseneBuchung,
+} from '@/lib/buchungsUnterlage';
 import DocumentSettings from '@/components/Documents/DocumentSettings';
 import {
   onedrive, bezugLabel, useOneDriveStatus, useDocumentTypes, useDocuments,
   useUploadDocument, useLinkExisting, useRemoveDocument, useEntities,
   useLocations, useSaveLocation, useVendors, useUpdateDocumentNote, useBookingPortals,
-  useSetDocumentPaid, useSaveDocumentDetails,
+  useSetDocumentPaid, useSaveDocumentDetails, useSaveAusgelesen,
   type DocumentType, type LinkTarget, type OneDriveFolder, type OneDriveFile,
   type EntityOption, type DocumentRow, type Zahlart,
 } from '@/hooks/useDocuments';
@@ -101,6 +105,33 @@ export default function DocumentsTab() {
   // Dokument, dessen Zahlungs-/Buchungsstatus gerade bearbeitet wird.
   const [statusDocId, setStatusDocId] = useState<string | null>(null);
   const setPaid = useSetDocumentPaid();
+  const qc = useQueryClient();
+  // „Buchung anlegen" aus einer Buchungsunterlage: vorausgefuelltes Formular.
+  const [buchungPrefill, setBuchungPrefill] = useState<BookingPrefillData | null>(null);
+
+  /**
+   * Baut die Vorbelegung des Buchungsformulars aus einem Dokument.
+   * Haus: 1. Zuordnung oder eine Haus-Zuordnung; Portal: dessen key
+   * (= bookings.platform). Ohne gelesene Daten keine Vorbelegung — das
+   * Formular braucht An- und Abreise.
+   */
+  const prefillAus = (d: DocumentRow, a: GeleseneBuchung): BookingPrefillData => {
+    const hausId = d.house_id ?? (d.zusatz ?? []).find((z) => z.art === 'haus')?.id ?? '';
+    const portalId = d.portal_id ?? (d.zusatz ?? []).find((z) => z.art === 'portal')?.id;
+    const platform = portale.find((p) => p.id === portalId)?.key ?? a.portal;
+    return {
+      house_id: hausId,
+      guest_name: a.gast,
+      guest_email: '',
+      check_in: new Date(`${a.anreise}T12:00:00`),
+      check_out: new Date(`${a.abreise}T12:00:00`),
+      number_of_guests: Math.max(1, a.gaeste),
+      booking_amount: a.betrag ?? undefined,
+      notes: notizAusUnterlage(a),
+      platform,
+      external_booking_id: a.nummer,
+    };
+  };
 
   const { data: houses = [] } = useQuery({
     queryKey: ['houses-min'],
@@ -436,7 +467,21 @@ export default function DocumentsTab() {
       {noteDoc && <NotizDialog d={noteDoc} onClose={() => setNoteDocId(null)} />}
       {statusDoc && (
         <StatusDialog d={statusDoc} status={statusVon.get(statusDoc.id) ?? null}
-          onClose={() => setStatusDocId(null)} />
+          onClose={() => setStatusDocId(null)}
+          onBuchungAnlegen={(a) => { const p = prefillAus(statusDoc, a); setStatusDocId(null); setBuchungPrefill(p); }} />
+      )}
+      {/* Normales Buchungsformular, vorausgefuellt — gespeichert wird ueber
+          useBookings wie bei jeder Handeingabe (Gast, Reinigung, Waesche). */}
+      {buchungPrefill && (
+        <CreateBookingDialog
+          open
+          onOpenChange={(o) => { if (!o) setBuchungPrefill(null); }}
+          prefillData={buchungPrefill}
+          onBookingCreated={() => {
+            setBuchungPrefill(null);
+            qc.invalidateQueries({ queryKey: ['documents'] });
+          }}
+        />
       )}
     </div>
   );
@@ -590,9 +635,35 @@ const ZAHLART_LABEL: Record<Zahlart, string> = {
  * dort aus der Rechnung und sind hier nicht editierbar, damit es keine zweite
  * Wahrheit gibt.
  */
-function StatusDialog({ d, status, onClose }: { d: DocumentRow; status: DokStatus | null; onClose: () => void }) {
+function StatusDialog({ d, status, onClose, onBuchungAnlegen }: {
+  d: DocumentRow; status: DokStatus | null; onClose: () => void;
+  onBuchungAnlegen: (a: GeleseneBuchung) => void;
+}) {
   const { toast } = useToast();
   const setPaid = useSetDocumentPaid();
+  const saveAusgelesen = useSaveAusgelesen();
+  const pdfRef = useRef<HTMLInputElement>(null);
+  const [liest, setLiest] = useState(false);
+
+  /*
+   * Aeltere Unterlagen (vor 01.10.2026) haben keine gelesenen Daten. Die
+   * Datei liegt in OneDrive; statt sie herunterzuladen, waehlt Uli dasselbe
+   * PDF vom PC. Gelesen wird lokal, gespeichert nur das Ergebnis (SQL 63).
+   */
+  const pdfLesen = async (f?: File | null) => {
+    if (!f) return;
+    setLiest(true);
+    try {
+      const a = leseBuchungsUnterlage(await leseDateiText(f));
+      if (!a) throw new Error('In diesem PDF wurde keine Buchungsübersicht erkannt (bisher nur Belvilla).');
+      await saveAusgelesen.mutateAsync({ doc: d, ausgelesen: a });
+      onBuchungAnlegen(a);
+    } catch (e) {
+      toast({ title: 'Nicht gelesen', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setLiest(false);
+    }
+  };
   const saveDetails = useSaveDocumentDetails();
   const rechnung = d.laundry_invoices ?? d.cleaning_invoices ?? null;
   const pruefung = d.document_types?.pruefung ?? 'keine';
@@ -646,13 +717,48 @@ function StatusDialog({ d, status, onClose }: { d: DocumentRow; status: DokStatu
             <Label>Buchungsnummer</Label>
             <Input value={referenz} onChange={(e) => setReferenz(e.target.value)} placeholder="z. B. 1FYTQE8D" />
             <p className="text-xs text-muted-foreground">
-              Abgleich mit der Buchungsnummer, die beim Anlegen der Buchung eingetragen wurde.
-              Steht die Buchung nicht im System, bitte unter „Buchungen" anlegen.
+              Abgleich mit der Buchungsnummer, die beim Anlegen der Buchung eingetragen wurde;
+              ohne Treffer über Gastname und Anreisetag („vermutlich erfasst").
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={onClose} disabled={busy}>Abbrechen</Button>
-              <Button onClick={angabenSpeichern} disabled={busy}>Speichern</Button>
+              <Button variant="outline" onClick={angabenSpeichern} disabled={busy}>Nummer speichern</Button>
             </div>
+
+            {/* Buchung fehlt: anlegen, vorausgefuellt aus der Unterlage */}
+            {status?.zustand === 'fehlt' && (
+              <div className="space-y-2 border-t pt-3">
+                {d.ausgelesen ? (
+                  <>
+                    <p className="text-sm">
+                      Aus der Unterlage: {d.ausgelesen.gast} · {fmtDate(d.ausgelesen.anreise)}–{fmtDate(d.ausgelesen.abreise)}
+                      {' · '}{d.ausgelesen.gaeste} Gäste
+                      {d.ausgelesen.betrag != null && ` · ${d.ausgelesen.betrag.toFixed(2).replace('.', ',')} €`}
+                    </p>
+                    <Button onClick={() => onBuchungAnlegen(d.ausgelesen!)} disabled={busy}>
+                      <Plus className="mr-2 h-4 w-4" /> Buchung anlegen
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Für diese Unterlage liegen keine gelesenen Daten vor. Wähle dasselbe PDF von
+                      deinem PC — es wird gelesen und das Buchungsformular vorausgefüllt.
+                    </p>
+                    <Button variant="outline" onClick={() => pdfRef.current?.click()} disabled={busy || liest}>
+                      {liest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ScanLine className="mr-2 h-4 w-4" />}
+                      PDF wählen und Buchung anlegen
+                    </Button>
+                    <input ref={pdfRef} type="file" accept="application/pdf,.pdf" className="hidden"
+                      onChange={(e) => pdfLesen(e.target.files?.[0])} />
+                  </>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Das normale Buchungsformular öffnet sich vorausgefüllt. Gespeichert wird erst nach
+                  deiner Prüfung — Gast, Reinigung und Wäsche laufen wie bei jeder Buchung.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -914,6 +1020,8 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   const [zahlartTouched, setZahlartTouched] = useState(false);
   const [betrag, setBetrag] = useState('');
   const [faellig, setFaellig] = useState('');
+  // SQL 63: aus einer Buchungsunterlage gelesene Buchungsdaten.
+  const [ausgelesen, setAusgelesen] = useState<GeleseneBuchung | null>(null);
 
   const [folder, setFolder] = useState<{ id: string; path: string } | null>(null);
   const [folderTouched, setFolderTouched] = useState(false);
@@ -1315,7 +1423,11 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       // Referenz vorbelegen (SQL 62): die gefundene Buchung schlaegt alles,
       // sonst die Nummer hinter „Buchungsnummer"/„Rechnungsnummer".
       const typNeu = types.find((x) => x.id === (typTreffer?.id ?? typeId));
+      // Buchungsunterlage (bisher Belvilla): Daten fuer „Buchung anlegen" merken.
+      const unterlage = leseBuchungsUnterlage(text);
+      setAusgelesen(unterlage);
       const ref = buchungsNummer
+        ?? unterlage?.nummer
         ?? (typNeu?.pruefung === 'buchung' ? findeReferenz(text, 'buchung') : null)
         ?? (typNeu?.pruefung === 'zahlung' ? findeReferenz(text, 'zahlung') : null);
       if (ref) setReferenz(ref);
@@ -1555,6 +1667,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     setReferenz('');
     setBetrag('');
     setFaellig('');
+    setAusgelesen(null);
   };
 
   const submit = () => {
@@ -1586,6 +1699,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       zahlart: type.pruefung === 'zahlung' ? (zahlart || null) : null,
       betrag: type.pruefung === 'zahlung' ? parseBetrag(betrag) : null,
       faelligAm: type.pruefung === 'zahlung' ? (faellig || null) : null,
+      ausgelesen,
     };
 
     // Die getroffene Wahl merken, damit sie beim naechsten Mal dasteht.
@@ -2054,6 +2168,14 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
                       {' · '}{trefferBegruendung(z.treffer)}
                     </p>
                   ))}
+                  {/* Buchungsunterlage, deren Buchung noch nicht im System steht */}
+                  {ausgelesen && !gefunden.zuordnungen.some((z) => z.art === 'buchung') && (
+                    <p className="mt-1 text-xs font-medium text-red-700">
+                      Keine Buchung mit der Nummer {ausgelesen.nummer} im System ({ausgelesen.gast},{' '}
+                      {fmtDate(ausgelesen.anreise)}). Nach dem Ablegen zeigt die Liste den Status; fehlt
+                      die Buchung, dort auf „nicht im System" klicken → „Buchung anlegen" (vorausgefüllt).
+                    </p>
+                  )}
                 </div>
               )}
 
