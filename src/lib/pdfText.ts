@@ -805,3 +805,29 @@ export function findeBuchungsnummer<B extends { external_booking_id: string | nu
   });
   return treffer.length === 1 ? treffer[0] : null;
 }
+
+/**
+ * Liest eine Buchungs- oder Rechnungsnummer aus dem Text (SQL 62,
+ * documents.referenz). Nur als VORBELEGUNG — der Mensch sieht und aendert
+ * sie im Ablage-Dialog.
+ *
+ * Gesucht wird hinter den ueblichen Bezeichnungen der Portale und Absender:
+ * „Buchungsnummer 1FYTQE8D" (Belvilla), „Rechnungsnummer: 1000-1662084970"
+ * (Booking.com), „Reservierungsnummer", „Bestätigungsnummer".
+ * Die Nummer muss eine Ziffer enthalten — sonst wuerde z. B. aus
+ * „Rechnungsnummer Datum" das Wort „Datum".
+ */
+export function findeReferenz(text: string, art: 'buchung' | 'zahlung'): string | null {
+  const woerter = art === 'buchung'
+    ? ['buchungsnummer', 'buchungsnr', 'reservierungsnummer', 'bestätigungsnummer', 'booking number', 'confirmation code']
+    : ['rechnungsnummer', 'rechnungsnr', 're-nr', 'invoice number', 'belegnummer'];
+  const muster = new RegExp(
+    `(?:${woerter.map(escapeRe).join('|')})\\.?\\s*[:#]?\\s*([A-Z0-9][A-Z0-9\\-/]{3,})`,
+    'iu',
+  );
+  for (const zeile of text.split('\n')) {
+    const m = zeile.match(muster);
+    if (m && /\d/.test(m[1])) return m[1];
+  }
+  return null;
+}
