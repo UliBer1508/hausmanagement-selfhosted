@@ -804,6 +804,39 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
   `supabase/SQL/60_datensicherung.sql`. Doku: `docs/Datensicherung.md`.
 ---
 
+## 13d. Modul „Dokumente" (Tab 📄) — nachgetragen 01.10.2026
+
+**Einstieg:** `components/Documents/DocumentsTab.tsx` ← `pages/OriginalDashboard.tsx`.
+Daten/Hooks: `hooks/useDocuments.ts`. Einstellungen: `Documents/DocumentSettings.tsx`.
+PDF lesen + Zuordnung vorschlagen: `lib/pdfText.ts` (Stichwortvergleich, keine KI).
+Rechnungen beim Ablegen: `Documents/CleaningInvoicePanel.tsx` (Boris),
+Edge Functions `import-teuni-invoice` / `import-boris-invoice`.
+Doku: `docs/Dokumentenverwaltung-OneDrive.md`, Max: `docs/Max-und-Dokumente.md`.
+
+**Zuordnungsarten** (`LinkTarget`): `provider`, `vendor`, `portal`, `haus`,
+`buchung`, `reinigung`, `waesche`. Die 1. Zuordnung steht als Spalte in
+`documents` (`provider_id`, `vendor_id`, `portal_id`, `house_id`, …) und
+bestimmt den Ablageort; die 2./3. stehen in `document_links`.
+
+**Neue Zuordnungsart = sieben Stellen** (sonst wird sie still ignoriert):
+`LinkTarget` + `useEntities` (eigener Zweig! Unbekannte Arten fallen sonst in
+die Wäscheabfrage) + `objektNamen` + `bezugLabel`/Select in `useDocuments`;
+`LINK_TARGETS`, `objektKey`, `objektEintraege`, `submit` in `DocumentsTab`;
+`ART_LABEL`, Objektliste, Optgroups in `DocumentSettings`; CHECKs auf
+`document_locations` und `document_links`; Max (`chat-assistant`:
+`weitereBezuege`, `executeSearchDocuments`, Werkzeugbeschreibung).
+
+**Buchungsportal (NEU 01.10.2026, SQL 61):** Tabelle `booking_portals`
+(`key` = `bookings.platform`, `dokument_begriffe`), Spalte `documents.portal_id`.
+Fest hinterlegt (Belvilla, Airbnb, Booking.com, VRBO), in den Einstellungen nur
+zur Ansicht. „Dokument lesen" erkennt das Portal, findet die Buchung über
+`bookings.external_booking_id` im Text und — ohne Buchungsnummer — das Haus, wenn
+nur EIN Haus Buchungen auf diesem Portal hat (Wald Chalet = nur Belvilla).
+Gattungswörter (`haus`, `wohnung`, …) zählen in `pdfText.ts` nicht mehr als
+Einzelbegriff (Fehlzuordnung „Haus Berlin Falkensee" über „HAUScode").
+
+---
+
 ## 13c. Modul „Kalender" (Tab 📅) — nachgetragen 18.08.2026
 
 > **Warum das hier fehlte:** Der Kalender wurde am 27.07.2026 neu gebaut

@@ -38,11 +38,11 @@ search_documents({
 ### Namensauflösung
 
 `objekt` ist ein **Name, keine Kennung**. Das Werkzeug sucht denselben Namen
-gleichzeitig in `service_providers`, `houses` und `document_vendors` und
-filtert danach die passende Spalte in `documents` — `provider_id`,
-`house_id` oder `vendor_id`.
+gleichzeitig in `service_providers`, `houses`, `document_vendors` und — seit
+01.10.2026 — `booking_portals` und filtert danach die passende Spalte in
+`documents` — `provider_id`, `house_id`, `vendor_id` oder `portal_id`.
 
-Die drei Abfragen laufen in einem `Promise.all`, nicht nacheinander.
+Die vier Abfragen laufen in einem `Promise.all`, nicht nacheinander.
 
 **Bei mehreren Treffern wird nicht geraten.** Das Werkzeug liefert
 `mehrdeutig: true` samt Trefferliste, und Max legt sie zur Auswahl vor. Das
@@ -53,7 +53,7 @@ dieselbe wie bei mehrdeutigen Gastnamen.
 
 `id`, `dateiname`, `typ`, `gehoert_zu`, `ordner`, `web_url`, `abgelegt_am`.
 
-`gehoert_zu` fällt in dieser Reihenfolge zurück: Dienstleister, Vendor, Haus.
+`gehoert_zu` fällt in dieser Reihenfolge zurück: Dienstleister, Vendor, Buchungsportal, Haus.
 Ein Dokument trägt höchstens einen Bezug, die Reihenfolge ist also nur
 Absicherung.
 

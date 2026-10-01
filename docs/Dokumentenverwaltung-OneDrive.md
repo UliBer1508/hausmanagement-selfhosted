@@ -136,13 +136,34 @@ bestehende Dokumente ohne Bezeichnung zurück.
 `name` (unique, ohne Rücksicht auf Groß- und Kleinschreibung), `note`,
 `is_active`. Rechnungsabsender ohne eigenes Systemobjekt.
 
+### booking_portals (NEU 01.10.2026, SQL 61)
+
+Buchungsportale als Zuordnungsobjekt: `key` (= `bookings.platform`), `name`,
+`dokument_begriffe` (Firmenname/Domain, woran das Portal auf seinen Dokumenten
+erkennbar ist), `is_active`, `sort_order`. Fest hinterlegt: Belvilla, Airbnb,
+Booking.com, VRBO. Bewusst **nicht** in `document_vendors`: Vendoren sind
+Rechnungsabsender (Gemeinde, Energieversorger), ein Portal ist der Vertriebsweg
+der Buchungen.
+
+**Anlass:** Die Belvilla-Buchungsübersicht `1FYTQE8D` ließ sich Belvilla nicht
+zuordnen, und „Dokument lesen" schlug „Haus Berlin Falkensee" vor — über das
+Wort „haus" in HAUScode/HAUStiere.
+
+**Was „Dokument lesen" seitdem zusätzlich tut** (`DocumentsTab.tsx`, `pdfText.ts`):
+1. Portal erkennen wie einen Absender (Platz 1 der Zuordnung).
+2. Buchung über `bookings.external_booking_id` im Text finden
+   (`findeBuchungsnummer`, nur bei genau einem Treffer) — daraus auch das Haus.
+3. Ohne Buchungsnummer: Haus über das Portal ableiten, wenn nur **ein** Haus
+   Buchungen auf diesem Portal hat (Wald Chalet = nur Belvilla).
+4. Gattungswörter (`haus`, `wohnung`, `chalet` …) zählen nicht als Einzelbegriff.
+
 ### documents
 
 | Spalte | Bedeutung |
 |---|---|
 | `file_name`, `mime_type`, `size_bytes` | aus Graph nach dem Upload |
 | `document_type_id` | → `document_types` |
-| `house_id`, `booking_id`, `service_task_id`, `linen_order_id`, `provider_id`, `vendor_id` | je nullable, **höchstens einer gesetzt** |
+| `house_id`, `booking_id`, `service_task_id`, `linen_order_id`, `provider_id`, `vendor_id`, `portal_id` | je nullable. Gesetzt ist die Spalte der 1. Zuordnung; bei Buchung/Reinigung/Wäsche zusätzlich `house_id` (Ablageort am Haus) |
 | `onedrive_item_id` | UNIQUE — zugleich der Duplikatschutz |
 | `onedrive_drive_id`, `onedrive_web_url`, `onedrive_path` | Verweis und Anzeige |
 
@@ -150,7 +171,7 @@ bestehende Dokumente ohne Bezeichnung zurück.
 
 | Spalte | Bedeutung |
 |---|---|
-| `entity_type` | `haus` \| `provider` \| `vendor` \| `buchung` \| `reinigung` \| `waesche` |
+| `entity_type` | `haus` \| `provider` \| `vendor` \| `portal` \| `buchung` \| `reinigung` \| `waesche` |
 | `entity_id` | Kennung des Objekts |
 | `document_type_id` | → `document_types` |
 | `onedrive_item_id`, `onedrive_path` | der gewählte Ordner |
