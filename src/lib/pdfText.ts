@@ -792,6 +792,11 @@ export function trefferBegruendung(t: Treffer): string {
  *
  * Treffen MEHRERE Buchungen, wird keine geliefert — dann entscheidet der
  * Mensch, statt dass geraten wird.
+ *
+ * LEERZEICHEN ZAEHLEN NICHT (01.10.2026): Uli tippt Nummern beim Anlegen
+ * gern gegliedert ein — in der DB stand „1F YT QE 8D", im PDF „1FYTQE8D".
+ * Verglichen wird deshalb ohne Leerzeichen (buchungsnummerSchluessel), und
+ * im Text darf zwischen den Zeichen Leerraum stehen.
  */
 export function findeBuchungsnummer<B extends { external_booking_id: string | null }>(
   text: string,
@@ -799,11 +804,17 @@ export function findeBuchungsnummer<B extends { external_booking_id: string | nu
 ): B | null {
   const lower = text.toLowerCase();
   const treffer = buchungen.filter((b) => {
-    const nr = (b.external_booking_id ?? '').trim().toLowerCase();
+    const nr = buchungsnummerSchluessel(b.external_booking_id);
     if (nr.length < 5) return false;
-    return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(nr)}(?![\\p{L}\\p{N}])`, 'u').test(lower);
+    const muster = [...nr].map(escapeRe).join('\\s*');
+    return new RegExp(`(?<![\\p{L}\\p{N}])${muster}(?![\\p{L}\\p{N}])`, 'u').test(lower);
   });
   return treffer.length === 1 ? treffer[0] : null;
+}
+
+/** Vergleichsschluessel einer Buchungsnummer: klein, ohne jeden Leerraum. */
+export function buchungsnummerSchluessel(nr?: string | null): string {
+  return (nr ?? '').toLowerCase().replace(/\s+/g, '');
 }
 
 /**
