@@ -520,7 +520,7 @@ async function executeSearchCleaningTasks(params: any) {
  * unter „Wald Chalet" — obwohl sie dort als 2. Zuordnung haengt.
  */
 async function dokumentIdsFuerObjekt(
-  spalte: 'provider_id' | 'house_id' | 'vendor_id' | 'booking_id' | 'service_task_id' | 'linen_order_id',
+  spalte: 'provider_id' | 'house_id' | 'vendor_id' | 'portal_id' | 'booking_id' | 'service_task_id' | 'linen_order_id',
   entityType: string,
   objektId: string,
 ): Promise<string[]> {
@@ -674,6 +674,7 @@ async function weitereBezuege(documentIds: string[]): Promise<Map<string, string
     laden('haus', 'houses', 'id, name', (r) => r.name),
     laden('provider', 'service_providers', 'id, name', (r) => r.name),
     laden('vendor', 'document_vendors', 'id, name', (r) => r.name),
+    laden('portal', 'booking_portals', 'id, name', (r) => r.name),
     laden('buchung', 'bookings', 'id, check_in, guests!bookings_guest_id_fkey(name)',
       (r) => `Buchung ${datum(r.check_in)} · ${r.guests?.name ?? 'ohne Gast'}`),
     laden('reinigung', 'service_tasks', 'id, scheduled_date, houses:house_id(name)',
@@ -693,7 +694,8 @@ async function weitereBezuege(documentIds: string[]): Promise<Map<string, string
 /**
  * Sucht Dokumente. Uli nennt Namen, nicht Kennungen — deshalb loest das
  * Werkzeug `objekt` selbst auf: es sucht denselben Namen in
- * service_providers, houses UND document_vendors und filtert die passende
+ * service_providers, houses, document_vendors UND booking_portals (seit
+ * 01.10.2026, SQL 61) und filtert die passende
  * Spalte. Bei Treffern in mehreren Tabellen meldet es Mehrdeutigkeit,
  * statt zu raten (max_ablaeufe: "bei Mehrdeutigkeit IMMER nachfragen").
  */
@@ -708,7 +710,8 @@ async function executeSearchDocuments(params: any) {
       document_types:document_type_id (name),
       houses:house_id (name),
       service_providers:provider_id (name),
-      document_vendors:vendor_id (name)
+      document_vendors:vendor_id (name),
+      booking_portals:portal_id (name)
     `)
     .order('created_at', { ascending: false });
 
@@ -717,22 +720,25 @@ async function executeSearchDocuments(params: any) {
   if (objekt) {
     const suche = `%${objekt}%`;
 
-    const [prov, haus, vend] = await Promise.all([
+    const [prov, haus, vend, port] = await Promise.all([
       supabase.from('service_providers').select('id, name').ilike('name', suche),
       supabase.from('houses').select('id, name').ilike('name', suche),
       supabase.from('document_vendors').select('id, name').ilike('name', suche),
+      // Buchungsportale (SQL 61) — „Belvilla", „Airbnb"
+      supabase.from('booking_portals').select('id, name').ilike('name', suche),
     ]);
 
     const treffer: Array<{ art: string; id: string; name: string }> = [
       ...(prov.data || []).map(r => ({ art: 'Dienstleister', id: r.id, name: r.name })),
       ...(haus.data || []).map(r => ({ art: 'Haus', id: r.id, name: r.name })),
       ...(vend.data || []).map(r => ({ art: 'Vendor', id: r.id, name: r.name })),
+      ...(port.data || []).map(r => ({ art: 'Buchungsportal', id: r.id, name: r.name })),
     ];
 
     if (treffer.length === 0) {
       return {
         success: false,
-        error: `Kein Objekt mit dem Namen „${objekt}" gefunden. Es gibt Dienstleister, Häuser und Vendoren (Rechnungsabsender wie Gemeinde oder Energieversorger).`,
+        error: `Kein Objekt mit dem Namen „${objekt}" gefunden. Es gibt Dienstleister, Häuser, Buchungsportale (Belvilla, Airbnb, Booking.com, VRBO) und Vendoren (Rechnungsabsender wie Gemeinde oder Energieversorger).`,
       };
     }
     if (treffer.length > 1) {
@@ -747,9 +753,11 @@ async function executeSearchDocuments(params: any) {
     const t = treffer[0];
     const spalte = t.art === 'Dienstleister' ? 'provider_id'
       : t.art === 'Haus' ? 'house_id'
+      : t.art === 'Buchungsportal' ? 'portal_id'
       : 'vendor_id';
     const entityType = t.art === 'Dienstleister' ? 'provider'
       : t.art === 'Haus' ? 'haus'
+      : t.art === 'Buchungsportal' ? 'portal'
       : 'vendor';
 
     // Ueber BEIDE Wege suchen: Hauptbezug UND Zusatzzuordnung.
@@ -803,6 +811,7 @@ async function executeSearchDocuments(params: any) {
     typ: d.document_types?.name ?? null,
     gehoert_zu: d.service_providers?.name
       ?? d.document_vendors?.name
+      ?? d.booking_portals?.name
       ?? d.houses?.name
       ?? null,
     weitere_bezuege: weitere.get(d.id) ?? [],
@@ -1940,11 +1949,11 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "search_documents",
-        description: "Sucht abgelegte DOKUMENTE (Rechnungen, Nächtigungsabgaben, Hausunterlagen, Verträge …). Sie liegen in OneDrive; du lieferst Namen, Ablageort und einen Knopf zum Öffnen. NUTZE ES bei Fragen wie 'Hast du die Boris-Rechnung von August?', 'Welche Dokumente gibt es zum Venediger Chalet?', 'Gibt es schon eine Kurtaxenrechnung?'. Der Parameter `objekt` ist ein NAME, keine UUID — schreibe einfach 'Boris', 'Venediger' oder 'Gemeinde Neukirchen' hinein; das Tool sucht selbst in Dienstleistern, Häusern und Vendoren. Passt der Name auf MEHRERE Objekte, meldet das Tool das mit einer Trefferliste: lege sie Uli zur Auswahl vor, statt zu raten. Ein Dokument kann MEHREREN Objekten zugeordnet sein: Boris' Sammelrechnung hängt am Dienstleister und zusätzlich an Häusern und einzelnen Reinigungen. Das Tool findet sie unter JEDEM dieser Objekte, und `weitere_bezuege` nennt die übrigen — erwähne sie, wenn sie zur Frage passen. Reine Leseoperation — es wird nichts geändert und keine Datei geöffnet. Den INHALT eines Dokuments kannst du nicht lesen; wenn Uli danach fragt, sage das ehrlich und biete den Knopf zum Öffnen an.",
+        description: "Sucht abgelegte DOKUMENTE (Rechnungen, Nächtigungsabgaben, Hausunterlagen, Verträge …). Sie liegen in OneDrive; du lieferst Namen, Ablageort und einen Knopf zum Öffnen. NUTZE ES bei Fragen wie 'Hast du die Boris-Rechnung von August?', 'Welche Dokumente gibt es zum Venediger Chalet?', 'Gibt es schon eine Kurtaxenrechnung?'. Der Parameter `objekt` ist ein NAME, keine UUID — schreibe einfach 'Boris', 'Venediger' oder 'Gemeinde Neukirchen' hinein; das Tool sucht selbst in Dienstleistern, Häusern, Buchungsportalen (Belvilla, Airbnb, Booking.com, VRBO) und Vendoren. Passt der Name auf MEHRERE Objekte, meldet das Tool das mit einer Trefferliste: lege sie Uli zur Auswahl vor, statt zu raten. Ein Dokument kann MEHREREN Objekten zugeordnet sein: Boris' Sammelrechnung hängt am Dienstleister und zusätzlich an Häusern und einzelnen Reinigungen. Das Tool findet sie unter JEDEM dieser Objekte, und `weitere_bezuege` nennt die übrigen — erwähne sie, wenn sie zur Frage passen. Reine Leseoperation — es wird nichts geändert und keine Datei geöffnet. Den INHALT eines Dokuments kannst du nicht lesen; wenn Uli danach fragt, sage das ehrlich und biete den Knopf zum Öffnen an.",
         parameters: {
           type: "object",
           properties: {
-            objekt: { type: "string", description: "Name des Objekts: Dienstleister (Boris, Amela, Teuni), Haus (Venediger, Wald) oder Vendor (Gemeinde Neukirchen, Salzburg AG)." },
+            objekt: { type: "string", description: "Name des Objekts: Dienstleister (Boris, Amela, Teuni), Haus (Venediger, Wald), Buchungsportal (Belvilla, Airbnb, Booking.com) oder Vendor (Gemeinde Neukirchen, Salzburg AG)." },
             typ: { type: "string", description: "Dokumenttyp, z. B. 'Rechnung' oder 'Nächtigungsabgabe'. Teiltreffer genügt." },
             von: { type: "string", description: "Ablagedatum ab, YYYY-MM-DD" },
             bis: { type: "string", description: "Ablagedatum bis, YYYY-MM-DD" },
