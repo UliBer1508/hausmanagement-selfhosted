@@ -851,6 +851,18 @@ Abgleich gegen `bookings.external_booking_id`. Liste: Status-Chip (Klick →
 Standard-Zahlart je Absender: `zahlart_standard` an `document_vendors`,
 `booking_portals`, `service_providers`.
 
+**Buchung aus Unterlage anlegen (NEU 01.10.2026, SQL 63):** `lib/buchungsUnterlage.ts`
+liest Belvilla-Buchungsübersichten (Gast, Zeitraum, Personen, Haustiere, Auszahlung,
+Miete/Zusatzkosten; Tests `src/test/buchungsUnterlage.test.ts`). Ergebnis steht in
+`documents.ausgelesen` (jsonb). Status „nicht im System" → `StatusDialog` →
+„Buchung anlegen" öffnet **`CreateBookingDialog` mit `prefillData`** (gleicher Weg
+wie Buchungsanfragen; `platform` und `external_booking_id` neu in
+`BookingPrefillData` — **Doppelgänger:** die Schnittstelle steht in
+`CreateBookingDialog.tsx` UND `CreateBookingForm.tsx`, beide gleich halten).
+Gespeichert wird nur über das Formular (`useBookings`). Ältere Unterlagen ohne
+`ausgelesen`: PDF vom PC wählen, wird lokal gelesen. Ohne Nummerntreffer gleicht
+`buchungenZuordnen` über Gastname + Anreisetag ab → „vermutlich erfasst".
+
 ---
 
 ## 13c. Modul „Kalender" (Tab 📅) — nachgetragen 18.08.2026

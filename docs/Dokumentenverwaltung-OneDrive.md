@@ -187,9 +187,18 @@ nach (`booking-summary-1UWK1MG8.pdf`).
 Dokumente tragen das Portal zusätzlich als Zuordnung, ihre Ablageorte gelten
 auch für das Portal.
 
-**Noch offen (Schritt B):** Knopf „Buchung anlegen" aus der Buchungsunterlage
-(Gast, Zeitraum, Personen, Betrag aus dem PDF) und Abgleich über Gastname +
-Anreise, wenn keine Nummer passt.
+**Buchung anlegen (01.10.2026, SQL 63):** „Dokument lesen" liest Belvilla-
+Buchungsübersichten aus (`lib/buchungsUnterlage.ts`) und speichert das Ergebnis in
+`documents.ausgelesen`. Fehlt die Buchung, öffnet „Buchung anlegen" im Status-
+Fenster das normale Buchungsformular vorausgefüllt (Haus, Portal, Buchungsnummer,
+Gast, An-/Abreise, Personen, Auszahlung als `booking_amount`, Notiz mit Miete/
+Zusatzkosten/Haustieren). Gespeichert wird erst nach Prüfung, über `useBookings` —
+Gastanlage, Reinigung und Wäsche laufen wie bei jeder Handeingabe. Danach zeigt
+die Liste „erfasst", weil die Buchungsnummer übereinstimmt. Für Unterlagen von
+vor dem 01.10.2026 wählt man dasselbe PDF vom PC; gelesen wird im Browser, die
+Datei wird nicht aus OneDrive geladen. Passt keine Nummer, gleicht die Liste über
+Gastname + Anreisetag ab („vermutlich erfasst"). Bisher nur Belvilla — weitere
+Portale erst mit echtem Beispiel-PDF.
 
 ### documents
 
