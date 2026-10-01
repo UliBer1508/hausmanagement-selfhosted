@@ -25,13 +25,18 @@ import { supabase } from '@/integrations/supabase/client';
  * die Leseabfrage holte die Spalte nicht. Beides ist jetzt ergaenzt.
  * Der Inhalt stammt ausschliesslich vom Menschen; keine Automatik
  * schreibt hier hinein.
+ *
+ * BUCHUNGSPORTAL (seit 01.10.2026, SQL 61): eigene Zuordnungsart 'portal'
+ * mit Tabelle booking_portals und Spalte documents.portal_id — gebaut wie
+ * Vendor. Anlass: Eine Belvilla-Buchungsuebersicht liess sich Belvilla
+ * nicht zuordnen. booking_portals.key = bookings.platform.
  */
 
 export type LinkTarget =
-  | 'haus' | 'buchung' | 'reinigung' | 'waesche' | 'provider' | 'vendor' | 'keine';
+  | 'haus' | 'buchung' | 'reinigung' | 'waesche' | 'provider' | 'vendor' | 'portal' | 'keine';
 
 /** Nur diese Arten haben einen eigenen Ablageort — die uebrigen nicht. */
-export const LOCATION_TARGETS: LinkTarget[] = ['haus', 'provider', 'vendor'];
+export const LOCATION_TARGETS: LinkTarget[] = ['haus', 'provider', 'vendor', 'portal'];
 
 export interface DocumentType {
   id: string;
@@ -47,6 +52,37 @@ export interface DocumentVendor {
   name: string;
   note: string | null;
   is_active: boolean;
+}
+
+/** Buchungsportal (SQL 61). key = Wert in bookings.platform. */
+export interface BookingPortal {
+  id: string;
+  key: string;
+  name: string;
+  dokument_begriffe: string[];
+  is_active: boolean;
+}
+
+/**
+ * Buchungsportale. Fest hinterlegt (SQL 61), nicht in der Oberflaeche
+ * anlegbar — die Liste muss zu bookings.platform passen.
+ *
+ * Die Tabelle steht noch nicht in den generierten Supabase-Typen, daher der
+ * untypisierte Zugriff (Muster wie useBackupRuns).
+ */
+export function useBookingPortals() {
+  return useQuery({
+    queryKey: ['booking-portals'],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tabelle fehlt in types.ts
+      const { data, error } = await (supabase as any)
+        .from('booking_portals')
+        .select('id, key, name, dokument_begriffe, is_active')
+        .order('sort_order');
+      if (error) throw error;
+      return (data ?? []) as BookingPortal[];
+    },
+  });
 }
 
 export interface OneDriveFolder { id: string; name: string; childCount: number; }
@@ -291,12 +327,14 @@ export interface DocumentRow {
   linen_order_id: string | null;
   provider_id: string | null;
   vendor_id: string | null;
+  portal_id: string | null;
   /** Freier Vermerk des Menschen. Leer = keine Notiz. */
   note: string | null;
   document_types: { name: string; color: string } | null;
   houses: { name: string } | null;
   service_providers: { name: string } | null;
   document_vendors: { name: string } | null;
+  booking_portals: { name: string } | null;
   /** 2. und 3. Zuordnung, nachtraeglich aufgeloest (siehe useDocuments). */
   zusatz?: Zuordnung[];
 }
@@ -305,6 +343,7 @@ export interface DocumentRow {
 export function bezugLabel(d: DocumentRow): string {
   return d.service_providers?.name
     ?? d.document_vendors?.name
+    ?? d.booking_portals?.name
     ?? d.houses?.name
     ?? '—';
 }
@@ -319,11 +358,12 @@ export function useDocuments() {
           id, file_name, size_bytes, mime_type,
           onedrive_item_id, onedrive_web_url, onedrive_path, created_at,
           document_type_id, house_id, booking_id, service_task_id,
-          linen_order_id, provider_id, vendor_id, note,
+          linen_order_id, provider_id, vendor_id, portal_id, note,
           document_types:document_type_id (name, color),
           houses:house_id (name),
           service_providers:provider_id (name),
-          document_vendors:vendor_id (name)
+          document_vendors:vendor_id (name),
+          booking_portals:portal_id (name)
         `)
         .order('created_at', { ascending: false })
         .limit(2000);
@@ -393,6 +433,7 @@ async function objektNamen(links: Array<{ entity_type: string; entity_id: string
     laden('haus', 'houses', 'id, name', (r) => r.name),
     laden('provider', 'service_providers', 'id, name', (r) => r.name),
     laden('vendor', 'document_vendors', 'id, name', (r) => r.name),
+    laden('portal', 'booking_portals', 'id, name', (r) => r.name),
     laden('buchung', 'bookings',
       'id, check_in, houses:house_id(name), guests!bookings_guest_id_fkey(name)',
       (r) => `${datum(r.check_in)} · ${r.guests?.name ?? 'ohne Gast'}`),
@@ -459,6 +500,7 @@ export interface DocumentLinks {
   linenOrderId?: string | null;
   providerId?: string | null;
   vendorId?: string | null;
+  portalId?: string | null;
   note?: string;
 }
 
@@ -476,6 +518,7 @@ const linkColumns = (l: DocumentLinks) => ({
   linen_order_id: l.linenOrderId ?? null,
   provider_id: l.providerId ?? null,
   vendor_id: l.vendorId ?? null,
+  portal_id: l.portalId ?? null,
   note: l.note?.trim() || null,
 });
 
@@ -718,6 +761,20 @@ export function useEntities(target: LinkTarget, search: string) {
         return (data ?? []).map((v: any) => ({
           id: v.id, label: v.name, houseId: null,
           locationType: 'vendor' as LinkTarget, locationId: v.id,
+        }));
+      }
+
+      if (target === 'portal') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tabelle fehlt in types.ts
+        const { data, error } = await (supabase as any)
+          .from('booking_portals')
+          .select('id, name')
+          .eq('is_active', true)
+          .order('sort_order');
+        if (error) throw error;
+        return ((data ?? []) as Array<{ id: string; name: string }>).map((p) => ({
+          id: p.id, label: p.name, houseId: null,
+          locationType: 'portal' as LinkTarget, locationId: p.id,
         }));
       }
 
