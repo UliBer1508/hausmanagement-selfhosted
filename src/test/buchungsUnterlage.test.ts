@@ -37,3 +37,19 @@ describe('leseBuchungsUnterlage (Belvilla)', () => {
     expect(notizAusUnterlage({ ...b, haustiere: 1 })).toContain('Haustiere: 1');
   });
 });
+
+import { findeBuchungsnummer, buchungsnummerSchluessel } from '@/lib/pdfText';
+
+describe('findeBuchungsnummer', () => {
+  it('ignoriert Leerzeichen in der gespeicherten Nummer (Fall 01.10.2026)', () => {
+    const b = { id: 'x', external_booking_id: '1F YT QE 8D' };
+    expect(findeBuchungsnummer(BELVILLA, [b])).toBe(b);
+    expect(buchungsnummerSchluessel(' 1F YT QE 8D ')).toBe('1fytqe8d');
+  });
+  it('trifft keine Teilnummer und liefert bei Mehrdeutigkeit nichts', () => {
+    expect(findeBuchungsnummer(BELVILLA, [{ id: 'y', external_booking_id: 'FYTQE' }])).toBeNull();
+    expect(findeBuchungsnummer(BELVILLA, [
+      { id: 'a', external_booking_id: '1FYTQE8D' }, { id: 'b', external_booking_id: '1fytqe8d' },
+    ])).toBeNull();
+  });
+});
