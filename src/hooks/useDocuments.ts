@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Pruefung, ProviderRechnung, BuchungInfo } from '@/lib/documentStatus';
+import type { GeleseneBuchung } from '@/lib/buchungsUnterlage';
 
 /**
  * useDocuments.ts — Zugriffe fuer die Dokumentenverwaltung.
@@ -357,6 +358,8 @@ export interface DocumentRow {
   cleaning_invoice_id: string | null;
   laundry_invoices: (ProviderRechnung & { rechnungsnummer: string; bruttobetrag: number }) | null;
   cleaning_invoices: (ProviderRechnung & { rechnungsnummer: string; bruttobetrag: number }) | null;
+  /** SQL 63: beim Ablegen aus dem PDF gelesene Buchungsdaten (Vorbelegung). */
+  ausgelesen: GeleseneBuchung | null;
   /** Gefundene Buchung — nachtraeglich ermittelt (siehe buchungenZuordnen). */
   buchung_info?: BuchungInfo | null;
   document_types: { name: string; color: string; pruefung: Pruefung } | null;
@@ -388,7 +391,7 @@ export function useDocuments() {
           onedrive_item_id, onedrive_web_url, onedrive_path, created_at,
           document_type_id, house_id, booking_id, service_task_id,
           linen_order_id, provider_id, vendor_id, portal_id, note,
-          referenz, zahlart, betrag, faellig_am, bezahlt_am,
+          referenz, zahlart, betrag, faellig_am, bezahlt_am, ausgelesen,
           laundry_invoice_id, cleaning_invoice_id,
           laundry_invoices:laundry_invoice_id (status, bezahlt_am, faelligkeitsdatum, rechnungsnummer, bruttobetrag),
           cleaning_invoices:cleaning_invoice_id (status, bezahlt_am, faelligkeitsdatum, rechnungsnummer, bruttobetrag),
@@ -443,7 +446,9 @@ export function useDocuments() {
  *
  * Reihenfolge: (1) direkt verknuepft (booking_id), (2) als 2./3. Zuordnung,
  * (3) ueber die Referenz = bookings.external_booking_id (Gross-/Klein-
- * schreibung egal — Uli tippt die Nummer beim Anlegen der Buchung ein).
+ * schreibung egal — Uli tippt die Nummer beim Anlegen der Buchung ein),
+ * (4) Rueckfall (SQL 63): Gastname + Anreisedatum aus documents.ausgelesen.
+ * Ergebnis dann nur „vermutlich erfasst" — Namen koennen sich gleichen.
  *
  * Nur Dokumente, deren Typ die Pruefung 'buchung' hat, bekommen ein
  * Ergebnis. Fehler sind Beiwerk: Die Liste bleibt nutzbar, der Status
@@ -459,21 +464,35 @@ async function buchungenZuordnen(zeilen: DocumentRow[]): Promise<DocumentRow[]> 
     for (const zu of z.zusatz ?? []) if (zu.art === 'buchung') ids.add(zu.id);
   }
   const mitReferenz = relevant.some((z) => z.referenz?.trim());
+  // Anreisetage der ausgelesenen Unterlagen — fuer den Namensabgleich.
+  const anreisen = [...new Set(relevant.map((z) => z.ausgelesen?.anreise).filter(Boolean) as string[])];
 
   const felder = 'id, check_in, external_booking_id, guests!bookings_guest_id_fkey(name)';
-  const [perId, perNummer] = await Promise.all([
+  const [perId, perNummer, perAnreise] = await Promise.all([
     ids.size > 0
       ? supabase.from('bookings').select(felder).in('id', [...ids])
       : Promise.resolve({ data: [], error: null }),
     mitReferenz
       ? supabase.from('bookings').select(felder).not('external_booking_id', 'is', null).limit(5000)
       : Promise.resolve({ data: [], error: null }),
+    // check_in ist ein Zeitstempel: je Anreisetag den ganzen Tag abdecken.
+    anreisen.length > 0
+      ? supabase.from('bookings').select(felder)
+          .gte('check_in', [...anreisen].sort()[0])
+          .lte('check_in', `${[...anreisen].sort().slice(-1)[0]}T23:59:59`)
+          .neq('status', 'cancelled')
+          .limit(5000)
+      : Promise.resolve({ data: [], error: null }),
   ]);
+  if (perAnreise.error) console.error('[Dokumente] Buchungen (Anreise) nicht gelesen:', perAnreise.error.message);
   if (perId.error) console.error('[Dokumente] Buchungen (id) nicht gelesen:', perId.error.message);
   if (perNummer.error) console.error('[Dokumente] Buchungen (Nummer) nicht gelesen:', perNummer.error.message);
 
   type B = { id: string; check_in: string; external_booking_id: string | null; guests: { name: string } | null };
-  const info = (b: B): BuchungInfo => ({ id: b.id, check_in: b.check_in, gast: b.guests?.name ?? null });
+  const info = (b: B, ueber: BuchungInfo['ueber']): BuchungInfo =>
+    ({ id: b.id, check_in: b.check_in, gast: b.guests?.name ?? null, ueber });
+  const norm = (s?: string | null) => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const kandidatenAnreise = (perAnreise.data ?? []) as unknown as B[];
   const nachId = new Map(((perId.data ?? []) as unknown as B[]).map((b) => [b.id, b]));
   const nachNummer = new Map<string, B>();
   for (const b of (perNummer.data ?? []) as unknown as B[]) {
@@ -483,10 +502,21 @@ async function buchungenZuordnen(zeilen: DocumentRow[]): Promise<DocumentRow[]> 
 
   return zeilen.map((z) => {
     if (z.document_types?.pruefung !== 'buchung') return z;
-    const direkt = (z.booking_id && nachId.get(z.booking_id))
-      || (z.zusatz ?? []).filter((zu) => zu.art === 'buchung').map((zu) => nachId.get(zu.id)).find(Boolean)
-      || (z.referenz ? nachNummer.get(z.referenz.trim().toLowerCase()) : undefined);
-    return { ...z, buchung_info: direkt ? info(direkt) : null };
+    const verknuepft = (z.booking_id && nachId.get(z.booking_id))
+      || (z.zusatz ?? []).filter((zu) => zu.art === 'buchung').map((zu) => nachId.get(zu.id)).find(Boolean);
+    if (verknuepft) return { ...z, buchung_info: info(verknuepft, 'verknuepft') };
+
+    const perNr = z.referenz ? nachNummer.get(z.referenz.trim().toLowerCase()) : undefined;
+    if (perNr) return { ...z, buchung_info: info(perNr, 'nummer') };
+
+    // Rueckfall: gleicher Gast am gleichen Anreisetag — nur bei GENAU einem Treffer.
+    const a = z.ausgelesen;
+    if (a?.gast && a.anreise) {
+      const treffer = kandidatenAnreise.filter((b) =>
+        b.check_in.slice(0, 10) === a.anreise && norm(b.guests?.name) === norm(a.gast));
+      if (treffer.length === 1) return { ...z, buchung_info: info(treffer[0], 'name') };
+    }
+    return { ...z, buchung_info: null };
   });
 }
 
@@ -590,6 +620,8 @@ export interface DocumentLinks {
   note?: string;
   /** SQL 62 */
   referenz?: string;
+  /** SQL 63 */
+  ausgelesen?: GeleseneBuchung | null;
   zahlart?: Zahlart | null;
   betrag?: number | null;
   faelligAm?: string | null;
@@ -615,6 +647,7 @@ const linkColumns = (l: DocumentLinks) => ({
   zahlart: l.zahlart ?? null,
   betrag: l.betrag ?? null,
   faellig_am: l.faelligAm || null,
+  ausgelesen: l.ausgelesen ?? null,
 });
 
 /**
@@ -690,6 +723,30 @@ export function useSetDocumentPaid() {
       qc.invalidateQueries({ queryKey: ['laundry-invoices'] });
       qc.invalidateQueries({ queryKey: ['cleaning-invoices'] });
     },
+  });
+}
+
+/**
+ * Speichert nachtraeglich gelesene Buchungsdaten (SQL 63) — fuer Unterlagen,
+ * die vor dem 01.10.2026 abgelegt wurden und noch kein `ausgelesen` haben.
+ * Die Referenz wird nur gesetzt, wenn noch keine eingetragen ist.
+ */
+export function useSaveAusgelesen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ doc, ausgelesen }: { doc: DocumentRow; ausgelesen: GeleseneBuchung }) => {
+      const { data, error } = await supabase
+        .from('documents')
+        .update({
+          ausgelesen,
+          referenz: doc.referenz?.trim() ? doc.referenz : ausgelesen.nummer,
+        } as never)
+        .eq('id', doc.id)
+        .select('id');
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('Gelesene Daten wurden nicht gespeichert (keine Zeile betroffen).');
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
   });
 }
 
