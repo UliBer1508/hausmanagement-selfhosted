@@ -9,7 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import {
   onedrive, useDocumentTypes, useSaveDocumentType, useVendors, useSaveVendor,
-  useDeleteVendor, useLocations, useSaveLocation, useDeleteLocation,
+  useDeleteVendor, useLocations, useSaveLocation, useDeleteLocation, useBookingPortals,
   INVALID_FOLDER_CHARS,
   type DocumentType, type DocumentVendor, type LinkTarget, type OneDriveFolder,
 } from '@/hooks/useDocuments';
@@ -24,7 +24,7 @@ const COLORS: Record<string, string> = {
 };
 
 const ART_LABEL: Record<string, string> = {
-  haus: 'Haus', provider: 'Dienstleister', vendor: 'Vendor',
+  haus: 'Haus', provider: 'Dienstleister', vendor: 'Vendor', portal: 'Buchungsportal',
   buchung: 'Buchung', reinigung: 'Reinigung', waesche: 'Wäschelieferung',
 };
 
@@ -194,10 +194,13 @@ function TypenBereich() {
  * Angelegt und geloescht werden hier NUR Vendoren. Haeuser gehoeren in den
  * Bereich „Haeuser", Dienstleister in „Provider" — sie hier bearbeitbar zu
  * machen haette zwei Pflegestellen fuer dieselben Stammdaten ergeben.
+ * Buchungsportale (SQL 61) sind fest hinterlegt: Ihr Schluessel muss zu
+ * bookings.platform passen, deshalb nur zur Ansicht.
  */
 function ObjekteBereich() {
   const { toast } = useToast();
   const { data: vendors = [] } = useVendors(true);
+  const { data: portale = [] } = useBookingPortals();
   const save = useSaveVendor();
   const del = useDeleteVendor();
   const [edit, setEdit] = useState<Partial<DocumentVendor> | null>(null);
@@ -278,8 +281,8 @@ function ObjekteBereich() {
     <div className="space-y-1">
       <p className="mb-3 text-sm text-muted-foreground">
         Alles, wozu ein Dokument gehören kann. Häuser und Dienstleister werden an ihrer
-        eigenen Stelle gepflegt. Vendoren — Gemeinde, Energieversorger, Handwerker —
-        legen Sie hier an.
+        eigenen Stelle gepflegt, Buchungsportale sind fest hinterlegt. Vendoren —
+        Gemeinde, Energieversorger, Handwerker — legen Sie hier an.
       </p>
 
       <Gruppe titel="Dienstleister" farbe="bg-emerald-200"
@@ -287,6 +290,9 @@ function ObjekteBereich() {
 
       <Gruppe titel="Häuser" farbe="bg-amber-200"
         eintraege={(houses as any[]).map((h) => ({ id: h.id, name: h.name }))} />
+
+      <Gruppe titel="Buchungsportale" farbe="bg-sky-200"
+        eintraege={portale.map((p) => ({ id: p.id, name: p.name, aktiv: p.is_active }))} />
 
       <Gruppe titel="Vendoren" farbe="bg-slate-300"
         eintraege={vendors.map((v) => ({ id: v.id, name: v.name, note: v.note, aktiv: v.is_active, eigen: true }))} />
@@ -331,6 +337,7 @@ function AblageBereich() {
   const { toast } = useToast();
   const { data: types = [] } = useDocumentTypes(true);
   const { data: vendors = [] } = useVendors(true);
+  const { data: portale = [] } = useBookingPortals();
   const { data: locations = [], isLoading } = useLocations();
   const saveLoc = useSaveLocation();
   const delLoc = useDeleteLocation();
@@ -360,7 +367,8 @@ function AblageBereich() {
     ...(houses as any[]).map((h) => ({ art: 'haus' as LinkTarget, id: h.id, name: h.name })),
     ...(providers as any[]).map((p) => ({ art: 'provider' as LinkTarget, id: p.id, name: p.name })),
     ...vendors.map((v) => ({ art: 'vendor' as LinkTarget, id: v.id, name: v.name })),
-  ], [houses, providers, vendors]);
+    ...portale.map((p) => ({ art: 'portal' as LinkTarget, id: p.id, name: p.name })),
+  ], [houses, providers, vendors, portale]);
 
   const nameOf = (art: string, id: string) =>
     objekte.find((o) => o.art === art && o.id === id)?.name ?? 'unbekannt';
@@ -461,7 +469,7 @@ function NeuerAblageort({
           <select value={objKey} onChange={(e) => setObjKey(e.target.value)}
             className="h-9 w-full rounded-md border bg-background px-2.5 text-sm">
             <option value="">Objekt wählen…</option>
-            {(['provider', 'haus', 'vendor'] as LinkTarget[]).map((art) => {
+            {(['provider', 'haus', 'portal', 'vendor'] as LinkTarget[]).map((art) => {
               const gruppe = objekte.filter((o) => o.art === art);
               if (gruppe.length === 0) return null;
               return (

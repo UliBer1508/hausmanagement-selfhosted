@@ -19,11 +19,14 @@ import DocumentSettings from '@/components/Documents/DocumentSettings';
 import {
   onedrive, bezugLabel, useOneDriveStatus, useDocumentTypes, useDocuments,
   useUploadDocument, useLinkExisting, useRemoveDocument, useEntities,
-  useLocations, useSaveLocation, useVendors, useUpdateDocumentNote,
+  useLocations, useSaveLocation, useVendors, useUpdateDocumentNote, useBookingPortals,
   type DocumentType, type LinkTarget, type OneDriveFolder, type OneDriveFile,
   type EntityOption,
 } from '@/hooks/useDocuments';
-import { leseDateiText, findeTreffer, trefferBegruendung, adressBegriffe, ortsBegriffe, type Treffer } from '@/lib/pdfText';
+import {
+  leseDateiText, findeTreffer, trefferBegruendung, adressBegriffe, ortsBegriffe,
+  findeBuchungsnummer, type Treffer,
+} from '@/lib/pdfText';
 import { useCreateLaundryInvoice } from '@/hooks/useLaundryInvoices';
 import CleaningInvoicePanel, {
   type ReinigungsErgebnis,
@@ -51,6 +54,7 @@ import { getGuestName } from '@/lib/guestHelpers';
 const LINK_TARGETS: { key: LinkTarget; label: string }[] = [
   { key: 'provider', label: 'Dienstleister' },
   { key: 'vendor', label: 'Vendor' },
+  { key: 'portal', label: 'Buchungsportal' },
   { key: 'haus', label: 'Haus' },
   { key: 'buchung', label: 'Buchung' },
   { key: 'reinigung', label: 'Reinigung' },
@@ -109,6 +113,7 @@ export default function DocumentsTab() {
   });
 
   const { data: vendors = [] } = useVendors(true);
+  const { data: portale = [] } = useBookingPortals();
 
   // Das Notiz-Fenster liest aus der LISTE, nicht aus einer Kopie: nach dem
   // Speichern laedt useDocuments neu, und der angezeigte Text ist dann der
@@ -130,6 +135,7 @@ export default function DocumentsTab() {
   const objektKey = (d: any): string =>
     d.provider_id ? `provider:${d.provider_id}`
       : d.vendor_id ? `vendor:${d.vendor_id}`
+      : d.portal_id ? `portal:${d.portal_id}`
       : d.house_id ? `haus:${d.house_id}`
       : '';
 
@@ -201,8 +207,9 @@ export default function DocumentsTab() {
     ...(providers as any[]).map((p) => ({ key: `provider:${p.id}`, label: p.name, n: cObjekt[`provider:${p.id}`], color: 'emerald' })),
     ...(houses as any[]).map((h) => ({ key: `haus:${h.id}`, label: h.name, n: cObjekt[`haus:${h.id}`], color: 'amber' })),
     ...vendors.map((v) => ({ key: `vendor:${v.id}`, label: v.name, n: cObjekt[`vendor:${v.id}`], color: 'slate' })),
+    ...portale.map((p) => ({ key: `portal:${p.id}`, label: p.name, n: cObjekt[`portal:${p.id}`], color: 'sky' })),
     { key: '', label: 'ohne Bezug', n: cObjekt[''] },
-  ], [providers, houses, vendors, cObjekt]);
+  ], [providers, houses, vendors, portale, cObjekt]);
   const years = [...new Set(docs.map((d) => d.created_at.slice(0, 4)))].sort().reverse();
 
   const grouped = useMemo(() => {
@@ -675,6 +682,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   // Objektlisten fuer den Abgleich. Sie sind ohnehin geladen, weil die
   // Zuordnungszeilen sie brauchen — react-query liefert aus dem Speicher.
   const { data: alleVendoren = [] } = useEntities('vendor', '');
+  const { data: portale = [] } = useBookingPortals();
 
   /*
    * Haeuser mit ANSCHRIFT und OBJEKTNUMMER — eigene Abfrage, weil
@@ -915,7 +923,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       )[0];
       if (typTreffer) setTypeId(typTreffer.id);
 
-      // 2 — Objekte. Alle drei Arten gemeinsam bewerten, damit der
+      // 2 — Objekte. Alle Arten gemeinsam bewerten, damit der
       // staerkste Treffer gewinnt, egal aus welcher Liste er stammt.
       const alle = [
         // providerKandidaten statt alleProvider: mit Alias und Mailadresse,
@@ -926,16 +934,98 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           .map((t) => ({ art: 'vendor' as LinkTarget, treffer: t })),
         ...findeTreffer(text, alleHaeuser.map((e) => ({ id: e.id, name: e.label, begriffe: e.begriffe })), orte)
           .map((t) => ({ art: 'haus' as LinkTarget, treffer: t })),
+        // Buchungsportal (SQL 61): wie ein Absender — „Belvilla AG" im Fuss
+        // einer Buchungsuebersicht.
+        ...findeTreffer(text, portale.map((p) => ({
+          id: p.id, name: p.name, begriffe: p.dokument_begriffe ?? [],
+        })), orte)
+          .map((t) => ({ art: 'portal' as LinkTarget, treffer: t })),
       ];
 
       // Der ABSENDER gehoert auf Platz 1, nicht der punktstaerkste Treffer:
       // Die 1. Zuordnung bestimmt den Ablageort, und eine Sammelrechnung
       // gehoert zum Dienstleister — nicht zu einem der genannten Haeuser.
-      const absender = alle.filter((x) => x.art === 'provider' || x.art === 'vendor')
+      const absender = alle.filter((x) => x.art === 'provider' || x.art === 'vendor' || x.art === 'portal')
         .sort((a, b) => b.treffer.punkte - a.treffer.punkte);
-      const uebrige = alle.filter((x) => x.art === 'haus')
+      let uebrige = alle.filter((x) => x.art === 'haus')
         .sort((a, b) => b.treffer.punkte - a.treffer.punkte);
-      const reihe = [...absender, ...uebrige].slice(0, 3);
+
+      /*
+       * Buchung und Haus ueber BELEGE statt ueber Woerter (01.10.2026).
+       *
+       * (a) Buchungsnummer: Steht die externe Buchungsnummer einer Buchung
+       *     im Dokument, ist die Buchung eindeutig — und damit auch das Haus.
+       * (b) Portal -> Haus: Wurde ein Portal erkannt und hat nur EIN Haus
+       *     Buchungen auf diesem Portal, gehoert das Dokument zu diesem
+       *     Haus. Wald Chalet wird nur ueber Belvilla vermietet; eine
+       *     Belvilla-Unterlage ist damit eine Wald-Unterlage, auch wenn der
+       *     Hausname nirgends darin steht (Belvilla schreibt nur „AT-5742-64").
+       * Fehlschlaege hier sind kein Abbruch — die Wortsuche oben steht schon.
+       */
+      const belegHaeuser: Array<{ art: LinkTarget; treffer: Treffer }> = [];
+      let buchung: { art: LinkTarget; treffer: Treffer } | null = null;
+      try {
+        const { data: mitNummer, error: nErr } = await supabase
+          .from('bookings')
+          .select('id, external_booking_id, house_id, check_in, guests!bookings_guest_id_fkey(name)')
+          .not('external_booking_id', 'is', null)
+          .limit(5000);
+        if (nErr) throw nErr;
+        const b = findeBuchungsnummer(text, (mitNummer ?? []) as unknown as Array<{
+          id: string; external_booking_id: string | null; house_id: string;
+          check_in: string; guests: { name: string } | null;
+        }>);
+        if (b) {
+          buchung = {
+            art: 'buchung',
+            treffer: {
+              id: b.id,
+              name: `${fmtDate(b.check_in)} · ${b.guests?.name ?? 'ohne Gast'}`,
+              punkte: 100,
+              begriffe: [],
+              grund: `Buchungsnummer „${b.external_booking_id}"`,
+            },
+          };
+          const h = alleHaeuser.find((x) => x.id === b.house_id);
+          if (h) {
+            belegHaeuser.push({
+              art: 'haus',
+              treffer: { id: h.id, name: h.label, punkte: 100, begriffe: [], grund: 'Haus der Buchung' },
+            });
+          }
+        }
+
+        const portal = absender.find((x) => x.art === 'portal');
+        const portalKey = portal ? portale.find((p) => p.id === portal.treffer.id)?.key : undefined;
+        if (!buchung && portal && portalKey) {
+          const { data: aufPortal, error: pErr } = await supabase
+            .from('bookings')
+            .select('house_id')
+            .eq('platform', portalKey)
+            .limit(5000);
+          if (pErr) throw pErr;
+          const ids = [...new Set((aufPortal ?? []).map((r) => r.house_id).filter(Boolean))];
+          const h = ids.length === 1 ? alleHaeuser.find((x) => x.id === ids[0]) : undefined;
+          if (h) {
+            belegHaeuser.push({
+              art: 'haus',
+              treffer: {
+                id: h.id, name: h.label, punkte: 50, begriffe: [],
+                grund: `nur über ${portal.treffer.name} vermietet`,
+              },
+            });
+          }
+        }
+      } catch (e) {
+        console.error('[Dokument lesen] Buchung/Haus über Belege:', e);
+      }
+
+      // Belegtes Haus vor die Worttreffer, ohne es doppelt zu fuehren.
+      if (belegHaeuser.length > 0) {
+        const belegt = new Set(belegHaeuser.map((x) => x.treffer.id));
+        uebrige = [...belegHaeuser, ...uebrige.filter((x) => !belegt.has(x.treffer.id))];
+      }
+      const reihe = [...absender, ...(buchung ? [buchung] : []), ...uebrige].slice(0, 3);
 
       if (reihe[0]) { setTarget(reihe[0].art); setEntityId(reihe[0].treffer.id); }
       if (reihe[1]) { setArt2(reihe[1].art); setId2(reihe[1].treffer.id); }
@@ -1181,6 +1271,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       linenOrderId: target === 'waesche' ? entityId : null,
       providerId: target === 'provider' ? entityId : null,
       vendorId: target === 'vendor' ? entityId : null,
+      portalId: target === 'portal' ? entityId : null,
     };
 
     // Die getroffene Wahl merken, damit sie beim naechsten Mal dasteht.
