@@ -3,7 +3,7 @@ import {
   Search, Plus, X, Upload, FileText, Image as ImageIcon, Folder, FolderPlus,
   ChevronRight, ExternalLink, Trash2, Settings2, List, FolderTree,
   ArrowLeft, AlertTriangle, Loader2, HardDrive, Cloud, Check, StickyNote,
-  ScanLine, Sparkles, Anchor,
+  ScanLine, Sparkles, Anchor, CircleCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,12 +20,16 @@ import {
   onedrive, bezugLabel, useOneDriveStatus, useDocumentTypes, useDocuments,
   useUploadDocument, useLinkExisting, useRemoveDocument, useEntities,
   useLocations, useSaveLocation, useVendors, useUpdateDocumentNote, useBookingPortals,
+  useSetDocumentPaid, useSaveDocumentDetails,
   type DocumentType, type LinkTarget, type OneDriveFolder, type OneDriveFile,
-  type EntityOption,
+  type EntityOption, type DocumentRow, type Zahlart,
 } from '@/hooks/useDocuments';
 import {
+  dokumentStatus, heuteIso, ZUSTAND_FARBE, ZUSTAND_LABEL, type DokStatus, type Zustand,
+} from '@/lib/documentStatus';
+import {
   leseDateiText, findeTreffer, trefferBegruendung, adressBegriffe, ortsBegriffe,
-  findeBuchungsnummer, type Treffer,
+  findeBuchungsnummer, findeReferenz, type Treffer,
 } from '@/lib/pdfText';
 import { useCreateLaundryInvoice } from '@/hooks/useLaundryInvoices';
 import CleaningInvoicePanel, {
@@ -91,7 +95,12 @@ export default function DocumentsTab() {
   const [fObjekt, setFObjekt] = useState<string[]>([]);
   const [fType, setFType] = useState<string[]>([]);
   const [fYear, setFYear] = useState<string[]>([]);
+  // Status-Filter (SQL 62): 'offen' sammelt alles, wo Uli etwas tun muss.
+  const [fStatus, setFStatus] = useState<string[]>([]);
   const [limit, setLimit] = useState(25);
+  // Dokument, dessen Zahlungs-/Buchungsstatus gerade bearbeitet wird.
+  const [statusDocId, setStatusDocId] = useState<string | null>(null);
+  const setPaid = useSetDocumentPaid();
 
   const { data: houses = [] } = useQuery({
     queryKey: ['houses-min'],
@@ -122,6 +131,41 @@ export default function DocumentsTab() {
     () => docs.find((d) => d.id === noteDocId) ?? null,
     [docs, noteDocId],
   );
+  const statusDoc = useMemo(
+    () => docs.find((d) => d.id === statusDocId) ?? null,
+    [docs, statusDocId],
+  );
+
+  /** Status je Dokument — Logik in lib/documentStatus.ts. */
+  const statusVon = useMemo(() => {
+    const heute = heuteIso();
+    const m = new Map<string, DokStatus | null>();
+    for (const d of docs) {
+      m.set(d.id, dokumentStatus({
+        pruefung: d.document_types?.pruefung ?? 'keine',
+        zahlart: d.zahlart,
+        faellig_am: d.faellig_am,
+        bezahlt_am: d.bezahlt_am,
+        rechnung: d.laundry_invoices ?? d.cleaning_invoices ?? null,
+        buchung: d.buchung_info ?? null,
+        heute,
+      }));
+    }
+    return m;
+  }, [docs]);
+
+  /** Filterschluessel je Dokument: der Zustand, bei Offenem zusaetzlich 'offen'. */
+  const statusKeys = (d: DocumentRow): string[] => {
+    const s = statusVon.get(d.id);
+    if (!s) return [];
+    return s.offen ? ['offen', s.zustand] : [s.zustand];
+  };
+
+  const markPaid = (d: DocumentRow) =>
+    setPaid.mutate({ doc: d, bezahltAm: heuteIso() }, {
+      onSuccess: () => toast({ title: 'Als bezahlt markiert', description: d.file_name }),
+      onError: (e: Error) => toast({ title: 'Fehler', description: e.message, variant: 'destructive' }),
+    });
 
   /**
    * Ein Dokument haengt an HOECHSTENS EINEM Objekt. Der Schluessel traegt die
@@ -158,8 +202,8 @@ export default function DocumentsTab() {
     set(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
     setLimit(25);
   };
-  const resetAll = () => { setQuery(''); setFObjekt([]); setFType([]); setFYear([]); setLimit(25); };
-  const activeCount = fObjekt.length + fType.length + fYear.length + (query ? 1 : 0);
+  const resetAll = () => { setQuery(''); setFObjekt([]); setFType([]); setFYear([]); setFStatus([]); setLimit(25); };
+  const activeCount = fObjekt.length + fType.length + fYear.length + fStatus.length + (query ? 1 : 0);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -167,20 +211,23 @@ export default function DocumentsTab() {
       if (fObjekt.length && !objektKeys(d).some((k) => fObjekt.includes(k))) return false;
       if (fType.length && !fType.includes(d.document_type_id ?? '')) return false;
       if (fYear.length && !fYear.includes(d.created_at.slice(0, 4))) return false;
+      if (fStatus.length && !statusKeys(d).some((k) => fStatus.includes(k))) return false;
       if (!q) return true;
       return d.file_name.toLowerCase().includes(q)
         || (d.onedrive_path ?? '').toLowerCase().includes(q)
         || (d.document_types?.name ?? '').toLowerCase().includes(q)
         || (d.note ?? '').toLowerCase().includes(q)
+        || (d.referenz ?? '').toLowerCase().includes(q)
         || bezugLabel(d).toLowerCase().includes(q);
     });
-  }, [docs, query, fObjekt, fType, fYear]);
+  }, [docs, query, fObjekt, fType, fYear, fStatus, statusVon]);
 
-  const countBy = (dim: 'objekt' | 'type' | 'year') => {
+  const countBy = (dim: 'objekt' | 'type' | 'year' | 'status') => {
     const base = docs.filter((d) => {
       if (dim !== 'objekt' && fObjekt.length && !objektKeys(d).some((k) => fObjekt.includes(k))) return false;
       if (dim !== 'type' && fType.length && !fType.includes(d.document_type_id ?? '')) return false;
       if (dim !== 'year' && fYear.length && !fYear.includes(d.created_at.slice(0, 4))) return false;
+      if (dim !== 'status' && fStatus.length && !statusKeys(d).some((k) => fStatus.includes(k))) return false;
       return true;
     });
     const m: Record<string, number> = {};
@@ -190,12 +237,23 @@ export default function DocumentsTab() {
         for (const k of new Set(objektKeys(d))) m[k] = (m[k] || 0) + 1;
         continue;
       }
+      if (dim === 'status') {
+        for (const k of statusKeys(d)) m[k] = (m[k] || 0) + 1;
+        continue;
+      }
       const k = dim === 'type' ? (d.document_type_id ?? '') : d.created_at.slice(0, 4);
       m[k] = (m[k] || 0) + 1;
     }
     return m;
   };
   const cObjekt = countBy('objekt'), cType = countBy('type'), cYear = countBy('year');
+  const cStatus = countBy('status');
+  // Reihenfolge = Wichtigkeit. 'offen' fasst offen, ueberfaellig und fehlt zusammen.
+  const statusEintraege = [
+    { key: 'offen', label: 'Offen — zu erledigen', n: cStatus.offen, color: 'amber' },
+    ...(['ueberfaellig', 'fehlt', 'einzug', 'bezahlt', 'erfasst'] as Zustand[])
+      .map((z) => ({ key: z, label: ZUSTAND_LABEL[z], n: cStatus[z] })),
+  ];
 
   /**
    * Alle Objekte in EINER Spalte, nach Art gruppiert und farblich getrennt.
@@ -308,6 +366,7 @@ export default function DocumentsTab() {
                 {activeCount} Filter zurücksetzen
               </Button>
             )}
+            <Facet title="Status" sel={fStatus} set={setFStatus} items={statusEintraege} />
             <Facet title="Objekt" sel={fObjekt} set={setFObjekt} items={objektEintraege} />
             <Facet title="Typ" sel={fType} set={setFType}
               items={types.map((t) => ({ key: t.id, label: t.name, n: cType[t.id], color: t.color }))} />
@@ -336,6 +395,9 @@ export default function DocumentsTab() {
                     <div className="overflow-hidden rounded-xl border bg-card">
                       {g.items.map((d) => (
                         <Row key={d.id} d={d}
+                          status={statusVon.get(d.id) ?? null}
+                          onStatus={() => setStatusDocId(d.id)}
+                          onPaid={() => markPaid(d)}
                           onNote={() => setNoteDocId(d.id)}
                           onRemove={() =>
                             removeDoc.mutate({ id: d.id, itemId: d.onedrive_item_id }, {
@@ -357,6 +419,9 @@ export default function DocumentsTab() {
         </div>
       ) : (
         <FolderBrowser docs={docs}
+          statusVon={statusVon}
+          onStatus={(d: DocumentRow) => setStatusDocId(d.id)}
+          onPaid={(d: DocumentRow) => markPaid(d)}
           onNote={(d: any) => setNoteDocId(d.id)}
           onRemove={(d: any) =>
             removeDoc.mutate({ id: d.id, itemId: d.onedrive_item_id }, {
@@ -369,11 +434,15 @@ export default function DocumentsTab() {
       )}
       {dialog === 'settings' && <DocumentSettings onClose={() => setDialog(null)} />}
       {noteDoc && <NotizDialog d={noteDoc} onClose={() => setNoteDocId(null)} />}
+      {statusDoc && (
+        <StatusDialog d={statusDoc} status={statusVon.get(statusDoc.id) ?? null}
+          onClose={() => setStatusDocId(null)} />
+      )}
     </div>
   );
 }
 
-function Row({ d, onRemove, onNote, hidePath }: any) {
+function Row({ d, onRemove, onNote, hidePath, status, onStatus, onPaid }: any) {
   const isImg = (d.mime_type ?? '').startsWith('image/');
   const color = COLORS[d.document_types?.color ?? 'slate'] ?? COLORS.slate;
   const hatNotiz = !!(d.note && d.note.trim());
@@ -389,7 +458,16 @@ function Row({ d, onRemove, onNote, hidePath }: any) {
         </div>
       </div>
       <div className="min-w-0">
-        <Badge variant="secondary" className={color}>{d.document_types?.name ?? 'ohne Typ'}</Badge>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="secondary" className={color}>{d.document_types?.name ?? 'ohne Typ'}</Badge>
+          {/* Status (SQL 62): Klick oeffnet Zahlungs-/Buchungsangaben */}
+          {status && (
+            <button onClick={onStatus} title="Status ansehen oder ändern"
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${ZUSTAND_FARBE[status.zustand as Zustand]}`}>
+              {status.text}
+            </button>
+          )}
+        </div>
         <p className="mt-0.5 truncate text-xs text-muted-foreground">
           {bezugLabel(d)}
           {/* 2. und 3. Zuordnung als Zusatz — der Hauptbezug steht vorn. */}
@@ -402,6 +480,12 @@ function Row({ d, onRemove, onNote, hidePath }: any) {
       </div>
       <span className="text-sm text-muted-foreground">{fmtDate(d.created_at)}</span>
       <div className="flex gap-3 sm:justify-end">
+        {/* Schnellknopf: offene Rechnung heute bezahlt */}
+        {status && (status.zustand === 'offen' || status.zustand === 'ueberfaellig') && (
+          <button onClick={onPaid} title="Heute bezahlt" aria-label="Als bezahlt markieren">
+            <CircleCheck className="h-[18px] w-[18px] text-muted-foreground hover:text-emerald-600" />
+          </button>
+        )}
         {/* Notiz: gefuelltes Zeichen = vorhanden, blasses = noch keine.
             Der Text steht bewusst NICHT in der Zeile (kann lang sein). */}
         <button onClick={onNote}
@@ -484,9 +568,173 @@ function NotizDialog({ d, onClose }: { d: any; onClose: () => void }) {
   );
 }
 
+/* --------------------------------------------------------------- Status */
+
+/** „1.234,56" und „12.50" -> Zahl; leer -> null; Unsinn -> NaN. */
+const parseBetrag = (s: string): number | null => {
+  const roh = s.trim();
+  if (!roh) return null;
+  return Number(roh.includes(',') ? roh.replace(/\./g, '').replace(',', '.') : roh);
+};
+
+const ZAHLART_LABEL: Record<Zahlart, string> = {
+  ueberweisung: 'selbst überweisen',
+  einzug: 'wird eingezogen',
+};
+
+/**
+ * Zahlungs- bzw. Buchungsangaben eines Dokuments (SQL 62).
+ *
+ * Bei Teuni-/Boris-Rechnungen werden NUR bezahlt/offen geaendert — und zwar
+ * im Rechnungsdatensatz (useSetDocumentPaid). Betrag und Faelligkeit kommen
+ * dort aus der Rechnung und sind hier nicht editierbar, damit es keine zweite
+ * Wahrheit gibt.
+ */
+function StatusDialog({ d, status, onClose }: { d: DocumentRow; status: DokStatus | null; onClose: () => void }) {
+  const { toast } = useToast();
+  const setPaid = useSetDocumentPaid();
+  const saveDetails = useSaveDocumentDetails();
+  const rechnung = d.laundry_invoices ?? d.cleaning_invoices ?? null;
+  const pruefung = d.document_types?.pruefung ?? 'keine';
+
+  const [referenz, setReferenz] = useState(d.referenz ?? '');
+  const [zahlart, setZahlart] = useState<Zahlart | ''>(d.zahlart ?? '');
+  const [betrag, setBetrag] = useState(d.betrag != null ? String(d.betrag).replace('.', ',') : '');
+  const [faellig, setFaellig] = useState(d.faellig_am ?? '');
+  const [bezahltAm, setBezahltAm] = useState(
+    (rechnung ? rechnung.bezahlt_am : d.bezahlt_am) ?? heuteIso(),
+  );
+  const istBezahlt = status?.zustand === 'bezahlt';
+  const busy = setPaid.isPending || saveDetails.isPending;
+
+  const fehler = (e: Error) => toast({ title: 'Fehler', description: e.message, variant: 'destructive' });
+
+  const angabenSpeichern = () => {
+    const zahl = parseBetrag(betrag);
+    if (zahl != null && !Number.isFinite(zahl)) { fehler(new Error('Betrag ist keine Zahl.')); return; }
+    saveDetails.mutate(
+      { id: d.id, referenz, zahlart: zahlart || null, betrag: zahl, faelligAm: faellig || null },
+      { onSuccess: () => { toast({ title: 'Gespeichert', description: d.file_name }); onClose(); }, onError: fehler },
+    );
+  };
+
+  const bezahlt = (am: string | null) =>
+    setPaid.mutate({ doc: d, bezahltAm: am }, {
+      onSuccess: () => {
+        toast({ title: am ? 'Als bezahlt markiert' : 'Wieder offen', description: d.file_name });
+        onClose();
+      },
+      onError: fehler,
+    });
+
+  return (
+    <Dialog open onOpenChange={() => !busy && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{pruefung === 'buchung' ? 'Buchung' : 'Zahlung'}</DialogTitle>
+          <DialogDescription className="truncate">{d.file_name}</DialogDescription>
+        </DialogHeader>
+
+        {status && (
+          <p className={`w-fit rounded-full px-2.5 py-0.5 text-sm font-medium ${ZUSTAND_FARBE[status.zustand]}`}>
+            {status.text}
+          </p>
+        )}
+
+        {pruefung === 'buchung' && (
+          <div className="space-y-2">
+            <Label>Buchungsnummer</Label>
+            <Input value={referenz} onChange={(e) => setReferenz(e.target.value)} placeholder="z. B. 1FYTQE8D" />
+            <p className="text-xs text-muted-foreground">
+              Abgleich mit der Buchungsnummer, die beim Anlegen der Buchung eingetragen wurde.
+              Steht die Buchung nicht im System, bitte unter „Buchungen" anlegen.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={onClose} disabled={busy}>Abbrechen</Button>
+              <Button onClick={angabenSpeichern} disabled={busy}>Speichern</Button>
+            </div>
+          </div>
+        )}
+
+        {pruefung === 'zahlung' && rechnung && (
+          <div className="space-y-3">
+            <p className="text-sm">
+              Rechnung {rechnung.rechnungsnummer} · {Number(rechnung.bruttobetrag).toFixed(2).replace('.', ',')} €
+              {rechnung.faelligkeitsdatum ? ` · fällig ${fmtDate(rechnung.faelligkeitsdatum)}` : ''}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Gespeichert wird in der Rechnung des Dienstleisters — derselbe Stand wie in der
+              Provider-Abrechnung und im Provider-Portal.
+            </p>
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <Label>Bezahlt am</Label>
+                <Input type="date" value={bezahltAm} onChange={(e) => setBezahltAm(e.target.value)} />
+              </div>
+              <Button onClick={() => bezahlt(bezahltAm || heuteIso())} disabled={busy}>Als bezahlt speichern</Button>
+              {istBezahlt && (
+                <Button variant="outline" onClick={() => bezahlt(null)} disabled={busy}>Zurück auf offen</Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {pruefung === 'zahlung' && !rechnung && (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>Zahlart</Label>
+                <Select value={zahlart || 'leer'} onValueChange={(v) => setZahlart(v === 'leer' ? '' : (v as Zahlart))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="leer">nicht angegeben</SelectItem>
+                    <SelectItem value="ueberweisung">{ZAHLART_LABEL.ueberweisung}</SelectItem>
+                    <SelectItem value="einzug">{ZAHLART_LABEL.einzug}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Rechnungsnummer</Label>
+                <Input value={referenz} onChange={(e) => setReferenz(e.target.value)} />
+              </div>
+              <div>
+                <Label>Betrag (€)</Label>
+                <Input inputMode="decimal" value={betrag} onChange={(e) => setBetrag(e.target.value)} placeholder="0,00" />
+              </div>
+              <div>
+                <Label>Fällig am</Label>
+                <Input type="date" value={faellig} onChange={(e) => setFaellig(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={angabenSpeichern} disabled={busy}>Angaben speichern</Button>
+            </div>
+            <div className="flex flex-wrap items-end gap-2 border-t pt-3">
+              <div>
+                <Label>Bezahlt am</Label>
+                <Input type="date" value={bezahltAm} onChange={(e) => setBezahltAm(e.target.value)} />
+              </div>
+              <Button onClick={() => bezahlt(bezahltAm || heuteIso())} disabled={busy}>Als bezahlt speichern</Button>
+              {istBezahlt && (
+                <Button variant="outline" onClick={() => bezahlt(null)} disabled={busy}>Zurück auf offen</Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {pruefung === 'keine' && (
+          <p className="text-sm text-muted-foreground">
+            Dieser Dokumenttyp hat keine Prüfung. Unter Einstellungen → Dokumenttypen änderbar.
+          </p>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ------------------------------------------------------------ Ordneransicht */
 
-function FolderBrowser({ docs, onRemove, onNote }: any) {
+function FolderBrowser({ docs, onRemove, onNote, onStatus, onPaid, statusVon }: any) {
   const [stack, setStack] = useState<{ id: string; name: string }[]>([{ id: 'root', name: 'OneDrive' }]);
   const current = stack[stack.length - 1];
 
@@ -531,6 +779,9 @@ function FolderBrowser({ docs, onRemove, onNote }: any) {
         const linked = byItemId[f.id];
         return linked ? (
           <Row key={f.id} d={linked} hidePath
+            status={statusVon?.get(linked.id) ?? null}
+            onStatus={() => onStatus?.(linked)}
+            onPaid={() => onPaid?.(linked)}
             onNote={() => onNote(linked)}
             onRemove={() => onRemove(linked)} />
         ) : (
@@ -657,6 +908,13 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   // Freier Vermerk. Bleibt leer, wenn nichts eingegeben wird.
   const [note, setNote] = useState('');
 
+  // Status-Angaben (SQL 62). Nur sichtbar, wenn der Typ eine Pruefung hat.
+  const [referenz, setReferenz] = useState('');
+  const [zahlart, setZahlart] = useState<Zahlart | ''>('');
+  const [zahlartTouched, setZahlartTouched] = useState(false);
+  const [betrag, setBetrag] = useState('');
+  const [faellig, setFaellig] = useState('');
+
   const [folder, setFolder] = useState<{ id: string; path: string } | null>(null);
   const [folderTouched, setFolderTouched] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -683,6 +941,25 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   // Zuordnungszeilen sie brauchen — react-query liefert aus dem Speicher.
   const { data: alleVendoren = [] } = useEntities('vendor', '');
   const { data: portale = [] } = useBookingPortals();
+  const { data: vendorStamm = [] } = useVendors(true);
+  /*
+   * Standard-Zahlart der Dienstleister — EIGENE Abfrage und fehlertolerant,
+   * wie dokument_begriffe weiter unten: Fehlt die Spalte (SQL 62 noch nicht
+   * ausgefuehrt), darf die Dienstleister-Erkennung nicht mitreissen.
+   */
+  const { data: providerZahlart = [] } = useQuery({
+    queryKey: ['provider-zahlart'],
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Spalte fehlt in types.ts
+      const { data, error } = await (supabase as any)
+        .from('service_providers').select('id, zahlart_standard');
+      if (error) {
+        console.warn('zahlart_standard nicht lesbar:', error.message);
+        return [] as Array<{ id: string; zahlart_standard: Zahlart | null }>;
+      }
+      return (data ?? []) as Array<{ id: string; zahlart_standard: Zahlart | null }>;
+    },
+  });
 
   /*
    * Haeuser mit ANSCHRIFT und OBJEKTNUMMER — eigene Abfrage, weil
@@ -964,6 +1241,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
        */
       const belegHaeuser: Array<{ art: LinkTarget; treffer: Treffer }> = [];
       let buchung: { art: LinkTarget; treffer: Treffer } | null = null;
+      let buchungsNummer: string | null = null;
       try {
         const { data: mitNummer, error: nErr } = await supabase
           .from('bookings')
@@ -976,6 +1254,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           check_in: string; guests: { name: string } | null;
         }>);
         if (b) {
+          buchungsNummer = b.external_booking_id;
           buchung = {
             art: 'buchung',
             treffer: {
@@ -1032,6 +1311,14 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       if (reihe[2]) { setArt3(reihe[2].art); setId3(reihe[2].treffer.id); }
 
       setGefunden({ typ: typTreffer, zuordnungen: reihe });
+
+      // Referenz vorbelegen (SQL 62): die gefundene Buchung schlaegt alles,
+      // sonst die Nummer hinter „Buchungsnummer"/„Rechnungsnummer".
+      const typNeu = types.find((x) => x.id === (typTreffer?.id ?? typeId));
+      const ref = buchungsNummer
+        ?? (typNeu?.pruefung === 'buchung' ? findeReferenz(text, 'buchung') : null)
+        ?? (typNeu?.pruefung === 'zahlung' ? findeReferenz(text, 'zahlung') : null);
+      if (ref) setReferenz(ref);
       if (!typTreffer && reihe.length === 0) {
         setLeseFehler('Text gelesen, aber nichts Bekanntes gefunden. Bitte von Hand wählen.');
       }
@@ -1070,6 +1357,8 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           );
           if (!cErr && cData?.ok) {
             setReinigung(cData as ReinigungsErgebnis);
+            setReferenz((cData as ReinigungsErgebnis).rechnung.rechnungsnummer);
+            setBetrag(String((cData as ReinigungsErgebnis).rechnung.bruttobetrag).replace('.', ','));
             setReinigungProviderId(reinigungsDienstleister.id);
             setReinigungAnlegen(!cData.bereits_erfasst);
           } else {
@@ -1108,6 +1397,11 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           // gibt dann eben nichts zu uebernehmen.
           if (!rErr && rData?.ok) {
             setRechnung(rData as RechnungsErgebnis);
+            setReferenz((rData as RechnungsErgebnis).rechnung.rechnungsnummer);
+            setBetrag(String((rData as RechnungsErgebnis).rechnung.bruttobetrag).replace('.', ','));
+            if ((rData as RechnungsErgebnis).rechnung.faelligkeitsdatum) {
+              setFaellig((rData as RechnungsErgebnis).rechnung.faelligkeitsdatum as string);
+            }
             setRechnungProviderId(waescheDienstleister.id);
             setRechnungAnlegen(!rData.bereits_erfasst);
           } else {
@@ -1235,6 +1529,17 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 
   // Neue Datei -> altes Leseergebnis verwerfen. Sonst stuende unter der
   // neuen Datei noch die Begruendung der vorigen.
+  // Zahlart aus dem Absender vorbelegen (SQL 62), solange nicht von Hand gewaehlt.
+  useEffect(() => {
+    if (zahlartTouched) return;
+    const standard =
+      target === 'vendor' ? vendorStamm.find((v) => v.id === entityId)?.zahlart_standard
+      : target === 'portal' ? portale.find((p) => p.id === entityId)?.zahlart_standard
+      : target === 'provider' ? providerZahlart.find((p) => p.id === entityId)?.zahlart_standard
+      : null;
+    setZahlart(standard ?? '');
+  }, [target, entityId, zahlartTouched, vendorStamm, portale, providerZahlart]);
+
   const pick = (f?: File | null) => {
     if (!f) return;
     setFile(f);
@@ -1247,6 +1552,9 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     setReinigung(null);
     setReinigungHinweis(null);
     setReinigungProviderId(null);
+    setReferenz('');
+    setBetrag('');
+    setFaellig('');
   };
 
   const submit = () => {
@@ -1254,6 +1562,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     if (source === 'pc' && !file) { setErr('Bitte zuerst eine Datei wählen.'); return; }
     if (source === 'od' && !existing) { setErr('Bitte eine Datei aus OneDrive wählen.'); return; }
     if (target !== 'keine' && !entityId) { setErr('Bitte ein Objekt zum Verknüpfen wählen.'); return; }
+    if (type.pruefung === 'zahlung' && Number.isNaN(parseBetrag(betrag))) { setErr('Der Betrag ist keine Zahl.'); return; }
     if (source === 'pc' && !folder) { setErr('Bitte einen Zielordner wählen.'); return; }
 
     const zusatz = [
@@ -1272,6 +1581,11 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       providerId: target === 'provider' ? entityId : null,
       vendorId: target === 'vendor' ? entityId : null,
       portalId: target === 'portal' ? entityId : null,
+      // Status-Angaben nur, wenn der Typ sie braucht — sonst bleiben sie leer.
+      referenz: type.pruefung !== 'keine' ? referenz : '',
+      zahlart: type.pruefung === 'zahlung' ? (zahlart || null) : null,
+      betrag: type.pruefung === 'zahlung' ? parseBetrag(betrag) : null,
+      faelligAm: type.pruefung === 'zahlung' ? (faellig || null) : null,
     };
 
     // Die getroffene Wahl merken, damit sie beim naechsten Mal dasteht.
@@ -1601,6 +1915,51 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
             Die 1. Zuordnung bestimmt den Ablageort. Die weiteren sind optional.
           </p>
         </div>
+
+        {/* Status-Angaben (SQL 62) — nur bei Typen mit Pruefung */}
+        {type && type.pruefung !== 'keine' && (
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {type.pruefung === 'zahlung' ? 'Zahlung' : 'Buchung'}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <Label>{type.pruefung === 'zahlung' ? 'Rechnungsnummer' : 'Buchungsnummer'}</Label>
+                <Input value={referenz} onChange={(e) => setReferenz(e.target.value)}
+                  placeholder={type.pruefung === 'zahlung' ? 'optional' : 'z. B. 1FYTQE8D'} />
+              </div>
+              {type.pruefung === 'zahlung' && (
+                <>
+                  <div>
+                    <Label>Zahlart</Label>
+                    <Select value={zahlart || 'leer'}
+                      onValueChange={(v) => { setZahlart(v === 'leer' ? '' : (v as Zahlart)); setZahlartTouched(true); }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="leer">nicht angegeben</SelectItem>
+                        <SelectItem value="ueberweisung">{ZAHLART_LABEL.ueberweisung}</SelectItem>
+                        <SelectItem value="einzug">{ZAHLART_LABEL.einzug}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Betrag (€)</Label>
+                    <Input inputMode="decimal" value={betrag} onChange={(e) => setBetrag(e.target.value)} placeholder="0,00" />
+                  </div>
+                  <div>
+                    <Label>Fällig am</Label>
+                    <Input type="date" value={faellig} onChange={(e) => setFaellig(e.target.value)} />
+                  </div>
+                </>
+              )}
+            </div>
+            {type.pruefung === 'buchung' && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Die Liste zeigt danach, ob eine Buchung mit dieser Nummer im System steht.
+              </p>
+            )}
+          </div>
+        )}
 
         <div>
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">3 · Datei wählen</p>

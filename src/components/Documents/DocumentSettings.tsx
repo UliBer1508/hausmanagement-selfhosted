@@ -3,6 +3,7 @@ import { Plus, Pencil, Trash2, Folder, FolderPlus, ArrowLeft, Loader2, Check } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -11,8 +12,16 @@ import {
   onedrive, useDocumentTypes, useSaveDocumentType, useVendors, useSaveVendor,
   useDeleteVendor, useLocations, useSaveLocation, useDeleteLocation, useBookingPortals,
   INVALID_FOLDER_CHARS,
-  type DocumentType, type DocumentVendor, type LinkTarget, type OneDriveFolder,
+  type DocumentType, type DocumentVendor, type LinkTarget, type OneDriveFolder, type Zahlart,
 } from '@/hooks/useDocuments';
+import type { Pruefung } from '@/lib/documentStatus';
+
+/** Was „erledigt" je Dokumenttyp bedeutet (SQL 62). */
+const PRUEFUNG_LABEL: Record<Pruefung, string> = {
+  keine: 'keine Prüfung',
+  zahlung: 'Zahlung — bezahlt?',
+  buchung: 'Buchung — im System erfasst?',
+};
 
 const COLORS: Record<string, string> = {
   emerald: 'bg-emerald-100 text-emerald-900',
@@ -87,7 +96,7 @@ function TypenBereich() {
   const [err, setErr] = useState('');
 
   const blank: Partial<DocumentType> = {
-    name: '', folder_name: '', color: 'emerald', is_active: true, sort_order: 100,
+    name: '', folder_name: '', color: 'emerald', is_active: true, sort_order: 100, pruefung: 'keine',
   };
 
   const submit = () => {
@@ -111,7 +120,10 @@ function TypenBereich() {
             <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${(COLORS[t.color] ?? COLORS.slate).split(' ')[0]}`} />
             <div className="min-w-0 flex-1">
               <p className={`truncate text-sm ${t.is_active ? '' : 'text-muted-foreground line-through'}`}>{t.name}</p>
-              <p className="truncate font-mono text-xs text-muted-foreground">Ordner: {t.folder_name}</p>
+              <p className="truncate font-mono text-xs text-muted-foreground">
+                Ordner: {t.folder_name}
+                {t.pruefung && t.pruefung !== 'keine' && <span className="ml-2 font-sans">· Prüfung: {PRUEFUNG_LABEL[t.pruefung]}</span>}
+              </p>
             </div>
             <button onClick={() => { setEdit({ ...t }); setErr(''); }} aria-label={`${t.name} bearbeiten`}>
               <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
@@ -150,6 +162,21 @@ function TypenBereich() {
                 Unterordner unter dem Objektordner. Ohne / \ : * ? " &lt; &gt; |
               </p>
             </div>
+          </div>
+
+          <div className="sm:w-1/2">
+            <Label>Prüfung</Label>
+            <Select value={edit.pruefung ?? 'keine'} onValueChange={(v) => setEdit({ ...edit, pruefung: v as Pruefung })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(PRUEFUNG_LABEL) as Pruefung[]).map((k) => (
+                  <SelectItem key={k} value={k}>{PRUEFUNG_LABEL[k]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Bestimmt den Status in der Dokumentliste und den Filter „Offen".
+            </p>
           </div>
 
           <div>
@@ -295,10 +322,14 @@ function ObjekteBereich() {
         eintraege={portale.map((p) => ({ id: p.id, name: p.name, aktiv: p.is_active }))} />
 
       <Gruppe titel="Vendoren" farbe="bg-slate-300"
-        eintraege={vendors.map((v) => ({ id: v.id, name: v.name, note: v.note, aktiv: v.is_active, eigen: true }))} />
+        eintraege={vendors.map((v) => ({
+          id: v.id, name: v.name, aktiv: v.is_active, eigen: true,
+          note: [v.note, v.zahlart_standard === 'einzug' ? 'wird eingezogen'
+            : v.zahlart_standard === 'ueberweisung' ? 'selbst überweisen' : null].filter(Boolean).join(' · ') || null,
+        }))} />
 
       {!edit ? (
-        <Button onClick={() => { setEdit({ name: '', note: '', is_active: true }); setErr(''); }}>
+        <Button onClick={() => { setEdit({ name: '', note: '', is_active: true, zahlart_standard: null }); setErr(''); }}>
           <Plus className="mr-2 h-4 w-4" /> Neuer Vendor
         </Button>
       ) : (
@@ -314,6 +345,19 @@ function ObjekteBereich() {
               <Label>Notiz <span className="font-normal text-muted-foreground">optional</span></Label>
               <Input value={edit.note ?? ''} placeholder="z. B. Kurtaxe, Wasser"
                 onChange={(e) => setEdit({ ...edit, note: e.target.value })} />
+            </div>
+            <div>
+              <Label>Standard-Zahlart</Label>
+              <Select value={edit.zahlart_standard ?? 'leer'}
+                onValueChange={(v) => setEdit({ ...edit, zahlart_standard: v === 'leer' ? null : (v as Zahlart) })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="leer">nicht festgelegt</SelectItem>
+                  <SelectItem value="ueberweisung">selbst überweisen</SelectItem>
+                  <SelectItem value="einzug">wird eingezogen</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">Wird beim Ablegen einer Rechnung vorbelegt.</p>
             </div>
           </div>
 
