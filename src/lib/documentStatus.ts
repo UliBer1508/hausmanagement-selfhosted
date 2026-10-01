@@ -34,6 +34,11 @@ export interface BuchungInfo {
   id: string;
   check_in: string;
   gast: string | null;
+  /**
+   * Wie die Buchung gefunden wurde. 'name' = nur ueber Gastname + Anreise
+   * (keine Nummer passte) — dann „vermutlich erfasst", nicht sicher.
+   */
+  ueber?: 'verknuepft' | 'nummer' | 'name';
 }
 
 export interface StatusEingabe {
@@ -87,7 +92,8 @@ export function dokumentStatus(e: StatusEingabe): DokStatus | null {
   if (e.pruefung === 'buchung') {
     if (e.buchung) {
       const teile = [datum(e.buchung.check_in), e.buchung.gast].filter(Boolean);
-      return { zustand: 'erfasst', text: `erfasst · ${teile.join(' · ')}`, offen: false };
+      const wort = e.buchung.ueber === 'name' ? 'vermutlich erfasst' : 'erfasst';
+      return { zustand: 'erfasst', text: `${wort} · ${teile.join(' · ')}`, offen: false };
     }
     return { zustand: 'fehlt', text: 'nicht im System', offen: true };
   }
