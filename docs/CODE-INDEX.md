@@ -835,6 +835,22 @@ nur EIN Haus Buchungen auf diesem Portal hat (Wald Chalet = nur Belvilla).
 Gattungswörter (`haus`, `wohnung`, …) zählen in `pdfText.ts` nicht mehr als
 Einzelbegriff (Fehlzuordnung „Haus Berlin Falkensee" über „HAUScode").
 
+**Status je Dokument (NEU 01.10.2026, SQL 62):** `document_types.pruefung`
+(`zahlung` / `buchung` / `keine`) bestimmt, was „erledigt" heißt. Logik rein in
+`lib/documentStatus.ts` (Tests: `src/test/documentStatus.test.ts`), Daten in
+`useDocuments` (`buchungenZuordnen`, Joins auf `laundry_invoices` /
+`cleaning_invoices`), Schreiben über `useSetDocumentPaid` /
+`useSaveDocumentDetails`. **Eine Wahrheit:** Hängt eine Teuni-/Boris-Rechnung
+am Dokument, wird DEREN `status`/`bezahlt_am` gelesen und geschrieben — derselbe
+Wert wie in der Provider-Abrechnung (`ServicePortal/LaundryInvoicesList.tsx`) und
+im Provider-Portal. Nur ohne Provider-Rechnung gelten `documents.bezahlt_am`,
+`zahlart` (`einzug` zählt nicht als offen), `betrag`, `faellig_am`.
+`documents.referenz` = Buchungs-/Rechnungsnummer; bei Buchungsunterlagen
+Abgleich gegen `bookings.external_booking_id`. Liste: Status-Chip (Klick →
+`StatusDialog`), Schnellknopf „heute bezahlt", Filter „Status" mit „Offen".
+Standard-Zahlart je Absender: `zahlart_standard` an `document_vendors`,
+`booking_portals`, `service_providers`.
+
 ---
 
 ## 13c. Modul „Kalender" (Tab 📅) — nachgetragen 18.08.2026

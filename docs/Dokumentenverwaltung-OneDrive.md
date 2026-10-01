@@ -157,6 +157,40 @@ Wort „haus" in HAUScode/HAUStiere.
    Buchungen auf diesem Portal hat (Wald Chalet = nur Belvilla).
 4. Gattungswörter (`haus`, `wohnung`, `chalet` …) zählen nicht als Einzelbegriff.
 
+### Status: bezahlt? Buchung erfasst? (NEU 01.10.2026, SQL 62)
+
+**Anlass (Uli):** In der Liste war nicht zu sehen, ob eine Rechnung bezahlt ist
+oder ob die Buchung zu einer Buchungsunterlage im System steht. Boris-
+Rechnungen ließen sich nirgends auf „bezahlt" setzen (`useUpdateCleaningInvoiceStatus`
+existierte, keine Maske rief es auf).
+
+| Feld | Bedeutung |
+|---|---|
+| `document_types.pruefung` | `zahlung` · `buchung` · `keine` — in den Einstellungen je Typ wählbar |
+| `documents.referenz` | Buchungs- bzw. Rechnungsnummer, beim Lesen vorbelegt |
+| `documents.zahlart` | `einzug` (wird abgebucht, gilt nicht als offen) · `ueberweisung` |
+| `documents.betrag`, `faellig_am`, `bezahlt_am` | nur ohne verknüpfte Provider-Rechnung |
+| `zahlart_standard` | an Vendor, Portal, Dienstleister — Vorbelegung beim Ablegen |
+
+**Eine Wahrheit für Provider-Rechnungen:** Ist das Dokument mit `laundry_invoices`
+(Teuni) oder `cleaning_invoices` (Boris) verknüpft, wird deren Status gezeigt und
+geschrieben. Bei Boris zieht der vorhandene DB-Trigger die Reinigungen mit auf
+`paid`. SQL 62 verknüpft außerdem Teuni-Rechnungen, die vor dem Rechnungsimport
+abgelegt wurden, über den Dateinamen (`RG-0059-…` → Rechnung `RG-0059`).
+
+**Buchung erfasst:** über `booking_id`, eine Buchung als 2./3. Zuordnung oder
+`referenz` = `bookings.external_booking_id` (Groß-/Kleinschreibung egal).
+SQL 62 trägt bei bestehenden Belvilla-Unterlagen die Nummer aus dem Dateinamen
+nach (`booking-summary-1UWK1MG8.pdf`).
+
+**Vendoren „AirBnB"/„Booking.com"** (SQL 62): deaktiviert, nicht gelöscht; ihre
+Dokumente tragen das Portal zusätzlich als Zuordnung, ihre Ablageorte gelten
+auch für das Portal.
+
+**Noch offen (Schritt B):** Knopf „Buchung anlegen" aus der Buchungsunterlage
+(Gast, Zeitraum, Personen, Betrag aus dem PDF) und Abgleich über Gastname +
+Anreise, wenn keine Nummer passt.
+
 ### documents
 
 | Spalte | Bedeutung |
