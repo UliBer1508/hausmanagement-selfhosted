@@ -189,7 +189,8 @@ export default function DocumentsTab() {
   const statusKeys = (d: DocumentRow): string[] => {
     const s = statusVon.get(d.id);
     if (!s) return [];
-    return s.offen ? ['offen', s.zustand] : [s.zustand];
+    // Zustand 'offen' ist zugleich Sammelschluessel — nicht doppelt zaehlen.
+    return s.offen && s.zustand !== 'offen' ? ['offen', s.zustand] : [s.zustand];
   };
 
   const markPaid = (d: DocumentRow) =>
@@ -516,7 +517,9 @@ function Row({ d, onRemove, onNote, hidePath, status, onStatus, onPaid }: any) {
         <p className="mt-0.5 truncate text-xs text-muted-foreground">
           {bezugLabel(d)}
           {/* 2. und 3. Zuordnung als Zusatz — der Hauptbezug steht vorn. */}
-          {(d.zusatz ?? []).map((z: any) => (
+          {/* Gleicher Name wie der Hauptbezug (Vendor „Booking.com" + Portal
+              „Booking.com", SQL 62) wird nicht doppelt gezeigt. */}
+          {(d.zusatz ?? []).filter((z: { label?: string }) => z.label !== bezugLabel(d)).map((z: any) => (
             <span key={`${z.art}:${z.id}`} className="ml-1.5 rounded bg-muted px-1.5 py-0.5">
               {z.label}
             </span>
