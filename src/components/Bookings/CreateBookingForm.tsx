@@ -105,6 +105,9 @@ interface BookingPrefillData {
   booking_amount?: number;
   notes?: string;
   inquiry_id?: string;
+  /** Aus einer Buchungsunterlage (Dokumente). Doppelgaenger: CreateBookingDialog.tsx */
+  platform?: string;
+  external_booking_id?: string;
 }
 
 interface CreateBookingFormProps {
@@ -307,8 +310,9 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
         currency: 'EUR',
         status: 'confirmed',
         payment_status: 'pending',
-        platform: 'website', // From inquiry
-        external_booking_id: '',
+        // Anfrage -> 'website'; Buchungsunterlage (Dokumente) bringt Portal und Nummer mit.
+        platform: prefillData.platform ?? 'website',
+        external_booking_id: prefillData.external_booking_id ?? '',
         external_rating: undefined,
         notes: prefillData.notes || '',
         auto_create_cleaning: true,

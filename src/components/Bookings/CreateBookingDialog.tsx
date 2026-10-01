@@ -24,6 +24,13 @@ export interface BookingPrefillData {
   booking_amount?: number;
   notes?: string;
   inquiry_id?: string; // To update inquiry status after booking
+  /**
+   * Aus einer Buchungsunterlage (Dokumente, 01.10.2026). Ohne Angabe gilt
+   * weiter 'website' (Anfrage). ACHTUNG Doppelgaenger: Dieselbe Schnittstelle
+   * steht in CreateBookingForm.tsx — beide gleich halten.
+   */
+  platform?: string;
+  external_booking_id?: string;
 }
 
 interface CreateBookingDialogProps {
