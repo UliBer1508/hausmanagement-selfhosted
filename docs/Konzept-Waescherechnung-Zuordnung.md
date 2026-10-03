@@ -377,3 +377,23 @@ Automatisierung verfrüht.
   Vorrechnung an?
 - Woraus besteht das 5-teilige Paket genau? (Seit MW3 offen — betrifft jede
   Kalkulation, nicht nur diesen Abgleich.)
+
+---
+
+## 7. Nachtrag 03.10.2026 — Abgleich ist jetzt Pflicht (ersetzt die frühere Entscheidung „blockiert nichts")
+
+**Anlass:** RG 122 (Tal Yehuda) lag 16,60 € über der Wäschekarte: +19,60 € (7 Saunatücher,
+von Teuni geliefert, bei uns Winter-Zeile ausgeblendet) und −3,00 € (2 Geschirrtücher zählen
+bei uns als MWHT, Teuni berechnete nur 3). Die alte Gegenrechnung verglich nur Mengen, über
+veraltete Schlüssel, und blockierte nichts.
+
+**Jetzt:** `lib/rechnungsAbgleich.ts` vergleicht je Teuni-Artikelnummer Menge **und** Betrag
+(gleiche Rechnung wie die Wäschekarte, `artikelAufteilung`). Jede Abweichung braucht vor dem
+Anlegen der Rechnung eine Entscheidung:
+- **Bestellung angleichen** – nur wenn eindeutig (Paket oder genau eine Set-Zeile); Nachprüfung
+  mit derselben Preislogik, sonst kein Vorschlag. Schreibt `items`, `total_items`, `total_cost`, Vermerk in `notes`.
+- **Akzeptieren** – Begründung Pflicht (z. B. MWHT: mit Teuni klären).
+
+Das Protokoll liegt in `laundry_invoices.abgleich` (SQL 64). Oberfläche:
+`components/Documents/WaescheAbgleichPanel.tsx`, Einbindung in `DocumentsTab` (AblageDialog).
+Nicht geprüft: Lohnwäsche (kg), 0-€-Zeilen, nicht set-fähige Artikel.
