@@ -41,6 +41,16 @@ import CleaningInvoicePanel, {
 } from '@/components/Documents/CleaningInvoicePanel';
 import { useCreateCleaningInvoice } from '@/hooks/useCleaningInvoices';
 import { getGuestName } from '@/lib/guestHelpers';
+import { useLaundryArticles } from '@/hooks/useLaundryArticles';
+import type { SetZeilen } from '@/lib/linenPricing';
+import WaescheAbgleichPanel from '@/components/Documents/WaescheAbgleichPanel';
+import {
+  bildeAbgleich,
+  offeneEntscheidungen,
+  setzeEntscheidungenUm,
+  type Entscheidung,
+  type Protokoll,
+} from '@/lib/rechnungsAbgleich';
 
 /**
  * DocumentsTab — Uebersicht, Suche und Ablage.
@@ -965,22 +975,6 @@ interface RechnungsErgebnis {
  * Artikelnummern werden GROSS verglichen: Teuni schreibt sie mal
  * "MWHT", mal "mwht" (PDF gegenueber der frueheren Schnittstelle).
  */
-const ARTIKEL_ZU_SCHLUESSEL: Record<string, string> = {
-  MWR: 'bedding', MW3: 'bedding', MW4: 'bedding',
-  MWHT: 'sink_towels',
-  MWBVL: 'bath_mats',
-  MWST: 'sauna_towels',
-  MWBT: 'large_towels',
-  // Lohnwaesche und Kleinunternehmerzeile haben keinen Mengenbezug.
-  WT2: '', WT3: '', WTB2: '', WTB3: '', KLGEW: '', MWSPLT1: '',
-};
-
-const mengeAusBestellungen = (bestellungen: any[], schluessel: string) =>
-  bestellungen.reduce((summe, b) => {
-    const items = (b.items ?? {}) as Record<string, number>;
-    return summe + Number(items[schluessel] ?? 0);
-  }, 0);
-
 function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () => void }) {
   const { toast } = useToast();
   const upload = useUploadDocument();
@@ -1241,6 +1235,8 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
   const [reinigungAnlegen, setReinigungAnlegen] = useState(true);
   const [gewaehlteBestellungen, setGewaehlte] = useState<Set<string>>(new Set());
   const [rechnungAnlegen, setRechnungAnlegen] = useState(true);
+  const [entscheidungen, setEntscheidungen] = useState<Record<string, Entscheidung>>({});
+  const qc = useQueryClient();
   // Neue Artikel ins Sortiment uebernehmen. Vorbelegt mit true: sie stehen
   // auf einer echten Rechnung, gehoeren also zu Teunis Sortiment. Der Preis
   // kommt von dort — geprueft wird er beim naechsten Mal gegen genau ihn.
@@ -1262,6 +1258,8 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           delivery_date,
           order_date,
           total_items,
+          total_cost,
+          notes,
           items,
           house_id,
           houses:house_id (name),
@@ -1647,26 +1645,47 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     [offeneBestellungen, gewaehlteBestellungen],
   );
 
-  // Gegenrechnung je Rechnungsposition. Positionen ohne Mengenbezug
-  // (Lohnwaesche, Kleinunternehmerzeile) bleiben aussen vor.
-  const vergleich = useMemo(() => {
-    if (!rechnung) return [];
-    return rechnung.positionen
-      .map((pos) => {
-        const schluessel = ARTIKEL_ZU_SCHLUESSEL[pos.artikel.toUpperCase()];
-        if (!schluessel) return null;
-        return {
-          artikel: pos.artikel,
-          bezeichnung: pos.bezeichnung,
-          laut_rechnung: pos.menge,
-          laut_auswahl: mengeAusBestellungen(gewaehlteZeilen, schluessel),
-        };
-      })
-      .filter(Boolean) as Array<{
-        artikel: string; bezeichnung: string;
-        laut_rechnung: number; laut_auswahl: number;
-      }>;
-  }, [rechnung, gewaehlteZeilen]);
+  // Abgleich Rechnung <-> gewaehlte Bestellungen (lib/rechnungsAbgleich.ts).
+  const { data: waescheArtikel = [] } = useLaundryArticles();
+  const hausIds = useMemo(
+    () => [...new Set((gewaehlteZeilen as any[]).map((b) => b.house_id).filter(Boolean))] as string[],
+    [gewaehlteZeilen],
+  );
+  const { data: setDefs = [] } = useQuery({
+    queryKey: ['abgleich-set-definitionen', hausIds],
+    enabled: !!rechnung && hausIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('linen_set_definitions')
+        .select('house_id, custom_categories')
+        .in('house_id', hausIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const setZeilenJeHaus = useMemo(() => {
+    const m: Record<string, SetZeilen> = {};
+    for (const d of setDefs as any[]) m[d.house_id] = (d.custom_categories ?? {}) as SetZeilen;
+    return m;
+  }, [setDefs]);
+
+  const abgleichBestellungen = useMemo(
+    () => (gewaehlteZeilen as any[]).map((b) => ({
+      id: b.id as string,
+      house_id: (b.house_id ?? null) as string | null,
+      items: (b.items ?? null) as Record<string, number> | null,
+      label: `${b.houses?.name ?? 'Haus'} · ${b.delivery_date ?? b.order_date ?? ''}${b.bookings ? ' · ' + getGuestName(b.bookings) : ''}`,
+    })),
+    [gewaehlteZeilen],
+  );
+
+  const abgleich = useMemo(() => {
+    if (!rechnung || rechnung.bereits_erfasst) return null;
+    // Erst vergleichen, wenn die Set-Definitionen da sind — sonst steht
+    // kurz alles auf "abweichend".
+    if (hausIds.length > 0 && (setDefs as any[]).length === 0) return null;
+    return bildeAbgleich(rechnung.positionen, abgleichBestellungen, setZeilenJeHaus, waescheArtikel);
+  }, [rechnung, abgleichBestellungen, setZeilenJeHaus, waescheArtikel, hausIds, setDefs]);
 
   const gemerkt = useMemo(() => {
     if (!chosen?.locationId || !typeId) return null;
@@ -1710,6 +1729,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     setRechnung(null);
     setRechnungProviderId(null);
     setGewaehlte(new Set());
+    setEntscheidungen({});
     setReinigung(null);
     setReinigungHinweis(null);
     setReinigungProviderId(null);
@@ -1726,6 +1746,14 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     if (target !== 'keine' && !entityId) { setErr('Bitte ein Objekt zum Verknüpfen wählen.'); return; }
     if (type.pruefung === 'zahlung' && Number.isNaN(parseBetrag(betrag))) { setErr('Der Betrag ist keine Zahl.'); return; }
     if (source === 'pc' && !folder) { setErr('Bitte einen Zielordner wählen.'); return; }
+    if (rechnung && !rechnung.bereits_erfasst && rechnungAnlegen) {
+      if (!abgleich) { setErr('Der Abgleich mit der Bestellung wird noch geladen.'); return; }
+      const offen = offeneEntscheidungen(abgleich, entscheidungen);
+      if (offen.length > 0) {
+        setErr(`Abgleich Wäsche: ${offen.join(' · ')}`);
+        return;
+      }
+    }
 
     const zusatz = [
       { art: art2, id: id2 },
@@ -1905,7 +1933,64 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       if (!verk || verk.length === 0) {
         throw new Error('Rechnung angelegt, aber die Verknüpfung zum Beleg wurde nicht gespeichert.');
       }
-      return null;
+
+      // Abgleich umsetzen: Bestellungen angleichen, Protokoll an der Rechnung ablegen.
+      let abgleichHinweis: string | null = null;
+      if (abgleich) {
+        const um = setzeEntscheidungenUm({
+          abgleich,
+          entscheidungen,
+          bestellungen: abgleichBestellungen,
+          setZeilenJeHaus,
+          artikel: waescheArtikel,
+        });
+        const fehler: string[] = um.gescheitert.map((g) => `${g.artikelnummer}: ${g.grund}`);
+        const datum = new Date().toLocaleDateString('de-DE');
+        for (const [orderId, plan] of Object.entries(um.aenderungen)) {
+          const zeile = (gewaehlteZeilen as any[]).find((b) => b.id === orderId);
+          const vermerk = `Mengen an Rechnung Nr. ${r.rechnungsnummer} angeglichen (${datum})`;
+          const patch: Record<string, unknown> = {
+            items: plan.items,
+            total_items: plan.totalItems,
+            notes: zeile?.notes ? `${zeile.notes}\n${vermerk}` : vermerk,
+            updated_at: new Date().toISOString(),
+          };
+          if (plan.totalCost !== null) patch.total_cost = plan.totalCost;
+          const { data: upd, error: uErr } = await supabase
+            .from('linen_orders')
+            .update(patch as any)
+            .eq('id', orderId)
+            .select('id');
+          if (uErr || !upd || upd.length === 0) {
+            fehler.push(`Bestellung ${orderId} konnte nicht angeglichen werden${uErr ? ': ' + uErr.message : ''}`);
+          }
+        }
+        const protokoll: Protokoll = {
+          version: 1,
+          erstellt_am: new Date().toISOString(),
+          bestellungen: abgleichBestellungen.map((b) => b.id),
+          ohne_bestellung: abgleichBestellungen.length === 0,
+          uebersprungen: abgleich.uebersprungen,
+          ohne_artikel: abgleich.ohneArtikel,
+          zeilen: um.protokoll,
+        };
+        // Spalte stammt aus SQL 64. Fehlt sie noch, ist das ein Hinweis, kein Abbruch.
+        const { data: pr, error: pErr } = await (supabase as any)
+          .from('laundry_invoices')
+          .update({ abgleich: protokoll })
+          .eq('id', angelegt.id)
+          .select('id');
+        if (pErr || !pr || pr.length === 0) {
+          fehler.push(`Abgleich-Protokoll nicht gespeichert${pErr ? ': ' + pErr.message : ''} (SQL 64 ausgeführt?)`);
+        }
+        qc.invalidateQueries({ queryKey: ['linen-orders-list'] });
+        qc.invalidateQueries({ queryKey: ['linen-orders'] });
+        qc.invalidateQueries({ queryKey: ['linen-orders-connected'] });
+        qc.invalidateQueries({ queryKey: ['offene-linen-orders'] });
+        qc.invalidateQueries({ queryKey: ['laundry-invoices'] });
+        if (fehler.length > 0) abgleichHinweis = `Rechnung angelegt, aber beim Abgleich: ${fehler.join(' | ')}`;
+      }
+      return abgleichHinweis;
     };
 
     /*
@@ -2418,37 +2503,17 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
                         </div>
                       )}
 
-                      {/* Gegenrechnung — reine Sichtpruefung, blockiert nichts */}
-                      {vergleich.length > 0 && (
-                        <table className="mb-2 w-full text-xs">
-                          <thead>
-                            <tr className="text-amber-900">
-                              <th className="text-left font-medium">Artikel</th>
-                              <th className="text-right font-medium">Rechnung</th>
-                              <th className="text-right font-medium">Auswahl</th>
-                              <th className="w-6" />
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {vergleich.map((v) => {
-                              const gleich = v.laut_rechnung === v.laut_auswahl;
-                              return (
-                                <tr key={v.artikel}>
-                                  <td className="py-0.5">{v.bezeichnung}</td>
-                                  <td className="py-0.5 text-right">{v.laut_rechnung}</td>
-                                  <td className="py-0.5 text-right">{v.laut_auswahl}</td>
-                                  <td className="py-0.5 text-right">{gleich ? '✓' : '≠'}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
+                      {/* Abgleich mit Entscheidungspflicht */}
+                      {abgleich && (
+                        <WaescheAbgleichPanel
+                          abgleich={abgleich}
+                          entscheidungen={entscheidungen}
+                          onChange={setEntscheidungen}
+                          bestellungen={abgleichBestellungen}
+                          setZeilenJeHaus={setZeilenJeHaus}
+                          artikel={waescheArtikel}
+                        />
                       )}
-                      <p className="mb-2 text-xs text-amber-800">
-                        Abweichungen sind kein Hindernis: Teuni liefert auch Vorrat,
-                        und die Paketmengen wichen schon von der Gästezahl ab.
-                        Die Auswahl entscheidest du.
-                      </p>
                     </>
                   )}
 
