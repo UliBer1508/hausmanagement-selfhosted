@@ -863,6 +863,12 @@ Gespeichert wird nur über das Formular (`useBookings`). Ältere Unterlagen ohne
 `ausgelesen`: PDF vom PC wählen, wird lokal gelesen. Ohne Nummerntreffer gleicht
 `buchungenZuordnen` über Gastname + Anreisetag ab → „vermutlich erfasst".
 
+**Wäscherechnung-Abgleich (NEU 03.10.2026, SQL 64):**
+- `lib/rechnungsAbgleich.ts` — reine Logik: `bildeAbgleich`, `planeAngleichung`, `offeneEntscheidungen`, `setzeEntscheidungenUm`. Tests: `test/rechnungsAbgleich.test.ts` (RG-122-Fall).
+- `components/Documents/WaescheAbgleichPanel.tsx` — Entscheidung je Abweichung (angleichen / akzeptieren + Grund).
+- `DocumentsTab` (AblageDialog): `submit` sperrt bei offenen Entscheidungen; `rechnungNachtragen` schreibt Angleichung + `laundry_invoices.abgleich` (SQL 64).
+Doku: `docs/Konzept-Waescherechnung-Zuordnung.md` (Abschnitt 7).
+
 ---
 
 ## 13c. Modul „Kalender" (Tab 📅) — nachgetragen 18.08.2026
