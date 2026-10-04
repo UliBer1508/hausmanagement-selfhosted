@@ -3,11 +3,11 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { requireAdmin } from "../_shared/auth.ts";
 import {
-  callGemini,
-  extractTextFromResponse,
-  extractFunctionCalls,
-  hasFunctionCalls,
+  generateContent,
   convertToolsToGemini,
+  GeminiAPIError,
+  GeminiQuotaExhaustedError,
+  GeminiRateLimitError,
   GeminiContent,
   GeminiPart
 } from "../_shared/gemini.ts";
@@ -4339,7 +4339,6 @@ nicht als bloße Nachricht.
     let iteration = 0;
     const maxIterations = 5;
     let toolResults: any[] = [];
-    let rateLimitRetried = false; // erlaubt genau einen 429-Retry pro Anfrage
     let toolNudged = false; // erlaubt genau einen sanften Tool-Hinweis pro Anfrage
 
     while (iteration < maxIterations) {
@@ -4374,72 +4373,28 @@ nicht als bloße Nachricht.
         }
       };
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-        }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Gemini API error:', response.status, errorText);
-
-        if (response.status === 429) {
-          // Gemini sendet 429 fuer ZWEI grundverschiedene Faelle:
-          //   a) echtes Rate-Limit (zu viele Anfragen pro Minute) -> Warten hilft
-          //   b) Guthaben/Quota aufgebraucht -> Warten hilft NICHT
-          // Frueher wurde beides gleich behandelt: bei aufgebrauchtem Guthaben
-          // lief ein sinnloser Retry (2s Wartezeit + zweiter API-Call), und der
-          // Nutzer bekam "stark ausgelastet" zu lesen, obwohl schlicht das
-          // Guthaben leer war. Beides wird jetzt unterschieden.
-          const lower = errorText.toLowerCase();
-          const isQuotaExhausted =
-            lower.includes('credits are depleted') ||
-            lower.includes('prepayment') ||
-            lower.includes('billing') ||
-            lower.includes('quota exceeded') ||
-            lower.includes('exceeded your current quota') ||
-            lower.includes('resource_exhausted');
-
-          if (isQuotaExhausted) {
-            console.error('Gemini Guthaben/Quota aufgebraucht - kein Retry sinnvoll.');
-            return new Response(
-              JSON.stringify({
-                error:
-                  'Gemini-Guthaben aufgebraucht. Bitte im Google AI Studio Credits aufladen — Warten hilft hier nicht.',
-                reason: 'quota_exhausted',
-                geminiMessage: errorText.slice(0, 500),
-              }),
-              { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          }
-
-          // Echtes Rate-Limit: einmalig kurz warten und dieselbe Iteration erneut
-          // versuchen, statt sofort abzubrechen.
-          if (!rateLimitRetried) {
-            rateLimitRetried = true;
-            console.log('Rate limit (429) - warte 2s und versuche erneut...');
-            await new Promise((r) => setTimeout(r, 2000));
-            iteration--; // diese Iteration wiederholen, nicht verbrauchen
-            continue;
-          }
+      // Aufruf ueber die gemeinsame Anbindung (_shared/gemini.ts) – seit 04.10.2026.
+      // Vorher stand hier ein eigener fetch() mit eigener Fehlerbehandlung; dort
+      // fehlte der Fall HTTP 402 (Guthaben leer), und jedes gewoehnliche
+      // Rate-Limit wurde als "Guthaben aufgebraucht" gemeldet. Wiederholungen bei
+      // voruebergehenden Stoerungen erledigt generateContent selbst.
+      let data;
+      try {
+        data = await generateContent(GEMINI_API_KEY, requestBody);
+      } catch (err) {
+        if (err instanceof GeminiAPIError) {
+          const reason =
+            err instanceof GeminiQuotaExhaustedError ? 'quota_exhausted'
+            : err instanceof GeminiRateLimitError ? 'rate_limit'
+            : 'gemini_error';
           return new Response(
-            JSON.stringify({
-              error: 'Der Assistent ist gerade stark ausgelastet. Bitte versuche es in einer Minute erneut.',
-              reason: 'rate_limit',
-              geminiMessage: errorText.slice(0, 500),
-            }),
-            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({ error: err.message, reason, geminiMessage: err.geminiMessage }),
+            { status: err.statusCode, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-
-        throw new Error(`Gemini API error: ${response.status}`);
+        throw err;
       }
 
-      const data = await response.json();
       const candidate = data.candidates?.[0];
       const parts = candidate?.content?.parts || [];
 
@@ -4503,8 +4458,9 @@ nicht als bloße Nachricht.
       const functionResponses: GeminiPart[] = [];
 
       for (const fc of functionCalls) {
-        const toolName = fc.functionCall.name;
-        const args = fc.functionCall.args || {};
+        // functionCall ist gesetzt – functionCalls wurde oben darauf gefiltert.
+        const toolName = fc.functionCall!.name;
+        const args = fc.functionCall!.args || {};
 
         console.log(`Executing tool: ${toolName}`, args);
 
