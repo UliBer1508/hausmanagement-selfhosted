@@ -48,7 +48,8 @@ src/main.tsx
 | Login | `src/pages/Login.tsx` |
 | 404 | `src/pages/NotFound.tsx` |
 | AI-Assistent (Max) | `src/components/Chat/ChatAssistant.tsx` |
-| **Max — Gehirn (Backend)** | `supabase/functions/chat-assistant/index.ts` (≈3.550 Z.) |
+| **Max — Gehirn (Backend)** | `supabase/functions/chat-assistant/index.ts` (≈4.500 Z.) |
+| **Gemini-Anbindung (alle KI-Aufrufe)** | `supabase/functions/_shared/gemini.ts` — einziger Aufrufpfad (`generateContent`); Abrechnung/Fehlercodes: `docs/Gemini-Anbindung.md` |
 | Max — Aktionen-Fenster | `src/components/Chat/MaxActionsPanel.tsx` |
 | Max — Abläufe-Fenster | `src/components/Chat/MaxAblaeufePanel.tsx` |
 | PWA-Statusleiste | `src/components/PWA/AppStatusBar.tsx` |
@@ -251,6 +252,14 @@ Popover als „Klick nach draußen" und schließt sich.
 Bei „Funktion schlägt fehl" meldet Max nur „konnte nicht angelegt werden".
 → Die Edge Function **direkt** aufrufen (Dashboard → Edge Functions → Send
 Request) — dort steht der echte Fehler im Klartext.
+
+**5. Gemini nie direkt per `fetch` aufrufen (04.10.2026).**
+`chat-assistant` hatte einen eigenen Gemini-Aufruf an `_shared/gemini.ts` vorbei.
+Als Google für leeres Vorauszahlungs-Guthaben auf HTTP 402 umstellte, erkannte
+diese Stelle das nicht — Max zeigte drei Tage lang nur „Gemini API error: 402".
+→ **Regel:** Jeder KI-Aufruf geht über `generateContent` / `callGemini` aus
+`_shared/gemini.ts`. Dort liegen Fehlereinordnung, Zeitlimit, Wiederholung und
+Modellwahl (Secret `GEMINI_MODEL`). Details: `docs/Gemini-Anbindung.md`.
 
 ### Weitere Stolperfallen
 - **Dashboard ≠ Dashboard:** `OverviewTab` (Tab-Inhalt) vs.
