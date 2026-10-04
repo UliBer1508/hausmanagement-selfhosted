@@ -1,5 +1,9 @@
 # Bestandsaufnahme KI-System (Max) — Stand 05.08.2026 (abends)
 
+> **ABGELÖST am 04.10.2026** durch `docs/Bestandsaufnahme-KI-System-2026-10-04.md`.
+> Diese Fassung bleibt als Herleitung der Befunde B1–B12 stehen; den aktuellen
+> Stand jedes Befunds nennt die neue Datei.
+
 > **Fassung 2.** Die erste Fassung entstand am Vormittag nach der Analyse. Am
 > Nachmittag wurden B2, B3 und B5 behoben und dabei eine gemeinsame Wurzel
 > gefunden, die B5 und B6 zugleich erklärte. Die Befunde sind entsprechend
