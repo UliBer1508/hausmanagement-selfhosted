@@ -164,7 +164,16 @@ serve(async (req) => {
     const today = isoDate(now);
     const todayStart = `${today}T00:00:00`;
     const nextWeekEnd = addDays(now, 7);
-    const nextWeekEndStr = `${isoDate(nextWeekEnd)}T23:59:59`;
+
+    // Zeitraum für „Kommende Buchungen" (05.10.2026, Uli-Entscheidung).
+    // Vorher fest 7 Tage — übernommen aus dem alten Lovable-Hook, nie bewusst
+    // festgelegt. Jetzt einstellbar: morning_summary_settings.upcoming_days
+    // (Einstellungen → Max: Morgen-Übersicht). Ohne Eintrag: 7 Tage.
+    const upcomingDaysRaw = Number(settings?.upcoming_days);
+    const upcomingDays = Number.isFinite(upcomingDaysRaw) && upcomingDaysRaw >= 1
+      ? Math.min(Math.round(upcomingDaysRaw), 365)
+      : 7;
+    const upcomingEndStr = `${isoDate(addDays(now, upcomingDays))}T23:59:59`;
 
     // ---- Rating-Einstellungen (mit Defaults) ----
     let ratingSettings: any = null;
@@ -288,19 +297,71 @@ serve(async (req) => {
       ratingActionTracking = (data || []) as ActionTracking[];
     }
 
-    // 3+4) Kommende Buchungen (nächste 7 Tage)
+    // 3+4) Kommende Buchungen (Zeitraum einstellbar, siehe upcomingDays)
     let upcomingBookings: any[] = [];
     {
       const { data, error } = await supabase
         .from('bookings')
         .select('*, houses!bookings_house_id_fkey(name), guests!bookings_guest_id_fkey(name)')
         .gte('check_in', todayStart)
-        .lte('check_in', nextWeekEndStr)
+        .lte('check_in', upcomingEndStr)
         .eq('status', 'confirmed')
         .order('check_in')
-        .limit(10);
+        .limit(30);
       if (error) throw error;
       upcomingBookings = data || [];
+    }
+
+    // 4b) BELEGUNG JE HAUS (NEU 05.10.2026, Uli-Entscheidung)
+    //
+    // WARUM: Die Übersicht kannte nur Anreisen AB HEUTE. Wer schon im Haus war,
+    // fiel heraus (Anlass: Gäste im Venediger Chalet, nirgends angezeigt). Und
+    // gab es in 7 Tagen keine Anreise, fehlte jeder Hinweis auf die nächste.
+    //
+    // REGEL:
+    //   im Haus        = check_in <= jetzt < check_out
+    //   nächste Anreise = früheste Buchung mit check_in > jetzt — OHNE Zeitgrenze
+    //   aktiv           = status NULL, 'confirmed' oder 'checked_in'
+    //                     (NULL zählt laut SQL 56 als aktiv; 'checked_in' fiel
+    //                     im Abschnitt „Kommende Buchungen" bisher heraus)
+    //
+    // Jedes Ferienhaus erscheint IMMER, auch wenn es frei ist.
+    // Abschaltbar über morning_summary_settings.include.belegung = false.
+    type HausBelegung = { haus: string; jetzt: any | null; naechste: any | null };
+    const belegung: HausBelegung[] = [];
+    if (includeCfg.belegung !== false) {
+      const { data: haeuser, error: hErr } = await supabase
+        .from('houses')
+        .select('id, name')
+        .eq('rental_type', 'tourist')
+        .order('name');
+      if (hErr) throw hErr;
+
+      const nowIso = now.toISOString();
+      const aktiv = 'status.is.null,status.in.(confirmed,checked_in)';
+      // Gastname NUR aus guests — die Kopiespalte bookings.guest_name entfällt in
+      // Etappe 6 und wird hier bewusst nicht neu verwendet.
+      const felder = 'id, check_in, check_out, number_of_guests, guests!bookings_guest_id_fkey(name)';
+
+      for (const h of haeuser || []) {
+        const [jetztRes, naechsteRes] = await Promise.all([
+          supabase.from('bookings').select(felder)
+            .eq('house_id', h.id).or(aktiv)
+            .lte('check_in', nowIso).gt('check_out', nowIso)
+            .order('check_in', { ascending: false }).limit(1),
+          supabase.from('bookings').select(felder)
+            .eq('house_id', h.id).or(aktiv)
+            .gt('check_in', nowIso)
+            .order('check_in', { ascending: true }).limit(1),
+        ]);
+        if (jetztRes.error) throw jetztRes.error;
+        if (naechsteRes.error) throw naechsteRes.error;
+        belegung.push({
+          haus: h.name,
+          jetzt: jetztRes.data?.[0] ?? null,
+          naechste: naechsteRes.data?.[0] ?? null,
+        });
+      }
     }
 
     // 5) Geplante Reinigungen (heute + nächste 7 Tage)
@@ -431,6 +492,34 @@ serve(async (req) => {
     // ============================================================
     let message = '🏠 **Guten Morgen! Deine anstehenden Aufgaben**\n\n';
     message += `📅 ${formatLongDE(now)}\n\n`;
+
+    // BELEGUNG — ganz oben: wer ist im Haus, wer kommt als Nächstes (05.10.2026).
+    // Daten in deutscher Zeit (Europe/Berlin), nicht in der UTC-Zeit des Servers.
+    if (belegung.length > 0) {
+      const tagBerlin = (v: string) =>
+        new Intl.DateTimeFormat('de-DE', {
+          timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', year: 'numeric',
+        }).format(new Date(v));
+      const tagKey = (v: string | Date) =>
+        new Date(v).toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+      const tageBis = (v: string) =>
+        Math.round((Date.parse(tagKey(v)) - Date.parse(tagKey(now))) / 86400000);
+      const gast = (b: any) => b.guests?.name || 'ohne Namen';
+      const personen = (b: any) => b.number_of_guests ? `, ${b.number_of_guests} Gäste` : '';
+      const abstand = (n: number) => n <= 0 ? 'heute' : n === 1 ? 'morgen' : `in ${n} Tagen`;
+
+      message += `🏠 **Belegung**\n`;
+      belegung.forEach(({ haus, jetzt, naechste }) => {
+        const jetztText = jetzt
+          ? `im Haus: ${gast(jetzt)}${personen(jetzt)}, Abreise ${tagBerlin(jetzt.check_out)}`
+          : 'frei';
+        const naechsteText = naechste
+          ? `nächste Anreise: ${gast(naechste)}${personen(naechste)}, ${tagBerlin(naechste.check_in)} (${abstand(tageBis(naechste.check_in))})`
+          : 'keine weitere Buchung';
+        message += `• **${haus}** – ${jetztText} · ${naechsteText}\n`;
+      });
+      message += '\n';
+    }
 
     // ÜBERFÄLLIG (höchste Priorität — jemand hat nicht geantwortet)
     // SYSTEMFEHLER zuerst — noch vor dem Tagesgeschäft.
@@ -590,7 +679,7 @@ serve(async (req) => {
 
     // KOMMENDE BUCHUNGEN
     if (includeCfg.upcoming_bookings !== false && upcomingBookings.length > 0) {
-      message += `📥 **Kommende Buchungen (${upcomingBookings.length})**\n`;
+      message += `📥 **Kommende Buchungen – nächste ${upcomingDays} Tage (${upcomingBookings.length})**\n`;
       upcomingBookings.forEach((b) => {
         const checkInDate = formatDE(new Date(b.check_in));
         const checkInTime = formatTime(new Date(b.check_in));
@@ -704,6 +793,12 @@ serve(async (req) => {
           ratings: ratingReminders.length,
           open_linen: openOrders.length,
           upcoming_bookings: upcomingBookings.length,
+          upcoming_days: upcomingDays,
+          belegung: belegung.map((b) => ({
+            haus: b.haus,
+            im_haus: b.jetzt ? (b.jetzt.guests?.name ?? null) : null,
+            naechste_anreise: b.naechste ? b.naechste.check_in : null,
+          })),
           cleanings: cleanings.length,
           confirmed_deliveries: confirmedDeliveries.length,
         },
