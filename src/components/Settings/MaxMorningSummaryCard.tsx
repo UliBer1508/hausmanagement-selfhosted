@@ -18,6 +18,9 @@ import {
  *             sendet die Edge Function `morning-summary` NICHTS —
  *             selbst wenn der Cron sie mit deliver=true aufruft.
  * - email_to: Empfänger der täglichen Übersicht.
+ * - upcoming_days: Zeitraum des Abschnitts „Kommende Buchungen" (Tage voraus).
+ *             Die Belegung je Haus (wer ist im Haus, nächste Anreise) steht
+ *             immer oben und hängt NICHT an diesem Wert (05.10.2026).
  * - time:     Wird hier NICHT mehr gesetzt. Die echten Uhrzeiten stehen in
  *             `max_automation_schedule` und werden von der Karte
  *             MaxAutomationScheduleCard.tsx gesteuert (deutsche Zeit).
@@ -32,12 +35,14 @@ const MaxMorningSummaryCard = () => {
   const [enabled, setEnabled] = useState(DEFAULT_MORNING_SUMMARY_SETTINGS.enabled);
   const [emailTo, setEmailTo] = useState(DEFAULT_MORNING_SUMMARY_SETTINGS.email_to);
   const [time, setTime] = useState(DEFAULT_MORNING_SUMMARY_SETTINGS.time);
+  const [upcomingDays, setUpcomingDays] = useState<number>(DEFAULT_MORNING_SUMMARY_SETTINGS.upcoming_days ?? 7);
 
   useEffect(() => {
     if (settings) {
       setEnabled(settings.enabled ?? DEFAULT_MORNING_SUMMARY_SETTINGS.enabled);
       setEmailTo(settings.email_to ?? DEFAULT_MORNING_SUMMARY_SETTINGS.email_to);
       setTime(settings.time ?? DEFAULT_MORNING_SUMMARY_SETTINGS.time);
+      setUpcomingDays(settings.upcoming_days ?? DEFAULT_MORNING_SUMMARY_SETTINGS.upcoming_days ?? 7);
     }
   }, [settings]);
 
@@ -50,12 +55,24 @@ const MaxMorningSummaryCard = () => {
       });
       return;
     }
+    if (!Number.isInteger(upcomingDays) || upcomingDays < 1 || upcomingDays > 365) {
+      toast({
+        title: 'Zeitraum ungültig',
+        description: 'Bitte eine ganze Zahl zwischen 1 und 365 Tagen eintragen.',
+        variant: 'destructive',
+      });
+      return;
+    }
     try {
+      // Bestehende Felder (z. B. include) mitnehmen — saveSettings ersetzt den
+      // ganzen Wert, sonst gingen per SQL gesetzte Schalter verloren.
       await saveSettings({
+        ...(settings ?? {}),
         enabled,
         time,
         channel: 'email',
         email_to: emailTo.trim(),
+        upcoming_days: upcomingDays,
       });
       toast({
         title: 'Gespeichert',
@@ -127,6 +144,29 @@ const MaxMorningSummaryCard = () => {
             onChange={(e) => setEmailTo(e.target.value)}
             placeholder="deine@email.de"
             className="max-w-md"
+          />
+        </div>
+
+        {/* Zeitraum „Kommende Buchungen" */}
+        <div className="space-y-2 rounded-lg border p-4">
+          <Label htmlFor="morning-upcoming-days" className="text-sm font-medium">
+            Kommende Buchungen: Tage voraus
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            So weit voraus listet die Übersicht alle Anreisen. Wer gerade im Haus
+            ist und die nächste Anreise je Haus stehen immer oben – unabhängig
+            von diesem Wert.
+          </p>
+          <Input
+            id="morning-upcoming-days"
+            type="number"
+            min={1}
+            max={365}
+            step={1}
+            value={upcomingDays}
+            onChange={(e) => setUpcomingDays(Number(e.target.value))}
+            onWheel={(e) => (e.target as HTMLElement).blur()}
+            className="max-w-[8rem]"
           />
         </div>
 
