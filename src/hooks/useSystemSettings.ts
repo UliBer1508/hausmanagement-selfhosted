@@ -39,6 +39,8 @@ export interface MorningSummarySettings {
   time: string;                  // Uhrzeit des Cron-Laufs, z.B. "06:30"
   channel: 'email' | 'chat' | 'both';
   email_to: string;              // Empfänger der Morgen-Übersicht
+  upcoming_days?: number;        // „Kommende Buchungen": so viele Tage voraus (Standard 7)
+  include?: Record<string, boolean>; // Abschnitte ein/aus (z. B. belegung) — nur per SQL gepflegt
 }
 
 // Naechtliche Datensicherung (SQL 60). Wird vom Skript Backup-Supabase.ps1 auf dem
@@ -153,6 +155,7 @@ export const DEFAULT_MORNING_SUMMARY_SETTINGS: MorningSummarySettings = {
   time: '06:30',
   channel: 'email',
   email_to: '',
+  upcoming_days: 7,
 };
 
 export const DEFAULT_RATING_REMINDER_SETTINGS: RatingReminderSettings = {
