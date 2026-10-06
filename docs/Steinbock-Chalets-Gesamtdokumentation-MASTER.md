@@ -799,6 +799,15 @@ in keinem Dokument standen**: `trg_close_max_action_on_linen_confirmed` und
   (`docs/Prozess-Gaestezahl-Aenderung.md`, `supabase/SQL/65_gaestezahl_info_im_chat.sql`).
   Die automatischen Terminfragen (Fall b) bleiben vorerst ausgeschaltet; Uli schaltet
   sie selbst wieder ein.
+  **Neue Reinigung an Amela/Boris** (06.10.2026): ebenfalls nur Info-Pop-up
+  „🆕 Neue Reinigung" (Haus, Datum, Zeit; schließbar mit OK), kein Chat. Ausgelöst,
+  sobald die Reinigung auf „geplant" steht — Entwürfe der Buchungs-Automatik also
+  erst nach Ulis Freigabe, Reinigungen ohne Buchung sofort. War das Portal zu, kommt
+  das Pop-up beim nächsten Öffnen (gemerkt je Gerät, localStorage
+  `gemeldete-reinigungen`). Glocke, Zähler und Ton bleiben; die Einstellung „Neuer
+  Reinigungsauftrag" schaltet das Pop-up ab. Code (in beiden Portalen identisch):
+  `src/hooks/useNeueAuftraege.ts`, `src/components/NeuerAuftragDialog.tsx`,
+  eingebunden in `src/pages/CleaningPortal.tsx`.
 - **Reinigungsablaeufe sind providerneutral** (22.07.2026). Nicht „Amela", sondern
   „der zustaendige Reinigungsdienstleister" — Zuordnung ueber
   `service_tasks.provider_id`. Boris ist damit ohne Code-Aenderung abgedeckt.
