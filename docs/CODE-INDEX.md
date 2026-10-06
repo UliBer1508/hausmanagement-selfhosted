@@ -785,7 +785,9 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
 
 **Karten im Einstellungen-Tab** (`Dashboard/SettingsTab.tsx`):
 - `Settings/MaxMorningSummaryCard.tsx` — **NEU 12.07.:** Max' Morgen-Übersicht
-  (Not-Aus-Schalter, Empfänger-E-Mail, Uhrzeit). Hook:
+  (Not-Aus-Schalter, Empfänger-E-Mail, Tage voraus für „Kommende Buchungen“;
+  die Uhrzeit steht in `MaxAutomationScheduleCard`). Speichern behält übrige
+  Felder (z. B. `include`). Hook:
   `useMorningSummarySettings()` in `useSystemSettings.ts`.
 - `Settings/RatingReminderSettingsCard.tsx` — Bewertungs-Erinnerungen
 - `Settings/GuestImportCard.tsx` — Gästeliste importieren
@@ -1188,6 +1190,13 @@ durch Uli. Er liest Antworten nur auf Nachfrage.
   (`deliver=true` + `morning_summary_settings.enabled=true` → `send-guest-email`).
   Der Frontend-Hook `useMorningSummary.ts` ruft NUR diese Function (keine
   Doppellogik).
+  **Belegung (05.10.2026):** Ganz oben steht je Ferienhaus immer, wer gerade
+  im Haus ist (`check_in <= jetzt < check_out`) und die nächste Anreise —
+  ohne Zeitgrenze, aktiv = Status NULL/`confirmed`/`checked_in`, Daten in
+  Europe/Berlin. Abschaltbar über `morning_summary_settings.include.belegung`.
+  Der Abschnitt „Kommende Buchungen" listet alle Anreisen der nächsten
+  `morning_summary_settings.upcoming_days` Tage (Standard 7, vorher fest im
+  Code aus dem alten Lovable-Hook).
 - Einstellungskarte: `Settings/MaxMorningSummaryCard.tsx` (Einstellungen-Tab).
 
 ### DB-Trigger (Kern der Ketten)

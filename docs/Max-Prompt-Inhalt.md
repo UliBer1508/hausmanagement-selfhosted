@@ -69,7 +69,7 @@ Das ist die wichtigste Sicherheitsphilosophie. Max **fragt zuerst, handelt nach 
 - **Wäsche bei geänderter (erhöhter) Gästezahl** (update_linen_for_booking):
   Erst fragen "Soll ich auf X Gäste anpassen?". Nach "ja" wird die bestehende
   Bestellung ersetzt (egal welcher Status). Teuni wird **automatisch** informiert
-  (Pflichtdialog im Portal + Hinweis auf ihrer Buchungskarte). Max bietet seit
+  (Info-Pop-up im Portal + Nachricht im Chat + Hinweis auf ihrer Buchungskarte, SQL 65). Max bietet seit
   28.09.2026 **keine** zusätzliche Nachricht mehr an — nur auf ausdrücklichen
   Wunsch von Uli. Der Vorgang ist sofort abgeschlossen.
 - **Reinigungstermin verschieben** (reschedule_cleaning): Erst altes + neues Datum

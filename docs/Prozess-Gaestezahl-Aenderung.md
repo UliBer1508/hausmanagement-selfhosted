@@ -23,7 +23,7 @@ ist, während die Zusatzkosten noch offen sind.
 | 2 | System | Zusatzkosten berechnen: Bettwäsche + Ortstaxe für die zusätzlichen Personen |
 | 3 | Uli | Beträge prüfen, ggf. korrigieren, Forderungen anlegen und Zahlungslink erstellen |
 | 4 | System | Wäschebestellung auf die neue Gästezahl anpassen |
-| 5 | System | Teuni wird automatisch informiert: Pflichtdialog im Portal (quittieren) + Mengenabgleich auf ihrer Buchungskarte |
+| 5 | System | Teuni wird automatisch informiert: Info-Pop-up im Portal (schließbar) + dieselbe Info als Nachricht im Chat + Mengenabgleich auf ihrer Buchungskarte (seit 06.10.2026, SQL 65) |
 
 Schritt 4 läuft auch dann, wenn in Schritt 3 **keine** Zusatzkosten erhoben
 werden. Die Wäsche ist eine physische Größe: der siebte Gast braucht ein Bett
@@ -105,7 +105,7 @@ Hinterlegt als `houses.additional_fees.tourist_tax` mit `mode: per_person`.
 | `bookings.guest_surcharge_amount` | Summe der erhobenen Zusatzkosten, `0` wenn bewusst keine erhoben wurden |
 | `booking_charges` | die einzelnen Posten, `origin = 'auto_delta'`, Status `open` |
 | `max_actions` | Vorgang „Wäsche angepasst" — reine Information, wird **gleich abgeschlossen** angelegt (seit 28.09.2026) |
-| `booking_change_notifications` | ein Eintrag je Änderung (DB-Trigger `notify_booking_guest_count_change`), trägt den Pflichtdialog im Teuni-Portal; `acknowledged_at`/`acknowledged_by` = Teunis Quittung |
+| `booking_change_notifications` | ein Eintrag je Änderung (DB-Trigger `notify_booking_guest_count_change`), trägt das Info-Pop-up im Teuni-Portal; `acknowledged_at`/`acknowledged_by` = Teuni hat es geschlossen; `chat_message_id` = zugehörige Chat-Nachricht (SQL 65) |
 
 > **Geändert am 11.09.2026 (SQL 54):** Bis dahin hieß das Feld `booked_guests`
 > und hielt die eingefrorene Ursprungszahl. Seitdem heißt es `delta_guests` und
@@ -135,22 +135,46 @@ Freigabe-Trigger auslösen und einen zweiten Vorgang eröffnen. Stattdessen
 entsteht ein `max_actions`-Eintrag „Wäsche angepasst" — seit 28.09.2026
 **sofort mit Status `abgeschlossen`**, mit Gastname.
 
-### Wie Teuni informiert wird (Schritt 5, Uli-Entscheidung 28.09.2026)
+### Wie Teuni informiert wird (Schritt 5)
 
-Teuni wird **automatisch** informiert, weder Uli noch Max schicken eine
-Nachricht:
+> **Regel „Information an Dienstleister" (Uli-Entscheidung 06.10.2026):**
+> a) **Nur Info** → Pop-up im Portal, schließbar, ohne Pflicht-Klick, **und**
+> dieselbe Info als Nachricht im Chat, damit Uli und der Dienstleister sie
+> nachlesen können. b) **Bestätigung nötig** → läuft über den Chat
+> (Terminfrage mit Bezug). Was der Dienstleister ohnehin in seiner Liste
+> sieht (neue Bestellung, anstehende Lieferung), bekommt ein Info-Pop-up
+> (schließbar, ohne Bestätigung), aber **keine** zusätzliche Chat-Nachricht.
+> Die Gästezahl-Änderung ist Fall a).
 
-1. **Pflichtdialog im Portal.** Der DB-Trigger
+Teuni wird **automatisch** informiert; weder Uli noch Max schreiben selbst:
+
+1. **Info-Pop-up im Portal.** Der DB-Trigger
    `notify_booking_guest_count_change` legt bei jeder Änderung von
    `number_of_guests` einen Eintrag in `booking_change_notifications` an —
-   sofern die Buchung eine Wäschebestellung im Status `offen`, `ausstehend`,
-   `pending` oder `bestätigt` hat. Teuni muss „Verstanden – Bestätigen"
-   drücken. Beleg Tal Yehuda: alle 7 Änderungen vom 01.–11.09.2026 quittiert.
-2. **Dauerhaft auf der Buchungskarte.** Das Teuni-Portal zeigt denselben
+   seit 06.10.2026 nur, wenn Teuni die Bestellung **sieht**: Status
+   `ausstehend`, `pending`, `delivered` oder `geliefert` (vorher `offen`,
+   `ausstehend`, `pending`, `bestätigt`). `offen` fällt heraus, weil Teuni
+   diese Bestellung noch nicht sieht und sie bei der Freigabe schon die
+   richtige Menge hat; `delivered` kommt hinzu, weil nach der Lieferung ggf.
+   nachgeliefert werden muss. Das Pop-up ist schließbar („OK"); mehrere
+   Änderungen derselben Buchung erscheinen als **ein** Hinweis (erster alter
+   → letzter neuer Wert). Bis 06.10.2026 war es ein Pflichtdialog
+   („Verstanden – Bestätigen"). Beleg Tal Yehuda: alle 7 Änderungen vom
+   01.–11.09.2026 quittiert.
+2. **Nachricht im Chat** (seit 06.10.2026, SQL 65). Derselbe Trigger schreibt
+   eine Nachricht als „Max (Assistent)" in `provider_messages`, mit Bezug
+   `related_linen_order_id`. Beispiel: „Hallo Teuni, Info von Max: Die
+   Gästezahl für Tal Yehuda im Venediger Chalet (Anreise 01.10.2026) hat sich
+   von 6 auf 7 geändert. Bitte berücksichtige das bei der Lieferung. Keine
+   Antwort nötig." Ändert sich die Zahl derselben Buchung innerhalb von
+   30 Minuten erneut, wird diese Nachricht aktualisiert statt einer neuen.
+   Kein `max_actions`-Vorgang, keine Frist. Uli sieht die Nachricht unter
+   Messaging → Teuni.
+3. **Dauerhaft auf der Buchungskarte.** Das Teuni-Portal zeigt denselben
    Mengenabgleich wie die Wäschekarte der Hausverwaltung, z. B. „Wäsche von
    6 auf 7 Gäste angepasst" oder gelb „nicht angepasst: …".
 
-Der Max-Vorgang wartet deshalb nicht auf Teuni. Bis 28.09.2026 stand er auf
+Der Max-Vorgang wartet deshalb nicht auf Teuni (Entscheidung 28.09.2026). Bis 28.09.2026 stand er auf
 `waiting_for = 'teuni'` — und nichts schloss ihn je, weil der einzige
 Schließ-Trigger nur auf `offen → ausstehend` reagiert. Altfälle schließt
 `supabase/SQL/59_waesche_vorgaenge_abschliessen.sql`.
@@ -210,6 +234,7 @@ Offen, mit dem Fall Tal Yehuda belegt:
 | `src/components/Houses/AdditionalFeesTab.tsx` | Pflege von `linen_fee` und `tourist_tax` |
 | `max_ablaeufe`, Aktion `update_linen_for_booking` | derselbe Vorgang, ausgelöst per Chatbefehl an Max (Schritt 4 seit SQL 59: `system`, automatische Information) |
 | `supabase/functions/chat-assistant/index.ts` (`executeUpdateLinenForBooking`) | Chat-Weg zu Schritt 4 |
-| DB-Trigger `notify_booking_guest_count_change` → `booking_change_notifications` | Schritt 5, Pflichtdialog im Teuni-Portal |
+| DB-Trigger `notify_booking_guest_count_change` → `booking_change_notifications` + `provider_messages` | Schritt 5, Info-Pop-up und Chat-Nachricht. Aktuelle Fassung: `supabase/SQL/65_gaestezahl_info_im_chat.sql` |
+| Teuni-Portal `src/components/BookingChangeNotificationDialog.tsx` + `src/hooks/useBookingChangeNotifications.ts` | Schritt 5, Info-Pop-up (schließbar, je Buchung zusammengefasst) |
 | Teuni-Portal `src/components/BookingCard.tsx` + `src/lib/linenMengen.ts` | Schritt 5, Mengenabgleich auf der Buchungskarte (Kopie der Rechnung aus `LaundryOrderCard.tsx`) |
 | `supabase/SQL/59_waesche_vorgaenge_abschliessen.sql` | Schließ-Trigger kennt `auto_linen_created`; Ablauf-Schritt 4; Altfälle schließen |

@@ -788,6 +788,17 @@ in keinem Dokument standen**: `trg_close_max_action_on_linen_confirmed` und
 - **Reinigung neu = draft**, Uli setzt auf geplant. **Wäsche neu = offen**, Uli setzt
   auf ausstehend. Max meldet den Status immer ehrlich.
 - **Lovable wird nicht mehr genutzt.** Code-Änderungen über GitHub-Editor oder lokal.
+- **Information an Dienstleister (06.10.2026):** zwei Arten. a) **Nur Info** →
+  Pop-up im Portal, schließbar, ohne Pflicht-Klick, **und** dieselbe Info als
+  Nachricht im Chat (nachlesbar für Uli und den Dienstleister). b) **Bestätigung
+  nötig** → über den Chat (Terminfrage mit Bezug). Was der Dienstleister ohnehin in
+  seiner Liste sieht (neue Bestellung, anstehende Lieferung), bekommt nur ein
+  Info-Pop-up (schließbar, ohne Bestätigung), keine Chat-Nachricht — und erst,
+  wenn die Bestellung für ihn sichtbar ist (ab "ausstehend").
+  Einziger Info-Fall bisher: Gästezahl-Änderung an Teuni
+  (`docs/Prozess-Gaestezahl-Aenderung.md`, `supabase/SQL/65_gaestezahl_info_im_chat.sql`).
+  Die automatischen Terminfragen (Fall b) bleiben vorerst ausgeschaltet; Uli schaltet
+  sie selbst wieder ein.
 - **Reinigungsablaeufe sind providerneutral** (22.07.2026). Nicht „Amela", sondern
   „der zustaendige Reinigungsdienstleister" — Zuordnung ueber
   `service_tasks.provider_id`. Boris ist damit ohne Code-Aenderung abgedeckt.
