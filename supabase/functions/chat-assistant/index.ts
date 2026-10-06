@@ -2179,7 +2179,7 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "update_linen_for_booking",
-        description: "Passt die Wäschebestellung einer Buchung an die aktuelle (geänderte) Gästezahl an. Anlass: Uli hat die Gästezahl erhöht und braucht mehr Wäsche. Berechnet die neue Menge und ERSETZT die bestehende Bestellung (items + total_items werden aktualisiert) - unabhängig vom Status (auch wenn bereits in Bearbeitung oder geliefert, denn es wird mehr Wäsche gebraucht). Nutze dieses Tool, wenn eine Buchung eine geänderte Gästezahl hat und die Wäsche angepasst werden muss. WICHTIG: (1) Rufe es NUR nach ausdrücklicher Zustimmung von Uli auf - frage zuerst 'Soll ich die Wäschebestellung auf X Gäste anpassen?'. (2) Teuni wird AUTOMATISCH informiert (Pflichtdialog im Teuni-Portal + Hinweis auf ihrer Buchungskarte). Schicke ihr KEINE zusätzliche Nachricht und biete das auch nicht an — nur wenn Uli es ausdrücklich verlangt. WICHTIG — ID SELBST BESCHAFFEN: Nennt Uli nur einen Gastnamen (z.B. 'Luca'), SUCHE die booking_id selbst mit search_bookings({guest_name: 'Luca'}). Frage NICHT nach einer ID, ohne vorher gesucht zu haben — Uli kennt keine UUIDs auswendig. Nur bei MEHREREN Treffern legst du sie ihm zur Auswahl vor (mit Haus und Datum), nur bei KEINEM Treffer meldest du das und fragst nach.",
+        description: "Passt die Wäschebestellung einer Buchung an die aktuelle (geänderte) Gästezahl an. Anlass: Uli hat die Gästezahl erhöht und braucht mehr Wäsche. Berechnet die neue Menge und ERSETZT die bestehende Bestellung (items + total_items werden aktualisiert) - unabhängig vom Status (auch wenn bereits in Bearbeitung oder geliefert, denn es wird mehr Wäsche gebraucht). Nutze dieses Tool, wenn eine Buchung eine geänderte Gästezahl hat und die Wäsche angepasst werden muss. WICHTIG: (1) Rufe es NUR nach ausdrücklicher Zustimmung von Uli auf - frage zuerst 'Soll ich die Wäschebestellung auf X Gäste anpassen?'. (2) Teuni wird AUTOMATISCH informiert: Info-Pop-up im Teuni-Portal, dieselbe Info als Nachricht im Chat (von der Datenbank, Absender 'Max (Assistent)') und der Hinweis auf ihrer Buchungskarte. Schicke ihr KEINE zusätzliche Nachricht und biete das auch nicht an — nur wenn Uli es ausdrücklich verlangt. WICHTIG — ID SELBST BESCHAFFEN: Nennt Uli nur einen Gastnamen (z.B. 'Luca'), SUCHE die booking_id selbst mit search_bookings({guest_name: 'Luca'}). Frage NICHT nach einer ID, ohne vorher gesucht zu haben — Uli kennt keine UUIDs auswendig. Nur bei MEHREREN Treffern legst du sie ihm zur Auswahl vor (mit Haus und Datum), nur bei KEINEM Treffer meldest du das und fragst nach.",
         parameters: {
           type: "object",
           properties: {
@@ -2910,8 +2910,9 @@ async function executeCreateLinenForBooking(params: any) {
  * Ablauf: neue Menge berechnen (generate-booking-linen-order, rechnet per_guest),
  * bestehende Bestellung ERSETZEN (items/total_items aktualisieren) - egal welcher
  * Status. Falls keine Bestellung existiert, wird eine neue angelegt.
- * Teuni wird automatisch informiert (Pflichtdialog im Portal über DB-Trigger
- * notify_booking_guest_count_change + Mengenabgleich auf ihrer Buchungskarte).
+ * Teuni wird automatisch informiert (DB-Trigger notify_booking_guest_count_change:
+ * Info-Pop-up im Portal + Chat-Nachricht, SQL 65; dazu Mengenabgleich auf ihrer
+ * Buchungskarte).
  * Der Vorgang ist deshalb sofort abgeschlossen (Uli-Entscheidung 28.09.2026).
  * NUR nach ausdrücklicher Zustimmung des Nutzers aufrufen.
  */
@@ -2991,7 +2992,7 @@ async function executeUpdateLinenForBooking(params: any) {
         neue_menge: newTotal,
         gaeste: guests,
         teuni_informieren: false,
-        hinweis: `Wäschebestellung aktualisiert (von ${oldTotal} auf ${newTotal} Teile, Status war "${order.status}"). Teuni wird automatisch im Portal informiert (Pflichtdialog + Hinweis auf der Buchungskarte) — KEINE extra Nachricht anbieten.`,
+        hinweis: `Wäschebestellung aktualisiert (von ${oldTotal} auf ${newTotal} Teile, Status war "${order.status}"). Teuni wird automatisch informiert (Info-Pop-up im Portal + Nachricht im Chat + Hinweis auf der Buchungskarte) — KEINE extra Nachricht anbieten.`,
       };
     } else {
       // 3b. Keine Bestellung vorhanden -> gezielt EINE für DIESE Buchung anlegen.
@@ -4255,7 +4256,7 @@ Wenn create_cleaning_for_booking mit bereits_vorhanden=true antwortet, wurde KEI
 Wenn eine Buchung eine geänderte (erhöhte) Gästezahl hat, ist mehr Wäsche nötig.
 - Frage zuerst: "Soll ich die Wäschebestellung auf X Gäste anpassen?" und warte auf ein klares "ja".
 - Erst dann rufst du update_linen_for_booking auf. Die bestehende Bestellung wird ersetzt (mehr Wäsche), egal welcher Status.
-- Teuni wird AUTOMATISCH informiert: Sie bekommt im Portal einen Pflichtdialog zur geänderten Gästezahl und sieht auf ihrer Buchungskarte, ob die Wäsche angepasst ist. Biete KEINE zusätzliche Nachricht an Teuni an. Nur wenn Uli ausdrücklich darum bittet, sendest du eine per send_provider_message.
+- Teuni wird AUTOMATISCH informiert: Sie bekommt im Portal ein Info-Pop-up zur geänderten Gästezahl, dieselbe Info steht als Nachricht im Chat (Uli sieht sie unter Messaging → Teuni), und auf ihrer Buchungskarte sieht sie, ob die Wäsche angepasst ist. Biete KEINE zusätzliche Nachricht an Teuni an. Nur wenn Uli ausdrücklich darum bittet, sendest du eine per send_provider_message.
 
 📅 REINIGUNGSTERMIN VERSCHIEBEN (reschedule_cleaning):
 Wenn Uli dir mitteilt, dass Amela einen Reinigungstermin ändern möchte, kannst du die Reinigung verschieben.
