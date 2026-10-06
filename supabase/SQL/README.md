@@ -34,6 +34,7 @@ Bei einer Wiederherstellung von null in dieser Reihenfolge ausführen:
 | 11 | `11_max_close_actions.sql` | Drei Trigger, die Max-Vorgänge abschließen |
 | 12 | `12_max_provider_reply.sql` | Provider-Antwort → Workflow-Kette fortschreiben |
 | 59 | `59_waesche_vorgaenge_abschliessen.sql` | Schließ-Trigger Wäsche kennt `auto_linen_created`; Ablauf „Wäsche angepasst" Schritt 4 = automatische Information; offene Altfälle schließen (28.09.2026) |
+| 65 | `65_gaestezahl_info_im_chat.sql` | Gästezahl-Änderung: Info an Teuni nur bei für sie sichtbarer Bestellung, zusätzlich als Chat-Nachricht (Bündelung 30 Min.); Spalte `booking_change_notifications.chat_message_id`; ersetzt `notify_booking_guest_count_change` (06.10.2026) |
 
 Die Lücke zwischen 01 und 10 ist Absicht — Platz für weitere Tabellen/Constraints.
 
@@ -135,7 +136,7 @@ Die Produktions-DB enthält ~70 Trigger. Dieser Ordner deckt bewusst nur die
 - `sync_guest_from_booking` — Gast-Stammdaten aus Buchung ableiten
 - `sync_*_to_houses` — JSONB-Spiegelung von Ausstattung/Preisen/Wäschebestand
 - `create_draft_invoice_for_linen_order` — Entwurfsrechnung bei Wäschebestellung
-- `notify_booking_guest_count_change` — Gästezahl-Änderung melden: legt je Änderung einen Eintrag in `booking_change_notifications` an (nur wenn eine Wäschebestellung `offen`/`ausstehend`/`pending`/`bestätigt` existiert); Teuni quittiert ihn im Portal-Pflichtdialog. Trägt seit 28.09.2026 die Information an Teuni allein — der Max-Vorgang „Wäsche angepasst" wartet nicht mehr auf sie. Funktion angelegt per Migration im Teuni-Repo (`fresh-spin-portal-selfhosted/supabase/migrations/20260618120530_…sql`).
+- `notify_booking_guest_count_change` — Gästezahl-Änderung melden: legt je Änderung einen Eintrag in `booking_change_notifications` an (nur wenn eine Wäschebestellung `offen`/`ausstehend`/`pending`/`bestätigt` existiert); Teuni quittiert ihn im Portal-Pflichtdialog. Trägt seit 28.09.2026 die Information an Teuni allein — der Max-Vorgang „Wäsche angepasst" wartet nicht mehr auf sie. Funktion angelegt per Migration im Teuni-Repo (`fresh-spin-portal-selfhosted/supabase/migrations/20260618120530_…sql`). **Seit 06.10.2026 gilt die Fassung aus `65_gaestezahl_info_im_chat.sql`:** nur bei Status `ausstehend`/`pending`/`delivered`/`geliefert`, zusätzlich Info-Nachricht im Chat, Pop-up im Portal schließbar.
 - diverse `update_*_updated_at` — Zeitstempel-Pflege
 
 **Zwei Auffälligkeiten, die beim Ziehen aufgefallen sind** (nicht geändert,
