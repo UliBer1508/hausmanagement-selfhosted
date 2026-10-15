@@ -1,4 +1,4 @@
-import { Bot, User, ExternalLink, Mail } from 'lucide-react';
+import { Bot, User, ExternalLink, Mail, CalendarPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -7,13 +7,16 @@ import ActionCard from './ActionCard';
 
 interface EntityLink {
   id: string;
-  // Nur diese fünf Typen erzeugt Max (buildEntityLinks im chat-assistant).
-  type: 'booking' | 'cleaning_task' | 'laundry_order' | 'email_draft' | 'document';
+  // Nur diese Typen erzeugt Max (buildEntityLinks im chat-assistant).
+  type: 'booking' | 'cleaning_task' | 'laundry_order' | 'email_draft' | 'document' | 'booking_draft';
   label: string;
   // Nur bei type === 'document': Adresse der Datei in OneDrive.
   // Anders als die übrigen Typen KEIN Tabwechsel, sondern ein externer
   // Verweis — die Datei liegt nicht in der App.
   url?: string;
+  // Nur bei type === 'booking_draft' (NEU 15.10.2026): fehlende Portal-Buchung
+  // aus dem Kalender-Abgleich — öffnet "Buchung erstellen" vorausgefüllt.
+  buchung?: { house_id: string; von: string; bis: string; platform: string | null };
   // Nur bei type === 'email_draft': vorausgefüllter Begrüßungs-E-Mail-Entwurf.
   email?: {
     to: string;
@@ -119,6 +122,12 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
       case 'laundry_order':
         navigate('/', { state: { activeTab: 'Wäsche', openOrderId: link.id } });
         break;
+      case 'booking_draft':
+        // Formular "Buchung erstellen" vorausgefüllt öffnen (OriginalDashboard,
+        // state.neueBuchung). Es wird NICHTS gespeichert — Uli ergänzt Gast,
+        // Gäste und Betrag und speichert selbst.
+        if (link.buchung) navigate('/', { state: { neueBuchung: link.buchung } });
+        break;
       case 'document':
         // Externer Verweis: die Datei liegt in OneDrive, nicht in der App.
         // noopener/noreferrer, weil das Ziel eine fremde Seite ist.
@@ -202,6 +211,8 @@ const ChatMessage = ({ message, onClose }: ChatMessageProps) => {
                   >
                     {link.type === 'email_draft' ? (
                       <Mail className="h-3 w-3" />
+                    ) : link.type === 'booking_draft' ? (
+                      <CalendarPlus className="h-3 w-3" />
                     ) : (
                       <ExternalLink className="h-3 w-3" />
                     )}
