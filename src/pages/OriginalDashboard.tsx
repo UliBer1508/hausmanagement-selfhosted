@@ -32,7 +32,7 @@ import {
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import steinbockLogo from '@/assets/steinbock-logo.png';
-import CreateBookingDialog from '@/components/Bookings/CreateBookingDialog';
+import CreateBookingDialog, { type BookingPrefillData } from '@/components/Bookings/CreateBookingDialog';
 // Lazy-loaded tab content & heavy dialogs (drastically reduces initial bundle)
 const BookingOverviewFixed = lazy(() => import('@/components/Bookings/BookingOverviewFixed'));
 const HouseManagement = lazy(() => import('@/components/Houses/HouseManagement'));
@@ -80,6 +80,10 @@ const OriginalDashboard = () => {
 
   const [activeTab, setActiveTab] = useState('Übersicht');
   const [editBookingIdFromState, setEditBookingIdFromState] = useState<string | null>(null);
+  // Fehlende Portal-Buchung aus dem Max-Chat (NEU 15.10.2026, Knopf "Buchung
+  // anlegen" -> ChatMessage.tsx, Typ booking_draft). Öffnet "Buchung erstellen"
+  // vorausgefüllt; gespeichert wird nur durch Ulis Klick.
+  const [neueBuchungPrefill, setNeueBuchungPrefill] = useState<BookingPrefillData | null>(null);
   
   // Tab-Aktivierung und Buchungs-Edit über Navigation State
   useEffect(() => {
@@ -89,8 +93,24 @@ const OriginalDashboard = () => {
     if (location.state?.editBookingId) {
       setEditBookingIdFromState(location.state.editBookingId);
     }
+    const nb = location.state?.neueBuchung;
+    if (nb?.house_id && /^\d{4}-\d{2}-\d{2}$/.test(nb.von ?? '') && /^\d{4}-\d{2}-\d{2}$/.test(nb.bis ?? '')) {
+      // Kalendertag als LOKALES Datum — new Date('2028-01-03') wäre UTC-Mitternacht.
+      // Uhrzeiten (Anreise 15:00, Abreise 10:00) setzt CreateBookingForm selbst.
+      const lokal = (iso: string) => { const [j, m, t] = iso.split('-').map(Number); return new Date(j, m - 1, t); };
+      setNeueBuchungPrefill({
+        house_id: nb.house_id,
+        guest_name: '',        // aus dem Portal — iCal liefert keinen Namen
+        guest_email: '',
+        number_of_guests: 0,   // Pflichtfeld bleibt zu füllen ("Mindestens 1 Erwachsener")
+        check_in: lokal(nb.von),
+        check_out: lokal(nb.bis),
+        platform: nb.platform ?? undefined,
+        notes: `Angelegt aus Kalender-Abgleich (Portal meldete ${nb.von.split('-').reverse().join('.')}–${nb.bis.split('-').reverse().join('.')}).`,
+      });
+    }
     // State zurücksetzen nach Navigation
-    if (location.state?.activeTab || location.state?.editBookingId) {
+    if (location.state?.activeTab || location.state?.editBookingId || location.state?.neueBuchung) {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
@@ -1535,6 +1555,15 @@ const OriginalDashboard = () => {
             provider={selectedProviderForBilling}
             open={!!selectedProviderForBilling}
             onOpenChange={(open) => !open && setSelectedProviderForBilling(null)}
+          />
+        )}
+
+        {neueBuchungPrefill && (
+          <CreateBookingDialog
+            open={!!neueBuchungPrefill}
+            onOpenChange={(open) => !open && setNeueBuchungPrefill(null)}
+            prefillData={neueBuchungPrefill}
+            onBookingCreated={() => setNeueBuchungPrefill(null)}
           />
         )}
 
