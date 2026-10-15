@@ -108,6 +108,20 @@ const formatDE = (d: string): string => {
   return `${t}.${m}.${j}`;
 };
 
+// "Sa 03.01.2028" — Wochentag hilft bei Anreise/Abreise (Wechseltag, Reinigung).
+const WOCHENTAG = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const formatDEmitTag = (d: string): string =>
+  `${WOCHENTAG[new Date(tag(d) + 'T00:00:00Z').getUTCDay()]} ${formatDE(d)}`;
+
+// Lesbarer Portalname. In ical_feeds.platform stehen Kleinschreibungen wie
+// "booking.com", "airbnb", "vrbo" — in der Mail sollen sie so aussehen wie im
+// Portal selbst. Unbekannte Werte bleiben unverändert.
+const PORTAL_NAME: Record<string, string> = {
+  'booking.com': 'Booking.com', booking: 'Booking.com',
+  airbnb: 'Airbnb', vrbo: 'VRBO', belvilla: 'Belvilla',
+};
+const portalName = (p: string): string => PORTAL_NAME[String(p).toLowerCase()] ?? p;
+
 // ---------------------------------------------------------------------------
 // Einstellungen
 // ---------------------------------------------------------------------------
@@ -214,6 +228,20 @@ interface Befund {
   bis?: string;
   naechte?: number;
   text: string;
+  // Nur bei fehlende_buchung (NEU 15.10.2026): die vier Fragen, die Uli bei
+  // einer fehlenden Buchung hat — welches Portal, von wann bis wann, Konflikt
+  // ja/nein, und was davor/danach im Haus passiert. Für die Mail-Tabelle.
+  details?: FehlendDetail;
+}
+
+interface FehlendDetail {
+  portal: string;        // lesbarer Name, z. B. "Booking.com"
+  von: string;           // Anreise (YYYY-MM-DD)
+  bis: string;           // Abreise (YYYY-MM-DD)
+  naechte: number;
+  konflikte: string[];   // leer = kein Konflikt
+  davor?: string;        // eigene Buchung, die am Anreisetag abreist
+  danach?: string;       // eigene Buchung, die am Abreisetag anreist
 }
 
 // ---------------------------------------------------------------------------
@@ -238,6 +266,10 @@ interface MeldungGruppe {
   titel: string;     // z. B. "1 Buchung fehlt im System"
   hinweis: string;   // was zu tun ist
   zeilen: string[];  // "Venediger Chalet: 29.12.2026–03.01.2027 ist bei …"
+  // Parallel zu `zeilen`: Haus + Details je Zeile (nur fehlende_buchung hat
+  // Details). Wird nur für die Mail-Tabelle gebraucht; Banner und
+  // Morgen-Übersicht zeigen weiter `zeilen`.
+  eintraege?: Array<{ haus: string; details?: FehlendDetail }>;
 }
 
 interface Meldung {
@@ -260,7 +292,7 @@ const MELDUNG_TEXTE: Record<BefundArt, {
     stufe: 'kritisch',
     titel: (n) => n === 1 ? '1 Buchung fehlt in der Hausverwaltung' : `${n} Buchungen fehlen in der Hausverwaltung`,
     hinweis:
-      'Im Portal nachsehen und die Buchung in der Hausverwaltung anlegen. Ohne Eintrag gibt es ' +
+      'Buchung im Portal öffnen und in der Hausverwaltung anlegen — ohne Eintrag gibt es ' +
       'keine Reinigung, keine Wäsche und keinen Gästekontakt.',
   },
   aenderung: {
@@ -301,6 +333,7 @@ function baueMeldung(befunde: Befund[]): Meldung {
       titel: t.titel(liste.length),
       hinweis: t.hinweis,
       zeilen: liste.map((b) => `${b.haus}: ${b.text}`),
+      eintraege: liste.map((b) => ({ haus: b.haus, details: b.details })),
     };
   });
 
@@ -332,10 +365,28 @@ function einleitung(m: Meldung): { vor: string; fett: string; nach: string } {
 }
 
 // Textfassung (Fallback für Mailprogramme ohne HTML).
+// Steckbrief einer fehlenden Buchung als Text (NEU 15.10.2026).
+function detailAlsText(haus: string, d: FehlendDetail): string {
+  const zeilen = [
+    `• ${haus}`,
+    `    Portal:   ${d.portal}`,
+    `    Anreise:  ${formatDEmitTag(d.von)}`,
+    `    Abreise:  ${formatDEmitTag(d.bis)} (${d.naechte} Nächte)`,
+    `    Konflikt: ${d.konflikte.length ? 'JA — ' + d.konflikte.join('; ') : 'nein'}`,
+  ];
+  if (d.davor) zeilen.push(`    Davor:    ${d.davor}`);
+  if (d.danach) zeilen.push(`    Danach:   ${d.danach}`);
+  return zeilen.join('\n');
+}
+
 function meldungAlsText(m: Meldung): string {
   const teile = m.gruppen.map((g) => {
     const marke = g.stufe === 'kritisch' ? '‼️ ' : g.stufe === 'warnung' ? '⚠️ ' : 'ℹ️ ';
-    return `${marke}${g.titel.toUpperCase()}\n${g.zeilen.map((z) => `• ${z}`).join('\n')}\n→ ${g.hinweis}`;
+    const liste = g.zeilen.map((z, i) => {
+      const e = g.eintraege?.[i];
+      return e?.details ? detailAlsText(e.haus, e.details) : `• ${z}`;
+    }).join('\n');
+    return `${marke}${g.titel.toUpperCase()}\n${liste}\n→ ${g.hinweis}`;
   });
   return (
     `${einleitung(m).vor}${einleitung(m).fett}${einleitung(m).nach}.\n\n` +
@@ -355,13 +406,45 @@ function meldungAlsHtml(m: Meldung): string {
     warnung:  { rand: '#d97706', grund: '#fffbeb', schrift: '#92400e' },
     hinweis:  { rand: '#2563eb', grund: '#eff6ff', schrift: '#1e40af' },
   };
+  // Steckbrief einer fehlenden Buchung als kleine Tabelle (NEU 15.10.2026):
+  // Uli will auf einen Blick sehen: welches Portal, von wann bis wann,
+  // Konflikt ja/nein. Konflikt "nein" grün, "ja" rot.
+  const zeileTd = (k: string, v: string) =>
+    `<tr><td style="padding:3px 12px 3px 0;color:#6b7280;white-space:nowrap;vertical-align:top">${k}</td>` +
+    `<td style="padding:3px 0;color:#111827">${v}</td></tr>`;
+  const detailAlsHtml = (haus: string, d: FehlendDetail): string => {
+    const konflikt = d.konflikte.length
+      ? `<span style="color:#991b1b;font-weight:bold">JA</span> — ${d.konflikte.map(esc).join('<br>')}`
+      : `<span style="color:#166534;font-weight:bold">nein</span>`;
+    return (
+      `<div style="background:#ffffff;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;margin:0 0 10px">` +
+      `<div style="font-weight:bold;font-size:15px;margin-bottom:4px">${esc(haus)}</div>` +
+      `<table style="border-collapse:collapse;font-size:15px">` +
+      zeileTd('Portal', `<strong>${esc(d.portal)}</strong>`) +
+      zeileTd('Anreise', esc(formatDEmitTag(d.von))) +
+      zeileTd('Abreise', `${esc(formatDEmitTag(d.bis))} (${d.naechte} Nächte)`) +
+      zeileTd('Konflikt', konflikt) +
+      (d.davor ? zeileTd('Davor', esc(d.davor)) : '') +
+      (d.danach ? zeileTd('Danach', esc(d.danach)) : '') +
+      `</table></div>`
+    );
+  };
+
   const bloecke = m.gruppen.map((g) => {
     const f = farben[g.stufe];
-    const zeilen = g.zeilen.map((z) => `<li style="margin:4px 0">${esc(z)}</li>`).join('');
+    const mitDetails = g.eintraege?.some((e) => e.details) ?? false;
+    const inhalt = mitDetails
+      ? g.zeilen.map((z, i) => {
+          const e = g.eintraege?.[i];
+          return e?.details ? detailAlsHtml(e.haus, e.details) : `<div style="margin:4px 0">${esc(z)}</div>`;
+        }).join('')
+      : `<ul style="margin:0 0 8px;padding-left:20px;color:#111827;font-size:15px">` +
+        g.zeilen.map((z) => `<li style="margin:4px 0">${esc(z)}</li>`).join('') +
+        `</ul>`;
     return (
       `<div style="border-left:5px solid ${f.rand};background:${f.grund};padding:12px 16px;margin:0 0 16px;border-radius:6px">` +
       `<div style="font-size:17px;font-weight:bold;color:${f.schrift};margin-bottom:6px">${esc(g.titel)}</div>` +
-      `<ul style="margin:0 0 8px;padding-left:20px;color:#111827;font-size:15px">${zeilen}</ul>` +
+      inhalt +
       `<div style="color:${f.schrift};font-size:14px"><strong>Was tun:</strong> ${esc(g.hinweis)}</div>` +
       `</div>`
     );
@@ -587,35 +670,83 @@ serve(async (req) => {
           return n >= settings.min_naechte && n <= settings.max_naechte;
         });
 
-        // Tag -> welche Plattformen melden ihn als belegt
-        const offen = new Map<string, Set<string>>();
+        // Portal -> Tage, die dieses Portal belegt meldet, die im System frei sind.
+        //
+        // GEÄNDERT 15.10.2026: Vorher wurde über ALLE Portale gemeinsam gebündelt.
+        // Zwei Buchungen auf verschiedenen Portalen, die direkt aneinander
+        // grenzen, wurden so zu EINEM Zeitraum "bei booking.com, airbnb" —
+        // und echte Überschneidungen zweier Portale fielen nicht auf. Jetzt je
+        // Portal gebündelt: jede Zeile = ein Portal, ein Zeitraum.
+        const offenJePortal = new Map<string, Set<string>>();
         for (const b of relevant) {
           for (const t of tageIm(b.start_date, b.end_date)) {
             if (belegt.has(t)) continue;
-            if (!offen.has(t)) offen.set(t, new Set());
-            offen.get(t)!.add(b.platform);
+            if (!offenJePortal.has(b.platform)) offenJePortal.set(b.platform, new Set());
+            offenJePortal.get(b.platform)!.add(t);
           }
         }
 
-        for (const z of buendeln([...offen.keys()])) {
-          const n = naechte(z.von, z.bis);
-          // Nach dem Bündeln erneut prüfen: Ein Rest unterhalb des Minimums ist
-          // ein Randstück (z.B. ein Tag Überhang, weil ein Portal großzügiger
-          // sperrt als die Buchung lang ist) — keine fehlende Buchung.
-          if (n < settings.min_naechte) continue;
+        for (const [plat, tageSet] of offenJePortal) {
+          for (const z of buendeln([...tageSet])) {
+            const n = naechte(z.von, z.bis);
+            // Nach dem Bündeln erneut prüfen: Ein Rest unterhalb des Minimums ist
+            // ein Randstück (z.B. ein Tag Überhang, weil ein Portal großzügiger
+            // sperrt als die Buchung lang ist) — keine fehlende Buchung.
+            if (n < settings.min_naechte) continue;
 
-          const plats = new Set<string>();
-          for (const t of tageIm(z.von, z.bis)) {
-            (offen.get(t) ?? new Set()).forEach((p) => plats.add(p));
+            // --- Konflikt-Prüfung (NEU 15.10.2026) ---------------------------
+            // Mit eigenen Buchungen kann es hier KEINEN Konflikt geben — der
+            // Zeitraum besteht per Definition nur aus Tagen, die in der
+            // Hausverwaltung frei sind. Ein Konflikt entsteht, wenn
+            //   a) ein ANDERES Portal an denselben Tagen ebenfalls belegt meldet
+            //      (zwei Portale haben dieselben Nächte verkauft), oder
+            //   b) ical-sync für den Portal-Block eine Kollision mit einer
+            //      eigenen Buchung festgestellt hat (collision_booking_id).
+            const konflikte: string[] = [];
+            const tageZ = tageIm(z.von, z.bis);
+            for (const [andere, andereTage] of offenJePortal) {
+              if (andere === plat) continue;
+              const gemeinsam = tageZ.filter((t) => andereTage.has(t));
+              for (const g of buendeln(gemeinsam)) {
+                konflikte.push(
+                  `${portalName(andere)} meldet ${formatDE(g.von)}–${formatDE(g.bis)} ebenfalls belegt — mögliche Doppelbuchung`,
+                );
+              }
+            }
+            for (const b of blocks) {
+              const bid = (b as any).collision_booking_id as string | null;
+              if (!bid || b.platform !== plat) continue;
+              // Block überschneidet den Zeitraum? (Ende exklusiv)
+              if (!(tag(b.start_date) < z.bis && tag(b.end_date) > z.von)) continue;
+              const eigene = (bookings ?? []).find((x: any) => x.id === bid) as any;
+              konflikte.push(eigene
+                ? `überschneidet sich mit der Buchung „${eigene.guests?.name ?? 'ohne Namen'}" (${formatDE(eigene.check_in)}–${formatDE(eigene.check_out)})`
+                : 'überschneidet sich mit einer eigenen Buchung');
+            }
+
+            // --- Nachbarn (Wechseltage) — für Reinigung/Wäsche wichtig -------
+            const davorB = (bookings ?? []).find((x: any) => tag(x.check_out) === z.von) as any;
+            const danachB = (bookings ?? []).find((x: any) => tag(x.check_in) === z.bis) as any;
+            const davor = davorB
+              ? `„${davorB.guests?.name ?? 'ohne Namen'}" reist am ${formatDE(z.von)} ab (Wechseltag)`
+              : undefined;
+            const danach = danachB
+              ? `„${danachB.guests?.name ?? 'ohne Namen'}" reist am ${formatDE(z.bis)} an (Wechseltag)`
+              : undefined;
+
+            const pName = portalName(plat);
+            const konfliktText = konflikte.length
+              ? `KONFLIKT: ${konflikte.join('; ')}`
+              : 'kein Konflikt mit anderen Buchungen';
+
+            befunde.push({
+              art: 'fehlende_buchung',
+              haus: hausName, house_id: houseId, platform: plat,
+              von: z.von, bis: z.bis, naechte: n,
+              text: `bei ${pName} gebucht — Anreise ${formatDE(z.von)}, Abreise ${formatDE(z.bis)} (${n} Nächte) — ${konfliktText}.`,
+              details: { portal: pName, von: z.von, bis: z.bis, naechte: n, konflikte, davor, danach },
+            });
           }
-          const platListe = [...plats].join(', ');
-
-          befunde.push({
-            art: 'fehlende_buchung',
-            haus: hausName, house_id: houseId, platform: platListe,
-            von: z.von, bis: z.bis, naechte: n,
-            text: `${formatDE(z.von)}–${formatDE(z.bis)} ist bei ${platListe} belegt, in der Hausverwaltung aber frei (${n} Nächte).`,
-          });
         }
       }
     }
@@ -727,7 +858,23 @@ serve(async (req) => {
       }
     }
 
-    const meldung = baueMeldung([...befunde, ...aenderungBefunde]);
+    // Doppelte Meldung vermeiden (NEU 15.10.2026):
+    // Eine neue Portal-Buchung erzeugt ZWEI Einträge — ical-sync schreibt
+    // "booking.com meldet neue Belegung 03.01.–08.01." in buchungs_aenderungen,
+    // und der Abgleich meldet denselben Zeitraum als fehlende Buchung. In der
+    // Mail vom 15.10.2026 stand dieselbe Buchung deshalb zweimal. Ein
+    // Änderungs-Hinweis, der vollständig in einer fehlenden Buchung desselben
+    // Hauses liegt, wird in der Meldung weggelassen — die fehlende Buchung sagt
+    // mehr. Im "Gesehen"-Banner (BookingChangesAlertBanner, Feld `aenderungen`)
+    // bleibt er unverändert, und als gemailt markiert wird er trotzdem.
+    const fehlende = befunde.filter((b) => b.art === 'fehlende_buchung');
+    const inFehlender = (a: Befund): boolean =>
+      !!a.von && !!a.bis && fehlende.some((f) =>
+        f.house_id === a.house_id && !!f.von && !!f.bis &&
+        tag(a.von) >= f.von && tag(a.bis) <= f.bis);
+    const aenderungenFuerMeldung = aenderungBefunde.filter((a) => !inFehlender(a));
+
+    const meldung = baueMeldung([...befunde, ...aenderungenFuerMeldung]);
 
     // --- E-Mail bei NEUEN Befunden ----------------------------------------
     //
@@ -779,15 +926,36 @@ serve(async (req) => {
         // Die Mail enthält nur die NEUEN Befunde und noch nicht gemailten
         // Änderungen, aber in derselben Formulierung wie Banner,
         // Sync-Meldung und Morgen-Übersicht.
-        const neuMeldung = baueMeldung([...neu, ...aenderungenUngemailt]);
+        // Dieselbe Doppel-Regel wie oben: Hinweise, die in einer (auch schon
+        // früher gemeldeten) fehlenden Buchung liegen, nicht noch einmal zeigen.
+        const neuMeldung = baueMeldung([...neu, ...aenderungenUngemailt.filter((a) => !inFehlender(a))]);
         const kritisch = neuMeldung.gruppen.some((g) => g.stufe === 'kritisch');
         // Betreff wie die Einleitung: reine Änderungs-Hinweise nicht als
         // "Kalender-Abgleich" ausgeben (NEU 24.09.2026).
-        const betreff = nurAenderungen(neuMeldung)
-          ? `ℹ️ Buchungen: ${neuMeldung.titel}`
-          : `${kritisch ? '‼️' : 'ℹ️'} Kalender-Abgleich: ${neuMeldung.titel}`;
+        //
+        // GEÄNDERT 15.10.2026: Genau EINE neue fehlende Buchung (häufigster
+        // Fall) -> das Wichtigste steht schon im Betreff: Haus, Portal,
+        // Zeitraum, Konflikt. Die Mail muss man dafür nicht öffnen.
+        const neuFehlend = neu.filter((b) => b.art === 'fehlende_buchung' && b.details);
+        const d1 = neuFehlend.length === 1 ? neuFehlend[0].details! : null;
+        const irgendeinKonflikt = neuFehlend.some((b) => b.details!.konflikte.length > 0);
+        const betreff = d1
+          ? `${d1.konflikte.length ? '‼️ KONFLIKT – ' : '‼️ '}Buchung fehlt: ${neuFehlend[0].haus}, ` +
+            `${d1.portal}, ${formatDE(d1.von).slice(0, 6)}–${formatDE(d1.bis)}`
+          : nurAenderungen(neuMeldung)
+            ? `ℹ️ Buchungen: ${neuMeldung.titel}`
+            : `${kritisch ? '‼️' : 'ℹ️'} ${irgendeinKonflikt ? 'KONFLIKT – ' : ''}Kalender-Abgleich: ${neuMeldung.titel}`;
 
-        try {
+        // Bleibt nach dem Weglassen der Doppelten nichts übrig (nur Hinweise
+        // zu bereits gemeldeten fehlenden Buchungen), keine leere Mail
+        // schicken — die Hinweise aber als erledigt (gemailt) merken.
+        if (neuMeldung.gruppen.length === 0) {
+          if (aenderungenUngemailt.length > 0) {
+            await supabase.from('buchungs_aenderungen')
+              .update({ gemailt_am: new Date().toISOString() })
+              .in('id', aenderungenUngemailt.map((a) => a.id));
+          }
+        } else try {
           // ACHTUNG bei der Schnittstelle: send-guest-email erwartet
           // `recipients` (Array von { email }), `subjectTemplate` und
           // `bodyTemplate` — NICHT to/subject/body. Ein Aufruf mit den
