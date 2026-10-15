@@ -2140,7 +2140,7 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "check_kalender_abgleich",
-        description: "Gleicht den eigenen Kalender mit dem der Buchungsportale ab (Airbnb, Booking.com, VRBO) und meldet Abweichungen. Drei Prüfungen: (1) FEHLENDE BUCHUNG - ein Zeitraum ist bei einem Portal belegt, im eigenen System aber frei; das ist der wichtigste Fall, denn dahinter steckt meist eine Portal-Buchung, die noch nicht nachgetragen wurde (keine Reinigung, keine Wäsche, kein Gästekontakt - und der Zeitraum könnte versehentlich noch einmal vergeben werden). (2) LANGSPERRE - ein Portal sperrt einen sehr langen Zeitraum; das kann der normale Kalenderhorizont sein ODER eine vergessene Sperre, die Umsatz kostet. Frage in dem Fall nach, ob das gewollt ist. (3) FEED-FEHLER - ein iCal-Feed konnte nicht gelesen werden, seine Daten sind veraltet. Nutze dieses Tool bei Fragen wie 'Stimmt mein Kalender mit den Portalen überein?', 'Fehlt eine Buchung?', 'Gibt es Abweichungen zu Airbnb oder Booking?', 'Prüfe den Kalender'. REINE PRÜFUNG - es wird nichts verändert und keine Buchung angelegt (iCal liefert keine Gastdaten, nur Zeiträume). Wenn alles_ok true ist, sag klar 'Kalender stimmt überein'. Häuser ohne hinterlegten Feed werden übersprungen - erwähne das nur, wenn danach gefragt wird.",
+        description: "Gleicht den eigenen Kalender mit dem der Buchungsportale ab (Airbnb, Booking.com, VRBO) und meldet Abweichungen. Drei Prüfungen: (1) FEHLENDE BUCHUNG - ein Zeitraum ist bei einem Portal belegt, im eigenen System aber frei; das ist der wichtigste Fall, denn dahinter steckt meist eine Portal-Buchung, die noch nicht nachgetragen wurde (keine Reinigung, keine Wäsche, kein Gästekontakt - und der Zeitraum könnte versehentlich noch einmal vergeben werden). (2) LANGSPERRE - ein Portal sperrt einen sehr langen Zeitraum; das kann der normale Kalenderhorizont sein ODER eine vergessene Sperre, die Umsatz kostet. Frage in dem Fall nach, ob das gewollt ist. (3) FEED-FEHLER - ein iCal-Feed konnte nicht gelesen werden, seine Daten sind veraltet. Nutze dieses Tool bei Fragen wie 'Stimmt mein Kalender mit den Portalen überein?', 'Fehlt eine Buchung?', 'Gibt es Abweichungen zu Airbnb oder Booking?', 'Prüfe den Kalender'. REINE PRÜFUNG - es wird nichts verändert und keine Buchung angelegt (iCal liefert keine Gastdaten, nur Zeiträume). FEHLENDE BUCHUNG ANLEGEN: Frage Uli bei jeder fehlenden Buchung, ob er sie jetzt anlegen möchte. Unter deiner Antwort erscheint dafür automatisch ein Knopf 'Buchung anlegen: <Haus>, <Portal> <von>–<bis>', der das Formular 'Buchung erstellen' mit Haus, Anreise, Abreise und Portal vorausgefüllt öffnet; Gastname, Gäste und Betrag trägt Uli aus dem Portal ein und speichert selbst. Schreibe keinen eigenen Link und lege die Buchung NIE selbst an. Sagt Uli zu einer gemeldeten fehlenden Buchung 'anlegen' oder 'ja', rufe dieses Tool erneut auf, damit der Knopf erscheint. Wenn alles_ok true ist, sag klar 'Kalender stimmt überein'. Häuser ohne hinterlegten Feed werden übersprungen - erwähne das nur, wenn danach gefragt wird.",
         parameters: {
           type: "object",
           properties: {}
@@ -3496,6 +3496,27 @@ function buildEntityLinks(toolResults: any[]): Array<{ id: string; type: string;
           houseName: d.house,
         },
       } as any);
+      continue;
+    }
+
+    // Fehlende Portal-Buchung (NEU 15.10.2026): Knopf, der das Formular
+    // "Buchung erstellen" mit Haus, Anreise, Abreise und Portal vorausgefuellt
+    // oeffnet. Max legt NICHTS selbst an (Max-Grundsatz 04.10.2026) — Uli
+    // ergaenzt Gast, Gaeste und Betrag und speichert selbst.
+    // Daten aus dem Ergebnis von kalender-abgleich (Befund fehlende_buchung).
+    if (tr.tool === 'check_kalender_abgleich' && Array.isArray(result.befunde)) {
+      for (const b of result.befunde) {
+        if (b?.art !== 'fehlende_buchung' || !b.house_id || !b.von || !b.bis) continue;
+        const key = `booking_draft:${b.house_id}:${b.von}:${b.bis}:${b.platform}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        links.push({
+          id: key,
+          type: 'booking_draft',
+          label: `Buchung anlegen: ${b.haus}, ${b.details?.portal ?? b.platform} ${fmtDate(b.von)}–${fmtDate(b.bis)}`,
+          buchung: { house_id: b.house_id, von: b.von, bis: b.bis, platform: b.platform ?? null },
+        } as any);
+      }
       continue;
     }
 
