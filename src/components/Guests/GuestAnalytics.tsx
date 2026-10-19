@@ -21,6 +21,7 @@ import { usePlatformMarkups } from '@/hooks/useSystemSettings';
 import { grossFromNet, withMarkupDefaults, type PlatformMarkupSettings } from '@/lib/platformMarkup';
 // Etappe 4: Gastfelder aus der guests-Relation (siehe guestHelpers.ts)
 import { withGuestData } from '@/lib/guestHelpers';
+import { sperrzeitAlsBelegung, type Sperrzeit } from '@/lib/sperrzeiten';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
 
@@ -755,6 +756,18 @@ const GuestAnalytics = () => {
       const { data: allBookingsRaw } = await query;
 
       if (!allBookingsRaw) return null;
+
+      // Eigene Sperrzeiten (SQL 66, NEU 19.10.2026): Ein gesperrter Zeitraum
+      // ist keine Lücke — Uli will ihn nicht vermieten. Ohne diese Zeilen
+      // empfahl die Lückenanalyse Preissenkungen für Monate, die rechtlich
+      // gar nicht vermietbar sind (Konzept-Sperrzeiten, Befund F6).
+      // Fehlt die Tabelle noch, läuft die Analyse wie bisher weiter.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tabelle fehlt in types.ts
+      const { data: sperrRows, error: sperrError } = await (supabase as any)
+        .from('sperrzeiten')
+        .select('id, house_id, erster_tag, letzter_tag, grund, notiz');
+      if (sperrError) console.error('[GuestAnalytics] sperrzeiten', sperrError);
+      const sperrBelegungen = ((sperrRows ?? []) as Sperrzeit[]).map(sperrzeitAlsBelegung);
       // Etappe 4: Gastname und Nationalitaet aus der guests-Relation. Die
       // Auswertung gruppiert nach Nationalitaet — sie muss die Quelle lesen,
       // sonst wertet sie den Altbestand aus.
@@ -890,8 +903,10 @@ const GuestAnalytics = () => {
         }
         
         // Find vacancies with ML analysis (free periods)
+        // Sperrzeiten zählen hier wie Belegungen — NUR für die Lückensuche,
+        // nicht für Auslastung, Umsatz oder Historie.
         const vacancies = findVacanciesWithML(
-          houseBookings, activeBookings, today, sixMonthsLater, mlSettings, house.id, markups,
+          [...houseBookings, ...sperrBelegungen.filter(sp => sp.house_id === house.id)], activeBookings, today, sixMonthsLater, mlSettings, house.id, markups,
           readPriceBounds(houses?.find(h => h.id === house.id)?.pricing_config),
         );
         
