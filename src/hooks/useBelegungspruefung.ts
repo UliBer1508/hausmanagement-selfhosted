@@ -15,7 +15,9 @@ import { supabase } from "@/integrations/supabase/client";
 //
 // Die Texte kommen fertig aus der Datenbank und werden nur angezeigt.
 
-export type BelegungsArt = "eigene_buchung" | "portal_belegt" | "portal_sperre" | "passt";
+// "sperrzeit" (SQL 66): Zeitraum liegt in einer eigenen Sperrzeit -> Warnung
+// mit "Trotzdem speichern", wie portal_belegt.
+export type BelegungsArt = "eigene_buchung" | "portal_belegt" | "portal_sperre" | "sperrzeit" | "passt";
 
 export interface BelegungsTreffer {
   art: BelegungsArt;

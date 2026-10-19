@@ -27,7 +27,9 @@ export type KalenderBefundArt =
   | "fehlende_buchung"
   | "feed_fehler"
   | "direktbuchung_pruefen"
-  | "langsperre";
+  | "langsperre"
+  // Eigene Sperrzeit (SQL 66) ist in Booking.com nicht gesetzt — NEU 19.10.2026
+  | "sperre_portal_fehlt";
 
 export type KalenderMeldungStufe = "kritisch" | "warnung" | "hinweis";
 
@@ -57,7 +59,8 @@ export interface KalenderMeldung {
 }
 
 // Einordnung eines Portal-Blocks (für die Belegungsliste in CalendarSyncCard).
-export type KalenderBlockArt = "gedeckt" | "sperrzeit" | "langsperre" | "luecke";
+// "eigene_sperre": gehört zu einer Sperrzeit der Hausverwaltung (SQL 66) — gewollt.
+export type KalenderBlockArt = "gedeckt" | "sperrzeit" | "langsperre" | "luecke" | "eigene_sperre";
 
 export interface KalenderBlockInfo {
   house_id: string;
