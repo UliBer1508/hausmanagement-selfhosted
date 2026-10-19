@@ -2,6 +2,7 @@ import { useMemo, useRef, useEffect } from 'react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { getHouseColors } from '@/lib/utils';
+import { findeSperrzeit, sperrGrundLabel, tagSchluessel, type Sperrzeit } from '@/lib/sperrzeiten';
 
 // Extrahiert lokales Datum aus ISO-String, ignoriert Zeitzone — identisches
 // Muster wie in BookingTimeline.tsx (bewusst lokal dupliziert, keine geteilte
@@ -54,6 +55,9 @@ interface HouseStackedCalendarProps {
   viewMode?: 'month' | 'year';
   /** Klick auf eine Monatskachel in der Jahresübersicht. */
   onSelectMonth?: (monthStart: Date) => void;
+  /** Eigene Sperrzeiten (SQL 66) — freie Tage darin werden grau schraffiert. */
+  sperrzeiten?: Sperrzeit[];
+  onSperrzeitClick?: (sperrzeit: Sperrzeit) => void;
   onBookingClick: (booking: Booking) => void;
   onChangeoverClick: (departing: Booking, arriving: Booking) => void;
   onCleaningClick: (task: ServiceTask, guestName?: string) => void;
@@ -64,6 +68,16 @@ interface HouseStackedCalendarProps {
 // Wechseltag (Muster von der Website übernommen). Die Hausfarbe kommt aus
 // getHouseColors() in @/lib/utils, damit Timeline und Monatsansicht IMMER
 // dieselbe Farbe zeigen und der Abgleich nur an einer Stelle gepflegt wird.
+// Gesperrter Tag (SQL 66): grau schraffiert, klar anders als jede Buchung.
+// Gilt nur für Tage, die sonst FREI wären — eine Buchung hat Vorrang.
+const SPERR_STYLE: React.CSSProperties = {
+  background: 'repeating-linear-gradient(135deg, #e5e7eb 0px, #e5e7eb 4px, #9ca3af 4px, #9ca3af 6px)',
+  border: '1px solid #9ca3af',
+};
+
+const sperrTitel = (s: Sperrzeit) =>
+  `Gesperrt: ${sperrGrundLabel(s.grund)}${s.notiz ? ' — ' + s.notiz : ''}`;
+
 const getCellStyle = (status: string, base: string, border: string): React.CSSProperties => {
   switch (status) {
     case 'occupied':
@@ -123,6 +137,8 @@ const HouseStackedCalendar = ({
   linenOrders,
   viewMode = 'month',
   onSelectMonth,
+  sperrzeiten,
+  onSperrzeitClick,
   onBookingClick,
   onChangeoverClick,
   onCleaningClick,
@@ -272,7 +288,10 @@ const HouseStackedCalendar = ({
 
                 {touristHouses.map(house => {
                   const hc = getHouseColors(house.name);
-                  const freeCount = days.filter(d => getDayInfo(house.id, d).status === 'free').length;
+                  // Gesperrte Tage sind nicht "frei" (nicht vermietbar).
+                  const freeCount = days.filter(d =>
+                    getDayInfo(house.id, d).status === 'free' &&
+                    !findeSperrzeit(sperrzeiten, house.id, tagSchluessel(d))).length;
 
                   return (
                     <div key={house.id} className="mb-2 last:mb-0">
@@ -281,6 +300,17 @@ const HouseStackedCalendar = ({
                           const status = getDayInfo(house.id, d).status;
                           const isFree = status === 'free';
                           const isPartial = status === 'checkin' || status === 'checkout' || status === 'changeover';
+                          const sperre = isFree ? findeSperrzeit(sperrzeiten, house.id, tagSchluessel(d)) : undefined;
+                          if (sperre) {
+                            return (
+                              <div
+                                key={d.toISOString()}
+                                className="h-3.5 sm:h-4"
+                                style={SPERR_STYLE}
+                                title={`${format(d, 'dd.MM.yyyy')} — ${sperrTitel(sperre)}`}
+                              />
+                            );
+                          }
                           return (
                             <div
                               key={d.toISOString()}
@@ -371,6 +401,29 @@ const HouseStackedCalendar = ({
                       return <div key={di} className="h-9 sm:h-10 rounded border border-border/30" />;
                     }
                     const info = getDayInfo(house.id, date);
+                    const sperre = info.status === 'free'
+                      ? findeSperrzeit(sperrzeiten, house.id, tagSchluessel(date))
+                      : undefined;
+                    if (sperre) {
+                      return (
+                        <div
+                          key={di}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`${format(date, 'dd.MM.yyyy')} ${sperrTitel(sperre)} — bearbeiten`}
+                          className="h-9 sm:h-10 rounded cursor-pointer hover:opacity-80 transition-opacity"
+                          style={SPERR_STYLE}
+                          onClick={() => onSperrzeitClick?.(sperre)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              onSperrzeitClick?.(sperre);
+                            }
+                          }}
+                          title={sperrTitel(sperre)}
+                        />
+                      );
+                    }
                     const style = getCellStyle(info.status, hc.base, hc.border);
                     // Icons NUR im Anreise-Kaestchen (auch am Wechseltag:
                     // dort gehoeren sie zur ankommenden Buchung).

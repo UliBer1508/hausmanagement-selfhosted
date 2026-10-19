@@ -9,6 +9,7 @@ const parseLocalDate = (isoString: string): Date => {
 };
 import { de } from 'date-fns/locale';
 import { getHouseIcon, getHouseColors } from '@/lib/utils';
+import { sperrGrundLabel, sperrNaechte, tagDanach, type Sperrzeit } from '@/lib/sperrzeiten';
 
 interface Booking {
   id: string;
@@ -57,6 +58,9 @@ interface BookingTimelineProps {
   linenOrders?: LinenOrder[];
   onCleaningClick?: (task: ServiceTask, guestName?: string) => void;
   onLinenClick?: (order: LinenOrder, guestName?: string) => void;
+  /** Eigene Sperrzeiten (SQL 66) — als grau schraffierter Balken hinter den Buchungen. */
+  sperrzeiten?: Sperrzeit[];
+  onSperrzeitClick?: (sperrzeit: Sperrzeit) => void;
 }
 
 // Haus-Farben kommen aus getHouseColors() in @/lib/utils — bewusst NICHT mehr
@@ -93,6 +97,8 @@ const BookingTimeline = ({
   linenOrders,
   onCleaningClick,
   onLinenClick,
+  sperrzeiten,
+  onSperrzeitClick,
 }: BookingTimelineProps) => {
   // Rollendes 3-Monats-Fenster (Vormonat / aktueller Monat / Folgemonat) statt
   // eines einzelnen Kalendermonats. Liegt im selben horizontal scrollbaren
@@ -308,6 +314,47 @@ const BookingTimeline = ({
                   })}
                 </div>
                 
+                {/* Sperrzeiten (SQL 66): ganze Tage, grau schraffiert, HINTER den
+                    Buchungen (im DOM zuerst). letzter_tag ist einschließlich,
+                    der Balken endet deshalb am Tag danach. */}
+                {(sperrzeiten || [])
+                  .filter(sp => sp.house_id === house.id)
+                  .map(sp => {
+                    const von = parseLocalDate(sp.erster_tag);
+                    const bis = parseLocalDate(tagDanach(sp.letzter_tag));
+                    if (bis <= viewStart || von >= viewEnd) return null;
+                    const start = von < viewStart ? viewStart : von;
+                    const ende = bis > viewEnd ? viewEnd : bis;
+                    const left = differenceInDays(start, viewStart) * DAY_WIDTH;
+                    const width = differenceInDays(ende, start) * DAY_WIDTH;
+                    const titel = `Gesperrt: ${sperrGrundLabel(sp.grund)} (${sperrNaechte(sp)} Nächte)${sp.notiz ? ' — ' + sp.notiz : ''}`;
+                    return (
+                      <div
+                        key={`sperre-${sp.id}`}
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`${titel} — bearbeiten`}
+                        className="absolute h-10 rounded-lg border-2 border-gray-400 flex items-center px-1.5 text-xs font-medium text-gray-700 cursor-pointer hover:opacity-90 overflow-hidden"
+                        style={{
+                          left: `${left}px`,
+                          width: `${width}px`,
+                          top: '8px',
+                          background: 'repeating-linear-gradient(135deg, #e5e7eb 0px, #e5e7eb 6px, #d1d5db 6px, #d1d5db 9px)',
+                        }}
+                        onClick={() => onSperrzeitClick?.(sp)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onSperrzeitClick?.(sp);
+                          }
+                        }}
+                        title={titel}
+                      >
+                        <span className="truncate">Gesperrt · {sperrGrundLabel(sp.grund)}</span>
+                      </div>
+                    );
+                  })}
+
                 {/* Buchungs-Balken mit Reinigungs-/Wäsche-Icon im Balken (links) */}
                 {houseBookings.map((booking, bookingIndex) => {
                   const style = getBarStyle(booking);
