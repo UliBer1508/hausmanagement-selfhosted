@@ -6,7 +6,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 //
 // Stellt pro Ferienhaus einen OEFFENTLICHEN iCal-Feed bereit, den Uli bei
 // Airbnb / VRBO / Belvilla als "anderen Kalender" eintraegt. Damit kennen die
-// Portale die DIREKTBUCHUNGEN aus dem eigenen System und blocken diese Termine.
+// Portale die DIREKTBUCHUNGEN und die SPERRZEITEN aus dem eigenen System und
+// blocken diese Termine.
 //
 // AUFRUF (Token in der URL, Endung .ics — beides Pflicht):
 //   .../functions/v1/ical-export/<TOKEN>.ics
@@ -34,6 +35,14 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 // 5. KEINE GASTDATEN nach aussen: SUMMARY ist neutral ("Belegt"/"Reserved").
 //    Die Portale brauchen nur den Zeitraum; Namen gehen sie nichts an (DSGVO).
 //
+// 6. EIGENE SPERRZEITEN (NEU 19.10.2026, SQL 66): Zeiträume aus der Tabelle
+//    `sperrzeiten` gehen ebenfalls als "Belegt" hinaus. Das sind eigene Daten
+//    (Uli legt sie in der Hausverwaltung an), Regel 1 bleibt also gewahrt.
+//    Die Portale zeigen einen importierten Eintrag als "nicht verfügbar" —
+//    es entsteht dort KEINE Buchung. Grund und Notiz gehen nicht hinaus
+//    (Regel 5). letzter_tag ist die letzte gesperrte Nacht (einschließlich),
+//    DTEND ist exklusiv → DTEND = letzter_tag + 1.
+//
 // Booking.com akzeptiert seit 03/2025 KEINE Feeds von privaten Seiten mehr —
 // dort funktioniert nur die Import-Richtung (Phase 1). Das ist deren Politik,
 // kein Fehler dieser Funktion.
@@ -49,6 +58,14 @@ const CRLF = '\r\n';
 
 // YYYY-MM-DD -> YYYYMMDD (Ganztages-Format, ohne Uhrzeit)
 const toICalDate = (d: string): string => String(d).split('T')[0].replace(/-/g, '');
+
+// Folgetag als iCal-Datum: YYYY-MM-DD -> YYYYMMDD des naechsten Tages.
+// Rechnung in UTC, damit keine Zeitzone den Tag verschiebt.
+const naechsterTagICal = (d: string): string => {
+  const t = new Date(String(d).split('T')[0] + 'T00:00:00Z');
+  t.setUTCDate(t.getUTCDate() + 1);
+  return t.toISOString().slice(0, 10).replace(/-/g, '');
+};
 
 // Zeitstempel fuer DTSTAMP: YYYYMMDDTHHMMSSZ (hier ist Uhrzeit korrekt und Pflicht)
 const nowStamp = (): string =>
@@ -124,6 +141,18 @@ serve(async (req) => {
 
     if (bookErr) throw bookErr;
 
+    // Eigene Sperrzeiten dieses Hauses, ab heute (Regel 6).
+    // Ein Ladefehler wird NICHT verschluckt: Ein Feed ohne die Sperren sähe
+    // für die Portale aus wie "frei" und gäbe den Zeitraum zum Verkauf frei.
+    const { data: sperren, error: sperrErr } = await supabase
+      .from('sperrzeiten')
+      .select('id, erster_tag, letzter_tag')
+      .eq('house_id', house.id)
+      .gte('letzter_tag', heute)
+      .order('erster_tag', { ascending: true });
+
+    if (sperrErr) throw sperrErr;
+
     // Was zählt als Direktbuchung?
     //
     //   null / ''  -> "Keine Angabe" im Formular (CreateBookingForm speichert
@@ -156,7 +185,7 @@ serve(async (req) => {
       'PRODID:-//Steinbock Chalets//Hausverwaltung//DE',
       'CALSCALE:GREGORIAN',
       'METHOD:PUBLISH',
-      foldLine(`X-WR-CALNAME:${esc(house.name)} — Direktbuchungen`),
+      foldLine(`X-WR-CALNAME:${esc(house.name)} — Direktbuchungen und Sperrzeiten`),
     ];
 
     const stamp = nowStamp();
@@ -177,10 +206,27 @@ serve(async (req) => {
       );
     }
 
+    // Regel 6: eigene Sperrzeiten. Eigene UID-Vorsilbe, damit ein Portal
+    // eine Sperre nie mit einer Buchung verwechselt oder zusammenführt.
+    for (const s of sperren || []) {
+      lines.push(
+        'BEGIN:VEVENT',
+        foldLine(`UID:sperre-${s.id}@steinbockchalets`),
+        `DTSTAMP:${stamp}`,
+        `DTSTART;VALUE=DATE:${toICalDate(s.erster_tag)}`,
+        `DTEND;VALUE=DATE:${naechsterTagICal(s.letzter_tag)}`,
+        'SUMMARY:Belegt',
+        'TRANSP:OPAQUE',
+        'STATUS:CONFIRMED',
+        'END:VEVENT'
+      );
+    }
+
     // Regel 4: Feed darf beim Eintragen nicht leer sein -> Platzhalter,
-    // falls keine kommende Direktbuchung existiert. Der Platzhalter liegt weit
-    // in der Zukunft und dauert 0 Naechte (DTSTART = DTEND), blockt also nichts.
-    if (direkt.length === 0) {
+    // falls weder eine kommende Direktbuchung noch eine Sperrzeit existiert.
+    // Der Platzhalter liegt weit in der Zukunft und dauert 0 Naechte
+    // (DTSTART = DTEND), blockt also nichts.
+    if (direkt.length === 0 && (sperren || []).length === 0) {
       const jahr = new Date().getFullYear() + 3;
       lines.push(
         'BEGIN:VEVENT',
