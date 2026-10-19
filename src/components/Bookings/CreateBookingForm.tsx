@@ -497,7 +497,10 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           return;
         }
 
-        const warnungen = treffer.filter((t) => t.art === 'portal_belegt' || t.art === 'portal_sperre');
+        // 'sperrzeit' (SQL 66): Zeitraum in einer eigenen Sperrzeit -> Warnung
+        // mit "Trotzdem speichern" (kein hartes Verbot, Sonderfälle bleiben möglich).
+        const warnungen = treffer.filter((t) =>
+          t.art === 'portal_belegt' || t.art === 'portal_sperre' || t.art === 'sperrzeit');
         if ((warnungen.length > 0 || syncFehler) && !opts?.portalBestaetigt) {
           setPortalWarnung({ treffer: warnungen, syncFehler, data });
           setIsSubmitting(false);
@@ -2362,9 +2365,11 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertCircle className="h-5 w-5 text-amber-600" />
-              {portalWarnung && portalWarnung.treffer.length > 0
-                ? 'Zeitraum bei einem Portal belegt'
-                : 'Portale nicht erreichbar'}
+              {portalWarnung && portalWarnung.treffer.some((t) => t.art === 'sperrzeit')
+                ? 'Zeitraum ist gesperrt'
+                : portalWarnung && portalWarnung.treffer.length > 0
+                  ? 'Zeitraum bei einem Portal belegt'
+                  : 'Portale nicht erreichbar'}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
@@ -2377,10 +2382,17 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
                     Geprüft wurde mit dem letzten bekannten Stand.
                   </div>
                 )}
-                <div>
-                  Bitte im Portal nachsehen. Ist dort wirklich gebucht, droht eine Doppelbuchung.
-                  Ist es nur eine eigene Sperre, kannst du trotzdem speichern.
-                </div>
+                {portalWarnung?.treffer.some((t) => t.art === 'sperrzeit') ? (
+                  <div>
+                    Du hast diesen Zeitraum im Kalender gesperrt. Nur speichern, wenn die Buchung
+                    trotzdem gewollt ist.
+                  </div>
+                ) : (
+                  <div>
+                    Bitte im Portal nachsehen. Ist dort wirklich gebucht, droht eine Doppelbuchung.
+                    Ist es nur eine eigene Sperre, kannst du trotzdem speichern.
+                  </div>
+                )}
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
