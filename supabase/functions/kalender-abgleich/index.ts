@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { istEigeneSperre, sperrNaechteAus } from "../_shared/sperrzeiten.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -138,6 +139,8 @@ interface AbgleichSettings {
     feed_fehler: boolean;
     direktbuchung_pruefen: boolean;
     kollision: boolean;
+    // Eigene Sperrzeit (SQL 66) ist in Booking.com nicht gesetzt — NEU 19.10.2026
+    sperre_portal_fehlt: boolean;
   };
   mail_enabled: boolean; // E-Mail bei neuen Befunden
   // Empfänger. In system_settings als Text ("a@x.de") ODER als Liste
@@ -154,7 +157,7 @@ const DEFAULTS: AbgleichSettings = {
   max_naechte: 30,
   checks: {
     fehlende_buchung: true, langsperre: true, feed_fehler: true,
-    direktbuchung_pruefen: true, kollision: true,
+    direktbuchung_pruefen: true, kollision: true, sperre_portal_fehlt: true,
   },
   mail_enabled: true,
   mail_to: ['max.steinbock@gmail.com'],
@@ -217,7 +220,14 @@ type BefundArt =
   | 'feed_fehler'
   // Direktbuchung, bei der Uli noch nicht bestätigt hat, dass der Zeitraum in
   // den Portalen korrekt gesetzt ist. Zwei Ausprägungen, siehe unten.
-  | 'direktbuchung_pruefen';
+  | 'direktbuchung_pruefen'
+  // Eigene Sperrzeit (Tabelle sperrzeiten, SQL 66) ist in Booking.com nicht
+  // gesperrt. Booking.com nimmt keine Feeds von privaten Seiten an — die
+  // Sperre muss dort von Hand gesetzt werden. Geprüft wird über den
+  // Booking.com-Feed: Gesperrte Nächte müssen dort als belegt erscheinen
+  // (Booking.com gibt eigene Sperren im Feed aus, belegt durch die
+  // 183-Nächte-Sperre vom 18.07.2026). NEU 19.10.2026.
+  | 'sperre_portal_fehlt';
 
 interface Befund {
   art: BefundArt;
@@ -310,6 +320,13 @@ const MELDUNG_TEXTE: Record<BefundArt, {
     titel: (n) => n === 1 ? '1 Direktbuchung in den Portalen prüfen' : `${n} Direktbuchungen in den Portalen prüfen`,
     hinweis: 'In Airbnb, Booking.com und VRBO kontrollieren und danach in der Buchungskarte abhaken.',
   },
+  sperre_portal_fehlt: {
+    stufe: 'warnung',
+    titel: (n) => n === 1 ? '1 Sperrzeit fehlt in Booking.com' : `${n} Sperrzeiten fehlen in Booking.com`,
+    hinweis:
+      'Im Booking.com-Extranet für diese Nächte „Geschlossen" setzen. Booking.com übernimmt ' +
+      'Sperren nicht automatisch — Airbnb und VRBO bekommen sie über den Export-Feed.',
+  },
   langsperre: {
     stufe: 'hinweis',
     titel: (n) => n === 1 ? '1 lange Sperre in einem Portal' : `${n} lange Sperren in den Portalen`,
@@ -319,7 +336,8 @@ const MELDUNG_TEXTE: Record<BefundArt, {
 
 // Reihenfolge = Dringlichkeit.
 const RANG: Record<BefundArt, number> = {
-  kollision: 0, fehlende_buchung: 1, feed_fehler: 2, aenderung: 3, direktbuchung_pruefen: 4, langsperre: 5,
+  kollision: 0, fehlende_buchung: 1, feed_fehler: 2, sperre_portal_fehlt: 3, aenderung: 4,
+  direktbuchung_pruefen: 5, langsperre: 6,
 };
 
 function baueMeldung(befunde: Befund[]): Meldung {
@@ -470,7 +488,9 @@ function meldungAlsHtml(m: Meldung): string {
 //   sperrzeit -> unter der Mindestdauer: Mindestaufenthalts-Sperre des Portals
 //   langsperre-> ueber der Maximaldauer: Kalenderhorizont ODER vergessene Sperre
 //   luecke    -> im Buchungsbereich, aber im System (teilweise) frei -> Achtung
-type BlockArt = 'gedeckt' | 'sperrzeit' | 'langsperre' | 'luecke';
+//   eigene_sperre -> gehoert zu einer Sperrzeit der Hausverwaltung (SQL 66):
+//                gewollt, kein Handlungsbedarf (NEU 19.10.2026)
+type BlockArt = 'gedeckt' | 'sperrzeit' | 'langsperre' | 'luecke' | 'eigene_sperre';
 
 interface BlockInfo {
   house_id: string;
@@ -575,6 +595,60 @@ serve(async (req) => {
         continue;
       }
 
+      // Eigene Sperrzeiten (SQL 66, NEU 19.10.2026). Fehlt die Tabelle noch,
+      // wird ohne Sperrzeiten geprüft (Verhalten wie bisher) — geloggt, aber
+      // nicht als Befund, weil das kein Problem der Portale ist.
+      const { data: sperrRows, error: sperrErr } = await supabase
+        .from('sperrzeiten')
+        .select('erster_tag, letzter_tag, grund, notiz')
+        .eq('house_id', houseId)
+        .gte('letzter_tag', heute);
+      if (sperrErr) console.error('[kalender-abgleich] sperrzeiten:', hausName, sperrErr);
+      const gesperrt = sperrNaechteAus(sperrRows);
+
+      // Nächte eigener Buchungen (für die Sperr-Regel aus _shared/sperrzeiten.ts)
+      const buchungsNaechte = new Set<string>();
+      for (const b of bookings ?? []) {
+        for (const t of tageIm(b.check_in, b.check_out)) buchungsNaechte.add(t);
+      }
+      const eigeneSperre = (von: unknown, bis: unknown): boolean =>
+        istEigeneSperre(von, bis, gesperrt, buchungsNaechte, settings.min_naechte, settings.max_naechte);
+
+      // --- Prüfung 7: Sperrzeit in Booking.com nicht gesetzt -------------
+      // Läuft VOR dem "keine Blocks"-Abbruch unten: Ein Booking.com-Feed ohne
+      // jeden Block heißt gerade, dass dort nichts gesperrt ist.
+      //
+      // Nur Booking.com: Airbnb und VRBO übernehmen Sperren aus ical-export,
+      // geben importierte Blocks in ihrem eigenen Feed aber nicht zurück —
+      // eine Prüfung dort würde bei jeder Sperre Alarm schlagen (gleiche
+      // Grenze wie bei Direktbuchungen, Prüfung 6). Nächte mit eigener Buchung
+      // zählen nicht: Eine Airbnb-Buchung erscheint im Booking.com-Feed nicht.
+      // Nur wenn der Booking.com-Feed zuletzt fehlerfrei lief.
+      if (settings.checks.sperre_portal_fehlt && gesperrt.size > 0) {
+        const bcFeeds = feeds.filter((f: any) =>
+          f.house_id === houseId &&
+          ['booking.com', 'booking'].includes(String(f.platform).toLowerCase()) &&
+          !(typeof f.last_status === 'string' && f.last_status.startsWith('error')));
+        for (const f of bcFeeds) {
+          const imFeed = new Set<string>();
+          for (const b of blocks ?? []) {
+            if (b.platform !== f.platform) continue;
+            for (const t of tageIm(b.start_date, b.end_date)) imFeed.add(t);
+          }
+          const fehlt = [...gesperrt].filter((t) => t >= heute && !imFeed.has(t) && !buchungsNaechte.has(t));
+          for (const z of buendeln(fehlt)) {
+            const n = naechte(z.von, z.bis);
+            const letzteNacht = new Date(Date.parse(z.bis) - 86400000).toISOString().slice(0, 10);
+            befunde.push({
+              art: 'sperre_portal_fehlt',
+              haus: hausName, house_id: houseId, platform: f.platform,
+              von: z.von, bis: z.bis, naechte: n,
+              text: `Sperrzeit ist in ${portalName(f.platform)} nicht gesperrt — Nächte ${formatDE(z.von)}–${formatDE(letzteNacht)} (${n} ${n === 1 ? 'Nacht' : 'Nächte'}).`,
+            });
+          }
+        }
+      }
+
       if (!blocks?.length) continue;
       gepruefteHaeuser++;
 
@@ -602,7 +676,8 @@ serve(async (req) => {
         }
 
         let art: BlockArt;
-        if (n > settings.max_naechte) art = 'langsperre';
+        if (eigeneSperre(b.start_date, b.end_date)) art = 'eigene_sperre';
+        else if (n > settings.max_naechte) art = 'langsperre';
         else if (n < settings.min_naechte) art = 'sperrzeit';
         else if (offen === 0) art = 'gedeckt';
         else if (offen >= settings.min_naechte) art = 'luecke';
@@ -626,6 +701,10 @@ serve(async (req) => {
         for (const b of blocks) {
           const bid = (b as any).collision_booking_id as string | null;
           if (!bid) continue;
+          // Sperre über einer Buchung ist kein Konflikt (ical-sync setzt die
+          // Kollision dann gar nicht mehr; das hier greift für Altbestand bis
+          // zum nächsten Sync).
+          if (eigeneSperre(b.start_date, b.end_date)) continue;
           const eigene = (bookings ?? []).find((x: any) => x.id === bid) as any;
           const eigeneText = eigene
             ? ` mit der Buchung „${eigene.guests?.name ?? 'ohne Namen'}" (${formatDE(eigene.check_in)}–${formatDE(eigene.check_out)})`
@@ -650,6 +729,9 @@ serve(async (req) => {
         for (const b of blocks) {
           const n = naechte(b.start_date, b.end_date);
           if (n <= settings.max_naechte) continue;
+          // Gewollte Sperre (SQL 66): Uli hat den Grund in der Hausverwaltung
+          // hinterlegt — keine Rückfrage mehr (Befund F4 im Konzept).
+          if (eigeneSperre(b.start_date, b.end_date)) continue;
           befunde.push({
             art: 'langsperre',
             haus: hausName, house_id: houseId, platform: b.platform,
@@ -665,9 +747,14 @@ serve(async (req) => {
         // zwischen zwei Buchungen weniger freie Nächte als die kürzeste
         // vermietbare Dauer, sperren die Portale diese Tage automatisch, weil
         // sie unverkäuflich sind. Blocks über dem Maximum sind oben behandelt.
+        // Eigene Sperren (SQL 66) sind gewollt und werden nicht als fehlende
+        // Buchung gemeldet. Ein Block in Buchungslänge, der nur einen TEIL
+        // einer Sperrzeit belegt, zählt NICHT als eigene Sperre (Regel in
+        // _shared/sperrzeiten.ts) — er wird gemeldet, siehe Konflikt unten.
         const relevant = blocks.filter((b: any) => {
           const n = naechte(b.start_date, b.end_date);
-          return n >= settings.min_naechte && n <= settings.max_naechte;
+          return n >= settings.min_naechte && n <= settings.max_naechte &&
+            !eigeneSperre(b.start_date, b.end_date);
         });
 
         // Portal -> Tage, die dieses Portal belegt meldet, die im System frei sind.
@@ -712,6 +799,17 @@ serve(async (req) => {
                   `${portalName(andere)} meldet ${formatDE(g.von)}–${formatDE(g.bis)} ebenfalls belegt — mögliche Doppelbuchung`,
                 );
               }
+            }
+            // c) Der Zeitraum liegt in einer eigenen Sperrzeit (NEU 19.10.2026):
+            //    Dann hat vermutlich ein Gast im Portal gebucht, obwohl Uli den
+            //    Zeitraum nicht vermieten will — meist, weil die Sperre in
+            //    Booking.com noch fehlte.
+            const inSperre = tageZ.filter((t) => gesperrt.has(t));
+            if (inSperre.length > 0) {
+              const zs = buendeln(inSperre)[0];
+              konflikte.push(
+                `liegt in einer Sperrzeit der Hausverwaltung (ab ${formatDE(zs.von)}) — Buchung im gesperrten Zeitraum?`,
+              );
             }
             for (const b of blocks) {
               const bid = (b as any).collision_booking_id as string | null;
