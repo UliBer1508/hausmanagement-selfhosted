@@ -141,7 +141,11 @@ async function executeAcceptBookingInquiry(params: any) {
       error: `Buchung NICHT angelegt — ${eigene.map((t) => t.text).join(' · ')}`,
     };
   }
-  const portal = treffer.filter((t) => t.art === 'portal_belegt' || t.art === 'portal_sperre');
+  // 'sperrzeit' (SQL 66, NEU 19.10.2026): Zeitraum liegt in einer eigenen
+  // Sperrzeit — gleiche Behandlung wie eine Portal-Belegung: nicht anlegen,
+  // Uli fragen.
+  const portal = treffer.filter((t) =>
+    t.art === 'portal_belegt' || t.art === 'portal_sperre' || t.art === 'sperrzeit');
   if (portal.length > 0 && params?.trotz_portal_belegung !== true) {
     return {
       success: false,
@@ -150,7 +154,9 @@ async function executeAcceptBookingInquiry(params: any) {
       hinweis:
         `Buchung NICHT angelegt. ${portal.map((t) => t.text).join(' · ')}. ` +
         (portalStandHinweis ? `${portalStandHinweis} ` : '') +
-        'Frage Uli, ob er im Portal nachsehen und die Anfrage trotzdem annehmen will. ' +
+        (portal.some((t) => t.art === 'sperrzeit')
+          ? 'Der Zeitraum ist in der Hausverwaltung gesperrt. Frage Uli, ob er die Anfrage trotzdem annehmen will. '
+          : 'Frage Uli, ob er im Portal nachsehen und die Anfrage trotzdem annehmen will. ') +
         'Nur nach seinem ausdrücklichen "trotzdem" erneut mit trotz_portal_belegung=true aufrufen.',
     };
   }
@@ -1819,6 +1825,8 @@ async function executeTool(toolName: string, args: any): Promise<any> {
       return await executeCheckUpcomingBookings(args);
     case 'check_kalender_abgleich':
       return await executeCheckKalenderAbgleich();
+    case 'list_sperrzeiten':
+      return await executeListSperrzeiten(args);
     case 'create_cleaning_for_booking':
       return await executeCreateCleaningForBooking(args);
     case 'create_linen_for_booking':
@@ -2140,10 +2148,24 @@ function getToolDefinitions() {
       type: "function",
       function: {
         name: "check_kalender_abgleich",
-        description: "Gleicht den eigenen Kalender mit dem der Buchungsportale ab (Airbnb, Booking.com, VRBO) und meldet Abweichungen. Drei Prüfungen: (1) FEHLENDE BUCHUNG - ein Zeitraum ist bei einem Portal belegt, im eigenen System aber frei; das ist der wichtigste Fall, denn dahinter steckt meist eine Portal-Buchung, die noch nicht nachgetragen wurde (keine Reinigung, keine Wäsche, kein Gästekontakt - und der Zeitraum könnte versehentlich noch einmal vergeben werden). (2) LANGSPERRE - ein Portal sperrt einen sehr langen Zeitraum; das kann der normale Kalenderhorizont sein ODER eine vergessene Sperre, die Umsatz kostet. Frage in dem Fall nach, ob das gewollt ist. (3) FEED-FEHLER - ein iCal-Feed konnte nicht gelesen werden, seine Daten sind veraltet. Nutze dieses Tool bei Fragen wie 'Stimmt mein Kalender mit den Portalen überein?', 'Fehlt eine Buchung?', 'Gibt es Abweichungen zu Airbnb oder Booking?', 'Prüfe den Kalender'. REINE PRÜFUNG - es wird nichts verändert und keine Buchung angelegt (iCal liefert keine Gastdaten, nur Zeiträume). FEHLENDE BUCHUNG ANLEGEN: Frage Uli bei jeder fehlenden Buchung, ob er sie jetzt anlegen möchte. Unter deiner Antwort erscheint dafür automatisch ein Knopf 'Buchung anlegen: <Haus>, <Portal> <von>–<bis>', der das Formular 'Buchung erstellen' mit Haus, Anreise, Abreise und Portal vorausgefüllt öffnet; Gastname, Gäste und Betrag trägt Uli aus dem Portal ein und speichert selbst. Schreibe keinen eigenen Link und lege die Buchung NIE selbst an. Sagt Uli zu einer gemeldeten fehlenden Buchung 'anlegen' oder 'ja', rufe dieses Tool erneut auf, damit der Knopf erscheint. Wenn alles_ok true ist, sag klar 'Kalender stimmt überein'. Häuser ohne hinterlegten Feed werden übersprungen - erwähne das nur, wenn danach gefragt wird.",
+        description: "Gleicht den eigenen Kalender mit dem der Buchungsportale ab (Airbnb, Booking.com, VRBO) und meldet Abweichungen. Drei Prüfungen: (1) FEHLENDE BUCHUNG - ein Zeitraum ist bei einem Portal belegt, im eigenen System aber frei; das ist der wichtigste Fall, denn dahinter steckt meist eine Portal-Buchung, die noch nicht nachgetragen wurde (keine Reinigung, keine Wäsche, kein Gästekontakt - und der Zeitraum könnte versehentlich noch einmal vergeben werden). (2) LANGSPERRE - ein Portal sperrt einen sehr langen Zeitraum; das kann der normale Kalenderhorizont sein ODER eine vergessene Sperre, die Umsatz kostet. Frage in dem Fall nach, ob das gewollt ist. (3) FEED-FEHLER - ein iCal-Feed konnte nicht gelesen werden, seine Daten sind veraltet. Nutze dieses Tool bei Fragen wie 'Stimmt mein Kalender mit den Portalen überein?', 'Fehlt eine Buchung?', 'Gibt es Abweichungen zu Airbnb oder Booking?', 'Prüfe den Kalender'. REINE PRÜFUNG - es wird nichts verändert und keine Buchung angelegt (iCal liefert keine Gastdaten, nur Zeiträume). FEHLENDE BUCHUNG ANLEGEN: Frage Uli bei jeder fehlenden Buchung, ob er sie jetzt anlegen möchte. Unter deiner Antwort erscheint dafür automatisch ein Knopf 'Buchung anlegen: <Haus>, <Portal> <von>–<bis>', der das Formular 'Buchung erstellen' mit Haus, Anreise, Abreise und Portal vorausgefüllt öffnet; Gastname, Gäste und Betrag trägt Uli aus dem Portal ein und speichert selbst. Schreibe keinen eigenen Link und lege die Buchung NIE selbst an. Sagt Uli zu einer gemeldeten fehlenden Buchung 'anlegen' oder 'ja', rufe dieses Tool erneut auf, damit der Knopf erscheint. Wenn alles_ok true ist, sag klar 'Kalender stimmt überein'. Häuser ohne hinterlegten Feed werden übersprungen - erwähne das nur, wenn danach gefragt wird. SPERRZEITEN (seit 19.10.2026): Zeiträume, die Uli in der Hausverwaltung gesperrt hat (Tool list_sperrzeiten), sind GEWOLLT - Portal-Sperren, die dazu passen, werden nicht mehr gemeldet, frage dazu also nicht 'ist das gewollt?'. Neu ist der Befund SPERRE_PORTAL_FEHLT: Eine Sperrzeit ist in Booking.com noch nicht gesetzt (Booking.com übernimmt Sperren nicht automatisch). Bitte Uli dann, die Nächte im Booking.com-Extranet zu schließen.",
         parameters: {
           type: "object",
           properties: {}
+        }
+      }
+    },
+    {
+      type: "function",
+      function: {
+        name: "list_sperrzeiten",
+        description: "Listet die Sperrzeiten der Häuser: Zeiträume, die Uli bewusst NICHT vermieten will (Grund: Eigennutzung, Behördliche Auflage, Renovierung oder Sonstiges, dazu eine Notiz). Sie werden in der Hausverwaltung im Kalender-Tab angelegt und gehen automatisch als 'nicht verfügbar' an Airbnb und VRBO und auf die Website; in Booking.com setzt Uli sie von Hand. Nutze das Tool bei Fragen wie 'Wann ist das Venediger Chalet gesperrt?', 'Warum ist der November nicht buchbar?', 'Welche Sperren gibt es?'. Ein gesperrter Zeitraum ist KEIN Leerstand - schlage dafür keine Preissenkung oder Vermarktung vor. REIN LESEND: Du legst keine Sperrzeit an und änderst keine; das macht Uli selbst im Kalender-Tab (Knopf 'Zeitraum sperren').",
+        parameters: {
+          type: "object",
+          properties: {
+            house_name: { type: "string", description: "Optional: Hausname oder Teil davon (z.B. 'Venediger'). Ohne Angabe alle Häuser." },
+            auch_vergangene: { type: "boolean", description: "Optional: auch bereits abgelaufene Sperrzeiten zeigen. Standard: nur laufende und künftige." }
+          }
         }
       }
     },
@@ -2763,6 +2785,61 @@ async function executeCheckKalenderAbgleich() {
     return data;
   } catch (e) {
     console.error('executeCheckKalenderAbgleich:', e);
+    return { success: false, error: String(e) };
+  }
+}
+
+/**
+ * list_sperrzeiten (NEU 19.10.2026, SQL 66) — rein lesend.
+ * Liefert die Sperrzeiten mit lesbarem Grund. letzter_tag ist die letzte
+ * gesperrte Nacht (einschließlich); "Anreise wieder möglich" ist der Tag danach.
+ */
+const SPERR_GRUND: Record<string, string> = {
+  eigennutzung: 'Eigennutzung',
+  behoerdliche_auflage: 'Behördliche Auflage',
+  renovierung: 'Renovierung',
+  sonstiges: 'Sonstiges',
+};
+
+async function executeListSperrzeiten(params: any) {
+  console.log('Executing list_sperrzeiten:', params);
+  try {
+    const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+    let q = supabase
+      .from('sperrzeiten')
+      .select('id, erster_tag, letzter_tag, grund, notiz, houses(name)')
+      .order('erster_tag', { ascending: true });
+    if (params?.auch_vergangene !== true) q = q.gte('letzter_tag', heute);
+    const { data, error } = await q;
+    if (error) return { success: false, error: `Sperrzeiten nicht lesbar: ${error.message}` };
+
+    const filter = String(params?.house_name ?? '').trim().toLowerCase();
+    const liste = (data ?? [])
+      .filter((s: any) => !filter || String(s.houses?.name ?? '').toLowerCase().includes(filter))
+      .map((s: any) => {
+        const naechte = Math.round(
+          (Date.parse(s.letzter_tag) - Date.parse(s.erster_tag)) / 86400000) + 1;
+        const wieder = new Date(Date.parse(s.letzter_tag) + 86400000).toISOString().slice(0, 10);
+        return {
+          haus: s.houses?.name ?? 'Objekt',
+          erste_gesperrte_nacht: s.erster_tag,
+          letzte_gesperrte_nacht: s.letzter_tag,
+          anreise_wieder_moeglich_ab: wieder,
+          naechte,
+          grund: SPERR_GRUND[s.grund] ?? s.grund,
+          notiz: s.notiz ?? null,
+        };
+      });
+    return {
+      success: true,
+      anzahl: liste.length,
+      sperrzeiten: liste,
+      hinweis: liste.length === 0
+        ? 'Keine Sperrzeiten hinterlegt.'
+        : 'Gesperrte Zeiträume sind gewollt und kein Leerstand.',
+    };
+  } catch (e) {
+    console.error('executeListSperrzeiten:', e);
     return { success: false, error: String(e) };
   }
 }
