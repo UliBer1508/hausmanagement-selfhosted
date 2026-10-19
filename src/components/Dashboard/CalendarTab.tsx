@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ChevronLeft, ChevronRight, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ArrowLeft, Ban } from 'lucide-react';
 import { format, addMonths, subMonths, addYears, subYears, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import BookingTimeline from '@/components/Calendar/BookingTimeline';
 import HouseStackedCalendar from '@/components/Calendar/HouseStackedCalendar';
+import SperrzeitDialog from '@/components/Calendar/SperrzeitDialog';
+import useSperrzeiten from '@/hooks/useSperrzeiten';
+import type { Sperrzeit } from '@/lib/sperrzeiten';
 
 interface CalendarTabProps {
   bookingsData: any[] | undefined;
@@ -25,6 +28,24 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [calendarView, setCalendarView] = useState<CalendarView>('year');
   const [selectedEvent, setSelectedEvent] = useState<any>(null);
+
+  // Sperrzeiten (SQL 66): Zeiträume, die Uli nicht vermieten will. Bewusst
+  // HIER geladen und nicht über OriginalDashboard durchgereicht — so bleibt
+  // die Änderung auf den Kalender-Tab beschränkt.
+  const { sperrzeiten } = useSperrzeiten();
+  const [sperrDialog, setSperrDialog] = useState<{
+    open: boolean;
+    sperrzeit: Sperrzeit | null;
+    vorschlag: { house_id?: string; erster_tag?: string } | null;
+  }>({ open: false, sperrzeit: null, vorschlag: null });
+  const touristHouses = useMemo(
+    () => (housesData || []).filter((h) => h.rental_type === 'tourist'),
+    [housesData],
+  );
+  const handleSperrzeitClick = (sperrzeit: Sperrzeit) =>
+    setSperrDialog({ open: true, sperrzeit, vorschlag: null });
+  const handleNeueSperre = () =>
+    setSperrDialog({ open: true, sperrzeit: null, vorschlag: null });
 
   // Gemeinsame Klick-Handler — von Monatsansicht UND Timeline genutzt, damit
   // beide Ansichten identisches Popup-Verhalten haben (keine doppelte Logik).
@@ -178,6 +199,10 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
           <Button variant={calendarView === 'year' ? 'default' : 'outline'} size="sm" onClick={() => setCalendarView('year')}>Jahr</Button>
           <Button variant={calendarView === 'month' ? 'default' : 'outline'} size="sm" onClick={() => setCalendarView('month')}>Monat</Button>
           <Button variant={calendarView === 'timeline' ? 'default' : 'outline'} size="sm" onClick={() => setCalendarView('timeline')}>📊 Timeline</Button>
+          <Button variant="outline" size="sm" onClick={handleNeueSperre}>
+            <Ban className="w-4 h-4 mr-1" />
+            Zeitraum sperren
+          </Button>
         </div>
       </div>
 
@@ -189,9 +214,11 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
             selectedDate={selectedDate}
             serviceTasks={serviceTasks}
             linenOrders={linenOrders}
+            sperrzeiten={sperrzeiten}
             onBookingClick={handleBookingClick}
             onCleaningClick={handleCleaningClick}
             onLinenClick={handleLinenClick}
+            onSperrzeitClick={handleSperrzeitClick}
           />
         ) : (
           <HouseStackedCalendar
@@ -201,6 +228,8 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
             serviceTasks={serviceTasks}
             linenOrders={linenOrders}
             viewMode={calendarView === 'year' ? 'year' : 'month'}
+            sperrzeiten={sperrzeiten}
+            onSperrzeitClick={handleSperrzeitClick}
             onSelectMonth={handleSelectMonth}
             onBookingClick={handleBookingClick}
             onChangeoverClick={handleChangeoverClick}
@@ -209,6 +238,16 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
           />
         )}
       </div>
+
+      {/* Sperrzeit anlegen / bearbeiten / aufheben (SQL 66) */}
+      <SperrzeitDialog
+        open={sperrDialog.open}
+        onOpenChange={(open) => setSperrDialog((d) => ({ ...d, open }))}
+        houses={touristHouses}
+        bookings={bookingsData || []}
+        sperrzeit={sperrDialog.sperrzeit}
+        vorschlag={sperrDialog.vorschlag}
+      />
 
       {/* Detail-Popup — für beide Ansichten gemeinsam genutzt. */}
       <Dialog open={!!selectedEvent} onOpenChange={(open) => !open && setSelectedEvent(null)}>
