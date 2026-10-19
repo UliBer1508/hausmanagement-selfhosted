@@ -78,6 +78,8 @@ const ART_ANZEIGE: Record<KalenderBlockArt, { label: string; klasse: string; rah
   sperrzeit:  { label: "Sperrzeit",    klasse: "text-muted-foreground", rahmen: "border-border/40 bg-muted/30" },
   langsperre: { label: "Langsperre",   klasse: "text-amber-700 dark:text-amber-400", rahmen: "border-amber-500/50 bg-amber-500/5" },
   luecke:     { label: "Buchung fehlt", klasse: "text-destructive font-medium", rahmen: "border-destructive/50 bg-destructive/5" },
+  // Gehört zu einer Sperrzeit der Hausverwaltung (SQL 66) — gewollt, kein Handlungsbedarf.
+  eigene_sperre: { label: "Gesperrt (Hausverwaltung)", klasse: "text-muted-foreground", rahmen: "border-border/40 bg-muted/30" },
 };
 
 const platformLabel = (v: string) => PLATFORMS.find((p) => p.value === v)?.label ?? v;
