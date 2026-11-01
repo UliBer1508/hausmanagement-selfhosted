@@ -7,9 +7,7 @@ import TenantOverview from "./TenantOverview";
 import TenantContracts from "./TenantContracts";
 import TenantPayments from "./TenantPayments";
 import TenantAnalytics from "./TenantAnalytics";
-import UtilityCostSettings from "./UtilityCostSettings";
-import UtilityCostEntry from "./UtilityCostEntry";
-import UtilityStatementGenerator from "./UtilityStatementGenerator";
+import UtilityCostsPanel from "./UtilityCostsPanel";
 import { useHouses } from "@/hooks/useHouses";
 import { toast } from "sonner";
 import { todayISO } from '@/lib/dateHelpers';
@@ -93,22 +91,7 @@ const TenantManagement = () => {
           </TabsContent>
 
           <TabsContent value="utilities" className="space-y-6">
-            <Tabs defaultValue="settings" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="settings">Einstellungen</TabsTrigger>
-                <TabsTrigger value="costs">Kosten erfassen</TabsTrigger>
-                <TabsTrigger value="statement">Abrechnung</TabsTrigger>
-              </TabsList>
-              <TabsContent value="settings">
-                <UtilityCostSettings />
-              </TabsContent>
-              <TabsContent value="costs">
-                <UtilityCostEntry />
-              </TabsContent>
-              <TabsContent value="statement">
-                <UtilityStatementGenerator />
-              </TabsContent>
-            </Tabs>
+            <UtilityCostsPanel />
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">

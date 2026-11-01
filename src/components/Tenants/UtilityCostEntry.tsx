@@ -15,6 +15,7 @@ import {
   useCreateUtilityCostCategory,
   calculateTenantShare,
   distributionKeyLabels,
+  getCategoriesForHouse,
   UtilitySettings,
 } from '@/hooks/useUtilityCosts';
 import { toast } from 'sonner';
@@ -24,9 +25,15 @@ import { Label } from '@/components/ui/label';
 
 const currentYear = new Date().getFullYear();
 
-const UtilityCostEntry = () => {
+interface UtilityCostEntryProps {
+  /** Fest vorgegebenes Haus (Haus-Dialog). Ohne Angabe: Objektauswahl wie im Mieter-Tab. */
+  houseId?: string;
+}
+
+const UtilityCostEntry = ({ houseId }: UtilityCostEntryProps) => {
   const { data: houses } = useHouses({ rental_type: 'long_term' });
-  const [selectedHouseId, setSelectedHouseId] = useState<string | null>(null);
+  const [pickedHouseId, setSelectedHouseId] = useState<string | null>(houseId ?? null);
+  const selectedHouseId = houseId ?? pickedHouseId;
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
   const { data: settings } = useUtilitySettings(selectedHouseId);
@@ -35,6 +42,8 @@ const UtilityCostEntry = () => {
   const saveCost = useSaveUtilityCost();
   const deleteCost = useDeleteUtilityCost();
   const createCategory = useCreateUtilityCostCategory();
+  // Kostenarten für dieses Haus: Land + gespeicherte Auswahl (SQL 67)
+  const houseCategories = getCategoriesForHouse(categories, settings);
 
   const [editingCosts, setEditingCosts] = useState<Record<string, string>>({});
   const [savedIndicator, setSavedIndicator] = useState<Record<string, boolean>>({});
@@ -59,10 +68,10 @@ const UtilityCostEntry = () => {
   }, []);
 
   useEffect(() => {
-    if (houses?.length && !selectedHouseId) {
+    if (!houseId && houses?.length && !selectedHouseId) {
       setSelectedHouseId(houses[0].id);
     }
-  }, [houses, selectedHouseId]);
+  }, [houseId, houses, selectedHouseId]);
 
   // Reset state when house or year changes
   useEffect(() => {
@@ -147,9 +156,9 @@ const UtilityCostEntry = () => {
   const handleShowAllCategories = () => {
     if (!categories) return;
     
-    // Add all active categories that don't have costs yet
+    // Add all categories offered for this house that don't have costs yet
     const newEditingCosts = { ...editingCosts };
-    categories.filter(c => c.is_active).forEach(cat => {
+    houseCategories.forEach(cat => {
       if (!(cat.id in newEditingCosts)) {
         newEditingCosts[cat.id] = '';
       }
@@ -168,6 +177,8 @@ const UtilityCostEntry = () => {
       name: newCategoryName.trim(),
       description: newCategoryDescription.trim() || null,
       default_distribution_key: newCategoryDistributionKey,
+      // Neue Kostenart gilt für das Land des aktuellen Objekts
+      country: settings?.country ?? null,
     }, {
       onSuccess: () => {
         setShowNewCategoryDialog(false);
@@ -214,12 +225,10 @@ const UtilityCostEntry = () => {
   };
 
   const usedCategoryIds = new Set(costs?.map(c => c.category_id) || []);
-  const availableCategories = categories?.filter(c => c.is_active && !usedCategoryIds.has(c.id)) || [];
+  const availableCategories = houseCategories.filter(c => !usedCategoryIds.has(c.id));
   
   // Combine existing costs with all categories when showing all
-  const displayCategories = showAllCategories 
-    ? categories?.filter(c => c.is_active) || []
-    : [];
+  const displayCategories = showAllCategories ? houseCategories : [];
 
   const totalCosts = costs?.reduce((sum, c) => sum + c.total_amount, 0) || 0;
   const totalTenantShare = costs?.reduce((sum, c) => {
@@ -231,7 +240,7 @@ const UtilityCostEntry = () => {
 
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
-  if (!houses?.length) {
+  if (!houseId && !houses?.length) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -246,7 +255,8 @@ const UtilityCostEntry = () => {
       {/* Filter */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {!houseId && (
             <div className="flex-1">
               <Select value={selectedHouseId || ''} onValueChange={setSelectedHouseId}>
                 <SelectTrigger>
@@ -262,7 +272,8 @@ const UtilityCostEntry = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-32">
+            )}
+            <div className="w-full sm:w-32">
               <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
                 <SelectTrigger>
                   <SelectValue />
@@ -544,10 +555,13 @@ const UtilityCostEntry = () => {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="wohnflaeche">Nach Wohnfläche</SelectItem>
-                  <SelectItem value="personen">Nach Personenzahl</SelectItem>
-                  <SelectItem value="einheiten">Nach Wohneinheiten</SelectItem>
-                  <SelectItem value="70_30">70/30 Regel</SelectItem>
+                  {/* Schlüssel müssen zu calculateTenantShare passen — vorher
+                      stand hier '70_30', das dort unbekannt ist (→ 100 %). */}
+                  {Object.entries(distributionKeyLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

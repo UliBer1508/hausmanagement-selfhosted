@@ -18,12 +18,21 @@ import {
   useUpdateUtilityCostCategory,
   useDeleteUtilityCostCategory,
   distributionKeyLabels,
+  getCategoriesForCountry,
+  utilityCountryLabels,
   UtilityCostCategory,
+  UtilityCountry,
 } from '@/hooks/useUtilityCosts';
 
-const UtilityCostSettings = () => {
+interface UtilityCostSettingsProps {
+  /** Fest vorgegebenes Haus (Haus-Dialog). Ohne Angabe: Objektauswahl wie im Mieter-Tab. */
+  houseId?: string;
+}
+
+const UtilityCostSettings = ({ houseId }: UtilityCostSettingsProps) => {
   const { data: houses } = useHouses({ rental_type: 'long_term' });
-  const [selectedHouseId, setSelectedHouseId] = useState<string | null>(null);
+  const [pickedHouseId, setSelectedHouseId] = useState<string | null>(houseId ?? null);
+  const selectedHouseId = houseId ?? pickedHouseId;
   const { data: settings, isLoading: settingsLoading } = useUtilitySettings(selectedHouseId);
   const { data: categories } = useUtilityCostCategories();
   const saveSettings = useSaveUtilitySettings();
@@ -38,6 +47,7 @@ const UtilityCostSettings = () => {
     tenant_persons: '1',
     monthly_prepayment: '',
   });
+  const [country, setCountry] = useState<UtilityCountry>('DE');
 
   const [activeCategories, setActiveCategories] = useState<Set<string>>(new Set());
   
@@ -53,10 +63,10 @@ const UtilityCostSettings = () => {
   const [categoryToDelete, setCategoryToDelete] = useState<UtilityCostCategory | null>(null);
 
   useEffect(() => {
-    if (houses?.length && !selectedHouseId) {
+    if (!houseId && houses?.length && !selectedHouseId) {
       setSelectedHouseId(houses[0].id);
     }
-  }, [houses, selectedHouseId]);
+  }, [houseId, houses, selectedHouseId]);
 
   useEffect(() => {
     if (settings) {
@@ -67,6 +77,7 @@ const UtilityCostSettings = () => {
         tenant_persons: settings.tenant_persons?.toString() || '1',
         monthly_prepayment: settings.monthly_prepayment?.toString() || '',
       });
+      setCountry(settings.country ?? 'DE');
     } else {
       setFormData({
         total_area_sqm: '',
@@ -75,14 +86,21 @@ const UtilityCostSettings = () => {
         tenant_persons: '1',
         monthly_prepayment: '',
       });
+      setCountry('DE');
     }
   }, [settings]);
 
+  // Kostenarten des gewählten Landes; Häkchen = nicht abgewählt
+  // (excluded_category_ids des Hauses, SQL 67).
+  const countryCategories = getCategoriesForCountry(categories, country);
+
   useEffect(() => {
-    if (categories) {
-      setActiveCategories(new Set(categories.filter(c => c.is_active).map(c => c.id)));
-    }
-  }, [categories]);
+    if (!categories) return;
+    const excluded = settings?.excluded_category_ids || [];
+    setActiveCategories(
+      new Set(getCategoriesForCountry(categories, country).filter(c => !excluded.includes(c.id)).map(c => c.id)),
+    );
+  }, [categories, settings, country]);
 
   const handleSave = () => {
     if (!selectedHouseId) return;
@@ -94,6 +112,15 @@ const UtilityCostSettings = () => {
       total_units: parseInt(formData.total_units) || 1,
       tenant_persons: parseInt(formData.tenant_persons) || 1,
       monthly_prepayment: formData.monthly_prepayment ? parseFloat(formData.monthly_prepayment) : null,
+      country,
+      // Gespeichert wird, was abgewählt ist — neue Kostenarten erscheinen so
+      // automatisch. Abwahlen anderer Länder bleiben erhalten.
+      excluded_category_ids: Array.from(
+        new Set([
+          ...(settings?.excluded_category_ids || []).filter(id => !countryCategories.some(c => c.id === id)),
+          ...countryCategories.filter(c => !activeCategories.has(c.id)).map(c => c.id),
+        ]),
+      ),
     });
   };
 
@@ -151,7 +178,7 @@ const UtilityCostSettings = () => {
     ? ((parseFloat(formData.tenant_area_sqm) / parseFloat(formData.total_area_sqm)) * 100).toFixed(1)
     : null;
 
-  if (!houses?.length) {
+  if (!houseId && !houses?.length) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -163,7 +190,8 @@ const UtilityCostSettings = () => {
 
   return (
     <div className="space-y-6">
-      {/* Objektauswahl */}
+      {/* Objektauswahl (entfällt, wenn das Haus vorgegeben ist) */}
+      {!houseId && (
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
@@ -186,6 +214,7 @@ const UtilityCostSettings = () => {
           </Select>
         </CardContent>
       </Card>
+      )}
 
       {selectedHouseId && (
         <>
@@ -208,6 +237,25 @@ const UtilityCostSettings = () => {
                 <div className="text-muted-foreground">Lade...</div>
               ) : (
                 <>
+                  <div className="space-y-2">
+                    <Label>Land des Objekts</Label>
+                    <Select value={country} onValueChange={(v) => setCountry(v as UtilityCountry)}>
+                      <SelectTrigger className="w-full sm:w-80">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(utilityCountryLabels) as UtilityCountry[]).map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {utilityCountryLabels[c]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Bestimmt, welche Kostenarten angeboten werden.
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="total_area">Gesamtfläche Gebäude (m²)</Label>
@@ -295,15 +343,25 @@ const UtilityCostSettings = () => {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">Kostenarten</CardTitle>
-                <Button onClick={openCreateDialog} size="sm" variant="outline">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Neue Kostenart
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={openCreateDialog} size="sm" variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Neue Kostenart
+                  </Button>
+                  <Button onClick={handleSave} disabled={saveSettings.isPending} size="sm">
+                    <Save className="h-4 w-4 mr-2" />
+                    Auswahl speichern
+                  </Button>
+                </div>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Angehakte Kostenarten werden für dieses Objekt beim Erfassen angeboten.
+                Gezeigt werden nur Kostenarten für {utilityCountryLabels[country]}.
+              </p>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {categories?.map(category => (
+                {countryCategories.map(category => (
                   <div key={category.id} className="flex items-center justify-between py-2 border-b last:border-0">
                     <div className="flex items-center gap-3">
                       <Checkbox

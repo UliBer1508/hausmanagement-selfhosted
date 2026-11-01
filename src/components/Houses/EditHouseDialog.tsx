@@ -17,6 +17,7 @@ import { useEffect } from 'react';
 import HouseInventory from './HouseInventory';
 import SmartLinenSettings from './SmartLinenSettings';
 import AdditionalFeesTab from './AdditionalFeesTab';
+import UtilityCostsPanel from '@/components/Tenants/UtilityCostsPanel';
 import { useLinenAI } from '@/hooks/useLinenAI';
 
 interface EditHouseDialogProps {
@@ -850,8 +851,36 @@ const EditHouseDialog = ({ house, open, onOpenChange }: EditHouseDialogProps) =>
             />
           </TabsContent>
           
-          <TabsContent value="fees">
-            <AdditionalFeesTab houseId={house.id} />
+          {/* Nebenkosten hängen von der Vermietungsart ab:
+              touristisch = Gebühren je Aufenthalt (AdditionalFeesTab, houses.additional_fees)
+              Festvermietung = Betriebskosten je Jahr (UtilityCostsPanel, utility_*)
+              Maßgeblich ist die GESPEICHERTE Vermietungsart. */}
+          <TabsContent value="fees" className="space-y-4">
+            {formData.rental_type !== (house.rental_type || 'tourist') ? (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Die Vermietungsart wurde geändert, aber noch nicht gespeichert. Bitte zuerst
+                  unter „Grunddaten" speichern — danach zeigt dieser Tab die passenden Nebenkosten.
+                </AlertDescription>
+              </Alert>
+            ) : (house.rental_type || 'tourist') === 'long_term' ? (
+              <>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Betriebskosten (Festvermietung)</CardTitle>
+                    <CardDescription>
+                      Jährliche Kosten des Objekts (z. B. Wasser, Heizung, Müll, Internet), ihre
+                      Verteilung auf den Mieter und die Jahresabrechnung gegen die
+                      Vorauszahlungen. Dieselben Daten wie unter Mieter → Nebenkosten.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+                <UtilityCostsPanel houseId={house.id} />
+              </>
+            ) : (
+              <AdditionalFeesTab houseId={house.id} />
+            )}
           </TabsContent>
           
           <TabsContent value="inventory">
