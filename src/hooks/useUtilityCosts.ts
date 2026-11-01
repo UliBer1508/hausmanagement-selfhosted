@@ -9,7 +9,17 @@ export interface UtilityCostCategory {
   is_system: boolean;
   default_distribution_key: string;
   is_active: boolean;
+  /** Land, für das die Kostenart gilt; null = beide Länder (SQL 67). */
+  country?: UtilityCountry | null;
 }
+
+/** Land des Mietobjekts für die Betriebskosten (SQL 67). */
+export type UtilityCountry = 'DE' | 'AT';
+
+export const utilityCountryLabels: Record<UtilityCountry, string> = {
+  DE: 'Deutschland (BetrKV)',
+  AT: 'Österreich (MRG / Mietvertrag)',
+};
 
 export interface UtilitySettings {
   id: string;
@@ -19,7 +29,39 @@ export interface UtilitySettings {
   total_units: number;
   tenant_persons: number;
   monthly_prepayment: number | null;
+  /** Land des Objekts; fehlt die Spalte noch (SQL 67 nicht ausgeführt) → 'DE'. */
+  country?: UtilityCountry;
+  /** Kostenarten, die für dieses Haus NICHT angeboten werden (leer = keine). */
+  excluded_category_ids?: string[] | null;
 }
+
+/**
+ * Kostenarten, die für ein Haus angeboten werden:
+ * aktiv, passend zum Land des Hauses (oder ohne Land) und nicht für dieses
+ * Haus abgewählt. Neu angelegte Kostenarten erscheinen damit automatisch.
+ * Bereits erfasste Kosten werden unabhängig davon immer angezeigt.
+ */
+export const getCategoriesForHouse = (
+  categories: UtilityCostCategory[] | undefined,
+  settings: Pick<UtilitySettings, 'country' | 'excluded_category_ids'> | null | undefined,
+): UtilityCostCategory[] => {
+  if (!categories) return [];
+  const country: UtilityCountry = settings?.country ?? 'DE';
+  const excluded = settings?.excluded_category_ids || [];
+  return categories.filter(
+    (c) =>
+      c.is_active &&
+      (!c.country || c.country === country) &&
+      !excluded.includes(c.id),
+  );
+};
+
+/** Alle Kostenarten, die zum Land passen (für die Auswahlliste je Haus). */
+export const getCategoriesForCountry = (
+  categories: UtilityCostCategory[] | undefined,
+  country: UtilityCountry,
+): UtilityCostCategory[] =>
+  (categories || []).filter((c) => c.is_active && (!c.country || c.country === country));
 
 export interface UtilityCost {
   id: string;
@@ -140,7 +182,10 @@ export const useCreateUtilityCostCategory = () => {
       name: string;
       description?: string | null;
       default_distribution_key: string;
+      country?: UtilityCountry | null;
     }) => {
+      // country nur mitschicken, wenn gesetzt — so funktioniert das Anlegen
+      // auch, solange SQL 67 (Spalte country) noch nicht ausgeführt ist.
       const { data, error } = await supabase
         .from('utility_cost_categories')
         .insert({
@@ -149,6 +194,7 @@ export const useCreateUtilityCostCategory = () => {
           default_distribution_key: category.default_distribution_key,
           is_system: false,
           is_active: true,
+          ...(category.country ? { country: category.country } : {}),
         })
         .select()
         .single();

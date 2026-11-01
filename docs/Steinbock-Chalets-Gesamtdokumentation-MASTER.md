@@ -512,6 +512,12 @@ im echten Test bewiesen (E-Mail angekommen).
 - **Mietzahlungen Dauermiete:** generate-tenant-payments (Cron täglich 06:00, bucht
   am Zahltag die Soll-Warmmiete inkl. Miethistorie; unbefristete Verträge seit
   28.09.2026 eingeschlossen). Ablauf: `docs/Prozess-Mieterhoehung-und-Mietzahlungen.md`.
+- **Nebenkosten — zwei getrennte Modelle (01.11.2026):** touristisch = Gebühren
+  je Aufenthalt (`houses.additional_fees`, `AdditionalFeesTab`); Festvermietung =
+  Betriebskosten je Jahr mit Abrechnung (`utility_*`, `UtilityCostsPanel`). Der
+  Haus-Dialog zeigt im Tab „Nebenkosten" je nach Vermietungsart das richtige
+  Modell; Land DE/AT und Kostenarten-Auswahl je Haus seit SQL 67.
+  Details: `docs/Nebenkosten-Touristisch-vs-Festvermietung.md`.
 - **Bundle/PWA:** vite.config manualChunks-Splitting, React.lazy für Tabs,
   version.json + NetworkFirst für PWA-Updates.
 - **Länderliste** zentral in `src/lib/countries.ts` (81 Länder; UK statt GB wegen
@@ -651,6 +657,11 @@ geschlossen, wechselt der Status zurueck auf `ok` und die Meldung verschwindet.
   Zwischenfreigabe. Bewusst ans Ende gestellt.
 - **Änderung bei Check-in-Verschiebung** (analog zur Gästezahl bei Wäsche).
 - **Max als Preis-Erklärer** (liest/zusammenfasst vorhandene Preis-Empfehlungen).
+- **Max kennt die Festvermietung nicht (Befund 01.11.2026).** `chat-assistant`
+  filtert fast überall auf `rental_type = 'tourist'` und liest keine
+  Betriebskosten. Vorschlag: Lese-Werkzeug „Betriebskosten-Stand je Haus/Jahr".
+  Vorher die dreifache Vorauszahlungs-Quelle bereinigen
+  (`docs/Nebenkosten-Touristisch-vs-Festvermietung.md`, Abschnitt 6).
 - **Zweiter AI-Provider** (größerer Umbau wegen Gemini-spezifischem Tool-Format).
 - **Airbnb-Nachrichten automatisch einlesen (Stufe 2, eingetragen 26.09.2026).**
   Stufe 1 ist umgesetzt: Nachrichten werden von Hand über „Nachricht notieren"

@@ -83,6 +83,33 @@ export function normalizeFeesV2(raw: any): AdditionalFeesV2 {
 }
 
 /**
+ * Welche Gebühren-Felder sind für das Haus tatsächlich gespeichert?
+ * Für alle anderen zeigt normalizeFeesV2 nur Standardwerte an
+ * (z. B. Kurtaxe 2,50 / Reinigung 80 / MwSt 19) — die sollen in der
+ * Oberfläche als „nicht gespeichert" erkennbar sein.
+ */
+export function getStoredFeeKeys(input: unknown): Set<keyof AdditionalFeesV2> {
+  const stored = new Set<keyof AdditionalFeesV2>();
+  if (!input || typeof input !== 'object') return stored;
+  const raw = input as Record<string, unknown>;
+  const pairs: [keyof AdditionalFeesV2, string][] = [
+    ['service_fee', 'service_fee_per_stay'],
+    ['tourist_tax', 'tourist_tax_per_night'],
+    ['cleaning_fee', 'cleaning_fee_per_stay'],
+    ['electricity_fee', 'electricity_fee_per_stay'],
+    ['linen_fee', 'linen_fee_per_stay'],
+  ];
+  for (const [structuredKey, legacyKey] of pairs) {
+    const v = raw[structuredKey];
+    if ((v && typeof v === 'object' && 'amount' in v) || typeof raw[legacyKey] === 'number') {
+      stored.add(structuredKey);
+    }
+  }
+  if (typeof raw.vat_percentage === 'number') stored.add('vat_percentage');
+  return stored;
+}
+
+/**
  * Build a legacy-flat representation alongside v2 so older consumers
  * (analytics, calculateFinalPrice) keep working without changes.
  * standardGuests is used as a sensible per-stay equivalent for per_person fees.
@@ -240,6 +267,7 @@ export const usePricingConfig = (houseId: string) => {
     config: config || getDefaultPricingConfig(),
     fees: flattenFeesV2(normalizeFeesV2(fees), (config?.standard_guests ?? 6)),
     feesV2: normalizeFeesV2(fees),
+    storedFeeKeys: getStoredFeeKeys(fees),
     isLoading: configLoading || feesLoading,
     saveConfig: saveConfigMutation.mutate,
     saveFees: saveFeesMutation.mutate,

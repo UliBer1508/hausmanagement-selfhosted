@@ -219,6 +219,19 @@ plus Nebenkosten (letzte Änderung mit `new_additional_costs`, sonst
 `tenant_info.additional_costs`). **Regel:** Wer eine Seite ändert, zieht die
 andere im selben Commit nach.
 
+### ⚠️ „Nebenkosten" bedeutet ZWEI verschiedene Dinge (NEU 01.11.2026)
+
+| Vermietungsart | Was | Daten | Oberfläche |
+|---|---|---|---|
+| touristisch | Gebühren je Gästeaufenthalt (Kurtaxe, Reinigung, Wäsche, Strom pauschal, MwSt) | `houses.additional_fees` | `Houses/AdditionalFeesTab.tsx` (Hook `usePricingConfig`) |
+| Festvermietung | Betriebskosten je Jahr + Abrechnung gegen Vorauszahlung | `utility_settings`, `utility_costs`, `utility_cost_categories`, `utility_statements` | `Tenants/UtilityCostsPanel.tsx` |
+
+Zusätzlich liegt für touristische Gebühren noch der ältere Hook
+`hooks/useAdditionalFees.ts` im Repo (eigene Standardwerte, MwSt 19). Er wird
+nirgends importiert (toter Code, Stand 01.11.2026) — führend ist `usePricingConfig`. Vorauszahlung Festvermietung steht an drei Stellen
+(`utility_settings.monthly_prepayment`, `tenant_info.additional_costs`,
+`tenant_rent_changes.new_additional_costs`), siehe Doku.
+
 ### Technische Fallen (12.07.2026 teuer erkauft — VOR dem Ändern lesen!)
 
 **1. Unvollständige Feldlisten bei Supabase-Joins.**
@@ -347,10 +360,20 @@ aus `weekly_pricing` und AirROI-Regionaldaten aus `market_data_cache`,
 | overview | `TenantOverview.tsx` (+ `TenantCard`, `TenantStats`) |
 | contracts | `TenantContracts.tsx` (+ `RentHistoryDialog`) |
 | payments | `TenantPayments.tsx` (+ `CreatePaymentDialog`, `EditPaymentDialog`, `MonthlyPaymentTimeline`) |
-| utilities | Nebenkosten: `UtilityCostSettings`, `UtilityCostEntry`, `UtilityStatementGenerator`, `ExcelUtilityImport` |
+| utilities | Nebenkosten: `UtilityCostsPanel` → `UtilityCostSettings`, `UtilityCostEntry`, `UtilityStatementGenerator` (+ `ExcelUtilityImport`) |
 | analytics | `TenantAnalytics.tsx` (+ `OverallPerformance`, `ObjectPerformanceCard`) |
 
 > Nebenkosten-Abrechnungs-PDF: `lib/utilityStatementPdf.ts`.
+
+**Betriebskosten (01.11.2026):** `Tenants/UtilityCostsPanel.tsx` ist die EINE
+Betriebskosten-Ansicht (Einstellungen / Kosten erfassen / Abrechnung). Sie hängt
+an ZWEI Stellen: hier im Mieter-Tab (mit Objektauswahl) und im Haus-Dialog,
+Tab „Nebenkosten" bei Festvermietung (`houseId` fest, Objektauswahl ausgeblendet).
+Die drei Unterkomponenten nehmen dafür ein optionales `houseId`.
+Je Haus gespeichert (`utility_settings`, SQL 67): `country` (DE/AT) und
+`excluded_category_ids` (abgewählte Kostenarten). Welche Kostenarten ein Haus
+angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
+`hooks/useUtilityCosts.ts`. Details: **`docs/Nebenkosten-Touristisch-vs-Festvermietung.md`**.
 
 **Mietzahlungen (`tenant_payments`) — Regeln (28.09.2026):**
 - Leere Formularfelder werden in `EditPaymentDialog.tsx` als `null` gespeichert.
@@ -379,6 +402,12 @@ aus `weekly_pricing` und AirROI-Regionaldaten aus `market_data_cache`,
 Anlegen/Bearbeiten: `CreateHouseDialog.tsx`, `EditHouseDialog.tsx`
 (enthält die Sub-Tabs für ein Haus, u. a.):
 - `PricingConfigTab.tsx`, `AdditionalFeesTab.tsx`
+- Tab „Nebenkosten" hängt an der **gespeicherten** Vermietungsart:
+  touristisch → `AdditionalFeesTab.tsx` (Gebühren je Aufenthalt,
+  `houses.additional_fees`); Festvermietung → `Tenants/UtilityCostsPanel.tsx`
+  (Betriebskosten je Jahr, `utility_*`). Vor dem 01.11.2026 kam bei allen Häusern
+  die touristische Ansicht mit Standardwerten. Nicht gespeicherte Posten zeigt
+  `AdditionalFeesTab` als „Standardwert" (`getStoredFeeKeys` in `usePricingConfig`).
 - `LinenSetRulesTab.tsx`, `LinenPricesTab.tsx`, `LinenItemDialog.tsx`
 - `HouseInventory.tsx`, `LinenInventoryDialog.tsx`
 - `ExternalArticleMappingDialog.tsx`, `TeuniSetTemplatesDialog.tsx`, `TeuniSourcePanel.tsx`
@@ -1308,7 +1337,8 @@ Häuser/Preise: `useHouses`, `usePricingConfig`, `usePricingSettings`,
 `useDynamicPricing`, `usePriceLabs` (nur Preiskonfiguration aktiv — PriceLabs
 selbst nicht implementiert, siehe Modul 12), `useAirROI`, `useCompetitorAnalysis`,
 `useVacancyAI`, `useAdditionalFees`.
-Mieter: `useTenantPayments`, `useTenantRentChanges`, `useUtilityCosts`.
+Mieter: `useTenantPayments`, `useTenantRentChanges`, `useUtilityCosts` (inkl.
+`getCategoriesForHouse` / `getCategoriesForCountry`, Land DE/AT seit SQL 67).
 Dashboard/System: `useDashboard`, `useOperationsDashboard`, `useMorningSummary`,
 `useSystemSettings`, `useAppVersionCheck`, `useChat`,
 `useEmailTemplates`, `useMarketingActions`, `useProviderMessages`,

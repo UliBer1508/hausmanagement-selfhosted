@@ -35,9 +35,15 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.R
   sent: { label: 'Versendet', color: 'bg-green-500/10 text-green-600 border-green-500/30', icon: <Send className="h-3 w-3" /> },
 };
 
-const UtilityStatementGenerator = () => {
+interface UtilityStatementGeneratorProps {
+  /** Fest vorgegebenes Haus (Haus-Dialog). Ohne Angabe: Objektauswahl wie im Mieter-Tab. */
+  houseId?: string;
+}
+
+const UtilityStatementGenerator = ({ houseId }: UtilityStatementGeneratorProps) => {
   const { data: houses } = useHouses({ rental_type: 'long_term' });
-  const [selectedHouseId, setSelectedHouseId] = useState<string | null>(null);
+  const [pickedHouseId, setSelectedHouseId] = useState<string | null>(houseId ?? null);
+  const selectedHouseId = houseId ?? pickedHouseId;
   const [selectedYear, setSelectedYear] = useState(currentYear); // Standard: aktuelles Jahr für vorläufige Abrechnung
   const [manualPrepayments, setManualPrepayments] = useState<string>('');
   const statementCardRef = useRef<HTMLDivElement>(null);
@@ -55,10 +61,10 @@ const UtilityStatementGenerator = () => {
   const existingStatement = statements?.find(s => s.year === selectedYear);
 
   useEffect(() => {
-    if (houses?.length && !selectedHouseId) {
+    if (!houseId && houses?.length && !selectedHouseId) {
       setSelectedHouseId(houses[0].id);
     }
-  }, [houses, selectedHouseId]);
+  }, [houseId, houses, selectedHouseId]);
 
   // Berechne Vorauszahlungen aus utility_settings.monthly_prepayment oder tenant_info
   useEffect(() => {
@@ -102,7 +108,7 @@ const UtilityStatementGenerator = () => {
   const prepayments = parseFloat(manualPrepayments) || 0;
   const result = tenantShare - prepayments;
 
-  if (!houses?.length) {
+  if (!houseId && !houses?.length) {
     return (
       <Card>
         <CardContent className="py-8 text-center text-muted-foreground">
@@ -117,7 +123,8 @@ const UtilityStatementGenerator = () => {
       {/* Filter */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {!houseId && (
             <div className="flex-1">
               <Select value={selectedHouseId || ''} onValueChange={setSelectedHouseId}>
                 <SelectTrigger>
@@ -133,7 +140,8 @@ const UtilityStatementGenerator = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="w-32">
+            )}
+            <div className="w-full sm:w-32">
               <Select value={selectedYear.toString()} onValueChange={(v) => setSelectedYear(parseInt(v))}>
                 <SelectTrigger>
                   <SelectValue />

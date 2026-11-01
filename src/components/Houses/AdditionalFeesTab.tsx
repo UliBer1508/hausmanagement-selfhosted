@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Loader2, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import {
   usePricingConfig,
   AdditionalFeesV2,
@@ -37,7 +38,7 @@ const FEE_FIELDS: { key: FeeKey; label: string; touristTax?: boolean }[] = [
 ];
 
 const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
-  const { feesV2, isLoading, saveFees, isSaving } = usePricingConfig(houseId);
+  const { feesV2, storedFeeKeys, isLoading, saveFees, isSaving } = usePricingConfig(houseId);
 
   const [localFees, setLocalFees] = useState<AdditionalFeesV2>(DEFAULT_V2);
   const initializedRef = useRef(false);
@@ -91,13 +92,30 @@ const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Nebenkosten-Konfiguration</CardTitle>
+          <CardTitle>Nebenkosten-Konfiguration (touristische Vermietung)</CardTitle>
           <CardDescription>
-            Definieren Sie pro Posten den Betrag und ob er pauschal pro Aufenthalt
-            oder pro Person berechnet wird.
+            Gebühren je Gästeaufenthalt: pro Posten den Betrag und ob er pauschal pro
+            Aufenthalt oder pro Person berechnet wird. Für fest vermietete Häuser gelten
+            stattdessen die Betriebskosten (Mieter → Nebenkosten).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {storedFeeKeys.size === 0 ? (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Für dieses Haus sind noch keine Nebenkosten gespeichert. Die angezeigten
+                Beträge sind Standardwerte und werden erst mit „Speichern" übernommen.
+              </AlertDescription>
+            </Alert>
+          ) : storedFeeKeys.size < FEE_FIELDS.length + 1 ? (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                Mit „Standardwert" markierte Posten sind für dieses Haus nicht gespeichert.
+              </AlertDescription>
+            </Alert>
+          ) : null}
           <div className="space-y-3">
             {FEE_FIELDS.map((f) => {
               const item = localFees[f.key];
@@ -113,7 +131,12 @@ const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
                   className="grid grid-cols-1 md:grid-cols-[1fr_160px_180px] gap-3 md:items-end border rounded-md p-3"
                 >
                   <div className="space-y-1">
-                    <Label htmlFor={f.key}>{f.label}</Label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Label htmlFor={f.key}>{f.label}</Label>
+                      {!storedFeeKeys.has(f.key) && (
+                        <Badge variant="outline" className="text-xs">Standardwert</Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">{unitHint}</p>
                   </div>
                   <div className="space-y-1">
@@ -152,7 +175,12 @@ const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
               <div className="space-y-2">
-                <Label htmlFor="vat">MwSt-Satz (%)</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label htmlFor="vat">MwSt-Satz (%)</Label>
+                  {!storedFeeKeys.has('vat_percentage') && (
+                    <Badge variant="outline" className="text-xs">Standardwert</Badge>
+                  )}
+                </div>
                 <Input
                   id="vat"
                   type="number"
@@ -168,6 +196,11 @@ const AdditionalFeesTab = ({ houseId }: AdditionalFeesTabProps) => {
                     })
                   }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Der Standardwert 19 % ist der deutsche Regelsatz. Für die Beherbergung in
+                  Österreich gilt ein ermäßigter Satz (derzeit 10 %) — bitte mit dem
+                  Steuerberater abgleichen.
+                </p>
               </div>
             </div>
           </div>
