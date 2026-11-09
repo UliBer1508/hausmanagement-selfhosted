@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { istGesperrt } from "../_shared/providerStatus.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -87,7 +88,7 @@ serve(async (req) => {
       .from('service_tasks')
       .select(`
         id, booking_id, scheduled_date, scheduled_time, status, provider_id, house_id, notes,
-        service_providers!service_tasks_provider_id_fkey(id, name),
+        service_providers!service_tasks_provider_id_fkey(id, name, is_active, inaktiv_wirkung),
         houses(name),
         bookings(guest_name, check_in, check_out, status)
       `)
@@ -123,6 +124,11 @@ serve(async (req) => {
         continue;
       }
       if (!provider?.id) {
+        continue;
+      }
+      // Dienstleister inaktiv mit "Keine Nachrichten" (NEU 09.11.2026, SQL 69)
+      if (istGesperrt(provider, 'keine_nachrichten')) {
+        console.log(`⏸️ ${provider.name} ist inaktiv (keine Nachrichten) – übersprungen.`);
         continue;
       }
       if (!hasBooking) ohneBuchung++;

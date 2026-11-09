@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { istGesperrt } from '@/lib/providerStatus';
 import { useToast } from '@/hooks/use-toast';
 import { getGuestName } from '@/lib/guestHelpers';
 import { todayISO, toISODate } from '@/lib/dateHelpers';
@@ -140,10 +141,11 @@ const CreateCleaningTaskDialog = ({ onTaskCreated, open: externalOpen, onOpenCha
     queryFn: async () => {
       const { data } = await supabase
         .from('service_providers')
-        .select('id, name, hourly_rate, billing_mode, flat_rate, vat_percentage')
-        .eq('service_type', 'cleaning')
-        .eq('is_active', true);
-      return data || [];
+        .select('*')
+        .eq('service_type', 'cleaning');
+      // Inaktiv mit "Nicht mehr auswählbar" ausblenden (09.11.2026, SQL 69).
+      // Ein inaktiver Dienstleister OHNE diese Wahl bleibt bewusst wählbar.
+      return (data || []).filter((p) => !istGesperrt(p as any, 'nicht_waehlbar'));
     },
   });
 

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { istGesperrt } from "../_shared/providerStatus.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -60,6 +61,22 @@ serve(async (req) => {
         success: true,
         modus: 'echt-aber-deaktiviert',
         hinweis: 'max_linen_reminder_enabled ist false. Bitte in der Hausverwaltung aktivieren.',
+        gesendet: 0,
+      });
+    }
+
+    // Teuni inaktiv mit "Keine Nachrichten" (NEU 09.11.2026, SQL 69)
+    const { data: teuni } = await supabase
+      .from('service_providers')
+      .select('name, is_active, inaktiv_wirkung')
+      .eq('id', TEUNI_PROVIDER_ID)
+      .maybeSingle();
+    if (istGesperrt(teuni, 'keine_nachrichten')) {
+      console.log('⏸️ Wäscherei ist inaktiv (keine Nachrichten). Nichts gesendet.');
+      return json({
+        success: true,
+        modus: 'dienstleister-inaktiv',
+        hinweis: `${teuni?.name ?? 'Wäscherei'} ist in der Provider Verwaltung inaktiv geschaltet (Keine Nachrichten).`,
         gesendet: 0,
       });
     }

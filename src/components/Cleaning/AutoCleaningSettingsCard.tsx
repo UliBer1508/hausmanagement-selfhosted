@@ -7,6 +7,7 @@ import { Loader2, Save, Settings, ChevronDown } from 'lucide-react';
 import { useCleaningAutomationSettings } from '@/hooks/useCleaningAutomationSettings';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { istGesperrt } from '@/lib/providerStatus';
 import { useState, useEffect } from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -147,13 +148,27 @@ const AutoCleaningSettingsCard = () => {
                 <SelectValue placeholder="Dienstleister auswählen" />
               </SelectTrigger>
               <SelectContent className="bg-background z-50">
-                {providers?.map((provider) => (
-                  <SelectItem key={provider.id} value={provider.id}>
-                    {provider.name}
-                  </SelectItem>
-                ))}
+                {providers
+                  ?.filter(
+                    // Inaktiv mit "Nicht mehr auswählbar" ausblenden — außer er ist
+                    // gerade Standard, damit die Auswahl nicht leer wirkt (09.11.2026)
+                    (provider) =>
+                      !istGesperrt(provider as any, 'nicht_waehlbar') || provider.id === localProviderId
+                  )
+                  .map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.name}
+                      {provider.is_active === false ? ' (inaktiv)' : ''}
+                    </SelectItem>
+                  ))}
               </SelectContent>
             </Select>
+            {istGesperrt(providers?.find((p) => p.id === localProviderId) as any, 'keine_reinigungen') && (
+              <p className="text-xs text-destructive">
+                Dieser Dienstleister ist inaktiv. Neue Reinigungen entstehen ohne Dienstleister –
+                bitte einen aktiven wählen.
+              </p>
+            )}
           </div>
 
           {/* Schedule Timing */}

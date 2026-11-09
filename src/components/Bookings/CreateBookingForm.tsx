@@ -232,8 +232,11 @@ const CreateBookingForm = ({ mode = 'create', initialData, onSuccess, onCancel, 
       if (data.success && data.task_created) {
         toast({
           title: "📝 Reinigungsauftrag als Entwurf erstellt",
-          description: `Bitte im Reinigung-Tab prüfen. Geplant: ${data.scheduled_date} um ${data.scheduled_time} Uhr`,
-          duration: 5000,
+          // warnung: Standard-Dienstleister inaktiv -> Reinigung ohne Dienstleister (09.11.2026)
+          description: data.warnung
+            ? `${data.warnung} Bitte im Reinigung-Tab zuweisen.`
+            : `Bitte im Reinigung-Tab prüfen. Geplant: ${data.scheduled_date} um ${data.scheduled_time} Uhr`,
+          duration: data.warnung ? 10000 : 5000,
         });
       } else if (data.message) {
         toast({

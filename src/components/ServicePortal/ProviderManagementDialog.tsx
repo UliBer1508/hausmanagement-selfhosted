@@ -8,6 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
+import { INAKTIV_WIRKUNGEN, STANDARD_INAKTIV_WIRKUNG, type InaktivWirkung } from '@/lib/providerStatus';
 import { Plus, Edit, Trash2, Mail, Phone, Building2, CheckCircle, XCircle, FileSpreadsheet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
@@ -163,6 +166,49 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
       });
     }
   });
+
+  // Aktiv-Schalter und Auswahlliste direkt auf der Karte (NEU 09.11.2026, SQL 69).
+  // Speichert sofort, ohne den Bearbeiten-Dialog. Die Liste gilt nur, solange
+  // der Dienstleister inaktiv ist — siehe src/lib/providerStatus.ts.
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, aenderung }: {
+      id: string;
+      aenderung: { is_active?: boolean; inaktiv_wirkung?: InaktivWirkung[] };
+    }) => {
+      // Cast noetig, bis integrations/supabase/types.ts neu generiert ist (inaktiv_wirkung).
+      const { data: updated, error } = await supabase
+        .from('service_providers')
+        .update(aenderung as any)
+        .eq('id', id)
+        .select('id');
+      if (error) throw error;
+      if (!updated || updated.length === 0) {
+        throw new Error('Status wurde nicht gespeichert (keine Zeile betroffen).');
+      }
+    },
+    onSuccess: () => {
+      // Alle Dienstleister-Listen neu laden (Auswahllisten in Reinigung/Wäsche).
+      queryClient.invalidateQueries({
+        predicate: (q) => {
+          const key = String(q.queryKey[0] ?? '');
+          return key.startsWith('service-providers') || key === 'cleaning-providers';
+        },
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Status konnte nicht gespeichert werden.',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const wirkungUmschalten = (provider: any, key: InaktivWirkung, an: boolean) => {
+    const bisher: InaktivWirkung[] = provider.inaktiv_wirkung ?? STANDARD_INAKTIV_WIRKUNG;
+    const neu = an ? Array.from(new Set([...bisher, key])) : bisher.filter((k) => k !== key);
+    statusMutation.mutate({ id: provider.id, aenderung: { inaktiv_wirkung: neu } });
+  };
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -332,6 +378,47 @@ export const ProviderManagementDialog = ({ open, onOpenChange }: ProviderManagem
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                        <div>
+                          <Label htmlFor={`aktiv-${provider.id}`} className="font-medium">
+                            {provider.is_active !== false ? 'Aktiv' : 'Inaktiv'}
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            {provider.is_active !== false
+                              ? 'Bekommt Reinigungen und Nachrichten wie gewohnt'
+                              : 'Gilt, solange inaktiv – bitte auswählen:'}
+                          </p>
+                        </div>
+                        <Switch
+                          id={`aktiv-${provider.id}`}
+                          checked={provider.is_active !== false}
+                          disabled={statusMutation.isPending}
+                          onCheckedChange={(an) =>
+                            statusMutation.mutate({ id: provider.id, aenderung: { is_active: an } })
+                          }
+                        />
+                      </div>
+                      {provider.is_active === false && (
+                        <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20 p-3">
+                          {INAKTIV_WIRKUNGEN.map((w) => {
+                            const liste: string[] = (provider as any).inaktiv_wirkung ?? STANDARD_INAKTIV_WIRKUNG;
+                            return (
+                              <label key={w.key} className="flex items-start gap-2 cursor-pointer">
+                                <Checkbox
+                                  className="mt-0.5"
+                                  checked={liste.includes(w.key)}
+                                  disabled={statusMutation.isPending}
+                                  onCheckedChange={(an) => wirkungUmschalten(provider, w.key, an === true)}
+                                />
+                                <span className="text-sm leading-tight">
+                                  {w.label}
+                                  <span className="block text-xs text-muted-foreground">{w.hinweis}</span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                       <div className="space-y-2 text-sm">
                         {provider.contact_email && (
                           <div className="flex items-center gap-2">
