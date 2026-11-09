@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { istGesperrt } from "../_shared/providerStatus.ts";
 import { requireAdmin } from "../_shared/auth.ts";
 import {
   generateContent,
@@ -2496,15 +2497,24 @@ async function executeSendProviderMessage(params: any) {
   }
 
   // Dienstleister über den Namen finden (Amela, Teuni ...)
-  const { data: providers, error: provErr } = await supabase
+  // Seit 09.11.2026 (SQL 69): Ein inaktiver Dienstleister bekommt nur dann
+  // nichts, wenn in der Provider Verwaltung "Keine Nachrichten" angehakt ist.
+  const { data: gefunden, error: provErr } = await supabase
     .from('service_providers')
-    .select('id, name')
-    .ilike('name', `%${providerName}%`)
-    .eq('is_active', true);
+    .select('id, name, is_active, inaktiv_wirkung')
+    .ilike('name', `%${providerName}%`);
 
   if (provErr) return { success: false, error: provErr.message };
-  if (!providers || providers.length === 0) {
-    return { success: false, error: `Kein aktiver Dienstleister gefunden für "${providerName}".` };
+  const gesperrt = (gefunden || []).filter((p: any) => istGesperrt(p, 'keine_nachrichten'));
+  const providers = (gefunden || []).filter((p: any) => !istGesperrt(p, 'keine_nachrichten'));
+  if (providers.length === 0) {
+    if (gesperrt.length > 0) {
+      return {
+        success: false,
+        error: `${gesperrt.map((p: any) => p.name).join(', ')} ist inaktiv geschaltet und bekommt keine Nachrichten (Provider Verwaltung).`,
+      };
+    }
+    return { success: false, error: `Kein Dienstleister gefunden für "${providerName}".` };
   }
   if (providers.length > 1) {
     return {

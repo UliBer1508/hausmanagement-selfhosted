@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { istGesperrt } from '@/lib/providerStatus';
 import { calculateCleaningCost, formatEur } from '@/lib/cleaningCost';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -111,7 +112,7 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
     queryFn: async () => {
       const { data } = await supabase
         .from('service_providers')
-        .select('id, name, hourly_rate, billing_mode, flat_rate, vat_percentage, is_active')
+        .select('*')
         .eq('service_type', 'cleaning');
       return data || [];
     },
@@ -518,11 +519,19 @@ const EditCleaningTaskDialog = ({ taskId, open, onOpenChange, onTaskUpdated }: E
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {providers?.map((provider) => (
-                                  <SelectItem key={provider.id} value={provider.id}>
-                                    {provider.name}
-                                  </SelectItem>
-                                ))}
+                                {providers
+                                  ?.filter(
+                                    // Inaktiv mit "Nicht mehr auswählbar" ausblenden — außer
+                                    // er ist hier schon eingetragen (09.11.2026, SQL 69)
+                                    (provider) =>
+                                      !istGesperrt(provider as any, 'nicht_waehlbar') || provider.id === field.value
+                                  )
+                                  .map((provider) => (
+                                    <SelectItem key={provider.id} value={provider.id}>
+                                      {provider.name}
+                                      {provider.is_active === false ? ' (inaktiv)' : ''}
+                                    </SelectItem>
+                                  ))}
                               </SelectContent>
                             </Select>
                             <FormMessage />

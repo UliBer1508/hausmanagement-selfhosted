@@ -184,6 +184,11 @@ auseinander, zeigen ML-Box und KI-Box in derselben Karte verschiedene Preise —
 genau der Effekt, der den Nachtpreis-Bug vom 06.09.2026 so schwer auffindbar
 machte.
 
+### ⚠️ Dienstleister-Status `istGesperrt()` existiert DREIFACH (NEU 09.11.2026)
+`src/lib/providerStatus.ts` (Frontend), `supabase/functions/_shared/providerStatus.ts`
+(Edge Functions) und `src/lib/providerStatus.ts` im **Boris-Portal**. Inhaltsgleich
+halten — Änderung an einer Stelle immer an allen dreien nachziehen.
+
 ### ⚠️ Chat-Komponenten existieren DOPPELT: `components/` UND `components/Chat/`
 
 **Drei Max-Komponenten liegen zweimal im Repo** — einmal in `src/components/`,
@@ -572,6 +577,29 @@ Externes Portal: `integrations/externalLaundry/client.ts`.
 - Nicht mehr eingebunden (24.07.2026): `MergeInvoicesDialog.tsx`,
   `AssignOrdersToInvoiceDialog.tsx` — siehe unten
 Hooks: `useProviderMessages`, `useProviderMessageNotifications`, `useLaundryInvoices`.
+
+### Dienstleister aktiv/inaktiv (NEU 09.11.2026, SQL 69)
+
+Auf jeder Karte in `ProviderManagementDialog.tsx` sitzt ein **Aktiv-Schalter**
+(`service_providers.is_active`). Ist er aus, erscheint eine Auswahlliste
+(`service_providers.inaktiv_wirkung`), was solange gilt:
+
+| Wert | Wirkung | Durchgesetzt in |
+|---|---|---|
+| `keine_reinigungen` | Automatik legt Reinigung **ohne** Dienstleister an (Uli weist zu) | Edge Fn `create-cleaning-task-for-booking`, Warnung in `AutoCleaningSettingsCard.tsx` und Toast in `CreateBookingForm.tsx` |
+| `keine_nachrichten` | keine Terminfragen, Wäsche-/E-Mail-Erinnerungen, Max-Nachrichten | `max-cleaning-reminders`, `max-linen-reminders`, `reinigung-erinnerung`, Tool `send_provider_message` (`chat-assistant`) |
+| `nicht_waehlbar` | in Auswahllisten ausgeblendet (außer schon eingetragen) | `CreateCleaningTaskDialog.tsx`, `EditCleaningTaskDialog.tsx`, `AutoCleaningSettingsCard.tsx` |
+| `portal_gesperrt` | Portal zeigt nur „Zugang deaktiviert" | Boris-Portal (`usePortalSperre.ts`); Amela-/Teuni-Portal noch **nicht** |
+
+Standard: die ersten drei. Die Prüfung steht an EINER Stelle: `istGesperrt()` in
+`src/lib/providerStatus.ts` — Doppelgänger siehe Abschnitt 3.
+`is_active = NULL` gilt als aktiv. Bereits geplante Reinigungen eines
+inaktiven Dienstleisters bleiben unverändert (Uli-Entscheidung).
+
+**Reinigungskraft-Zuweisung (umgestellt 09.11.2026):** `create-cleaning-task-for-booking`
+wies jeder neuen Reinigung fest die Reinigungskraft „Amela" zu — egal welcher
+Dienstleister. Jetzt: die eine aktive Reinigungskraft des Dienstleisters
+(`cleaning_staff.service_provider_id`); bei 0 oder mehreren keine Zuweisung.
 
 ### Zuordnung & Zusammenführen entfernt (24.07.2026)
 

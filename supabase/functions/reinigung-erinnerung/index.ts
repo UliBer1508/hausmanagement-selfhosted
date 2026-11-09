@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { istGesperrt } from "../_shared/providerStatus.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -105,7 +106,7 @@ serve(async (req) => {
     // 1. Wer will erinnert werden?
     let q = supabase
       .from('notification_preferences')
-      .select('id, user_name, provider_id, email_address, email_reminder_enabled, email_reminder_days_before, email_reminder_hour, portal_url, service_providers(name)')
+      .select('id, user_name, provider_id, email_address, email_reminder_enabled, email_reminder_days_before, email_reminder_hour, portal_url, service_providers(name, is_active, inaktiv_wirkung)')
       .not('provider_id', 'is', null);
     if (nurProvider) q = q.eq('provider_id', nurProvider);
     else q = q.eq('email_reminder_enabled', true);
@@ -119,6 +120,11 @@ serve(async (req) => {
       const name = (p as any).service_providers?.name || p.user_name;
       const adresse = (p.email_address || '').trim();
 
+      // Dienstleister inaktiv mit "Keine Nachrichten" (NEU 09.11.2026, SQL 69)
+      if (istGesperrt((p as any).service_providers, 'keine_nachrichten')) {
+        ergebnisse.push({ an: name, uebersprungen: 'Dienstleister ist inaktiv (keine Nachrichten)' });
+        continue;
+      }
       if (!adresse) {
         ergebnisse.push({ an: name, uebersprungen: 'keine E-Mail-Adresse hinterlegt' });
         continue;

@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
+import { istGesperrt } from "../_shared/providerStatus.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -88,7 +89,7 @@ serve(async (req) => {
     console.log('📋 Loading provider...');
     const { data: provider, error: providerError } = await supabase
       .from('service_providers')
-      .select('id, name, hourly_rate, billing_mode, flat_rate, vat_percentage')
+      .select('id, name, hourly_rate, billing_mode, flat_rate, vat_percentage, is_active, inaktiv_wirkung')
       .eq('id', settings.default_provider_id)
       .single();
 
@@ -98,6 +99,14 @@ serve(async (req) => {
     }
 
     console.log('✅ Provider loaded:', provider);
+
+    // Standard-Dienstleister inaktiv mit "Keine neuen Reinigungen" (NEU 09.11.2026, SQL 69):
+    // Die Reinigung wird trotzdem angelegt — sonst würde sie vergessen —, aber
+    // OHNE Dienstleister und ohne Kosten. Uli weist sie von Hand zu.
+    const ohneDienstleister = istGesperrt(provider as any, 'keine_reinigungen');
+    if (ohneDienstleister) {
+      console.log(`⚠️ Standard-Dienstleister "${provider.name}" ist inaktiv – Reinigung ohne Dienstleister.`);
+    }
 
     // 4. Calculate scheduled date based on schedule_timing
     let scheduledDate: string;
@@ -124,9 +133,11 @@ serve(async (req) => {
     const defaultHours = booking.houses?.default_cleaning_hours || 3;
     const billingMode = provider.billing_mode === 'flat' ? 'flat' : 'hourly';
 
-    let estimatedCost: number;
+    let estimatedCost: number | null;
 
-    if (billingMode === 'flat') {
+    if (ohneDienstleister) {
+      estimatedCost = null;
+    } else if (billingMode === 'flat') {
       if (provider.flat_rate == null || !(provider.flat_rate > 0)) {
         throw new Error(
           `Dienstleister „${provider.name}" rechnet pauschal ab, hat aber keine Pauschale hinterlegt. Reinigung wurde NICHT angelegt.`
@@ -142,8 +153,8 @@ serve(async (req) => {
       estimatedCost = round2(Number(provider.hourly_rate) * defaultHours);
     }
 
-    const vatPercentage = provider.vat_percentage ?? null;
-    const vatAmount = vatPercentage == null ? null : round2((estimatedCost * vatPercentage) / 100);
+    const vatPercentage = ohneDienstleister ? null : provider.vat_percentage ?? null;
+    const vatAmount = vatPercentage == null || estimatedCost == null ? null : round2((estimatedCost * vatPercentage) / 100);
 
     console.log('💰 Kostenberechnung:');
     console.log('  Abrechnungsart:', billingMode);
@@ -170,9 +181,11 @@ serve(async (req) => {
         cleaning_hours: defaultHours,
         cleaning_cost: estimatedCost,
         cleaning_vat_percentage: vatPercentage,
-        provider_id: settings.default_provider_id,
+        provider_id: ohneDienstleister ? null : settings.default_provider_id,
         status: 'draft',
-        notes: `Automatisch erstellt für Buchung von ${guestName} - Bitte prüfen`,
+        notes: ohneDienstleister
+          ? `Automatisch erstellt für Buchung von ${guestName} – KEIN Dienstleister: Standard „${provider.name}“ ist inaktiv. Bitte zuweisen.`
+          : `Automatisch erstellt für Buchung von ${guestName} - Bitte prüfen`,
       })
       .select()
       .single();
@@ -184,33 +197,37 @@ serve(async (req) => {
 
     console.log('✅ Service task created:', serviceTask);
 
-    // Standard-Reinigungskraft Amela zuweisen, falls vorhanden
-    try {
-      const { data: amela } = await supabase
-        .from('cleaning_staff')
-        .select('id')
-        .ilike('name', 'Amela')
-        .eq('is_active', true)
-        .maybeSingle();
+    // Reinigungskraft des Dienstleisters zuweisen (umgestellt 09.11.2026).
+    // Vorher fest "Amela" — unabhängig davon, welcher Dienstleister die Reinigung
+    // bekam. Jetzt: die aktive Reinigungskraft, die zu DIESEM Dienstleister gehört
+    // (cleaning_staff.service_provider_id), und nur wenn es genau eine gibt.
+    if (!ohneDienstleister) {
+      try {
+        const { data: staff } = await supabase
+          .from('cleaning_staff')
+          .select('id, name')
+          .eq('service_provider_id', provider.id)
+          .eq('is_active', true);
 
-      if (amela?.id) {
-        const { error: assignErr } = await supabase
-          .from('cleaning_assignments')
-          .insert({
-            service_task_id: serviceTask.id,
-            cleaning_staff_id: amela.id,
-            status: 'assigned',
-          });
-        if (assignErr) {
-          console.error('⚠️ Konnte Amela nicht zuweisen:', assignErr);
+        if (staff && staff.length === 1) {
+          const { error: assignErr } = await supabase
+            .from('cleaning_assignments')
+            .insert({
+              service_task_id: serviceTask.id,
+              cleaning_staff_id: staff[0].id,
+              status: 'assigned',
+            });
+          if (assignErr) {
+            console.error('⚠️ Reinigungskraft konnte nicht zugewiesen werden:', assignErr);
+          } else {
+            console.log(`✅ Reinigungskraft ${staff[0].name} zugewiesen`);
+          }
         } else {
-          console.log('✅ Amela als Standard-Reinigungskraft zugewiesen');
+          console.log(`ℹ️ ${staff?.length ?? 0} aktive Reinigungskräfte für ${provider.name} – keine automatische Zuweisung`);
         }
-      } else {
-        console.log('ℹ️ Amela nicht gefunden - keine Standardzuweisung');
+      } catch (assignError) {
+        console.error('⚠️ Fehler bei Standard-Zuweisung:', assignError);
       }
-    } catch (assignError) {
-      console.error('⚠️ Fehler bei Standard-Zuweisung:', assignError);
     }
 
     // Format date for response
@@ -230,7 +247,10 @@ serve(async (req) => {
         estimated_cost: estimatedCost,
         vat_percentage: vatPercentage,
         vat_amount: vatAmount,
-        provider_name: provider.name,
+        provider_name: ohneDienstleister ? null : provider.name,
+        warnung: ohneDienstleister
+          ? `Standard-Dienstleister „${provider.name}“ ist inaktiv – Reinigung ohne Dienstleister angelegt.`
+          : null,
         house_name: booking.houses?.name,
         service_task_id: serviceTask.id,
       }),
