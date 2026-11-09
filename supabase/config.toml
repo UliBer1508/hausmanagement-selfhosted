@@ -75,3 +75,8 @@ verify_jwt = false
 
 [functions.onedrive-api]
 verify_jwt = false
+
+# E-Mail-Erinnerung an Reinigungen (09.11.2026): Cron stündlich und
+# Test-Button im Boris-Portal rufen ohne Nutzer-JWT auf.
+[functions.reinigung-erinnerung]
+verify_jwt = false
