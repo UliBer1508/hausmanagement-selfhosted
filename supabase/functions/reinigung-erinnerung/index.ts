@@ -196,7 +196,9 @@ serve(async (req) => {
 
       const anzahl = neu.length;
       const betreffHaus = anzahl === 1 ? ` – ${(neu[0] as any).houses?.name || ''}` : ` – ${anzahl} Reinigungen`;
-      const betreff = `${test ? 'TEST: ' : ''}Erinnerung: Reinigung ${tagWort(tage)}${betreffHaus}`;
+      const betreff = anzahl === 0
+        ? `${test ? 'TEST: ' : ''}Erinnerung: ${tagWort(tage)} keine Reinigung`
+        : `${test ? 'TEST: ' : ''}Erinnerung: Reinigung ${tagWort(tage)}${betreffHaus}`;
 
       let text = `Hallo ${name},\n\n`;
       if (test) {
@@ -210,7 +212,7 @@ serve(async (req) => {
       }
       if (p.portal_url) text += `Alle Details im Portal: ${p.portal_url}\n\n`;
       text += 'Viele Grüße\nMax – Steinbock Chalets\n\n';
-      text += '— Diese Erinnerung kannst du im Portal unter Benachrichtigungen ändern oder abschalten.';
+      text += '— Diese Erinnerung kannst du im Portal im Fenster „Erinnerung“ ändern oder abschalten.';
 
       if (dryRun && !test) {
         ergebnisse.push({ wuerde_senden_an: name, zieltag, anzahl, betreff, text });
