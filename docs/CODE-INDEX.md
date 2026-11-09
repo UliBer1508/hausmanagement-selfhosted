@@ -1210,6 +1210,7 @@ durch Uli. Er liest Antworten nur auf Nachfrage.
 06:30  morning-summary        → morning-summary-daily      Tagesübersicht per E-Mail
 07:00  max-cleaning-reminders → max-cleaning-reminders-daily  Amela: „Passt der Termin?"
 07:30  max-linen-reminders    → max-linen-reminders-daily  Teuni: „Wäsche liefern"
+stündl. :05 reinigung-erinnerung → reinigung-erinnerung-hourly  E-Mail an Dienstleister (Boris)
 ```
 - **`overdue-watch`** (NEU 12.07.): sucht `max_actions` mit `wartet_provider` +
   abgelaufenem `due_at` → setzt `ueberfaellig`. Sichtbar in `MaxActionsPanel`
@@ -1227,6 +1228,20 @@ durch Uli. Er liest Antworten nur auf Nachfrage.
   `morning_summary_settings.upcoming_days` Tage (Standard 7, vorher fest im
   Code aus dem alten Lovable-Hook).
 - Einstellungskarte: `Settings/MaxMorningSummaryCard.tsx` (Einstellungen-Tab).
+- **`reinigung-erinnerung`** (NEU 09.11.2026): E-Mail-Erinnerung an Reinigungen
+  für Dienstleister. Läuft stündlich; je Dienstleister mit
+  `notification_preferences.email_reminder_enabled = true` prüft sie, ob jetzt
+  (Europe/Berlin) seine `email_reminder_hour` ist, und schickt EINE Mail mit
+  allen Reinigungen am Tag `heute + email_reminder_days_before` (Haus, Uhrzeit,
+  Anreise, Gäste, Wäschestand) über `send-guest-email`. Doppelversand-Schutz:
+  `reinigung_erinnerung_log` (eindeutig je Reinigung + Datum). Standard ist
+  Testlauf; der Cron sendet `dry_run: false`. `ignore_hour: true` für Tests.
+  Testmail aus dem Portal: `{ test: true, provider_id }` — geht nur an die
+  gespeicherte Adresse. **Eingestellt wird NICHT hier**, sondern von Boris
+  selbst im Boris-Portal (Dialog „Erinnerung", `ReminderSettingsPopover.tsx`
+  + Hook `useEmailReminder.ts` in `boris-clean-hub-selfhosted`).
+  SQL: `68_reinigung_erinnerung_email.sql`. Ablauf: `reinigung_erinnerung_email`.
+  Nicht verwechseln mit `max-cleaning-reminders` (Terminfrage im Portal-Chat).
 
 ### DB-Trigger (Kern der Ketten)
 
