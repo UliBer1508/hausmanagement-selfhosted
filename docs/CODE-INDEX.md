@@ -289,7 +289,7 @@ Modellwahl (Secret `GEMINI_MODEL`). Details: `docs/Gemini-Anbindung.md`.
 ## 4. Modul „Übersicht" (Tab 📊)
 
 `Dashboard/OverviewTab.tsx` bündelt:
-- **Alert-Banner:** `BookingInquiryAlertBanner`, `GuestContactAlertBanner`,
+- **Alert-Banner:** `BookingInquiryAlertBanner`, `RentalInquiryAlertBanner` (Mietanfragen Wohnen auf Zeit, 18.11.2026), `GuestContactAlertBanner`,
   `RatingReminderBanner`, `CleaningStatusAlertBanner`, `LinenApprovalAlertBanner`
 - **Karten:** `BookingCard`, `ServiceTaskCard`, `LaundryOrderCardWithStatus`
 - **Kennzahlen/Listen:** `StatsCards`, `RecentBookings`, `TaskOverview`,
@@ -363,8 +363,27 @@ aus `weekly_pricing` und AirROI-Regionaldaten aus `market_data_cache`,
 | payments | `TenantPayments.tsx` (+ `CreatePaymentDialog`, `EditPaymentDialog`, `MonthlyPaymentTimeline`) |
 | utilities | Nebenkosten: `UtilityCostsPanel` → `UtilityCostSettings`, `UtilityCostEntry`, `UtilityStatementGenerator` (+ `ExcelUtilityImport`) |
 | analytics | `TenantAnalytics.tsx` (+ `OverallPerformance`, `ObjectPerformanceCard`) |
+| interessenten | `RentalInquiries.tsx` (+ `RentalOfferDialog`, `RentalCalculationDialog`) — Mietanfragen „Wohnen auf Zeit“ von der Website (18.11.2026) |
 
 > Nebenkosten-Abrechnungs-PDF: `lib/utilityStatementPdf.ts`.
+
+**Mietinteressenten „Wohnen auf Zeit“ (18.11.2026, SQL 72):**
+- Tabellen `rental_inquiries` (Anfragen von steinbockchalets.com, anon darf nur INSERT),
+  `rental_calculations` (interne Kalkulation je Haus), `rental_offers` (persönliche Angebote).
+  RLS nur Admin. Kunde liest/antwortet nur über `get_rental_offer(token)` /
+  `respond_rental_offer(token, 'accept'|'question', msg)` (security definer, anon EXECUTE).
+- **Doppelgänger-Warnung:** NICHT `booking_inquiries` / `useBookingInquiries` /
+  `BookingInquiryAlertBanner` — das sind Urlaubsanfragen, aus denen beim Annehmen eine Buchung
+  wird. Mietanfragen erzeugen keine Buchung; Max hat dafür (noch) kein Werkzeug und darf sie
+  weder annehmen noch Preise nennen.
+- Hook: `hooks/useRentalInquiries.ts` (Listen, Status, „gesehen“, Status-Texte, `rentalOfferLink`).
+- Rechenweg Kalkulation: `lib/rentalCalc.ts` (`berechnen()`); Dialog zeigt zum Vergleich
+  Betriebskosten des letzten Jahres (`utility_costs`) und die letzte Marktmieten-Analyse.
+- Angebot: Entwurf → „Freigeben“ (Link `steinbockchalets.com/angebot/<token>` wird kopiert,
+  Anfrage → Status „Angebot“) → Kunde öffnet / nimmt an / fragt nach → Hinweis-Banner Übersicht.
+- Sprung aus dem Banner: `navigate('/', { state: { activeTab: 'Mieter', tenantSubTab: 'interessenten' } })`,
+  `TenantManagement.tsx` liest `tenantSubTab`.
+- Ablauf und Entscheidungen: **`docs/Konzept-Wohnen-auf-Zeit.md`**.
 
 **Betriebskosten (01.11.2026):** `Tenants/UtilityCostsPanel.tsx` ist die EINE
 Betriebskosten-Ansicht (Einstellungen / Kosten erfassen / Abrechnung). Sie hängt

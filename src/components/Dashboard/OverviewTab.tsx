@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Search, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import BookingInquiryAlertBanner from '@/components/Dashboard/BookingInquiryAlertBanner';
+import RentalInquiryAlertBanner from '@/components/Dashboard/RentalInquiryAlertBanner';
 import GuestContactAlertBanner from '@/components/Dashboard/GuestContactAlertBanner';
 import RatingReminderBanner from '@/components/Dashboard/RatingReminderBanner';
 import CleaningStatusAlertBanner from '@/components/Dashboard/CleaningStatusAlertBanner';
@@ -93,6 +94,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       {/* Neue, geänderte und stornierte Buchungen — bis "Gesehen". */}
       <BookingChangesAlertBanner />
       <BookingInquiryAlertBanner />
+      {/* Mietanfragen „Wohnen auf Zeit“ + Antworten auf Angebote (SQL 72) */}
+      <RentalInquiryAlertBanner />
       <GuestContactAlertBanner />
       <div className="mt-4">
         <RatingReminderBanner />

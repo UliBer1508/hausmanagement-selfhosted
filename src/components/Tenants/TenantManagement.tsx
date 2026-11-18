@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,8 @@ import TenantContracts from "./TenantContracts";
 import TenantPayments from "./TenantPayments";
 import TenantAnalytics from "./TenantAnalytics";
 import UtilityCostsPanel from "./UtilityCostsPanel";
+import RentalInquiries from "./RentalInquiries";
+import { useRentalInquiries, useRentalOffers } from "@/hooks/useRentalInquiries";
 import { useHouses } from "@/hooks/useHouses";
 import { toast } from "sonner";
 import { todayISO } from '@/lib/dateHelpers';
@@ -15,6 +18,17 @@ import { todayISO } from '@/lib/dateHelpers';
 const TenantManagement = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const { data: houses } = useHouses();
+  const location = useLocation();
+  // Sprung aus dem Hinweis-Banner der Übersicht direkt zu den Interessenten
+  useEffect(() => {
+    const sub = (location.state as { tenantSubTab?: string } | null)?.tenantSubTab;
+    if (sub) setActiveTab(sub);
+  }, [location.state]);
+  const { data: mietanfragen = [] } = useRentalInquiries();
+  const { data: mietangebote = [] } = useRentalOffers();
+  const offeneInteressenten =
+    mietanfragen.filter(a => a.status === 'new').length +
+    mietangebote.filter(o => ['accepted', 'question'].includes(o.status) && !o.response_seen_at).length;
   
   const longTermRentals = houses?.filter(h => 
     h.rental_type === 'long_term' && h.tenant_info
@@ -64,7 +78,7 @@ const TenantManagement = () => {
 
       <Card className="p-3 sm:p-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="flex flex-wrap h-auto gap-1 w-full justify-center sm:grid sm:grid-cols-5">
+          <TabsList className="flex flex-wrap h-auto gap-1 w-full justify-center sm:grid sm:grid-cols-6">
             <TabsTrigger value="overview">Übersicht</TabsTrigger>
             <TabsTrigger value="contracts">Verträge</TabsTrigger>
             <TabsTrigger value="payments">
@@ -76,6 +90,9 @@ const TenantManagement = () => {
               <span className="sm:hidden">NK-Abr.</span>
             </TabsTrigger>
             <TabsTrigger value="analytics">Analyse</TabsTrigger>
+            <TabsTrigger value="interessenten">
+              Interessenten{offeneInteressenten > 0 ? ` (${offeneInteressenten})` : ""}
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -96,6 +113,10 @@ const TenantManagement = () => {
 
           <TabsContent value="analytics" className="space-y-6">
             <TenantAnalytics />
+          </TabsContent>
+
+          <TabsContent value="interessenten" className="space-y-6">
+            <RentalInquiries />
           </TabsContent>
         </Tabs>
       </Card>
