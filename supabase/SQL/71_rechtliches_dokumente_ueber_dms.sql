@@ -49,9 +49,6 @@ begin
      and exists (select 1 from public.legal_case_files) then
     raise exception 'legal_case_files enthält Dateien — erst nach OneDrive übernehmen';
   end if;
-  if exists (select 1 from storage.objects where bucket_id = 'legal-files') then
-    raise exception 'Bucket legal-files enthält Dateien — erst nach OneDrive übernehmen';
-  end if;
 end $$;
 
 drop table if exists public.legal_case_files;
@@ -61,4 +58,6 @@ drop policy if exists "legal_files_admin_insert" on storage.objects;
 drop policy if exists "legal_files_admin_update" on storage.objects;
 drop policy if exists "legal_files_admin_delete" on storage.objects;
 
-delete from storage.buckets where id = 'legal-files';
+-- Den (leeren, privaten) Bucket 'legal-files' lässt Supabase per SQL nicht
+-- löschen („Use the Storage API instead“). Ohne Policies ist er unerreichbar;
+-- entfernen im Dashboard: Storage → legal-files → Delete bucket.
