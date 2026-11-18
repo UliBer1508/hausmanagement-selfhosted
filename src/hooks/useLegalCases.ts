@@ -1,16 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { LegalCase, LegalCaseEntry, LegalCaseFile } from "@/types";
+import { LegalCase, LegalCaseEntry } from "@/types";
 import { toast } from "sonner";
 
 // Rechtliche Verfahren je Objekt (Tab „Rechtliches").
-// Tabellen legal_cases + legal_case_entries + legal_case_files,
-// SQL: supabase/SQL/69_rechtliches_verfahren.sql und 70_rechtliches_ergaenzungen_dateien.sql.
+// Tabellen legal_cases + legal_case_entries, SQL 69/70. Dokumente laufen über die
+// Dokumentenverwaltung (OneDrive) mit Zuordnung 'verfahren' — useDocumentsForCase (SQL 71).
 // Die Tabellen sind noch nicht in integrations/supabase/types.ts (generiert) →
 // `as any` wie in useTenantPayments.ts.
 
 const CASES_KEY = ['legal-cases'];
-const BUCKET = 'legal-files';
 
 export const useLegalCases = (houseId?: string) => {
   return useQuery({
@@ -18,7 +17,7 @@ export const useLegalCases = (houseId?: string) => {
     queryFn: async () => {
       let query = supabase
         .from('legal_cases' as any)
-        .select('*, houses(id, name, rental_type), legal_case_entries(*), legal_case_files(*)')
+        .select('*, houses(id, name, rental_type), legal_case_entries(*)')
         .order('created_at', { ascending: false });
 
       if (houseId) query = query.eq('house_id', houseId);
@@ -30,7 +29,7 @@ export const useLegalCases = (houseId?: string) => {
   });
 };
 
-type CaseInput = Omit<LegalCase, 'id' | 'created_at' | 'updated_at' | 'houses' | 'legal_case_entries' | 'legal_case_files'>;
+type CaseInput = Omit<LegalCase, 'id' | 'created_at' | 'updated_at' | 'houses' | 'legal_case_entries'>;
 
 export const useSaveLegalCase = () => {
   const queryClient = useQueryClient();
@@ -63,13 +62,9 @@ export const useDeleteLegalCase = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      // Dateien des Verfahrens im Speicher mit entfernen (Ordner = Verfahrens-ID);
-      // die Zeilen in legal_case_files löscht die DB per ON DELETE CASCADE.
-      const { data: stored } = await supabase.storage.from(BUCKET).list(id, { limit: 1000 });
-      if (stored && stored.length > 0) {
-        const { error: removeError } = await supabase.storage.from(BUCKET).remove(stored.map(f => `${id}/${f.name}`));
-        if (removeError) console.error('[useDeleteLegalCase] Dateien nicht entfernt', removeError);
-      }
+      // Dokumente bleiben in der Dokumentenverwaltung (OneDrive) erhalten;
+      // nur ihre Verknüpfung zum Verfahren entfällt.
+      await supabase.from('document_links').delete().eq('entity_type', 'verfahren').eq('entity_id', id);
 
       const { data, error } = await supabase
         .from('legal_cases' as any)
@@ -138,94 +133,6 @@ export const useDeleteLegalEntry = () => {
       toast.error('Fehler beim Löschen: ' + error.message);
     },
   });
-};
-
-// ---------------------------------------------------------------------------
-// Dateien (privater Bucket 'legal-files', Anzeige über signierte URL)
-// ---------------------------------------------------------------------------
-export const useUploadLegalFile = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ caseId, entryId, file, description }:
-      { caseId: string; entryId?: string | null; file: File; description?: string | null }) => {
-      // Dateiname für den Pfad bereinigen; Originalname bleibt in file_name erhalten
-      const safeName = file.name.normalize('NFKD').replace(/[^\w.-]+/g, '_');
-      const path = `${caseId}/${Date.now()}-${safeName}`;
-
-      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
-        contentType: file.type || undefined,
-      });
-      if (uploadError) throw uploadError;
-
-      const { data, error } = await supabase
-        .from('legal_case_files' as any)
-        .insert([{
-          case_id: caseId,
-          entry_id: entryId ?? null,
-          file_path: path,
-          file_name: file.name,
-          mime_type: file.type || null,
-          size_bytes: file.size,
-          description: description ?? null,
-        }])
-        .select();
-      if (error || !data || data.length === 0) {
-        // Datei ohne Datensatz nicht liegen lassen
-        await supabase.storage.from(BUCKET).remove([path]);
-        throw error ?? new Error('Datei-Eintrag nicht gespeichert');
-      }
-      return data[0] as any as LegalCaseFile;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CASES_KEY });
-    },
-    onError: (error: any) => {
-      console.error('[useUploadLegalFile]', error);
-      toast.error('Fehler beim Hochladen: ' + error.message);
-    },
-  });
-};
-
-export const useDeleteLegalFile = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (file: LegalCaseFile) => {
-      const { data, error } = await supabase
-        .from('legal_case_files' as any)
-        .delete()
-        .eq('id', file.id)
-        .select();
-      if (error) throw error;
-      if (!data || data.length === 0) throw new Error('Keine Zeile gelöscht');
-      const { error: removeError } = await supabase.storage.from(BUCKET).remove([file.file_path]);
-      if (removeError) console.error('[useDeleteLegalFile] Datei im Speicher nicht entfernt', removeError);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CASES_KEY });
-      toast.success('Datei gelöscht');
-    },
-    onError: (error: any) => {
-      console.error('[useDeleteLegalFile]', error);
-      toast.error('Fehler beim Löschen: ' + error.message);
-    },
-  });
-};
-
-/** Öffnet eine Datei in neuem Tab (signierte URL, 10 Minuten gültig). */
-export const openLegalFile = async (file: LegalCaseFile) => {
-  // Fenster sofort öffnen — sonst blockiert der Popup-Blocker nach dem await
-  const win = window.open('', '_blank');
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(file.file_path, 600);
-  if (error || !data?.signedUrl) {
-    win?.close();
-    console.error('[openLegalFile]', error);
-    toast.error('Datei konnte nicht geöffnet werden');
-    return;
-  }
-  if (win) win.location.href = data.signedUrl;
-  else window.location.href = data.signedUrl;
 };
 
 // ---------------------------------------------------------------------------

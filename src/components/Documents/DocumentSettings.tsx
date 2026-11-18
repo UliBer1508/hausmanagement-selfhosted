@@ -35,6 +35,7 @@ const COLORS: Record<string, string> = {
 const ART_LABEL: Record<string, string> = {
   haus: 'Haus', provider: 'Dienstleister', vendor: 'Vendor', portal: 'Buchungsportal',
   buchung: 'Buchung', reinigung: 'Reinigung', waesche: 'Wäschelieferung',
+  verfahren: 'Rechtliches Verfahren',
 };
 
 /** Objekte, die einen eigenen Ablageort haben koennen. */

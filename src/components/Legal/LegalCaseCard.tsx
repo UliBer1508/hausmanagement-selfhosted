@@ -3,22 +3,20 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Pencil, Trash2, Plus, Scale, CalendarClock, AlertTriangle, ChevronDown, ChevronRight, Paperclip, Upload, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
+import { Pencil, Trash2, Plus, Scale, CalendarClock, AlertTriangle, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { addMonths, differenceInCalendarDays, format, parseISO } from "date-fns";
 import { de } from "date-fns/locale";
-import { LegalCase, LegalCaseEntry, LegalCaseFile, LegalEntryType } from "@/types";
+import { LegalCase, LegalCaseEntry, LegalEntryType } from "@/types";
 import {
   CASE_STATUS_LABELS, CASE_TYPE_LABELS, ENTRY_TYPE_LABELS, ENTRY_FIELDS, KUENDIGUNG_SUBTYPES, PARTY_LABELS,
-  hasGracePeriod, isCaseActive, openLegalFile,
-  useDeleteLegalCase, useDeleteLegalEntry, useSaveLegalEntry, useUploadLegalFile, useDeleteLegalFile,
+  hasGracePeriod, isCaseActive,
+  useDeleteLegalCase, useDeleteLegalEntry, useSaveLegalEntry,
 } from "@/hooks/useLegalCases";
 import { useTenantPayments } from "@/hooks/useTenantPayments";
 import LegalEntryDialog from "./LegalEntryDialog";
-import FileDropZone from "./FileDropZone";
-import { toast } from "sonner";
+import LegalCaseDocuments from "./LegalCaseDocuments";
 
 interface Props {
   legalCase: LegalCase;
@@ -29,8 +27,6 @@ interface Props {
 const fmt = (d?: string | null) => (d ? format(parseISO(d), 'dd.MM.yyyy', { locale: de }) : '–');
 const eur = (n: number) => n.toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' €';
 const todayStr = () => format(new Date(), 'yyyy-MM-dd');
-const fileSize = (b?: number | null) =>
-  !b ? '' : b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`;
 
 // ---------------------------------------------------------------------------
 // Auf-/Zuklapp-Zustand je Verfahren und Fenster merken (nur dieser Browser).
@@ -123,23 +119,8 @@ const GracePeriod = ({ servedDate }: { servedDate?: string | null }) => {
   );
 };
 
-const FileLink = ({ file, onDelete }: { file: LegalCaseFile; onDelete?: (f: LegalCaseFile) => void }) => (
-  <span className="inline-flex items-center gap-1 text-xs">
-    <button type="button" onClick={() => openLegalFile(file)}
-      className="inline-flex items-center gap-1 text-primary hover:underline text-left">
-      <Paperclip className="h-3 w-3 shrink-0" /> {file.file_name}
-    </button>
-    {file.size_bytes ? <span className="text-muted-foreground">({fileSize(file.size_bytes)})</span> : null}
-    {onDelete && (
-      <button type="button" onClick={() => onDelete(file)} title="Datei löschen"
-        className="text-destructive hover:opacity-70"><Trash2 className="h-3 w-3" /></button>
-    )}
-  </span>
-);
-
-const EntryRow = ({ entry, files, onEdit, onDeleteFile }: {
-  entry: LegalCaseEntry; files: LegalCaseFile[];
-  onEdit: (e: LegalCaseEntry) => void; onDeleteFile: (f: LegalCaseFile) => void;
+const EntryRow = ({ entry, onEdit }: {
+  entry: LegalCaseEntry; onEdit: (e: LegalCaseEntry) => void;
 }) => {
   const saveEntry = useSaveLegalEntry();
   const deleteEntry = useDeleteLegalEntry();
@@ -170,11 +151,6 @@ const EntryRow = ({ entry, files, onEdit, onDeleteFile }: {
             fällig bis {fmt(entry.due_date)}{overdue ? ' — überfällig' : ''}
           </div>
         )}
-        {files.length > 0 && (
-          <div className="flex flex-col gap-0.5 mt-1">
-            {files.map(f => <FileLink key={f.id} file={f} onDelete={onDeleteFile} />)}
-          </div>
-        )}
       </div>
       <Button variant="ghost" size="sm" onClick={() => onEdit(entry)} title="Bearbeiten / ergänzen">
         <Pencil className="h-4 w-4" />
@@ -187,7 +163,7 @@ const EntryRow = ({ entry, files, onEdit, onDeleteFile }: {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Eintrag löschen?</AlertDialogTitle>
-            <AlertDialogDescription>„{entry.title}" wird gelöscht. Angehängte Dateien bleiben unter „Dokumente" erhalten.</AlertDialogDescription>
+            <AlertDialogDescription>„{entry.title}" wird gelöscht.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Abbrechen</AlertDialogCancel>
@@ -239,31 +215,18 @@ const SECTIONS: { key: string; types: LegalEntryType[]; title: string; addType: 
 
 const LegalCaseCard = ({ legalCase, onEdit }: Props) => {
   const deleteCase = useDeleteLegalCase();
-  const uploadFile = useUploadLegalFile();
-  const deleteFile = useDeleteLegalFile();
   const [entryDialog, setEntryDialog] = useState<{ open: boolean; entry?: LegalCaseEntry | null; type: LegalEntryType }>({ open: false, type: 'ereignis' });
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [fileToDelete, setFileToDelete] = useState<LegalCaseFile | null>(null);
-  const [newFiles, setNewFiles] = useState<File[]>([]);
-  const [fileDescription, setFileDescription] = useState('');
-  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
   // Ganze Karte ein-/ausklappen; laufende Verfahren starten offen
   const [cardOpen, setCardOpen] = usePersistentOpen(`${legalCase.id}:card`, isCaseActive(legalCase));
   // Zähler, damit „alle auf/zu" die Fenster neu mountet
   const [sectionReset, setSectionReset] = useState(0);
 
   const entries = legalCase.legal_case_entries ?? [];
-  const files = useMemo(() => legalCase.legal_case_files ?? [], [legalCase.legal_case_files]);
   const isLongTerm = legalCase.houses?.rental_type === 'long_term';
   const active = isCaseActive(legalCase);
   const openTasks = entries.filter(e => ENTRY_FIELDS[e.entry_type]?.checkable && e.entry_type !== 'termin' && !e.done).length;
   const overdueTasks = entries.filter(e => !e.done && e.due_date && e.due_date < todayStr()).length;
-
-  const filesByEntry = useMemo(() => {
-    const map = new Map<string, LegalCaseFile[]>();
-    files.forEach(f => { if (f.entry_id) map.set(f.entry_id, [...(map.get(f.entry_id) ?? []), f]); });
-    return map;
-  }, [files]);
 
   const sorted = (types: LegalEntryType[], mode: 'asc' | 'desc' | 'open') => {
     const list = entries.filter(e => types.includes(e.entry_type));
@@ -283,28 +246,6 @@ const LegalCaseCard = ({ legalCase, onEdit }: Props) => {
     setSectionReset(n => n + 1);
   };
 
-  const handleUpload = async () => {
-    // Nacheinander hochladen; bei einem Fehler bleiben die restlichen Dateien in
-    // der Auswahl, damit man es erneut versuchen kann.
-    const queue = [...newFiles];
-    setUploading({ done: 0, total: queue.length });
-    try {
-      for (let i = 0; i < queue.length; i++) {
-        setUploading({ done: i, total: queue.length });
-        await uploadFile.mutateAsync({ caseId: legalCase.id, file: queue[i], description: fileDescription.trim() || null });
-        setNewFiles(queue.slice(i + 1));
-      }
-      setFileDescription('');
-      toast.success(queue.length === 1 ? 'Datei hochgeladen' : `${queue.length} Dateien hochgeladen`);
-    } catch {
-      // Fehlermeldung kommt aus onError im Hook
-    } finally {
-      setUploading(null);
-    }
-  };
-
-  const looseFiles = files.filter(f => !f.entry_id);
-
   return (
     <Card className={`p-4 sm:p-6 ${active ? '' : 'opacity-70'}`}>
       <Collapsible open={cardOpen} onOpenChange={setCardOpen}>
@@ -321,7 +262,6 @@ const LegalCaseCard = ({ legalCase, onEdit }: Props) => {
                 <Badge variant={active ? 'default' : 'secondary'}>{CASE_STATUS_LABELS[legalCase.status]}</Badge>
                 {openTasks > 0 && <Badge variant="secondary">{openTasks} offen</Badge>}
                 {overdueTasks > 0 && <Badge variant="destructive">{overdueTasks} überfällig</Badge>}
-                {files.length > 0 && <Badge variant="outline"><Paperclip className="h-3 w-3 mr-1" />{files.length}</Badge>}
               </div>
             </div>
           </CollapsibleTrigger>
@@ -390,48 +330,16 @@ const LegalCaseCard = ({ legalCase, onEdit }: Props) => {
                   {list.length === 0
                     ? <p className="text-xs text-muted-foreground">Keine Einträge — über „+ {section.addLabel}" ergänzen.</p>
                     : list.map(e => (
-                        <EntryRow key={e.id} entry={e} files={filesByEntry.get(e.id) ?? []}
-                          onEdit={(en) => setEntryDialog({ open: true, entry: en, type: en.entry_type })}
-                          onDeleteFile={setFileToDelete} />
+                        <EntryRow key={e.id} entry={e}
+                          onEdit={(en) => setEntryDialog({ open: true, entry: en, type: en.entry_type })} />
                       ))}
                 </Section>
               );
             })}
 
-            {/* Dokumente: alle Dateien des Verfahrens + Hochladen */}
-            <Section storageKey={`${legalCase.id}:documents`} title="Dokumente" count={files.length} defaultOpen={false}>
-              <div className="space-y-3">
-                <FileDropZone files={newFiles} onChange={setNewFiles} disabled={uploading !== null} />
-                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <Input placeholder="Beschreibung für alle gewählten Dateien (optional)" value={fileDescription}
-                    onChange={(e) => setFileDescription(e.target.value)} />
-                  <Button size="sm" onClick={handleUpload} disabled={newFiles.length === 0 || uploading !== null} className="shrink-0">
-                    <Upload className="h-4 w-4 mr-1" />
-                    {uploading ? `Lädt ${uploading.done + 1} von ${uploading.total} …`
-                      : newFiles.length > 1 ? `${newFiles.length} Dateien hochladen` : 'Hochladen'}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Dateien zu einem bestimmten Eintrag (z. B. Kündigungsschreiben, Anlage B1) am besten dort über
-                  „Bearbeiten" anhängen — dann erscheinen sie direkt beim Eintrag.
-                </p>
-                {files.length === 0
-                  ? <p className="text-xs text-muted-foreground">Noch keine Dateien.</p>
-                  : (
-                    <div className="space-y-1">
-                      {[...looseFiles, ...files.filter(f => f.entry_id)].map(f => {
-                        const entry = entries.find(e => e.id === f.entry_id);
-                        return (
-                          <div key={f.id} className="flex flex-wrap items-center gap-2 py-1 border-b last:border-b-0">
-                            <FileLink file={f} onDelete={setFileToDelete} />
-                            {f.description && <span className="text-xs text-muted-foreground">— {f.description}</span>}
-                            {entry && <Badge variant="outline" className="text-xs">{ENTRY_TYPE_LABELS[entry.entry_type]}: {entry.title.slice(0, 40)}{entry.title.length > 40 ? '…' : ''}</Badge>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-              </div>
+            {/* Dokumente: aus der Dokumentenverwaltung (OneDrive), verknüpft über 'verfahren' */}
+            <Section storageKey={`${legalCase.id}:documents`} title="Dokumente" defaultOpen={false}>
+              <LegalCaseDocuments legalCase={legalCase} />
             </Section>
 
             <p className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -449,26 +357,12 @@ const LegalCaseCard = ({ legalCase, onEdit }: Props) => {
         defaultType={entryDialog.type}
       />
 
-      <AlertDialog open={!!fileToDelete} onOpenChange={(o) => { if (!o) setFileToDelete(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Datei löschen?</AlertDialogTitle>
-            <AlertDialogDescription>„{fileToDelete?.file_name}" wird dauerhaft gelöscht.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (fileToDelete) deleteFile.mutate(fileToDelete); setFileToDelete(null); }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Löschen</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Verfahren wirklich löschen?</AlertDialogTitle>
             <AlertDialogDescription>
-              „{legalCase.title}" wird mit allen {entries.length} Einträgen und {files.length} Dateien-Einträgen dauerhaft gelöscht.
+              „{legalCase.title}" wird mit allen {entries.length} Einträgen dauerhaft gelöscht. Dokumente bleiben in der Dokumentenverwaltung erhalten.
               Wenn das Verfahren nur abgeschlossen ist, stattdessen den Status auf „Erledigt" setzen.
             </AlertDialogDescription>
           </AlertDialogHeader>

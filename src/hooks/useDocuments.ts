@@ -41,7 +41,12 @@ import { buchungsnummerSchluessel } from '@/lib/pdfText';
  */
 
 export type LinkTarget =
-  | 'haus' | 'buchung' | 'reinigung' | 'waesche' | 'provider' | 'vendor' | 'portal' | 'keine';
+  | 'haus' | 'buchung' | 'reinigung' | 'waesche' | 'provider' | 'vendor' | 'portal'
+  // seit SQL 71: rechtliches Verfahren (legal_cases). Steht immer in
+  // document_links; als 1. Zuordnung gewaehlt, wird das Haus des Verfahrens
+  // Hauptbezug und Ablageort, das Verfahren kommt als Zusatzzuordnung dazu.
+  | 'verfahren'
+  | 'keine';
 
 /** Nur diese Arten haben einen eigenen Ablageort — die uebrigen nicht. */
 export const LOCATION_TARGETS: LinkTarget[] = ['haus', 'provider', 'vendor', 'portal'];
@@ -559,6 +564,8 @@ async function objektNamen(links: Array<{ entity_type: string; entity_id: string
       (r) => `${datum(r.scheduled_date)} · ${r.houses?.name ?? '—'}`),
     laden('waesche', 'linen_orders', 'id, delivery_date, houses:house_id(name)',
       (r) => `${datum(r.delivery_date)} · ${r.houses?.name ?? '—'}`),
+    laden('verfahren', 'legal_cases', 'id, title, houses:house_id(name)',
+      (r) => `${r.houses?.name ?? '—'} · ${r.title}`),
   ]);
 
   return namen;
@@ -588,6 +595,39 @@ export function useDocumentsFor(
         .eq(column, id!)
         .order('created_at', { ascending: false });
 
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Dokumente eines rechtlichen Verfahrens (Tab „Rechtliches") — ueber die
+ * Zusatzzuordnung document_links.entity_type = 'verfahren' (SQL 71).
+ * Die Dateien liegen wie alle anderen in OneDrive; hier nur die Metadaten.
+ */
+export function useDocumentsForCase(caseId?: string) {
+  return useQuery({
+    queryKey: ['documents', 'verfahren', caseId],
+    enabled: !!caseId,
+    queryFn: async () => {
+      const { data: links, error: linkError } = await supabase
+        .from('document_links')
+        .select('document_id')
+        .eq('entity_type', 'verfahren')
+        .eq('entity_id', caseId!);
+      if (linkError) throw linkError;
+      const ids = (links ?? []).map((l: any) => l.document_id as string);
+      if (ids.length === 0) return [];
+
+      const { data, error } = await supabase
+        .from('documents')
+        .select(`
+          id, file_name, size_bytes, onedrive_item_id, onedrive_web_url,
+          onedrive_path, created_at, note, document_types:document_type_id (name, color)
+        `)
+        .in('id', ids)
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data ?? [];
     },
@@ -1023,6 +1063,23 @@ export function useEntities(target: LinkTarget, search: string) {
           // haengt am Haus.
           locationType: 'haus' as LinkTarget,
           locationId: b.house_id,
+        }));
+      }
+
+      if (target === 'verfahren') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tabelle fehlt in types.ts
+        const { data, error } = await (supabase as any)
+          .from('legal_cases')
+          .select('id, title, status, house_id, houses:house_id(name)')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return ((data ?? []) as any[]).map((c) => ({
+          id: c.id,
+          label: `${c.houses?.name ?? '—'} · ${c.title}${c.status === 'erledigt' ? ' (erledigt)' : ''}`,
+          houseId: c.house_id,
+          // Ein Verfahren hat keinen eigenen Ordner — der Ablageort haengt am Haus.
+          locationType: 'haus' as LinkTarget,
+          locationId: c.house_id,
         }));
       }
 

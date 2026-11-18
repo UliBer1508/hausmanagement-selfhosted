@@ -400,13 +400,14 @@ angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
   Fragen, Schriftsätze, Beweise, Chronik, Dokumente) und die Karte selbst sind
   ein-/ausklappbar (`Collapsible`); Zustand je Browser in `localStorage`
   (`legal-collapse-v1`, mit try/catch).
-- Dateien: Tabelle `legal_case_files`, privater Bucket `legal-files`
-  (Pfad `<case_id>/<zeit>-<name>`), Anzeige per signierter URL
-  (`openLegalFile`, 10 Min). Am Eintrag anhängen (Dialog) oder lose unter
-  „Dokumente". Verfahren löschen entfernt auch die Dateien im Speicher.
-- Dateiauswahl: `components/Legal/FileDropZone.tsx` (Klick oder Hineinziehen,
-  mehrere Dateien, jede Auswahl wird ergänzt statt ersetzt, Doppelte werden
-  übersprungen). Genutzt im Fenster „Dokumente" und im Eintragsdialog.
+- **Dokumente laufen über die Dokumentenverwaltung (OneDrive), nicht über einen
+  eigenen Speicher** (Vorgabe Uli 18.11.2026, SQL 71). Zuordnungsart `verfahren`
+  in `document_links` (entity_id = `legal_cases.id`). Fenster „Dokumente" der
+  Karte: `components/Legal/LegalCaseDocuments.tsx` (Liste über
+  `useDocumentsForCase`, Knopf öffnet `AblageDialog` aus `DocumentsTab.tsx` mit
+  `preset`: Haus des Verfahrens, Typ „Rechtlich relevante Dokumente",
+  `verfahrenId` wird IMMER zusätzlich verknüpft — auch nach „Dokument lesen").
+  `legal_case_files` und Bucket `legal-files` aus SQL 70 sind entfernt.
 - Offen: Fristwarnung in Max' Morgen-Zusammenfassung.
 
 **Sonderzahlungen (`tenant_payments.payment_type`, 18.11.2026):**
@@ -905,7 +906,17 @@ Edge Functions `import-teuni-invoice` / `import-boris-invoice`.
 Doku: `docs/Dokumentenverwaltung-OneDrive.md`, Max: `docs/Max-und-Dokumente.md`.
 
 **Zuordnungsarten** (`LinkTarget`): `provider`, `vendor`, `portal`, `haus`,
-`buchung`, `reinigung`, `waesche`. Die 1. Zuordnung steht als Spalte in
+`buchung`, `reinigung`, `waesche`, `verfahren` (seit SQL 71, rechtliches
+Verfahren; nur in `document_links` — als 1. Zuordnung gewählt wird das Haus des
+Verfahrens Hauptbezug/Ablageort). `document_links.position` erlaubt 2–9.
+**Noch nicht in Max** (`chat-assistant`: `weitereBezuege`,
+`executeSearchDocuments`) — Max kennt Verfahrens-Zuordnungen noch nicht.
+
+**Mehrere Dateien (seit 18.11.2026):** `AblageDialog` nimmt mehrere Dateien
+(Auswahl oder Hineinziehen). Die erste wird bearbeitet, die übrigen warten in
+`warteschlange`; nach dem Ablegen rückt die nächste nach, Typ/Zuordnung/Ordner
+bleiben stehen, „Dokument lesen" je Datei. `AblageDialog` ist exportiert
+(`preset` für Aufrufe von außen). Die 1. Zuordnung steht als Spalte in
 `documents` (`provider_id`, `vendor_id`, `portal_id`, `house_id`, …) und
 bestimmt den Ablageort; die 2./3. stehen in `document_links`.
 

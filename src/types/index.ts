@@ -248,19 +248,6 @@ export interface LegalCaseEntry {
   updated_at?: string;
 }
 
-/** Datei am Verfahren, Bucket 'legal-files' (privat, SQL 70) */
-export interface LegalCaseFile {
-  id: string;
-  case_id: string;
-  entry_id?: string | null;
-  file_path: string;
-  file_name: string;
-  mime_type?: string | null;
-  size_bytes?: number | null;
-  description?: string | null;
-  created_at?: string;
-}
-
 export interface LegalCase {
   id: string;
   house_id: string;
@@ -280,5 +267,4 @@ export interface LegalCase {
   updated_at?: string;
   houses?: Pick<House, 'id' | 'name' | 'rental_type'>;
   legal_case_entries?: LegalCaseEntry[];
-  legal_case_files?: LegalCaseFile[];
 }

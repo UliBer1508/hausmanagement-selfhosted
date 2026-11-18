@@ -77,6 +77,7 @@ const LINK_TARGETS: { key: LinkTarget; label: string }[] = [
   { key: 'buchung', label: 'Buchung' },
   { key: 'reinigung', label: 'Reinigung' },
   { key: 'waesche', label: 'Wäschelieferung' },
+  { key: 'verfahren', label: 'Rechtliches Verfahren' },
   { key: 'keine', label: 'kein Bezug' },
 ];
 
@@ -100,6 +101,8 @@ export default function DocumentsTab() {
   const { data: types = [] } = useDocumentTypes(true);
   const { data: docs = [], isLoading } = useDocuments();
   const removeDoc = useRemoveDocument();
+  // Rechtliche Verfahren als Filter (SQL 71)
+  const { data: verfahrenListe = [] } = useEntities('verfahren', '');
 
   const [view, setView] = useState<'suche' | 'ordner'>('suche');
   const [dialog, setDialog] = useState<'upload' | 'settings' | null>(null);
@@ -308,8 +311,11 @@ export default function DocumentsTab() {
     ...(houses as any[]).map((h) => ({ key: `haus:${h.id}`, label: h.name, n: cObjekt[`haus:${h.id}`], color: 'amber' })),
     ...vendors.map((v) => ({ key: `vendor:${v.id}`, label: v.name, n: cObjekt[`vendor:${v.id}`], color: 'slate' })),
     ...portale.map((p) => ({ key: `portal:${p.id}`, label: p.name, n: cObjekt[`portal:${p.id}`], color: 'sky' })),
+    // Verfahren (SQL 71) nur, wenn Dokumente daran haengen — sonst wird die Liste lang
+    ...verfahrenListe.filter((v) => cObjekt[`verfahren:${v.id}`])
+      .map((v) => ({ key: `verfahren:${v.id}`, label: `⚖️ ${v.label}`, n: cObjekt[`verfahren:${v.id}`], color: 'rose' })),
     { key: '', label: 'ohne Bezug', n: cObjekt[''] },
-  ], [providers, houses, vendors, portale, cObjekt]);
+  ], [providers, houses, vendors, portale, verfahrenListe, cObjekt]);
   const years = [...new Set(docs.map((d) => d.created_at.slice(0, 4)))].sort().reverse();
 
   const grouped = useMemo(() => {
@@ -975,7 +981,22 @@ interface RechnungsErgebnis {
  * Artikelnummern werden GROSS verglichen: Teuni schreibt sie mal
  * "MWHT", mal "mwht" (PDF gegenueber der frueheren Schnittstelle).
  */
-function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () => void }) {
+/**
+ * Vorbelegung beim Oeffnen von aussen (Tab „Rechtliches", SQL 71).
+ * verfahrenId wird IMMER als Zusatzzuordnung gespeichert — auch wenn
+ * „Dokument lesen" die Zuordnungen danach neu setzt.
+ */
+export interface AblagePreset {
+  typeId?: string;
+  target?: LinkTarget;
+  entityId?: string;
+  verfahrenId?: string;
+  verfahrenLabel?: string;
+}
+
+export function AblageDialog({ types, onClose, preset }: {
+  types: DocumentType[]; onClose: () => void; preset?: AblagePreset;
+}) {
   const { toast } = useToast();
   const upload = useUploadDocument();
   const linkExisting = useLinkExisting();
@@ -993,13 +1014,17 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 
   const [source, setSource] = useState<'pc' | 'od'>('pc');
   const [file, setFile] = useState<File | null>(null);
+  // Mehrere Dateien: die erste ist `file`, die uebrigen warten hier. Nach dem
+  // Ablegen rueckt die naechste nach — Typ, Zuordnung und Ordner bleiben stehen.
+  const [warteschlange, setWarteschlange] = useState<File[]>([]);
+  const [abgelegt, setAbgelegt] = useState(0);
   const [existing, setExisting] = useState<OneDriveFile | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [typeId, setTypeId] = useState(types[0]?.id ?? '');
-  const [target, setTarget] = useState<LinkTarget>('provider');
-  const [entityId, setEntityId] = useState('');
+  const [typeId, setTypeId] = useState(preset?.typeId ?? types[0]?.id ?? '');
+  const [target, setTarget] = useState<LinkTarget>(preset?.target ?? 'provider');
+  const [entityId, setEntityId] = useState(preset?.entityId ?? '');
   const [entitySearch, setEntitySearch] = useState('');
 
   // 2. und 3. Zuordnung — optional, gehen nach document_links.
@@ -1739,6 +1764,21 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
     setAusgelesen(null);
   };
 
+  /**
+   * Mehrere Dateien: Ist schon eine Datei gewaehlt, kommen neue hinten an die
+   * Warteschlange — eine zweite Auswahl ersetzt die erste nicht.
+   */
+  const pickMehrere = (liste?: FileList | null) => {
+    const neu = Array.from(liste ?? []);
+    if (neu.length === 0) return;
+    if (!file) {
+      pick(neu[0]);
+      setWarteschlange((w) => [...w, ...neu.slice(1)]);
+    } else {
+      setWarteschlange((w) => [...w, ...neu]);
+    }
+  };
+
   const submit = () => {
     if (!type) { setErr('Bitte einen Typ wählen.'); return; }
     if (source === 'pc' && !file) { setErr('Bitte zuerst eine Datei wählen.'); return; }
@@ -1755,10 +1795,19 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
       }
     }
 
-    const zusatz = [
+    const zusatz: Array<{ art: LinkTarget; id: string }> = [
       { art: art2, id: id2 },
       { art: art3, id: id3 },
     ].filter((z) => z.art !== 'keine' && z.id);
+    // Verfahren als 1. Zuordnung: Hauptbezug wird dessen Haus (siehe useEntities),
+    // das Verfahren selbst steht in document_links (SQL 71).
+    const verfahrenIds = [
+      ...(target === 'verfahren' && entityId ? [entityId] : []),
+      ...(preset?.verfahrenId ? [preset.verfahrenId] : []),
+    ];
+    for (const vid of verfahrenIds) {
+      if (!zusatz.some((z) => z.art === 'verfahren' && z.id === vid)) zusatz.unshift({ art: 'verfahren', id: vid });
+    }
 
     const links = {
       typeId,
@@ -2092,6 +2141,15 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           } else {
             toast({ title: 'Abgelegt', description: `„${file!.name}" liegt in ${folder!.path || 'OneDrive'}.` });
           }
+          // Weitere Dateien gewaehlt? Naechste nachruecken lassen statt schliessen.
+          if (warteschlange.length > 0) {
+            const [naechste, ...rest] = warteschlange;
+            setWarteschlange(rest);
+            setAbgelegt((n) => n + 1);
+            setProgress(0);
+            pick(naechste);
+            return;
+          }
           onClose();
         },
         onError: (e: any) => setErr(e.message),
@@ -2132,6 +2190,11 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
 
         <div>
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">2 · Wozu gehört es</p>
+          {preset?.verfahrenId && (
+            <p className="mb-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900">
+              ⚖️ Wird zusätzlich mit dem Verfahren „{preset.verfahrenLabel ?? 'Rechtliches'}" verknüpft.
+            </p>
+          )}
 
           {/* Drei Zuordnungen, alle gleich aufgebaut: Art links, Auswahl rechts.
               Die ERSTE ist Pflicht und bestimmt den Ablageort — sie landet in
@@ -2225,14 +2288,15 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           {source === 'pc' ? (
             <div onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
-              onDrop={(e) => { e.preventDefault(); setDragging(false); pick(e.dataTransfer.files?.[0]); }}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); pickMehrere(e.dataTransfer.files); }}
               className={`rounded-md border border-dashed p-4 text-center ${dragging ? 'border-primary bg-primary/5' : ''}`}>
               <Upload className="mx-auto h-6 w-6 text-muted-foreground" />
-              <p className="mt-1.5 text-sm text-muted-foreground">Datei hierher ziehen</p>
+              <p className="mt-1.5 text-sm text-muted-foreground">Datei(en) hierher ziehen — mehrere werden nacheinander abgelegt</p>
               <Button size="sm" variant="outline" className="mt-2" onClick={() => inputRef.current?.click()}>
                 Durchsuchen
               </Button>
-              <input ref={inputRef} type="file" className="hidden" onChange={(e) => pick(e.target.files?.[0])} />
+              <input ref={inputRef} type="file" multiple className="hidden"
+                onChange={(e) => { pickMehrere(e.target.files); e.target.value = ''; }} />
             </div>
           ) : (
             <OneDrivePicker
@@ -2252,11 +2316,42 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
                 </p>
               </div>
               {!busy && (
-                <button onClick={() => { setFile(null); setExisting(null); setGefunden(null); setLeseFehler(''); }}
+                <button onClick={() => {
+                  // Bei mehreren Dateien rueckt die naechste nach
+                  if (file && warteschlange.length > 0) {
+                    const [naechste, ...rest] = warteschlange;
+                    setWarteschlange(rest);
+                    pick(naechste);
+                    return;
+                  }
+                  setFile(null); setExisting(null); setGefunden(null); setLeseFehler('');
+                }}
                   aria-label="Auswahl entfernen">
                   <X className="h-4 w-4 text-muted-foreground" />
                 </button>
               )}
+            </div>
+          )}
+
+          {(warteschlange.length > 0 || abgelegt > 0) && (
+            <div className="mt-2 rounded-md border px-2.5 py-2 text-xs">
+              <p className="font-medium">
+                {abgelegt > 0 && `${abgelegt} bereits abgelegt · `}
+                {warteschlange.length > 0 ? `danach noch ${warteschlange.length}:` : 'das ist die letzte Datei'}
+              </p>
+              {warteschlange.map((f, i) => (
+                <div key={`${f.name}-${i}`} className="mt-1 flex items-center gap-2">
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <span className="truncate flex-1">{f.name}</span>
+                  <span className="text-muted-foreground">{fmtSize(f.size)}</span>
+                  {!busy && (
+                    <button onClick={() => setWarteschlange((w) => w.filter((_, j) => j !== i))} aria-label="Aus der Warteschlange entfernen">
+                      <X className="h-3.5 w-3.5 text-muted-foreground" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <p className="mt-1 text-muted-foreground">Typ, Zuordnung und Ordner bleiben für die nächste Datei stehen — vor dem Hochladen kurz prüfen.</p>
             </div>
           )}
 
@@ -2581,7 +2676,7 @@ function AblageDialog({ types, onClose }: { types: DocumentType[]; onClose: () =
           <Button variant="outline" onClick={onClose} disabled={busy}>Abbrechen</Button>
           <Button onClick={submit} disabled={busy}>
             {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {progress > 0 ? `${progress}%` : 'Läuft…'}</>
-                  : source === 'pc' ? 'Hochladen' : 'Verknüpfen'}
+                  : source === 'pc' ? (warteschlange.length > 0 ? `Hochladen (${abgelegt + 1} von ${abgelegt + 1 + warteschlange.length})` : 'Hochladen') : 'Verknüpfen'}
           </Button>
         </div>
       </DialogContent>

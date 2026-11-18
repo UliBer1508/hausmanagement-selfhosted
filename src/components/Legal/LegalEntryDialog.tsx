@@ -6,13 +6,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  useSaveLegalEntry, useUploadLegalFile,
+  useSaveLegalEntry,
   ENTRY_TYPE_LABELS, ENTRY_FIELDS, KUENDIGUNG_SUBTYPES, PARTY_LABELS,
 } from "@/hooks/useLegalCases";
 import { LegalCaseEntry, LegalEntryType, LegalParty } from "@/types";
 import { todayISO } from "@/lib/dateHelpers";
 import { toast } from "sonner";
-import FileDropZone from "./FileDropZone";
 
 interface Props {
   open: boolean;
@@ -27,7 +26,6 @@ const NONE = '__none__';
 
 const LegalEntryDialog = ({ open, onOpenChange, caseId, entry, defaultType = 'ereignis' }: Props) => {
   const saveEntry = useSaveLegalEntry();
-  const uploadFile = useUploadLegalFile();
   const [entryType, setEntryType] = useState<LegalEntryType>(defaultType);
   const [entryDate, setEntryDate] = useState(todayISO());
   const [dueDate, setDueDate] = useState('');
@@ -36,7 +34,6 @@ const LegalEntryDialog = ({ open, onOpenChange, caseId, entry, defaultType = 'er
   const [subtype, setSubtype] = useState<string>(NONE);
   const [party, setParty] = useState<string>(NONE);
   const [reference, setReference] = useState('');
-  const [files, setFiles] = useState<File[]>([]);
 
   useEffect(() => {
     if (!open) return;
@@ -48,17 +45,16 @@ const LegalEntryDialog = ({ open, onOpenChange, caseId, entry, defaultType = 'er
     setSubtype(entry?.subtype ?? NONE);
     setParty(entry?.party ?? NONE);
     setReference(entry?.reference ?? '');
-    setFiles([]);
   }, [open, entry, defaultType]);
 
   const fields = ENTRY_FIELDS[entryType];
-  const busy = saveEntry.isPending || uploadFile.isPending;
+  const busy = saveEntry.isPending;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (title.trim() === '') return;
     try {
-      const saved = await saveEntry.mutateAsync({
+      await saveEntry.mutateAsync({
         id: entry?.id,
         case_id: caseId,
         entry_type: entryType,
@@ -70,10 +66,6 @@ const LegalEntryDialog = ({ open, onOpenChange, caseId, entry, defaultType = 'er
         party: fields.party && party !== NONE ? (party as LegalParty) : null,
         reference: fields.reference && reference.trim() !== '' ? reference.trim() : null,
       });
-      // Dateien nacheinander — so bleibt die Reihenfolge erhalten
-      for (const file of files) {
-        await uploadFile.mutateAsync({ caseId, entryId: saved.id, file, description: null });
-      }
       toast.success(entry ? 'Eintrag gespeichert' : 'Eintrag hinzugefügt');
       onOpenChange(false);
     } catch {
@@ -164,13 +156,10 @@ const LegalEntryDialog = ({ open, onOpenChange, caseId, entry, defaultType = 'er
             <Textarea rows={5} value={details} onChange={(e) => setDetails(e.target.value)} />
           </div>
 
-          <div>
-            <Label>Dateien anhängen</Label>
-            <FileDropZone files={files} onChange={setFiles} disabled={busy} />
-            {files.length > 0 && (
-              <p className="mt-1 text-xs text-muted-foreground">{files.length} Datei(en) werden beim Speichern an diesen Eintrag gehängt.</p>
-            )}
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Dokumente dazu legst du im Fenster „Dokumente" des Verfahrens ab — sie landen in der
+            Dokumentenverwaltung (OneDrive) und sind mit dem Verfahren verknüpft.
+          </p>
 
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
