@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format, parseISO } from "date-fns";
-import { Loader2, Copy, Mail, Send, Undo2, Calculator, ExternalLink } from "lucide-react";
+import { Loader2, Copy, Mail, Send, Undo2, Calculator, ExternalLink, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { berechnen, euro, normalisieren } from "@/lib/rentalCalc";
 import { OFFER_STATUS_LABEL, rentalOfferLink, RentalInquiry, RentalOffer } from "@/hooks/useRentalInquiries";
+import RentalApplicationPanel from "./RentalApplicationPanel";
+import RentalTenantTakeoverDialog from "./RentalTenantTakeoverDialog";
 
 /** Vorlage Konditionen — wird beim ersten Angebot eingesetzt und ist frei änderbar. */
 const VORLAGE_DE = [
@@ -63,6 +65,7 @@ const RentalOfferDialog = ({ open, onOpenChange, inquiry, houseName }: RentalOff
   const [w, setW] = useState<Werte | null>(null);
   const [laedt, setLaedt] = useState(false);
   const [speichert, setSpeichert] = useState(false);
+  const [uebernahmeOffen, setUebernahmeOffen] = useState(false);
 
   useEffect(() => {
     if (!open || !inquiry) return;
@@ -227,6 +230,15 @@ const RentalOfferDialog = ({ open, onOpenChange, inquiry, houseName }: RentalOff
               </p>
             )}
 
+            {angebot && <RentalApplicationPanel offerId={angebot.id} />}
+
+            {angebot?.converted_at && (
+              <p className="flex items-center gap-2 text-sm rounded-lg border border-primary bg-primary/5 p-2.5">
+                <UserCheck className="h-4 w-4 text-primary" />
+                Als Mieter übernommen am {format(parseISO(angebot.converted_at), "dd.MM.yyyy")} — weiter im Tab Mieter (Verträge, Zahlungen).
+              </p>
+            )}
+
             {angebot?.guest_message && (
               <div className="rounded-lg border border-primary bg-primary/5 p-3 text-sm">
                 <div className="font-semibold mb-1">Nachricht des Kunden</div>
@@ -309,6 +321,11 @@ const RentalOfferDialog = ({ open, onOpenChange, inquiry, houseName }: RentalOff
 
         <div className="flex flex-wrap justify-end gap-2 pt-3 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
+          {angebot?.status === "accepted" && !angebot.converted_at && (
+            <Button onClick={() => setUebernahmeOffen(true)}>
+              <UserCheck className="h-4 w-4 mr-1" />Als Mieter übernehmen
+            </Button>
+          )}
           {angebot && freigegeben && !gesperrt && (
             <Button variant="outline" disabled={speichert} onClick={() => speichern("withdrawn")}>
               <Undo2 className="h-4 w-4 mr-1" />Zurückziehen
@@ -327,6 +344,13 @@ const RentalOfferDialog = ({ open, onOpenChange, inquiry, houseName }: RentalOff
           )}
         </div>
       </DialogContent>
+      <RentalTenantTakeoverDialog
+        open={uebernahmeOffen}
+        onOpenChange={setUebernahmeOffen}
+        offer={angebot}
+        guestPhone={inquiry.guest_phone}
+        onDone={() => setAngebot(a => (a ? { ...a, converted_at: new Date().toISOString() } : a))}
+      />
     </Dialog>
   );
 };

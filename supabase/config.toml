@@ -80,3 +80,7 @@ verify_jwt = false
 # Test-Button im Boris-Portal rufen ohne Nutzer-JWT auf.
 [functions.reinigung-erinnerung]
 verify_jwt = false
+
+# Wohnen auf Zeit: Website-Kunde (nicht angemeldet) + DB-Trigger; Prüfung über Angebots-Token (SQL 72/73)
+[functions.rental-portal]
+verify_jwt = false

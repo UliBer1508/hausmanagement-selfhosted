@@ -363,7 +363,7 @@ aus `weekly_pricing` und AirROI-Regionaldaten aus `market_data_cache`,
 | payments | `TenantPayments.tsx` (+ `CreatePaymentDialog`, `EditPaymentDialog`, `MonthlyPaymentTimeline`) |
 | utilities | Nebenkosten: `UtilityCostsPanel` → `UtilityCostSettings`, `UtilityCostEntry`, `UtilityStatementGenerator` (+ `ExcelUtilityImport`) |
 | analytics | `TenantAnalytics.tsx` (+ `OverallPerformance`, `ObjectPerformanceCard`) |
-| interessenten | `RentalInquiries.tsx` (+ `RentalOfferDialog`, `RentalCalculationDialog`) — Mietanfragen „Wohnen auf Zeit“ von der Website (18.11.2026) |
+| interessenten | `RentalInquiries.tsx` (+ `RentalOfferDialog` → `RentalApplicationPanel`, `RentalTenantTakeoverDialog`; `RentalCalculationDialog`) — Mietanfragen „Wohnen auf Zeit“ von der Website (18.11.2026) |
 
 > Nebenkosten-Abrechnungs-PDF: `lib/utilityStatementPdf.ts`.
 
@@ -383,6 +383,11 @@ aus `weekly_pricing` und AirROI-Regionaldaten aus `market_data_cache`,
   Anfrage → Status „Angebot“) → Kunde öffnet / nimmt an / fragt nach → Hinweis-Banner Übersicht.
 - Sprung aus dem Banner: `navigate('/', { state: { activeTab: 'Mieter', tenantSubTab: 'interessenten' } })`,
   `TenantManagement.tsx` liest `tenantSubTab`.
+- **Teil 2 (SQL 73):** Selbstauskunft `rental_applications`, Unterlagen über Edge Function
+  `rental-portal` (Kunde ohne Login, Token-Prüfung) → `documents` Typ „Mieterunterlagen“ +
+  `document_links` `mietangebot`. „Als Mieter übernehmen“ (`RentalTenantTakeoverDialog`) schreibt
+  `houses.tenant_info` über `useUpdateHouse`. **DB-Trigger** `rental_*_notify` → `rental-portal`
+  → E-Mail an steinbockchalets@gmail.com (je Ereignis einmal).
 - Ablauf und Entscheidungen: **`docs/Konzept-Wohnen-auf-Zeit.md`**.
 
 **Betriebskosten (01.11.2026):** `Tenants/UtilityCostsPanel.tsx` ist die EINE

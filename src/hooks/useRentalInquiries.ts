@@ -58,6 +58,9 @@ export interface RentalOffer {
   viewed_at: string | null;
   responded_at: string | null;
   response_seen_at: string | null;
+  response_notified_at?: string | null;
+  /** „Als Mieter übernehmen“ ausgeführt (SQL 73) */
+  converted_at?: string | null;
   guest_message: string | null;
   created_at: string;
 }

@@ -152,3 +152,15 @@ nur notiert):
    Supabase-anon-key hartcodiert. Öffentlich und damit kein Geheimnis im engeren
    Sinn — aber unsauber. Diese Funktion ist hier **absichtlich nicht abgelegt**,
    damit der Key nicht ins Repo wandert.
+
+## Wohnen auf Zeit — Mietinteressenten (SQL 72, 73; 18.11.2026)
+
+Trigger, die man im TypeScript nicht sieht:
+- `rental_inquiry_notify` (AFTER INSERT `rental_inquiries`), `rental_offer_notify` (AFTER UPDATE
+  `rental_offers`, nur bei neuer Antwort accepted/question), `rental_application_notify` (AFTER
+  INSERT `rental_applications`) → `notify_rental_portal(kind, id)` → `net.http_post` an die Edge
+  Function `rental-portal` → E-Mail an steinbockchalets@gmail.com. Fehler werden abgefangen
+  (nur Warnung), die eigentliche Zeile wird immer gespeichert.
+- Funktionen für die Website (security definer, anon EXECUTE): `get_rental_offer(token)`,
+  `respond_rental_offer(token, response, message)`.
+Details: `docs/Konzept-Wohnen-auf-Zeit.md`.

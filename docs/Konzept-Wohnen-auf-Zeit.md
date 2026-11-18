@@ -1,4 +1,4 @@
-# Wohnen auf Zeit — Mietinteressenten, Kalkulation, Angebot (Paket A, Teil 1)
+# Wohnen auf Zeit — Mietinteressenten, Kalkulation, Angebot, Unterlagen, Übernahme (Paket A)
 
 Stand 18.11.2026 · SQL `supabase/SQL/72_mietinteressenten.sql` (am 18.11.2026 direkt in
 `usblrulkcgucxtkhugck` angewendet: Migrationen `mietinteressenten_wohnen_auf_zeit` und
@@ -94,14 +94,61 @@ NK-Posten: Kanal/Müll/Wasser, Internet/TV, Strom, Heizung, weitere Posten mit H
 - Die kurzzeitig auf der Website gebauten Admin-Teile (Mietanfragen, Kalkulation, Angebot) und
   ihre Tabellen sind entfernt (`20261118c_…umzug_hausverwaltung.sql`).
 
-## Offen (nächste Schritte Paket A Teil 2)
+## Teil 2 (18.11.2026, SQL 73 + Edge Function `rental-portal`)
 
-1. **Unterlagen** bei Annahme: Selbstauskunft, Ausweis, Einkommensnachweis hochladen →
-   Dokumentenverwaltung (OneDrive, `document_links`), Upload über eine Edge Function mit
-   Token-Prüfung (Kunde ist nicht angemeldet).
-2. **„Als Mieter übernehmen“**: aus angenommenem Angebot `houses.tenant_info` füllen
-   (Mieter, Vertragsbeginn/-ende, Kaltmiete, Nebenkosten, Kaution, Zahltag) und Gast in `guests`
-   (über `find_or_create_guest()`), damit `generate-tenant-payments` übernimmt.
-3. **E-Mail an Uli** bei neuer Anfrage/Antwort (optional, `send-guest-email`).
-4. **Max** lesend: Werkzeug „Mietinteressenten“ (ohne Preise, ohne Annehmen).
-5. `types.ts` neu erzeugen (Tabellen fehlen dort → derzeit `as any`).
+SQL `supabase/SQL/73_mietinteressenten_unterlagen_mail.sql` (von Uli im SQL-Editor ausgeführt).
+Edge Function `supabase/functions/rental-portal/index.ts` (deployt, `verify_jwt = false`).
+
+### Selbstauskunft und Unterlagen
+
+- Erst **nach der Zusage** zeigt die Angebotsseite der Website den Block „Nächster Schritt:
+  Selbstauskunft und Unterlagen“ (`web-takeover-buddy/src/components/OfferApplication.tsx`).
+- Selbstauskunft → `rental_applications` (eine je Angebot, erneutes Senden überschreibt):
+  Name, Geburtsdatum, Adresse, Beruf, Arbeitgeber, beschäftigt seit, Nettoeinkommen,
+  Erwachsene/Kinder, Haustiere, bisheriger Vermieter, „keine Exekution/Insolvenz“ (Eigenangabe),
+  Anmerkungen, **Einwilligung Datenschutz Pflicht**. Nur Admin lesbar.
+- Unterlagen (Ausweis, Einkommensnachweis, Selbstauskunft unterschrieben, Sonstiges; PDF/Bild,
+  ≤ 20 MB, ≤ 15 Dateien je Angebot) → **Dokumentenverwaltung**: Typ „Mieterunterlagen“ (neu),
+  Ordner `<Ablageort Haus/Mieterunterlagen>/<Name (Datum Angebot)>`; ohne festgelegten Ablageort
+  `DokumentManagement / <Hausordner> / Mieterunterlagen` (Hausordner aus einem anderen
+  Ablageort des Hauses abgeleitet, z. B. „Venediger“) — der Ablageort wird dabei gemerkt.
+  Verknüpfung `document_links.entity_type = 'mietangebot'`, `entity_id = rental_offers.id`.
+- Ablauf Upload wie in der Hausverwaltung (Doku Dokumentenverwaltung Abschnitt 5), nur über
+  `rental-portal` statt `onedrive-api`: `uploadSession` (Token-Prüfung, Typ/Größe/Anzahl) →
+  Browser lädt in Blöcken direkt zu Microsoft → `uploadComplete` (prüft, dass die Datei im
+  Ordner DIESES Angebots liegt, legt `documents` + `document_links` an).
+- `get_rental_offer` liefert zusätzlich `application_submitted` und die Namen der Unterlagen.
+
+### Anzeige in der Hausverwaltung
+
+`RentalOfferDialog` → `RentalApplicationPanel.tsx`: Selbstauskunft und Unterlagen (Link zu
+OneDrive). Knopf **„Als Mieter übernehmen“** (nur bei angenommenem Angebot) →
+`RentalTenantTakeoverDialog.tsx`: vorbelegt Mieter, E-Mail, Telefon, Vertragsbeginn = Einzug,
+Vertragsende = Einzug + Dauer − 1 Tag (leer = unbefristet), Kaltmiete, Nebenkosten, Kaution,
+Zahltag 1. Schreibt über `useUpdateHouse`: `houses.rental_type = 'long_term'`, `tenant_info`
+(bestehende Felder wie `payment_method` bleiben). Warnung, wenn schon ein Mieter eingetragen ist.
+Danach `rental_offers.converted_at`, Anfrage → „erledigt“. Ab dann `generate-tenant-payments`
+(Warmmiete = `monthly_rent` + `additional_costs`).
+
+> Achtung Doppel-Quelle Vorauszahlung (`docs/Nebenkosten-Touristisch-vs-Festvermietung.md`
+> Abschnitt 6): Die Übernahme setzt nur `tenant_info.additional_costs`, nicht
+> `utility_settings.monthly_prepayment`. Bei Nebenkosten als **Vorauszahlung** dort ggf. von Hand
+> nachziehen.
+
+### E-Mail an Uli
+
+Trigger (`rental_inquiry_notify`, `rental_offer_notify`, `rental_application_notify`) →
+`notify_rental_portal()` → `net.http_post` → `rental-portal` Aktion `notify` → `send-guest-email`
+an **steinbockchalets@gmail.com**. Je Ereignis höchstens einmal (`rental_inquiries.notified_at`,
+`rental_offers.response_notified_at`, `rental_applications.notified_at`). Ein Fehler beim
+Benachrichtigen verhindert nie die Anfrage/Antwort (Exception wird abgefangen). Live geprüft:
+Aufruf mit unbekannter ID → `{"skipped":true}`.
+
+## Offen
+
+1. **Max** lesend: Werkzeug „Mietinteressenten“ (ohne Preise, ohne Annehmen).
+2. `types.ts` neu erzeugen (Tabellen fehlen dort → derzeit `as any`).
+3. Datenschutzerklärung der Website um Mietinteressenten (Selbstauskunft, Unterlagen,
+   Speicherdauer, Löschung bei Absage) ergänzen — Text von Uli freigeben.
+4. Löschkonzept: Unterlagen abgelehnter Interessenten nach Frist löschen (derzeit von Hand).
+5. Mietvertrag-Vorlage und Übergabeprotokoll (Paket D).
