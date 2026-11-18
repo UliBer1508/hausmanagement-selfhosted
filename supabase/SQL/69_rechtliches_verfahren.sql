@@ -4,9 +4,8 @@
 -- =============================================================================
 --
 -- WARUM (18.11.2026):
--- Für die Wohnung Winthirstrasse läuft eine Räumungsklage, für Venedigersiedlung
--- 316 ein Verfahren beim Bauamt. Sachstand, Fristen, Fragen an den Anwalt und
--- die Chronik lagen bisher nur außerhalb der App. Jetzt kann für JEDES Objekt
+-- Sachstand, Fristen, Fragen an den Anwalt und die Chronik laufender
+-- Verfahren lagen bisher nur außerhalb der App. Jetzt kann für JEDES Objekt
 -- (Ferienhaus oder Festvermietung) ein Verfahren mitgeführt werden.
 --
 --   legal_cases         = ein Verfahren je Objekt (Gericht/Behörde, Aktenzeichen,
@@ -121,93 +120,11 @@ grant select, insert, update, delete on public.legal_case_entries to service_rol
 
 
 -- -----------------------------------------------------------------------------
--- 6. Startdaten: die beiden laufenden Verfahren (nur, wenn noch nicht vorhanden)
+-- 6. Startdaten
 -- -----------------------------------------------------------------------------
-
--- 6a. Winthirstrasse — Räumungsklage
-with h as (
-  select id from public.houses where name ilike '%Winthir%' limit 1
-), c as (
-  insert into public.legal_cases
-    (house_id, title, case_type, status, opponent, court_or_authority, summary)
-  select h.id,
-         'Räumungsklage wegen Mietrückstand',
-         'raeumungsklage',
-         'eingereicht',
-         'Mieter Winthirstraße 4',
-         'Amtsgericht München',
-         'Mieter zahlt seit Juli 2026 keine Miete. Er behauptet, seine Bank habe '
-         || 'Überweisungen nicht ausgeführt, und legt Überweisungsbelege vor, die '
-         || 'vermutlich gefälscht sind. Räumungsklage über den Anwalt eingereicht '
-         || '(Oktober 2026). Am 16.11.2026 gingen 12.447 € ein (Sonderzahlung, '
-         || 'noch keinem Monat zugeordnet). Rückstand Juli–November 20.610 €, '
-         || 'Rest 8.163 € (Stand 18.11.2026).'
-    from h
-   where not exists (
-     select 1 from public.legal_cases lc
-      where lc.house_id = h.id and lc.case_type = 'raeumungsklage'
-   )
-  returning id
-)
-insert into public.legal_case_entries (case_id, entry_type, entry_date, due_date, title, details, done)
-select c.id, v.entry_type, v.entry_date::date, v.due_date::date, v.title, v.details, false
-  from c, (values
-  ('ereignis', '2026-07-03', null, 'Erste Miete nicht gezahlt', 'Fällig 03.07.2026, 4.050 € warm.'),
-  ('ereignis', '2026-10-01', null, 'Räumungsklage über Anwalt eingeleitet', 'Genaues Datum der Einreichung nachtragen.'),
-  ('ereignis', '2026-11-16', null, 'Eingang 12.447 € (Sonderzahlung)',
-     'Nach Einreichung der Klage. Deckt den Rückstand nicht ganz (Rest 8.163 €). '
-     || 'In der App als Sonderzahlung gebucht.'),
-  ('frage', '2026-11-18', null, 'Wann wurde die Klage zugestellt — wann endet die Schonfrist?',
-     '§ 569 Abs. 3 Nr. 2 BGB: Zahlt der Mieter innerhalb von 2 Monaten nach Zustellung den GESAMTEN '
-     || 'Rückstand, wird die fristlose Kündigung unwirksam. Zustelldatum im Verfahren eintragen.'),
-  ('frage', '2026-11-18', null, 'Wurde zusätzlich hilfsweise ordentlich gekündigt?',
-     'Nach BGH (VIII ZR 106/23, 23.10.2024) heilt die Schonfristzahlung nur die fristlose, '
-     || 'nicht die ordentliche Kündigung.'),
-  ('frage', '2026-11-18', null, 'Auf welche Monate / Kosten werden die 12.447 € verrechnet?',
-     '§§ 366, 367 BGB: zuerst Bestimmung des Mieters (Verwendungszweck), sonst Kosten → Zinsen → '
-     || 'Hauptforderung, ältere Schuld zuerst. Erst danach Zuordnung in der App.'),
-  ('frage', '2026-11-18', null, 'Ab wann Nutzungsentschädigung statt Miete (§ 546a BGB)?', null),
-  ('frage', '2026-11-18', null, 'Teilzahlung schriftlich „unter Vorbehalt" bestätigen?', null),
-  ('aufgabe', '2026-11-18', null, 'Verwendungszweck der Überweisung vom 16.11. nachsehen und eintragen', null),
-  ('aufgabe', '2026-11-18', null, 'Kontoauszug als Beleg an die Sonderzahlung hängen', null),
-  ('aufgabe', '2026-11-18', null, 'Anwalt informieren: Eingang 12.447 €, Rest 8.163 €', null),
-  ('aufgabe', '2026-11-18', null, 'Keine Monats-Mahnungen aus der App, solange die Sonderzahlung nicht zugeordnet ist', null)
-) as v(entry_type, entry_date, due_date, title, details);
-
-
--- 6b. Venedigersiedlung 316 — Bauamt Neukirchen (Zweckentfremdung)
-with h as (
-  -- Haus heißt „Venediger Chalet" — die 316 steht nur in der Adresse
-  select id from public.houses where name ilike '%316%' or address ilike '%Venedigersiedlung 316%' limit 1
-), c as (
-  insert into public.legal_cases
-    (house_id, title, case_type, status, opponent, court_or_authority, summary)
-  select h.id,
-         'Bauamt: Verdacht auf Zweckentfremdung',
-         'behoerde',
-         'offen',
-         'Gemeinde Neukirchen am Großvenediger',
-         'Bauamt Neukirchen (Ing. Lerch)',
-         'Schreiben des Bauamts (Oktober 2026) wegen Verdacht auf Zweckentfremdung '
-         || '(Wohnhaus touristisch vermietet). Touristische Vermietung wird eingestellt, '
-         || 'künftig Dauervermietung 6–12 Monate. Entscheidung 28.10.2026: keine '
-         || 'Stellungnahme ans Bauamt, solange nicht alle Buchungen storniert sind.'
-    from h
-   where not exists (
-     select 1 from public.legal_cases lc
-      where lc.house_id = h.id and lc.case_type = 'behoerde'
-   )
-  returning id
-)
-insert into public.legal_case_entries (case_id, entry_type, entry_date, title, details, done)
-select c.id, v.entry_type, v.entry_date::date, v.title, v.details, false
-  from c, (values
-  ('ereignis', '2022-11-23', 'Privatzimmervermietung bei der Gemeinde gemeldet', null),
-  ('ereignis', '2026-10-01', 'Schreiben Bauamt (Ing. Lerch): Verdacht auf Zweckentfremdung', 'Genaues Datum nachtragen.'),
-  ('ereignis', '2026-10-27', 'Dauervermietung beschlossen', 'Mieter für 12 Monate mit Hauptwohnsitz.'),
-  ('ereignis', '2026-10-28', 'Booking.com storniert bestehende Buchungen', 'Airbnb storniert die vier offenen Buchungen erst nach schriftlicher Bestätigung der Gemeinde.'),
-  ('aufgabe', '2026-10-28', 'Airbnb-Stornierungen klären', null)
-) as v(entry_type, entry_date, title, details);
+-- Absichtlich leer: Fall- und Personendaten gehören NICHT in dieses (öffentliche)
+-- Repo. Verfahren werden in der App (Tab „Rechtliches") oder direkt in der
+-- Datenbank angelegt. (Bereinigt am 18.11.2026.)
 
 
 -- -----------------------------------------------------------------------------

@@ -383,8 +383,9 @@ angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
   `LegalEntryDialog.tsx` (Ereignis / Aufgabe / Frage an Anwalt / Frist).
 - Daten: `hooks/useLegalCases.ts`, Tabellen `legal_cases` + `legal_case_entries`
   (SQL `supabase/SQL/69_rechtliches_verfahren.sql`, RLS nur Admin, GRANTs ohne anon).
-- Für **jedes** Objekt (Ferienhaus und Festvermietung). Startdaten:
-  Winthirstrasse (Räumungsklage), Venedigersiedlung 316 (Bauamt).
+- Für **jedes** Objekt (Ferienhaus und Festvermietung).
+- **Keine Fall- oder Personendaten ins Repo** (öffentlich!) — weder in SQL-Dateien
+  noch in Doku. Falldaten nur in der App bzw. direkt in der Datenbank.
 - Schonfrist § 569 Abs. 3 Nr. 2 BGB wird **berechnet** (`served_date` + 2 Monate),
   nicht gespeichert — nur bei `case_type` `raeumungsklage`/`mietrueckstand`.
 - Rückstand in der Karte live aus `tenant_payments` (offene Monatsmieten bis heute
