@@ -74,14 +74,19 @@ const TenantPayments = () => {
     }) || [];
   }, [payments, selectedYear, selectedMonth]);
 
-  // Calculate expected total from active rental contracts (cumulative) with rent changes
-  const expectedTotal = useMemo(() => {
+  // Calculate expected total from active rental contracts (cumulative) with rent changes.
+  // expectedTotal = Soll für den gewählten Zeitraum (ganzes Jahr bei "Alle Monate").
+  // expectedDueTotal = davon nur, was bis heute schon fällig ist — Grundlage für "Offen".
+  // Vorher zählte "Offen" auch Monate mit, die noch gar nicht fällig waren (z. B. Dezember).
+  const { expectedTotal, expectedDueTotal } = useMemo(() => {
     const relevantHouses = selectedHouseId === "all" 
       ? longTermRentals 
       : longTermRentals.filter(h => h.id === selectedHouseId);
     
     const lastMonth = selectedMonth === "all" ? 11 : selectedMonth;
+    const today = new Date();
     let total = 0;
+    let dueTotal = 0;
     
     relevantHouses.forEach(house => {
       const tenantInfo = house.tenant_info as any;
@@ -113,22 +118,33 @@ const TenantPayments = () => {
           checkDate,
         );
 
-        total += activeRent + activeAdditionalCosts;
+        const monthlyWarmRent = activeRent + activeAdditionalCosts;
+        total += monthlyWarmRent;
+
+        // Fälligkeit = Zahltag laut Vertrag (Standard: 1. des Monats)
+        const dueDate = new Date(selectedYear, month, tenantInfo.payment_day || 1);
+        if (dueDate <= today) dueTotal += monthlyWarmRent;
       }
     });
     
-    return total;
+    return { expectedTotal: total, expectedDueTotal: dueTotal };
   }, [longTermRentals, selectedYear, selectedMonth, selectedHouseId, rentChanges]);
 
-  // Calculate received total from paid payments
+  // Calculate received total from paid payments (Monatsmieten UND Sonderzahlungen —
+  // eine Sonderzahlung ist echtes Geld auf dem Konto, auch wenn sie noch keinem Monat
+  // zugeordnet ist)
   const receivedTotal = useMemo(() => {
     return filteredPayments
       .filter(p => p.status === 'paid')
       .reduce((sum, p) => sum + p.amount, 0);
   }, [filteredPayments]);
 
-  // Calculate outstanding amount
-  const outstandingTotal = expectedTotal - receivedTotal;
+  // Calculate outstanding amount: bis heute fällig minus erhalten
+  const outstandingTotal = Math.max(0, expectedDueTotal - receivedTotal);
+
+  // Sonderzahlungen im Filter — noch keinem Monat zugeordnet (Zuordnung folgt später)
+  const specialPayments = filteredPayments.filter(p => p.payment_type === 'special' && p.status === 'paid');
+  const specialTotal = specialPayments.reduce((sum, p) => sum + p.amount, 0);
   
   // Get overdue payments count
   const overduePayments = filteredPayments.filter(p => p.status === 'overdue');
@@ -206,7 +222,7 @@ const TenantPayments = () => {
         <Card className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Offen ({selectedMonth === "all" ? selectedYear : `${months[selectedMonth].label} ${selectedYear}`})</p>
+              <p className="text-sm text-muted-foreground">Offen, fällig bis heute ({selectedMonth === "all" ? selectedYear : `${months[selectedMonth].label} ${selectedYear}`})</p>
               <p className="text-2xl font-bold">{outstandingTotal.toLocaleString('de-DE')} €</p>
             </div>
             <AlertCircle className="h-8 w-8 text-red-600" />
@@ -218,7 +234,8 @@ const TenantPayments = () => {
             <div>
               <p className="text-sm text-muted-foreground">Zahlungsquote</p>
               <p className="text-2xl font-bold">
-                {expectedTotal > 0 ? Math.round((receivedTotal / expectedTotal) * 100) : 0}%
+                {/* Quote gegen das bis heute Fällige — nicht gegen das ganze Jahr */}
+                {expectedDueTotal > 0 ? Math.round((receivedTotal / expectedDueTotal) * 100) : 0}%
               </p>
             </div>
             <TrendingUp className="h-8 w-8 text-emerald-600" />
@@ -271,6 +288,16 @@ const TenantPayments = () => {
         </Button>
       </div>
 
+      {specialPayments.length > 0 && (
+        <div className="rounded-md border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Enthält {specialPayments.length === 1 ? 'eine Sonderzahlung' : `${specialPayments.length} Sonderzahlungen`} über{' '}
+          <strong>{specialTotal.toLocaleString('de-DE')} €</strong>, die noch keinem Monat zugeordnet{' '}
+          {specialPayments.length === 1 ? 'ist' : 'sind'}. Sie zählt bei „Erhalten" und „Offen" bereits mit —
+          die einzelnen Monate bleiben aber bis zur Zuordnung auf „Überfällig". Mahnungen
+          für diese Monate deshalb vorher prüfen.
+        </div>
+      )}
+
       <Card>
         <Table>
           <TableHeader>
@@ -290,7 +317,11 @@ const TenantPayments = () => {
               <TableRow key={payment.id}>
                 <TableCell className="font-medium">{payment.houses?.name}</TableCell>
                 <TableCell>{(payment.houses?.tenant_info as any)?.tenant_name || '-'}</TableCell>
-                <TableCell>{format(new Date(payment.due_date), 'dd.MM.yyyy', { locale: de })}</TableCell>
+                <TableCell>
+                  {payment.payment_type === 'special'
+                    ? <Badge variant="outline" className="border-blue-400 text-blue-700">Sonderzahlung</Badge>
+                    : format(new Date(payment.due_date), 'dd.MM.yyyy', { locale: de })}
+                </TableCell>
                 <TableCell>{payment.payment_date ? format(new Date(payment.payment_date), 'dd.MM.yyyy', { locale: de }) : '-'}</TableCell>
                 <TableCell>{payment.amount.toLocaleString('de-DE')} €</TableCell>
                 <TableCell>{getStatusBadge(payment.status)}</TableCell>

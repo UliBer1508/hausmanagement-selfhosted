@@ -42,6 +42,24 @@ und Warmmiete inklusive Miethistorie.
 - „Gezahlt am" bleibt bei offenen Zahlungen leer. Wird der Status auf „Bezahlt"
   gesetzt und kein Datum eingetragen, wird das heutige Datum gespeichert.
 
+## 3b. Sonderzahlung buchen (Pauschalbetrag, ab 18.11.2026)
+
+Für Geldeingänge, die zu keiner einzelnen Monatsmiete passen (z. B. Nachzahlung
+mehrerer Monate auf einmal):
+
+1. Mieter → Zahlungen → **„Zahlung erfassen"** → Art der Zahlung:
+   **„Sonderzahlung (Pauschalbetrag)"**.
+2. Objekt, **Eingangsdatum laut Kontoauszug**, Betrag, Zahlungsart eintragen.
+3. Unter Notizen den **Verwendungszweck** der Überweisung wörtlich eintragen
+   (rechtlich wichtig für die Verrechnung, §§ 366/367 BGB).
+4. Beleg (Kontoauszug) über „Bearbeiten" hochladen.
+
+Die Sonderzahlung wird sofort als bezahlt gebucht und zählt bei „Erhalten" und
+„Offen". Die einzelnen Monate bleiben **„Überfällig"**, bis die Zuordnung auf
+Monate gebaut ist (geplant: `tenant_payment_allocations`). Deshalb vor einer
+Monats-Mahnung prüfen, ob eine Sonderzahlung offen ist — die App zeigt dazu ein
+blaues Hinweisbanner.
+
 ## 4. Automatische Monatsbuchung
 
 Edge Function `generate-tenant-payments`, Cron `daily-tenant-payment-generation`
@@ -51,8 +69,9 @@ täglich 06:00 (Migration `20251114063817_…`).
   (`tenant_info.payment_day`) heute ist.
 - Legt eine Zahlung mit Status **Ausstehend** an, Betrag = **Soll-Warmmiete zum
   Fälligkeitsdatum inklusive Miethistorie**.
-- Legt nichts an, wenn im selben Monat schon eine Zahlung existiert (egal welcher
-  Status) — keine Doppelungen mit von Hand erfassten Zahlungen.
+- Legt nichts an, wenn im selben Monat schon eine **Monatsmiete** existiert (egal
+  welcher Status) — keine Doppelungen mit von Hand erfassten Zahlungen.
+  Sonderzahlungen zählen dabei nicht (seit 18.11.2026).
 - Ändert **nie** bestehende Zahlungen.
 - Vertrag ohne Ende (unbefristet) läuft weiter; ist ein Ende eingetragen, wird
   danach nichts mehr angelegt.

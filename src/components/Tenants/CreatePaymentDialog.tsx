@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useCreatePayment } from "@/hooks/useTenantPayments";
 import { useHouses } from "@/hooks/useHouses";
@@ -16,11 +17,31 @@ interface CreatePaymentDialogProps {
 const CreatePaymentDialog = ({ open, onOpenChange }: CreatePaymentDialogProps) => {
   const { register, handleSubmit, reset, watch, setValue } = useForm();
   const createPayment = useCreatePayment();
+  // 'rent' = Monatsmiete (wie bisher), 'special' = Sonderzahlung (Pauschalbetrag,
+  // z. B. Nachzahlung mehrerer Monate). Sonderzahlungen werden sofort als bezahlt
+  // gebucht; die Zuordnung zu Monaten kommt später (tenant_payment_allocations).
+  const [paymentType, setPaymentType] = useState<'rent' | 'special'>('rent');
+  const isSpecial = paymentType === 'special';
   const { data: houses } = useHouses();
   
   const longTermRentals = houses?.filter(h => h.rental_type === 'long_term') || [];
   const selectedHouseId = watch('house_id');
-  const selectedHouse = longTermRentals.find(h => h.id === selectedHouseId);
+
+  const warmRentOf = (houseId: string) => {
+    const tenantInfo = longTermRentals.find(h => h.id === houseId)?.tenant_info as any;
+    if (!tenantInfo) return undefined;
+    return (tenantInfo.monthly_rent || 0) + (tenantInfo.additional_costs || 0);
+  };
+
+  const handleTypeChange = (value: 'rent' | 'special') => {
+    setPaymentType(value);
+    // Bei Sonderzahlung keine Warmmiete vorbelegen — der Betrag kommt vom Kontoauszug.
+    if (value === 'special') {
+      setValue('amount', undefined);
+    } else if (selectedHouseId) {
+      setValue('amount', warmRentOf(selectedHouseId));
+    }
+  };
 
   const onSubmit = (data: any) => {
     // Validiere das Jahr des Fälligkeitsdatums
@@ -30,9 +51,21 @@ const CreatePaymentDialog = ({ open, onOpenChange }: CreatePaymentDialogProps) =
       return; // HTML5-Validierung sollte das abfangen, aber sicher ist sicher
     }
     
-    createPayment.mutate(data, {
+    const payload = isSpecial
+      ? {
+          ...data,
+          payment_type: 'special',
+          status: 'paid',
+          // Eine Sonderzahlung hat keine Fälligkeit; due_date ist aber NOT NULL und
+          // steuert Jahres-/Monatsfilter → Eingangsdatum in beide Felder.
+          payment_date: data.due_date,
+        }
+      : { ...data, payment_type: 'rent' };
+
+    createPayment.mutate(payload, {
       onSuccess: () => {
         reset();
+        setPaymentType('rent');
         onOpenChange(false);
       }
     });
@@ -46,14 +79,31 @@ const CreatePaymentDialog = ({ open, onOpenChange }: CreatePaymentDialogProps) =
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
+            <Label>Art der Zahlung</Label>
+            <Select value={paymentType} onValueChange={(v) => handleTypeChange(v as 'rent' | 'special')}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="rent">Monatsmiete</SelectItem>
+                <SelectItem value="special">Sonderzahlung (Pauschalbetrag)</SelectItem>
+              </SelectContent>
+            </Select>
+            {isSpecial && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Wird sofort als bezahlt gebucht und zählt bei „Erhalten". Den Monaten
+                zugeordnet wird sie später. Verwendungszweck der Überweisung bitte unter
+                Notizen eintragen.
+              </p>
+            )}
+          </div>
+
+          <div>
             <Label>Objekt</Label>
             <Select onValueChange={(value) => {
               setValue('house_id', value);
-              const house = longTermRentals.find(h => h.id === value);
-              if (house?.tenant_info) {
-                const kaltmiete = (house.tenant_info as any).monthly_rent || 0;
-                const nebenkosten = (house.tenant_info as any).additional_costs || 0;
-                setValue('amount', kaltmiete + nebenkosten); // Warmmiete
+              if (!isSpecial) {
+                setValue('amount', warmRentOf(value)); // Warmmiete = Kaltmiete + Nebenkosten
               }
             }}>
               <SelectTrigger>
@@ -68,7 +118,7 @@ const CreatePaymentDialog = ({ open, onOpenChange }: CreatePaymentDialogProps) =
           </div>
 
           <div>
-            <Label>Fälligkeitsdatum</Label>
+            <Label>{isSpecial ? 'Eingangsdatum (laut Kontoauszug)' : 'Fälligkeitsdatum'}</Label>
             <Input 
               type="date" 
               min="2020-01-01"
@@ -78,7 +128,7 @@ const CreatePaymentDialog = ({ open, onOpenChange }: CreatePaymentDialogProps) =
           </div>
 
           <div>
-            <Label>Warmmiete (€)</Label>
+            <Label>{isSpecial ? 'Betrag (€)' : 'Warmmiete (€)'}</Label>
             <Input type="number" step="0.01" {...register('amount', { required: true, valueAsNumber: true })} />
           </div>
 
@@ -97,7 +147,7 @@ const CreatePaymentDialog = ({ open, onOpenChange }: CreatePaymentDialogProps) =
           </div>
 
           <div>
-            <Label>Notizen</Label>
+            <Label>{isSpecial ? 'Notizen / Verwendungszweck' : 'Notizen'}</Label>
             <Textarea {...register('notes')} />
           </div>
 

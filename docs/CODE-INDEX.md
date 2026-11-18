@@ -375,6 +375,23 @@ Je Haus gespeichert (`utility_settings`, SQL 67): `country` (DE/AT) und
 angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
 `hooks/useUtilityCosts.ts`. Details: **`docs/Nebenkosten-Touristisch-vs-Festvermietung.md`**.
 
+**Sonderzahlungen (`tenant_payments.payment_type`, 18.11.2026):**
+- `payment_type` = `'rent'` (Monatsmiete, Standard) oder `'special'`
+  (Sonderzahlung = Pauschalbetrag, keinem Monat zugeordnet). Migration
+  `20261118080000_tenant_payments_payment_type.sql`.
+- Sonderzahlung: `status = 'paid'`, `due_date = payment_date = Eingangsdatum`.
+  Erfasst über `CreatePaymentDialog.tsx` → „Art der Zahlung".
+- Zählt bei „Erhalten"/Einnahmen mit; **nicht** bei Pünktlichkeit,
+  Status-Verteilung und der Monatsleiste (`MonthlyPaymentTimeline.tsx`).
+- `generate-tenant-payments` prüft „Monat schon gebucht?" nur gegen
+  `payment_type = 'rent'`.
+- „Offen" in `TenantPayments.tsx` = bis heute fälliges Soll − Erhalten (vorher
+  wurde das ganze Jahr inkl. noch nicht fälliger Monate gezählt).
+- **Offen / geplant:** Zuordnung einer Sonderzahlung auf Monate über eigene Tabelle
+  `tenant_payment_allocations` (special → rent, Teilbetrag). Bis dahin bleiben die
+  betroffenen Monate „Überfällig" (Hinweisbanner in `TenantPayments.tsx`).
+  Beim Bauen: alle Stellen oben (`payment_type !== 'special'`) mitprüfen.
+
 **Mietzahlungen (`tenant_payments`) — Regeln (28.09.2026):**
 - Leere Formularfelder werden in `EditPaymentDialog.tsx` als `null` gespeichert.
   `payment_date` ist `DATE` (lehnt `''` ab), `payment_method` hat einen

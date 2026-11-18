@@ -42,10 +42,15 @@ const TenantAnalytics = () => {
   const averageMonthlyRent = longTermRentals.length > 0 
     ? longTermRentals.reduce((sum, h) => sum + ((h.tenant_info as any)?.monthly_rent || 0), 0) / longTermRentals.length 
     : 0;
-  const outstandingAmount = payments?.filter(p => p.status === 'overdue' || p.status === 'pending').reduce((sum, p) => sum + p.amount, 0) || 0;
+  // Offen = offene Monatsmieten minus Sonderzahlungen, die noch keinem Monat
+  // zugeordnet sind (Pauschalbeträge, z. B. Nachzahlung mehrerer Monate)
+  const openRentAmount = payments?.filter(p => p.status === 'overdue' || p.status === 'pending').reduce((sum, p) => sum + p.amount, 0) || 0;
+  const unallocatedSpecialAmount = payments?.filter(p => p.payment_type === 'special' && p.status === 'paid').reduce((sum, p) => sum + p.amount, 0) || 0;
+  const outstandingAmount = Math.max(0, openRentAmount - unallocatedSpecialAmount);
   
-  const paidOnTime = payments?.filter(p => p.status === 'paid' && p.payment_date && p.payment_date <= p.due_date).length || 0;
-  const totalPaid = payments?.filter(p => p.status === 'paid').length || 0;
+  // Pünktlichkeit nur über Monatsmieten — eine Sonderzahlung hat keine echte Fälligkeit
+  const paidOnTime = payments?.filter(p => p.status === 'paid' && p.payment_type !== 'special' && p.payment_date && p.payment_date <= p.due_date).length || 0;
+  const totalPaid = payments?.filter(p => p.status === 'paid' && p.payment_type !== 'special').length || 0;
   const paymentPunctuality = totalPaid > 0 ? Math.round((paidOnTime / totalPaid) * 100) : 0;
 
   // Jahresgesamt für ausgewähltes Jahr berechnen
@@ -77,7 +82,8 @@ const TenantAnalytics = () => {
 
   // Zahlungsstatus-Verteilung
   const statusDistribution = useMemo(() => {
-    const paid = payments?.filter(p => p.status === 'paid').length || 0;
+    // Anzahl Monatsmieten je Status — Sonderzahlungen sind keine Monate
+    const paid = payments?.filter(p => p.status === 'paid' && p.payment_type !== 'special').length || 0;
     const overdue = payments?.filter(p => p.status === 'overdue').length || 0;
     const pending = payments?.filter(p => p.status === 'pending').length || 0;
     

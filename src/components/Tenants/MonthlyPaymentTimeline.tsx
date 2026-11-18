@@ -19,8 +19,10 @@ const MonthlyPaymentTimeline = ({ payments, selectedYear }: Props) => {
   // 12 Monate generieren
   const months = Array.from({ length: 12 }, (_, i) => {
     const month = i + 1;
+    // Nur Monatsmieten — eine Sonderzahlung im selben Monat würde sonst als
+    // "Monatsmiete bezahlt" (grün) angezeigt.
     const payment = payments.find(p => 
-      new Date(p.due_date).getMonth() + 1 === month
+      p.payment_type !== 'special' && new Date(p.due_date).getMonth() + 1 === month
     );
     
     let status: 'paid' | 'late' | 'overdue' | 'pending' | 'future' = 'future';

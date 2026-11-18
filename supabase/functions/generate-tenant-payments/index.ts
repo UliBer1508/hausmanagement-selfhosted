@@ -143,11 +143,14 @@ Deno.serve(async (req) => {
         continue
       }
 
-      // Prüfe ob bereits Zahlung für diesen Monat existiert
+      // Prüfe ob bereits eine MONATSMIETE für diesen Monat existiert.
+      // Sonderzahlungen (payment_type = 'special') zählen nicht — sonst würde ein
+      // Pauschalbetrag, der in diesem Monat eingeht, die Monatsmiete verhindern.
       const { data: existingPayments } = await supabase
         .from('tenant_payments')
         .select('id, due_date, status')
         .eq('house_id', house.id)
+        .eq('payment_type', 'rent')
         .gte('due_date', startOfMonth)
         .lt('due_date', endOfMonth)
 

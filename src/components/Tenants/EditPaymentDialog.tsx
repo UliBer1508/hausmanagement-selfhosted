@@ -77,6 +77,11 @@ const EditPaymentDialog = ({ payment, open, onOpenChange }: EditPaymentDialogPro
     };
 
     // Auf "Bezahlt" gesetzt, aber kein Datum eingetragen → heute.
+    // Sonderzahlung: Eingangsdatum steht in due_date UND payment_date — beide gleich halten.
+    if (payment.payment_type === 'special') {
+      updates.payment_date = data.due_date;
+    }
+
     if (status === 'paid' && !updates.payment_date) {
       updates.payment_date = todayISO();
     }
@@ -113,8 +118,13 @@ const EditPaymentDialog = ({ payment, open, onOpenChange }: EditPaymentDialogPro
           </div>
 
           <div>
-            <Label>Fälligkeitsdatum</Label>
+            <Label>{payment.payment_type === 'special' ? 'Eingangsdatum' : 'Fälligkeitsdatum'}</Label>
             <Input type="date" {...register('due_date', { required: true })} />
+            {payment.payment_type === 'special' && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Sonderzahlung — noch keinem Monat zugeordnet.
+              </p>
+            )}
           </div>
 
           <div>

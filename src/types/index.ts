@@ -201,6 +201,9 @@ export interface TenantPayment {
   due_date: string;
   amount: number;
   status: 'pending' | 'paid' | 'overdue' | 'cancelled';
+  // 'rent' = Monatsmiete, 'special' = Sonderzahlung (Pauschalbetrag, keinem Monat zugeordnet).
+  // Fehlt bei Zeilen vor der Migration 20261118080000 nicht — DB-Default ist 'rent'.
+  payment_type?: 'rent' | 'special';
   payment_method?: 'bank_transfer' | 'cash' | 'direct_debit';
   reference_number?: string;
   notes?: string;

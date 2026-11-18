@@ -24,17 +24,20 @@ const ObjectPerformanceCard = ({
   
   // Metriken berechnen
   const paidPayments = payments.filter(p => p.status === 'paid');
+  // Einnahmen inkl. Sonderzahlungen (echtes Geld auf dem Konto)
   const yearRevenue = paidPayments.reduce((sum, p) => sum + p.amount, 0);
+  // Pünktlichkeit nur über Monatsmieten — eine Sonderzahlung hat keine echte Fälligkeit
+  const paidRentPayments = paidPayments.filter(p => p.payment_type !== 'special');
   
-  const paidOnTime = paidPayments.filter(p => {
+  const paidOnTime = paidRentPayments.filter(p => {
     if (!p.payment_date) return false;
     const paymentDate = new Date(p.payment_date);
     const dueDate = new Date(p.due_date);
     return isBefore(paymentDate, dueDate) || format(paymentDate, 'yyyy-MM-dd') === format(dueDate, 'yyyy-MM-dd');
   }).length;
   
-  const punctuality = paidPayments.length > 0
-    ? Math.round((paidOnTime / paidPayments.length) * 100)
+  const punctuality = paidRentPayments.length > 0
+    ? Math.round((paidOnTime / paidRentPayments.length) * 100)
     : 0;
     
   const overdueCount = payments.filter(p => p.status === 'overdue').length;
