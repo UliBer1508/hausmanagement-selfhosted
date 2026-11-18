@@ -153,7 +153,7 @@ nur notiert):
    Sinn — aber unsauber. Diese Funktion ist hier **absichtlich nicht abgelegt**,
    damit der Key nicht ins Repo wandert.
 
-## Wohnen auf Zeit — Mietinteressenten (SQL 72, 73; 18.11.2026)
+## Wohnen auf Zeit — Mietinteressenten (SQL 72, 73, 74; 18.11.2026)
 
 Trigger, die man im TypeScript nicht sieht:
 - `rental_inquiry_notify` (AFTER INSERT `rental_inquiries`), `rental_offer_notify` (AFTER UPDATE
@@ -163,4 +163,8 @@ Trigger, die man im TypeScript nicht sieht:
   (nur Warnung), die eigentliche Zeile wird immer gespeichert.
 - Funktionen für die Website (security definer, anon EXECUTE): `get_rental_offer(token)`,
   `respond_rental_offer(token, response, message)`.
+SQL 74 (Paket D, Mietvertrag): Tabellen `rental_contract_templates` (Vorlage DE/EN mit
+Platzhaltern, Startinhalt = Ulis Kurzfassung), `rental_contract_house_data` (Vertragsdaten je Haus,
+Startwerte Venediger; Wald nur Adresse/Gemeinde), `rental_contracts` (ein aktiver Vertrag je
+Angebot). Nur Admin, anon ohne Rechte. Keine Trigger außer `updated_at`.
 Details: `docs/Konzept-Wohnen-auf-Zeit.md`.

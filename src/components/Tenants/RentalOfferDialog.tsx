@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { addDays, format, parseISO } from "date-fns";
-import { Loader2, Copy, Mail, Send, Undo2, Calculator, ExternalLink, UserCheck } from "lucide-react";
+import { Loader2, Copy, Mail, Send, Undo2, Calculator, ExternalLink, UserCheck, FileSignature } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,6 +14,8 @@ import { berechnen, euro, normalisieren } from "@/lib/rentalCalc";
 import { OFFER_STATUS_LABEL, rentalOfferLink, RentalInquiry, RentalOffer } from "@/hooks/useRentalInquiries";
 import RentalApplicationPanel from "./RentalApplicationPanel";
 import RentalTenantTakeoverDialog from "./RentalTenantTakeoverDialog";
+import RentalContractDialog from "./RentalContractDialog";
+import { CONTRACT_STATUS_LABEL, useRentalContract } from "@/hooks/useRentalContracts";
 
 /** Vorlage Konditionen — wird beim ersten Angebot eingesetzt und ist frei änderbar. */
 const VORLAGE_DE = [
@@ -66,6 +68,8 @@ const RentalOfferDialog = ({ open, onOpenChange, inquiry, houseName }: RentalOff
   const [laedt, setLaedt] = useState(false);
   const [speichert, setSpeichert] = useState(false);
   const [uebernahmeOffen, setUebernahmeOffen] = useState(false);
+  const [vertragOffen, setVertragOffen] = useState(false);
+  const { data: vertrag } = useRentalContract(open && angebot?.status === "accepted" ? angebot.id : null);
 
   useEffect(() => {
     if (!open || !inquiry) return;
@@ -232,6 +236,14 @@ const RentalOfferDialog = ({ open, onOpenChange, inquiry, houseName }: RentalOff
 
             {angebot && <RentalApplicationPanel offerId={angebot.id} />}
 
+            {angebot?.status === "accepted" && (
+              <p className="flex flex-wrap items-center gap-2 text-sm rounded-lg border p-2.5">
+                <FileSignature className="h-4 w-4 text-primary" />
+                Mietvertrag: <strong>{vertrag ? CONTRACT_STATUS_LABEL[vertrag.status] : "noch nicht erstellt"}</strong>
+                {vertrag?.status !== "signed" && <span className="text-xs text-muted-foreground">— erst nach der Unterschrift „Als Mieter übernehmen“.</span>}
+              </p>
+            )}
+
             {angebot?.converted_at && (
               <p className="flex items-center gap-2 text-sm rounded-lg border border-primary bg-primary/5 p-2.5">
                 <UserCheck className="h-4 w-4 text-primary" />
@@ -321,8 +333,13 @@ const RentalOfferDialog = ({ open, onOpenChange, inquiry, houseName }: RentalOff
 
         <div className="flex flex-wrap justify-end gap-2 pt-3 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
+          {angebot?.status === "accepted" && (
+            <Button variant={vertrag?.status === "signed" ? "outline" : "default"} onClick={() => setVertragOffen(true)}>
+              <FileSignature className="h-4 w-4 mr-1" />{vertrag ? "Mietvertrag öffnen" : "Mietvertrag erstellen"}
+            </Button>
+          )}
           {angebot?.status === "accepted" && !angebot.converted_at && (
-            <Button onClick={() => setUebernahmeOffen(true)}>
+            <Button variant={vertrag?.status === "signed" ? "default" : "outline"} onClick={() => setUebernahmeOffen(true)}>
               <UserCheck className="h-4 w-4 mr-1" />Als Mieter übernehmen
             </Button>
           )}
@@ -349,7 +366,15 @@ const RentalOfferDialog = ({ open, onOpenChange, inquiry, houseName }: RentalOff
         onOpenChange={setUebernahmeOffen}
         offer={angebot}
         guestPhone={inquiry.guest_phone}
+        contract={vertrag ?? null}
         onDone={() => setAngebot(a => (a ? { ...a, converted_at: new Date().toISOString() } : a))}
+      />
+      <RentalContractDialog
+        open={vertragOffen}
+        onOpenChange={setVertragOffen}
+        offer={angebot}
+        guestPhone={inquiry.guest_phone}
+        houseName={houseName}
       />
     </Dialog>
   );

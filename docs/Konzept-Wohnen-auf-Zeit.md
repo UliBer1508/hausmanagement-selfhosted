@@ -28,7 +28,7 @@ Hausverwaltung  Mieter → Interessenten: Kontakt, Status „Besichtigung“
 Website  /angebot/<token>  get_rental_offer ── annehmen / Rückfrage ── respond_rental_offer
                                                           │  Hinweis-Banner Übersicht („Antwort“)
                                                           ▼
-Hausverwaltung  Vertrag, Kaution, Übergabe  (Paket A Teil 2 / Paket D)
+Hausverwaltung  Mietvertrag (PDF) → Unterschrift → Als Mieter übernehmen  (Paket D, SQL 74)
 ```
 
 ## Warum nicht `booking_inquiries`
@@ -144,6 +144,81 @@ an **steinbockchalets@gmail.com**. Je Ereignis höchstens einmal (`rental_inquir
 Benachrichtigen verhindert nie die Anfrage/Antwort (Exception wird abgefangen). Live geprüft:
 Aufruf mit unbekannter ID → `{"skipped":true}`.
 
+## Paket D (18.11.2026, SQL 74): Mietvertrag, Übergabeprotokoll, Inventarliste
+
+SQL `supabase/SQL/74_mietvertrag_uebergabeprotokoll.sql` (von Uli im SQL-Editor auszuführen,
+Hausverwaltung `usblrulkcgucxtkhugck`). **Keine Edge-Function-Änderung**: die PDFs laufen über
+`onedrive-api` wie jeder Upload in der Dokumentenverwaltung.
+
+### Grundlage
+
+Ulis „Mietvertrag Venedigersiedlung 316 kurz DE-EN“ (OneDrive `Haus Venedigersiedlung 316 - 2020 /
+Mietvertrag`), am 18.11.2026 geprüft (österreichisches Recht, keine Rechtsberatung):
+- Einfamilienhaus = Vollausnahme MRG (§ 1 Abs 2 Z 5) → ABGB, Befristung 12 Monate zulässig.
+- Mieten-Wertsicherungsgesetz (seit 1.1.2026) gilt dort nicht; Miete bleibt fix.
+- Uli vermietet als **Privatperson** → KSchG gilt in der Regel nicht; Kleinreparatur-Klausel bleibt.
+  Kommen weitere Objekte dazu (Unternehmer-Eigenschaft), Klausel prüfen lassen.
+- **Ergänzt:** § 8 Energieausweis (EAVG: vor Abschluss vorlegen, ≤ 14 Tage danach aushändigen,
+  ≤ 10 Jahre alt), Höchstzahl Bewohner, Haftung für Mitbewohner/Besucher, Mülltrennung/Hausordnung,
+  Hinweis Datenschutzerklärung; ukrainespezifische Angaben (Staatsangehörigkeit, Ausweis-Nr.,
+  Aufenthaltsnachweis) optional; unbefristete Variante, Nebenkosten-Pauschale-Variante.
+- **Wald Chalet:** Adresse `Trattenbach 299/17` deutet auf eine Anlage. Liegt Wald in einer
+  Wohnungseigentumsanlage mit mehr als zwei Einheiten, gilt das MRG teilweise — eine Befristung
+  unter 3 Jahren wäre dann unwirksam. Deshalb ist der MRG-Hinweis für Wald bewusst leer; vor dem
+  ersten Vertrag klären.
+
+### Tabellen
+
+| Tabelle | Inhalt |
+|---|---|
+| `rental_contract_templates` | `content` jsonb: `title_de/en`, `annex_de/en`, `protocol_items[]`, `sections[{title_de,title_en,paragraphs[{de,en,when?,type?}]}]`. `house_id` leer = Standard (eine), optional eine je Haus. |
+| `rental_contract_house_data` | je Haus: Vermieter, Konto, Kopfzeile/Kurzbezeichnung, Mietgegenstand DE/EN, MRG-Hinweis, Gemeinde, Anleitung Meldezettel, Hausbesonderheiten, Höchstzahl Bewohner, USt-Hinweis, Kleinreparatur, Winterdienst, Kündigung ab/Frist, Zahltag, Energieausweis (HWB, fGEE, Klasse, Datum), `meters/keys/rooms` fürs Protokoll |
+| `rental_contracts` | je Angebot einer (nicht storniert): `status` draft/issued/signed/cancelled, `values` (Eingaben inkl. `positions[]`, `overrides`, `zahltag`), Kopie `sections` (fertiger Text), `protocol`, `inventory`; `contract_/protocol_/signed_document_id` → `documents` |
+
+Alle drei: RLS nur Admin, `revoke all from anon`, GRANT authenticated/service_role.
+Keine Personendaten im SQL (Vermieter/IBAN trägt Uli in der App ein).
+
+### Platzhalter
+
+`{{schluessel}}` — je Sprache wird zuerst `schluessel_de`/`_en` gesucht. Absatz mit `when: "x"`
+nur wenn x gesetzt, `"!x"` nur wenn nicht. Fehlt ein Wert: im Text `[Bezeichnung]`, im Dialog
+„Noch offen“; **Ausfertigen ist erst ohne offene Angaben möglich** (Entwurf-PDF geht immer).
+Schlüssel und Bezeichnungen: `PLATZHALTER_LABEL` in `lib/rentalContract.ts`.
+
+### Ablauf
+
+```
+Angebot angenommen → „Mietvertrag erstellen“
+  vorbelegt: Mieter (Selbstauskunft/Angebot), Beginn/Dauer/Ende, Beträge (Grundmiete, NK),
+             Kaution; Haus aus Vertragsdaten; Inventar aus house_inventory (ohne Muster)
+  Absatz ändern (Stift) → overrides; „Entwurf als PDF“ (nur Download)
+„Ausfertigen und ablegen“ → Kopie speichern → 2 PDFs:
+  Mietvertrag <Kurz> - <Mieter> (<Beginn>).pdf   (Vertrag + Anhang 1 Protokoll + Anhang 2 Inventar)
+  Übergabeprotokoll <Kurz> - <Mieter> (<Beginn>).pdf   (Anhang 1 + 2 zum Ausdrucken bei Übergabe)
+  → OneDrive <Ablageort Mieterunterlagen> / <Name (Datum Angebot)>, Typ „Mieterunterlagen“,
+    document_links 'mietangebot' → erscheinen auch unter „Selbstauskunft und Unterlagen“
+Ausdrucken, unterschreiben → „Unterschriebenen Vertrag hochladen“ → status signed
+→ „Als Mieter übernehmen“ (Werte aus dem Vertrag: Miete = Positionen Miete + Zusatz,
+  NK = Positionen Nebenkosten, Kaution, Zahltag, Beginn/Ende)
+```
+„Wieder bearbeiten“ setzt einen ausgefertigten Vertrag zurück auf Entwurf (PDFs bleiben in OneDrive).
+„Stornieren“ (nicht bei unterschrieben) → neuer Vertrag möglich.
+
+### PDF
+
+jsPDF Standardschrift Helvetica (Windows-1252): `→` wird `>`, `²/³` werden `2/3` (sonst unsichtbar).
+Seitenkopf je Paragraf zweispaltig DE | EN, Beträge als eigene Tabelle, Fußzeile
+„Mietvertrag <Kurz> – <Mieter>“ + Seitenzahl.
+
+### Getestet
+
+Lokal PostgreSQL 16: SQL zweimal hintereinander, anon ohne Rechte, Admin liest, zweiter aktiver
+Vertrag je Angebot abgewiesen, nach Storno wieder möglich. Oberfläche mit Playwright gegen
+nachgebildete Supabase-API: Vertragsdaten ausfüllen → keine offenen Angaben → Ausfertigen
+(2 PDFs, 3 Ordneraufrufe, Verknüpfungen) → Unterschrift hochladen → Übernahme mit
+Miete 2.880 (Grundmiete + Garage), NK 100, Kaution 8.940, Zahltag 3; Handy-Ansicht 390 px; keine
+JS-Fehler. **Nicht live getestet** (Anmeldung nötig).
+
 ## Offen
 
 1. **Max** lesend: Werkzeug „Mietinteressenten“ (ohne Preise, ohne Annehmen).
@@ -151,4 +226,8 @@ Aufruf mit unbekannter ID → `{"skipped":true}`.
 3. Datenschutzerklärung der Website um Mietinteressenten (Selbstauskunft, Unterlagen,
    Speicherdauer, Löschung bei Absage) ergänzen — Text von Uli freigeben.
 4. Löschkonzept: Unterlagen abgelehnter Interessenten nach Frist löschen (derzeit von Hand).
-5. Mietvertrag-Vorlage und Übergabeprotokoll (Paket D).
+5. ~~Mietvertrag-Vorlage und Übergabeprotokoll (Paket D)~~ — erledigt 18.11.2026 (SQL 74).
+6. Editor für die Vertragsvorlage in der App (derzeit: Änderungen je Vertrag über „Absatz ändern“,
+   dauerhafte Änderungen an der Vorlage per SQL / `rental_contract_templates.content`).
+7. Wald: rechtliche Einordnung (MRG) klären, Vertragsdaten ergänzen.
+8. Energieausweise beider Häuser in Vertragsdaten eintragen (auch für die Portal-Anzeigen nötig).

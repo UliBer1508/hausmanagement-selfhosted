@@ -847,7 +847,7 @@ async function zusatzSchreiben(documentId: string, zusatz?: Zuordnung[]) {
 }
 
 /** Laedt die Datei in Bloecken direkt zu Microsoft. */
-async function putInChunks(uploadUrl: string, file: File, onProgress?: (p: number) => void) {
+export async function putInChunks(uploadUrl: string, file: File, onProgress?: (p: number) => void) {
   const CHUNK = 5 * 320 * 1024; // 1,6 MB — Graph verlangt Vielfache von 320 KiB
   let start = 0;
   let last: any = null;

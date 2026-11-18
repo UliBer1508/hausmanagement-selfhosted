@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
-import { Mail, Phone, FileText, Calculator, Loader2, Home } from 'lucide-react';
+import { Mail, Phone, FileText, Calculator, Loader2, Home, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import {
 } from '@/hooks/useRentalInquiries';
 import RentalOfferDialog from './RentalOfferDialog';
 import RentalCalculationDialog from './RentalCalculationDialog';
+import RentalContractDataDialog from './RentalContractDataDialog';
 
 const datum = (iso: string) => format(parseISO(iso), 'dd.MM.yyyy');
 
@@ -30,6 +31,7 @@ const RentalInquiries = () => {
   const [angebotFuer, setAngebotFuer] = useState<RentalInquiry | null>(null);
   const [kalkHaus, setKalkHaus] = useState<string>('');
   const [kalkOffen, setKalkOffen] = useState(false);
+  const [datenOffen, setDatenOffen] = useState(false);
 
   // neuestes Angebot je Anfrage (Liste ist nach created_at absteigend sortiert)
   const angebotZu = (id: string) => angebote.find(o => o.inquiry_id === id);
@@ -55,7 +57,7 @@ const RentalInquiries = () => {
         <div className="flex flex-wrap items-center gap-2">
           <Select value={kalkHaus} onValueChange={setKalkHaus}>
             <SelectTrigger className="w-52" aria-label="Haus für die Kalkulation">
-              <SelectValue placeholder="Haus für Kalkulation" />
+              <SelectValue placeholder="Haus wählen" />
             </SelectTrigger>
             <SelectContent>
               {kalkHaeuser.map(h => <SelectItem key={h.id} value={h.id}>{h.name}</SelectItem>)}
@@ -63,6 +65,10 @@ const RentalInquiries = () => {
           </Select>
           <Button variant="outline" disabled={!kalkHaus} onClick={() => setKalkOffen(true)}>
             <Calculator className="h-4 w-4 mr-2" />Kalkulation
+          </Button>
+          <Button variant="outline" disabled={!kalkHaus} onClick={() => setDatenOffen(true)}
+            title="Vermieter, Konto, Objekt, Energieausweis, Protokoll – für den Mietvertrag">
+            <Settings2 className="h-4 w-4 mr-2" />Vertragsdaten
           </Button>
           <Select value={filter} onValueChange={v => setFilter(v as 'open' | 'all')}>
             <SelectTrigger className="w-40" aria-label="Filter"><SelectValue /></SelectTrigger>
@@ -163,6 +169,12 @@ const RentalInquiries = () => {
       <RentalCalculationDialog
         open={kalkOffen}
         onOpenChange={setKalkOffen}
+        houseId={kalkHaus || null}
+        houseName={hausName(kalkHaus)}
+      />
+      <RentalContractDataDialog
+        open={datenOffen}
+        onOpenChange={setDatenOffen}
         houseId={kalkHaus || null}
         houseName={hausName(kalkHaus)}
       />

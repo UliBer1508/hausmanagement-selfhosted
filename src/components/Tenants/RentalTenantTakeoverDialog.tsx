@@ -12,12 +12,15 @@ import { useToast } from '@/hooks/use-toast';
 import { useHouses, useUpdateHouse } from '@/hooks/useHouses';
 import type { TenantInfo } from '@/types';
 import type { RentalOffer } from '@/hooks/useRentalInquiries';
+import type { RentalContract } from '@/hooks/useRentalContracts';
 
 interface RentalTenantTakeoverDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   offer: RentalOffer | null;
   guestPhone?: string | null;
+  /** Mietvertrag (SQL 74): wenn vorhanden, kommen Laufzeit, Beträge, Kaution, Zahltag von dort */
+  contract?: RentalContract | null;
   onDone?: () => void;
 }
 
@@ -29,7 +32,7 @@ interface RentalTenantTakeoverDialogProps {
  * Danach: Angebot converted_at, Anfrage → „erledigt“.
  * Schreibt über useUpdateHouse (Hook-Regel AGENTS.md), nicht direkt.
  */
-const RentalTenantTakeoverDialog = ({ open, onOpenChange, offer, guestPhone, onDone }: RentalTenantTakeoverDialogProps) => {
+const RentalTenantTakeoverDialog = ({ open, onOpenChange, offer, guestPhone, contract, onDone }: RentalTenantTakeoverDialogProps) => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { data: houses = [] } = useHouses();
@@ -62,7 +65,26 @@ const RentalTenantTakeoverDialog = ({ open, onOpenChange, offer, guestPhone, onD
       notes: `Wohnen auf Zeit, Angebot vom ${format(parseISO(offer.created_at), 'dd.MM.yyyy')} angenommen` +
         (offer.utilities_mode === 'flat' ? ' · Nebenkosten als Pauschale' : ' · Nebenkosten als Vorauszahlung'),
     });
-  }, [open, offer, guestPhone]);
+    // Aus dem Mietvertrag (ausgefertigt/unterschrieben): Miete = Positionen „Miete“ + „Zusatz“, NK = „Nebenkosten“
+    const v = contract && contract.status !== 'draft' && contract.status !== 'cancelled' ? contract.values : null;
+    if (v) {
+      const summe = (arten: string[]) => v.positions.filter(p => arten.includes(p.kind))
+        .reduce((s, p) => s + (Number(p.amount) || 0), 0);
+      setW(a => ({
+        ...a,
+        tenant_name: v.mieter_name || a.tenant_name,
+        tenant_email: v.mieter_email || a.tenant_email,
+        tenant_phone: v.mieter_telefon || a.tenant_phone,
+        contract_start: v.beginn || a.contract_start,
+        contract_end: v.ende ?? '',
+        monthly_rent: String(summe(['rent', 'other'])),
+        additional_costs: String(summe(['utilities'])),
+        deposit_amount: v.kaution || a.deposit_amount,
+        payment_day: v.zahltag ? String(v.zahltag) : a.payment_day,
+        notes: `${a.notes} · Werte laut Mietvertrag`,
+      }));
+    }
+  }, [open, offer, guestPhone, contract]);
 
   if (!offer) return null;
   const setze = (k: keyof typeof w, v: string) => setW(a => ({ ...a, [k]: v }));

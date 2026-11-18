@@ -363,7 +363,7 @@ aus `weekly_pricing` und AirROI-Regionaldaten aus `market_data_cache`,
 | payments | `TenantPayments.tsx` (+ `CreatePaymentDialog`, `EditPaymentDialog`, `MonthlyPaymentTimeline`) |
 | utilities | Nebenkosten: `UtilityCostsPanel` → `UtilityCostSettings`, `UtilityCostEntry`, `UtilityStatementGenerator` (+ `ExcelUtilityImport`) |
 | analytics | `TenantAnalytics.tsx` (+ `OverallPerformance`, `ObjectPerformanceCard`) |
-| interessenten | `RentalInquiries.tsx` (+ `RentalOfferDialog` → `RentalApplicationPanel`, `RentalTenantTakeoverDialog`; `RentalCalculationDialog`) — Mietanfragen „Wohnen auf Zeit“ von der Website (18.11.2026) |
+| interessenten | `RentalInquiries.tsx` (+ `RentalOfferDialog` → `RentalApplicationPanel`, `RentalContractDialog`, `RentalTenantTakeoverDialog`; `RentalCalculationDialog`, `RentalContractDataDialog`) — Mietanfragen „Wohnen auf Zeit“ von der Website (18.11.2026) |
 
 > Nebenkosten-Abrechnungs-PDF: `lib/utilityStatementPdf.ts`.
 
@@ -388,6 +388,22 @@ aus `weekly_pricing` und AirROI-Regionaldaten aus `market_data_cache`,
   `document_links` `mietangebot`. „Als Mieter übernehmen“ (`RentalTenantTakeoverDialog`) schreibt
   `houses.tenant_info` über `useUpdateHouse`. **DB-Trigger** `rental_*_notify` → `rental-portal`
   → E-Mail an steinbockchalets@gmail.com (je Ereignis einmal).
+- **Paket D (SQL 74): Mietvertrag + Übergabeprotokoll + Inventarliste.**
+  - `Tenants/RentalContractDialog.tsx` — Knopf „Mietvertrag erstellen/öffnen“ im Angebot (nur bei
+    angenommenem Angebot). Vorbelegt aus Angebot, Selbstauskunft, Vertragsdaten; Entwurf →
+    „Ausfertigen und ablegen“ (2 PDFs nach OneDrive) → Scan „unterschrieben“ hochladen.
+  - `Tenants/RentalContractDataDialog.tsx` — „Vertragsdaten“ je Haus (Knopf im Kopf von
+    Interessenten, neben Kalkulation): Vermieter, Konto, Objekt, MRG-Hinweis, Gemeinde, Hausregeln,
+    Energieausweis, Zähler/Schlüssel/Räume.
+  - `hooks/useRentalContracts.ts` — Vorlage, Vertragsdaten, Inventar (`house_inventory` ohne
+    `is_template`), Vertrag je Angebot, `uploadContractFile()` (über `onedrive-api`, Ordner-Regel
+    wie `rental-portal`.`unterlagenOrdner` — **zwei Stellen, gemeinsam ändern**).
+  - `lib/rentalContract.ts` — Platzhalter `{{…}}` einsetzen, „fehlt“-Liste, Inventar gruppieren.
+  - `lib/rentalContractPdf.ts` — PDF (jsPDF + autotable), zweispaltig DE/EN wie Ulis Kurzfassung.
+  - „Als Mieter übernehmen“ nimmt Laufzeit/Beträge/Kaution/Zahltag aus dem Vertrag (wenn ausgefertigt).
+  - **Doppelgänger-Warnung:** NICHT `TenantContracts.tsx` (Sub-Tab „Verträge“ = Vertragsdaten
+    bestehender Mieter aus `houses.tenant_info`, kein Dokument). `putInChunks` ist jetzt aus
+    `useDocuments.ts` exportiert (gleicher Upload wie Dokumentenverwaltung).
 - Ablauf und Entscheidungen: **`docs/Konzept-Wohnen-auf-Zeit.md`**.
 
 **Betriebskosten (01.11.2026):** `Tenants/UtilityCostsPanel.tsx` ist die EINE

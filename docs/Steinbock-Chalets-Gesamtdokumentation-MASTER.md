@@ -513,7 +513,9 @@ im echten Test bewiesen (E-Mail angekommen).
   steinbockchalets.com landen in `rental_inquiries` (NICHT `booking_inquiries`), Tab Mieter →
   „Interessenten“, Hinweis-Banner in der Übersicht. Interne Kalkulation je Haus und
   persönliches Angebot mit Link `steinbockchalets.com/angebot/<token>`; Preise nie öffentlich.
-  Max nimmt Mietanfragen nicht an. Details: `docs/Konzept-Wohnen-auf-Zeit.md`.
+  Max nimmt Mietanfragen nicht an. Seit SQL 74 (Paket D): Mietvertrag + Übergabeprotokoll +
+  Inventarliste als PDF (DE/EN) aus Vorlage und Vertragsdaten je Haus, Ablage in OneDrive beim
+  Interessenten. Details: `docs/Konzept-Wohnen-auf-Zeit.md`.
 - **Mietzahlungen Dauermiete:** generate-tenant-payments (Cron täglich 06:00, bucht
   am Zahltag die Soll-Warmmiete inkl. Miethistorie; unbefristete Verträge seit
   28.09.2026 eingeschlossen). Ablauf: `docs/Prozess-Mieterhoehung-und-Mietzahlungen.md`.
