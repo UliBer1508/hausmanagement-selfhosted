@@ -915,7 +915,10 @@ Verfahrens Hauptbezug/Ablageort). `document_links.position` erlaubt 2–9.
 **Mehrere Dateien (seit 18.11.2026):** `AblageDialog` nimmt mehrere Dateien
 (Auswahl oder Hineinziehen). Die erste wird bearbeitet, die übrigen warten in
 `warteschlange`; nach dem Ablegen rückt die nächste nach, Typ/Zuordnung/Ordner
-bleiben stehen, „Dokument lesen" je Datei. `AblageDialog` ist exportiert
+bleiben stehen, „Dokument lesen" je Datei. Knopf **„Alle N hochladen"**
+(`alleHochladen`) legt den ganzen Stapel ohne weitere Klicks ab (Effekt an
+`file` ruft `submit()` erneut), stoppt beim ersten Fehler; „Nur diese Datei"
+legt einzeln ab. `AblageDialog` ist exportiert
 (`preset` für Aufrufe von außen). Die 1. Zuordnung steht als Spalte in
 `documents` (`provider_id`, `vendor_id`, `portal_id`, `house_id`, …) und
 bestimmt den Ablageort; die 2./3. stehen in `document_links`.

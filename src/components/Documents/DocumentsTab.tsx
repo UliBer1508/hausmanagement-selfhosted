@@ -1018,6 +1018,9 @@ export function AblageDialog({ types, onClose, preset }: {
   // Ablegen rueckt die naechste nach — Typ, Zuordnung und Ordner bleiben stehen.
   const [warteschlange, setWarteschlange] = useState<File[]>([]);
   const [abgelegt, setAbgelegt] = useState(0);
+  // „Alle hochladen": nach jeder Datei automatisch die naechste ablegen,
+  // mit denselben Angaben (Typ, Zuordnung, Ordner). Stoppt beim ersten Fehler.
+  const [alleHochladen, setAlleHochladen] = useState(false);
   const [existing, setExisting] = useState<OneDriveFile | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -2125,6 +2128,7 @@ export function AblageDialog({ types, onClose, preset }: {
             // Die Datei liegt bereits richtig. Der Dialog bleibt offen,
             // damit der Fehler nicht unbemerkt verschwindet.
             setErr(`Datei abgelegt, aber: ${e.message}`);
+            setAlleHochladen(false);
             return;
           }
           /*
@@ -2150,9 +2154,12 @@ export function AblageDialog({ types, onClose, preset }: {
             pick(naechste);
             return;
           }
+          if (alleHochladen) {
+            toast({ title: 'Alle abgelegt', description: `${abgelegt + 1} Dateien liegen in ${folder!.path || 'OneDrive'}.` });
+          }
           onClose();
         },
-        onError: (e: any) => setErr(e.message),
+        onError: (e: any) => { setErr(e.message); setAlleHochladen(false); },
       });
     } else {
       linkExisting.mutate({ itemId: existing!.id, ...links }, {
@@ -2166,6 +2173,13 @@ export function AblageDialog({ types, onClose, preset }: {
   };
 
   const busy = upload.isPending || linkExisting.isPending;
+
+  // „Alle hochladen": Ist die naechste Datei nachgerueckt, sofort ablegen.
+  // Absichtlich nur an `file` gebunden — submit() liest den aktuellen Stand.
+  useEffect(() => {
+    if (alleHochladen && file && !busy && !err) submit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file]);
 
   return (
     <Dialog open onOpenChange={() => !busy && onClose()}>
@@ -2351,7 +2365,7 @@ export function AblageDialog({ types, onClose, preset }: {
                   )}
                 </div>
               ))}
-              <p className="mt-1 text-muted-foreground">Typ, Zuordnung und Ordner bleiben für die nächste Datei stehen — vor dem Hochladen kurz prüfen.</p>
+              <p className="mt-1 text-muted-foreground">„Alle hochladen" legt alle Dateien mit diesem Typ, dieser Zuordnung und diesem Ordner ab. Für eigene Angaben je Datei „Nur diese Datei" nehmen.</p>
             </div>
           )}
 
@@ -2674,9 +2688,18 @@ export function AblageDialog({ types, onClose, preset }: {
 
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={busy}>Abbrechen</Button>
-          <Button onClick={submit} disabled={busy}>
-            {busy ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {progress > 0 ? `${progress}%` : 'Läuft…'}</>
-                  : source === 'pc' ? (warteschlange.length > 0 ? `Hochladen (${abgelegt + 1} von ${abgelegt + 1 + warteschlange.length})` : 'Hochladen') : 'Verknüpfen'}
+          {source === 'pc' && warteschlange.length > 0 && !alleHochladen && (
+            <Button variant="outline" onClick={submit} disabled={busy}>
+              Nur diese Datei ({abgelegt + 1} von {abgelegt + 1 + warteschlange.length})
+            </Button>
+          )}
+          <Button
+            onClick={() => { if (source === 'pc' && warteschlange.length > 0) setAlleHochladen(true); submit(); }}
+            disabled={busy || alleHochladen}>
+            {busy || alleHochladen
+              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {alleHochladen ? `Lege ab: ${abgelegt + 1} von ${abgelegt + 1 + warteschlange.length}` : progress > 0 ? `${progress}%` : 'Läuft…'}</>
+              : source === 'pc' ? (warteschlange.length > 0 ? `Alle ${warteschlange.length + 1} hochladen` : 'Hochladen') : 'Verknüpfen'}
           </Button>
         </div>
       </DialogContent>
