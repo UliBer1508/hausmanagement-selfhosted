@@ -177,7 +177,8 @@ select c.id, v.entry_type, v.entry_date::date, v.due_date::date, v.title, v.deta
 
 -- 6b. Venedigersiedlung 316 — Bauamt Neukirchen (Zweckentfremdung)
 with h as (
-  select id from public.houses where name ilike '%316%' limit 1
+  -- Haus heißt „Venediger Chalet" — die 316 steht nur in der Adresse
+  select id from public.houses where name ilike '%316%' or address ilike '%Venedigersiedlung 316%' limit 1
 ), c as (
   insert into public.legal_cases
     (house_id, title, case_type, status, opponent, court_or_authority, summary)
