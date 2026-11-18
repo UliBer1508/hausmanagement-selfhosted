@@ -212,3 +212,48 @@ export interface TenantPayment {
   updated_at?: string;
   houses?: House;
 }
+// ---------------------------------------------------------------------------
+// Rechtliche Verfahren je Objekt (Tab „Rechtliches", SQL 69_rechtliches_verfahren.sql)
+// ---------------------------------------------------------------------------
+export type LegalCaseType =
+  | 'raeumungsklage' | 'mietrueckstand' | 'behoerde' | 'gewaehrleistung' | 'schaden' | 'sonstiges';
+
+export type LegalCaseStatus =
+  | 'vorbereitung' | 'offen' | 'eingereicht' | 'zugestellt' | 'verhandlung'
+  | 'urteil' | 'vollstreckung' | 'ruht' | 'erledigt';
+
+export type LegalEntryType = 'ereignis' | 'aufgabe' | 'frage' | 'frist';
+
+export interface LegalCaseEntry {
+  id: string;
+  case_id: string;
+  entry_type: LegalEntryType;
+  entry_date: string;
+  due_date?: string | null;
+  title: string;
+  details?: string | null;
+  done: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LegalCase {
+  id: string;
+  house_id: string;
+  title: string;
+  case_type: LegalCaseType;
+  status: LegalCaseStatus;
+  opponent?: string | null;
+  court_or_authority?: string | null;
+  file_number?: string | null;
+  lawyer_name?: string | null;
+  lawyer_contact?: string | null;
+  filed_date?: string | null;
+  served_date?: string | null;
+  next_hearing_date?: string | null;
+  summary?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  houses?: Pick<House, 'id' | 'name' | 'rental_type'>;
+  legal_case_entries?: LegalCaseEntry[];
+}

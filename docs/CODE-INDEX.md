@@ -72,6 +72,7 @@ src/main.tsx
 | Provider | 🏢 | `ProviderTab` | `components/Dashboard/ProviderTab.tsx` |
 | Wäsche | 💧 | `LinenDashboard` | `components/Houses/LinenDashboard.tsx` |
 | Preise | 💶 | `PricingTab` → `PricingDashboard` | `components/Dashboard/PricingTab.tsx` |
+| Rechtliches | ⚖️ | `LegalCasesTab` (lazy) | `components/Legal/LegalCasesTab.tsx` |
 | Einstellungen | ⚙️ | `SettingsTab` | `components/Dashboard/SettingsTab.tsx` |
 
 > Mehrere Tab-Inhalte bekommen vorgeladene Daten als Props aus
@@ -374,6 +375,23 @@ Je Haus gespeichert (`utility_settings`, SQL 67): `country` (DE/AT) und
 `excluded_category_ids` (abgewählte Kostenarten). Welche Kostenarten ein Haus
 angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
 `hooks/useUtilityCosts.ts`. Details: **`docs/Nebenkosten-Touristisch-vs-Festvermietung.md`**.
+
+**Rechtliches — Verfahren je Objekt (18.11.2026):**
+- Haupt-Tab „Rechtliches" ⚖️ → `components/Legal/LegalCasesTab.tsx` →
+  `LegalCaseCard.tsx` (Anzeige, Schonfrist, Rückstand, Einträge),
+  `LegalCaseDialog.tsx` (Verfahren anlegen/bearbeiten),
+  `LegalEntryDialog.tsx` (Ereignis / Aufgabe / Frage an Anwalt / Frist).
+- Daten: `hooks/useLegalCases.ts`, Tabellen `legal_cases` + `legal_case_entries`
+  (SQL `supabase/SQL/69_rechtliches_verfahren.sql`, RLS nur Admin, GRANTs ohne anon).
+- Für **jedes** Objekt (Ferienhaus und Festvermietung). Startdaten:
+  Winthirstrasse (Räumungsklage), Venedigersiedlung 316 (Bauamt).
+- Schonfrist § 569 Abs. 3 Nr. 2 BGB wird **berechnet** (`served_date` + 2 Monate),
+  nicht gespeichert — nur bei `case_type` `raeumungsklage`/`mietrueckstand`.
+- Rückstand in der Karte live aus `tenant_payments` (offene Monatsmieten bis heute
+  minus Sonderzahlungen seit dem ältesten offenen Monat) — nur `long_term`.
+- `TenantPayments.tsx`: Banner bei laufendem Verfahren, Mahn-Knopf ausgeblendet
+  für Objekte mit laufendem Verfahren (`status <> 'erledigt'`).
+- Offen: Dokumente am Verfahren, Fristwarnung in Max' Morgen-Zusammenfassung.
 
 **Sonderzahlungen (`tenant_payments.payment_type`, 18.11.2026):**
 - `payment_type` = `'rent'` (Monatsmiete, Standard) oder `'special'`

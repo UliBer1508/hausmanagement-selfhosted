@@ -3,6 +3,7 @@ import { openEmail } from "@/lib/mailtoHelper";
 import { useHouses } from "@/hooks/useHouses";
 import { useTenantPayments, useDeletePayment, useUpdatePayment } from "@/hooks/useTenantPayments";
 import { useTenantRentChanges, getActiveRent, getActiveAdditionalCosts } from "@/hooks/useTenantRentChanges";
+import { useLegalCases, isCaseActive } from "@/hooks/useLegalCases";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,15 @@ const TenantPayments = () => {
 
   const longTermRentals = houses?.filter(h => h.rental_type === 'long_term') || [];
   const { data: rentChanges = [] } = useTenantRentChanges();
+
+  // Laufende rechtliche Verfahren (Tab „Rechtliches") für die angezeigten Objekte —
+  // dann keine Mahnungen aus der App, Schriftverkehr über den Anwalt.
+  const { data: legalCases = [] } = useLegalCases();
+  const activeLegalCases = legalCases.filter(c =>
+    isCaseActive(c) &&
+    (selectedHouseId === "all"
+      ? longTermRentals.some(h => h.id === c.house_id)
+      : c.house_id === selectedHouseId));
 
   const months = [
     { value: 0, label: "Januar" },
@@ -288,6 +298,14 @@ const TenantPayments = () => {
         </Button>
       </div>
 
+      {activeLegalCases.length > 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          ⚖️ Laufendes Verfahren:{' '}
+          {activeLegalCases.map(c => `${c.houses?.name ?? 'Objekt'} – ${c.title}`).join('; ')}.
+          Keine Mahnungen aus der App — Schriftverkehr über den Anwalt. Details im Tab „Rechtliches".
+        </div>
+      )}
+
       {specialPayments.length > 0 && (
         <div className="rounded-md border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-900">
           Enthält {specialPayments.length === 1 ? 'eine Sonderzahlung' : `${specialPayments.length} Sonderzahlungen`} über{' '}
@@ -348,7 +366,8 @@ const TenantPayments = () => {
                     <Button variant="ghost" size="sm" onClick={() => { setSelectedPayment(payment); setIsEditDialogOpen(true); }}>
                       Bearbeiten
                     </Button>
-                    {payment.status === 'overdue' && (
+                    {/* Bei laufendem Verfahren keine Mahnung aus der App (Schriftverkehr über den Anwalt) */}
+                    {payment.status === 'overdue' && !activeLegalCases.some(c => c.house_id === payment.house_id) && (
                       <Button 
                         variant="ghost" 
                         size="sm" 

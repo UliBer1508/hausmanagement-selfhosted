@@ -63,6 +63,7 @@ const TEUNI_PROVIDER_ID = 'd8110105-8ac9-45e3-ad32-aaf42393744c';
 const PricingTab = lazy(() => import('@/components/Dashboard/PricingTab'));
 const ProviderTab = lazy(() => import('@/components/Dashboard/ProviderTab'));
 const DocumentsTab = lazy(() => import('@/components/Documents/DocumentsTab'));
+const LegalCasesTab = lazy(() => import('@/components/Legal/LegalCasesTab'));
 const SettingsTab = lazy(() => import('@/components/Dashboard/SettingsTab'));
 const CalendarTab = lazy(() => import('@/components/Dashboard/CalendarTab'));
 const OverviewTab = lazy(() => import('@/components/Dashboard/OverviewTab'));
@@ -973,6 +974,7 @@ const OriginalDashboard = () => {
     { name: 'Wäsche', emoji: '💧' },
     { name: 'Preise', emoji: '💶' },
     { name: 'Dokumente', emoji: '📄' },
+    { name: 'Rechtliches', emoji: '⚖️' },
     { name: 'Einstellungen', emoji: '⚙️' }
   ];
 
@@ -1283,6 +1285,8 @@ const OriginalDashboard = () => {
         return <PricingTab />;
       case 'Dokumente':
         return <DocumentsTab />;
+      case 'Rechtliches':
+        return <LegalCasesTab />;
       case 'Einstellungen':
         return (
           <SettingsTab
