@@ -13,6 +13,11 @@ import LegalCaseDialog from "./LegalCaseDialog";
 
 // Haupt-Tab „Rechtliches" (OriginalDashboard). Verfahren für JEDES Objekt —
 // Ferienhaus und Festvermietung (Räumungsklage, Behörde, Gewährleistung …).
+const today = () => new Date().toISOString().slice(0, 10);
+const urgency = (c: LegalCase) => (c.legal_case_entries ?? []).reduce((n, e) =>
+  n + (!e.done && ['aufgabe', 'frist', 'frage'].includes(e.entry_type) ? 1 : 0)
+    + (!e.done && e.due_date && e.due_date < today() ? 1 : 0), 0);
+
 const LegalCasesTab = () => {
   const { data: houses = [] } = useHouses();
   const { data: cases = [], isLoading } = useLegalCases();
@@ -24,7 +29,9 @@ const LegalCasesTab = () => {
   const visible = useMemo(() =>
     cases.filter(c =>
       (houseFilter === 'all' || c.house_id === houseFilter) &&
-      (showClosed || isCaseActive(c))),
+      (showClosed || isCaseActive(c)))
+      // laufende zuerst, dann die mit den meisten offenen Punkten (überfällige doppelt)
+      .sort((a, b) => Number(isCaseActive(b)) - Number(isCaseActive(a)) || urgency(b) - urgency(a)),
   [cases, houseFilter, showClosed]);
 
   const closedCount = cases.filter(c => !isCaseActive(c)).length;

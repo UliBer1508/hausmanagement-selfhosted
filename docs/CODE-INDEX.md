@@ -391,7 +391,19 @@ angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
   minus Sonderzahlungen seit dem ältesten offenen Monat) — nur `long_term`.
 - `TenantPayments.tsx`: Banner bei laufendem Verfahren, Mahn-Knopf ausgeblendet
   für Objekte mit laufendem Verfahren (`status <> 'erledigt'`).
-- Offen: Dokumente am Verfahren, Fristwarnung in Max' Morgen-Zusammenfassung.
+- **Ergänzt 18.11.2026 (SQL 70):** Eintragsarten `kuendigung`, `schriftsatz`,
+  `beweis`, `termin` zusätzlich zu `ereignis`/`aufgabe`/`frage`/`frist`; Felder
+  `subtype` (Art der Kündigung), `party` (von wem), `reference` (Anlage/Zeichen).
+  Welche Felder der Dialog zeigt: `ENTRY_FIELDS` in `useLegalCases.ts`.
+- Jedes Fenster der Karte (Überblick, Kündigungen, Termine, Fristen & Aufgaben,
+  Fragen, Schriftsätze, Beweise, Chronik, Dokumente) und die Karte selbst sind
+  ein-/ausklappbar (`Collapsible`); Zustand je Browser in `localStorage`
+  (`legal-collapse-v1`, mit try/catch).
+- Dateien: Tabelle `legal_case_files`, privater Bucket `legal-files`
+  (Pfad `<case_id>/<zeit>-<name>`), Anzeige per signierter URL
+  (`openLegalFile`, 10 Min). Am Eintrag anhängen (Dialog) oder lose unter
+  „Dokumente". Verfahren löschen entfernt auch die Dateien im Speicher.
+- Offen: Fristwarnung in Max' Morgen-Zusammenfassung.
 
 **Sonderzahlungen (`tenant_payments.payment_type`, 18.11.2026):**
 - `payment_type` = `'rent'` (Monatsmiete, Standard) oder `'special'`

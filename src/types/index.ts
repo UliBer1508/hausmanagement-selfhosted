@@ -222,7 +222,12 @@ export type LegalCaseStatus =
   | 'vorbereitung' | 'offen' | 'eingereicht' | 'zugestellt' | 'verhandlung'
   | 'urteil' | 'vollstreckung' | 'ruht' | 'erledigt';
 
-export type LegalEntryType = 'ereignis' | 'aufgabe' | 'frage' | 'frist';
+export type LegalEntryType =
+  | 'ereignis' | 'aufgabe' | 'frage' | 'frist'
+  // seit SQL 70:
+  | 'kuendigung' | 'schriftsatz' | 'beweis' | 'termin';
+
+export type LegalParty = 'wir' | 'anwalt' | 'gegner' | 'gericht' | 'behoerde' | 'sonstige';
 
 export interface LegalCaseEntry {
   id: string;
@@ -233,8 +238,27 @@ export interface LegalCaseEntry {
   title: string;
   details?: string | null;
   done: boolean;
+  /** z. B. bei kuendigung: fristlos | ordentlich | hilfsweise_ordentlich (SQL 70) */
+  subtype?: string | null;
+  /** von wem (SQL 70) */
+  party?: LegalParty | null;
+  /** Anlage-Nr., Aktenzeichen … (SQL 70) */
+  reference?: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+/** Datei am Verfahren, Bucket 'legal-files' (privat, SQL 70) */
+export interface LegalCaseFile {
+  id: string;
+  case_id: string;
+  entry_id?: string | null;
+  file_path: string;
+  file_name: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  description?: string | null;
+  created_at?: string;
 }
 
 export interface LegalCase {
@@ -256,4 +280,5 @@ export interface LegalCase {
   updated_at?: string;
   houses?: Pick<House, 'id' | 'name' | 'rental_type'>;
   legal_case_entries?: LegalCaseEntry[];
+  legal_case_files?: LegalCaseFile[];
 }
