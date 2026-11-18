@@ -17,6 +17,8 @@ import {
 } from "@/hooks/useLegalCases";
 import { useTenantPayments } from "@/hooks/useTenantPayments";
 import LegalEntryDialog from "./LegalEntryDialog";
+import FileDropZone from "./FileDropZone";
+import { toast } from "sonner";
 
 interface Props {
   legalCase: LegalCase;
@@ -244,6 +246,7 @@ const LegalCaseCard = ({ legalCase, onEdit }: Props) => {
   const [fileToDelete, setFileToDelete] = useState<LegalCaseFile | null>(null);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [fileDescription, setFileDescription] = useState('');
+  const [uploading, setUploading] = useState<{ done: number; total: number } | null>(null);
   // Ganze Karte ein-/ausklappen; laufende Verfahren starten offen
   const [cardOpen, setCardOpen] = usePersistentOpen(`${legalCase.id}:card`, isCaseActive(legalCase));
   // Zähler, damit „alle auf/zu" die Fenster neu mountet
@@ -281,14 +284,22 @@ const LegalCaseCard = ({ legalCase, onEdit }: Props) => {
   };
 
   const handleUpload = async () => {
+    // Nacheinander hochladen; bei einem Fehler bleiben die restlichen Dateien in
+    // der Auswahl, damit man es erneut versuchen kann.
+    const queue = [...newFiles];
+    setUploading({ done: 0, total: queue.length });
     try {
-      for (const file of newFiles) {
-        await uploadFile.mutateAsync({ caseId: legalCase.id, file, description: fileDescription.trim() || null });
+      for (let i = 0; i < queue.length; i++) {
+        setUploading({ done: i, total: queue.length });
+        await uploadFile.mutateAsync({ caseId: legalCase.id, file: queue[i], description: fileDescription.trim() || null });
+        setNewFiles(queue.slice(i + 1));
       }
-      setNewFiles([]);
       setFileDescription('');
+      toast.success(queue.length === 1 ? 'Datei hochgeladen' : `${queue.length} Dateien hochgeladen`);
     } catch {
       // Fehlermeldung kommt aus onError im Hook
+    } finally {
+      setUploading(null);
     }
   };
 
@@ -390,13 +401,14 @@ const LegalCaseCard = ({ legalCase, onEdit }: Props) => {
             {/* Dokumente: alle Dateien des Verfahrens + Hochladen */}
             <Section storageKey={`${legalCase.id}:documents`} title="Dokumente" count={files.length} defaultOpen={false}>
               <div className="space-y-3">
+                <FileDropZone files={newFiles} onChange={setNewFiles} disabled={uploading !== null} />
                 <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                  <Input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.eml,.msg"
-                    onChange={(e) => setNewFiles(Array.from(e.target.files ?? []))} className="sm:max-w-xs" />
-                  <Input placeholder="Beschreibung (optional)" value={fileDescription}
+                  <Input placeholder="Beschreibung für alle gewählten Dateien (optional)" value={fileDescription}
                     onChange={(e) => setFileDescription(e.target.value)} />
-                  <Button size="sm" onClick={handleUpload} disabled={newFiles.length === 0 || uploadFile.isPending}>
-                    <Upload className="h-4 w-4 mr-1" /> {uploadFile.isPending ? 'Lädt …' : 'Hochladen'}
+                  <Button size="sm" onClick={handleUpload} disabled={newFiles.length === 0 || uploading !== null} className="shrink-0">
+                    <Upload className="h-4 w-4 mr-1" />
+                    {uploading ? `Lädt ${uploading.done + 1} von ${uploading.total} …`
+                      : newFiles.length > 1 ? `${newFiles.length} Dateien hochladen` : 'Hochladen'}
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">

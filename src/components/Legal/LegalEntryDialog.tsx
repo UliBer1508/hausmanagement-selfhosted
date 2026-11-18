@@ -12,6 +12,7 @@ import {
 import { LegalCaseEntry, LegalEntryType, LegalParty } from "@/types";
 import { todayISO } from "@/lib/dateHelpers";
 import { toast } from "sonner";
+import FileDropZone from "./FileDropZone";
 
 interface Props {
   open: boolean;
@@ -165,10 +166,9 @@ const LegalEntryDialog = ({ open, onOpenChange, caseId, entry, defaultType = 'er
 
           <div>
             <Label>Dateien anhängen</Label>
-            <Input type="file" multiple accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.eml,.msg"
-              onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+            <FileDropZone files={files} onChange={setFiles} disabled={busy} />
             {files.length > 0 && (
-              <p className="mt-1 text-xs text-muted-foreground">{files.length} Datei(en) werden beim Speichern hochgeladen.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{files.length} Datei(en) werden beim Speichern an diesen Eintrag gehängt.</p>
             )}
           </div>
 

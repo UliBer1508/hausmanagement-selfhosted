@@ -404,6 +404,9 @@ angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
   (Pfad `<case_id>/<zeit>-<name>`), Anzeige per signierter URL
   (`openLegalFile`, 10 Min). Am Eintrag anhängen (Dialog) oder lose unter
   „Dokumente". Verfahren löschen entfernt auch die Dateien im Speicher.
+- Dateiauswahl: `components/Legal/FileDropZone.tsx` (Klick oder Hineinziehen,
+  mehrere Dateien, jede Auswahl wird ergänzt statt ersetzt, Doppelte werden
+  übersprungen). Genutzt im Fenster „Dokumente" und im Eintragsdialog.
 - Offen: Fristwarnung in Max' Morgen-Zusammenfassung.
 
 **Sonderzahlungen (`tenant_payments.payment_type`, 18.11.2026):**
