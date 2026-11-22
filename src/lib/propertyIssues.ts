@@ -86,6 +86,8 @@ export interface PropertyStatusResult {
   activeRent: number;
   /** Gültige NK-Vorauszahlung heute */
   activeAdditionalCosts: number;
+  /** Seit wann die heutige Miete gilt: letzte wirksame Mietänderung, sonst Vertragsbeginn */
+  activeRentSince: string | null;
   arrears: ArrearsResult | null;
   issues: PropertyIssue[];
   level: PropertyLevel;
@@ -126,6 +128,10 @@ export const buildPropertyIssues = (input: PropertyIssueInput): PropertyStatusRe
 
   const activeRent = getActiveRent(rentChanges, infoNumber(info?.monthly_rent), today);
   const activeAdditionalCosts = getActiveAdditionalCosts(rentChanges, infoNumber(info?.additional_costs), today);
+  const lastChange = rentChanges
+    .filter(rc => rc.effective_date <= todayISO)
+    .sort((a, b) => b.effective_date.localeCompare(a.effective_date))[0];
+  const activeRentSince = lastChange?.effective_date ?? (info?.contract_start || null);
   const arrears = isLongTerm ? calculateArrears(payments, todayISO) : null;
   const activeCases = legalCases.filter(isCaseActive);
 
@@ -223,5 +229,5 @@ export const buildPropertyIssues = (input: PropertyIssueInput): PropertyStatusRe
   issues.sort((a, b) => LEVEL_RANK[a.level] - LEVEL_RANK[b.level]);
   const level: PropertyLevel = issues.length === 0 ? 'ok' : issues[0].level;
 
-  return { isLongTerm, vacant, activeRent, activeAdditionalCosts, arrears, issues, level };
+  return { isLongTerm, vacant, activeRent, activeAdditionalCosts, activeRentSince, arrears, issues, level };
 };

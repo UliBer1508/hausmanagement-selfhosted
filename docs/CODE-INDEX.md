@@ -510,6 +510,7 @@ angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
   (`check_upcoming_bookings`) — keine zweite Logik.
 - Klick auf einen Punkt springt über `navigate('/', { state: { activeTab, tenantSubTab } })`.
 - Behoben: einzelne „0" unter Miete/Name (React rendert `{0 && …}` — Kaution/Miete 0).
+- Mietvertrags-Karte: Reihenfolge Warmmiete (fett) · NK-Vorauszahlung · Kaltmiete · „Miete gültig seit" (letzte wirksame Mietänderung, sonst Vertragsbeginn; `activeRentSince`).
 - Status der Mietobjekte bewusst NUR im Häuser-Tab, nicht in der Übersicht (Uli-Vorgabe 22.11.2026).
 
 Anlegen/Bearbeiten: `CreateHouseDialog.tsx`, `EditHouseDialog.tsx`
