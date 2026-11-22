@@ -7,6 +7,8 @@ import { Plus, Search } from 'lucide-react';
 import HouseCard from './HouseCard';
 import CreateHouseDialog from './CreateHouseDialog';
 import ScrapePricesDialog from './CompetitorAnalysis/ScrapePricesDialog';
+import { usePropertyStatus } from '@/hooks/usePropertyStatus';
+import type { TenantInfo } from '@/types';
 
 const HouseManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,6 +27,9 @@ const HouseManagement = () => {
       return data;
     },
   });
+
+  // Status je Objekt (Mietdetails, Belegung, Issues) — eine Abfragerunde für alle
+  const { data: propertyStatus } = usePropertyStatus();
 
   // Fetch inventory counts per house
   const { data: inventoryData } = useQuery({
@@ -64,6 +69,7 @@ const HouseManagement = () => {
     const searchLower = searchTerm.toLowerCase();
     return housesData.filter(house => 
       house.name.toLowerCase().includes(searchLower) ||
+      (house.tenant_info as TenantInfo | null)?.tenant_name?.toLowerCase().includes(searchLower) ||
       house.address?.toLowerCase().includes(searchLower)
     );
   }, [housesData, searchTerm]);
@@ -99,7 +105,7 @@ const HouseManagement = () => {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="Häuser durchsuchen..."
+          placeholder="Objekte oder Mieter durchsuchen..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="pl-9"
@@ -110,16 +116,18 @@ const HouseManagement = () => {
       {filteredHouses.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground">
-            {searchTerm ? 'Keine Häuser gefunden' : 'Noch keine Häuser vorhanden'}
+            {searchTerm ? 'Keine Objekte gefunden' : 'Noch keine Objekte vorhanden'}
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        // Je Objekt eine Reihe aus drei Karten (Objekt · Mietvertrag/Belegung · Issues)
+        <div className="space-y-6">
           {filteredHouses.map((house) => (
             <HouseCard
               key={house.id}
               house={house}
               inventoryCount={inventoryCounts[house.id] || { total: 0, categories: {} }}
+              status={propertyStatus?.find(s => s.houseId === house.id)}
             />
           ))}
         </div>
