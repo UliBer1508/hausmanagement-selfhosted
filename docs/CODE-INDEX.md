@@ -495,7 +495,11 @@ angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
 `Houses/HouseManagement.tsx` → je Objekt eine Reihe aus `HouseCard.tsx`
 (Umbau 22.11.2026: **drei Karten** im Stil der Übersichtskarten, Kopfbalken
 `Houses/HouseCardHeader.tsx`):
-1. **Objekt** — Typ aus `property_type` (Haus/Wohnung …), Adresse, Ausstattung, Inventar.
+1. **Objekt** — Name, Adresse, Eckdaten (Art aus `property_type`, Fläche, Zimmer, Bäder,
+   Inventar), **Kennzahlen laufendes Jahr** aus `lib/propertyFigures.ts`:
+   Festvermietung = Mieteinnahmen (bezahlte Zahlungen nach Eingangsdatum),
+   Jahresmiete warm Soll, Kaltmiete je m², Mietdauer; Buchungen = Auszahlungen
+   (`booking_amount` ist die Portal-Auszahlung), Buchungen/Nächte, Belegung.
 2. **Mietvertrag** (Festvermietung; Miete/NK gültig heute inkl. Mietänderungen,
    `getActiveRent`/`getActiveAdditionalCosts`) bzw. **Belegung** (touristisch:
    Gast im Haus, nächste Anreise). Preisanalyse bei beiden (eigener Modus je Vermietungsart).

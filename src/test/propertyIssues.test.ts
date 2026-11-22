@@ -105,3 +105,44 @@ describe('buildPropertyIssues', () => {
     expect(r.level).toBe('info');
   });
 });
+
+import { buildPropertyFigures } from '@/lib/propertyFigures';
+
+describe('buildPropertyFigures', () => {
+  it('Festvermietung: Einnahmen im Jahr, Soll, je m², Mietdauer', () => {
+    const f = buildPropertyFigures({
+      payments: [
+        { amount: 1400, status: 'paid', due_date: '2026-07-03', payment_date: '2026-07-05', payment_type: 'rent' },
+        { amount: 1600, status: 'paid', due_date: '2026-08-03', payment_date: '2026-08-08', payment_type: 'rent' },
+        { amount: 500, status: 'paid', due_date: '2026-09-10', payment_date: '2026-09-10', payment_type: 'special' },
+        { amount: 1600, status: 'overdue', due_date: '2026-10-03', payment_type: 'rent' },
+        { amount: 1400, status: 'paid', due_date: '2025-12-03', payment_date: '2026-01-02', payment_type: 'rent' },
+      ],
+      bookings: [],
+      activeRent: 1470,
+      activeAdditionalCosts: 130,
+      livingAreaSqm: 145,
+      contractStart: '2000-01-01',
+      today,
+    });
+    expect(f.rentReceivedYear).toBe(4900); // Eingang 2026 zählt, auch für Dez. 2025
+    expect(f.rentTargetYear).toBe(19200);
+    expect(f.coldRentPerSqm).toBeCloseTo(10.14, 2);
+    expect(f.tenantYears).toBe(26);
+  });
+
+  it('Buchungen: Auszahlungen, Nächte, Belegung', () => {
+    const f = buildPropertyFigures({
+      payments: [],
+      bookings: [
+        { check_in: '2026-02-01T15:00:00+00:00', check_out: '2026-02-08T10:00:00+00:00', booking_amount: 3000 },
+        { check_in: '2026-12-27', check_out: '2027-01-03', booking_amount: null },
+      ],
+      activeRent: 0, activeAdditionalCosts: 0, livingAreaSqm: 0, contractStart: null, today,
+    });
+    expect(f.bookingsYear).toBe(2);
+    expect(f.nightsYear).toBe(14);
+    expect(f.payoutYear).toBe(3000);
+    expect(f.occupancyYear).toBe(4);
+  });
+});
