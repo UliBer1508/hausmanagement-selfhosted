@@ -8,11 +8,12 @@ import {
   buildPropertyIssues,
   type PropertyStatusResult, type StatusInquiry, type StatusLegalCase, type StatusStatement,
 } from '@/lib/propertyIssues';
+import { buildPropertyFigures, type FigureBooking, type PropertyFigures } from '@/lib/propertyFigures';
 
 /**
  * Status je Objekt für den Häuser-Tab (drei Karten je Objekt, 22.11.2026).
  *
- * EINE Abfragerunde über alle Objekte (acht kleine Tabellen, parallel) —
+ * EINE Abfragerunde über alle Objekte (neun kleine Abfragen, parallel) —
  * keine Edge Function, kein KI-Aufruf. Die Bewertung macht
  * `buildPropertyIssues()` in `lib/propertyIssues.ts`.
  *
@@ -38,6 +39,8 @@ export interface PropertyStatus extends PropertyStatusResult {
   currentBooking: PropertyBooking | null;
   /** Nur touristisch: nächste Anreise (ohne Zeitgrenze) */
   nextBooking: PropertyBooking | null;
+  /** Kennzahlen laufendes Jahr (lib/propertyFigures.ts) */
+  figures: PropertyFigures;
 }
 
 export const PROPERTY_STATUS_KEY = ['property-status'];
@@ -48,6 +51,7 @@ interface HouseRow {
   property_type: string | null;
   rental_type: string | null;
   tenant_info: TenantInfo | null;
+  living_area_sqm: number | null;
 }
 
 interface BookingRow {
@@ -80,7 +84,7 @@ export const usePropertyStatus = () =>
       const todayISO = format(today, 'yyyy-MM-dd');
 
       const results: LooseResult[] = await Promise.all([
-        table('houses').select('id, name, property_type, rental_type, tenant_info').order('name'),
+        table('houses').select('id, name, property_type, rental_type, tenant_info, living_area_sqm').order('name'),
         table('tenant_payments').select('house_id, amount, status, due_date, payment_date, payment_type'),
         table('tenant_rent_changes').select('*'),
         table('utility_statements').select('house_id, year, status, sent_at'),
@@ -93,11 +97,17 @@ export const usePropertyStatus = () =>
           .in('status', ['confirmed', 'checked_in'])
           .gte('check_out', todayISO)
           .order('check_in', { ascending: true }),
+        // Buchungen mit Anreise im laufenden Jahr (Kennzahlen), ohne Stornos
+        table('bookings')
+          .select('house_id, check_in, check_out, booking_amount')
+          .neq('status', 'cancelled')
+          .gte('check_in', `${today.getFullYear()}-01-01`)
+          .lt('check_in', `${today.getFullYear() + 1}-01-01`),
       ]);
       const failed = results.find(r => r.error);
       if (failed?.error) throw failed.error;
 
-      const [housesR, paymentsR, rentChangesR, statementsR, settingsR, inquiriesR, casesR, bookingsR] = results;
+      const [housesR, paymentsR, rentChangesR, statementsR, settingsR, inquiriesR, casesR, bookingsR, yearBookingsR] = results;
       const payments = rowsOf<ArrearsPayment & HouseRef>(paymentsR);
       const rentChanges = rowsOf<TenantRentChange>(rentChangesR);
       const statements = rowsOf<StatusStatement>(statementsR);
@@ -105,6 +115,7 @@ export const usePropertyStatus = () =>
       const inquiries = rowsOf<StatusInquiry>(inquiriesR);
       const cases = rowsOf<StatusLegalCase>(casesR);
       const bookings = rowsOf<BookingRow>(bookingsR);
+      const yearBookings = rowsOf<FigureBooking & { house_id: string }>(yearBookingsR);
 
       const toBooking = (b: BookingRow): PropertyBooking => ({
         id: b.id,
@@ -140,6 +151,15 @@ export const usePropertyStatus = () =>
           tenantInfo: h.tenant_info,
           currentBooking: current ? toBooking(current) : null,
           nextBooking: next ? toBooking(next) : null,
+          figures: buildPropertyFigures({
+            payments: byHouse(payments, h.id),
+            bookings: yearBookings.filter(b => b.house_id === h.id),
+            activeRent: result.activeRent,
+            activeAdditionalCosts: result.activeAdditionalCosts,
+            livingAreaSqm: Number(h.living_area_sqm ?? 0),
+            contractStart: h.tenant_info?.contract_start || null,
+            today,
+          }),
         };
       });
     },
