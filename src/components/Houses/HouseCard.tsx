@@ -187,9 +187,18 @@ const HouseCard = ({ house, inventoryCount, status }: HouseCardProps) => {
                   <div className="space-y-1">
                     <SectionLabel>Vertrag und Zahlung</SectionLabel>
                     {info.contract_start && <Row label="Beginn">{fmtLong(info.contract_start)}</Row>}
-                    {rent > 0 && <Row label="Miete">{eur(rent)} / Monat</Row>}
+                    {/* Reihenfolge nach Uli-Vorgabe 22.11.2026: Warmmiete, NK, Kaltmiete, gültig seit */}
+                    {rent + additional > 0 && (
+                      <div className="flex justify-between gap-3 text-base">
+                        <span className="font-semibold">Warmmiete</span>
+                        <span className="font-bold">{eur(rent + additional)} / Monat</span>
+                      </div>
+                    )}
                     {additional > 0 && <Row label="NK-Vorauszahlung">{eur(additional)}</Row>}
-                    {rent > 0 && additional > 0 && <Row label="Warmmiete">{eur(rent + additional)}</Row>}
+                    {rent > 0 && <Row label="Kaltmiete">{eur(rent)}</Row>}
+                    {status?.activeRentSince && rent > 0 && (
+                      <Row label="Miete gültig seit">{fmtLong(status.activeRentSince)}</Row>
+                    )}
                     {deposit > 0 && <Row label="Kaution">{eur(deposit)}</Row>}
                     {paymentDay > 0 && <Row label="Zahltag">{paymentDay}. des Monats</Row>}
                     {info.payment_method && <Row label="Zahlungsart">{PAYMENT_METHOD_LABEL[info.payment_method] ?? info.payment_method}</Row>}

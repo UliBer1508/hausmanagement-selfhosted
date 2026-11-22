@@ -48,6 +48,7 @@ describe('buildPropertyIssues', () => {
     expect(r.level).toBe('ok');
     expect(r.issues).toHaveLength(0);
     expect(r.activeRent).toBe(1000);
+    expect(r.activeRentSince).toBe('2024-09-01');
   });
 
   it('Rückstand ist kritisch und nennt das laufende Verfahren', () => {
@@ -91,6 +92,7 @@ describe('buildPropertyIssues', () => {
     }));
     expect(r.activeRent).toBe(1100);
     expect(r.activeAdditionalCosts).toBe(250);
+    expect(r.activeRentSince).toBe('2026-01-01');
   });
 
   it('touristisch: nur Verfahren, keine Mietprüfungen', () => {
