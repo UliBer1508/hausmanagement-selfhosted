@@ -5,7 +5,7 @@ import type { TenantPayment } from '@/types';
  *
  * EINE Stelle für diese Rechnung (22.11.2026). Genutzt von:
  * - `components/Legal/LegalCaseCard.tsx` (Fenster „Mietrückstand")
- * - `lib/propertyIssues.ts` (Häuser-Tab und Übersichtskarte „Mietobjekte")
+ * - `lib/propertyIssues.ts` (Häuser-Tab, Karte „Issues und To-dos")
  *
  * Regel: offene Monatsmieten (`pending`/`overdue`, `payment_type <> 'special'`),
  * die bis heute fällig waren, minus Sonderzahlungen seit dem ältesten offenen

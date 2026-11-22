@@ -59,7 +59,7 @@ const CaseArrears = ({ houseId }: { houseId: string }) => {
   const { data: payments = [] } = useTenantPayments(houseId);
 
   // Rechnung liegt seit 22.11.2026 in lib/tenantArrears.ts (eine Stelle für
-  // Rechtliches, Häuser-Tab und Übersichtskarte „Mietobjekte").
+  // Rechtliches und Häuser-Tab).
   const result = useMemo(() => calculateArrears(payments, todayStr()), [payments]);
 
   if (!result) return null;

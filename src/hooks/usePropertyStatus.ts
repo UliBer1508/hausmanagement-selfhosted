@@ -10,8 +10,7 @@ import {
 } from '@/lib/propertyIssues';
 
 /**
- * Status je Objekt für den Häuser-Tab (drei Karten je Objekt) und die
- * Übersichtskarte „Mietobjekte" (22.11.2026).
+ * Status je Objekt für den Häuser-Tab (drei Karten je Objekt, 22.11.2026).
  *
  * EINE Abfragerunde über alle Objekte (acht kleine Tabellen, parallel) —
  * keine Edge Function, kein KI-Aufruf. Die Bewertung macht

@@ -291,10 +291,6 @@ Modellwahl (Secret `GEMINI_MODEL`). Details: `docs/Gemini-Anbindung.md`.
 `Dashboard/OverviewTab.tsx` bündelt:
 - **Alert-Banner:** `BookingInquiryAlertBanner`, `RentalInquiryAlertBanner` (Mietanfragen Wohnen auf Zeit, 18.11.2026), `GuestContactAlertBanner`,
   `RatingReminderBanner`, `CleaningStatusAlertBanner`, `LinenApprovalAlertBanner`
-- **Obere Kartenreihe** (liegt in `pages/OriginalDashboard.tsx`, NICHT in OverviewTab):
-  Ferienhäuser (nur touristisch) · **Mietobjekte** (`Dashboard/LongTermStatusCard.tsx`,
-  22.11.2026: Ampel je Festvermietung aus `usePropertyStatus`, Klick → Häuser-Tab) ·
-  Aktive Buchungen · Reinigungsaufträge · Wäschebedarf.
 - **Karten:** `BookingCard`, `ServiceTaskCard`, `LaundryOrderCardWithStatus`
 - **Kennzahlen/Listen:** `StatsCards`, `RecentBookings`, `TaskOverview`,
   `RealDataDashboard`
@@ -433,7 +429,7 @@ angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
 - Schonfrist § 569 Abs. 3 Nr. 2 BGB wird **berechnet** (`served_date` + 2 Monate),
   nicht gespeichert — nur bei `case_type` `raeumungsklage`/`mietrueckstand`.
 - Rechnung seit 22.11.2026 in `lib/tenantArrears.ts` (`calculateArrears`) — EINE Stelle
-  für Rechtliches, Häuser-Tab und Übersichtskarte „Mietobjekte".
+  für Rechtliches und Häuser-Tab.
 - Rückstand in der Karte live aus `tenant_payments` (offene Monatsmieten bis heute
   minus Sonderzahlungen seit dem ältesten offenen Monat) — nur `long_term`.
 - `TenantPayments.tsx`: Banner bei laufendem Verfahren, Mahn-Knopf ausgeblendet
@@ -514,7 +510,7 @@ angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
   (`check_upcoming_bookings`) — keine zweite Logik.
 - Klick auf einen Punkt springt über `navigate('/', { state: { activeTab, tenantSubTab } })`.
 - Behoben: einzelne „0" unter Miete/Name (React rendert `{0 && …}` — Kaution/Miete 0).
-- Die Übersichtskarte „Mietobjekte" nutzt dieselben Daten (Abschnitt 4).
+- Status der Mietobjekte bewusst NUR im Häuser-Tab, nicht in der Übersicht (Uli-Vorgabe 22.11.2026).
 
 Anlegen/Bearbeiten: `CreateHouseDialog.tsx`, `EditHouseDialog.tsx`
 (enthält die Sub-Tabs für ein Haus, u. a.):

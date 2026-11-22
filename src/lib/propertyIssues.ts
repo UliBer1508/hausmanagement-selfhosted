@@ -10,8 +10,7 @@ import { CASE_STATUS_LABELS, CASE_TYPE_LABELS, isCaseActive } from '@/hooks/useL
 /**
  * Offene Punkte („Issues und To-dos") je Objekt — reine Rechnung ohne Datenbank.
  * Daten lädt `hooks/usePropertyStatus.ts`. Angezeigt im Häuser-Tab
- * (`Houses/HouseIssuesCard.tsx`) und in der Übersichtskarte
- * (`Dashboard/LongTermStatusCard.tsx`). Keine KI, kein Server — nur vorhandene Tabellen.
+ * (`Houses/HouseIssuesCard.tsx`). Keine KI, kein Server — nur vorhandene Tabellen.
  *
  * Geprüft (Stand 22.11.2026):
  * - Festvermietung: Mietrückstand (lib/tenantArrears.ts), NK-Abrechnung des
@@ -35,8 +34,6 @@ export interface PropertyIssue {
   key: string;
   level: IssueLevel;
   title: string;
-  /** Kurzform für die Übersichtskarte (eine Zeile, wenig Platz) */
-  short: string;
   detail?: string;
   target?: IssueTarget;
 }
@@ -144,7 +141,6 @@ export const buildPropertyIssues = (input: PropertyIssueInput): PropertyStatusRe
       key: 'arrears',
       level: 'danger',
       title: `Mietrückstand ${eur(arrears.rest)}`,
-      short: `−${eur(arrears.rest)}`,
       detail: parts.join(' · '),
       target: { activeTab: 'Mieter', tenantSubTab: 'payments' },
     });
@@ -156,7 +152,6 @@ export const buildPropertyIssues = (input: PropertyIssueInput): PropertyStatusRe
       key: `case-${i}`,
       level: 'info',
       title: `Verfahren: ${c.title}`,
-      short: 'Verfahren',
       detail: `${CASE_TYPE_LABELS[c.case_type] ?? c.case_type} · ${CASE_STATUS_LABELS[c.status] ?? c.status}`,
       target: { activeTab: 'Rechtliches' },
     }));
@@ -180,7 +175,6 @@ export const buildPropertyIssues = (input: PropertyIssueInput): PropertyStatusRe
           key: 'utility-statement',
           level: daysLeft <= 30 ? 'danger' : 'warning',
           title: `NK-Abrechnung ${prevYear} ${st ? 'noch nicht versendet' : 'fehlt'}`,
-          short: `NK ${prevYear}`,
           detail: daysLeft >= 0 ? `${deadlineText} · noch ${daysLeft} Tage` : `${deadlineText} · abgelaufen`,
           target: { activeTab: 'Mieter', tenantSubTab: 'utilities' },
         });
@@ -200,7 +194,6 @@ export const buildPropertyIssues = (input: PropertyIssueInput): PropertyStatusRe
         key: 'vacant',
         level: 'warning',
         title: 'Leer stehend',
-        short: 'Leer',
         detail: inquiryText ?? 'Keine offene Mietanfrage',
         target: { activeTab: 'Mieter', tenantSubTab: 'interessenten' },
       });
@@ -209,7 +202,6 @@ export const buildPropertyIssues = (input: PropertyIssueInput): PropertyStatusRe
         key: 'inquiries',
         level: 'info',
         title: 'Mietanfragen',
-        short: 'Anfrage',
         detail: inquiryText,
         target: { activeTab: 'Mieter', tenantSubTab: 'interessenten' },
       });
@@ -223,7 +215,6 @@ export const buildPropertyIssues = (input: PropertyIssueInput): PropertyStatusRe
         key: `rent-change-${rc.id}`,
         level: 'info',
         title: `Mietänderung ab ${fmtDate(rc.effective_date)}`,
-        short: 'Mietänderung',
         detail: `neue Miete ${eur(rc.new_rent)}`,
         target: { activeTab: 'Mieter', tenantSubTab: 'contracts' },
       }));
