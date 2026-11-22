@@ -84,6 +84,7 @@ const HouseCard = ({ house, inventoryCount, status }: HouseCardProps) => {
   const additional = status ? status.activeAdditionalCosts : infoNumber(info?.additional_costs);
   const deposit = infoNumber(info?.deposit_amount);
   const paymentDay = infoNumber(info?.payment_day);
+  const figures = status?.figures;
 
   return (
     <>
@@ -114,21 +115,57 @@ const HouseCard = ({ house, inventoryCount, status }: HouseCardProps) => {
               <img src={house.image_url} alt={name} className="w-full h-full object-cover" />
             </div>
           )}
-          <CardContent className="p-3 space-y-2 text-sm flex-1">
-            {house.address && (
-              <div className="flex items-start text-muted-foreground">
-                <MapPin className="w-4 h-4 mr-1 mt-0.5 shrink-0" />
-                <span>{house.address}</span>
+          <CardContent className="p-3 space-y-3 text-sm flex-1">
+            {/* Name und Adresse (Adresse kann Zeilenumbrüche enthalten) */}
+            <div>
+              <div className="text-base font-bold leading-tight">{name}</div>
+              {house.address && (
+                <div className="flex items-start text-muted-foreground mt-1">
+                  <MapPin className="w-4 h-4 mr-1 mt-0.5 shrink-0" />
+                  <span className="whitespace-pre-line">{house.address}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Eckdaten */}
+            <div className="space-y-1">
+              <SectionLabel>Eckdaten</SectionLabel>
+              <Row label="Art">{type.label} · {isLongTerm ? 'Festvermietung' : 'Touristisch'}</Row>
+              {infoNumber(house.living_area_sqm) > 0 && <Row label="Wohnfläche">{house.living_area_sqm} m²</Row>}
+              {infoNumber(house.bedrooms) > 0 && <Row label="Schlafzimmer">{house.bedrooms}</Row>}
+              {infoNumber(house.bathrooms) > 0 && <Row label="Badezimmer">{house.bathrooms}</Row>}
+              {!isLongTerm && infoNumber(house.max_guests) > 0 && (
+                <Row label="Max. Gäste"><span className="inline-flex items-center"><Users className="w-3.5 h-3.5 mr-1" />{house.max_guests}</span></Row>
+              )}
+              <Row label="Inventar"><span className="inline-flex items-center"><Package className="w-3.5 h-3.5 mr-1" />{inventoryCount.total} Teile</span></Row>
+            </div>
+
+            {/* Kennzahlen laufendes Jahr (lib/propertyFigures.ts) */}
+            {figures && (
+              <div className="space-y-1">
+                <SectionLabel>Kennzahlen {figures.year}</SectionLabel>
+                {isLongTerm && hasTenant && (
+                  <>
+                    <Row label={`Mieteinnahmen ${figures.year}`}>{eur(figures.rentReceivedYear)}</Row>
+                    {figures.rentTargetYear > 0 && <Row label="Jahresmiete (warm, Soll)">{eur(figures.rentTargetYear)}</Row>}
+                    {figures.coldRentPerSqm > 0 && <Row label="Kaltmiete je m²">{eur(figures.coldRentPerSqm)}</Row>}
+                    {figures.tenantYears !== null && (
+                      <Row label="Mietdauer">{figures.tenantYears} {figures.tenantYears === 1 ? 'Jahr' : 'Jahre'}</Row>
+                    )}
+                  </>
+                )}
+                {figures.bookingsYear > 0 && (
+                  <>
+                    <Row label={`Auszahlungen Buchungen ${figures.year}`}>{eur(figures.payoutYear)}</Row>
+                    <Row label="Buchungen · Nächte">{figures.bookingsYear} · {figures.nightsYear}</Row>
+                    <Row label="Belegung (gebucht)">{figures.occupancyYear} %</Row>
+                  </>
+                )}
+                {!(isLongTerm && hasTenant) && figures.bookingsYear === 0 && (
+                  <p className="text-muted-foreground">Keine Einnahmen in {figures.year}</p>
+                )}
               </div>
             )}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-              {!isLongTerm && infoNumber(house.max_guests) > 0 && (
-                <span className="flex items-center"><Users className="w-4 h-4 mr-1" />Max. Gäste: {house.max_guests}</span>
-              )}
-              {infoNumber(house.bedrooms) > 0 && <span>🛏️ {house.bedrooms} Schlafzimmer</span>}
-              {infoNumber(house.living_area_sqm) > 0 && <span>📐 {house.living_area_sqm} qm</span>}
-              <span className="flex items-center"><Package className="w-4 h-4 mr-1" />Inventar: {inventoryCount.total} Teile</span>
-            </div>
 
             {house.amenities && Object.values(house.amenities).some(v => v) && (
               <div className="flex flex-wrap gap-1.5">
