@@ -33,6 +33,7 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import steinbockLogo from '@/assets/steinbock-logo.png';
 import CreateBookingDialog, { type BookingPrefillData } from '@/components/Bookings/CreateBookingDialog';
+import LongTermStatusCard from '@/components/Dashboard/LongTermStatusCard';
 // Lazy-loaded tab content & heavy dialogs (drastically reduces initial bundle)
 const BookingOverviewFixed = lazy(() => import('@/components/Bookings/BookingOverviewFixed'));
 const HouseManagement = lazy(() => import('@/components/Houses/HouseManagement'));
@@ -1350,13 +1351,13 @@ const OriginalDashboard = () => {
 
       {/* Dashboard Cards - Mobile Responsive */}
       <div className="p-4 sm:p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
           {/* Ferienhäuser */}
           <Card className="dashboard-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center">
                 <span className="text-lg flex-shrink-0 mr-2">🏠</span>
-                <span className="truncate">Ferienhäuser & Mietobjekte ({housesWithStatus.length})</span>
+                <span className="truncate">Ferienhäuser ({housesWithStatus.length})</span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -1375,6 +1376,9 @@ const OriginalDashboard = () => {
               ))}
             </CardContent>
           </Card>
+
+          {/* Mietobjekte (Festvermietung) — Ampel je Objekt, seit 22.11.2026 */}
+          <LongTermStatusCard />
 
           {/* Aktive Buchungen */}
           <Card className="dashboard-card">

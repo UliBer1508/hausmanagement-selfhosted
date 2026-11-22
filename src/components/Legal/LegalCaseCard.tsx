@@ -15,6 +15,7 @@ import {
   useDeleteLegalCase, useDeleteLegalEntry, useSaveLegalEntry,
 } from "@/hooks/useLegalCases";
 import { useTenantPayments } from "@/hooks/useTenantPayments";
+import { calculateArrears } from "@/lib/tenantArrears";
 import LegalEntryDialog from "./LegalEntryDialog";
 import LegalCaseDocuments from "./LegalCaseDocuments";
 
@@ -57,26 +58,9 @@ const usePersistentOpen = (key: string, defaultOpen: boolean): [boolean, (v: boo
 const CaseArrears = ({ houseId }: { houseId: string }) => {
   const { data: payments = [] } = useTenantPayments(houseId);
 
-  const result = useMemo(() => {
-    const today = todayStr();
-    const openRent = payments.filter(p =>
-      p.payment_type !== 'special' &&
-      (p.status === 'overdue' || p.status === 'pending') &&
-      p.due_date <= today,
-    );
-    if (openRent.length === 0) return null;
-
-    const openTotal = openRent.reduce((s, p) => s + p.amount, 0);
-    const earliest = openRent.map(p => p.due_date).sort()[0];
-    // Sonderzahlungen seit dem ältesten offenen Monat — noch keinem Monat zugeordnet,
-    // mindern aber den tatsächlichen Rückstand (siehe TenantPayments.tsx).
-    const specials = payments.filter(p =>
-      p.payment_type === 'special' && p.status === 'paid' && (p.payment_date ?? p.due_date) >= earliest,
-    );
-    const specialTotal = specials.reduce((s, p) => s + p.amount, 0);
-
-    return { months: openRent.length, openTotal, specialTotal, rest: Math.max(0, openTotal - specialTotal), earliest };
-  }, [payments]);
+  // Rechnung liegt seit 22.11.2026 in lib/tenantArrears.ts (eine Stelle für
+  // Rechtliches, Häuser-Tab und Übersichtskarte „Mietobjekte").
+  const result = useMemo(() => calculateArrears(payments, todayStr()), [payments]);
 
   if (!result) return null;
 
