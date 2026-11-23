@@ -12,29 +12,37 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import useBackupRuns, { isMissingTableError } from '@/hooks/useBackupRuns';
+import useBackupRuns, { isMissingTableError, useBackupStandby } from '@/hooks/useBackupRuns';
 import { useBackupSettings, DEFAULT_BACKUP_SETTINGS } from '@/hooks/useSystemSettings';
 import {
   BACKUP_STATUS_LABELS,
-  findLastSuccessfulRun,
+  bewerteSicherung,
+  ersatzUebersprungen,
   formatBytes,
-  isBackupOverdue,
-  type BackupRun,
+  rechnerName,
   type BackupRunStatus,
 } from '@/lib/backupStatus';
 
 /**
  * Einstellungen -> "Datensicherung"
  *
- * Zeigt, was die naechtliche Sicherung auf dem PN40 gemeldet hat (Tabelle
+ * Zeigt, was die naechtliche Sicherung gemeldet hat - je PC (Tabelle
  * backup_runs, SQL 60), und steuert sie ueber system_settings.backup_settings.
  * Das Skript Backup-Supabase.ps1 liest diese Einstellungen zu Beginn jedes
  * Laufs - Aenderungen wirken also ab der naechsten Sicherung.
  *
  * Die Uhrzeit ist hier NUR Anzeige: Sie steckt in der Windows-Aufgabenplanung
- * des PN40 und wird dort mit Setup-SupabaseBackup.ps1 geaendert.
+ * des jeweiligen PCs und wird dort mit Setup-SupabaseBackup.ps1 geaendert.
  *
- * Doku: docs/Datensicherung.md
+ * Seit 23.11.2026 zwei PCs, gleiches Modell wie die Heizung
+ * (BackupSettingsSection.tsx, seit 13.11.2026): PC München sichert jede Nacht,
+ * PC Österreich ist Ersatz (Skript v5, StandbyHours) und meldet sich sonst nur
+ * mit einem Lebenszeichen in system_settings.backup_standby.
+ * Helfer: bewerteSicherung() in lib/backupStatus.ts.
+ * Anlass: 16.-23.11.2026 lief auf PC München keine Sicherung (Aufgaben weg),
+ * die Hausverwaltung hatte damals keinen Ersatz.
+ *
+ * Doku: docs/Datenbank-Sicherung-Supabase.md
  */
 
 const STATUS_STYLE: Record<BackupRunStatus, { badge: string; dot: string; Icon: typeof CheckCircle2 }> = {
@@ -81,7 +89,8 @@ const clampInt = (raw: string, min: number, max: number, fallback: number) => {
 
 const BackupSettingsCard = () => {
   const { toast } = useToast();
-  const { data: runs = [], isLoading: runsLoading, error: runsError } = useBackupRuns(10);
+  const { data: runs = [], isLoading: runsLoading, error: runsError } = useBackupRuns(60, 14);
+  const { data: standby } = useBackupStandby();
   const { data: settings, isLoading: settingsLoading, saveSettings, isSaving } = useBackupSettings();
 
   const [enabled, setEnabled] = useState(DEFAULT_BACKUP_SETTINGS.enabled);
@@ -100,9 +109,8 @@ const BackupSettingsCard = () => {
 
   const savedWarnHours = settings?.warn_after_hours ?? DEFAULT_BACKUP_SETTINGS.warn_after_hours;
   const savedEnabled = settings?.enabled ?? DEFAULT_BACKUP_SETTINGS.enabled;
-  const lastRun: BackupRun | null = runs[0] ?? null;
-  const lastSuccess = findLastSuccessfulRun(runs);
-  const overdue = savedEnabled && runs.length > 0 && isBackupOverdue(runs, savedWarnHours);
+  const { rechner, neueste, rot, gelb } = bewerteSicherung(runs, standby ?? null, savedWarnHours);
+  const overdue = savedEnabled && rot;
   const tableMissing = isMissingTableError(runsError);
 
   const handleSave = async () => {
@@ -121,7 +129,7 @@ const BackupSettingsCard = () => {
         title: 'Gespeichert',
         description: enabled
           ? `Wirkt ab der nächsten Sicherung: ${retention} Tage aufbewahren, Dateien ${includeStorage ? 'mit' : 'ohne'}.`
-          : 'Die Sicherung ist pausiert. Der PC meldet nachts nur noch „Pausiert“.',
+          : 'Die Sicherung ist pausiert. Die PCs melden nachts nur noch „Pausiert“.',
       });
     } catch (e) {
       console.error('[BackupSettingsCard] Speichern', e);
@@ -153,7 +161,8 @@ const BackupSettingsCard = () => {
           <div>
             <CardTitle className="text-base">Datensicherung</CardTitle>
             <CardDescription>
-              Nächtliche Sicherung von Datenbank und Dateien (PN40 → OneDrive)
+              Jede Nacht Datenbank und Dateien ins OneDrive. PC München sichert, PC Österreich springt
+              nur ein, wenn München nicht gesichert hat.
             </CardDescription>
           </div>
         </div>
@@ -171,10 +180,9 @@ const BackupSettingsCard = () => {
           <div className="rounded-lg border border-red-300 p-4 text-sm text-red-700 dark:text-red-400">
             Das Sicherungsprotokoll konnte nicht geladen werden.
           </div>
-        ) : !lastRun ? (
+        ) : rechner.length === 0 ? (
           <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-            Noch keine Sicherung gemeldet. Die Anzeige erscheint nach dem nächsten Lauf
-            des Sicherungsskripts (ab Version v2) auf dem PN40.
+            In den letzten 14 Tagen wurde keine Sicherung gemeldet.
           </div>
         ) : (
           <>
@@ -183,96 +191,125 @@ const BackupSettingsCard = () => {
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <div>
                   <p className="font-medium">
-                    {lastSuccess
-                      ? `Letzte gelungene Sicherung ${formatDistanceToNow(new Date(lastSuccess.finished_at), { addSuffix: true, locale: de })}`
-                      : 'Es gibt noch keine gelungene Sicherung'}
+                    {neueste
+                      ? `Letzte gelungene Sicherung ${formatDistanceToNow(new Date(neueste.finished_at), { addSuffix: true, locale: de })}`
+                      : 'In den letzten 14 Tagen gab es keine gelungene Sicherung'}
                   </p>
-                  <p>PN40 prüfen: eingeschaltet? Aufgabenplanung „Supabase-Sicherung Hausverwaltung“?</p>
+                  <p>Bitte die Sicherungs-PCs prüfen: eingeschaltet? Aufgabenplanung „Supabase-Sicherung Hausverwaltung“ gelaufen?</p>
                 </div>
               </div>
             )}
-
-            <div className="space-y-3 rounded-lg border p-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-medium">Letzte Sicherung</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatWhen(lastRun.finished_at)} ·{' '}
-                    {formatDistanceToNow(new Date(lastRun.finished_at), { addSuffix: true, locale: de })}
-                  </p>
-                </div>
-                <StatusBadge status={lastRun.status} />
+            {savedEnabled && gelb.map((t, i) => (
+              <div key={i} className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>{t}</p>
               </div>
+            ))}
 
-              {lastRun.status !== 'pausiert' && (
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div>
-                    <dt className="text-muted-foreground">Datenbank</dt>
-                    <dd>
-                      {formatBytes(lastRun.db_bytes)}
-                      {lastRun.table_count !== null && ` · ${lastRun.table_count} Tabellen`}
-                    </dd>
+            {/* ---------- Stand je PC ---------- */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {rechner.map((r) => {
+                const skip = ersatzUebersprungen(r);
+                const g = r.gelungen;
+                return (
+                  <div key={r.host ?? '?'} className="space-y-3 rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">{rechnerName(r.host)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {r.ersatz ? 'Ersatz – sichert nur, wenn nötig' : 'sichert jede Nacht'}
+                        </p>
+                        <p className="font-mono text-[11px] text-muted-foreground">{r.host}</p>
+                      </div>
+                      {skip ? (
+                        <Badge variant="outline" className="gap-1 border-slate-400 text-slate-600 dark:text-slate-300">
+                          <PauseCircle className="h-3 w-3" />
+                          Übersprungen
+                        </Badge>
+                      ) : r.letzter ? (
+                        <StatusBadge status={r.letzter.status} />
+                      ) : null}
+                    </div>
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <div className="col-span-2">
+                        <dt className="text-muted-foreground">Letzter Lauf</dt>
+                        <dd>
+                          {skip && r.beat
+                            ? `${formatWhen(r.beat.checked_at)} · ${rechnerName(r.beat.main_host)} hatte gesichert`
+                            : r.letzter
+                              ? `${formatWhen(r.letzter.finished_at)}${r.ersatz ? ' · eingesprungen' : ''}`
+                              : '–'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Letzte gelungene</dt>
+                        <dd>{g ? formatDistanceToNow(new Date(g.finished_at), { addSuffix: true, locale: de }) : '–'}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Datenbank</dt>
+                        <dd>
+                          {g ? `${formatBytes(g.db_bytes)}${g.table_count !== null ? ` · ${g.table_count} Tabellen` : ''}` : '–'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Dateien</dt>
+                        <dd>
+                          {!g
+                            ? '–'
+                            : g.storage_skipped
+                              ? 'nicht gesichert'
+                              : g.storage_files === null
+                                ? '–'
+                                : `${g.storage_files} · ${formatBytes(g.storage_bytes)}`}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-muted-foreground">Uhrzeit</dt>
+                        <dd>{r.letzter?.schedule_time ? `täglich ${r.letzter.schedule_time}` : '–'}</dd>
+                      </div>
+                      <div className="col-span-2">
+                        <dt className="text-muted-foreground">Ordner</dt>
+                        <dd className="break-all">{g?.backup_folder ?? '–'}</dd>
+                      </div>
+                    </dl>
                   </div>
-                  <div>
-                    <dt className="text-muted-foreground">Dateien</dt>
-                    <dd>
-                      {lastRun.storage_skipped
-                        ? 'nicht gesichert'
-                        : lastRun.storage_files === null
-                          ? '–'
-                          : `${lastRun.storage_files} · ${formatBytes(lastRun.storage_bytes)}`}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Rechner</dt>
-                    <dd>{lastRun.host ?? '–'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground">Uhrzeit</dt>
-                    <dd>{lastRun.schedule_time ? `täglich ${lastRun.schedule_time}` : '–'}</dd>
-                  </div>
-                  <div className="col-span-2">
-                    <dt className="text-muted-foreground">Ordner im OneDrive</dt>
-                    <dd className="break-all">
-                      Backups\Supabase-Hausverwaltung\{lastRun.backup_folder ?? '–'}
-                    </dd>
-                  </div>
-                </dl>
-              )}
-
-              <Button variant="outline" size="sm" className="w-full sm:w-auto" asChild>
-                <a href="https://onedrive.live.com/" target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Sicherungen im OneDrive öffnen
-                </a>
-              </Button>
-
-              {lastRun.messages.length > 0 && (
-                <ul className="space-y-1 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
-                  {lastRun.messages.map((m, i) => (
-                    <li key={i} className="break-words">• {m}</li>
-                  ))}
-                </ul>
-              )}
+                );
+              })}
             </div>
 
-            {/* ---------- Verlauf ---------- */}
-            {runs.length > 1 && (
+            {runs[0]?.messages.length > 0 && (
+              <ul className="space-y-1 rounded-md bg-muted/50 p-2 text-xs text-muted-foreground">
+                {runs[0].messages.map((m, i) => (
+                  <li key={i} className="break-words">• {m}</li>
+                ))}
+              </ul>
+            )}
+
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" asChild>
+              <a href="https://onedrive.live.com/" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Sicherungen im OneDrive öffnen
+              </a>
+            </Button>
+
+            {/* ---------- Verlauf: wer hat wann gesichert ---------- */}
+            {runs.length > 0 && (
               <div className="space-y-2 rounded-lg border p-4">
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <History className="h-4 w-4 text-muted-foreground" />
-                  Verlauf
+                  Verlauf (letzte 14 Tage)
                 </p>
                 <ul className="space-y-1.5">
-                  {runs.slice(0, 7).map((r) => (
-                    <li key={r.id} className="flex items-center justify-between gap-3 text-sm">
+                  {runs.slice(0, 14).map((r) => (
+                    <li key={r.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 text-sm">
                       <span className="flex min-w-0 items-center gap-2">
                         <span className={cn('h-2 w-2 shrink-0 rounded-full', STATUS_STYLE[r.status].dot)} />
                         <span className="truncate">
                           {format(new Date(r.finished_at), 'EEEEEE dd.MM. HH:mm', { locale: de })}
                         </span>
                       </span>
-                      <span className="shrink-0 text-muted-foreground">
+                      <span className="text-muted-foreground">{rechnerName(r.host)}</span>
+                      <span className="w-16 text-right text-muted-foreground">
                         {r.status === 'erfolgreich' || r.status === 'warnungen'
                           ? formatBytes(r.db_bytes)
                           : BACKUP_STATUS_LABELS[r.status]}
@@ -292,8 +329,8 @@ const BackupSettingsCard = () => {
               <Label className="text-sm font-medium">Sicherung aktiv</Label>
               <p className="text-sm text-muted-foreground">
                 {enabled
-                  ? 'Der PN40 sichert jede Nacht.'
-                  : 'Pausiert: Der PN40 sichert nichts, meldet aber „Pausiert“.'}
+                  ? 'PC München sichert jede Nacht, PC Österreich springt bei Bedarf ein.'
+                  : 'Pausiert: Kein PC sichert, beide melden aber „Pausiert“.'}
               </p>
             </div>
             <Switch checked={enabled} onCheckedChange={setEnabled} aria-label="Sicherung aktiv" />
@@ -343,8 +380,8 @@ const BackupSettingsCard = () => {
           </div>
 
           <p className="text-xs text-muted-foreground">
-            Änderungen wirken ab der nächsten Sicherung. Die Uhrzeit wird auf dem PN40 mit
-            „Setup-SupabaseBackup.ps1“ geändert.
+            Gilt für beide PCs. Änderungen wirken ab der nächsten Sicherung. Die Uhrzeit wird auf dem
+            jeweiligen PC mit „Setup-SupabaseBackup.ps1“ geändert.
           </p>
 
           <Button onClick={handleSave} disabled={isSaving} className="w-full">

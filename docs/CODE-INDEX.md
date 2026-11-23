@@ -1071,6 +1071,12 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
   `useSystemSettings.ts`). Geschrieben wird beides vom Skript
   `Backup-Supabase.ps1` auf dem PN40, nicht von der App. SQL:
   `supabase/SQL/60_datensicherung.sql`. Doku: `docs/Datensicherung.md`.
+  **Seit 23.11.2026 zwei PCs** (gleiches Modell wie die Heizung): je PC eine Karte
+  (PC München sichert jede Nacht, PC Österreich = Ersatz, „Übersprungen“ aus
+  `system_settings.backup_standby`, Hook `useBackupStandby`), Verlauf 14 Tage mit
+  Rechner, gelbe Warnung bei Ausfall des Hauptrechners. Logik `bewerteSicherung()` in
+  `lib/backupStatus.ts` — **gleiche Datei wie im Heizungs-Repo**, beide gleich halten.
+  Tests `src/test/backupStatus.test.ts`. Doku `docs/Datenbank-Sicherung-Supabase.md`.
 ---
 
 ## 13d. Modul „Dokumente" (Tab 📄) — nachgetragen 01.10.2026
