@@ -1078,11 +1078,12 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
   `lib/backupStatus.ts` — **gleiche Datei wie im Heizungs-Repo**, beide gleich halten.
   Tests `src/test/backupStatus.test.ts`. Doku `docs/Datenbank-Sicherung-Supabase.md`.
 - `layout/SystemStatus.tsx` — **NEU 23.11.2026:** Systemstatus-Symbol in der Kopfleiste
-  (`OriginalDashboard.tsx`, neben „Abmelden“), Fenster mit „Alles läuft“ und Karte „Sicherungen“
-  (`layout/SystemBackupsCard.tsx`). Zeigt NUR die Sicherung der Hausverwaltung (`sicherungKurz()`
-  in `lib/backupStatus.ts`); PCs, Dienste und Cloud stehen im Systemstatus der Heizungs-App
-  (Uli-Entscheidung 23.11.2026: keine datenbankübergreifende Abfrage). `SystemBackupsCard.tsx` und
-  `backupStatus.ts` sind dieselben Dateien wie im Heizungs-Repo.
+  (`OriginalDashboard.tsx`, neben „Abmelden“). Fenster: „Alles läuft“, Karte „Sicherungen“
+  (`layout/SystemBackupsCard.tsx`, Hausverwaltung + Heizung), München-PC und Österreich-PC mit allen
+  Diensten (Start/Stop/Neustart), Cloud der Heizung. Daten über `hooks/useSystemStatus.ts` → Edge Function
+  `system-status` (Admin) → Heizung `system-bridge` (Secret `BRIDGE_TOKEN`, `_shared/bridge.ts`).
+  Übernommen aus der Heizung; `SystemBackupsCard.tsx`, `backupStatus.ts` und `bridge.ts` sind in beiden
+  Repos gleich. Doku `docs/Systemstatus.md`.
 ---
 
 ## 13d. Modul „Dokumente" (Tab 📄) — nachgetragen 01.10.2026
