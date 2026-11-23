@@ -2,7 +2,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Edit, RefreshCw, Trash2, Users, MapPin, Package, TrendingUp, KeyRound } from 'lucide-react';
+import { Edit, RefreshCw, Trash2, Users, MapPin, TrendingUp, KeyRound, ChevronDown, Calculator } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format, parseISO } from 'date-fns';
@@ -14,19 +15,30 @@ import { openEmail } from '@/lib/mailtoHelper';
 import { infoNumber } from '@/lib/propertyIssues';
 import type { PropertyStatus } from '@/hooks/usePropertyStatus';
 import CompetitorAnalysisDashboard from './CompetitorAnalysis/CompetitorAnalysisDashboard';
+import RentalPriceCheck from './RentalPriceCheck';
+import RentalCalculationDialog from '@/components/Tenants/RentalCalculationDialog';
+import { useRentalMarket } from '@/hooks/useRentalMarket';
+import { possibleColdRent } from '@/lib/marketSearch';
 
 /**
  * Ein Objekt im Häuser-Tab als Reihe aus drei Karten (Umbau 22.11.2026,
  * Aufbau wie die Übersichtskarten Buchung/Reinigung/Wäsche):
- *   1. Objekt      — Stammdaten, Ausstattung, Inventar
- *   2. Mietvertrag — bei Festvermietung (gültige Miete inkl. Mietänderungen)
+ *   1. Objekt      — Stammdaten, Ausstattung (Inventar seit 23.11.2026 nur im Haus-Dialog)
+ *   2. Mietvertrag — bei Festvermietung mit Mieter (gültige Miete inkl. Mietänderungen)
+ *      Vermietung  — bei Festvermietung OHNE Mieter: Zielmiete (Kalkulation),
+ *                    Mietpreis Region einklappbar (rental_price_analysis), Mietanfragen
  *      Belegung    — bei touristischen Häusern (aktueller Gast, nächste Anreise)
  *   3. Issues und To-dos — `HouseIssuesCard` aus `lib/propertyIssues.ts`
+ *
+ * Preis-Werkzeug je Vermietungsart (23.11.2026, lib/marketSearch.ts):
+ *   touristisch → CompetitorAnalysisDashboard (Nachtpreise, Booking/Airbnb, PriceLabs)
+ *   Festvermietung → RentalPriceCheck (Kaltmiete je m², Immobilienportale je Land)
  */
 
 interface HouseCardProps {
   house: any;
-  inventoryCount: {
+  /** Wird seit 23.11.2026 auf der Karte nicht mehr angezeigt (Inventar im Haus-Dialog) */
+  inventoryCount?: {
     total: number;
     categories: Record<string, number>;
   };
@@ -67,9 +79,11 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
   <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1">{children}</div>
 );
 
-const HouseCard = ({ house, inventoryCount, status }: HouseCardProps) => {
+const HouseCard = ({ house, status }: HouseCardProps) => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [showPriceAnalysis, setShowPriceAnalysis] = useState(false);
+  const [showCalculation, setShowCalculation] = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
   const navigate = useNavigate();
 
   const isLongTerm = house.rental_type === 'long_term';
@@ -85,6 +99,16 @@ const HouseCard = ({ house, inventoryCount, status }: HouseCardProps) => {
   const deposit = infoNumber(info?.deposit_amount);
   const paymentDay = infoNumber(info?.payment_day);
   const figures = status?.figures;
+  const livingArea = infoNumber(house.living_area_sqm);
+
+  // Leerstand Festvermietung: Zielmiete + Marktmiete (nur dann laden)
+  const isVacantLongTerm = isLongTerm && !hasTenant;
+  const { data: market } = useRentalMarket(house.id, isVacantLongTerm);
+  const calc = market?.calculation ?? null;
+  const analysis = market?.analysis ?? null;
+  const possibleRent = possibleColdRent(livingArea, analysis?.price_per_sqm);
+  // Gleicher Text wie im Issue „Leer stehend" (eine Quelle: lib/propertyIssues.ts)
+  const inquiryText = status?.issues?.find(i => i.key === 'vacant')?.detail;
 
   return (
     <>
@@ -131,13 +155,20 @@ const HouseCard = ({ house, inventoryCount, status }: HouseCardProps) => {
             <div className="space-y-1">
               <SectionLabel>Eckdaten</SectionLabel>
               <Row label="Art">{type.label} · {isLongTerm ? 'Festvermietung' : 'Touristisch'}</Row>
-              {infoNumber(house.living_area_sqm) > 0 && <Row label="Wohnfläche">{house.living_area_sqm} m²</Row>}
+              {livingArea > 0 ? (
+                <Row label="Wohnfläche">{house.living_area_sqm} m²</Row>
+              ) : isLongTerm && (
+                <Row label="Wohnfläche">
+                  <button type="button" onClick={() => setIsEditDialogOpen(true)} className="font-semibold text-amber-700 hover:underline">
+                    fehlt – eintragen
+                  </button>
+                </Row>
+              )}
               {infoNumber(house.bedrooms) > 0 && <Row label="Schlafzimmer">{house.bedrooms}</Row>}
               {infoNumber(house.bathrooms) > 0 && <Row label="Badezimmer">{house.bathrooms}</Row>}
               {!isLongTerm && infoNumber(house.max_guests) > 0 && (
                 <Row label="Max. Gäste"><span className="inline-flex items-center"><Users className="w-3.5 h-3.5 mr-1" />{house.max_guests}</span></Row>
               )}
-              <Row label="Inventar"><span className="inline-flex items-center"><Package className="w-3.5 h-3.5 mr-1" />{inventoryCount.total} Teile</span></Row>
             </div>
 
             {/* Kennzahlen laufendes Jahr (lib/propertyFigures.ts) */}
@@ -178,16 +209,6 @@ const HouseCard = ({ house, inventoryCount, status }: HouseCardProps) => {
               </div>
             )}
 
-            {Object.keys(inventoryCount.categories).length > 0 && (
-              <div>
-                <SectionLabel>Inventar-Kategorien</SectionLabel>
-                <div className="flex flex-wrap gap-1">
-                  {Object.entries(inventoryCount.categories).map(([category, count]) => (
-                    <Badge key={category} variant="outline" className="text-xs">{category}: {count}</Badge>
-                  ))}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 
@@ -197,7 +218,7 @@ const HouseCard = ({ house, inventoryCount, status }: HouseCardProps) => {
             <HouseCardHeader
               icon="🔑"
               kicker={`Miete · ${name}`}
-              title="Mietvertrag"
+              title={hasTenant ? 'Mietvertrag' : 'Vermietung'}
               gradient={HEADER_GRADIENTS.rent}
               pill={hasTenant ? (info?.contract_end ? `bis ${fmtShort(info.contract_end)}` : 'Unbefristet') : 'Leer'}
               pillColor="#4f46e5"
@@ -249,22 +270,78 @@ const HouseCard = ({ house, inventoryCount, status }: HouseCardProps) => {
                 </>
               ) : (
                 <div className="space-y-3">
-                  <p className="text-muted-foreground">Kein Mieter eingetragen.</p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate('/', { state: { activeTab: 'Mieter', tenantSubTab: 'interessenten' } })}
-                  >
-                    <KeyRound className="w-4 h-4 mr-2" />
-                    Interessenten öffnen
-                  </Button>
+                  {/* Zielmiete aus der internen Kalkulation (lib/rentalCalc.ts) */}
+                  <div>
+                    <SectionLabel>Zielmiete</SectionLabel>
+                    {calc ? (
+                      <>
+                        <div className="flex justify-between gap-3 text-base">
+                          <span className="font-semibold">Warmmiete</span>
+                          <span className="font-bold">{eur(calc.gesamtMonat)} / Monat</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          kalt {eur(calc.grundmieteMonat)} · NK {eur(calc.nebenkostenMonat)} · Kaution {eur(calc.kaution)}
+                        </div>
+                      </>
+                    ) : (
+                      <button type="button" onClick={() => setShowCalculation(true)} className="text-xs font-semibold text-amber-700 hover:underline">
+                        Noch keine Kalkulation – anlegen
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Mietpreis Region — wird nur einmal gebraucht, daher eingeklappt */}
+                  <Collapsible open={marketOpen} onOpenChange={setMarketOpen} className="rounded-md border border-indigo-100 bg-white">
+                    <CollapsibleTrigger className="w-full min-h-[40px] flex items-center justify-between gap-2 px-3 py-2 text-left">
+                      <span className="min-w-0">
+                        <span className="font-semibold">Mietpreis Region</span>
+                        <span className="text-muted-foreground">
+                          {analysis?.price_per_sqm
+                            ? ` · ${eur(analysis.price_per_sqm)}/m²${possibleRent ? ` · möglich ${eur(possibleRent)}` : ''}`
+                            : ' · noch nicht ermittelt'}
+                        </span>
+                      </span>
+                      <ChevronDown className={`w-4 h-4 shrink-0 text-muted-foreground transition-transform ${marketOpen ? 'rotate-180' : ''}`} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="px-3 pb-3 space-y-1 border-t border-indigo-50">
+                      <div className="pt-2" />
+                      <Row label="Ø Kaltmiete je m²">{analysis?.price_per_sqm ? eur(analysis.price_per_sqm) : '–'}</Row>
+                      <Row label="Wohnfläche">{livingArea > 0 ? `${livingArea} m²` : 'fehlt'}</Row>
+                      <Row label="Möglich kalt">{possibleRent ? eur(possibleRent) : '–'}</Row>
+                      {analysis && (
+                        <Row label="Stand">{fmtShort(analysis.analysis_date.slice(0, 10))}{analysis.manual ? ' · manuell' : ''}</Row>
+                      )}
+                      <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setShowPriceAnalysis(true)}>
+                        <TrendingUp className="w-4 h-4 mr-2" />
+                        Mietpreis ermitteln
+                      </Button>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  <p className="text-muted-foreground">{inquiryText ?? 'Keine offene Mietanfrage'}</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate('/', { state: { activeTab: 'Mieter', tenantSubTab: 'interessenten' } })}
+                    >
+                      <KeyRound className="w-4 h-4 mr-2" />
+                      Interessenten
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setShowCalculation(true)}>
+                      <Calculator className="w-4 h-4 mr-2" />
+                      Kalkulation
+                    </Button>
+                  </div>
                 </div>
               )}
-              {/* Preisanalyse hat für Festvermietung einen eigenen Modus (Mietpreisvergleich) */}
-              <Button onClick={() => setShowPriceAnalysis(true)} variant="outline" size="sm" className="w-full">
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Preisanalyse
-              </Button>
+              {/* Festvermietung → Mietpreis-Werkzeug (nicht die touristische Analyse). Leer: im Klappbereich oben */}
+              {hasTenant && (
+                <Button onClick={() => setShowPriceAnalysis(true)} variant="outline" size="sm" className="w-full">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  Mietpreis Region
+                </Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -328,14 +405,29 @@ const HouseCard = ({ house, inventoryCount, status }: HouseCardProps) => {
       />
 
       <Dialog open={showPriceAnalysis} onOpenChange={setShowPriceAnalysis}>
-        <DialogContent className="max-w-[95vw] h-[90vh] overflow-auto">
-          <CompetitorAnalysisDashboard
-            house_id={house.id}
-            house_name={house.name}
-            rental_type={house.rental_type}
-          />
-        </DialogContent>
+        {isLongTerm ? (
+          <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-auto">
+            <RentalPriceCheck houseId={house.id} houseName={name} livingAreaSqm={livingArea > 0 ? livingArea : null} />
+          </DialogContent>
+        ) : (
+          <DialogContent className="max-w-[95vw] h-[90vh] overflow-auto">
+            <CompetitorAnalysisDashboard
+              house_id={house.id}
+              house_name={house.name}
+              rental_type={house.rental_type}
+            />
+          </DialogContent>
+        )}
       </Dialog>
+
+      {isLongTerm && (
+        <RentalCalculationDialog
+          open={showCalculation}
+          onOpenChange={setShowCalculation}
+          houseId={house.id}
+          houseName={name}
+        />
+      )}
     </>
   );
 };

@@ -495,14 +495,22 @@ angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
 `Houses/HouseManagement.tsx` → je Objekt eine Reihe aus `HouseCard.tsx`
 (Umbau 22.11.2026: **drei Karten** im Stil der Übersichtskarten, Kopfbalken
 `Houses/HouseCardHeader.tsx`):
-1. **Objekt** — Name, Adresse, Eckdaten (Art aus `property_type`, Fläche, Zimmer, Bäder,
-   Inventar), **Kennzahlen laufendes Jahr** aus `lib/propertyFigures.ts`:
+1. **Objekt** — Name, Adresse, Eckdaten (Art aus `property_type`, Fläche, Zimmer, Bäder;
+   Inventar seit 23.11.2026 nur im Haus-Dialog; fehlende Wohnfläche bei Festvermietung
+   als „fehlt – eintragen"), **Kennzahlen laufendes Jahr** aus `lib/propertyFigures.ts`:
    Festvermietung = Mieteinnahmen (bezahlte Zahlungen nach Eingangsdatum),
    Jahresmiete warm Soll, Kaltmiete je m², Mietdauer; Buchungen = Auszahlungen
    (`booking_amount` ist die Portal-Auszahlung), Buchungen/Nächte, Belegung.
 2. **Mietvertrag** (Festvermietung; Miete/NK gültig heute inkl. Mietänderungen,
    `getActiveRent`/`getActiveAdditionalCosts`) bzw. **Belegung** (touristisch:
-   Gast im Haus, nächste Anreise). Preisanalyse bei beiden (eigener Modus je Vermietungsart).
+   Gast im Haus, nächste Anreise). Festvermietung **ohne Mieter** heißt die Karte
+   **Vermietung** (23.11.2026): Zielmiete aus `rental_calculations` (`lib/rentalCalc.ts`,
+   Knopf öffnet `Tenants/RentalCalculationDialog`), **Mietpreis Region** einklappbar
+   (letzte `rental_price_analysis`, mögliche Kaltmiete = m² × €/m²), Mietanfragen-Zeile
+   = Text des Issues „Leer stehend". Daten: `hooks/useRentalMarket.ts` (Key `['rental-market', houseId]`).
+   **Preis-Werkzeug je Vermietungsart:** touristisch → `CompetitorAnalysis/CompetitorAnalysisDashboard`
+   (Nachtpreise); Festvermietung → `Houses/RentalPriceCheck.tsx` (Kaltmiete je m²).
+   Siehe „Marktsuche je Vermietungsart".
 3. **Issues und To-dos** — `Houses/HouseIssuesCard.tsx`.
 - Daten: `hooks/usePropertyStatus.ts` (eine Abfragerunde, acht Tabellen, Key
   `['property-status']`) → Bewertung `lib/propertyIssues.ts` (`buildPropertyIssues`,
@@ -845,10 +853,36 @@ fehlen. `exact_location` ist oft `false` (Airbnb verschleiert die Lage,
 Entfernungen nur ungefähr). Die Doku empfiehlt für ländliche Gegenden
 ausdrücklich einen großen Radius und `room_type=entire_home`.
 
+### Marktsuche je Vermietungsart (23.11.2026)
+
+Zwei getrennte Märkte, entschieden allein durch `houses.rental_type`
+(Regeln an EINER Stelle: `src/lib/marketSearch.ts`, Tests `src/test/marketSearch.test.ts`):
+
+| | touristisch | Festvermietung (Langzeit) |
+|---|---|---|
+| Was | Nachtpreise | Kaltmiete je m² |
+| Portale | Booking.com, Airbnb | je Land: AT willhaben, ImmoScout24.at, derStandard · DE ImmoScout24, Immowelt, Kleinanzeigen |
+| Eingaben | Ort, Zeitraum, Gäste | Wohnfläche (**Pflicht**, aus `houses.living_area_sqm`), Zimmer, Umkreis, Land aus `utility_settings.country`, Objektart aus `property_type` |
+| Ergebnis | Trefferliste (nicht gespeichert); Wettbewerber in `competitor_properties` + `weekly_pricing` | `rental_price_analysis` (auch manuell eingetragene €/m², `search_params.manual = true`) |
+| Oberfläche | `CompetitorAnalysisDashboard`, `ScrapePricesDialog` (Modus tourist) | `Houses/RentalPriceCheck.tsx` → `ScrapePricesDialog` (Modus rental) |
+
+- `houses.scrape_search_params` ist seit 23.11.2026 **je Markt getrennt** `{ tourist, rental }`.
+  Vorher überschrieben sich beide Dialogzweige gegenseitig (beim Venediger Chalet standen nach
+  der Umstellung noch Gäste/Ort). `readSearchParams()` liest das Altformat. Die Wohnfläche steht
+  NICHT in den Suchparametern.
+- Edge Function `scrape-competitor-prices`, Modus `rental`: ohne Wohnfläche Abbruch (400) statt
+  still 60 m²; sucht nur Langzeitmiete, Kaltmiete (AT: Nettomiete ohne Betriebskosten/USt).
+- ⚠️ **Bewusster Doppelgänger:** Portalliste in `lib/marketSearch.ts` (`RENTAL_PORTALS`) und in der
+  Edge Function — Deno kann `src/` nicht importieren. **Beide Stellen gemeinsam ändern.**
+- `competitor_properties` ist rein touristisch. Die 25 Einträge beim Venediger Chalet stammen aus
+  der Zeit der Ferienvermietung und erscheinen bei Festvermietung nicht mehr.
+
 ### Wettbewerber-Scraping — gescheiterter Versuch
 
-`scrape-competitor-prices` und `search-competitors` liefern **keine Daten**: Die
-Buchungsportale sperren Scraper aus. Der Cron
+`scrape-competitor-prices` (Modus **tourist**) und `search-competitors` liefern **keine Daten**: Die
+Buchungsportale sperren Scraper aus. Der Modus **rental** (Immobilienportale, 23.11.2026
+überarbeitet) ist davon getrennt; seine Ergebnisqualität ist noch nicht belegt — Fallback ist der
+manuell eingetragene m²-Preis in `RentalPriceCheck`. Der Cron
 `monthly-competitor-price-scraping` (monatlich am 15.) läuft weiterhin, ohne
 verwertbares Ergebnis. Nicht als nutzbare Marktdatenquelle einplanen.
 
