@@ -1,6 +1,6 @@
 # Datenbank-Sicherung Supabase (Hausverwaltung)
 
-> Stand: 29.09.2026 · läuft auf dem **ASUS PN40 (München)**
+> Stand: 23.11.2026 (v5: Tagesprüfung, Wiederherstellen per Doppelklick) · läuft auf dem **ASUS PN40 (München)**
 > Warum: Die Supabase-Organisation ist im **Free-Plan** — dort gibt es **keine**
 > automatischen Backups. Diese Sicherung ersetzt das kostenlos.
 
@@ -201,3 +201,33 @@ Supabase-internen Schemas abbricht, trägt man dessen Namen dort ein.
 
 Der erste Lauf gegen die **echte** Supabase-Datenbank ist die Test-Sicherung am Ende
 des Setups.
+
+---
+
+## Tagesprüfung und Wiederherstellen der Aufgaben (v5, 23.11.2026)
+
+**Anlass:** Am 16.11.2026 verschwanden beide geplanten Aufgaben vom PN40
+(„Supabase-Sicherung Hausverwaltung“ und „… Heizung“). Bis 23.11. lief keine
+Sicherung, die App zeigte die rote Warnung. Die Skripte und gespeicherten
+Zugangsdaten waren noch vorhanden.
+
+**`Sicherung-wiederherstellen.cmd` (Doppelklick):** fragt einmal nach
+Administratorrechten und legt alle Aufgaben neu an. Dafür nutzt sie die vorhandene
+`config.json` und `db-password.bin` jedes Profils. Es gibt **keine** Eingabe von
+Passwort, Verbindungszeile oder Uhrzeit. Danach sichert sie sofort.
+Beide Dateien (`.cmd` und `.ps1`) liegen in `C:\Users\ulibe\supabase-backup`.
+
+**Tagesprüfung (`Backup-Tagespruefung.ps1`):** Die Aufgabe startet nicht mehr
+`Backup-Supabase.ps1` direkt, sondern zuerst die Tagesprüfung. Sie schaut in
+`backup_runs` der jeweiligen Datenbank nach, ob es **heute** (Datum
+Europe/Berlin) schon eine gelungene Sicherung gibt (`erfolgreich` oder
+`warnungen`). Von welchem PC sie stammt, ist egal. Gibt es eine, endet die Prüfung
+ohne Sicherung. Ist die Prüfung nicht möglich (keine Verbindung), wird
+sicherheitshalber gesichert. Erzwingen: `-Erzwingen`.
+
+**Zweiter PC (Österreich, noch einzurichten):** Dort einmal
+`Setup-SupabaseBackup.ps1` ausführen. Das Datenbank-Passwort ist einmal nötig, weil
+DPAPI an den Rechner gebunden ist. Als Uhrzeit später als der PN40 wählen
+(z. B. 05:15), danach `Sicherung-wiederherstellen.cmd`. Hat der PN40 schon
+gesichert, überspringt der zweite PC den Lauf. In `backup_runs.host` sieht man,
+welcher PC gesichert hat.
