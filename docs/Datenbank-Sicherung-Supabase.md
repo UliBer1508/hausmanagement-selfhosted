@@ -1,6 +1,6 @@
 # Datenbank-Sicherung Supabase (Hausverwaltung)
 
-> Stand: 29.09.2026 · läuft auf dem **ASUS PN40 (München)**
+> Stand: 23.11.2026 · läuft auf dem **ASUS PN40 (München)**, Ersatz PC Österreich (siehe Ende)
 > Warum: Die Supabase-Organisation ist im **Free-Plan** — dort gibt es **keine**
 > automatischen Backups. Diese Sicherung ersetzt das kostenlos.
 
@@ -201,3 +201,47 @@ Supabase-internen Schemas abbricht, trägt man dessen Namen dort ein.
 
 Der erste Lauf gegen die **echte** Supabase-Datenbank ist die Test-Sicherung am Ende
 des Setups.
+
+---
+
+## Zwei PCs: München sichert, Österreich ist Ersatz (23.11.2026)
+
+**Anlass:** Am 16.11.2026 verschwanden beide geplanten Aufgaben vom PN40
+(„Supabase-Sicherung Hausverwaltung“ und „… Heizung“). Bis 23.11. lief für die
+Hausverwaltung keine Sicherung. Die Heizung war gesichert, weil dort der PC
+Österreich seit 13.11. als Ersatz eingerichtet ist. Die Ursache ließ sich nicht
+klären: Es gab keine Neuinstallation (InstallDate 01.08.2026) und in der Nacht zum
+17.11. keinen Neustart. Der Verlauf der Aufgabenplanung war ausgeschaltet. Seit
+23.11. ist er eingeschaltet (`wevtutil sl Microsoft-Windows-TaskScheduler/Operational /e:true`).
+
+**Modell (wie Heizung, `heizung-muenchen/doc/DATENSICHERUNG.md`):**
+
+| Rechner | Rolle | Uhrzeit |
+|---|---|---|
+| PC München (`MINIPC-WEIDMANN`) | Hauptrechner, sichert jede Nacht | 03:15 (Aufgabe seit 23.11. in Ortszeit) |
+| PC Österreich (`MINIPC-VENEDIGE`) | Ersatz, sichert nur, wenn nötig | nach München, z. B. 04:30 |
+
+Die Ersatz-Regel steckt im Skript **v5** (`Backup-Supabase.ps1`, 13.11.2026). Steht
+in der `config.json` des Profils `"StandbyHours": 20`, prüft der PC vor dem Sichern
+in `backup_runs`, ob ein **anderer** Rechner in den letzten 20 Stunden erfolgreich
+war. Ist das so, sichert er nicht und schreibt nur ein Lebenszeichen nach
+`system_settings.backup_standby`. Sonst sichert er. Ist die Prüfung nicht
+möglich, sichert er sicherheitshalber. Der Hauptrechner hat kein `StandbyHours`
+und sichert immer.
+
+**In der App:** Einstellungen → Datensicherung zeigt seit 23.11.2026 beide PCs
+(Karte je PC, Verlauf mit Rechner, gelbe Warnung, wenn München ausfällt oder der
+Ersatz sich nicht meldet).
+
+**Wiederherstellen per Doppelklick:** `Sicherung-wiederherstellen.cmd` und
+`.ps1` (Chat 23.11.2026) legen die Aufgaben aus der vorhandenen `config.json` neu an,
+ohne Passwort. Die dabei zuerst eingebaute eigene „Tagesprüfung“ wurde am selben Tag
+wieder entfernt, weil sie die v5-Regel doppelt hätte. Die Aufgaben auf dem PN40
+starten `Backup-Supabase.ps1` direkt.
+
+**PC Österreich für die Hausverwaltung einrichten (offen):** Dort
+`Setup-SupabaseBackup.ps1` ohne `-Profil` ausführen. Nötig sind einmal das
+Datenbank-Passwort der Hausverwaltung und für die Dateien der Secret-Key. Danach in
+`C:\Users\ulibe\supabase-backup\config.json` `"StandbyHours": 20` eintragen und
+als Uhrzeit 04:30 wählen. Hat der PC Österreich noch v4 im Basisordner, das
+v5-Skript verwenden (gleiche Datei wie für die Heizung).

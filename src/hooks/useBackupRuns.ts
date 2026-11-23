@@ -1,17 +1,18 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { BackupRun } from '@/lib/backupStatus';
+import type { BackupRun, BackupStandby } from '@/lib/backupStatus';
 
 // ============================================================
 // useBackupRuns — Protokoll der naechtlichen Datensicherung
 // ============================================================
 //
-// Liest die letzten Laeufe aus `backup_runs` (SQL 60). Geschrieben wird die
-// Tabelle NUR vom Skript Backup-Supabase.ps1 auf dem PN40 (Secret-Key), die
-// App liest nur. Anzeige: Einstellungen -> BackupSettingsCard.tsx.
+// Liest die letzten Laeufe aus `backup_runs` (SQL 60).
+// Geschrieben wird die Tabelle NUR vom Skript Backup-Supabase.ps1 (PC München, PC Österreich als Ersatz)
+// (direkte DB-Verbindung), die App liest nur.
+// Anzeige: Einstellungen -> BackupSettingsCard.tsx. Gleiche Datei wie in der Heizung.
 //
 // Die Tabelle ist neu und steht noch nicht in den generierten Supabase-Typen,
-// daher der lokal eng typisierte Zugriff (Muster wie useBuchungsAenderungen).
+// daher der lokal eng typisierte Zugriff.
 
 export const BACKUP_RUNS_QUERY_KEY = ['backup-runs'] as const;
 
@@ -29,11 +30,12 @@ export function isMissingTableError(error: unknown): boolean {
   );
 }
 
-const useBackupRuns = (limit = 10) => {
+/** limit = höchstens so viele Läufe; tage = nur Läufe der letzten N Tage (optional). */
+const useBackupRuns = (limit = 10, tage?: number) => {
   return useQuery({
-    queryKey: [...BACKUP_RUNS_QUERY_KEY, limit],
+    queryKey: [...BACKUP_RUNS_QUERY_KEY, limit, tage ?? null],
     queryFn: async (): Promise<BackupRun[]> => {
-      const { data, error } = await table()
+      let q = table()
         .select(
           'id, started_at, finished_at, status, host, backup_folder, db_bytes, table_count, ' +
             'storage_files, storage_bytes, storage_skipped, deleted_old, retention_days, ' +
@@ -41,6 +43,8 @@ const useBackupRuns = (limit = 10) => {
         )
         .order('finished_at', { ascending: false })
         .limit(limit);
+      if (tage) q = q.gte('finished_at', new Date(Date.now() - tage * 864e5).toISOString());
+      const { data, error } = await q;
       if (error) throw error;
       return (data as BackupRun[]) ?? [];
     },
@@ -50,3 +54,23 @@ const useBackupRuns = (limit = 10) => {
 };
 
 export default useBackupRuns;
+
+/**
+ * Lebenszeichen des Ersatz-PCs (PC Österreich) aus system_settings.backup_standby.
+ * Schreibt das Skript Backup-Supabase.ps1 (v5) jedes Mal, wenn es übersprungen
+ * oder eingesprungen ist. null = kein Ersatz eingerichtet.
+ */
+export const useBackupStandby = () =>
+  useQuery({
+    queryKey: ['backup-standby'],
+    queryFn: async (): Promise<BackupStandby | null> => {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'backup_standby')
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.value as unknown as BackupStandby) ?? null;
+    },
+    refetchInterval: 1000 * 60 * 5,
+  });
