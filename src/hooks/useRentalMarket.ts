@@ -222,9 +222,13 @@ export const useSaveManualRentPerSqm = () => {
 export const useRunRentalAiAnalysis = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ houseId, costFloorCold, legalCapCold }: { houseId: string; costFloorCold: number | null; legalCapCold: number | null }) => {
+    mutationFn: async ({ houseId, costFloorCold, legalCapCold, currentColdRent = null }: {
+      houseId: string; costFloorCold: number | null; legalCapCold: number | null;
+      /** laufender Vertrag (vermietetes Objekt), Kaltmiete heute */
+      currentColdRent?: number | null;
+    }) => {
       const { data, error } = await supabase.functions.invoke('rental-ai-analysis', {
-        body: { house_id: houseId, cost_floor_cold: costFloorCold, legal_cap_cold: legalCapCold },
+        body: { house_id: houseId, cost_floor_cold: costFloorCold, legal_cap_cold: legalCapCold, current_cold_rent: currentColdRent },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'KI-Analyse fehlgeschlagen');

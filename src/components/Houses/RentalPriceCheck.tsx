@@ -11,6 +11,7 @@ import { possibleColdRent } from '@/lib/marketSearch';
 import ScrapePricesDialog from './CompetitorAnalysis/ScrapePricesDialog';
 import RentalAiAnalysis from './RentalAiAnalysis';
 import RentalRentCap from './RentalRentCap';
+import RentalCurrentVsAi, { type CurrentRent } from './RentalCurrentVsAi';
 
 /**
  * „Mietpreis ermitteln" (23.11.2026) — das Preis-Werkzeug für FESTVERMIETUNG.
@@ -22,6 +23,7 @@ import RentalRentCap from './RentalRentCap';
  *      Inserate, liefert die Edge Function den m²-Preis aus der Mietpreis-Statistik der Region)
  *   2. Wert selbst eintragen (außerhalb des Systems ermittelt)
  * Die Kalkulation (`RentalCalculationDialog`) zeigt die letzte Analyse zum Vergleich.
+ * Vermietetes Objekt: oben die aktuelle Miete und daneben, was die KI sieht (RentalCurrentVsAi).
  */
 
 interface RentalPriceCheckProps {
@@ -29,6 +31,8 @@ interface RentalPriceCheckProps {
   houseName: string;
   livingAreaSqm: number | null;
   address?: string | null;
+  /** Laufender Mietvertrag (Objekt vermietet), sonst null */
+  currentRent?: CurrentRent | null;
 }
 
 const eur = (n: number, digits = 0) =>
@@ -41,7 +45,7 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
   </div>
 );
 
-const RentalPriceCheck = ({ houseId, houseName, livingAreaSqm, address }: RentalPriceCheckProps) => {
+const RentalPriceCheck = ({ houseId, houseName, livingAreaSqm, address, currentRent = null }: RentalPriceCheckProps) => {
   const { toast } = useToast();
   const { data: market, isLoading } = useRentalMarket(houseId);
   const saveManual = useSaveManualRentPerSqm();
@@ -85,8 +89,11 @@ const RentalPriceCheck = ({ houseId, houseName, livingAreaSqm, address }: Rental
         </p>
       )}
 
+      {/* Vermietet: oben die aktuelle Miete, darunter der KI-Mietpreis */}
+      {currentRent && currentRent.cold > 0 && <RentalCurrentVsAi houseId={houseId} sqm={sqm ?? 0} current={currentRent} />}
+
       {/* KI-Analyse: Empfehlung aus Kosten, Markt, Premium-Vergleichen (für Objekte wie Chalets) */}
-      <RentalAiAnalysis houseId={houseId} livingAreaSqm={sqm} />
+      <RentalAiAnalysis houseId={houseId} livingAreaSqm={sqm} currentColdRent={currentRent?.cold ?? null} />
 
       {/* Deutschland: Mietpreisbremse u. ä. — Obergrenze für die KI-Analyse */}
       {market?.country === 'DE' && <RentalRentCap houseId={houseId} livingAreaSqm={sqm} address={address} />}

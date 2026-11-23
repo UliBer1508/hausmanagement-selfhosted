@@ -54,3 +54,13 @@ describe('Mietobergrenze (Mietpreisbremse)', () => {
     expect(mietobergrenze(obergrenzeNormalisieren({ applies: false, reference_per_sqm: 15 }), 180).kalt).toBeNull();
   });
 });
+
+describe('preisstufe ohne Kalkulation (vermietetes Objekt)', () => {
+  it('nimmt NK laut Mietvertrag und Kaution in Kaltmieten', () => {
+    const s = preisstufe(3000, null, { nebenkosten: 530, kautionKaltmieten: 3 });
+    expect(s).toMatchObject({ kalt: 3000, nebenkosten: 530, warm: 3530, kaution: 9000, ueberKosten: null });
+  });
+  it('ohne Angaben bleiben NK, Warm und Kaution leer', () => {
+    expect(preisstufe(3000, null)).toMatchObject({ nebenkosten: null, warm: null, kaution: null });
+  });
+});

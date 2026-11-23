@@ -26,6 +26,8 @@ import RentalLegalInfo from './RentalLegalInfo';
 interface RentalAiAnalysisProps {
   houseId: string;
   livingAreaSqm: number | null;
+  /** Vermietetes Objekt: Kaltmiete des laufenden Vertrags (geht als Anker an die KI) */
+  currentColdRent?: number | null;
 }
 
 const eur = (n: number) =>
@@ -43,7 +45,7 @@ const AnchorRow = ({ label, value, hint }: { label: string; value: string; hint?
   </div>
 );
 
-const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => {
+const RentalAiAnalysis = ({ houseId, livingAreaSqm, currentColdRent = null }: RentalAiAnalysisProps) => {
   const { toast } = useToast();
   const { data: market } = useRentalMarket(houseId);
   const run = useRunRentalAiAnalysis();
@@ -68,7 +70,7 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
 
   const start = () =>
     run.mutate(
-      { houseId, costFloorCold, legalCapCold },
+      { houseId, costFloorCold, legalCapCold, currentColdRent },
       {
         onSuccess: () => toast({ title: 'KI-Analyse fertig' }),
         onError: (e) => {

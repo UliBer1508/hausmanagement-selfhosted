@@ -160,8 +160,24 @@ export interface Preisstufe {
   kaltJahr: number;
 }
 
-export const preisstufe = (kalt: number, k: RentalCalculation | null): Preisstufe => {
-  if (!k) return { kalt, nebenkosten: null, warm: null, kaution: null, ueberKosten: null, kaltJahr: kalt * 12 };
+export const preisstufe = (
+  kalt: number,
+  k: RentalCalculation | null,
+  /** Ohne Kalkulation (vermietetes Objekt): NK laut Mietvertrag; Kaution in Kaltmieten (DE § 551 BGB: höchstens 3) */
+  ohneKalkulation?: { nebenkosten: number; kautionKaltmieten?: number },
+): Preisstufe => {
+  if (!k) {
+    const nk = ohneKalkulation && ohneKalkulation.nebenkosten > 0 ? ohneKalkulation.nebenkosten : null;
+    const kautionMonate = ohneKalkulation?.kautionKaltmieten ?? 0;
+    return {
+      kalt,
+      nebenkosten: nk,
+      warm: nk !== null ? kalt + nk : null,
+      kaution: kautionMonate > 0 ? kalt * kautionMonate : null,
+      ueberKosten: null,
+      kaltJahr: kalt * 12,
+    };
+  }
   const e = berechnen(k);
   const warm = kalt + e.nebenkostenMonat;
   return {

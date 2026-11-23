@@ -86,6 +86,8 @@ serve(async (req) => {
     if (!houseId) return json({ success: false, error: 'house_id fehlt' }, 400);
     const costFloorCold = Number(body.cost_floor_cold) > 0 ? Number(body.cost_floor_cold) : null;
     const legalCapCold = Number(body.legal_cap_cold) > 0 ? Number(body.legal_cap_cold) : null;
+    // Vermietetes Objekt: Kaltmiete des laufenden Vertrags (Vergleich / mögliche Vormiete)
+    const currentColdRent = Number(body.current_cold_rent) > 0 ? Number(body.current_cold_rent) : null;
 
     const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
     const geminiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
@@ -238,6 +240,7 @@ REGELN: nur echte, aktuelle Inserate mit Monatsmiete und Fläche; ${house.proper
       `Normaler Mietmarkt (Wohnungen/Statistik): ${normalPerSqm ? `${normalPerSqm} €/m² → ${Math.round(normalPerSqm * sqm)} € bei ${sqm} m²` : 'keine Daten'}`,
       `Premium-Vergleiche (möblierte Häuser/Chalets): ${premium ? `Median ${premium.median} €/m², Spanne ${premium.min}–${premium.max} €/m², ${premium.count} Inserate` : 'keine gefunden'}`,
       `Rechtliche Obergrenze Kaltmiete: ${capCold ? `${capCold} € / Monat (${capLabel}) – darf NICHT überschritten werden` : country === 'DE' ? (legal.applies ? 'Mietpreisbremse gilt, Vergleichsmiete aber unbekannt – bleib beim normalen Markt und weise deutlich darauf hin' : 'nicht bestimmt – weise darauf hin') : (legal.applies ? 'Begrenzung nach MRG möglich – weise darauf hin' : 'keine gesetzliche Obergrenze erkannt')}`,
+      `Aktuelle Miete (laufender Vertrag): ${currentColdRent ? `${currentColdRent} € kalt / Monat (${round2(currentColdRent / sqm)} €/m²)` : 'Objekt leer'}`,
       `Bisheriger touristischer Ertrag: ${touristMonthly ? `${touristMonthly} € / Monat (Portal-Auszahlungen der letzten 12 Monate, inkl. Reinigung/Wäsche/Aufwand des Vermieters)` : 'keine Daten'}`,
     ].join('\n');
     const compText = comparables.slice(0, 12).map(c =>
@@ -290,6 +293,7 @@ Gib eine realistische Spanne für die monatliche KALTMIETE (ohne Betriebskosten)
       if (max > capCold) { max = capCold; notes.push(`Auf die rechtliche Obergrenze begrenzt (${capLabel}).`); }
       if (min > capCold) { min = capCold; }
       if (costFloorCold && costFloorCold > capCold) notes.push('Achtung: Die Kosten liegen über der rechtlich zulässigen Miete.');
+      if (currentColdRent && currentColdRent > capCold) notes.push(`Die aktuelle Miete (${currentColdRent} €) liegt über der Obergrenze. Bei Neuvermietung darf sie nur als Vormiete (§ 556e BGB) bleiben, wenn sie selbst zulässig war – sonst „Rechtliche Obergrenze“ mit Vormiete erfassen.`);
       if (capBasis !== 'manual') notes.push('Obergrenze automatisch aus dem Mietspiegel geschätzt – mit dem Mietspiegel prüfen und in „Rechtliche Obergrenze“ übernehmen.');
     } else if (country === 'DE') {
       notes.push(legal.applies
@@ -316,6 +320,7 @@ Gib eine realistische Spanne für die monatliche KALTMIETE (ohne Betriebskosten)
         normal_date: marketRow?.analysis_date ?? null,
         premium,
         tourist_monthly: touristMonthly,
+        current_cold_rent: currentColdRent,
       },
       legal,
       recommendation: { min, max, mid, reasoning: String(recommendation.begruendung ?? ''), notes },
