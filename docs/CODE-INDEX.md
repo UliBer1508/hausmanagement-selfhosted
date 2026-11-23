@@ -901,6 +901,13 @@ Gemini (`_shared/gemini.ts`, `geminiStructuredOutput`) formuliert Spanne + Begr�
 Spanne auf die Anker gekappt (≥ Kosten bzw. 80 % Normalmarkt, ≤ teuerster Premium-Vergleich), Kappen
 steht in `notes`. Gespeichert als `rental_price_analysis` mit `search_params.method = 'ai_analysis'`
 (Anker, Vergleiche, Begründung in `search_params`; keine eigene Tabelle).
+**Drei Preisstufen** (untere Grenze, Mitte, obere Grenze): je Stufe Kaltmiete, €/m², Nebenkosten,
+Warmmiete, Kaution, Kalt pro Jahr, Abstand zu den Kosten — `preisstufe()` in `lib/rentalCalc.ts`
+(Nebenkosten und Kaution-Monate aus der Kalkulation; ohne Kalkulation nur kalt).
+**„Als Zielmiete übernehmen"** setzt `rental_calculations.profit_target` per
+`gewinnzielFuerGrundmiete()` so, dass `berechnen()` genau diese Grundmiete liefert — kein zweites
+Mietfeld; Zielmiete auf der Karte und Vorbelegung im Angebot (`RentalOfferDialog`) folgen
+automatisch. Tests: `src/test/rentalCalc.test.ts`. Hook: `useApplyTargetRent`.
 Oberfläche: `Houses/RentalAiAnalysis.tsx` im Werkzeug `RentalPriceCheck`; Zusammenfassung „KI-Empfehlung"
 im Klappbereich der Vermietungskarte. Daten: `useRentalMarket` (`aiAnalysis` getrennt von `analysis`),
 Start: `useRunRentalAiAnalysis`.

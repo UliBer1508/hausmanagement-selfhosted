@@ -144,3 +144,45 @@ export const euro = (wert: number, sprache: "de" | "en" = "de") =>
   new Intl.NumberFormat(sprache === "en" ? "en-IE" : "de-AT", {
     style: "currency", currency: "EUR", maximumFractionDigits: 2, minimumFractionDigits: 0,
   }).format(wert);
+
+/**
+ * Preisstufe aus der KI-Analyse (23.11.2026): Kaltmiete → Nebenkosten, Warmmiete, Kaution,
+ * Abstand zu den Kosten. Nebenkosten und Kaution-Monate kommen aus der Kalkulation;
+ * ohne Kalkulation sind diese Felder null.
+ */
+export interface Preisstufe {
+  kalt: number;
+  nebenkosten: number | null;
+  warm: number | null;
+  kaution: number | null;
+  /** Kaltmiete minus kostendeckende Kaltmiete (pro Monat) */
+  ueberKosten: number | null;
+  kaltJahr: number;
+}
+
+export const preisstufe = (kalt: number, k: RentalCalculation | null): Preisstufe => {
+  if (!k) return { kalt, nebenkosten: null, warm: null, kaution: null, ueberKosten: null, kaltJahr: kalt * 12 };
+  const e = berechnen(k);
+  const warm = kalt + e.nebenkostenMonat;
+  return {
+    kalt,
+    nebenkosten: e.nebenkostenMonat,
+    warm,
+    kaution: auf(n(k.deposit_months) * warm, 10),
+    ueberKosten: Math.round(kalt - Math.max(0, e.kostendeckend - e.nebenkostenMonat)),
+    kaltJahr: kalt * 12,
+  };
+};
+
+/**
+ * Gewinnziel, mit dem `berechnen()` genau die gewünschte Grundmiete (kalt) liefert —
+ * so wird eine KI-Stufe „als Zielmiete übernommen", ohne ein zweites Mietfeld einzuführen.
+ * Umkehrung von: grundmiete = auf((kostenJahr + gewinn) / vermieteteMonate − nebenkosten, 10).
+ * Kann negativ sein (Zielmiete unter Kosten).
+ */
+export const gewinnzielFuerGrundmiete = (k: RentalCalculation, zielKalt: number): number => {
+  const e = berechnen(k);
+  // −0,01 €: Aufrundung auf volle 10 € soll exakt bei der Zielmiete landen, nicht 10 € darüber
+  const gewinn = (zielKalt + e.nebenkostenMonat) * e.vermieteteMonate - e.kostenJahr - 0.01;
+  return Math.round(gewinn * 100) / 100;
+};
