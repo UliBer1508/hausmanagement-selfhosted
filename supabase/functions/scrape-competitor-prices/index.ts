@@ -419,7 +419,82 @@ REGELN:
       const rentalData = parseJsonResponse(content);
       if (!rentalData) throw new Error('JSON parse failed for rental analysis');
 
-      if (houseId) {
+      // Stufe 2 (23.11.2026): Findet die Inseratsuche keinen m²-Preis (ländliche Region,
+      // wenige Mietinserate, willhaben sperrt Abrufe), wird der durchschnittliche
+      // m²-Preis der REGION aus Mietpreis-Statistiken gesucht — ohne Portalfilter.
+      let method: 'listings' | 'region_statistic' = 'listings';
+      let regionInfo: { region?: string; year?: string; source_name?: string; source_url?: string; note?: string } | null = null;
+      if (!(Number(rentalData.price_per_sqm) > 0)) {
+        console.log('[scrape-prices] Keine Inserate mit m²-Preis — Stufe 2: Regionsstatistik');
+        const regionPrompt = `
+AUFGABE: Ermittle die aktuelle durchschnittliche KALTMIETE je Quadratmeter für ${objectLabel} (Langzeitmiete, KEINE Ferienvermietung) in der Region dieser Adresse:
+${address} (${countryLabel})
+
+VORGEHEN:
+- Nutze aktuelle Mietpreis-Statistiken oder Preisspiegel (z. B. Bezirk, Region oder Gemeinde${country === 'AT' ? '; in Österreich z. B. Bezirk und Bundesland, Immobilienpreisspiegel, Statistik Austria' : '; in Deutschland z. B. Mietspiegel, Landkreis'}).
+- Nimm den Wert für die kleinste Region, für die es belastbare Zahlen gibt, und nenne sie.
+- Kaltmiete = ${country === 'AT' ? 'Nettomiete/Hauptmietzins ohne Betriebskosten und ohne USt' : 'Nettokaltmiete ohne Nebenkosten'}.
+- Wenn es nur Werte für Wohnungen gibt, nimm diese und schreibe das in "note".
+
+ANTWORT NUR ALS JSON:
+{
+  "price_per_sqm": 10.5,
+  "min_per_sqm": 8.5,
+  "max_per_sqm": 13.0,
+  "region": "Bezirk ...",
+  "year": "2026",
+  "source_name": "Name der Quelle",
+  "source_url": "URL der Quelle",
+  "note": "kurze Einschränkung oder leer"
+}
+Wenn du keinen belastbaren Wert findest: "price_per_sqm": null.
+`;
+        const regionResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${perplexityKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'sonar-pro',
+            messages: [
+              { role: 'system', content: 'Du recherchierst Mietpreis-Statistiken fuer Langzeitmiete. Antworte ausschliesslich mit validem JSON. Erfinde keine Zahlen.' },
+              { role: 'user', content: regionPrompt },
+            ],
+            temperature: 0.0,
+            max_tokens: 1500,
+            return_images: false,
+            return_related_questions: false,
+          }),
+        });
+        if (regionResponse.ok) {
+          const regionData = await regionResponse.json();
+          const regionParsed = parseJsonResponse(regionData.choices?.[0]?.message?.content ?? '');
+          const perSqm = Number(regionParsed?.price_per_sqm);
+          if (perSqm > 0) {
+            method = 'region_statistic';
+            const minSqm = Number(regionParsed.min_per_sqm) || null;
+            const maxSqm = Number(regionParsed.max_per_sqm) || null;
+            rentalData.price_per_sqm = perSqm;
+            rentalData.avg_rent = Math.round(perSqm * sqm);
+            rentalData.min_rent = minSqm ? Math.round(minSqm * sqm) : null;
+            rentalData.max_rent = maxSqm ? Math.round(maxSqm * sqm) : null;
+            rentalData.comparable_count = 0;
+            rentalData.sources = [regionParsed.source_name || 'Mietpreis-Statistik'];
+            regionInfo = {
+              region: regionParsed.region || undefined,
+              year: regionParsed.year ? String(regionParsed.year) : undefined,
+              source_name: regionParsed.source_name || undefined,
+              source_url: regionParsed.source_url || (regionData.citations?.[0] ?? undefined),
+              note: regionParsed.note || undefined,
+            };
+          }
+        } else {
+          console.error('[scrape-prices] Regionsstatistik: Perplexity', regionResponse.status);
+        }
+      }
+
+      const found = Number(rentalData.price_per_sqm) > 0;
+
+      // Nur ein echtes Ergebnis speichern — ein leerer Datensatz verdrängt sonst den letzten guten.
+      if (houseId && found) {
         const { error: saveError } = await supabase.from('rental_price_analysis').insert({
           house_id: houseId,
           avg_rent: rentalData.avg_rent || null,
@@ -428,7 +503,7 @@ REGELN:
           price_per_sqm: rentalData.price_per_sqm || null,
           comparable_count: rentalData.comparable_count || 0,
           sources: rentalData.sources || [],
-          search_params: { market: 'long_term', country, property_type: body.property_type ?? null, furnished, address, sqm, rooms, radius_km: radiusKm, platforms, current_rent: currentRent },
+          search_params: { market: 'long_term', method, region: regionInfo, country, property_type: body.property_type ?? null, furnished, address, sqm, rooms, radius_km: radiusKm, platforms, current_rent: currentRent },
         }).select('id');
         if (saveError) console.error('[scrape-prices] rental_price_analysis speichern fehlgeschlagen:', saveError);
       }
@@ -470,7 +545,7 @@ REGELN:
             property: body.house_name || address,
             avg_rent: rentalData.avg_rent, min_rent: rentalData.min_rent, max_rent: rentalData.max_rent,
             price_per_sqm: rentalData.price_per_sqm, comparable_count: rentalData.comparable_count,
-            sources: rentalData.sources, comparables,
+            sources: rentalData.sources, comparables, method, region: regionInfo, found,
           }],
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

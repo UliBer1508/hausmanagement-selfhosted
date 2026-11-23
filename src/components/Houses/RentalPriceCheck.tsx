@@ -16,7 +16,8 @@ import ScrapePricesDialog from './CompetitorAnalysis/ScrapePricesDialog';
  * (`CompetitorAnalysisDashboard`, Nachtpreise/Booking/Airbnb), die für Mieten nichts aussagt.
  *
  * Zwei Wege zum m²-Preis, beide landen in `rental_price_analysis`:
- *   1. Suche über `ScrapePricesDialog` (Modus Langzeit, Portale je Land)
+ *   1. Suche über `ScrapePricesDialog` (Modus Langzeit, Portale je Land; findet sie keine
+ *      Inserate, liefert die Edge Function den m²-Preis aus der Mietpreis-Statistik der Region)
  *   2. Wert selbst eintragen (außerhalb des Systems ermittelt)
  * Die Kalkulation (`RentalCalculationDialog`) zeigt die letzte Analyse zum Vergleich.
  */
@@ -92,7 +93,11 @@ const RentalPriceCheck = ({ houseId, houseName, livingAreaSqm }: RentalPriceChec
               <Row label="Spanne Vergleichsmieten">{eur(analysis.min_rent)} – {eur(analysis.max_rent)}</Row>
             ) : null}
             <Row label="Quelle · Stand">
-              {analysis.manual ? 'manuell' : (analysis.sources.join(', ') || 'Suche')}
+              {analysis.manual
+                ? 'manuell'
+                : analysis.regionStatistic
+                  ? `Statistik ${analysis.regionLabel ?? 'Region'}`
+                  : (analysis.sources.join(', ') || 'Suche')}
               {' · '}{format(parseISO(analysis.analysis_date), 'dd.MM.yyyy', { locale: de })}
             </Row>
             <Row label="Wohnfläche">{sqm ? `${sqm} m²` : 'fehlt'}</Row>

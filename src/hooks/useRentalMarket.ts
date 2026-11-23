@@ -22,6 +22,10 @@ export interface RentalMarketAnalysis {
   comparable_count: number | null;
   sources: string[];
   manual: boolean;
+  /** Wert aus Mietpreis-Statistik der Region statt aus Inseraten */
+  regionStatistic: boolean;
+  /** z. B. „Bezirk Zell am See, 2026" — nur bei regionStatistic */
+  regionLabel: string | null;
 }
 
 export interface RentalMarket {
@@ -45,6 +49,8 @@ export const useRentalMarket = (houseId: string | undefined, enabled = true) =>
           .from('rental_price_analysis')
           .select('analysis_date, price_per_sqm, avg_rent, min_rent, max_rent, comparable_count, sources, search_params')
           .eq('house_id', houseId!)
+          // nur Ergebnisse mit m²-Preis (am 23.11.2026 wurde ein leerer Lauf gespeichert)
+          .not('price_per_sqm', 'is', null)
           .order('analysis_date', { ascending: false })
           .limit(1),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,6 +62,7 @@ export const useRentalMarket = (houseId: string | undefined, enabled = true) =>
       const a = analysisR.data?.[0];
       const sources = Array.isArray(a?.sources) ? (a.sources as unknown[]).map(String) : [];
       const params = (a?.search_params ?? {}) as Record<string, unknown>;
+      const region = (params.region ?? null) as { region?: string; year?: string } | null;
       return {
         analysis: a
           ? {
@@ -67,6 +74,8 @@ export const useRentalMarket = (houseId: string | undefined, enabled = true) =>
               comparable_count: num(a.comparable_count),
               sources,
               manual: params.manual === true,
+              regionStatistic: params.method === 'region_statistic',
+              regionLabel: region?.region ? [region.region, region.year].filter(Boolean).join(', ') : null,
             }
           : null,
         calculation: calcR.data ? berechnen(normalisieren(calcR.data, houseId!)) : null,

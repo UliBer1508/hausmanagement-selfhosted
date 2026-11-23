@@ -67,6 +67,10 @@ interface RentalResult {
   price_per_sqm?: number;
   comparable_count?: number;
   sources?: string[];
+  /** listings = aus Inseraten, region_statistic = Mietpreis-Statistik der Region (Stufe 2) */
+  method?: 'listings' | 'region_statistic';
+  region?: { region?: string; year?: string; source_name?: string; source_url?: string; note?: string } | null;
+  found?: boolean;
   comparables?: Array<{
     address?: string;
     sqm?: number;
@@ -795,26 +799,45 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
               <div key={i} className="space-y-3">
                 <Label className="text-base font-semibold">Mietpreisanalyse</Label>
                 <div className="border rounded-lg p-3 space-y-2">
-                  {r.avg_rent && (
+                  {!r.price_per_sqm && (
+                    <p className="text-sm text-amber-800">
+                      Kein m²-Preis gefunden – weder in Inseraten noch in Mietpreis-Statistiken der Region.
+                      Tragen Sie den Wert im Werkzeug „Mietpreis ermitteln" selbst ein.
+                    </p>
+                  )}
+                  {r.method === 'region_statistic' && r.price_per_sqm && (
+                    <p className="text-xs text-muted-foreground">
+                      Keine passenden Inserate – Wert aus Mietpreis-Statistik
+                      {r.region?.region ? ` (${r.region.region}${r.region.year ? `, ${r.region.year}` : ''})` : ''}.
+                      {r.region?.note ? ` ${r.region.note}` : ''}
+                    </p>
+                  )}
+                  {!!r.avg_rent && (
                     <div className="flex justify-between text-sm">
                       <span>Ø Kaltmiete:</span>
                       <span className="font-medium">€{r.avg_rent.toLocaleString('de-DE')}</span>
                     </div>
                   )}
-                  {r.price_per_sqm && (
+                  {!!r.price_per_sqm && (
                     <div className="flex justify-between text-sm">
                       <span>Ø €/qm:</span>
                       <span className="font-medium">€{r.price_per_sqm.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</span>
                     </div>
                   )}
-                  {(r.min_rent || r.max_rent) && (
+                  {!!(r.min_rent || r.max_rent) && (
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Spanne:</span>
                       <span>€{r.min_rent?.toLocaleString('de-DE')} – €{r.max_rent?.toLocaleString('de-DE')}</span>
                     </div>
                   )}
-                  {r.comparable_count && (
+                  {(r.comparable_count ?? 0) > 0 && (
                     <div className="text-xs text-muted-foreground">{r.comparable_count} Vergleichsobjekte gefunden</div>
+                  )}
+                  {r.region?.source_url && r.method === 'region_statistic' && (
+                    <a href={r.region.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                      <ExternalLink className="w-3 h-3" />
+                      Quelle: {r.region.source_name || r.region.source_url}
+                    </a>
                   )}
 
                   {r.comparables && r.comparables.length > 0 && (

@@ -309,7 +309,7 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
                       <Row label="Wohnfläche">{livingArea > 0 ? `${livingArea} m²` : 'fehlt'}</Row>
                       <Row label="Möglich kalt">{possibleRent ? eur(possibleRent) : '–'}</Row>
                       {analysis && (
-                        <Row label="Stand">{fmtShort(analysis.analysis_date.slice(0, 10))}{analysis.manual ? ' · manuell' : ''}</Row>
+                        <Row label="Stand">{fmtShort(analysis.analysis_date.slice(0, 10))}{analysis.manual ? ' · manuell' : analysis.regionStatistic ? ' · Regionsstatistik' : ''}</Row>
                       )}
                       <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setShowPriceAnalysis(true)}>
                         <TrendingUp className="w-4 h-4 mr-2" />
