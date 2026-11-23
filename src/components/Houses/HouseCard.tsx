@@ -19,6 +19,7 @@ import RentalPriceCheck from './RentalPriceCheck';
 import RentalCalculationDialog from '@/components/Tenants/RentalCalculationDialog';
 import { useRentalMarket } from '@/hooks/useRentalMarket';
 import { possibleColdRent } from '@/lib/marketSearch';
+import { preisstufe } from '@/lib/rentalCalc';
 
 /**
  * Ein Objekt im Häuser-Tab als Reihe aus drei Karten (Umbau 22.11.2026,
@@ -107,6 +108,11 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
   const calc = market?.calculation ?? null;
   const analysis = market?.analysis ?? null;
   const aiAnalysis = market?.aiAnalysis ?? null;
+  // Drei KI-Preisstufen für das Gespräch mit dem Interessenten (lib/rentalCalc.ts, preisstufe)
+  const aiTiers = aiAnalysis
+    ? ([['Untere Stufe', aiAnalysis.min], ['Mitte', aiAnalysis.mid], ['Obere Stufe', aiAnalysis.max]] as const)
+        .map(([label, kalt]) => ({ label, ...preisstufe(kalt, market?.calculationInput ?? null) }))
+    : [];
   const possibleRent = possibleColdRent(livingArea, analysis?.price_per_sqm);
   // Gleicher Text wie im Issue „Leer stehend" (eine Quelle: lib/propertyIssues.ts)
   const inquiryText = status?.issues?.find(i => i.key === 'vacant')?.detail;
@@ -291,15 +297,35 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
                     )}
                   </div>
 
+                  {/* KI-Preisstufen: Verhandlungsspielraum (gespeichert in rental_price_analysis, method ai_analysis) */}
+                  {aiTiers.length > 0 && (
+                    <div>
+                      <SectionLabel>Preisstufen KI-Analyse · {fmtShort(aiAnalysis!.analysis_date.slice(0, 10))}</SectionLabel>
+                      <div className="rounded-md border border-violet-100 bg-white divide-y divide-violet-50">
+                        {aiTiers.map(t => (
+                          <div key={t.label} className="flex items-center justify-between gap-2 px-3 py-1.5">
+                            <span className="text-muted-foreground">
+                              {t.label}
+                              {calc?.grundmieteMonat === t.kalt && <span className="ml-1 text-[10px] font-bold text-emerald-700">Zielmiete</span>}
+                            </span>
+                            <span className="text-right">
+                              <span className="font-semibold">{eur(t.kalt)}</span>
+                              <span className="text-muted-foreground"> kalt</span>
+                              {t.warm !== null && <span className="text-muted-foreground"> · {eur(t.warm)} warm</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Mietpreis Region — wird nur einmal gebraucht, daher eingeklappt */}
                   <Collapsible open={marketOpen} onOpenChange={setMarketOpen} className="rounded-md border border-indigo-100 bg-white">
                     <CollapsibleTrigger className="w-full min-h-[40px] flex items-center justify-between gap-2 px-3 py-2 text-left">
                       <span className="min-w-0">
                         <span className="font-semibold">Mietpreis Region</span>
                         <span className="text-muted-foreground">
-                          {aiAnalysis
-                            ? ` · KI-Empfehlung ${eur(aiAnalysis.min)} – ${eur(aiAnalysis.max)}`
-                            : analysis?.price_per_sqm
+                          {analysis?.price_per_sqm
                               ? ` · ${eur(analysis.price_per_sqm)}/m²${possibleRent ? ` · möglich ${eur(possibleRent)}` : ''}`
                               : ' · noch nicht ermittelt'}
                         </span>
@@ -308,9 +334,6 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
                     </CollapsibleTrigger>
                     <CollapsibleContent className="px-3 pb-3 space-y-1 border-t border-indigo-50">
                       <div className="pt-2" />
-                      {aiAnalysis && (
-                        <Row label="KI-Empfehlung kalt">{eur(aiAnalysis.min)} – {eur(aiAnalysis.max)}</Row>
-                      )}
                       <Row label="Normaler Markt je m²">{analysis?.price_per_sqm ? eur(analysis.price_per_sqm) : '–'}</Row>
                       <Row label="Wohnfläche">{livingArea > 0 ? `${livingArea} m²` : 'fehlt'}</Row>
                       <Row label="Möglich kalt (normal)">{possibleRent ? eur(possibleRent) : '–'}</Row>

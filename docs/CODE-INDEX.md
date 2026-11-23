@@ -909,7 +909,9 @@ Warmmiete, Kaution, Kalt pro Jahr, Abstand zu den Kosten — `preisstufe()` in `
 Mietfeld; Zielmiete auf der Karte und Vorbelegung im Angebot (`RentalOfferDialog`) folgen
 automatisch. Tests: `src/test/rentalCalc.test.ts`. Hook: `useApplyTargetRent`.
 Oberfläche: `Houses/RentalAiAnalysis.tsx` im Werkzeug `RentalPriceCheck`; Zusammenfassung „KI-Empfehlung"
-im Klappbereich der Vermietungskarte. Daten: `useRentalMarket` (`aiAnalysis` getrennt von `analysis`),
+im Klappbereich der Vermietungskarte. Seit 23.11.2026 zeigt die Vermietungskarte die **drei
+Preisstufen** (kalt · warm, Markierung „Zielmiete") direkt unter der Zielmiete — für das Gespräch
+mit dem Interessenten; das Ergebnis jeder Analyse wird automatisch gespeichert. Daten: `useRentalMarket` (`aiAnalysis` getrennt von `analysis`),
 Start: `useRunRentalAiAnalysis`.
 
 ### Wettbewerber-Scraping — gescheiterter Versuch
