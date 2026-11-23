@@ -86,6 +86,7 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
   const [showPriceAnalysis, setShowPriceAnalysis] = useState(false);
   const [showCalculation, setShowCalculation] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
+  const [aiRentOpen, setAiRentOpen] = useState(false);
   const navigate = useNavigate();
 
   const isLongTerm = house.rental_type === 'long_term';
@@ -110,6 +111,12 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
     ? { cold: rent, additional, since: status?.activeRentSince ?? info?.contract_start ?? null }
     : null;
   const analysis = market?.analysis ?? null;
+  const aiAnalysis = market?.aiAnalysis ?? null;
+  // Zusammenfassung im eingeklappten KI-Mietpreis: aktuelle Miete über der Grenze zur Vergleichsmiete?
+  // (gleiche Regel wie RentalCurrentVsAi: +10 % bei Mietpreisbremse, sonst +20 %)
+  const aiRef = aiAnalysis?.legal?.reference_per_sqm ?? null;
+  const aiRentOverRef = !!(currentRent && aiRef && livingArea > 0
+    && currentRent.cold > aiRef * livingArea * (aiAnalysis?.legal?.applies ? 1.1 : 1.2));
   const possibleRent = possibleColdRent(livingArea, analysis?.price_per_sqm);
   // Gleicher Text wie im Issue „Leer stehend" (eine Quelle: lib/propertyIssues.ts)
   const inquiryText = status?.issues?.find(i => i.key === 'vacant')?.detail;
@@ -230,6 +237,8 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
             <CardContent className="p-3 space-y-3 text-sm flex-1">
               {hasTenant ? (
                 <>
+                  {/* Mieter + Vertrag grün hinterlegt (Uli 23.11.2026: „die Mieterinfo als grünen Hintergrund“) */}
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 space-y-3">
                   <div>
                     <SectionLabel>Mieter</SectionLabel>
                     <div className="text-base font-bold">{info.tenant_name}</div>
@@ -264,6 +273,7 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
                     {deposit > 0 && <Row label="Kaution">{eur(deposit)}</Row>}
                     {paymentDay > 0 && <Row label="Zahltag">{paymentDay}. des Monats</Row>}
                     {info.payment_method && <Row label="Zahlungsart">{PAYMENT_METHOD_LABEL[info.payment_method] ?? info.payment_method}</Row>}
+                  </div>
                   </div>
                   {info.notes && (
                     <div>
@@ -323,11 +333,24 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
                 </div>
               )}
               {/* Festvermietung → Mietpreis-Werkzeug (nicht die touristische Analyse). Leer: im Klappbereich oben */}
+              {/* KI-Mietpreis eingeklappt (Uli 23.11.2026); die aktuelle Miete steht schon oben im grünen Block */}
               {currentRent && (
-                <div className="pt-1">
-                  <SectionLabel>Aktuell und KI-Mietpreis</SectionLabel>
-                  <RentalCurrentVsAi houseId={house.id} sqm={livingArea} current={currentRent} compact />
-                </div>
+                <Collapsible open={aiRentOpen} onOpenChange={setAiRentOpen} className="rounded-md border border-violet-100 bg-white">
+                  <CollapsibleTrigger className="w-full min-h-[40px] flex items-center justify-between gap-2 px-3 py-2 text-left">
+                    <span className="min-w-0">
+                      <span className="font-semibold">KI-Mietpreis</span>
+                      <span className={aiRentOverRef ? 'text-red-700 font-medium' : 'text-muted-foreground'}>
+                        {aiAnalysis
+                          ? ` · Mitte ${eur(aiAnalysis.mid)} kalt${aiRentOverRef ? ' · Miete über Vergleichsmiete' : ''}`
+                          : ' · noch keine Analyse'}
+                      </span>
+                    </span>
+                    <ChevronDown className={`w-4 h-4 shrink-0 text-muted-foreground transition-transform ${aiRentOpen ? 'rotate-180' : ''}`} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="px-3 pb-3 pt-2 border-t border-violet-50">
+                    <RentalCurrentVsAi houseId={house.id} sqm={livingArea} current={currentRent} compact showCurrent={false} />
+                  </CollapsibleContent>
+                </Collapsible>
               )}
               {hasTenant && (
                 <Button onClick={() => setShowPriceAnalysis(true)} variant="outline" size="sm" className="w-full">
