@@ -106,6 +106,7 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
   const { data: market } = useRentalMarket(house.id, isVacantLongTerm);
   const calc = market?.calculation ?? null;
   const analysis = market?.analysis ?? null;
+  const aiAnalysis = market?.aiAnalysis ?? null;
   const possibleRent = possibleColdRent(livingArea, analysis?.price_per_sqm);
   // Gleicher Text wie im Issue „Leer stehend" (eine Quelle: lib/propertyIssues.ts)
   const inquiryText = status?.issues?.find(i => i.key === 'vacant')?.detail;
@@ -296,24 +297,29 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
                       <span className="min-w-0">
                         <span className="font-semibold">Mietpreis Region</span>
                         <span className="text-muted-foreground">
-                          {analysis?.price_per_sqm
-                            ? ` · ${eur(analysis.price_per_sqm)}/m²${possibleRent ? ` · möglich ${eur(possibleRent)}` : ''}`
-                            : ' · noch nicht ermittelt'}
+                          {aiAnalysis
+                            ? ` · KI-Empfehlung ${eur(aiAnalysis.min)} – ${eur(aiAnalysis.max)}`
+                            : analysis?.price_per_sqm
+                              ? ` · ${eur(analysis.price_per_sqm)}/m²${possibleRent ? ` · möglich ${eur(possibleRent)}` : ''}`
+                              : ' · noch nicht ermittelt'}
                         </span>
                       </span>
                       <ChevronDown className={`w-4 h-4 shrink-0 text-muted-foreground transition-transform ${marketOpen ? 'rotate-180' : ''}`} />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="px-3 pb-3 space-y-1 border-t border-indigo-50">
                       <div className="pt-2" />
-                      <Row label="Ø Kaltmiete je m²">{analysis?.price_per_sqm ? eur(analysis.price_per_sqm) : '–'}</Row>
+                      {aiAnalysis && (
+                        <Row label="KI-Empfehlung kalt">{eur(aiAnalysis.min)} – {eur(aiAnalysis.max)}</Row>
+                      )}
+                      <Row label="Normaler Markt je m²">{analysis?.price_per_sqm ? eur(analysis.price_per_sqm) : '–'}</Row>
                       <Row label="Wohnfläche">{livingArea > 0 ? `${livingArea} m²` : 'fehlt'}</Row>
-                      <Row label="Möglich kalt">{possibleRent ? eur(possibleRent) : '–'}</Row>
+                      <Row label="Möglich kalt (normal)">{possibleRent ? eur(possibleRent) : '–'}</Row>
                       {analysis && (
                         <Row label="Stand">{fmtShort(analysis.analysis_date.slice(0, 10))}{analysis.manual ? ' · manuell' : analysis.regionStatistic ? ' · Regionsstatistik' : ''}</Row>
                       )}
                       <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setShowPriceAnalysis(true)}>
                         <TrendingUp className="w-4 h-4 mr-2" />
-                        Mietpreis ermitteln
+                        Mietpreis ermitteln · KI-Analyse
                       </Button>
                     </CollapsibleContent>
                   </Collapsible>
