@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { berechnen, normalisieren, type Ergebnis } from '@/lib/rentalCalc';
+import { berechnen, gewinnzielFuerGrundmiete, normalisieren, type Ergebnis, type RentalCalculation } from '@/lib/rentalCalc';
 import { possibleColdRent } from '@/lib/marketSearch';
 
 /**
@@ -70,6 +70,8 @@ export interface RentalMarket {
   aiAnalysis: RentalAiAnalysis | null;
   /** null = noch keine Kalkulation angelegt */
   calculation: Ergebnis | null;
+  /** Eingaben der Kalkulation (für Preisstufen und „als Zielmiete übernehmen") */
+  calculationInput: RentalCalculation | null;
 }
 
 export const RENTAL_MARKET_KEY = 'rental-market';
@@ -142,6 +144,7 @@ export const useRentalMarket = (houseId: string | undefined, enabled = true) =>
             }
           : null,
         calculation: calcR.data ? berechnen(normalisieren(calcR.data, houseId!)) : null,
+        calculationInput: calcR.data ? normalisieren(calcR.data, houseId!) : null,
       };
     },
   });
@@ -186,5 +189,32 @@ export const useRunRentalAiAnalysis = () => {
       return data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [RENTAL_MARKET_KEY] }),
+  });
+};
+
+/**
+ * KI-Stufe als Zielmiete übernehmen: setzt in `rental_calculations` das Gewinnziel so,
+ * dass die Kalkulation genau diese Kaltmiete ergibt (lib/rentalCalc.ts, gewinnzielFuerGrundmiete).
+ * Die Kalkulation bleibt die EINE Quelle für die Zielmiete (Karte „Vermietung", Angebot).
+ */
+export const useApplyTargetRent = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ calculation, coldRent }: { calculation: RentalCalculation; coldRent: number }) => {
+      const profit = gewinnzielFuerGrundmiete(calculation, coldRent);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('rental_calculations')
+        .update({ profit_target: profit, updated_at: new Date().toISOString() })
+        .eq('house_id', calculation.house_id)
+        .select('house_id');
+      if (error) throw error;
+      if (!data?.length) throw new Error('Nicht gespeichert (keine Kalkulation oder keine Berechtigung)');
+      return { profit };
+    },
+    onSuccess: (_r, v) => {
+      queryClient.invalidateQueries({ queryKey: [RENTAL_MARKET_KEY] });
+      queryClient.invalidateQueries({ queryKey: ['rental-calculation', v.calculation.house_id] });
+    },
   });
 };

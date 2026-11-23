@@ -1,14 +1,20 @@
+import { useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { ExternalLink, RefreshCw, Sparkles } from 'lucide-react';
+import { Check, ExternalLink, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useRentalMarket, useRunRentalAiAnalysis } from '@/hooks/useRentalMarket';
+import { useApplyTargetRent, useRentalMarket, useRunRentalAiAnalysis } from '@/hooks/useRentalMarket';
+import { preisstufe } from '@/lib/rentalCalc';
+import { cn } from '@/lib/utils';
 
 /**
  * KI-Analyse Mietpreis (23.11.2026) — für Festvermietung von Objekten, bei denen
  * ein Wohnungs-Mietspiegel nichts aussagt (möbliertes Chalet).
- * Zeigt die Empfehlung (Kaltmiete-Spanne) zwischen vier Ankern:
+ * Drei Preisstufen (untere Grenze, Mitte, obere Grenze) mit Nebenkosten, Warmmiete, Kaution
+ * und Abstand zu den Kosten (lib/rentalCalc.ts, `preisstufe`). Eine Stufe lässt sich als
+ * Zielmiete übernehmen: setzt das Gewinnziel der Kalkulation (`useApplyTargetRent`).
+ * Die Empfehlung liegt zwischen vier Ankern:
  * Kosten (Kalkulation) · normaler Markt (Mietpreissuche) · Premium-Vergleiche · bisher touristisch.
  * Rechnen und Speichern: Edge Function `rental-ai-analysis`; Daten: hooks/useRentalMarket.ts.
  */
@@ -37,6 +43,8 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
   const { toast } = useToast();
   const { data: market } = useRentalMarket(houseId);
   const run = useRunRentalAiAnalysis();
+  const apply = useApplyTargetRent();
+  const [selected, setSelected] = useState(1);
   const ai = market?.aiAnalysis ?? null;
   const calc = market?.calculation ?? null;
   const sqm = Number(livingAreaSqm ?? 0);
@@ -57,6 +65,30 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
     );
 
   const anchors = ai?.anchors;
+  const input = market?.calculationInput ?? null;
+  const tiers = ai
+    ? [
+        { name: 'Untere Stufe', ...preisstufe(ai.min, input) },
+        { name: 'Mitte', ...preisstufe(ai.mid, input) },
+        { name: 'Obere Stufe', ...preisstufe(ai.max, input) },
+      ]
+    : [];
+  const chosen = tiers[selected] ?? null;
+  const currentTarget = calc?.grundmieteMonat ?? null;
+
+  const applyChosen = () => {
+    if (!input || !chosen) return;
+    apply.mutate(
+      { calculation: input, coldRent: chosen.kalt },
+      {
+        onSuccess: () => toast({ title: 'Zielmiete übernommen', description: `${chosen.name}: ${eur(chosen.kalt)} kalt` }),
+        onError: (e) => {
+          console.error('[RentalAiAnalysis] übernehmen', e);
+          toast({ title: 'Übernehmen fehlgeschlagen', description: e instanceof Error ? e.message : undefined, variant: 'destructive' });
+        },
+      },
+    );
+  };
 
   return (
     <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-4 space-y-3">
@@ -80,15 +112,66 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
 
       {ai ? (
         <>
+          {ai.reasoning && <p className="text-sm">{ai.reasoning}</p>}
+
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Empfehlung Kaltmiete</div>
-            <div className="text-2xl font-extrabold">{eur(ai.min)} – {eur(ai.max)} <span className="text-sm font-semibold text-muted-foreground">/ Monat</span></div>
-            {ai.sqm > 0 && (
-              <div className="text-xs text-muted-foreground">{eurSqm(ai.min / ai.sqm)} – {eurSqm(ai.max / ai.sqm)} · Stand {format(parseISO(ai.analysis_date), 'dd.MM.yyyy', { locale: de })}</div>
-            )}
+            <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+              Drei Preisstufen · Stand {format(parseISO(ai.analysis_date), 'dd.MM.yyyy', { locale: de })}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {tiers.map((t, i) => (
+                <button
+                  key={t.name}
+                  type="button"
+                  onClick={() => setSelected(i)}
+                  aria-pressed={selected === i}
+                  className={cn(
+                    'text-left rounded-lg border-2 bg-white p-3 transition-colors',
+                    selected === i ? 'border-violet-600 bg-violet-50' : 'border-slate-200 hover:border-violet-300',
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-violet-700">{t.name}</span>
+                    {currentTarget === t.kalt && <span className="text-[10px] font-bold text-emerald-700">aktuell</span>}
+                  </div>
+                  <div className="text-xl font-extrabold mt-1">{eur(t.kalt)}</div>
+                  <div className="text-[11px] text-muted-foreground">kalt / Monat{ai.sqm > 0 ? ` · ${eurSqm(t.kalt / ai.sqm)}` : ''}</div>
+                  <div className="mt-2 pt-2 border-t border-violet-100 space-y-0.5 text-xs">
+                    <div className="flex justify-between"><span className="text-muted-foreground">+ Nebenkosten</span><span className="font-medium">{t.nebenkosten !== null ? eur(t.nebenkosten) : '–'}</span></div>
+                    <div className="flex justify-between font-semibold"><span>= Warmmiete</span><span>{t.warm !== null ? eur(t.warm) : '–'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Kaution</span><span className="font-medium">{t.kaution !== null ? eur(t.kaution) : '–'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Kalt pro Jahr</span><span className="font-medium">{eur(t.kaltJahr)}</span></div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Über Kosten</span>
+                      <span className={cn('font-medium', t.ueberKosten !== null && t.ueberKosten < 0 && 'text-red-700')}>
+                        {t.ueberKosten !== null ? `${eur(t.ueberKosten)} / Monat` : '–'}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {ai.reasoning && <p className="text-sm">{ai.reasoning}</p>}
+          {!input ? (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+              Nebenkosten, Warmmiete, Kaution und „über Kosten" kommen aus der Kalkulation – sie ist noch nicht angelegt.
+              Erst danach lässt sich eine Stufe als Zielmiete übernehmen (Karte „Vermietung" → „Kalkulation").
+            </p>
+          ) : chosen && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-md bg-violet-100/60 px-3 py-2">
+              <div className="text-sm">
+                <span className="font-semibold">{chosen.name}</span> als Zielmiete: {eur(chosen.kalt)} kalt
+                {chosen.warm !== null && <> · {eur(chosen.warm)} warm</>}
+              </div>
+              <Button size="sm" onClick={applyChosen} disabled={apply.isPending || currentTarget === chosen.kalt}>
+                <Check className="w-4 h-4 mr-2" />
+                {currentTarget === chosen.kalt ? 'Ist Zielmiete' : 'Als Zielmiete übernehmen'}
+              </Button>
+            </div>
+          )}
+
+
 
           <div className="rounded-md bg-white border border-violet-100 px-3 py-1">
             <AnchorRow
@@ -111,6 +194,13 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
               value={anchors?.tourist_monthly ? eur(anchors.tourist_monthly) : '–'}
             />
           </div>
+
+          {!anchors?.premium && (
+            <p className="text-xs text-amber-800">
+              Keine möblierten Premium-Vergleiche gefunden – die Stufen stützen sich nur auf Normalmarkt
+              und bisherigen touristischen Ertrag.
+            </p>
+          )}
 
           {ai.notes.length > 0 && (
             <ul className="text-xs text-muted-foreground list-disc pl-4 space-y-0.5">
