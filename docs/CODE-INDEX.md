@@ -1077,6 +1077,12 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
   Rechner, gelbe Warnung bei Ausfall des Hauptrechners. Logik `bewerteSicherung()` in
   `lib/backupStatus.ts` — **gleiche Datei wie im Heizungs-Repo**, beide gleich halten.
   Tests `src/test/backupStatus.test.ts`. Doku `docs/Datenbank-Sicherung-Supabase.md`.
+- `layout/SystemStatus.tsx` — **NEU 23.11.2026:** Systemstatus-Symbol in der Kopfleiste
+  (`OriginalDashboard.tsx`, neben „Abmelden“), Fenster mit „Alles läuft“ und Karte „Sicherungen“
+  (`layout/SystemBackupsCard.tsx`). Zeigt NUR die Sicherung der Hausverwaltung (`sicherungKurz()`
+  in `lib/backupStatus.ts`); PCs, Dienste und Cloud stehen im Systemstatus der Heizungs-App
+  (Uli-Entscheidung 23.11.2026: keine datenbankübergreifende Abfrage). `SystemBackupsCard.tsx` und
+  `backupStatus.ts` sind dieselben Dateien wie im Heizungs-Repo.
 ---
 
 ## 13d. Modul „Dokumente" (Tab 📄) — nachgetragen 01.10.2026

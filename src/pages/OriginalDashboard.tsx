@@ -52,6 +52,7 @@ const UsageReportDialog = lazy(() =>
   import('@/components/Dashboard/UsageReportDialog').then(m => ({ default: m.UsageReportDialog }))
 );
 import { supabase } from '@/integrations/supabase/client';
+import { SystemStatusButton } from '@/components/layout/SystemStatus';
 import { useOptimizedLinenManagement } from '@/hooks/useOptimizedLinenManagement';
 import { getLinenStatusEmoji, getHouseIcon } from '@/lib/utils';
 import { useExternalSync } from '@/hooks/useExternalSync';
@@ -1331,6 +1332,9 @@ const OriginalDashboard = () => {
             </div>
           </div>
 
+          <div className="flex shrink-0 items-center gap-2">
+          {/* Systemstatus (23.11.2026): PCs, Dienste, Cloud, Sicherungen – components/layout/SystemStatus.tsx */}
+          <SystemStatusButton />
           {/* Abmelden — seit 21.08.2026 im Header statt als Kachel.
               Auf schmalen Geraeten faellt die Beschriftung weg, damit der
               Titel nicht umbricht; das Symbol bleibt und aria-label traegt
@@ -1345,6 +1349,7 @@ const OriginalDashboard = () => {
             <span className="text-lg leading-none">🚪</span>
             <span className="hidden sm:inline">Abmelden</span>
           </button>
+          </div>
         </div>
       </div>
 

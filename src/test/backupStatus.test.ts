@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bewerteSicherung, ersatzUebersprungen, rechnerName, type BackupRun } from '@/lib/backupStatus';
+import { bewerteSicherung, ersatzUebersprungen, rechnerName, sicherungKurz, type BackupRun } from '@/lib/backupStatus';
 
 const run = (host: string, finished: string, status: BackupRun['status'] = 'erfolgreich'): BackupRun => ({
   id: `${host}-${finished}`, started_at: finished, finished_at: finished, status, host,
@@ -28,5 +28,24 @@ describe('bewerteSicherung (zwei PCs)', () => {
   it('ohne Ersatz und ohne Sicherung seit 7 Tagen → rot', () => {
     const r = bewerteSicherung([run('MINIPC-WEIDMANN', '2026-11-16T02:15:00+01:00')], null, 30, jetzt);
     expect(r.rot).toBe(true);
+  });
+});
+
+describe('sicherungKurz (Systemstatus)', () => {
+  it('heute gesichert, Ersatz übersprungen → ok', () => {
+    const s = sicherungKurz('Hausverwaltung', [run('MINIPC-WEIDMANN', '2026-11-23T03:15:00+01:00')],
+      { host: 'MINIPC-VENEDIGE', result: 'uebersprungen', checked_at: '2026-11-23T04:30:00+01:00' }, 30, true, jetzt);
+    expect(s.tone).toBe('ok');
+    expect(s.text).toContain('PC München');
+    expect(s.text).toContain('PC Österreich übersprungen');
+    expect(s.problem).toBeNull();
+  });
+  it('7 Tage alt → rot mit Problemtext', () => {
+    const s = sicherungKurz('Hausverwaltung', [run('MINIPC-WEIDMANN', '2026-11-16T02:15:00+01:00')], null, 30, true, jetzt);
+    expect(s.tone).toBe('bad');
+    expect(s.problem).toContain('Hausverwaltung');
+  });
+  it('nicht abrufbar → grau, kein Problem', () => {
+    expect(sicherungKurz('Heizung', null, null, 30).tone).toBe('off');
   });
 });
