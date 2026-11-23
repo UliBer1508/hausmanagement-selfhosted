@@ -16,11 +16,10 @@ import { infoNumber } from '@/lib/propertyIssues';
 import type { PropertyStatus } from '@/hooks/usePropertyStatus';
 import CompetitorAnalysisDashboard from './CompetitorAnalysis/CompetitorAnalysisDashboard';
 import RentalPriceCheck from './RentalPriceCheck';
-import RentalPriceTiers from './RentalPriceTiers';
+import RentalTierWorkflow from './RentalTierWorkflow';
 import RentalCalculationDialog from '@/components/Tenants/RentalCalculationDialog';
 import { useRentalMarket } from '@/hooks/useRentalMarket';
 import { possibleColdRent } from '@/lib/marketSearch';
-import { preisstufe } from '@/lib/rentalCalc';
 
 /**
  * Ein Objekt im Häuser-Tab als Reihe aus drei Karten (Umbau 22.11.2026,
@@ -106,14 +105,7 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
   // Leerstand Festvermietung: Zielmiete + Marktmiete (nur dann laden)
   const isVacantLongTerm = isLongTerm && !hasTenant;
   const { data: market } = useRentalMarket(house.id, isVacantLongTerm);
-  const calc = market?.calculation ?? null;
   const analysis = market?.analysis ?? null;
-  const aiAnalysis = market?.aiAnalysis ?? null;
-  // Drei KI-Preisstufen für das Gespräch mit dem Interessenten (lib/rentalCalc.ts, preisstufe)
-  const aiTiers = aiAnalysis
-    ? ([['Untere', aiAnalysis.min], ['Mitte', aiAnalysis.mid], ['Obere', aiAnalysis.max]] as const)
-        .map(([name, kalt]) => ({ name, ...preisstufe(kalt, market?.calculationInput ?? null) }))
-    : [];
   const possibleRent = possibleColdRent(livingArea, analysis?.price_per_sqm);
   // Gleicher Text wie im Issue „Leer stehend" (eine Quelle: lib/propertyIssues.ts)
   const inquiryText = status?.issues?.find(i => i.key === 'vacant')?.detail;
@@ -278,33 +270,8 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
                 </>
               ) : (
                 <div className="space-y-3">
-                  {/* Zielmiete aus der internen Kalkulation (lib/rentalCalc.ts) */}
-                  <div>
-                    <SectionLabel>Zielmiete</SectionLabel>
-                    {calc ? (
-                      <>
-                        <div className="flex justify-between gap-3 text-base">
-                          <span className="font-semibold">Warmmiete</span>
-                          <span className="font-bold">{eur(calc.gesamtMonat)} / Monat</span>
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          kalt {eur(calc.grundmieteMonat)} · NK {eur(calc.nebenkostenMonat)} · Kaution {eur(calc.kaution)}
-                        </div>
-                      </>
-                    ) : (
-                      <button type="button" onClick={() => setShowCalculation(true)} className="text-xs font-semibold text-amber-700 hover:underline">
-                        Noch keine Kalkulation – anlegen
-                      </button>
-                    )}
-                  </div>
-
-                  {/* KI-Preisstufen: Verhandlungsspielraum (gespeichert in rental_price_analysis, method ai_analysis) */}
-                  {aiTiers.length > 0 && (
-                    <div>
-                      <SectionLabel>Preisstufen KI-Analyse · {fmtShort(aiAnalysis!.analysis_date.slice(0, 10))}</SectionLabel>
-                      <RentalPriceTiers tiers={aiTiers} sqm={livingArea} currentTarget={calc?.grundmieteMonat ?? null} compact />
-                    </div>
-                  )}
+                  {/* Zielmiete → KI-Stufen → Angebot/Vertrag → aktuelle Miete (RentalTierWorkflow.tsx) */}
+                  <RentalTierWorkflow houseId={house.id} livingAreaSqm={livingArea} onOpenCalculation={() => setShowCalculation(true)} />
 
                   {/* Mietpreis Region — wird nur einmal gebraucht, daher eingeklappt */}
                   <Collapsible open={marketOpen} onOpenChange={setMarketOpen} className="rounded-md border border-indigo-100 bg-white">

@@ -928,6 +928,24 @@ Die Obergrenze wird separat gespeichert (`useSaveRentCap`); `RentalCalculation` 
 nicht, damit die Kalkulation auch ohne SQL 75 speichert. Daten: `useRentalMarket` (`aiAnalysis` getrennt von `analysis`),
 Start: `useRunRentalAiAnalysis`.
 
+**Standort und Mietrecht automatisch (23.11.2026):** `supabase/functions/rental-ai-analysis/legal.ts`
+prüft bei jeder KI-Analyse (parallel zur Premium-Suche) Gemeinde, Bundesland, Regel und ortsübliche
+Vergleichsmiete. Feste Tabelle `KNOWN_REGIMES` (Falkensee/Brandenburg MietbegrenzV 03.12.2025, Berlin
+Mietenbegrenzungsverordnung, München MiSchuV; alle bis 31.12.2029) schlägt die KI bei „gilt / gilt nicht";
+Falkensee steht VOR Berlin, weil die Adresse „Berlin Falkensee" lautet. Vergleichsmiete per Perplexity.
+Obergrenze `capFromLegal()`: erfasste (`legal_cap_cold`) > Mietpreisbremse (Vergleichsmiete × 1,1 × m²)
+> § 5 WiStG (× 1,2), abgerundet auf 10 €. Gespeichert in `search_params.legal` und
+`anchors.legal_cap_cold` / `legal_cap_basis`. Anzeige `Houses/RentalLegalInfo.tsx` (in RentalAiAnalysis)
+mit „Als Obergrenze übernehmen" → `rent_cap`. Neue Orte unserer Objekte in `KNOWN_REGIMES` nachtragen.
+Tests: `src/test/rentalLegal.test.ts`.
+
+**Stufenwahl bis zur aktuellen Miete (23.11.2026):** `Houses/RentalTierWorkflow.tsx` auf der
+Vermietungskarte (Leerstand Festvermietung). Kopfzeile aus EINER Quelle: `useRentalDeal`
+(`hooks/useRentalContracts.ts`, jüngstes offenes Angebot + Vertrag) → „Angebot", „Mietvertrag …",
+„Aktuelle Miete · unterschrieben"; ohne Angebot die Zielmiete der Kalkulation („Festgelegt · Stufe Mitte").
+Stufe wählen + „festlegen" = `useApplyTargetRent`; `RentalOfferDialog` füllt das Angebot daraus vor,
+der Vertrag übernimmt die Beträge des Angebots. Nach „Als Mieter übernehmen" zeigt die Karte den Mietvertrag.
+
 ### Wettbewerber-Scraping — gescheiterter Versuch
 
 `scrape-competitor-prices` (Modus **tourist**) und `search-competitors` liefern **keine Daten**: Die
