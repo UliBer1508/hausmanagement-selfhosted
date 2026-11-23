@@ -239,9 +239,12 @@ ohne Passwort. Die dabei zuerst eingebaute eigene „Tagesprüfung“ wurde am s
 wieder entfernt, weil sie die v5-Regel doppelt hätte. Die Aufgaben auf dem PN40
 starten `Backup-Supabase.ps1` direkt.
 
-**PC Österreich für die Hausverwaltung einrichten (offen):** Dort
-`Setup-SupabaseBackup.ps1` ohne `-Profil` ausführen. Nötig sind einmal das
-Datenbank-Passwort der Hausverwaltung und für die Dateien der Secret-Key. Danach in
-`C:\Users\ulibe\supabase-backup\config.json` `"StandbyHours": 20` eintragen und
-als Uhrzeit 04:30 wählen. Hat der PC Österreich noch v4 im Basisordner, das
-v5-Skript verwenden (gleiche Datei wie für die Heizung).
+**PC Österreich für die Hausverwaltung (eingerichtet 23.11.2026):** per Doppelklick auf
+`Ersatz-Hausverwaltung-einrichten.cmd` (Chat 23.11.2026). Alle Werte sind fest im Skript:
+config.json mit `"StandbyHours": 20`, Ordner `OneDrive\Backups\Supabase-Hausverwaltung-Oesterreich`,
+Aufgabe „Supabase-Sicherung Hausverwaltung“ um 04:30, Skript v5. Einzige Eingabe war das
+Datenbank-Passwort. Es wurde auf dem PN40 aus `db-password.bin` in die Zwischenablage
+entschlüsselt und auf dem PC Österreich eingefügt. Dateien (Hausbilder, Mietbelege) sichert
+der Ersatz nicht, es gibt dort keinen Secret-Key. Springt er ein, steht der Lauf deshalb auf
+„mit Warnungen“. Testlauf 23.11.2026 14:52: ÜBERSPRUNGEN, weil MINIPC-WEIDMANN um 14:19
+gesichert hatte. Das Lebenszeichen liegt in `system_settings.backup_standby`.
