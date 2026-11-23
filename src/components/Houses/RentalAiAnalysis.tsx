@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useApplyTargetRent, useRentalMarket, useRunRentalAiAnalysis } from '@/hooks/useRentalMarket';
 import { preisstufe } from '@/lib/rentalCalc';
-import { cn } from '@/lib/utils';
+import RentalPriceTiers from './RentalPriceTiers';
 
 /**
  * KI-Analyse Mietpreis (23.11.2026) — für Festvermietung von Objekten, bei denen
@@ -118,39 +118,13 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
             <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
               Drei Preisstufen · Stand {format(parseISO(ai.analysis_date), 'dd.MM.yyyy', { locale: de })}
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {tiers.map((t, i) => (
-                <button
-                  key={t.name}
-                  type="button"
-                  onClick={() => setSelected(i)}
-                  aria-pressed={selected === i}
-                  className={cn(
-                    'text-left rounded-lg border-2 bg-white p-3 transition-colors',
-                    selected === i ? 'border-violet-600 bg-violet-50' : 'border-slate-200 hover:border-violet-300',
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-violet-700">{t.name}</span>
-                    {currentTarget === t.kalt && <span className="text-[10px] font-bold text-emerald-700">aktuell</span>}
-                  </div>
-                  <div className="text-xl font-extrabold mt-1">{eur(t.kalt)}</div>
-                  <div className="text-[11px] text-muted-foreground">kalt / Monat{ai.sqm > 0 ? ` · ${eurSqm(t.kalt / ai.sqm)}` : ''}</div>
-                  <div className="mt-2 pt-2 border-t border-violet-100 space-y-0.5 text-xs">
-                    <div className="flex justify-between"><span className="text-muted-foreground">+ Nebenkosten</span><span className="font-medium">{t.nebenkosten !== null ? eur(t.nebenkosten) : '–'}</span></div>
-                    <div className="flex justify-between font-semibold"><span>= Warmmiete</span><span>{t.warm !== null ? eur(t.warm) : '–'}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Kaution</span><span className="font-medium">{t.kaution !== null ? eur(t.kaution) : '–'}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Kalt pro Jahr</span><span className="font-medium">{eur(t.kaltJahr)}</span></div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Über Kosten</span>
-                      <span className={cn('font-medium', t.ueberKosten !== null && t.ueberKosten < 0 && 'text-red-700')}>
-                        {t.ueberKosten !== null ? `${eur(t.ueberKosten)} / Monat` : '–'}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <RentalPriceTiers
+              tiers={tiers}
+              sqm={ai.sqm}
+              currentTarget={currentTarget}
+              selected={selected}
+              onSelect={setSelected}
+            />
           </div>
 
           {!input ? (
