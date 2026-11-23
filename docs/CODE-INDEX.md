@@ -911,7 +911,9 @@ automatisch. Tests: `src/test/rentalCalc.test.ts`. Hook: `useApplyTargetRent`.
 Oberfläche: `Houses/RentalAiAnalysis.tsx` im Werkzeug `RentalPriceCheck`; Zusammenfassung „KI-Empfehlung"
 im Klappbereich der Vermietungskarte. Seit 23.11.2026 zeigt die Vermietungskarte die **drei
 Preisstufen** (kalt · warm, Markierung „Zielmiete") direkt unter der Zielmiete — für das Gespräch
-mit dem Interessenten; das Ergebnis jeder Analyse wird automatisch gespeichert. Daten: `useRentalMarket` (`aiAnalysis` getrennt von `analysis`),
+mit dem Interessenten; das Ergebnis jeder Analyse wird automatisch gespeichert.
+Darstellung der Stufen als Karten (Kalt, €/m², Nebenkosten, Warmmiete, Kaution, Kalt/Jahr, über Kosten)
+an EINER Stelle: `Houses/RentalPriceTiers.tsx` — im Werkzeug auswählbar, auf der Hauskarte `compact`. Daten: `useRentalMarket` (`aiAnalysis` getrennt von `analysis`),
 Start: `useRunRentalAiAnalysis`.
 
 ### Wettbewerber-Scraping — gescheiterter Versuch

@@ -16,6 +16,7 @@ import { infoNumber } from '@/lib/propertyIssues';
 import type { PropertyStatus } from '@/hooks/usePropertyStatus';
 import CompetitorAnalysisDashboard from './CompetitorAnalysis/CompetitorAnalysisDashboard';
 import RentalPriceCheck from './RentalPriceCheck';
+import RentalPriceTiers from './RentalPriceTiers';
 import RentalCalculationDialog from '@/components/Tenants/RentalCalculationDialog';
 import { useRentalMarket } from '@/hooks/useRentalMarket';
 import { possibleColdRent } from '@/lib/marketSearch';
@@ -110,8 +111,8 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
   const aiAnalysis = market?.aiAnalysis ?? null;
   // Drei KI-Preisstufen für das Gespräch mit dem Interessenten (lib/rentalCalc.ts, preisstufe)
   const aiTiers = aiAnalysis
-    ? ([['Untere Stufe', aiAnalysis.min], ['Mitte', aiAnalysis.mid], ['Obere Stufe', aiAnalysis.max]] as const)
-        .map(([label, kalt]) => ({ label, ...preisstufe(kalt, market?.calculationInput ?? null) }))
+    ? ([['Untere', aiAnalysis.min], ['Mitte', aiAnalysis.mid], ['Obere', aiAnalysis.max]] as const)
+        .map(([name, kalt]) => ({ name, ...preisstufe(kalt, market?.calculationInput ?? null) }))
     : [];
   const possibleRent = possibleColdRent(livingArea, analysis?.price_per_sqm);
   // Gleicher Text wie im Issue „Leer stehend" (eine Quelle: lib/propertyIssues.ts)
@@ -301,21 +302,7 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
                   {aiTiers.length > 0 && (
                     <div>
                       <SectionLabel>Preisstufen KI-Analyse · {fmtShort(aiAnalysis!.analysis_date.slice(0, 10))}</SectionLabel>
-                      <div className="rounded-md border border-violet-100 bg-white divide-y divide-violet-50">
-                        {aiTiers.map(t => (
-                          <div key={t.label} className="flex items-center justify-between gap-2 px-3 py-1.5">
-                            <span className="text-muted-foreground">
-                              {t.label}
-                              {calc?.grundmieteMonat === t.kalt && <span className="ml-1 text-[10px] font-bold text-emerald-700">Zielmiete</span>}
-                            </span>
-                            <span className="text-right">
-                              <span className="font-semibold">{eur(t.kalt)}</span>
-                              <span className="text-muted-foreground"> kalt</span>
-                              {t.warm !== null && <span className="text-muted-foreground"> · {eur(t.warm)} warm</span>}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
+                      <RentalPriceTiers tiers={aiTiers} sqm={livingArea} currentTarget={calc?.grundmieteMonat ?? null} compact />
                     </div>
                   )}
 
