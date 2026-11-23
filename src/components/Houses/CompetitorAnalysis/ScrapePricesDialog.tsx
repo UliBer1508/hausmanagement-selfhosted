@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { RENTAL_PORTALS, marketOf, portalsForCountry, readSearchParams, rentalCountryOf, writeSearchParams } from "@/lib/marketSearch";
 
 interface ScrapePricesDialogProps {
   house_id?: string;
@@ -32,13 +33,7 @@ const TOURIST_PLATFORMS = [
   { id: 'airbnb', label: 'Airbnb', color: 'bg-rose-500' },
 ];
 
-const RENTAL_PLATFORMS = [
-  { id: 'alle', label: 'Alle Portale' },
-  { id: 'immoscout24', label: 'ImmoScout24' },
-  { id: 'immowelt', label: 'Immowelt' },
-  { id: 'ebay-kleinanzeigen', label: 'eBay Kleinanzeigen' },
-  { id: 'wg-gesucht', label: 'WG-gesucht' },
-];
+// Langzeit-Portale je Land: EINE Liste in lib/marketSearch.ts (RENTAL_PORTALS)
 
 interface ListingResult {
   name: string;
@@ -255,16 +250,29 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
     queryFn: async () => {
       const { data, error } = await supabase
         .from('houses')
-        .select('id, name, rental_type, address, bedrooms, max_guests, tenant_info, scrape_search_params')
+        .select('id, name, rental_type, property_type, address, bedrooms, max_guests, living_area_sqm, tenant_info, scrape_search_params')
         .order('name');
       if (error) throw error;
-      return data;
+      // Land je Haus (DE/AT) bestimmt die Immobilienportale der Mietpreissuche
+      // utility_settings fehlt noch in integrations/supabase/types.ts (generiert)
+      const { data: settings, error: settingsError } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .from('utility_settings' as any)
+        .select('house_id, country');
+      if (settingsError) throw settingsError;
+      const countryByHouse = new Map(
+        ((settings ?? []) as unknown as { house_id: string; country: string | null }[]).map(st => [st.house_id, st.country])
+      );
+      return (data ?? []).map(h => ({ ...h, country: countryByHouse.get(h.id) ?? null }));
     },
   });
 
   const [selectedHouseId, setSelectedHouseId] = useState<string>(house_id || '');
   const selectedHouse = houses?.find(h => h.id === selectedHouseId);
-  const isRental = selectedHouse?.rental_type === 'long_term';
+  const isRental = marketOf(selectedHouse?.rental_type) === 'long_term';
+  const rentalCountry = rentalCountryOf(selectedHouse?.country);
+  // Wohnfläche kommt ausschließlich aus den Haus-Stammdaten (kein Ersatzwert mehr)
+  const sqm = Number(selectedHouse?.living_area_sqm ?? 0);
 
   const defaultCheckIn = useMemo(() => getNextSaturday(), []);
   const defaultCheckOut = useMemo(() => addDays(defaultCheckIn, 7), [defaultCheckIn]);
@@ -275,7 +283,6 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
   const [guests, setGuests] = useState(6);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['alle']);
   
-  const [sqm, setSqm] = useState(60);
   const [rooms, setRooms] = useState(2);
   const [radiusKm, setRadiusKm] = useState(10);
   
@@ -301,21 +308,33 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
       const city = parts.length > 1 ? parts[parts.length - 1] : addr;
       setLocation(city);
 
-      const saved = house.scrape_search_params as any;
-      if (house.rental_type === 'long_term') {
-        setSqm(saved?.sqm || 60);
-        setRooms(saved?.rooms || house.bedrooms || 2);
-        setRadiusKm(saved?.radius_km || 10);
-        setSelectedPlatforms(saved?.platforms || ['alle']);
+      // Gespeicherte Parameter getrennt je Markt (lib/marketSearch.ts)
+      const saved = readSearchParams(house.scrape_search_params);
+      if (marketOf(house.rental_type) === 'long_term') {
+        setRooms(saved.rental?.rooms || house.bedrooms || 2);
+        setRadiusKm(saved.rental?.radius_km || 10);
+        setSelectedPlatforms(portalsForCountry(saved.rental?.platforms, rentalCountryOf(house.country)));
       } else {
-        setGuests(saved?.guests || house.max_guests || 6);
-        setSelectedPlatforms(saved?.platforms || ['alle']);
-        if (saved?.location) setLocation(saved.location);
+        setGuests(saved.tourist?.guests || house.max_guests || 6);
+        setSelectedPlatforms(saved.tourist?.platforms || ['alle']);
+        if (saved.tourist?.location) setLocation(saved.tourist.location);
       }
     }
   };
 
-  const platformOptions = isRental ? RENTAL_PLATFORMS : TOURIST_PLATFORMS;
+  // Vorgewähltes Haus (Aufruf aus der Hauskarte): Felder wie bei manueller Auswahl füllen
+  const [initializedFor, setInitializedFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (open && house_id && houses && initializedFor !== house_id) {
+      setInitializedFor(house_id);
+      handleHouseChange(house_id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, house_id, houses, initializedFor]);
+
+  const platformOptions = isRental
+    ? [{ id: 'alle', label: 'Alle Portale' }, ...RENTAL_PORTALS[rentalCountry]]
+    : TOURIST_PLATFORMS;
 
   const togglePlatform = (platformId: string) => {
     if (platformId === 'alle') {
@@ -354,6 +373,8 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
       if (isRental) {
         body.analysis_type = 'rental';
         body.address = selectedHouse?.address || '';
+        body.country = rentalCountry;
+        body.property_type = selectedHouse?.property_type ?? null;
         body.sqm = sqm;
         body.rooms = rooms;
         body.radius_km = radiusKm;
@@ -378,6 +399,8 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
       if (data?.success) {
         if (isRental) {
           setRentalResults(data.results || []);
+          // Ergebnis liegt in rental_price_analysis → Hauskarte/Mietpreis-Werkzeug neu laden
+          queryClient.invalidateQueries({ queryKey: ['rental-market'] });
         } else {
           setTouristResults(data.results || []);
           setResultsByPlatform(data.results_by_platform || null);
@@ -406,6 +429,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
     setResultsByPlatform(null);
     setRentalResults(null);
     setSearchSummary(null);
+    setInitializedFor(null);
     setOpen(false);
   };
 
@@ -605,12 +629,13 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                   className="w-full text-xs"
                   onClick={async () => {
                     if (!selectedHouseId) return;
-                    const params = { location, guests, platforms: selectedPlatforms };
-                    const { error } = await supabase
+                    const params = writeSearchParams(selectedHouse?.scrape_search_params, 'tourist', { location, guests, platforms: selectedPlatforms });
+                    const { data: saved, error } = await supabase
                       .from('houses')
                       .update({ scrape_search_params: params } as any)
-                      .eq('id', selectedHouseId);
-                    if (error) {
+                      .eq('id', selectedHouseId)
+                      .select('id');
+                    if (error || !saved?.length) {
                       toast({ title: "Fehler beim Speichern", variant: "destructive" });
                     } else {
                       queryClient.invalidateQueries({ queryKey: ['houses'] });
@@ -629,7 +654,10 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>Wohnfläche (qm)</Label>
-                  <Input type="number" min={10} max={500} value={sqm} onChange={(e) => setSqm(parseInt(e.target.value) || 60)} />
+                  {/* Quelle: Haus-Stammdaten; geändert wird sie im Haus-Dialog */}
+                  <div className={cn("h-10 flex items-center px-3 rounded-md border text-sm", sqm > 0 ? "bg-muted/40" : "border-amber-300 bg-amber-50 text-amber-800")}>
+                    {sqm > 0 ? `${sqm} m²` : 'fehlt'}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Zimmeranzahl</Label>
@@ -662,9 +690,17 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                     ))}
                   </div>
                 </div>
+                {!(sqm > 0) && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    Ohne Wohnfläche gibt es keinen m²-Preis. Bitte zuerst im Haus-Dialog die Wohnfläche eintragen.
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Langzeitmiete in {rentalCountry === 'AT' ? 'Österreich' : 'Deutschland'} · Ferienunterkünfte werden nicht berücksichtigt.
+                </p>
                 <Button
                   onClick={handleScrape}
-                  disabled={isLoading || disabled || !selectedHouseId}
+                  disabled={isLoading || disabled || !selectedHouseId || !(sqm > 0)}
                   className="w-full"
                   size="lg"
                 >
@@ -687,12 +723,13 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                   className="w-full text-xs"
                   onClick={async () => {
                     if (!selectedHouseId) return;
-                    const params = { sqm, rooms, radius_km: radiusKm, platforms: selectedPlatforms };
-                    const { error } = await supabase
+                    const params = writeSearchParams(selectedHouse?.scrape_search_params, 'long_term', { rooms, radius_km: radiusKm, platforms: selectedPlatforms });
+                    const { data: saved, error } = await supabase
                       .from('houses')
                       .update({ scrape_search_params: params } as any)
-                      .eq('id', selectedHouseId);
-                    if (error) {
+                      .eq('id', selectedHouseId)
+                      .select('id');
+                    if (error || !saved?.length) {
                       toast({ title: "Fehler beim Speichern", variant: "destructive" });
                     } else {
                       queryClient.invalidateQueries({ queryKey: ['houses'] });

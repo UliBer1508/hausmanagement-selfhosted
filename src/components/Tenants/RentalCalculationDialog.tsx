@@ -98,6 +98,8 @@ const RentalCalculationDialog = ({ open, onOpenChange, houseId, houseName }: Ren
       return;
     }
     queryClient.invalidateQueries({ queryKey: ["rental-calculation", houseId] });
+    // Zielmiete auf der Hauskarte (hooks/useRentalMarket.ts)
+    queryClient.invalidateQueries({ queryKey: ["rental-market", houseId] });
     toast({ title: "Kalkulation gespeichert", description: `Vorschlag: ${euro(e.gesamtMonat)} pro Monat` });
     onOpenChange(false);
   };

@@ -291,52 +291,68 @@ serve(async (req) => {
       console.log('[scrape-prices] Running rental price analysis...');
       
       const address = body.address || '';
-      const sqm = body.sqm || 60;
+      // Wohnfläche ist Pflicht: bis 23.11.2026 wurde ohne Angabe still mit 60 qm gesucht.
+      const sqm = Number(body.sqm) || 0;
+      if (!(sqm > 0)) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Wohnfläche fehlt – bitte im Haus eintragen' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       const rooms = body.rooms || 2;
       const radiusKm = body.radius_km || 10;
       const currentRent = body.current_rent || null;
-      const platforms: string[] = body.platforms ?? ['alle'];
+      const country: 'AT' | 'DE' = body.country === 'AT' ? 'AT' : 'DE';
+      const countryLabel = country === 'AT' ? 'Österreich' : 'Deutschland';
+      const objectLabel = body.property_type === 'house' ? 'Häuser' : 'Wohnungen';
+      const furnished = body.furnished === true;
+      const requestedPlatforms: string[] = body.platforms ?? ['alle'];
 
-      const rentalLabelMap: Record<string, string> = {
-        'immoscout24': 'ImmoScout24',
-        'immowelt': 'Immowelt',
-        'ebay-kleinanzeigen': 'eBay Kleinanzeigen',
-        'wg-gesucht': 'WG-gesucht',
-        'wohnungsboerse': 'Wohnungsbörse',
+      // Langzeit-Markt: Immobilienportale JE LAND. Gleiche Liste wie
+      // src/lib/marketSearch.ts (RENTAL_PORTALS) — beide Stellen gemeinsam ändern.
+      // Touristische Portale (Booking.com, Airbnb) gehören NICHT hierher.
+      const RENTAL_PORTALS: Record<'AT' | 'DE', Record<string, { label: string; domain: string }>> = {
+        AT: {
+          'willhaben': { label: 'willhaben', domain: 'willhaben.at' },
+          'immoscout24-at': { label: 'ImmoScout24.at', domain: 'immobilienscout24.at' },
+          'derstandard': { label: 'derStandard Immobilien', domain: 'derstandard.at' },
+        },
+        DE: {
+          'immoscout24': { label: 'ImmoScout24', domain: 'immobilienscout24.de' },
+          'immowelt': { label: 'Immowelt', domain: 'immowelt.de' },
+          'ebay-kleinanzeigen': { label: 'Kleinanzeigen', domain: 'kleinanzeigen.de' },
+        },
       };
-      const platformText = platforms.includes('alle')
-        ? 'ImmoScout24, Immowelt, eBay Kleinanzeigen, WG-gesucht'
-        : platforms.map(p => rentalLabelMap[p] || p).join(', ');
-
-      const rentalDomainMap: Record<string, string> = {
-        'immoscout24': 'immobilienscout24.de',
-        'immowelt': 'immowelt.de',
-        'ebay-kleinanzeigen': 'kleinanzeigen.de',
-        'wg-gesucht': 'wg-gesucht.de',
-        'wohnungsboerse': 'wohnungsboerse.net',
-      };
-      const rentalDomainFilter: string[] = platforms.includes('alle')
-        ? Object.values(rentalDomainMap)
-        : platforms.map(p => rentalDomainMap[p]).filter(Boolean);
+      const countryPortals = RENTAL_PORTALS[country];
+      const chosenPlatforms = requestedPlatforms.includes('alle')
+        ? Object.keys(countryPortals)
+        : requestedPlatforms.filter(p => p in countryPortals);
+      const platforms = chosenPlatforms.length > 0 ? chosenPlatforms : Object.keys(countryPortals);
+      const platformText = platforms.map(p => countryPortals[p].label).join(', ');
+      const rentalDomainFilter: string[] = platforms.map(p => countryPortals[p].domain);
 
       const currentRentText = currentRent 
         ? `Die aktuelle Kaltmiete des Objekts beträgt ${currentRent} EUR/Monat (${(currentRent / sqm).toFixed(2)} EUR/qm). Finde vergleichbare Objekte in einer ähnlichen Preisklasse.` 
         : '';
 
       const rentalPrompt = `
-AUFGABE: Finde aktuelle Mietangebote (Kaltmiete) für vergleichbare Wohnungen.
+AUFGABE: Finde aktuelle Mietangebote (Langzeitmiete, KEINE Ferienvermietung) für vergleichbare ${objectLabel}.
 
 OBJEKTDATEN:
+- Land: ${countryLabel}
 - Adresse/Region: ${address}
+- Objektart: ${objectLabel === 'Häuser' ? 'Haus' : 'Wohnung'}${furnished ? ', möbliert' : ''}
 - Wohnfläche: ${sqm} qm
 - Zimmeranzahl: ${rooms} Zimmer
 ${currentRentText}
 
 SUCHPARAMETER:
 - Suche auf: ${platformText}
-- Suche Kaltmieten für Wohnungen mit ${rooms} Zimmern (±1 Zimmer) und ähnlicher Größe (${Math.round(sqm * 0.8)}-${Math.round(sqm * 1.2)} qm) in der gleichen Region
-- Berücksichtige Wohnungen im Umkreis von ${radiusKm} km
-- WICHTIG: "rent" ist immer die KALTMIETE (ohne Nebenkosten), NICHT die Warmmiete
+- Suche Kaltmieten für ${objectLabel} mit ${rooms} Zimmern (±1 Zimmer) und ähnlicher Größe (${Math.round(sqm * 0.8)}-${Math.round(sqm * 1.2)} qm) in der gleichen Region
+- Berücksichtige Objekte im Umkreis von ${radiusKm} km
+- NUR Langzeitmiete (unbefristet oder befristet ab 3 Monaten). Ferienwohnungen, Tages- und Wochenpreise ausschließen.
+- WICHTIG: "rent" ist immer die KALTMIETE (ohne Nebenkosten/Betriebskosten), NICHT die Warm- bzw. Gesamtmiete${country === 'AT' ? '. In Österreich: Nettomiete bzw. Hauptmietzins ohne Betriebskosten und ohne USt.' : ''}
+- "price_per_sqm" = Kaltmiete geteilt durch Wohnfläche, Durchschnitt der Vergleichsobjekte
 
 ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
 {
@@ -346,26 +362,26 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
   "price_per_sqm": 12.50,
   "comparable_count": 8,
   "currency": "EUR",
-  "sources": ["ImmoScout24", "Immowelt"],
+  "sources": ["Portalname"],
   "comparables": [
     {
-      "address": "Beispielstr. 1, 14612 Falkensee",
+      "address": "Ort, Ortsteil",
       "sqm": 65,
       "rooms": 2,
       "rent": 800,
-      "source": "ImmoScout24",
-      "description": "Helle 2-Zimmer-Wohnung mit Balkon und Einbauküche...",
+      "source": "Portalname",
+      "description": "Kurzbeschreibung",
       "floor": "2. OG",
       "year_built": 2005,
-      "features": ["Balkon", "Einbauküche", "Keller", "Aufzug"],
+      "features": ["Balkon", "Einbauküche"],
       "available_from": "01.07.2026",
-      "listing_url": "https://www.immobilienscout24.de/expose/12345678"
+      "listing_url": "Direkte URL zum Inserat"
     }
   ]
 }
 
 REGELN:
-- "rent" = NUR Kaltmiete (Nettokaltmiete), KEINE Warmmiete
+- "rent" = NUR Kaltmiete, KEINE Warmmiete
 - "rooms" = Gesamtzimmeranzahl (nicht nur Schlafzimmer)
 - Nur echte, aktuelle Inserate verwenden
 - avg_rent, min_rent, max_rent beziehen sich auf die gefundenen Vergleichsobjekte
@@ -380,7 +396,7 @@ REGELN:
         body: JSON.stringify({
           model: 'sonar-pro',
           messages: [
-            { role: 'system', content: 'Du durchsuchst Immobilienportale nach konkreten Mietinseraten. Antworte ausschliesslich mit validem JSON. Alle Mietpreise sind KALTMIETEN (ohne Nebenkosten).' },
+            { role: 'system', content: 'Du durchsuchst Immobilienportale nach konkreten Inseraten fuer Langzeitmiete (keine Ferienvermietung). Antworte ausschliesslich mit validem JSON. Alle Mietpreise sind KALTMIETEN (ohne Nebenkosten).' },
             { role: 'user', content: rentalPrompt }
           ],
           temperature: 0.0,
@@ -404,7 +420,7 @@ REGELN:
       if (!rentalData) throw new Error('JSON parse failed for rental analysis');
 
       if (houseId) {
-        await supabase.from('rental_price_analysis').insert({
+        const { error: saveError } = await supabase.from('rental_price_analysis').insert({
           house_id: houseId,
           avg_rent: rentalData.avg_rent || null,
           min_rent: rentalData.min_rent || null,
@@ -412,8 +428,9 @@ REGELN:
           price_per_sqm: rentalData.price_per_sqm || null,
           comparable_count: rentalData.comparable_count || 0,
           sources: rentalData.sources || [],
-          search_params: { address, sqm, rooms, platforms, current_rent: currentRent },
-        });
+          search_params: { market: 'long_term', country, property_type: body.property_type ?? null, furnished, address, sqm, rooms, radius_km: radiusKm, platforms, current_rent: currentRent },
+        }).select('id');
+        if (saveError) console.error('[scrape-prices] rental_price_analysis speichern fehlgeschlagen:', saveError);
       }
 
       const isListingUrl = (url: string): boolean => {
@@ -436,7 +453,8 @@ REGELN:
             if (sourceLower.includes('immoscout')) return citLower.includes('immobilienscout24');
             if (sourceLower.includes('immowelt')) return citLower.includes('immowelt');
             if (sourceLower.includes('ebay') || sourceLower.includes('kleinanzeigen')) return citLower.includes('kleinanzeigen');
-            if (sourceLower.includes('wg-gesucht')) return citLower.includes('wg-gesucht');
+            if (sourceLower.includes('willhaben')) return citLower.includes('willhaben');
+            if (sourceLower.includes('standard')) return citLower.includes('derstandard');
             return false;
           });
           return { ...c, listing_url: matched || (listingCitations[idx] ?? null) };
