@@ -913,7 +913,19 @@ im Klappbereich der Vermietungskarte. Seit 23.11.2026 zeigt die Vermietungskarte
 Preisstufen** (kalt · warm, Markierung „Zielmiete") direkt unter der Zielmiete — für das Gespräch
 mit dem Interessenten; das Ergebnis jeder Analyse wird automatisch gespeichert.
 Darstellung der Stufen als Karten (Kalt, €/m², Nebenkosten, Warmmiete, Kaution, Kalt/Jahr, über Kosten)
-an EINER Stelle: `Houses/RentalPriceTiers.tsx` — im Werkzeug auswählbar, auf der Hauskarte `compact`. Daten: `useRentalMarket` (`aiAnalysis` getrennt von `analysis`),
+an EINER Stelle: `Houses/RentalPriceTiers.tsx` — im Werkzeug auswählbar, auf der Hauskarte `compact`.
+
+**Rechtliche Obergrenze (23.11.2026, SQL 75):** `rental_calculations.rent_cap` (JSON: applies,
+reference_per_sqm, markup_percent, furnished_surcharge, previous_rent, source). Rechnung
+`mietobergrenze()` in `lib/rentalCalc.ts`: max(Vergleichsmiete × (1 + Zuschlag) × m² + Möblierungszuschlag,
+Vormiete), abgerundet auf 10 €. Eingabe `Houses/RentalRentCap.tsx` im Werkzeug, nur bei
+`utility_settings.country = 'DE'` (Anlass: Mietpreisbremse München, Bayerische Mieterschutzverordnung
+01.01.2026–31.12.2029). Die KI-Analyse bekommt die Grenze als `legal_cap_cold` und kappt Spanne und Mitte
+hart darauf; „Übernehmen" über der Grenze ist gesperrt. Ohne erfasste Grenze bei DE: roter Hinweis.
+**„Übernehmen" ohne Kalkulation** legt die Kalkulation an (`useApplyTargetRent`, Nebenkosten aus
+`tenant_info.additional_costs` als Posten „Nebenkosten-Vorauszahlung laut Mietvertrag").
+Die Obergrenze wird separat gespeichert (`useSaveRentCap`); `RentalCalculation` enthält `rent_cap` bewusst
+nicht, damit die Kalkulation auch ohne SQL 75 speichert. Daten: `useRentalMarket` (`aiAnalysis` getrennt von `analysis`),
 Start: `useRunRentalAiAnalysis`.
 
 ### Wettbewerber-Scraping — gescheiterter Versuch

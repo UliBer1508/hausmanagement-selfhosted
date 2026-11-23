@@ -423,7 +423,7 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
       <Dialog open={showPriceAnalysis} onOpenChange={setShowPriceAnalysis}>
         {isLongTerm ? (
           <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-auto">
-            <RentalPriceCheck houseId={house.id} houseName={name} livingAreaSqm={livingArea > 0 ? livingArea : null} />
+            <RentalPriceCheck houseId={house.id} houseName={name} livingAreaSqm={livingArea > 0 ? livingArea : null} address={house.address} />
           </DialogContent>
         ) : (
           <DialogContent className="max-w-[95vw] h-[90vh] overflow-auto">
