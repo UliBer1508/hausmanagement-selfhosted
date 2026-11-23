@@ -19,7 +19,7 @@ import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { RENTAL_PORTALS, marketOf, portalsForCountry, readSearchParams, rentalCountryOf, writeSearchParams } from "@/lib/marketSearch";
+import { DEFAULT_RENTAL_RADIUS_KM, RENTAL_PORTALS, marketOf, portalsForCountry, readSearchParams, rentalCountryOf, writeSearchParams } from "@/lib/marketSearch";
 
 interface ScrapePricesDialogProps {
   house_id?: string;
@@ -77,6 +77,8 @@ interface RentalResult {
     rooms?: number;
     rent?: number;
     source?: string;
+    /** „Haus" oder „Wohnung" — bei Häusern werden auch größere Wohnungen gesucht */
+    type?: string;
     description?: string;
     floor?: string;
     year_built?: number;
@@ -316,7 +318,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
       const saved = readSearchParams(house.scrape_search_params);
       if (marketOf(house.rental_type) === 'long_term') {
         setRooms(saved.rental?.rooms || house.bedrooms || 2);
-        setRadiusKm(saved.rental?.radius_km || 10);
+        setRadiusKm(saved.rental?.radius_km || DEFAULT_RENTAL_RADIUS_KM);
         setSelectedPlatforms(portalsForCountry(saved.rental?.platforms, rentalCountryOf(house.country)));
       } else {
         setGuests(saved.tourist?.guests || house.max_guests || 6);
@@ -864,13 +866,14 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                                     <div>
                                       <span className="font-medium text-sm">{c.address || 'Unbekannt'}</span>
                                       <div className="text-xs text-muted-foreground">
-                                        {c.sqm && <span>{c.sqm} qm</span>}
-                                        {c.rooms && <span> • {c.rooms} Zi.</span>}
+                                        {!!c.sqm && <span>{c.sqm} qm</span>}
+                                        {!!c.rooms && <span> • {c.rooms} Zi.</span>}
+                                        {c.type && <span> • {c.type}</span>}
                                         {c.source && <span> • {c.source}</span>}
                                       </div>
                                     </div>
                                   </div>
-                                  {c.rent && (
+                                  {!!c.rent && (
                                     <span className="font-semibold text-primary whitespace-nowrap ml-2">
                                       €{c.rent.toLocaleString('de-DE')}/M
                                     </span>
@@ -883,7 +886,7 @@ const ScrapePricesDialog = ({ house_id, disabled, triggerButton }: ScrapePricesD
                                     {c.description && <p className="text-xs text-muted-foreground">{c.description}</p>}
                                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                                       {c.floor && <span>📍 {c.floor}</span>}
-                                      {c.year_built && <span>🏗️ Baujahr {c.year_built}</span>}
+                                      {!!c.year_built && <span>🏗️ Baujahr {c.year_built}</span>}
                                       {c.available_from && <span>📅 Ab {c.available_from}</span>}
                                     </div>
                                     {c.features && c.features.length > 0 && (
