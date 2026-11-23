@@ -29,6 +29,8 @@ interface RentalCurrentVsAiProps {
   sqm: number;
   current: CurrentRent;
   compact?: boolean;
+  /** Block „Aktuelle Miete“ zeigen (Hauskarte: nein, dort steht sie schon im Vertrag) */
+  showCurrent?: boolean;
 }
 
 const eur = (n: number) =>
@@ -48,7 +50,7 @@ const Line = ({ label, value, tone }: { label: string; value: string; tone?: 're
   </div>
 );
 
-const RentalCurrentVsAi = ({ houseId, sqm, current, compact = false }: RentalCurrentVsAiProps) => {
+const RentalCurrentVsAi = ({ houseId, sqm, current, compact = false, showCurrent = true }: RentalCurrentVsAiProps) => {
   const { data: market } = useRentalMarket(houseId);
   const ai = market?.aiAnalysis ?? null;
   const legal = ai?.legal ?? null;
@@ -73,7 +75,8 @@ const RentalCurrentVsAi = ({ houseId, sqm, current, compact = false }: RentalCur
 
   return (
     <div className="space-y-3">
-      {/* 1. Aktueller Mietvertrag */}
+      {/* 1. Aktueller Mietvertrag (auf der Hauskarte ausgeblendet: steht dort schon) */}
+      {showCurrent && (
       <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2">
         <Label>Aktuelle Miete{current.since ? ` · gültig seit ${dmy(current.since)}` : ''}</Label>
         <div className="flex justify-between gap-3 text-base">
@@ -84,6 +87,7 @@ const RentalCurrentVsAi = ({ houseId, sqm, current, compact = false }: RentalCur
           kalt {eur(current.cold)}{perSqm ? ` (${eurSqm(perSqm)})` : ''} · NK {eur(current.additional)}
         </div>
       </div>
+      )}
 
       {/* 2. Was die KI als Mietpreis sieht */}
       {ai ? (
