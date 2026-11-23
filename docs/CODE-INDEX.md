@@ -872,6 +872,10 @@ Zwei getrennte Märkte, entschieden allein durch `houses.rental_type`
   NICHT in den Suchparametern.
 - Edge Function `scrape-competitor-prices`, Modus `rental`: ohne Wohnfläche Abbruch (400) statt
   still 60 m²; sucht nur Langzeitmiete, Kaltmiete (AT: Nettomiete ohne Betriebskosten/USt).
+  **Zwei Stufen:** 1. Inserate auf den Portalen des Landes; 2. findet das keinen m²-Preis
+  (erster Lauf Venediger Chalet 23.11.2026: 0 Treffer), Mietpreis-Statistik der Region ohne
+  Portalfilter (`search_params.method = 'region_statistic'`, `search_params.region`).
+  **Leere Läufe werden nicht gespeichert**; `useRentalMarket` liest nur Zeilen mit `price_per_sqm`.
 - ⚠️ **Bewusster Doppelgänger:** Portalliste in `lib/marketSearch.ts` (`RENTAL_PORTALS`) und in der
   Edge Function — Deno kann `src/` nicht importieren. **Beide Stellen gemeinsam ändern.**
 - `competitor_properties` ist rein touristisch. Die 25 Einträge beim Venediger Chalet stammen aus
