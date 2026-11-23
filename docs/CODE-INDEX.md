@@ -503,7 +503,8 @@ angeboten bekommt, entscheidet allein `getCategoriesForHouse()` in
    (`booking_amount` ist die Portal-Auszahlung), Buchungen/Nächte, Belegung.
 2. **Mietvertrag** (Festvermietung; Miete/NK gültig heute inkl. Mietänderungen,
    `getActiveRent`/`getActiveAdditionalCosts`) bzw. **Belegung** (touristisch:
-   Gast im Haus, nächste Anreise). Festvermietung **ohne Mieter** heißt die Karte
+   Gast im Haus, nächste Anreise, seit 23.11.2026 einklappbar **Kommende Buchungen** mit allen
+   Anreisen aus `usePropertyStatus().upcomingBookings`). Festvermietung **ohne Mieter** heißt die Karte
    **Vermietung** (23.11.2026): Zielmiete aus `rental_calculations` (`lib/rentalCalc.ts`,
    Knopf öffnet `Tenants/RentalCalculationDialog`), **Mietpreis Region** einklappbar
    (letzte `rental_price_analysis`, mögliche Kaltmiete = m² × €/m²), Mietanfragen-Zeile

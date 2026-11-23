@@ -87,6 +87,7 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
   const [showCalculation, setShowCalculation] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
   const [aiRentOpen, setAiRentOpen] = useState(false);
+  const [bookingsOpen, setBookingsOpen] = useState(false);
   const navigate = useNavigate();
 
   const isLongTerm = house.rental_type === 'long_term';
@@ -111,6 +112,11 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
     ? { cold: rent, additional, since: status?.activeRentSince ?? info?.contract_start ?? null }
     : null;
   const analysis = market?.analysis ?? null;
+  // Touristisch: alle kommenden Buchungen für die einklappbare Liste
+  const upcoming = status?.upcomingBookings ?? [];
+  const nights = (b: { check_in: string; check_out: string }) =>
+    Math.max(0, Math.round((parseISO(b.check_out).getTime() - parseISO(b.check_in).getTime()) / 864e5));
+  const upcomingNights = upcoming.reduce((sum, b) => sum + nights(b), 0);
   const aiAnalysis = market?.aiAnalysis ?? null;
   // Zusammenfassung im eingeklappten KI-Mietpreis: aktuelle Miete über der Grenze zur Vergleichsmiete?
   // (gleiche Regel wie RentalCurrentVsAi: +10 % bei Mietpreisbremse, sonst +20 %)
@@ -395,6 +401,30 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
                   <div className="text-muted-foreground">{status ? 'Keine Buchung' : '…'}</div>
                 )}
               </div>
+
+              {/* Alle kommenden Buchungen, eingeklappt (Uli 23.11.2026) – Daten aus usePropertyStatus */}
+              {upcoming.length > 1 && (
+                <Collapsible open={bookingsOpen} onOpenChange={setBookingsOpen} className="rounded-md border border-amber-200 bg-white">
+                  <CollapsibleTrigger className="w-full min-h-[40px] flex items-center justify-between gap-2 px-3 py-2 text-left">
+                    <span className="min-w-0">
+                      <span className="font-semibold">Kommende Buchungen</span>
+                      <span className="text-muted-foreground"> · {upcoming.length} · {upcomingNights} Nächte</span>
+                    </span>
+                    <ChevronDown className={`w-4 h-4 shrink-0 text-muted-foreground transition-transform ${bookingsOpen ? 'rotate-180' : ''}`} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="border-t border-amber-100 divide-y divide-amber-50">
+                    {upcoming.map(b => (
+                      <div key={b.id} className="flex items-baseline justify-between gap-3 px-3 py-1.5">
+                        <span className="font-medium truncate">{b.guestName}</span>
+                        <span className="text-muted-foreground whitespace-nowrap text-xs">
+                          {fmtShort(b.check_in)} – {fmtShort(b.check_out)} · {nights(b)} N.
+                        </span>
+                      </div>
+                    ))}
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+
               <Button onClick={() => setShowPriceAnalysis(true)} variant="outline" size="sm" className="w-full mt-auto">
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Preisanalyse

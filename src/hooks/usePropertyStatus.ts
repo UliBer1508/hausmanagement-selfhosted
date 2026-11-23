@@ -39,6 +39,8 @@ export interface PropertyStatus extends PropertyStatusResult {
   currentBooking: PropertyBooking | null;
   /** Nur touristisch: nächste Anreise (ohne Zeitgrenze) */
   nextBooking: PropertyBooking | null;
+  /** Nur touristisch: alle kommenden Anreisen, früheste zuerst (Liste auf der Belegungskarte, 23.11.2026) */
+  upcomingBookings: PropertyBooking[];
   /** Kennzahlen laufendes Jahr (lib/propertyFigures.ts) */
   figures: PropertyFigures;
 }
@@ -128,7 +130,8 @@ export const usePropertyStatus = () =>
       return rowsOf<HouseRow>(housesR).map((h): PropertyStatus => {
         const houseBookings = bookings.filter(b => b.house_id === h.id);
         const current = houseBookings.find(b => b.check_in <= todayISO && b.check_out >= todayISO);
-        const next = houseBookings.find(b => b.check_in > todayISO);
+        const upcoming = houseBookings.filter(b => b.check_in > todayISO);
+        const next = upcoming[0];
         const name = (h.name ?? '').trim();
 
         const result = buildPropertyIssues({
@@ -151,6 +154,7 @@ export const usePropertyStatus = () =>
           tenantInfo: h.tenant_info,
           currentBooking: current ? toBooking(current) : null,
           nextBooking: next ? toBooking(next) : null,
+          upcomingBookings: upcoming.map(toBooking),
           figures: buildPropertyFigures({
             payments: byHouse(payments, h.id),
             bookings: yearBookings.filter(b => b.house_id === h.id),
