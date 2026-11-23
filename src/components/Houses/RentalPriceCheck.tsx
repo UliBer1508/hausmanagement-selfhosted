@@ -10,6 +10,7 @@ import { useRentalMarket, useSaveManualRentPerSqm } from '@/hooks/useRentalMarke
 import { possibleColdRent } from '@/lib/marketSearch';
 import ScrapePricesDialog from './CompetitorAnalysis/ScrapePricesDialog';
 import RentalAiAnalysis from './RentalAiAnalysis';
+import RentalRentCap from './RentalRentCap';
 
 /**
  * „Mietpreis ermitteln" (23.11.2026) — das Preis-Werkzeug für FESTVERMIETUNG.
@@ -27,6 +28,7 @@ interface RentalPriceCheckProps {
   houseId: string;
   houseName: string;
   livingAreaSqm: number | null;
+  address?: string | null;
 }
 
 const eur = (n: number, digits = 0) =>
@@ -39,7 +41,7 @@ const Row = ({ label, children }: { label: string; children: React.ReactNode }) 
   </div>
 );
 
-const RentalPriceCheck = ({ houseId, houseName, livingAreaSqm }: RentalPriceCheckProps) => {
+const RentalPriceCheck = ({ houseId, houseName, livingAreaSqm, address }: RentalPriceCheckProps) => {
   const { toast } = useToast();
   const { data: market, isLoading } = useRentalMarket(houseId);
   const saveManual = useSaveManualRentPerSqm();
@@ -85,6 +87,9 @@ const RentalPriceCheck = ({ houseId, houseName, livingAreaSqm }: RentalPriceChec
 
       {/* KI-Analyse: Empfehlung aus Kosten, Markt, Premium-Vergleichen (für Objekte wie Chalets) */}
       <RentalAiAnalysis houseId={houseId} livingAreaSqm={sqm} />
+
+      {/* Deutschland: Mietpreisbremse u. ä. — Obergrenze für die KI-Analyse */}
+      {market?.country === 'DE' && <RentalRentCap houseId={houseId} livingAreaSqm={sqm} address={address} />}
 
       <div className="rounded-lg bg-indigo-50/60 border border-indigo-100 p-4 space-y-1.5">
         <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Normaler Mietmarkt · letzte Suche</div>

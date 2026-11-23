@@ -33,3 +33,24 @@ describe('rentalCalc Preisstufen', () => {
     expect(s).toMatchObject({ kalt: 2400, nebenkosten: null, warm: null, kaution: null, kaltJahr: 28800 });
   });
 });
+
+describe('Mietobergrenze (Mietpreisbremse)', () => {
+  it('Vergleichsmiete + 10 % + Möblierung, abgerundet', async () => {
+    const { mietobergrenze } = await import('@/lib/rentalCalc');
+    const g = mietobergrenze({ applies: true, reference_per_sqm: 15.38, markup_percent: 10, furnished_surcharge: 200, previous_rent: 0, source: null }, 180);
+    // 15,38 × 1,1 × 180 = 3045,24 + 200 = 3245,24 → 3240
+    expect(g.kalt).toBe(3240);
+    expect(g.vormieteGreift).toBe(false);
+  });
+  it('höhere Vormiete gilt', async () => {
+    const { mietobergrenze } = await import('@/lib/rentalCalc');
+    const g = mietobergrenze({ applies: true, reference_per_sqm: 15.38, markup_percent: 10, furnished_surcharge: 0, previous_rent: 3520, source: null }, 180);
+    expect(g.kalt).toBe(3520);
+    expect(g.vormieteGreift).toBe(true);
+  });
+  it('nicht aktiv → keine Grenze', async () => {
+    const { mietobergrenze, obergrenzeNormalisieren } = await import('@/lib/rentalCalc');
+    expect(mietobergrenze(null, 180).kalt).toBeNull();
+    expect(mietobergrenze(obergrenzeNormalisieren({ applies: false, reference_per_sqm: 15 }), 180).kalt).toBeNull();
+  });
+});

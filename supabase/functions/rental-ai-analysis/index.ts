@@ -14,6 +14,8 @@ import { geminiStructuredOutput, GeminiAPIError } from "../_shared/gemini.ts";
  *   3. Premium        — möblierte Häuser/Chalets zur Langzeitmiete, hier per Perplexity gesucht;
  *                       der m²-Preis wird aus den Inseraten SELBST gerechnet
  *   4. Touristisch    — bisherige Portal-Auszahlungen der letzten 12 Monate / 12 (nur Vergleich)
+ *   5. Obergrenze     — rechtlich zulässige Kaltmiete (z. B. Mietpreisbremse), vom Frontend mit
+ *                       lib/rentalCalc.ts mietobergrenze() gerechnet (`legal_cap_cold`). HARTE Grenze.
  * Gemini formuliert daraus Spanne + Begründung; die Spanne wird danach auf die Anker gekappt.
  *
  * Ergebnis: eine Zeile in rental_price_analysis mit search_params.method = 'ai_analysis'
@@ -80,6 +82,7 @@ serve(async (req) => {
     const houseId: string | undefined = body.house_id;
     if (!houseId) return json({ success: false, error: 'house_id fehlt' }, 400);
     const costFloorCold = Number(body.cost_floor_cold) > 0 ? Number(body.cost_floor_cold) : null;
+    const legalCapCold = Number(body.legal_cap_cold) > 0 ? Number(body.legal_cap_cold) : null;
 
     const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
     const geminiKey = Deno.env.get('GOOGLE_GEMINI_API_KEY');
@@ -130,9 +133,9 @@ serve(async (req) => {
     // ---- Premium-Vergleiche suchen (Perplexity, ohne Portalfilter) ----
     const regionHint = country === 'AT'
       ? 'Oberpinzgau und Pinzgau (Neukirchen, Bramberg, Wald, Mittersill, Zell am See), dazu vergleichbare alpine Lagen: Kitzbüheler Alpen, Zillertal, Saalbach'
-      : 'die Region um die Adresse und vergleichbare Lagen';
+      : 'dieselbe Stadt bzw. denselben Stadtteil wie die Adresse, sonst angrenzende Stadtteile';
     const searchPrompt = `
-AUFGABE: Finde aktuelle Inserate für die LANGZEITMIETE (ab 3 Monaten, keine Ferienvermietung) von MÖBLIERTEN Häusern, Chalets oder Landhäusern im Premium-Segment.
+AUFGABE: Finde aktuelle Inserate für die LANGZEITMIETE (ab 3 Monaten, keine Ferienvermietung) von ${house.property_type === 'house' ? 'MÖBLIERTEN Häusern, Chalets oder Landhäusern' : 'MÖBLIERTEN Wohnungen'} im Premium-Segment.
 
 Unser Objekt: ${typeLabel}, ${sqm} m², ${house.bedrooms ?? '?'} Schlafzimmer, ${house.bathrooms ?? '?'} Bäder${furnished ? ', voll möbliert' : ''}${features.length ? ', ' + features.join(', ') : ''}.
 Lage: ${house.address} (${country === 'AT' ? 'Österreich' : 'Deutschland'}).
@@ -145,7 +148,7 @@ ANTWORT NUR ALS JSON:
     {
       "title": "Titel des Inserats",
       "location": "Ort",
-      "type": "Chalet | Haus | Landhaus | Reihenhaus",
+      "type": "${house.property_type === 'house' ? 'Chalet | Haus | Landhaus | Reihenhaus' : 'Wohnung | Penthouse | Maisonette'}",
       "sqm": 135,
       "rent": 2610,
       "rent_kind": "kalt | warm | all-in",
@@ -156,7 +159,7 @@ ANTWORT NUR ALS JSON:
     }
   ]
 }
-REGELN: nur echte, aktuelle Inserate mit Monatsmiete und Fläche; keine Wohnungen; keine Tages- oder Wochenpreise; nichts erfinden.
+REGELN: nur echte, aktuelle Inserate mit Monatsmiete und Fläche; ${house.property_type === 'house' ? 'keine Wohnungen' : 'keine Häuser'}; keine Tages- oder Wochenpreise; nur dieselbe Stadt bzw. Region; nichts erfinden.
 `;
     let comparables: Comparable[] = [];
     let citations: string[] = [];
@@ -213,6 +216,7 @@ REGELN: nur echte, aktuelle Inserate mit Monatsmiete und Fläche; keine Wohnunge
       `Kostendeckende Kaltmiete (Kalkulation): ${costFloorCold ? `${costFloorCold} € / Monat` : 'noch keine Kalkulation'}`,
       `Normaler Mietmarkt (Wohnungen/Statistik): ${normalPerSqm ? `${normalPerSqm} €/m² → ${Math.round(normalPerSqm * sqm)} € bei ${sqm} m²` : 'keine Daten'}`,
       `Premium-Vergleiche (möblierte Häuser/Chalets): ${premium ? `Median ${premium.median} €/m², Spanne ${premium.min}–${premium.max} €/m², ${premium.count} Inserate` : 'keine gefunden'}`,
+      `Rechtliche Obergrenze Kaltmiete: ${legalCapCold ? `${legalCapCold} € / Monat (Mietpreisbremse bzw. Vormiete) – darf NICHT überschritten werden` : country === 'DE' ? 'nicht erfasst – in Deutschland kann die Mietpreisbremse gelten; weise darauf hin' : 'keine (Österreich, Einfamilienhaus MRG-Vollausnahme laut Vermieter)'}`,
       `Bisheriger touristischer Ertrag: ${touristMonthly ? `${touristMonthly} € / Monat (Portal-Auszahlungen der letzten 12 Monate, inkl. Reinigung/Wäsche/Aufwand des Vermieters)` : 'keine Daten'}`,
     ].join('\n');
     const compText = comparables.slice(0, 12).map(c =>
@@ -221,7 +225,7 @@ REGELN: nur echte, aktuelle Inserate mit Monatsmiete und Fläche; keine Wohnunge
 
     const recommendation = await geminiStructuredOutput<Recommendation>(
       geminiKey,
-      'Du bist ein nüchterner Mietpreis-Berater für Ferienimmobilien-Besitzer in den Alpen, die auf Langzeitvermietung umstellen. Du rechnest in Euro Kaltmiete pro Monat, begründest knapp auf Deutsch und erfindest keine Zahlen. Lagen wie Kitzbühel sind teurer als der Oberpinzgau; berücksichtige das.',
+      'Du bist ein nüchterner Mietpreis-Berater für private Vermieter von Häusern und Wohnungen in Österreich und Deutschland (Langzeitvermietung). Du rechnest in Euro Kaltmiete pro Monat, begründest knapp auf Deutsch und erfindest keine Zahlen. Eine angegebene rechtliche Obergrenze (z. B. Mietpreisbremse) ist zwingend: Deine Spanne darf sie nie überschreiten. Teurere Vergleichslagen (z. B. Kitzbühel gegenüber dem Oberpinzgau, Grünwald gegenüber dem Münchner Stadtgebiet) berücksichtigst du mit Abschlag.',
       `Objekt: ${house.name}, ${typeLabel}, ${sqm} m², ${house.bedrooms ?? '?'} Schlafzimmer, ${house.bathrooms ?? '?'} Bäder${furnished ? ', voll möbliert' : ''}${features.length ? ', ' + features.join(', ') : ''}.
 Lage: ${house.address}. Vermietung: 6–12 Monate oder unbefristet, ohne Reinigung/Wäsche durch den Vermieter.
 
@@ -257,10 +261,21 @@ Gib eine realistische Spanne für die monatliche KALTMIETE (ohne Betriebskosten)
     const ceiling = premium ? premium.max * sqm : (normalPerSqm ? normalPerSqm * sqm * 2.5 : 0);
     if (floor > 0 && min < floor) { min = floor; notes.push('Untergrenze auf Kosten/Normalmarkt angehoben.'); }
     if (ceiling > 0 && max > ceiling) { max = ceiling; notes.push('Obergrenze auf den teuersten Premium-Vergleich begrenzt.'); }
+    // Rechtliche Obergrenze schlägt alles andere (auch die Kosten-Untergrenze)
+    if (legalCapCold) {
+      if (max > legalCapCold) { max = legalCapCold; notes.push('Auf die rechtliche Obergrenze (Mietpreisbremse/Vormiete) begrenzt.'); }
+      if (min > legalCapCold) { min = legalCapCold; }
+      if (costFloorCold && costFloorCold > legalCapCold) notes.push('Achtung: Die Kosten liegen über der rechtlich zulässigen Miete.');
+    } else if (country === 'DE') {
+      notes.push('Rechtliche Obergrenze nicht erfasst – Mietpreisbremse prüfen.');
+    }
     if (max < min) max = min;
+    // runden, ohne die rechtliche Grenze durch Aufrunden zu überschreiten
     min = round10(min); max = round10(max);
+    if (legalCapCold) { max = Math.min(max, Math.floor(legalCapCold / 10) * 10); min = Math.min(min, max); }
     if (!(max > 0)) return json({ success: false, error: 'Die KI hat keine verwertbare Empfehlung geliefert.' }, 502);
-    const mid = round10((min + max) / 2);
+    let mid = round10((min + max) / 2);
+    if (legalCapCold) mid = Math.min(mid, max);
 
     const analysis = {
       method: 'ai_analysis',
@@ -268,6 +283,7 @@ Gib eine realistische Spanne für die monatliche KALTMIETE (ohne Betriebskosten)
       sqm, country, furnished, features,
       anchors: {
         cost_floor_cold: costFloorCold,
+        legal_cap_cold: legalCapCold,
         normal_per_sqm: normalPerSqm,
         normal_date: marketRow?.analysis_date ?? null,
         premium,

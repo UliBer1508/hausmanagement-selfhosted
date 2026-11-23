@@ -186,3 +186,59 @@ export const gewinnzielFuerGrundmiete = (k: RentalCalculation, zielKalt: number)
   const gewinn = (zielKalt + e.nebenkostenMonat) * e.vermieteteMonate - e.kostenJahr - 0.01;
   return Math.round(gewinn * 100) / 100;
 };
+
+/**
+ * Rechtliche Obergrenze der Kaltmiete (23.11.2026), z. B. Mietpreisbremse (§ 556d BGB):
+ * Neuvermietung höchstens ortsübliche Vergleichsmiete + Zuschlag (10 %), plus angemessener
+ * Möblierungszuschlag; Ausnahme: höhere Vormiete darf weiter verlangt werden (§ 556e BGB).
+ * Gespeichert in `rental_calculations.rent_cap` (SQL 75). Keine Rechtsberatung — die
+ * Eingaben (Vergleichsmiete aus dem Mietspiegel-Rechner, Vormiete) verantwortet der Vermieter.
+ */
+export interface RentCap {
+  applies: boolean;
+  reference_per_sqm: number;
+  markup_percent: number;
+  furnished_surcharge: number;
+  previous_rent: number;
+  source: string | null;
+}
+
+export const leereObergrenze = (): RentCap => ({
+  applies: false, reference_per_sqm: 0, markup_percent: 10, furnished_surcharge: 0, previous_rent: 0, source: null,
+});
+
+export const obergrenzeNormalisieren = (raw: unknown): RentCap | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  return {
+    applies: r.applies === true,
+    reference_per_sqm: n(r.reference_per_sqm),
+    markup_percent: r.markup_percent === undefined || r.markup_percent === null ? 10 : n(r.markup_percent),
+    furnished_surcharge: n(r.furnished_surcharge),
+    previous_rent: n(r.previous_rent),
+    source: typeof r.source === "string" && r.source.trim() ? r.source.trim() : null,
+  };
+};
+
+export interface Obergrenze {
+  /** zulässige Kaltmiete €/Monat (abgerundet auf volle 10 €), null = keine Grenze bestimmbar */
+  kalt: number | null;
+  /** Vergleichsmiete × (1 + Zuschlag) × m² + Möblierungszuschlag */
+  ausVergleichsmiete: number | null;
+  /** true, wenn die Vormiete höher ist und deshalb gilt */
+  vormieteGreift: boolean;
+}
+
+export const mietobergrenze = (cap: RentCap | null, sqm: number): Obergrenze => {
+  if (!cap?.applies) return { kalt: null, ausVergleichsmiete: null, vormieteGreift: false };
+  const s = n(sqm);
+  const aus = cap.reference_per_sqm > 0 && s > 0
+    ? cap.reference_per_sqm * (1 + n(cap.markup_percent) / 100) * s + n(cap.furnished_surcharge)
+    : null;
+  const vormiete = n(cap.previous_rent) > 0 ? n(cap.previous_rent) : null;
+  const kandidaten = [aus, vormiete].filter((v): v is number => v !== null && v > 0);
+  if (kandidaten.length === 0) return { kalt: null, ausVergleichsmiete: aus, vormieteGreift: false };
+  const grenze = Math.max(...kandidaten);
+  // abrunden: die Grenze darf nicht durch Rundung überschritten werden
+  return { kalt: Math.floor(grenze / 10) * 10, ausVergleichsmiete: aus, vormieteGreift: vormiete !== null && (aus === null || vormiete > aus) };
+};

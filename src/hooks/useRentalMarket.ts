@@ -1,6 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { berechnen, gewinnzielFuerGrundmiete, normalisieren, type Ergebnis, type RentalCalculation } from '@/lib/rentalCalc';
+import {
+  berechnen, gewinnzielFuerGrundmiete, leereKalkulation, normalisieren, obergrenzeNormalisieren,
+  type Ergebnis, type RentalCalculation, type RentCap,
+} from '@/lib/rentalCalc';
 import { possibleColdRent } from '@/lib/marketSearch';
 
 /**
@@ -72,6 +75,12 @@ export interface RentalMarket {
   calculation: Ergebnis | null;
   /** Eingaben der Kalkulation (für Preisstufen und „als Zielmiete übernehmen") */
   calculationInput: RentalCalculation | null;
+  /** Rechtliche Obergrenze (rental_calculations.rent_cap, SQL 75); null = nicht erfasst */
+  rentCap: RentCap | null;
+  /** Land des Objekts (utility_settings.country): 'AT' | 'DE' | null */
+  country: string | null;
+  /** Nebenkosten-Vorauszahlung laut Mietvertrag (houses.tenant_info.additional_costs) */
+  tenantAdditionalCosts: number;
 }
 
 export const RENTAL_MARKET_KEY = 'rental-market';
@@ -84,7 +93,7 @@ export const useRentalMarket = (houseId: string | undefined, enabled = true) =>
     enabled: enabled && !!houseId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<RentalMarket> => {
-      const [analysisR, calcR] = await Promise.all([
+      const [analysisR, calcR, settingsR, houseR] = await Promise.all([
         supabase
           .from('rental_price_analysis')
           .select('analysis_date, price_per_sqm, avg_rent, min_rent, max_rent, comparable_count, sources, search_params')
@@ -95,6 +104,9 @@ export const useRentalMarket = (houseId: string | undefined, enabled = true) =>
           .limit(20),
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any).from('rental_calculations').select('*').eq('house_id', houseId!).maybeSingle(),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).from('utility_settings').select('country').eq('house_id', houseId!).maybeSingle(),
+        supabase.from('houses').select('tenant_info').eq('id', houseId!).maybeSingle(),
       ]);
       if (analysisR.error) throw analysisR.error;
       if (calcR.error) throw calcR.error;
@@ -145,6 +157,9 @@ export const useRentalMarket = (houseId: string | undefined, enabled = true) =>
           : null,
         calculation: calcR.data ? berechnen(normalisieren(calcR.data, houseId!)) : null,
         calculationInput: calcR.data ? normalisieren(calcR.data, houseId!) : null,
+        rentCap: obergrenzeNormalisieren(calcR.data?.rent_cap),
+        country: settingsR.data?.country ?? null,
+        tenantAdditionalCosts: Number((houseR.data?.tenant_info as { additional_costs?: number } | null)?.additional_costs) || 0,
       };
     },
   });
@@ -180,9 +195,9 @@ export const useSaveManualRentPerSqm = () => {
 export const useRunRentalAiAnalysis = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ houseId, costFloorCold }: { houseId: string; costFloorCold: number | null }) => {
+    mutationFn: async ({ houseId, costFloorCold, legalCapCold }: { houseId: string; costFloorCold: number | null; legalCapCold: number | null }) => {
       const { data, error } = await supabase.functions.invoke('rental-ai-analysis', {
-        body: { house_id: houseId, cost_floor_cold: costFloorCold },
+        body: { house_id: houseId, cost_floor_cold: costFloorCold, legal_cap_cold: legalCapCold },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'KI-Analyse fehlgeschlagen');
@@ -196,25 +211,61 @@ export const useRunRentalAiAnalysis = () => {
  * KI-Stufe als Zielmiete übernehmen: setzt in `rental_calculations` das Gewinnziel so,
  * dass die Kalkulation genau diese Kaltmiete ergibt (lib/rentalCalc.ts, gewinnzielFuerGrundmiete).
  * Die Kalkulation bleibt die EINE Quelle für die Zielmiete (Karte „Vermietung", Angebot).
+ * Gibt es noch keine Kalkulation, wird sie angelegt; als Nebenkosten dient dann die
+ * Vorauszahlung laut Mietvertrag (tenant_info.additional_costs), falls vorhanden.
  */
 export const useApplyTargetRent = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ calculation, coldRent }: { calculation: RentalCalculation; coldRent: number }) => {
-      const profit = gewinnzielFuerGrundmiete(calculation, coldRent);
+    mutationFn: async ({ houseId, calculation, coldRent, fallbackAdditionalCosts }: {
+      houseId: string; calculation: RentalCalculation | null; coldRent: number; fallbackAdditionalCosts: number;
+    }) => {
+      const base: RentalCalculation = calculation ?? {
+        ...leereKalkulation(houseId),
+        extra_costs: fallbackAdditionalCosts > 0
+          ? [{ name: 'Nebenkosten-Vorauszahlung laut Mietvertrag', amount: fallbackAdditionalCosts * 12, utility: true }]
+          : [],
+        utilities_mode: 'advance',
+        note: 'Angelegt beim Übernehmen einer KI-Preisstufe. Kosten bitte ergänzen.',
+      };
+      const profit = gewinnzielFuerGrundmiete(base, coldRent);
+      // rent_cap bewusst nicht mitschreiben (eigene Mutation, Spalte aus SQL 75)
+      const { house_id: _h, ...rest } = base;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('rental_calculations')
-        .update({ profit_target: profit, updated_at: new Date().toISOString() })
-        .eq('house_id', calculation.house_id)
+        .upsert({ house_id: houseId, ...rest, profit_target: profit, updated_at: new Date().toISOString() }, { onConflict: 'house_id' })
         .select('house_id');
       if (error) throw error;
-      if (!data?.length) throw new Error('Nicht gespeichert (keine Kalkulation oder keine Berechtigung)');
-      return { profit };
+      if (!data?.length) throw new Error('Nicht gespeichert (keine Berechtigung?)');
+      return { profit, created: !calculation };
     },
     onSuccess: (_r, v) => {
       queryClient.invalidateQueries({ queryKey: [RENTAL_MARKET_KEY] });
-      queryClient.invalidateQueries({ queryKey: ['rental-calculation', v.calculation.house_id] });
+      queryClient.invalidateQueries({ queryKey: ['rental-calculation', v.houseId] });
     },
+  });
+};
+
+/** Rechtliche Obergrenze speichern (rental_calculations.rent_cap, SQL 75). Legt die Zeile bei Bedarf an. */
+export const useSaveRentCap = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ houseId, cap }: { houseId: string; cap: RentCap }) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from('rental_calculations')
+        .upsert({ house_id: houseId, rent_cap: cap, updated_at: new Date().toISOString() }, { onConflict: 'house_id' })
+        .select('house_id');
+      if (error) {
+        if (String(error.message ?? '').includes('rent_cap')) {
+          throw new Error('Spalte rent_cap fehlt – bitte supabase/SQL/75_mietobergrenze.sql im SQL-Editor ausführen.');
+        }
+        throw error;
+      }
+      if (!data?.length) throw new Error('Nicht gespeichert (keine Berechtigung?)');
+      return data[0];
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [RENTAL_MARKET_KEY] }),
   });
 };

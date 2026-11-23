@@ -5,7 +5,7 @@ import { Check, ExternalLink, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useApplyTargetRent, useRentalMarket, useRunRentalAiAnalysis } from '@/hooks/useRentalMarket';
-import { preisstufe } from '@/lib/rentalCalc';
+import { mietobergrenze, preisstufe } from '@/lib/rentalCalc';
 import RentalPriceTiers from './RentalPriceTiers';
 
 /**
@@ -51,10 +51,13 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
 
   // Kostendeckende KALTmiete = kostendeckende Gesamtmiete − Nebenkosten (lib/rentalCalc.ts)
   const costFloorCold = calc ? Math.max(0, Math.round(calc.kostendeckend - calc.nebenkostenMonat)) : null;
+  // Rechtliche Obergrenze (z. B. Mietpreisbremse) — die KI darf sie nicht überschreiten
+  const legalCapCold = mietobergrenze(market?.rentCap ?? null, sqm).kalt;
+  const isGermany = market?.country === 'DE';
 
   const start = () =>
     run.mutate(
-      { houseId, costFloorCold },
+      { houseId, costFloorCold, legalCapCold },
       {
         onSuccess: () => toast({ title: 'KI-Analyse fertig' }),
         onError: (e) => {
@@ -77,9 +80,9 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
   const currentTarget = calc?.grundmieteMonat ?? null;
 
   const applyChosen = () => {
-    if (!input || !chosen) return;
+    if (!chosen) return;
     apply.mutate(
-      { calculation: input, coldRent: chosen.kalt },
+      { houseId, calculation: input, coldRent: chosen.kalt, fallbackAdditionalCosts: market?.tenantAdditionalCosts ?? 0 },
       {
         onSuccess: () => toast({ title: 'Zielmiete übernommen', description: `${chosen.name}: ${eur(chosen.kalt)} kalt` }),
         onError: (e) => {
@@ -109,6 +112,12 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
       {!calc && (
         <p className="text-xs text-amber-800">Ohne Kalkulation fehlt die Kosten-Untergrenze. Die Analyse läuft trotzdem.</p>
       )}
+      {isGermany && legalCapCold === null && (
+        <p className="text-xs text-red-800">
+          Objekt in Deutschland: Ob die Mietpreisbremse gilt, ist nicht erfasst. Ohne Obergrenze kann die Empfehlung
+          über der zulässigen Miete liegen – unten „Rechtliche Obergrenze“ ausfüllen.
+        </p>
+      )}
 
       {ai ? (
         <>
@@ -127,18 +136,24 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
             />
           </div>
 
-          {!input ? (
+          {!input && (
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
               Nebenkosten, Warmmiete, Kaution und „über Kosten" kommen aus der Kalkulation – sie ist noch nicht angelegt.
-              Erst danach lässt sich eine Stufe als Zielmiete übernehmen (Karte „Vermietung" → „Kalkulation").
+              Beim Übernehmen wird sie angelegt{market?.tenantAdditionalCosts ? ` (Nebenkosten ${eur(market.tenantAdditionalCosts)} aus dem Mietvertrag)` : ''}; die Kosten danach in der Kalkulation ergänzen.
             </p>
-          ) : chosen && (
+          )}
+          {legalCapCold !== null && chosen && chosen.kalt > legalCapCold && (
+            <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+              {chosen.name} liegt über der rechtlichen Obergrenze von {eur(legalCapCold)} kalt.
+            </p>
+          )}
+          {chosen && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-md bg-violet-100/60 px-3 py-2">
               <div className="text-sm">
                 <span className="font-semibold">{chosen.name}</span> als Zielmiete: {eur(chosen.kalt)} kalt
                 {chosen.warm !== null && <> · {eur(chosen.warm)} warm</>}
               </div>
-              <Button size="sm" onClick={applyChosen} disabled={apply.isPending || currentTarget === chosen.kalt}>
+              <Button size="sm" onClick={applyChosen} disabled={apply.isPending || currentTarget === chosen.kalt || (legalCapCold !== null && chosen.kalt > legalCapCold)}>
                 <Check className="w-4 h-4 mr-2" />
                 {currentTarget === chosen.kalt ? 'Ist Zielmiete' : 'Als Zielmiete übernehmen'}
               </Button>
@@ -148,6 +163,13 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
 
 
           <div className="rounded-md bg-white border border-violet-100 px-3 py-1">
+            {(isGermany || legalCapCold !== null) && (
+              <AnchorRow
+                label="Rechtliche Obergrenze"
+                hint={legalCapCold !== null ? 'Mietpreisbremse / Vormiete' : 'in Deutschland prüfen (Mietpreisbremse)'}
+                value={legalCapCold !== null ? eur(legalCapCold) : 'nicht erfasst'}
+              />
+            )}
             <AnchorRow
               label="Untergrenze (Kosten)"
               value={anchors?.cost_floor_cold ? eur(anchors.cost_floor_cold) : 'keine Kalkulation'}
