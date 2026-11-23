@@ -63,8 +63,30 @@ export interface RentalAiAnalysis {
     normal_date: string | null;
     premium: { median: number; min: number; max: number; count: number } | null;
     tourist_monthly: number | null;
+    /** Obergrenze, mit der die KI gekappt hat (erfasst oder automatisch) */
+    legal_cap_cold: number | null;
+    legal_cap_basis: 'manual' | 'mietpreisbremse' | 'wistg' | null;
   };
+  /** Standort und Mietrecht (Edge Function rental-ai-analysis/legal.ts); null bei älteren Analysen */
+  legal: RentalLegalCheck | null;
   comparables: RentalAiComparable[];
+}
+
+export interface RentalLegalCheck {
+  municipality: string | null;
+  state: string | null;
+  regime: string | null;
+  applies: boolean | null;
+  regulation: string | null;
+  valid_until: string | null;
+  /** aus der geprüften Tabelle (Berlin, München, Falkensee) statt nur KI */
+  confirmed: boolean;
+  reference_per_sqm: number | null;
+  reference_range: { min: number; max: number } | null;
+  reference_source: string | null;
+  mietspiegel_url: string | null;
+  notes: string[];
+  sources: string[];
 }
 
 export interface RentalMarket {
@@ -151,7 +173,12 @@ export const useRentalMarket = (houseId: string | undefined, enabled = true) =>
                 normal_date: aiParams.anchors?.normal_date ?? null,
                 premium: aiParams.anchors?.premium ?? null,
                 tourist_monthly: num(aiParams.anchors?.tourist_monthly),
+                legal_cap_cold: num(aiParams.anchors?.legal_cap_cold),
+                legal_cap_basis: aiParams.anchors?.legal_cap_basis ?? (num(aiParams.anchors?.legal_cap_cold) ? 'manual' : null),
               },
+              legal: aiParams.legal && typeof aiParams.legal === 'object'
+                ? { ...aiParams.legal, notes: Array.isArray(aiParams.legal.notes) ? aiParams.legal.notes : [], sources: Array.isArray(aiParams.legal.sources) ? aiParams.legal.sources : [] }
+                : null,
               comparables: Array.isArray(aiParams.comparables) ? aiParams.comparables : [],
             }
           : null,

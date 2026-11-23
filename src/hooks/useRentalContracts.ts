@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { onedrive, putInChunks } from '@/hooks/useDocuments';
+import type { RentalOffer } from '@/hooks/useRentalInquiries';
 import type {
   ContractTemplateContent, ContractValues, HouseContractData, InventoryItem, ProtocolRow, BiText, FilledContract,
 } from '@/lib/rentalContract';
@@ -128,9 +129,55 @@ export const useSaveRentalContract = () => {
     onSuccess: (c) => {
       queryClient.invalidateQueries({ queryKey: ['rental-contract', c.offer_id] });
       queryClient.invalidateQueries({ queryKey: ['rental-application', c.offer_id] });
+      // Hauskarte „Vermietung“ zeigt den Vertragsstand (useRentalDeal)
+      queryClient.invalidateQueries({ queryKey: ['rental-offers', 'deal', c.house_id] });
     },
   });
 };
+
+/**
+ * Stand der Neuvermietung eines Hauses für die Hauskarte (23.11.2026):
+ * jüngstes offenes Angebot (nicht zurückgezogen, noch nicht „Als Mieter übernommen“)
+ * und sein Vertrag. Beträge kommen aus dem Angebot — der Vertrag wird daraus erzeugt.
+ *   offer     Angebot angelegt / freigegeben / angesehen / Rückfrage
+ *   accepted  Interessent hat angenommen, noch kein Vertrag
+ *   contract  Vertrag Entwurf oder ausgefertigt
+ *   signed    Vertrag unterschrieben → „Aktuelle Miete“
+ * Query-Key unter ['rental-offers'], damit Angebots-Mutationen ihn mit auffrischen.
+ */
+export type RentalDealStage = 'offer' | 'accepted' | 'contract' | 'signed';
+
+export interface RentalDeal {
+  stage: RentalDealStage;
+  offer: RentalOffer;
+  contract: RentalContract | null;
+}
+
+export const useRentalDeal = (houseId: string | null, enabled = true) =>
+  useQuery({
+    queryKey: ['rental-offers', 'deal', houseId],
+    enabled: !!houseId && enabled,
+    queryFn: async (): Promise<RentalDeal | null> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tabelle nicht in types.ts
+      const { data: offers, error } = await (supabase as any)
+        .from('rental_offers').select('*').eq('house_id', houseId).neq('status', 'withdrawn')
+        .is('converted_at', null).order('created_at', { ascending: false }).limit(1);
+      if (error) throw error;
+      const offer = ((offers || [])[0] ?? null) as RentalOffer | null;
+      if (!offer) return null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Tabelle nicht in types.ts
+      const { data: contracts, error: e2 } = await (supabase as any)
+        .from('rental_contracts').select('*').eq('offer_id', offer.id).neq('status', 'cancelled')
+        .order('created_at', { ascending: false }).limit(1);
+      if (e2) throw e2;
+      const contract = ((contracts || [])[0] ?? null) as RentalContract | null;
+      const stage: RentalDealStage = contract?.status === 'signed' ? 'signed'
+        : contract ? 'contract'
+        : offer.status === 'accepted' ? 'accepted'
+        : 'offer';
+      return { stage, offer, contract };
+    },
+  });
 
 export type ContractFileKind = 'contract' | 'protocol' | 'signed';
 const ART_TEXT: Record<ContractFileKind, string> = {

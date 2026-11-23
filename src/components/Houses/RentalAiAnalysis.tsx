@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useApplyTargetRent, useRentalMarket, useRunRentalAiAnalysis } from '@/hooks/useRentalMarket';
 import { mietobergrenze, preisstufe } from '@/lib/rentalCalc';
 import RentalPriceTiers from './RentalPriceTiers';
+import RentalLegalInfo from './RentalLegalInfo';
 
 /**
  * KI-Analyse Mietpreis (23.11.2026) — für Festvermietung von Objekten, bei denen
@@ -17,6 +18,9 @@ import RentalPriceTiers from './RentalPriceTiers';
  * Die Empfehlung liegt zwischen vier Ankern:
  * Kosten (Kalkulation) · normaler Markt (Mietpreissuche) · Premium-Vergleiche · bisher touristisch.
  * Rechnen und Speichern: Edge Function `rental-ai-analysis`; Daten: hooks/useRentalMarket.ts.
+ * Standort + Mietrecht (Mietpreisbremse, Mietspiegel) prüft die Function mit; Anzeige und
+ * „Als Obergrenze übernehmen“ in RentalLegalInfo.tsx. Gesperrt wird gegen die wirksame Grenze:
+ * erfasste Obergrenze, sonst die automatisch geschätzte der letzten Analyse.
  */
 
 interface RentalAiAnalysisProps {
@@ -54,6 +58,13 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
   // Rechtliche Obergrenze (z. B. Mietpreisbremse) — die KI darf sie nicht überschreiten
   const legalCapCold = mietobergrenze(market?.rentCap ?? null, sqm).kalt;
   const isGermany = market?.country === 'DE';
+  const capBasis = legalCapCold !== null ? 'manual' : ai?.anchors.legal_cap_basis ?? null;
+  // Wirksame Grenze: erfasst, sonst automatisch geschätzt (Mietspiegel)
+  const effectiveCap = legalCapCold ?? ai?.anchors.legal_cap_cold ?? null;
+  const capHint = capBasis === 'manual' ? 'erfasst (Mietpreisbremse / Vormiete)'
+    : capBasis === 'mietpreisbremse' ? 'geschätzt: Mietspiegel + 10 % (Mietpreisbremse) – prüfen'
+    : capBasis === 'wistg' ? 'geschätzt: Mietspiegel + 20 % (§ 5 WiStG) – prüfen'
+    : 'in Deutschland prüfen (Mietpreisbremse)';
 
   const start = () =>
     run.mutate(
@@ -112,7 +123,7 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
       {!calc && (
         <p className="text-xs text-amber-800">Ohne Kalkulation fehlt die Kosten-Untergrenze. Die Analyse läuft trotzdem.</p>
       )}
-      {isGermany && legalCapCold === null && (
+      {isGermany && effectiveCap === null && (
         <p className="text-xs text-red-800">
           Objekt in Deutschland: Ob die Mietpreisbremse gilt, ist nicht erfasst. Ohne Obergrenze kann die Empfehlung
           über der zulässigen Miete liegen – unten „Rechtliche Obergrenze“ ausfüllen.
@@ -122,6 +133,16 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
       {ai ? (
         <>
           {ai.reasoning && <p className="text-sm">{ai.reasoning}</p>}
+
+          {ai.legal && (
+            <RentalLegalInfo
+              houseId={houseId}
+              legal={ai.legal}
+              sqm={ai.sqm}
+              currentCap={market?.rentCap ?? null}
+              manualCapCold={legalCapCold}
+            />
+          )}
 
           <div>
             <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
@@ -142,9 +163,9 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
               Beim Übernehmen wird sie angelegt{market?.tenantAdditionalCosts ? ` (Nebenkosten ${eur(market.tenantAdditionalCosts)} aus dem Mietvertrag)` : ''}; die Kosten danach in der Kalkulation ergänzen.
             </p>
           )}
-          {legalCapCold !== null && chosen && chosen.kalt > legalCapCold && (
+          {effectiveCap !== null && chosen && chosen.kalt > effectiveCap && (
             <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-              {chosen.name} liegt über der rechtlichen Obergrenze von {eur(legalCapCold)} kalt.
+              {chosen.name} liegt über der rechtlichen Obergrenze von {eur(effectiveCap)} kalt.
             </p>
           )}
           {chosen && (
@@ -153,7 +174,7 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
                 <span className="font-semibold">{chosen.name}</span> als Zielmiete: {eur(chosen.kalt)} kalt
                 {chosen.warm !== null && <> · {eur(chosen.warm)} warm</>}
               </div>
-              <Button size="sm" onClick={applyChosen} disabled={apply.isPending || currentTarget === chosen.kalt || (legalCapCold !== null && chosen.kalt > legalCapCold)}>
+              <Button size="sm" onClick={applyChosen} disabled={apply.isPending || currentTarget === chosen.kalt || (effectiveCap !== null && chosen.kalt > effectiveCap)}>
                 <Check className="w-4 h-4 mr-2" />
                 {currentTarget === chosen.kalt ? 'Ist Zielmiete' : 'Als Zielmiete übernehmen'}
               </Button>
@@ -163,11 +184,11 @@ const RentalAiAnalysis = ({ houseId, livingAreaSqm }: RentalAiAnalysisProps) => 
 
 
           <div className="rounded-md bg-white border border-violet-100 px-3 py-1">
-            {(isGermany || legalCapCold !== null) && (
+            {(isGermany || effectiveCap !== null) && (
               <AnchorRow
                 label="Rechtliche Obergrenze"
-                hint={legalCapCold !== null ? 'Mietpreisbremse / Vormiete' : 'in Deutschland prüfen (Mietpreisbremse)'}
-                value={legalCapCold !== null ? eur(legalCapCold) : 'nicht erfasst'}
+                hint={capHint}
+                value={effectiveCap !== null ? eur(effectiveCap) : 'nicht erfasst'}
               />
             )}
             <AnchorRow
