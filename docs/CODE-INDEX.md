@@ -884,6 +884,27 @@ Zwei getrennte Märkte, entschieden allein durch `houses.rental_type`
 - `competitor_properties` ist rein touristisch. Die 25 Einträge beim Venediger Chalet stammen aus
   der Zeit der Ferienvermietung und erscheinen bei Festvermietung nicht mehr.
 
+### KI-Analyse Mietpreis (23.11.2026)
+
+Für Festvermietung von Objekten, bei denen ein Wohnungs-Mietspiegel nichts aussagt
+(möbliertes Chalet). Edge Function **`rental-ai-analysis`** (nur Admin, `requireAdmin`):
+
+1. **Untergrenze** — kostendeckende Kaltmiete aus `rental_calculations`; das Frontend rechnet sie
+   mit `lib/rentalCalc.ts` (`kostendeckend − nebenkostenMonat`) und gibt sie als `cost_floor_cold` mit
+   (eine Rechenstelle, kein Deno-Doppel).
+2. **Normaler Markt** — letzte `rental_price_analysis` ohne `manual`/`ai_analysis` (Mietpreissuche).
+3. **Premium** — möblierte Häuser/Chalets zur Langzeitmiete per Perplexity (Pinzgau + vergleichbare
+   alpine Lagen); €/m² aus den Inseraten selbst gerechnet (Median/Spanne).
+4. **Touristisch** — `bookings.booking_amount` der letzten 12 Monate ÷ 12 (nur Vergleich).
+
+Gemini (`_shared/gemini.ts`, `geminiStructuredOutput`) formuliert Spanne + Begründung; danach wird die
+Spanne auf die Anker gekappt (≥ Kosten bzw. 80 % Normalmarkt, ≤ teuerster Premium-Vergleich), Kappen
+steht in `notes`. Gespeichert als `rental_price_analysis` mit `search_params.method = 'ai_analysis'`
+(Anker, Vergleiche, Begründung in `search_params`; keine eigene Tabelle).
+Oberfläche: `Houses/RentalAiAnalysis.tsx` im Werkzeug `RentalPriceCheck`; Zusammenfassung „KI-Empfehlung"
+im Klappbereich der Vermietungskarte. Daten: `useRentalMarket` (`aiAnalysis` getrennt von `analysis`),
+Start: `useRunRentalAiAnalysis`.
+
 ### Wettbewerber-Scraping — gescheiterter Versuch
 
 `scrape-competitor-prices` (Modus **tourist**) und `search-competitors` liefern **keine Daten**: Die

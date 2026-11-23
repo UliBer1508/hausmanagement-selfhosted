@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRentalMarket, useSaveManualRentPerSqm } from '@/hooks/useRentalMarket';
 import { possibleColdRent } from '@/lib/marketSearch';
 import ScrapePricesDialog from './CompetitorAnalysis/ScrapePricesDialog';
+import RentalAiAnalysis from './RentalAiAnalysis';
 
 /**
  * „Mietpreis ermitteln" (23.11.2026) — das Preis-Werkzeug für FESTVERMIETUNG.
@@ -82,8 +83,11 @@ const RentalPriceCheck = ({ houseId, houseName, livingAreaSqm }: RentalPriceChec
         </p>
       )}
 
+      {/* KI-Analyse: Empfehlung aus Kosten, Markt, Premium-Vergleichen (für Objekte wie Chalets) */}
+      <RentalAiAnalysis houseId={houseId} livingAreaSqm={sqm} />
+
       <div className="rounded-lg bg-indigo-50/60 border border-indigo-100 p-4 space-y-1.5">
-        <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Letztes Ergebnis</div>
+        <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Normaler Mietmarkt · letzte Suche</div>
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Lädt …</p>
         ) : analysis ? (
