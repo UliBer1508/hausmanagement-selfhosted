@@ -946,6 +946,14 @@ Vermietungskarte (Leerstand Festvermietung). Kopfzeile aus EINER Quelle: `useRen
 Stufe wählen + „festlegen" = `useApplyTargetRent`; `RentalOfferDialog` füllt das Angebot daraus vor,
 der Vertrag übernimmt die Beträge des Angebots. Nach „Als Mieter übernehmen" zeigt die Karte den Mietvertrag.
 
+**Vermietetes Objekt: aktuell vs. KI (23.11.2026):** `Houses/RentalCurrentVsAi.tsx` — oben die aktuelle
+Miete (Mietvertragskarte: `status.activeRent`, Mietänderungen berücksichtigt), darunter die drei KI-Stufen,
+Vergleichsmiete, Abstand der aktuellen Miete dazu (rot über +10 % bei Mietpreisbremse, sonst +20 %) und
+„Neuvermietung höchstens". Auf der Mietvertragskarte `compact`, im Werkzeug `RentalPriceCheck` (Prop
+`currentRent`) mit Hinweis § 558 BGB / Kappungsgrenze 15 %. Ohne Kalkulation: NK aus dem Vertrag, Kaution
+3 Kaltmieten (`preisstufe(kalt, null, ohneKalkulation)`). Die KI bekommt die aktuelle Kaltmiete als
+`current_cold_rent` (Anker, Hinweis Vormiete § 556e BGB).
+
 ### Wettbewerber-Scraping — gescheiterter Versuch
 
 `scrape-competitor-prices` (Modus **tourist**) und `search-competitors` liefern **keine Daten**: Die

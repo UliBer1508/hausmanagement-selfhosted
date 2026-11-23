@@ -17,6 +17,7 @@ import type { PropertyStatus } from '@/hooks/usePropertyStatus';
 import CompetitorAnalysisDashboard from './CompetitorAnalysis/CompetitorAnalysisDashboard';
 import RentalPriceCheck from './RentalPriceCheck';
 import RentalTierWorkflow from './RentalTierWorkflow';
+import RentalCurrentVsAi from './RentalCurrentVsAi';
 import RentalCalculationDialog from '@/components/Tenants/RentalCalculationDialog';
 import { useRentalMarket } from '@/hooks/useRentalMarket';
 import { possibleColdRent } from '@/lib/marketSearch';
@@ -103,8 +104,11 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
   const livingArea = infoNumber(house.living_area_sqm);
 
   // Leerstand Festvermietung: Zielmiete + Marktmiete (nur dann laden)
-  const isVacantLongTerm = isLongTerm && !hasTenant;
-  const { data: market } = useRentalMarket(house.id, isVacantLongTerm);
+  // Festvermietung: Marktdaten laden — leer für die Stufen, vermietet für „aktuell vs. KI“
+  const { data: market } = useRentalMarket(house.id, isLongTerm);
+  const currentRent = hasTenant && rent > 0
+    ? { cold: rent, additional, since: status?.activeRentSince ?? info?.contract_start ?? null }
+    : null;
   const analysis = market?.analysis ?? null;
   const possibleRent = possibleColdRent(livingArea, analysis?.price_per_sqm);
   // Gleicher Text wie im Issue „Leer stehend" (eine Quelle: lib/propertyIssues.ts)
@@ -319,6 +323,12 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
                 </div>
               )}
               {/* Festvermietung → Mietpreis-Werkzeug (nicht die touristische Analyse). Leer: im Klappbereich oben */}
+              {currentRent && (
+                <div className="pt-1">
+                  <SectionLabel>Aktuell und KI-Mietpreis</SectionLabel>
+                  <RentalCurrentVsAi houseId={house.id} sqm={livingArea} current={currentRent} compact />
+                </div>
+              )}
               {hasTenant && (
                 <Button onClick={() => setShowPriceAnalysis(true)} variant="outline" size="sm" className="w-full">
                   <TrendingUp className="w-4 h-4 mr-2" />
@@ -390,7 +400,7 @@ const HouseCard = ({ house, status }: HouseCardProps) => {
       <Dialog open={showPriceAnalysis} onOpenChange={setShowPriceAnalysis}>
         {isLongTerm ? (
           <DialogContent className="sm:max-w-[520px] max-h-[90vh] overflow-auto">
-            <RentalPriceCheck houseId={house.id} houseName={name} livingAreaSqm={livingArea > 0 ? livingArea : null} address={house.address} />
+            <RentalPriceCheck houseId={house.id} houseName={name} livingAreaSqm={livingArea > 0 ? livingArea : null} address={house.address} currentRent={currentRent} />
           </DialogContent>
         ) : (
           <DialogContent className="max-w-[95vw] h-[90vh] overflow-auto">
