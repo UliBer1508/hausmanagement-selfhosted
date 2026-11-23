@@ -861,7 +861,7 @@ Zwei getrennte Märkte, entschieden allein durch `houses.rental_type`
 | | touristisch | Festvermietung (Langzeit) |
 |---|---|---|
 | Was | Nachtpreise | Kaltmiete je m² |
-| Portale | Booking.com, Airbnb | je Land: AT willhaben, ImmoScout24.at, derStandard · DE ImmoScout24, Immowelt, Kleinanzeigen |
+| Portale | Booking.com, Airbnb | je Land: AT willhaben, ImmoScout24.at, derStandard, immmo.at · DE ImmoScout24, Immowelt, Kleinanzeigen |
 | Eingaben | Ort, Zeitraum, Gäste | Wohnfläche (**Pflicht**, aus `houses.living_area_sqm`), Zimmer, Umkreis, Land aus `utility_settings.country`, Objektart aus `property_type` |
 | Ergebnis | Trefferliste (nicht gespeichert); Wettbewerber in `competitor_properties` + `weekly_pricing` | `rental_price_analysis` (auch manuell eingetragene €/m², `search_params.manual = true`) |
 | Oberfläche | `CompetitorAnalysisDashboard`, `ScrapePricesDialog` (Modus tourist) | `Houses/RentalPriceCheck.tsx` → `ScrapePricesDialog` (Modus rental) |
@@ -876,6 +876,9 @@ Zwei getrennte Märkte, entschieden allein durch `houses.rental_type`
   (erster Lauf Venediger Chalet 23.11.2026: 0 Treffer), Mietpreis-Statistik der Region ohne
   Portalfilter (`search_params.method = 'region_statistic'`, `search_params.region`).
   **Leere Läufe werden nicht gespeichert**; `useRentalMarket` liest nur Zeilen mit `price_per_sqm`.
+  Stufe 1 seit 23.11.2026 breiter: bei Häusern auch größere Wohnungen (50 % bis 130 % der Fläche,
+  ±2 Zimmer), Umkreis Standard 20 km, AT zusätzlich immmo.at; der m²-Preis wird aus den Inseraten
+  selbst gerechnet (Kaltmiete/Fläche), nicht von der KI übernommen.
 - ⚠️ **Bewusster Doppelgänger:** Portalliste in `lib/marketSearch.ts` (`RENTAL_PORTALS`) und in der
   Edge Function — Deno kann `src/` nicht importieren. **Beide Stellen gemeinsam ändern.**
 - `competitor_properties` ist rein touristisch. Die 25 Einträge beim Venediger Chalet stammen aus

@@ -92,6 +92,7 @@ export const RENTAL_PORTALS: Record<RentalCountry, RentalPortal[]> = {
     { id: 'willhaben', label: 'willhaben' },
     { id: 'immoscout24-at', label: 'ImmoScout24.at' },
     { id: 'derstandard', label: 'derStandard Immobilien' },
+    { id: 'immmo', label: 'immmo.at' },
   ],
   DE: [
     { id: 'immoscout24', label: 'ImmoScout24' },
@@ -106,6 +107,9 @@ export const portalsForCountry = (platforms: string[] | undefined, country: Rent
   const valid = (platforms ?? []).filter(p => p === 'alle' || known.includes(p));
   return valid.length > 0 ? valid : ['alle'];
 };
+
+/** Standard-Umkreis der Mietpreissuche — ländliche Regionen haben wenige Inserate */
+export const DEFAULT_RENTAL_RADIUS_KM = 20;
 
 /** Mögliche Kaltmiete = Wohnfläche × €/m², auf volle 10 € gerundet. */
 export const possibleColdRent = (sqm: number | null | undefined, pricePerSqm: number | null | undefined): number | null => {

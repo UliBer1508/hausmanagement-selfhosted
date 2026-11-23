@@ -300,11 +300,17 @@ serve(async (req) => {
         );
       }
       const rooms = body.rooms || 2;
-      const radiusKm = body.radius_km || 10;
+      // Ländliche Regionen: wenige Inserate → Standard 20 km (23.11.2026)
+      const radiusKm = body.radius_km || 20;
       const currentRent = body.current_rent || null;
       const country: 'AT' | 'DE' = body.country === 'AT' ? 'AT' : 'DE';
       const countryLabel = country === 'AT' ? 'Österreich' : 'Deutschland';
       const objectLabel = body.property_type === 'house' ? 'Häuser' : 'Wohnungen';
+      // Für Häuser auch größere Wohnungen mitnehmen: im Oberpinzgau gibt es kaum Miethäuser,
+      // aber viele private Wohnungsangebote (erster Lauf 23.11.2026: 0 Häuser gefunden).
+      const searchLabel = body.property_type === 'house' ? 'Häuser und größere Wohnungen' : 'Wohnungen';
+      const minSqm = Math.max(50, Math.round(sqm * 0.5));
+      const maxSqm = Math.round(sqm * 1.3);
       const furnished = body.furnished === true;
       const requestedPlatforms: string[] = body.platforms ?? ['alle'];
 
@@ -316,6 +322,7 @@ serve(async (req) => {
           'willhaben': { label: 'willhaben', domain: 'willhaben.at' },
           'immoscout24-at': { label: 'ImmoScout24.at', domain: 'immobilienscout24.at' },
           'derstandard': { label: 'derStandard Immobilien', domain: 'derstandard.at' },
+          'immmo': { label: 'immmo.at', domain: 'immmo.at' },
         },
         DE: {
           'immoscout24': { label: 'ImmoScout24', domain: 'immobilienscout24.de' },
@@ -336,7 +343,7 @@ serve(async (req) => {
         : '';
 
       const rentalPrompt = `
-AUFGABE: Finde aktuelle Mietangebote (Langzeitmiete, KEINE Ferienvermietung) für vergleichbare ${objectLabel}.
+AUFGABE: Finde aktuelle Mietangebote (Langzeitmiete, KEINE Ferienvermietung) für vergleichbare ${searchLabel}. Private Angebote und Makler-Angebote zählen gleich.
 
 OBJEKTDATEN:
 - Land: ${countryLabel}
@@ -348,7 +355,7 @@ ${currentRentText}
 
 SUCHPARAMETER:
 - Suche auf: ${platformText}
-- Suche Kaltmieten für ${objectLabel} mit ${rooms} Zimmern (±1 Zimmer) und ähnlicher Größe (${Math.round(sqm * 0.8)}-${Math.round(sqm * 1.2)} qm) in der gleichen Region
+- Suche Kaltmieten für ${searchLabel} mit ${Math.max(1, rooms - 2)} bis ${rooms + 2} Zimmern und ${minSqm}-${maxSqm} qm in der gleichen Region
 - Berücksichtige Objekte im Umkreis von ${radiusKm} km
 - NUR Langzeitmiete (unbefristet oder befristet ab 3 Monaten). Ferienwohnungen, Tages- und Wochenpreise ausschließen.
 - WICHTIG: "rent" ist immer die KALTMIETE (ohne Nebenkosten/Betriebskosten), NICHT die Warm- bzw. Gesamtmiete${country === 'AT' ? '. In Österreich: Nettomiete bzw. Hauptmietzins ohne Betriebskosten und ohne USt.' : ''}
@@ -370,6 +377,7 @@ ANTWORT-FORMAT (NUR JSON, keine Erklärungen):
       "rooms": 2,
       "rent": 800,
       "source": "Portalname",
+      "type": "Haus oder Wohnung",
       "description": "Kurzbeschreibung",
       "floor": "2. OG",
       "year_built": 2005,
@@ -418,6 +426,20 @@ REGELN:
 
       const rentalData = parseJsonResponse(content);
       if (!rentalData) throw new Error('JSON parse failed for rental analysis');
+
+      // m²-Preis aus den gefundenen Inseraten selbst rechnen (Kaltmiete / Fläche),
+      // statt dem Durchschnitt der KI zu vertrauen.
+      const withPerSqm = (Array.isArray(rentalData.comparables) ? rentalData.comparables : [])
+        .filter((c: any) => Number(c?.rent) > 0 && Number(c?.sqm) > 0);
+      if (withPerSqm.length > 0) {
+        const perSqmValues = withPerSqm.map((c: any) => Number(c.rent) / Number(c.sqm));
+        const avgPerSqm = perSqmValues.reduce((a: number, b: number) => a + b, 0) / perSqmValues.length;
+        rentalData.price_per_sqm = Math.round(avgPerSqm * 100) / 100;
+        rentalData.avg_rent = Math.round(avgPerSqm * sqm);
+        rentalData.min_rent = Math.round(Math.min(...perSqmValues) * sqm);
+        rentalData.max_rent = Math.round(Math.max(...perSqmValues) * sqm);
+        rentalData.comparable_count = withPerSqm.length;
+      }
 
       // Stufe 2 (23.11.2026): Findet die Inseratsuche keinen m²-Preis (ländliche Region,
       // wenige Mietinserate, willhaben sperrt Abrufe), wird der durchschnittliche
