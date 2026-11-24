@@ -32,6 +32,13 @@ Zurückgestellt: **Alexa+ mit MCP** (freie Sprache) — braucht die Zustimmung v
 Amazon. Vorlage existiert bereits: `heizung-muenchen/doc/ALEXA-PLUS.md`
 (`mcp-heizung`). Wenn Amazon zustimmt, folgt die Hausverwaltung diesem Muster.
 
+**Antrag gestellt 24.11.2026:** Die Alexa+-Konsole zeigt für Ulis Konto „Coming
+soon“. Zugang zur Private Preview (MCP Toolkit, `de-DE`, privates Add-on) per
+DevAssistant beantragt — **Amazon-Fall 29463522** („Access Request: Alexa+ for
+Builders Private Preview (MCP Toolkit)“). Antwort kommt per E-Mail an das
+Entwicklerkonto; Status im DevAssistant mit „Show my open cases“, Nachträge mit
+„Add a comment to case 29463522“.
+
 ## 2. Die sechs Fragen (Uli-Auswahl 24.11.2026)
 
 Haus: ohne Angabe **alle touristischen Häuser** (`houses.rental_type = 'tourist'`,
