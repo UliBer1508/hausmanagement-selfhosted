@@ -8,7 +8,7 @@ Ein Symbol in der Kopfleiste neben „Abmelden“ zeigt einen grünen Punkt oder
 
 1. **„Alles läuft“** bzw. die Problemliste
 2. Karte **„Sicherungen“**: Hausverwaltung (eigene Datenbank) und Heizung, jeweils wann zuletzt
-   gesichert wurde, von welchem PC, die Größe und „PC Österreich übersprungen“
+   gesichert wurde, von welchem PC, die Größe und „PC Österreich bereit (nicht nötig)“ (bis 23.11.2026: „übersprungen“ — klang nach Fehler)
    (`sicherungKurz()` in `lib/backupStatus.ts`)
 3. **München-PC** und **Österreich-PC** mit allen Diensten (gemeldet vom Dienste-Wächter alle 30 s),
    mit Start, Stop und Neustart

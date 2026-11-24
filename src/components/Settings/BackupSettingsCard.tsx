@@ -224,7 +224,7 @@ const BackupSettingsCard = () => {
                       {skip ? (
                         <Badge variant="outline" className="gap-1 border-slate-400 text-slate-600 dark:text-slate-300">
                           <PauseCircle className="h-3 w-3" />
-                          Übersprungen
+                          Bereit – nicht nötig
                         </Badge>
                       ) : r.letzter ? (
                         <StatusBadge status={r.letzter.status} />
