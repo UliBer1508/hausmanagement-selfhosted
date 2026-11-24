@@ -27,7 +27,7 @@ Deno.test({ name: 'Signatur', ignore: !dir, fn: () => {
   eq(checkSignature(chain, sig, body), null, 'gültige Signatur');
   eq(checkSignature(chain, sig, body + ' '), 'Signatur stimmt nicht', 'veränderter Body');
   eq(checkSignature(chain, '', body), 'Signatur fehlt', 'ohne Signatur');
-  eq(checkSignature(read('bad.pem'), sig, body), 'Zertifikat nicht für echo-api.amazon.com', 'falscher Name');
+  eq(checkSignature(read('bad.pem'), sig, body)?.startsWith('Zertifikat nicht für echo-api.amazon.com'), true, 'falscher Name');
   eq(checkSignature(read('leaf.pem') + read('bad.pem'), sig, body), 'Zertifikatskette ungültig', 'falsche Kette');
   eq(checkSignature(chain, sig, body, new Date(Date.now() + 40 * 86400_000)), 'Zertifikat abgelaufen oder noch nicht gültig', 'abgelaufen');
 } });

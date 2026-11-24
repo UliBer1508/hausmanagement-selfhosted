@@ -28,6 +28,16 @@ export function splitPem(pem: string): string[] {
   return pem.match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g) ?? [];
 }
 
+// Ist das Zertifikat für echo-api.amazon.com ausgestellt? Je nach Laufzeit (Deno lokal vs.
+// Supabase Edge Runtime) liefert X509Certificate den Namen unterschiedlich — deshalb drei Wege.
+const ECHO = 'echo-api.amazon.com';
+function certIsForEcho(c: X509Certificate): boolean {
+  try { if (c.checkHost(ECHO)) return true; } catch { /* nicht unterstützt */ }
+  const san = (c.subjectAltName ?? '').toLowerCase();
+  if (san.split(/[,\s]+/).some((s) => s.replace(/^dns:/, '') === ECHO)) return true;
+  return /(^|[\s,\n])cn=echo-api\.amazon\.com($|[\s,\n])/i.test(c.subject ?? '');
+}
+
 // Prüft Kette + Signatur. Gibt null zurück, wenn alles stimmt, sonst den Grund.
 export function checkSignature(chainPem: string, signatureB64: string, rawBody: string, now = new Date()): string | null {
   const pems = splitPem(chainPem);
@@ -36,8 +46,9 @@ export function checkSignature(chainPem: string, signatureB64: string, rawBody: 
   try { certs = pems.map((p) => new X509Certificate(p)); } catch { return 'Zertifikat nicht lesbar'; }
   const leaf = certs[0];
   if (now < new Date(leaf.validFrom) || now > new Date(leaf.validTo)) return 'Zertifikat abgelaufen oder noch nicht gültig';
-  const san = (leaf.subjectAltName ?? '').split(',').map((s) => s.trim().toLowerCase());
-  if (!san.includes('dns:echo-api.amazon.com')) return 'Zertifikat nicht für echo-api.amazon.com';
+  if (!certIsForEcho(leaf)) {
+    return `Zertifikat nicht für echo-api.amazon.com (SAN: ${leaf.subjectAltName ?? '–'}; Subject: ${(leaf.subject ?? '–').replace(/\n/g, ', ')})`;
+  }
   for (let i = 0; i < certs.length - 1; i++) {
     if (!certs[i].checkIssued(certs[i + 1]) || !certs[i].verify(certs[i + 1].publicKey)) return 'Zertifikatskette ungültig';
   }
