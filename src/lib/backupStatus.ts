@@ -176,7 +176,8 @@ export function bewerteSicherung(
   return { rechner, ersatz, neueste, rot, gelb };
 }
 
-/** Zeigt der Ersatz-PC zuletzt „übersprungen“ (Lebenszeichen neuer als sein letzter Lauf)? */
+/** Zeigt der Ersatz-PC zuletzt „übersprungen“ (Lebenszeichen neuer als sein letzter Lauf)?
+ *  Angezeigt wird das seit 24.11.2026 als „bereit (nicht nötig)“ – „übersprungen“ klang nach Fehler. */
 export function ersatzUebersprungen(r: RechnerStand): boolean {
   return (
     !!r.ersatz &&
@@ -219,7 +220,7 @@ export function sicherungKurz(
   } else {
     teile.push('keine gelungene Sicherung in 14 Tagen');
   }
-  if (ersatz && ersatzUebersprungen(ersatz)) teile.push(`${rechnerName(ersatz.host)} übersprungen`);
+  if (ersatz && ersatzUebersprungen(ersatz)) teile.push(`${rechnerName(ersatz.host)} bereit (nicht nötig)`);
   if (gelb.length) teile.push(gelb[0]);
   return {
     label,

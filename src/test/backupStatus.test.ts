@@ -37,7 +37,7 @@ describe('sicherungKurz (Systemstatus)', () => {
       { host: 'MINIPC-VENEDIGE', result: 'uebersprungen', checked_at: '2026-11-23T04:30:00+01:00' }, 30, true, jetzt);
     expect(s.tone).toBe('ok');
     expect(s.text).toContain('PC München');
-    expect(s.text).toContain('PC Österreich übersprungen');
+    expect(s.text).toContain('PC Österreich bereit (nicht nötig)');
     expect(s.problem).toBeNull();
   });
   it('7 Tage alt → rot mit Problemtext', () => {

@@ -1,5 +1,5 @@
 // Karte „Sicherungen“ im Systemstatus-Fenster (23.11.2026, Uli: „unter Alles läuft eine Karte
-// Sicherungen“). Je Datenbank eine Zeile: zuletzt gesichert, von welchem PC, Ersatz übersprungen.
+// Sicherungen“). Je Datenbank eine Zeile: zuletzt gesichert, von welchem PC, Ersatz bereit (nicht nötig).
 // Rechnung: sicherungKurz() in lib/backupStatus.ts. GLEICHE Datei in Hausverwaltung und Heizung
 // (src/components/layout/SystemBackupsCard.tsx) – Änderungen in beiden Repos gleich halten.
 import { DatabaseBackup } from 'lucide-react';
