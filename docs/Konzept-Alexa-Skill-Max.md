@@ -182,5 +182,10 @@ cd - && ALEXA_TEST_DIR="$D" deno test -A --no-check supabase/functions/alexa-max
 
 - Annahme 24.11.2026 (Vorschlag, von Uli noch nicht ausdrücklich bestätigt): „Wäsche
   bestätigt“ wie Abschnitt 2.1; „diese Woche“ = heute plus sechs Tage.
+- Erfahrung 24.11.2026 (erster Test im Simulator): Die Supabase Edge Runtime kennt
+  `X509Certificate.checkIssued()` nicht („Not implemented“) und liefert den Zertifikatsnamen
+  anders als Deno lokal. `verify.ts` prüft deshalb den Namen über `checkHost`/SAN/CN und die
+  Kette über den Vergleich Aussteller = Inhaber. Lokale Tests allein reichen hier nicht —
+  nach jeder Änderung an `verify.ts` einmal im Simulator testen. Ergebnis: Antwort kommt.
 - Offen: Kommentar im Kopf von `kalender-abgleich` korrigieren (Abschnitt 2.2).
 - Offen: Signaturprüfung auch in `alexa-heizung` (Repo `heizung-muenchen`) nachziehen.
