@@ -1,0 +1,255 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "max",
+      "intents": [
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": [
+            "was kannst du",
+            "hilfe"
+          ]
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
+        {
+          "name": "AnreisenIntent",
+          "slots": [
+            {
+              "name": "haus",
+              "type": "HAUS"
+            }
+          ],
+          "samples": [
+            "wer diese woche anreist",
+            "wer diese woche kommt",
+            "wer diese woche ankommt",
+            "welche anreisen es diese woche gibt",
+            "welche gäste diese woche kommen",
+            "ob diese woche gäste kommen",
+            "wer in den nächsten tagen anreist",
+            "wer in den nächsten tagen kommt",
+            "welche buchungen diese woche anreisen",
+            "wer diese woche anreist im {haus}",
+            "wer diese woche anreist in {haus}",
+            "wer diese woche anreist beim {haus}",
+            "wer diese woche kommt im {haus}",
+            "wer diese woche kommt in {haus}",
+            "wer diese woche kommt beim {haus}",
+            "wer diese woche ankommt im {haus}",
+            "wer diese woche ankommt in {haus}",
+            "wer diese woche ankommt beim {haus}",
+            "welche anreisen es diese woche gibt im {haus}",
+            "welche anreisen es diese woche gibt in {haus}",
+            "welche anreisen es diese woche gibt beim {haus}"
+          ]
+        },
+        {
+          "name": "NaechsteAnreiseIntent",
+          "slots": [
+            {
+              "name": "haus",
+              "type": "HAUS"
+            }
+          ],
+          "samples": [
+            "wann die nächsten gäste kommen",
+            "wann kommen die nächsten gäste",
+            "wann der nächste gast kommt",
+            "wann die nächste anreise ist",
+            "wann ist die nächste anreise",
+            "wer als nächstes kommt",
+            "wer als nächstes anreist",
+            "wann die nächste buchung ist",
+            "wann ist die nächste buchung",
+            "nach der nächsten anreise",
+            "wann die nächsten gäste kommen im {haus}",
+            "wann die nächsten gäste kommen in {haus}",
+            "wann die nächsten gäste kommen beim {haus}",
+            "wann kommen die nächsten gäste im {haus}",
+            "wann kommen die nächsten gäste in {haus}",
+            "wann kommen die nächsten gäste beim {haus}",
+            "wann der nächste gast kommt im {haus}",
+            "wann der nächste gast kommt in {haus}",
+            "wann der nächste gast kommt beim {haus}",
+            "wann die nächste anreise ist im {haus}",
+            "wann die nächste anreise ist in {haus}",
+            "wann die nächste anreise ist beim {haus}"
+          ]
+        },
+        {
+          "name": "ImHausIntent",
+          "slots": [
+            {
+              "name": "haus",
+              "type": "HAUS"
+            }
+          ],
+          "samples": [
+            "wer gerade im haus ist",
+            "wer gerade da ist",
+            "ob gerade jemand da ist",
+            "ob jemand im haus ist",
+            "wer im moment im haus ist",
+            "wie die belegung ist",
+            "nach der belegung",
+            "wer gerade im {haus} ist",
+            "wer gerade in {haus} ist",
+            "wer gerade beim {haus} ist",
+            "wer ist gerade im {haus}",
+            "wer ist gerade in {haus}",
+            "wer ist gerade beim {haus}",
+            "ob jemand im {haus} ist",
+            "ob jemand in {haus} ist",
+            "ob jemand beim {haus} ist",
+            "ob gerade jemand im {haus} ist",
+            "ob gerade jemand in {haus} ist",
+            "ob gerade jemand beim {haus} ist",
+            "wie die belegung im {haus} ist",
+            "wie die belegung in {haus} ist",
+            "wie die belegung beim {haus} ist"
+          ]
+        },
+        {
+          "name": "ReinigungIntent",
+          "slots": [
+            {
+              "name": "haus",
+              "type": "HAUS"
+            }
+          ],
+          "samples": [
+            "wann die nächste reinigung ist",
+            "wann ist die nächste reinigung",
+            "wann geputzt wird",
+            "wann wird geputzt",
+            "wann die reinigung ist",
+            "wann die putzfrau kommt",
+            "nach der nächsten reinigung",
+            "wann die nächste reinigung ist im {haus}",
+            "wann die nächste reinigung ist in {haus}",
+            "wann die nächste reinigung ist beim {haus}",
+            "wann ist die nächste reinigung im {haus}",
+            "wann ist die nächste reinigung in {haus}",
+            "wann ist die nächste reinigung beim {haus}",
+            "wann geputzt wird im {haus}",
+            "wann geputzt wird in {haus}",
+            "wann geputzt wird beim {haus}"
+          ]
+        },
+        {
+          "name": "WaescheIntent",
+          "slots": [
+            {
+              "name": "haus",
+              "type": "HAUS"
+            }
+          ],
+          "samples": [
+            "ob die wäsche bestätigt ist",
+            "ist die wäsche bestätigt",
+            "wie es mit der wäsche aussieht",
+            "wann die wäsche kommt",
+            "wann kommt die wäsche",
+            "wann die nächste wäschelieferung ist",
+            "nach der wäsche",
+            "ob die bettwäsche bestellt ist",
+            "ob die wäsche bestätigt ist im {haus}",
+            "ob die wäsche bestätigt ist in {haus}",
+            "ob die wäsche bestätigt ist beim {haus}",
+            "ist die wäsche bestätigt im {haus}",
+            "ist die wäsche bestätigt in {haus}",
+            "ist die wäsche bestätigt beim {haus}",
+            "wie es mit der wäsche aussieht im {haus}",
+            "wie es mit der wäsche aussieht in {haus}",
+            "wie es mit der wäsche aussieht beim {haus}"
+          ]
+        },
+        {
+          "name": "AnfragenIntent",
+          "samples": [
+            "ob es offene anfragen gibt",
+            "gibt es offene anfragen",
+            "ob neue anfragen da sind",
+            "ob es neue anfragen gibt",
+            "gibt es neue anfragen",
+            "nach offenen anfragen",
+            "nach anfragen"
+          ]
+        },
+        {
+          "name": "HeuteIntent",
+          "slots": [
+            {
+              "name": "haus",
+              "type": "HAUS"
+            }
+          ],
+          "samples": [
+            "was heute ansteht",
+            "was steht heute an",
+            "was heute los ist",
+            "was ist heute los",
+            "was heute zu tun ist",
+            "was heute passiert",
+            "nach dem tagesplan",
+            "was steht an",
+            "was heute ansteht im {haus}",
+            "was heute ansteht in {haus}",
+            "was heute ansteht beim {haus}",
+            "was steht heute an im {haus}",
+            "was steht heute an in {haus}",
+            "was steht heute an beim {haus}",
+            "was heute los ist im {haus}",
+            "was heute los ist in {haus}",
+            "was heute los ist beim {haus}"
+          ]
+        }
+      ],
+      "types": [
+        {
+          "name": "HAUS",
+          "values": [
+            {
+              "id": "wald",
+              "name": {
+                "value": "wald chalet",
+                "synonyms": [
+                  "wald",
+                  "waldhaus",
+                  "waldchalet",
+                  "chalet im wald"
+                ]
+              }
+            },
+            {
+              "id": "venediger",
+              "name": {
+                "value": "venediger chalet",
+                "synonyms": [
+                  "venediger",
+                  "venedigerchalet",
+                  "venediger haus"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

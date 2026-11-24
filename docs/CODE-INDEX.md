@@ -1087,6 +1087,21 @@ Hooks: `useSystemSettings`, `usePricingSettings`, `useAppVersionCheck`.
   Repos gleich. Doku `docs/Systemstatus.md`.
 ---
 
+## 13e. Alexa-Skill „Max“ (kein Tab) — NEU 24.11.2026
+
+- Sprachzugang zur Hausverwaltung: „Alexa, frag Max, wann die nächsten Gäste kommen.“ Kein UI-Teil.
+- Edge Function `supabase/functions/alexa-max/index.ts` (JWT-Prüfung aus, `config.toml`), Prüfung der
+  Alexa-Anfrage in `alexa-max/verify.ts` (Skill-ID, Zeitstempel, Signatur, erlaubte Benutzer), Tests
+  `alexa-max/verify.test.ts`. Sprachmodell `alexa/interaction-model-de-DE.json` (Aufrufname `max`).
+- **Nur lesend**, keine KI, `chat-assistant` unbeteiligt. Gastnamen über `guests!bookings_guest_id_fkey`.
+- Intents: `AnreisenIntent`, `NaechsteAnreiseIntent`, `ImHausIntent`, `ReinigungIntent`, `WaescheIntent`,
+  `AnfragenIntent`, `HeuteIntent`. Wer Statuswerte von `bookings`, `service_tasks`, `linen_orders` oder
+  `booking_inquiries` ändert, muss `alexa-max` mitziehen.
+- Vorbild/Schwester: Skill „Meine Heizung“ (Repo `heizung-muenchen`, `alexa-heizung`). Konzept und
+  Einrichtung: `docs/Konzept-Alexa-Skill-Max.md`.
+
+---
+
 ## 13d. Modul „Dokumente" (Tab 📄) — nachgetragen 01.10.2026
 
 **Einstieg:** `components/Documents/DocumentsTab.tsx` ← `pages/OriginalDashboard.tsx`.

@@ -84,3 +84,7 @@ verify_jwt = false
 # Wohnen auf Zeit: Website-Kunde (nicht angemeldet) + DB-Trigger; Prüfung über Angebots-Token (SQL 72/73)
 [functions.rental-portal]
 verify_jwt = false
+
+# Alexa-Skill „Max“: Alexa schickt keinen Supabase-JWT; Prüfung über Skill-ID + Signatur (alexa-max/verify.ts)
+[functions.alexa-max]
+verify_jwt = false
